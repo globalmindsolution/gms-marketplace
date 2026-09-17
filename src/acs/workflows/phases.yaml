@@ -74,16 +74,15 @@ internal:
 #     deliverable against those notes (create-docs was the first, with
 #     ADR-0094; the other twelve followed in ADR-0092's stage 2);
 #   * code keeps an executor and a verifier; its plan phase is its own skill.
-#     Its four delivery-path legs (ADR-0095) own the same pair -- what differs
-#     between them is how many of each run and how deep the verifier looks,
-#     which is each leg's own SKILL.md to declare, not a role difference.
+#     Its four delivery-path legs (ADR-0095) declare NO agents of their own and
+#     spawn `acs:code-executor` / `acs:code-verifier` -- the same two files.
+#     What differs between the paths is how MANY of each run and how deep the
+#     verifier looks, which is each leg's SKILL.md to say. Giving a leg its own
+#     agents entry would demand four near-identical copies of two charters,
+#     which is the duplication ADR-0094 removed from the doc sets.
 agents:
   analyze-ticket: [executor, verifier]
   code: [executor, verifier]
-  code-trivial: [executor, verifier]
-  code-small: [executor, verifier]
-  code-standard: [executor, verifier]
-  code-complex: [executor, verifier]
   create-api-contract: [executor, verifier]
   create-architecture: [executor, verifier]
   create-design: [executor, verifier]

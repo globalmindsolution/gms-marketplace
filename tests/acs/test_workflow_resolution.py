@@ -26,7 +26,7 @@ import acs_lib as lib  # noqa: E402
 
 PLUGIN = os.path.dirname(os.path.dirname(SCRIPTS))
 
-OVERRIDE = ("version: 1\n"
+OVERRIDE = ("version: 2\n"
             "name: custom\n"
             "stop_after: only\n"
             "steps:\n"
@@ -34,7 +34,7 @@ OVERRIDE = ("version: 1\n"
             "    skill: code\n")
 
 #: A minimal valid document the failure cases mutate. Line numbers noted.
-BASE = ("version: 1\n"             # 1
+BASE = ("version: 2\n"             # 1
         "name: t\n"                # 2
         "stop_after: b\n"          # 3
         "steps:\n"                 # 4
@@ -78,7 +78,7 @@ class TestResolution(AcsWorkspaceCase):
         self.assertEqual(lib.resolve_workflow(self.repo)["path"], lib.default_workflow_path())
 
     def test_an_unparseable_override_is_a_workflow_error_with_its_line(self):
-        path = self._override("version: 1\nname: x\nsteps: {a}\n")
+        path = self._override("version: 2\nname: x\nsteps: {a}\n")
         with self.assertRaises(lib.WorkflowError) as ctx:
             lib.resolve_workflow(self.repo)
         self.assertEqual(ctx.exception.line, 3)
@@ -116,14 +116,22 @@ class TestValidationFailures(unittest.TestCase):
     def test_unknown_top_level_key(self):
         self.assertFailsAt(BASE.replace("steps:\n", "bogus: 1\nsteps:\n"), 4, "unknown key 'bogus'")
 
-    def test_wrong_version(self):
-        self.assertFailsAt(BASE.replace("version: 1", "version: 2"), 1, "version: must be 1")
+    def test_a_version_1_file_is_refused_with_the_migration(self):
+        """ADR-0095 took ship.yaml to version 2. A v1 file is not adapted: its
+        `code` step names a skill that no longer exists on its own, so the
+        refusal names what to add rather than guessing a mapping."""
+        self.assertFailsAt(BASE.replace("version: 2", "version: 1"), 1,
+                           "version: 1 is not supported")
+
+    def test_an_unknown_future_version_is_refused_too(self):
+        self.assertFailsAt(BASE.replace("version: 2", "version: 3"), 1,
+                           "version: 3 is not supported")
 
     def test_missing_name_is_reported_at_the_root(self):
         self.assertFailsAt(BASE.replace("name: t\n", ""), 1, "missing required key 'name'")
 
     def test_empty_steps(self):
-        self.assertFailsAt("version: 1\nname: t\nsteps: []\n", 3, "at least 1")
+        self.assertFailsAt("version: 2\nname: t\nsteps: []\n", 3, "at least 1")
 
     def test_document_that_is_not_a_mapping(self):
         self.assertFailsAt("- a\n", 1, "expected object, got array")
@@ -188,7 +196,10 @@ class TestValidationFailures(unittest.TestCase):
 
     def test_on_fail_max_loops_unknown_name(self):
         text = BASE + "    on_fail:\n      relay_to: a\n      max_loops: bogus_cap\n"
-        self.assertFailsAt(text, 12, "does not match exactly one of the allowed forms")
+        # A `oneOf` reports the branch that fits the value's own type, so an
+        # unknown STRING gets the enum branch's complaint, not a note that an
+        # integer would also have been allowed.
+        self.assertFailsAt(text, 12, "'bogus_cap' is not one of")
 
     def test_on_fail_max_loops_accepts_an_integer_or_the_named_cap(self):
         self._validate(BASE + "    on_fail:\n      relay_to: a\n      max_loops: 3\n")
@@ -196,7 +207,7 @@ class TestValidationFailures(unittest.TestCase):
 
     def test_on_fail_max_loops_rejects_a_negative(self):
         text = BASE + "    on_fail:\n      relay_to: a\n      max_loops: -1\n"
-        self.assertFailsAt(text, 12, "does not match exactly one")
+        self.assertFailsAt(text, 12, "must be >= 0")
 
     def test_on_replan_unknown(self):
         self.assertFailsAt(BASE + "    on_replan: zzz\n", 10, "'zzz' is not another step id")

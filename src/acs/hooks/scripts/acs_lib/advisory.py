@@ -43,10 +43,15 @@ def render_advisory(skill, ticket_id, needs, pending):
 
 
 def _workflow_step(doc, skill):
-    """The first ship.yaml step whose skill is `skill` (aliases resolved), or None."""
+    """The first ship.yaml step `skill` names (aliases resolved), or None.
+
+    Matched through workflow.step_matches, which also answers to a step id and
+    to every skill a per-path `skill` mapping can resolve to -- a plain equality
+    test here silently missed the `code` step once it held four legs, and an
+    unmatched step renders an advisory with an empty needs list."""
     skill = workflow.skill_aliases().get(skill, skill)
     for step in doc.get("steps") or []:
-        if step.get("skill") == skill:
+        if workflow.step_matches(step, skill):
             return step
     return None
 

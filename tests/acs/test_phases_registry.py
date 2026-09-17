@@ -49,12 +49,20 @@ EXPECTED_GROUPS = {
 }
 
 
-#: The entry-point fold (brief section 1): each internal leg keeps its SKILL.md,
-#: agents, hooks and gate and stays Skill-invocable, but only the entry point it
-#: maps to is user-facing.
+#: The entry-point fold (brief section 1): each internal leg keeps its SKILL.md
+#: and stays Skill-invocable, but only the entry point it maps to is
+#: user-facing. The two project legs also keep their own agents, hooks and
+#: gate; `code`'s four delivery-path legs (ADR-0095) keep none of those -- they
+#: run `skill-start.py --skill code`, pass `code`'s gate and finish through
+#: `post-code.py`, so all four share `code`'s identity on disk and differ only
+#: in the protocol their SKILL.md declares.
 EXPECTED_INTERNAL = {
     "create-project": "project",
     "standardize-project": "project",
+    "code-trivial": "code",
+    "code-small": "code",
+    "code-standard": "code",
+    "code-complex": "code",
 }
 
 def skill_dirs():

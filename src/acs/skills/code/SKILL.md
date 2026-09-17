@@ -65,9 +65,18 @@ PY
 
 On exit 2: surface stderr verbatim and stop.
 
-**A recorded `delivery_path`** → invoke that leg with the Skill tool,
-`acs:code-<path>`, passing the ticket id as its argument, and follow it to
-completion as its coordinator. You add nothing: no extra context, no
+**A recorded `delivery_path`** → invoke that leg with the Skill tool, passing
+the ticket id as its argument, and follow it to completion as its coordinator:
+
+| Recorded path | Invoke |
+|---|---|
+| `trivial` | `Skill(acs:code-trivial)` |
+| `small` | `Skill(acs:code-small)` |
+| `standard` | `Skill(acs:code-standard)` |
+| `complex` | `Skill(acs:code-complex)` |
+
+It is a real Skill call, so the leg's own pre-hook gates it (through `code`'s
+gate) and its own post-hook finalises it. You add nothing: no extra context, no
 instructions of your own, no interpretation of the plan. The leg runs its own
 Start, holds its own reflection loop, and returns its own handoff — which is
 this skill's handoff too.
@@ -97,7 +106,7 @@ a later `/acs:ship <id>` agree about which path the ticket is on, and it is why
 
 **The workflow declares no `delivery` block** (a consumer override that
 predates paths, or one that deliberately has none) → `paths` comes back empty.
-Run `acs:code-standard`: it is the path whose rigor matches the single `code`
+Invoke `Skill(acs:code-standard)`: it is the path whose rigor matches the single `code`
 protocol this plugin had before the split, so a workflow with no opinion gets
 the behaviour it used to have.
 

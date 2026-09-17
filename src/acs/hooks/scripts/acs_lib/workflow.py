@@ -223,10 +223,35 @@ def _schema_errors(schema, value, root=None, path=()):
         if "minimum" in schema and value < schema["minimum"]:
             errors.append((path, "must be >= %s" % schema["minimum"]))
     if "oneOf" in schema:
-        matches = sum(1 for sub in schema["oneOf"] if not _schema_errors(sub, value, root, path))
+        branch_errors = [_schema_errors(sub, value, root, path) for sub in schema["oneOf"]]
+        matches = sum(1 for errs in branch_errors if not errs)
         if matches != 1:
-            errors.append((path, "%r does not match exactly one of the allowed forms" % (value,)))
+            # Report the branch that best fits the value's own type rather than
+            # the generic "matched no form". A per-path field is `oneOf` a
+            # scalar and a mapping, and a reader who wrote a scalar wants the
+            # scalar branch's complaint -- naming the allowed values -- not a
+            # note that a mapping would also have been acceptable.
+            specific = None
+            for sub, errs in zip(schema["oneOf"], branch_errors):
+                if not errs:
+                    continue
+                if _branch_fits_type(sub, value, root):
+                    specific = errs[0]
+                    break
+            errors.append(specific or
+                          (path, "%r does not match exactly one of the allowed forms" % (value,)))
     return errors
+
+
+def _branch_fits_type(sub, value, root):
+    """True when this `oneOf` branch describes values of `value`'s own JSON
+    type -- the branch whose complaint is worth surfacing."""
+    if "$ref" in sub:
+        sub = _deref(root, sub["$ref"])
+    if "enum" in sub and not isinstance(value, (dict, list)):
+        return True
+    typ = sub.get("type")
+    return bool(typ) and _is_type(value, typ)
 
 
 def _pointer(path):
@@ -355,17 +380,27 @@ def phase_of(skill, phases=None):
 
 
 def allowed_ship_skills(phases=None):
-    """The skills a ship.yaml step may name: build + test + ship, minus
-    SHIP_EXCLUDED_SKILLS, plus the internal legs those skills serve as entry
-    point. The schema's `skillName` enum mirrors this list.
-
-    The legs are here because a per-path `skill` mapping names them directly
-    (`code` resolves to `code-standard`). A leg is admissible exactly when the
-    command it serves is itself admissible, so a leg of `merge-pr` could never
-    slip in through this door."""
+    """The user-facing skills a ship.yaml step may name: build + test + ship,
+    minus SHIP_EXCLUDED_SKILLS. No internal leg is here — a leg is not a
+    command, and this list has always meant "commands the pipeline may run"."""
     phases = phases or load_phases()
-    entry_points = [skill for group in SHIP_PHASES for skill in phases["phases"][group]
-                    if skill not in SHIP_EXCLUDED_SKILLS]
+    return [skill for group in SHIP_PHASES for skill in phases["phases"][group]
+            if skill not in SHIP_EXCLUDED_SKILLS]
+
+
+def allowed_step_skills(phases=None):
+    """What a step's `skill` may resolve to: allowed_ship_skills(), plus the
+    internal legs those skills serve as entry point. The schema's `skillName`
+    enum mirrors this list.
+
+    The legs are admissible only HERE, and only through a per-path mapping: the
+    `code` step names `code-standard` on one path and `code-trivial` on another
+    (ADR-0095). Keeping that separate from allowed_ship_skills() preserves what
+    that function has always meant — a leg still is not a command — and makes
+    the one place legs become nameable explicit. A leg is admissible exactly
+    when the command it serves is, so a leg of `merge-pr` could never slip in."""
+    phases = phases or load_phases()
+    entry_points = allowed_ship_skills(phases)
     legs = [leg for leg, entry in phases["internal"].items() if entry in entry_points]
     return entry_points + sorted(legs)
 
@@ -412,6 +447,15 @@ def step_skills(step):
     if isinstance(skill, dict):
         return list(dict.fromkeys(skill.values()))
     return [skill] if skill else []
+
+
+def step_matches(step, skill):
+    """True when `skill` names this step: its id, or any skill it can resolve to.
+
+    One matcher, because a per-path step answers to four skill names plus its
+    id, and two callers that disagree about which of those count produce an
+    advisory that names an empty step list."""
+    return skill == step.get("id") or skill in step_skills(step)
 
 
 def recorded_delivery_path(tdir, ticket_id):
@@ -489,6 +533,8 @@ def validate_workflow(doc, phases=None, lines=None, path=None):
     """Schema plus semantic checks; returns `doc`, raises WorkflowError naming
     the source line when `lines` (from yamlsubset.parse) is given."""
     phases = phases or load_phases()
+    if not isinstance(doc, dict):
+        _fail("(document): expected object, got %s" % _type_name(doc), path, lines, ())
     if doc.get("version") != WORKFLOW_VERSION:
         _fail("version: %r is not supported — this build reads version %d. A version-1 "
               "file predates delivery paths (ADR-0095): add a `delivery` block and "
@@ -499,7 +545,7 @@ def validate_workflow(doc, phases=None, lines=None, path=None):
     if errors:
         node, message = errors[0]
         _fail("%s: %s" % (_pointer(node), message), path, lines, node)
-    allowed = allowed_ship_skills(phases)
+    allowed = allowed_step_skills(phases)
     steps = doc["steps"]
     ids = []
     for index, step in enumerate(steps):
@@ -541,7 +587,7 @@ def validate_workflow(doc, phases=None, lines=None, path=None):
                       % (index, name, ", ".join(paths)), path, lines, node + ("paths",))
         for skill in step_skills(step):
             if skill not in allowed:
-                _fail("steps[%d].skill: %r is not a build/test/ship skill (allowed: %s)"
+                _fail("steps[%d].skill: %r is not a build/test/ship skill or a leg of one (allowed: %s)"
                       % (index, skill, ", ".join(allowed)), path, lines, node + ("skill",))
         for need in step.get("needs") or []:
             if need not in ids[:index]:
@@ -986,16 +1032,15 @@ def pending_needs(wctx, skill, resolved=None):
     _ready, _blocked, statuses, satisfied = _walk(wctx, doc, phases["aliases"], False, path)
     by_id = {step["id"]: step for step in doc["steps"]}
 
-    def names(step):
-        """A per-path step answers to its entry point too, so invoking
-        /acs:code directly finds the step whose mapping holds the legs."""
-        return set(step_skills(step)) | {step["id"]}
-
     for step in doc["steps"]:
-        if skill not in names(step):
+        if not step_matches(step, skill):
             continue
+        # An unresolved per-path skill reports the STEP ID, not one of its legs:
+        # before the classification there is no fact about which leg will run,
+        # and naming the first one would be an arbitrary answer dressed as a
+        # real one. The step id is the stable name a reader already knows.
         return [{"step": need,
-                 "skill": per_path(by_id[need]["skill"], path) or step_skills(by_id[need])[0],
+                 "skill": per_path(by_id[need]["skill"], path) or by_id[need]["id"],
                  "status": statuses.get(need)}
                 for need in step.get("needs") or [] if not satisfied.get(need)]
     return []

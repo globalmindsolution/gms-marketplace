@@ -102,7 +102,17 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 # separately maintained copy by design -- this module never imports the
 # registry for it). `project` is the design-phase fold's umbrella over the
 # two project legs: no agents, no gate, no hook scripts.
-ALL_SKILLS = HOOKED_SKILLS + ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage", "test", "run-e2e-tests", "release", "project"]
+# `code`'s four delivery-path legs (ADR-0095). They are hooked -- each is a real
+# Skill call and passes `code`'s own gate -- but they are NOT in HOOKED_SKILLS:
+# that list drives the per-skill lifecycle-script assertions, and a leg runs
+# `skill-start.py --skill code`, not one of its own. They own no agents either;
+# they spawn `code`'s. What they DO owe is every contract a skill owes, which
+# read_skill_contract resolves by following their pointers into
+# skills/code/references/.
+CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
+ALL_SKILLS = (HOOKED_SKILLS + CODE_PATH_LEGS
+              + ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
+                 "usage", "test", "run-e2e-tests", "release", "project"])
 ROLES = ["planner", "executor", "verifier"]
 
 # Which agent roles each skill owns — READ FROM THE REGISTRY, never derived
@@ -144,7 +154,7 @@ class TestSkillContracts(unittest.TestCase):
 
     def test_hooked_skills_call_their_lifecycle_scripts(self):
         for name in HOOKED_SKILLS:
-            body = read(self.skill_path(name))
+            body = read_skill_contract(name)
             self.assertIn("skill-start.py", body, name)
             self.assertRegex(body, r"--skill %s\b" % re.escape(name), name)
             self.assertIn("post-%s.py" % name, body, name)
@@ -153,11 +163,11 @@ class TestSkillContracts(unittest.TestCase):
     def test_every_skill_has_completion_report(self):
         for name in ALL_SKILLS:
             self.assertIn("## Completion report (normative)",
-                          read(self.skill_path(name)), name)
+                          read_skill_contract(name), name)
 
     def test_hooked_skills_have_clarification_ledger_rule(self):
         for name in HOOKED_SKILLS:
-            body = read(self.skill_path(name))
+            body = read_skill_contract(name)
             self.assertIn("Clarification ledger first.", body, name)
             self.assertIn("clarify.py", body, name)
 
@@ -684,7 +694,7 @@ class TestApplyTierInline(unittest.TestCase):
     def test_apply_skills_preserved_load_bearing_steps(self):
         """AC-4: canonical states keys and post-hook references must survive."""
         # create-pr: states.pr nested object plus post-hook
-        create_pr_body = read(self.skill_path("create-pr"))
+        create_pr_body = read_skill_contract("create-pr")
         self.assertIsNotNone(
             re.search(r'"states"\s*:\s*\{\s*"pr"\s*:', create_pr_body),
             "AC-4 [create-pr]: Finish must declare the canonical states.pr object")
@@ -725,12 +735,20 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-ticket]: Finish must name states.prd_trace key")
         self.assertIn("post-create-ticket.py", create_ticket_body,
                       "AC-4 [create-ticket]: post-hook reference must survive")
-        self.assertIn("size", create_ticket_body,
-                      "AC-4 [create-ticket]: user-confirmation gate token size must survive")
-        self.assertIn("stakes", create_ticket_body,
-                      "AC-4 [create-ticket]: user-confirmation gate token stakes must survive")
-        self.assertIn("lane", create_ticket_body,
-                      "AC-4 [create-ticket]: user-confirmation gate token lane must survive")
+        # ADR-0095 retired the size/stakes/lane axes, so the confirmation gate no
+        # longer has them to confirm. What it still owes is the gate itself and
+        # the items that remain behind it -- asserting the gate, not the fields,
+        # is what this always meant to pin.
+        self.assertIn("USER CONFIRMATION", create_ticket_body,
+                      "AC-4 [create-ticket]: the user-confirmation gate must survive")
+        self.assertIn("docs_only", create_ticket_body,
+                      "AC-4 [create-ticket]: docs_only is still confirmed at the gate")
+        for retired in ('"size"', '"stakes"', '"lane"', "derive_lane"):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, create_ticket_body,
+                                 "%s was retired by ADR-0095; a ticket carries no rigor "
+                                 "axes and the delivery path is judged from the plan"
+                                 % retired)
 
     # ------------------------------------------------------------------ Group 6
     # AC-6: the authoring skills still reference their executor and verifier.
@@ -754,7 +772,7 @@ class TestApplyTierInline(unittest.TestCase):
     def test_code_references_its_executor_and_verifier(self):
         """AC-6, /acs:code after the plan carve-out: no planner reference may
         survive, and both surviving roles must still be named."""
-        body = read(self.skill_path("code"))
+        body = read_skill_contract("code")
         self.assertNotIn("acs:code-planner", body)
         for role in ("executor", "verifier"):
             self.assertIsNotNone(
@@ -979,265 +997,46 @@ class TestProductSkillConventionWiring(unittest.TestCase):
                 "%s: render-title must co-occur with --provider within a bounded window" % skill)
 
 
+#: `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/references/<file>.md` as a SKILL.md
+#: writes it — the one spelling that resolves wherever the plugin is installed.
+_REFERENCE_POINTER = re.compile(
+    r"\$\{CLAUDE_PLUGIN_ROOT\}/skills/([a-z0-9-]+)/references/([A-Za-z0-9_.-]+\.md)")
+
+
 def read_skill_contract(name):
-    """A skill's full contract text: its SKILL.md plus any `references/*.md`.
+    """A skill's full contract text: its SKILL.md, its own `references/*.md`,
+    and every reference it POINTS AT in another skill's directory.
 
-    /acs:code moved its three conditional lane-change branches (the COMPLEX
-    breakdown recommendation, in-loop escalation, boundary-only de-escalation)
-    into `references/lane-changes.md` under progressive disclosure: they are
-    entered by few runs but sat in the coordinator's context on every one.
+    Two splits drove this. /acs:code first moved its conditional lane-change
+    branches into `references/` under progressive disclosure. ADR-0095 then
+    split /acs:code into four delivery-path legs that SHARE one protocol: each
+    leg's SKILL.md carries only what makes that path different and points at
+    `skills/code/references/` for the rest. A leg's contract is therefore
+    spread across two directories, and a reader that only globbed its own would
+    conclude every shared rule had been deleted.
 
-    The assertions below pin what the SKILL SAYS, not which of its files says
-    it, so they read the whole contract. Reading only SKILL.md would make a
-    later split look like a deleted rule; reading the concatenation keeps the
-    pin honest and lets the layout keep evolving. References are appended in
-    sorted order after SKILL.md, and each moved section stays contiguous, so
-    the proximity assertions (e.g. no-restart within 400 chars of the named
-    detection point) still measure what they always did.
+    Following the pointers rather than hard-coding the layout is what keeps
+    these pins honest: the assertions below say what a SKILL SAYS, never which
+    file says it, so the layout stays free to change and a rule that genuinely
+    vanishes still fails. Own references come first in sorted order, then
+    pointed-at ones in first-mention order; each moved section stays contiguous,
+    so proximity assertions still measure what they always did.
     """
     base = os.path.join(PLUGIN, "skills", name)
-    parts = [read(os.path.join(base, "SKILL.md"))]
+    own = read(os.path.join(base, "SKILL.md"))
+    parts = [own]
     parts.extend(read(p) for p in
                  sorted(glob.glob(os.path.join(base, "references", "*.md"))))
+    seen = set()
+    for skill, filename in _REFERENCE_POINTER.findall(own):
+        if skill == name:
+            continue  # already globbed above
+        pointed = os.path.join(PLUGIN, "skills", skill, "references", filename)
+        if pointed in seen or not os.path.isfile(pointed):
+            continue
+        seen.add(pointed)
+        parts.append(read(pointed))
     return "\n".join(parts)
-
-class TestCodeSkillEscalation(unittest.TestCase):
-    """MAR-57 Spec 02 (AC-1, AC-2, AC-6): pin the in-loop escalation contract in
-    src/acs/skills/code/SKILL.md. Doc-assertion tests that read the prose
-    and assert the presence of normative tokens. The tests are RED before the
-    escalation subsection is added; GREEN after.
-    """
-
-    def skill_path(self, name):
-        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
-
-    def _body(self):
-        return read_skill_contract("code")
-
-    # --- AC-6: exactly three triggers enumerated ---
-
-    def test_trigger_a_verifier_finding(self):
-        """AC-6: code/SKILL.md must name trigger (a) — verifier finding signaling higher
-        stakes/size."""
-        body = self._body()
-        # Accept either 'verifier finding' or 'finding' near 'stakes' or 'size'
-        self.assertIsNotNone(
-            re.search(r"(?i)verifier finding|finding.*higher.{0,60}(stakes|size)", body),
-            "code/SKILL.md must enumerate trigger (a): verifier finding signaling "
-            "higher stakes/size (MAR-57 AC-6)")
-
-    def test_trigger_b_high_stakes_paths_glob(self):
-        """AC-6: code/SKILL.md must name trigger (b) using high_stakes_paths (the glob
-        mechanism, not a re-implementation)."""
-        body = self._body()
-        self.assertIn("high_stakes_paths", body,
-                      "code/SKILL.md must reference high_stakes_paths for trigger (b) "
-                      "(MAR-57 AC-6 — reuse glob mechanism, not a re-implementation)")
-
-    def test_trigger_c_explicit_user_agent_request(self):
-        """AC-6: code/SKILL.md must name trigger (c) — explicit user/agent escalation
-        request."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(r"(?i)explicit.{0,40}(user|agent)|user.{0,40}agent.{0,40}(escalat|request)",
-                      body),
-            "code/SKILL.md must enumerate trigger (c): explicit user/agent escalation "
-            "request (MAR-57 AC-6)")
-
-    def test_escalate_lane_named(self):
-        """AC-4/AC-6: code/SKILL.md must name escalate_lane (the Spec-01 helper) so the
-        coordinator recomputes via the canonical derive_lane path (not hand-set)."""
-        body = self._body()
-        self.assertIn("escalate_lane", body,
-                      "code/SKILL.md must reference escalate_lane (MAR-57 AC-4/AC-6)")
-
-    # --- AC-2: first-signal / immediate evaluation ---
-
-    def test_first_signal_evaluated_immediately(self):
-        """AC-2: code/SKILL.md must state that escalation is evaluated on the FIRST
-        signal (not after N findings or cap exhaustion)."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(r"(?i)(first.{0,30}signal|immediately|on.{0,30}first)", body),
-            "code/SKILL.md must state escalation is evaluated on the first signal / "
-            "immediately (MAR-57 AC-2)")
-
-    # --- AC-1: no-restart / continue-from-current-point ---
-
-    def test_no_restart_property(self):
-        """AC-1: code/SKILL.md must state the no-restart / continue-from-current-point
-        property: completed work is not discarded when escalation fires."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)(no.restart|without restart|without discard|continue.{0,60}"
-                r"(current|completed)|completed work)",
-                body),
-            "code/SKILL.md must state the no-restart / continue-from-current-point "
-            "property on escalation (MAR-57 AC-1)")
-
-    # --- AC-1/AC-7: upward-only, ceiling never lowered ---
-
-    def test_upward_only_stated(self):
-        """AC-1/AC-7: code/SKILL.md must state the lane is only ever raised, never
-        lowered (upward-only monotone escalation)."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(r"(?i)(upward.only|only.{0,30}rais|never.{0,30}lower|monoton)", body),
-            "code/SKILL.md must state upward-only / never-lower escalation "
-            "(MAR-57 AC-1/AC-7)")
-
-    # --- AC-4: re-persist to all three state files ---
-
-    def test_repersist_ticket_json(self):
-        """AC-4: code/SKILL.md must state that the escalated lane is persisted to
-        ticket.json via save_ticket (or by name)."""
-        body = self._body()
-        self.assertTrue(
-            "ticket.json" in body or "save_ticket" in body,
-            "code/SKILL.md must mention ticket.json or save_ticket for re-persist "
-            "(MAR-57 AC-4)")
-
-    def test_repersist_pipeline_state(self):
-        """AC-4: code/SKILL.md must state that pipeline-state.json is updated on
-        escalation via update_pipeline."""
-        body = self._body()
-        self.assertTrue(
-            "pipeline-state.json" in body or "update_pipeline" in body,
-            "code/SKILL.md must mention pipeline-state.json or update_pipeline for "
-            "re-persist (MAR-57 AC-4)")
-
-    def test_repersist_tickets_index(self):
-        """AC-4: code/SKILL.md must state that tickets-index.json is updated on
-        escalation via update_index."""
-        body = self._body()
-        self.assertTrue(
-            "tickets-index.json" in body or "update_index" in body,
-            "code/SKILL.md must mention tickets-index.json or update_index for "
-            "re-persist (MAR-57 AC-4)")
-
-    # --- MAR-106 AC-4: step (f) names the helper ---
-
-    def test_step_f_names_record_escalation_event(self):
-        """AC-4: code/SKILL.md step (f) must call record_escalation_event
-        (replacing the prior free-text coordinator-note phrasing)."""
-        body = self._body()
-        self.assertIn("record_escalation_event", body,
-                      "code/SKILL.md must name record_escalation_event in the "
-                      "escalation section (MAR-106 AC-4)")
-
-    # --- MAR-106 AC-4: persist-then-record ordering ---
-
-    def test_record_escalation_event_follows_persistence_steps(self):
-        """AC-4: record_escalation_event must be called AFTER the
-        save_ticket/update_pipeline/update_index persistence steps (b-d) and
-        the ceiling raise (e) — never before/interleaved."""
-        body = self._body()
-        save_pos = body.find("save_ticket")
-        update_pipeline_pos = body.find("update_pipeline")
-        update_index_pos = body.find("update_index")
-        record_pos = body.find("record_escalation_event")
-        self.assertGreater(save_pos, -1)
-        self.assertGreater(update_pipeline_pos, -1)
-        self.assertGreater(update_index_pos, -1)
-        self.assertGreater(record_pos, -1)
-        self.assertGreater(record_pos, save_pos,
-                           "record_escalation_event must appear after save_ticket (AC-4)")
-        self.assertGreater(record_pos, update_pipeline_pos,
-                           "record_escalation_event must appear after update_pipeline (AC-4)")
-        self.assertGreater(record_pos, update_index_pos,
-                           "record_escalation_event must appear after update_index (AC-4)")
-
-    # --- MAR-106 AC-6: idempotency-on-resume statement ---
-
-    def test_idempotency_on_resume_stated(self):
-        """AC-6: code/SKILL.md must state the no-duplicate-on-resume argument:
-        a resumed run re-reads the already-escalated axes, so the recompute is
-        a no-op and no duplicate event is appended."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(r"(?is)resum.{0,300}(no-op|no duplicate)", body),
-            "code/SKILL.md must state the resume idempotency argument "
-            "(MAR-106 AC-6)")
-
-    # --- MAR-106 AC-5/D2: frozen three-trigger statement ---
-
-    def test_signal_set_frozen_at_three_triggers(self):
-        """AC-5/D2: code/SKILL.md must state the signal set is frozen/complete
-        at exactly three triggers, with (b) named sole deterministic and
-        (a)/(c) named judgment."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(r"(?i)(frozen|exactly three).{0,200}trigger|trigger.{0,200}(frozen|exactly three)", body),
-            "code/SKILL.md must state the signal set is frozen at exactly "
-            "three triggers (MAR-106 AC-5/D2)")
-        self.assertIsNotNone(
-            re.search(r"(?i)sole deterministic", body),
-            "code/SKILL.md must name trigger (b) as the sole deterministic "
-            "signal (MAR-106 AC-5/D2)")
-        self.assertIsNotNone(
-            re.search(r"(?i)judgment", body),
-            "code/SKILL.md must name triggers (a)/(c) as judgment "
-            "(MAR-106 AC-5/D2)")
-
-    # --- MAR-106 AC-5/D2: no new deterministic helper/tunable (negative) ---
-
-    def test_no_new_deterministic_scope_helper_in_prose(self):
-        """AC-5/D2 negative: code/SKILL.md's escalation section must not
-        introduce a new settings key or scope/size helper name (e.g. no
-        recommend_size-style mechanism)."""
-        body = self._body()
-        self.assertNotIn("recommend_size", body,
-                         "code/SKILL.md must not introduce a recommend_size-style "
-                         "deterministic scope helper (MAR-106 AC-5/D2, frozen set)")
-
-    # --- MAR-107 D4 AC-1: named iteration-start escalation detection point ---
-
-    def test_d4_named_detection_point(self):
-        """MAR-107 AC-1: code/SKILL.md must contain an explicit label for the
-        iteration-start escalation detection point."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(r"(?i)detection point", body),
-            "code/SKILL.md must name the iteration-start escalation "
-            "'detection point' as a normative contract (MAR-107 AC-1)")
-
-    # --- MAR-107 D4 AC-1: before-the-verifier ordering ---
-
-    def test_d4_before_the_verifier_ordering(self):
-        """MAR-107 AC-1: code/SKILL.md must state that re-selection happens
-        after the prior verifier and before the current execute, guaranteeing
-        escalation lands before the NEXT verifier pass. Distinct from
-        test_first_signal_evaluated_immediately (:820), which only pins
-        'first signal', not the before/after verifier ordering framing."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(r"(?i)before the (next )?verifier", body),
-            "code/SKILL.md must state escalation lands before the next "
-            "verifier pass (MAR-107 AC-1)")
-
-    # --- MAR-107 D4 AC-3: no-restart guarantee, D4-framed (anchored near the detection point) ---
-
-    def test_d4_no_restart_guarantee_anchored_near_detection_point(self):
-        """MAR-107 AC-3: code/SKILL.md must state the no-restart /
-        completed-work-preserved guarantee co-located with the named
-        detection-point label (within 400 chars), not merely anywhere in the
-        document. Distinct from test_no_restart_property (:831), which pins
-        the general MAR-57 no-restart statement anywhere in the body; this
-        test requires the guarantee to be near the D4 detection-point anchor
-        specifically."""
-        body = self._body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)detection point.{0,400}(no.restart|without restart|"
-                r"without discard|completed work)|"
-                r"(no.restart|without restart|without discard|completed work)"
-                r".{0,400}detection point",
-                body, re.DOTALL),
-            "code/SKILL.md must state the no-restart guarantee co-located "
-            "with the named detection point (MAR-107 AC-3)")
-
-
 class TestStageReintroduction(unittest.TestCase):
     """MAR-57 Spec 03 originally pinned the stage re-introduction contract in
     create-spec/SKILL.md and its cross-reference in code/SKILL.md (step g,
@@ -1252,15 +1051,20 @@ class TestStageReintroduction(unittest.TestCase):
     def _code_body(self):
         return read_skill_contract("code")
 
-    # --- guard_axes must be referenced in code/SKILL.md escalation sequence ---
+    # --- ADR-0095 retired the axis guard along with the axes it guarded ---
 
-    def test_code_skill_md_references_guard_axes(self):
-        """AC-3/Spec 03: code/SKILL.md must reference guard_axes in the escalation
-        sequence (the axis-guard step added by Spec 03)."""
+    def test_no_axis_guard_survives_in_the_code_contract(self):
+        """`guard_axes` clamped a size/stakes proposal so no unattended path
+        could lower a confirmed axis. ADR-0095 removed the axes, so the guard
+        has nothing to clamp and its absence is the contract now. A mention
+        that came back would mean the axes came back with it."""
         body = self._code_body()
-        self.assertIn("guard_axes", body,
-                      "code/SKILL.md must reference guard_axes in the escalation "
-                      "sequence (MAR-57 AC-3/Spec 03)")
+        for token in ("guard_axes", "escalate_lane", "derive_lane", "verify_depth"):
+            with self.subTest(symbol=token):
+                self.assertNotIn(token, body,
+                                 "%s was retired by ADR-0095; the delivery path is "
+                                 "judged once from the plan, not derived or clamped "
+                                 "per run" % token)
 
     # --- AC-3: no automatic-downgrade code path exists in either SKILL ---
 
@@ -1381,88 +1185,6 @@ class TestGeneralizedFold(unittest.TestCase):
                       body),
             "code-planner.md must state the gate surfaces via <questions> for "
             "a decision, never blocks (MAR-156 C-5)")
-
-
-class TestBoundaryOnlyDeescalationContract(unittest.TestCase):
-    """MAR-108 (AC-4, AC-5 prose half): pin the boundary-only user-confirmed
-    de-escalation subsection in code/SKILL.md (design D3).
-
-    Doc-assertion tests reading code/SKILL.md. RED before the new
-    'Boundary-only user-confirmed de-escalation (D3)' subsection is added;
-    GREEN after."""
-
-    def skill_path(self, name):
-        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
-
-    def _code_body(self):
-        return read_skill_contract("code")
-
-    def test_boundary_only_timing_gate(self):
-        """AC-4: the subsection must state de-escalation fires only at an
-        iteration/run boundary and never mid-iteration."""
-        body = self._code_body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)(iteration|run).{0,60}boundary.{0,300}never.{0,30}"
-                r"mid.iteration|"
-                r"never.{0,30}mid.iteration.{0,300}(iteration|run).{0,60}boundary",
-                body, re.DOTALL),
-            "code/SKILL.md must state the boundary-only timing gate: fires "
-            "only at an iteration/run boundary, never mid-iteration (MAR-108 AC-4)")
-
-    def test_names_confirm_deescalation(self):
-        """AC-4: code/SKILL.md must name confirm_deescalation literally."""
-        body = self._code_body()
-        self.assertIn(
-            "confirm_deescalation", body,
-            "code/SKILL.md must reference confirm_deescalation by name (MAR-108 AC-4)")
-
-    def test_askuserquestion_and_clarify_precede_writer_call(self):
-        """AC-4: the subsection must require AskUserQuestion + clarify.py
-        confirmation BEFORE the confirm_deescalation call (ordering)."""
-        body = self._code_body()
-        self.assertIn("AskUserQuestion", body,
-                      "code/SKILL.md must mention AskUserQuestion in the "
-                      "de-escalation confirmation sequence (MAR-108 AC-4)")
-        self.assertIn("clarify", body,
-                      "code/SKILL.md must mention clarify.py recording in the "
-                      "de-escalation confirmation sequence (MAR-108 AC-4)")
-        ask_idx = body.find("AskUserQuestion")
-        clarify_idx = body.find("clarify")
-        writer_idx = body.find("confirm_deescalation")
-        self.assertGreater(writer_idx, -1,
-                            "confirm_deescalation must appear in code/SKILL.md")
-        self.assertLess(ask_idx, writer_idx,
-                         "AskUserQuestion must precede the confirm_deescalation "
-                         "call in code/SKILL.md (MAR-108 AC-4)")
-        self.assertLess(clarify_idx, writer_idx,
-                         "clarify.py recording must precede the confirm_deescalation "
-                         "call in code/SKILL.md (MAR-108 AC-4)")
-
-    def test_sole_lane_lowering_path_single_call_site_never_inloop_or_subagent(self):
-        """AC-4/AC-5 prose: confirm_deescalation must be stated as the ONLY
-        sanctioned lane-lowering path, called from exactly one location, and
-        never from the in-loop trigger path or any subagent."""
-        body = self._code_body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)confirm_deescalation.{0,200}(only|sole).{0,60}"
-                r"(sanctioned )?lane.lowering.{0,60}path|"
-                r"(only|sole).{0,60}(sanctioned )?lane.lowering.{0,60}path.{0,200}"
-                r"confirm_deescalation",
-                body, re.DOTALL),
-            "code/SKILL.md must state confirm_deescalation is the only "
-            "sanctioned lane-lowering path (MAR-108 AC-4)")
-        self.assertIsNotNone(
-            re.search(r"(?i)never.{0,60}in.loop.{0,60}trigger", body, re.DOTALL),
-            "code/SKILL.md must state confirm_deescalation is never called "
-            "from the in-loop trigger-evaluation path (MAR-108 AC-4)")
-        self.assertIsNotNone(
-            re.search(r"(?i)never.{0,60}(from )?(any )?subagent", body, re.DOTALL),
-            "code/SKILL.md must state confirm_deescalation is never called "
-            "from any subagent (MAR-108 AC-4)")
-
-
 class TestAdr0042D3Section(unittest.TestCase):
     """MAR-108 (AC-6): pin the additive D3 section appended to
     docs/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
@@ -1858,7 +1580,7 @@ class TestClarifyBatchingContract(unittest.TestCase):
 
     def test_grouped_ask_present_in_all_hooked_skills(self):
         for name in HOOKED_SKILLS:
-            body = read(self.skill_path(name))
+            body = read_skill_contract(name)
             # Co-occurrence: "ONE grouped" near "interaction" (may span a line
             # break). re.DOTALL so "." crosses newlines — same discipline as
             # the MAR-47 co-occurrence tests (test_skill_contracts.py:289-292).
@@ -1873,7 +1595,7 @@ class TestClarifyBatchingContract(unittest.TestCase):
 
     def test_per_question_ledger_entry_documented_in_all_hooked_skills(self):
         for name in HOOKED_SKILLS:
-            body = read(self.skill_path(name))
+            body = read_skill_contract(name)
             # Co-occurrence: "each answer" near "clarify.py" or "per question"
             # near "clarify.py", or "one C-<n>" phrasing.
             self.assertIsNotNone(
@@ -1888,7 +1610,7 @@ class TestClarifyBatchingContract(unittest.TestCase):
 
     def test_no_auto_answer_documented_in_all_hooked_skills(self):
         for name in HOOKED_SKILLS:
-            body = read(self.skill_path(name))
+            body = read_skill_contract(name)
             # The prose must mention that questions are not skipped/merged/
             # auto-answered outside the assumption rule.
             self.assertIsNotNone(
@@ -2757,7 +2479,7 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         each state the local/unsynced non-regression clause — no Closes #
         line is emitted when the ticket is unsynced."""
         create_ticket_body = read(self.skill_path("create-ticket"))
-        create_pr_body = read(self.skill_path("create-pr"))
+        create_pr_body = read_skill_contract("create-pr")
         self.assertIsNotNone(
             re.search(r"(?i)local.{0,200}(unsynced|skip)|unsynced.{0,200}local", create_ticket_body),
             "create-ticket/SKILL.md must state the local/unsynced non-regression "
@@ -3823,7 +3545,14 @@ class TestVerifierFixedPointRelocated(unittest.TestCase):
         self.assertIn("**Acceptance-criteria conformance**", body,
                       "code-verifier.md must declare the new 'Acceptance-"
                       "criteria conformance' dimension (MAR-156 AC-3)")
-        self.assertIn("ticket.json", body)
+        # The fixed point is THE TICKET, read fresh -- not a filename. ADR-0090
+        # moved ticket documents into the repo docs tree as ticket.md, so the
+        # charter names "the ticket document"; pinning `ticket.json` here pinned
+        # a storage detail that had already moved, and it only kept passing
+        # because an unrelated dimension happened to mention the old filename.
+        self.assertIn("ticket document", body,
+                      "code-verifier.md dimension 1 must name the ticket document "
+                      "as the fixed point it re-reads")
         self.assertIsNotNone(
             re.search(r"(?i)MUST NOT accept.{0,120}restatement", body, re.DOTALL),
             "code-verifier.md dimension 1 must state the explicit negative "

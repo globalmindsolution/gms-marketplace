@@ -75,6 +75,53 @@ Parse the printed context JSON. Fields you will use:
 
 ---
 
+## Subagents and messaging
+
+Every leg spawns the same two agents — `acs:code-executor` and
+`acs:code-verifier` — and obeys the same messaging rules. What a leg
+decides is HOW MANY of each to spawn and how deep the verifier looks.
+
+Spawn subagents with the Agent tool: `acs:code-executor` and `acs:code-verifier` (fall back to the
+un-namespaced name only if the runtime rejects the namespaced one). For each
+role, apply `context.models.<role>.model`
+/ `.effort` at spawn when not `"inherit"`; if the runtime rejects the model or
+effort, FAIL the run with that exact error — no silent fallback.
+
+**Spawn in the foreground and wait on the result, never on a clock.** Pass
+`run_in_background: false` to the Agent tool: the phase's `<result>` is your
+next input and nothing else can usefully happen while it runs. If the
+runtime moves the agent to the background anyway, wait for its completion
+notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
+sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
+agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
+Messaging rules (schemas/acs-messages.xsd):
+
+- Send each subagent one `<task skill="code" phase="execute|verify"
+  ticket-id="<id>" iteration="n">` containing `<objective>`, `<inputs>` (file
+  refs: the resolved `plan.md`, `test-cases.md` and `api-contract.md` when
+  they exist, spec files, the ticket document, design.md when it applies, repo
+  paths), and `<constraints>`. The subagent returns a `<result>` as its final
+  content.
+- Validate EVERY message you send and receive:
+
+  ```bash
+  echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
+  ```
+
+  On invalid: re-request once with the validation error; still invalid -> fail
+  the run and record the error in the result document's `errors`.
+- Persist every phase output to
+  `<partition>/phases/code/iter-<n>-<phase>.xml` at the phase boundary,
+  BEFORE starting the next phase.
+- Decomposition is YOURS alone — subagents never spawn subagents. You MAY run
+  several executors in parallel ONLY when their specs touch disjoint files
+  (per the plan's file map); any overlap — source, tests, or docs — means
+  sequential execution. The verifier runs after all executors finish and
+  judges the combined changeset.
+
+---
+
 ## Branch — FIRST, before any code
 
 All work happens on the ticket branch. Render `settings.formats.branch_name`

@@ -295,7 +295,7 @@ it safe: no pass without a green run, on the iteration where it counts.
     reintroduces something a prior commit deliberately removed. A match is a
     `<finding severity="blocking" dimension="regression-risk">`.
 
-15. **Plan conformance** — BLOCKING when active, N/A otherwise; every lane.
+15. **Plan conformance** — BLOCKING when active, N/A otherwise; every path.
     Compute activation itself, from disk — never from a coordinator-relayed
     value (that would re-import the LLM self-assertion ADR 0076 D-1
     rejects). Read `<partition>/phases/code/plan-approval.json` and check
@@ -314,8 +314,8 @@ it safe: no pass without a green run, on the iteration where it counts.
     other than `phases/code/plan.md`, or a digest mismatch), the dimension
     is **N/A**: report a positive, evidenced "not active because `<reason>`"
     conclusion — never a block and never a silent skip. This is why the
-    dimension never fires on TRIVIAL/SMALL: `plan-approval.py` writes no
-    record on those lanes. When active, judge the changeset against the
+    dimension never fires on the `trivial` and `small` delivery paths:
+    `plan-approval.py` is not run there, so no record exists to activate it. When active, judge the changeset against the
     approved plan's `## Executor tasks & file map` and its folded
     `Approach`/`API/data changes` content: a changed file tracing to no
     entry of the approved file map, or an implementation contradicting the
@@ -325,18 +325,38 @@ it safe: no pass without a green run, on the iteration where it counts.
     changeset that conforms perfectly to the approved plan but leaves a
     `ticket.acceptance_criteria` entry uncovered still fails dimension 1 —
     an approved plan is never evidence that an AC is satisfied.
-16. **Approval-audit** — BLOCKING; every lane. Re-run the deterministic half
-    of the coordinator's escalation trigger (b) instead of trusting that it
-    fired: run `git diff --name-only <default_branch>...HEAD` over the
-    changeset, then feed the changed-file list to `recommend_stakes(changed_paths,
-    settings)` (`acs_lib/lanes.py`). A `"normal"` return is a positive, evidenced
-    no-op. A `"high"` return is **accounted for** when either (a)
-    `ticket.json`'s `stakes: "high"`, re-read fresh, already reflects it, or
-    (b) `code-state.json`'s `runs[-1].escalations` carries a
-    `direction: "up"` event whose `trigger` names the matching
-    `high_stakes_paths` glob. Otherwise it is `<finding severity="blocking"
-    dimension="approval-audit">` naming the matching path and the glob it
-    matched.
+16. **Path audit** — BLOCKING; every path. This is the one dimension that
+    judges the ROUTING rather than the code, and it exists because the
+    delivery path is judged ONCE, from a plan, before a line is written
+    (ADR-0095): nothing downstream re-checks that judgement, so if the plan
+    understated the work, here is where it surfaces.
+
+    Read `delivery_path` and `delivery_path_reason` from
+    `<partition>/pipeline-state.json` — fresh, from disk, never a
+    coordinator-relayed value. Then run `git diff --name-only
+    <default_branch>...HEAD` over the changeset and read the diff itself, and
+    answer one question: **does this changeset look like the work that reason
+    describes?** Weigh what it TOUCHES, not how much — a one-file change to an
+    authentication or authorization path, a payment path, a migration or any
+    stored shape, or a public API other systems call, is heavier than twelve
+    files of mechanical rename.
+
+    A changeset consistent with its recorded reason is a positive, evidenced
+    no-op — say so and cite the reason. A changeset that contradicts it is
+    `<finding severity="blocking" dimension="path-audit">` naming three things:
+    the recorded path, the recorded reason, and what the diff actually does.
+
+    **The remedy is never to re-route.** A path is never raised mid-run — that
+    is exactly the mid-flight escalation ADR-0095 retired, and it would leave
+    half a run at one rigor and half at another. Your finding blocks the
+    iteration; the coordinator's remedy is to fail the run with
+    `stop_reason: plan_superseded`, which sends /acs:ship back to
+    `/acs:create-impl-plan` so the path is judged again from a corrected plan.
+
+    **Absent path.** When `pipeline-state.json` carries no `delivery_path`,
+    report the dimension N/A with that reason — a run that reached here
+    unclassified has a `/acs:code` dispatch problem, not a changeset problem,
+    and blocking the code for it would name the wrong thing.
 
 **Retired dimensions.** create-spec-verifier's `consistency` dimension
 (checking agreement across multiple independently authored spec files:
@@ -349,7 +369,7 @@ longer exists.
 On iteration 2+, additionally verify each prior finding from `<context>` is
 truly fixed; an unfixed one is re-reported.
 
-## Multi-lens review (`verify_depth=="full"` only)
+## Multi-lens review (the `complex` delivery path only)
 
 When the task's `<constraints>` carries a `verify_lens` value (`A`, `B`,
 `C`, or `D`), this spawn is one of 4 parallel lenses examining the same
@@ -363,7 +383,7 @@ mandatory diff/log-read step.
 | Lens | Dimensions covered (numbered per this file) | Evidence source |
 |------|-----------------------------------------------|------------------|
 | A — Correctness & Acceptance | 1, 2, 3, 4, 5 | the branch diff (`git diff <default_branch>...HEAD`) + the ticket document re-read fresh + `test-cases.md` when present; the ONLY lens that re-runs the test/coverage/e2e suite |
-| B — Security, Standards & Craftsmanship | 6, 7, 10, 12, 16 | the branch diff + `standards/` at `standards_path` when configured + `recommend_stakes`/`high_stakes_paths` (dimension 16); no suite re-run |
+| B — Security, Standards & Craftsmanship | 6, 7, 10, 12, 16 | the branch diff + `standards/` at `standards_path` when configured + `pipeline-state.json`'s `delivery_path`/`delivery_path_reason` (dimension 16); no suite re-run |
 | C — Architecture & Documentation | 8, 9, 11, 13, 15 | the branch diff + `design.md` + `architecture_path` + `requirements_path` + `prd.md`/`roadmap.md` + the plan artifact's prose (dimensions 13, 15) + `plan-approval.json` (dimension 15); no suite re-run |
 | D — Regression-risk | 14 | the branch diff + `git log --follow -p` / `git log --oneline`, bounded lookback, scoped to touched files; no suite re-run |
 

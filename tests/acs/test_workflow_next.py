@@ -77,6 +77,15 @@ class WorkflowNextCase(AcsWorkspaceCase):
     def next(self, ticket_id=TICKET, **kw):
         return lib.next_steps(self.wctx(ticket_id), **kw)
 
+    def classify(self, path="standard", reason="fixture: a standard-shaped plan",
+                 ticket_id=TICKET):
+        """Record a delivery path, as /acs:ship does after create-impl-plan.
+
+        Steps carrying `paths` are held back until this has happened (ADR-0095):
+        the walk will not resolve a per-path field against an unknown path, so a
+        fixture that seeds past the classification point must classify too."""
+        lib.workflow.record_delivery_path(self.tdir(ticket_id), ticket_id, path, reason)
+
     def ledger(self, ticket_id=TICKET):
         return lib.load_pipeline(self.tdir(ticket_id), ticket_id)["steps"]
 
@@ -96,16 +105,16 @@ class TestFreshAndResumed(WorkflowNextCase):
         entry = out["ready"][0]
         self.assertEqual(entry["skill"], "analyze-ticket")
         self.assertIn("entry step", entry["reason"])
-        self.assertEqual(sorted(entry), ["args", "boundary", "exclusive", "on_fail", "on_replan",
-                                         "reason", "skill", "step"])
+        self.assertEqual(sorted(entry), ["args", "boundary", "delivery_path", "exclusive",
+                                         "on_fail", "on_replan", "reason", "skill", "step"])
         self.assertEqual((entry["args"], entry["boundary"], entry["on_fail"], entry["on_replan"],
                           entry["exclusive"]), (None, None, None, None, False))
         self.assertEqual(out["workflow"]["source"], "default")
         self.assertEqual(out["statuses"]["analyze-ticket"], None)
 
     def test_output_keys_match_the_contract(self):
-        self.assertEqual(sorted(self.next()), ["blocked_by", "done", "mode", "ready", "statuses",
-                                               "ticket", "workflow"])
+        self.assertEqual(sorted(self.next()), ["blocked_by", "delivery", "done", "mode", "ready",
+                                               "statuses", "ticket", "workflow"])
 
     def test_analyze_completed_makes_the_plan_ready(self):
         self.step("analyze-ticket", "completed")
@@ -158,8 +167,10 @@ class TestFreshAndResumed(WorkflowNextCase):
 class TestRerunStates(WorkflowNextCase):
 
     def _seed_to_code(self):
-        for sid in ("analyze-ticket", "create-impl-plan", "create-test-docs"):
-            self.step(sid, "completed")
+        self.step("analyze-ticket", "completed")
+        self.step("create-impl-plan", "completed")
+        self.classify()
+        self.step("create-test-docs", "completed")
 
     def test_each_non_completed_status_makes_the_step_ready_again(self):
         self._seed_to_code()
@@ -257,6 +268,7 @@ class TestWhenSkips(WorkflowNextCase):
     def _seed_to_api_contract(self):
         self.step("analyze-ticket", "completed")
         self.step("create-impl-plan", "completed")
+        self.classify()
 
     def test_when_false_is_recorded_as_skipped_and_unblocks_dependants(self):
         self._seed_to_api_contract()
@@ -318,8 +330,11 @@ class TestWhenSkips(WorkflowNextCase):
 
 class TestParallelism(WorkflowNextCase):
 
-    def _seed_to_code_completed(self):
-        for sid in ("analyze-ticket", "create-impl-plan", "create-test-docs", "code"):
+    def _seed_to_code_completed(self, path="standard"):
+        for sid in ("analyze-ticket", "create-impl-plan"):
+            self.step(sid, "completed")
+        self.classify(path)
+        for sid in ("create-test-docs", "code"):
             self.step(sid, "completed")
 
     def test_e2e_configured_makes_both_test_and_docs_steps_ready_in_parallel(self):
@@ -379,7 +394,7 @@ class TestParallelism(WorkflowNextCase):
         self.assertEqual(self.ready_ids(out), ["create-e2e-tests"])
         self.assertIn("last run recorded failed", out["ready"][0]["reason"])
 
-    THREE_ENTRY = ("version: 1\nname: fan\nstop_after: c\nmax_parallel: %d\nsteps:\n"
+    THREE_ENTRY = ("version: 2\nname: fan\nstop_after: c\nmax_parallel: %d\nsteps:\n"
                    "  - id: a\n    skill: analyze-ticket\n"
                    "  - id: b\n    skill: create-test-docs\n%s"
                    "  - id: c\n    skill: docs-sync\n")
@@ -448,7 +463,7 @@ class TestRefusals(WorkflowNextCase):
         self.assertIn("archived", str(ctx.exception))
 
     def test_an_invalid_override_is_refused_with_its_line(self):
-        self.override("version: 1\nname: bad\nsteps:\n  - id: a\n    skill: merge-pr\n")
+        self.override("version: 2\nname: bad\nsteps:\n  - id: a\n    skill: merge-pr\n")
         with self.assertRaises(lib.WorkflowError) as ctx:
             self.next()
         self.assertEqual(ctx.exception.line, 5)
@@ -486,6 +501,7 @@ class TestPendingNeeds(WorkflowNextCase):
     def test_a_skipped_need_is_not_pending_but_is_never_recorded_here(self):
         self.step("analyze-ticket", "completed")
         self.step("create-impl-plan", "completed")
+        self.classify()
         self.assertEqual(lib.pending_needs(self.wctx(), "create-test-docs"), [])
         self.assertNotIn("create-api-contract", self.ledger())
 
@@ -509,6 +525,7 @@ class TestCli(WorkflowNextCase):
     def test_next_records_skips_unless_dry_run(self):
         self.step("analyze-ticket", "completed")
         self.step("create-impl-plan", "completed")
+        self.classify()
         res = self.acs("workflow", "next", "--ticket", TICKET, "--dry-run")
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertNotIn("create-api-contract", self.ledger())

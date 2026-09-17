@@ -120,6 +120,36 @@ whose `plan_sha256` matches the current `plan.md` bytes, the plan-conformance
 dimension is ACTIVE, and a missing or stale approval fails the run with
 `stop_reason: plan_superseded` rather than being written here.
 
+## Plan approval — run it at Start, before the first executor
+
+This path requires an approved plan, and this leg is where approval is
+established: `/acs:create-impl-plan` runs before any delivery path exists, so
+it cannot know whether approval is owed. Immediately after Start, run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-approval.py" --ticket <ticket-id>
+```
+
+This script is the ONLY writer of `<partition>/phases/code/plan-approval.json`
+— never a subagent's `Write` tool, and never your own. An LLM-asserted approval
+is not an approval: eligibility is computed by `acs_lib.plan_approval_eligible`
+from the plan artifact's own content plus `settings.test_coverage_percent`,
+never from any agent's self-report. It hashes the approval mirror
+(`<partition>/phases/code/plan.md`), which is why `/acs:create-impl-plan`
+publishes that copy from the same bytes as the plan; an explicit `--plan` must
+resolve within `<partition>/phases/code/` and the script refuses (clean stderr,
+exit 2, no record written) any path whose realpath escapes it.
+
+It is idempotent per digest: a second invocation over the same plan bytes
+re-asserts the existing verdict, and a revised plan writes a fresh record. So a
+resumed run simply runs it again.
+
+**An ineligible plan does not block this release.** The script exits 0 and
+prints the failing checks; record `states.plan_approved: false` and continue.
+The plan-conformance review dimension reads `plan-approval.json` itself and
+computes its own activation, so an ineligible plan means that dimension reports
+N/A — not that the run proceeds unreviewed.
+
 ## The reflection loop
 
 Run execute -> verify for at most **3** iterations. There is no plan
@@ -127,44 +157,11 @@ phase and no planner subagent: `/acs:create-impl-plan` authored the plan before
 this skill started, and this run reads it (Plan input resolution, in
 `references/protocol.md`).
 
-Spawn subagents with the Agent tool: `acs:code-executor` and `acs:code-verifier` (fall back to the
-un-namespaced name only if the runtime rejects the namespaced one). For each
-role, apply `context.models.<role>.model`
-/ `.effort` at spawn when not `"inherit"`; if the runtime rejects the model or
-effort, FAIL the run with that exact error — no silent fallback.
-
-**Spawn in the foreground and wait on the result, never on a clock.** Pass
-`run_in_background: false` to the Agent tool: the phase's `<result>` is your
-next input and nothing else can usefully happen while it runs. If the
-runtime moves the agent to the background anyway, wait for its completion
-notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
-sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
-agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
-
-Messaging rules (schemas/acs-messages.xsd):
-
-- Send each subagent one `<task skill="code" phase="execute|verify"
-  ticket-id="<id>" iteration="n">` containing `<objective>`, `<inputs>` (file
-  refs: the resolved `plan.md`, `test-cases.md` and `api-contract.md` when
-  they exist, spec files, the ticket document, design.md when it applies, repo
-  paths), and `<constraints>`. The subagent returns a `<result>` as its final
-  content.
-- Validate EVERY message you send and receive:
-
-  ```bash
-  echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
-  ```
-
-  On invalid: re-request once with the validation error; still invalid -> fail
-  the run and record the error in the result document's `errors`.
-- Persist every phase output to
-  `<partition>/phases/code/iter-<n>-<phase>.xml` at the phase boundary,
-  BEFORE starting the next phase.
-- Decomposition is YOURS alone — subagents never spawn subagents. You MAY run
-  several executors in parallel ONLY when their specs touch disjoint files
-  (per the plan's file map); any overlap — source, tests, or docs — means
-  sequential execution. The verifier runs after all executors finish and
-  judges the combined changeset.
+Spawn the executors and the verifier as `references/protocol.md`'s
+**Subagents and messaging** section describes — the agent names, the
+model/effort resolution, the foreground-wait rule, the XML task and
+result contract, and the phase-artifact persistence are identical on
+every path.
 
 ## The /acs:ship context boundary
 

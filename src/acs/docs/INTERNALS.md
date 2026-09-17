@@ -101,8 +101,8 @@ onto the plugin hooks API like this:
    **Failure polarity is split, because the two questions carry opposite
    risks.** Deciding *whether the guard applies* fails OPEN — not an acs
    partition, no executor active (a verifier and the coordinator both
-   write outside any task's map legitimately), **no map declared** (a TRIVIAL
-   lane spawns no executor and declares no map), or a call that names no path. A bug there must not
+   write outside any task's map legitimately), **no map declared** (a run that
+   spawned no executor declares no map), or a call that names no path. A bug there must not
    deny every write on the machine. Deciding *whether this write is inside the
    map* fails CLOSED: an error, a timeout, or a `tool_input` the guard cannot
    read all deny, because a deny control that fails open is silently absent
@@ -227,7 +227,7 @@ places:
 |---|---|---|
 | a phase list | a user-facing skill, in one of the five groups `design`, `build`, `test`, `ship`, `utility` | 25 skills |
 | a key under `aliases` | a directory that forwards to another skill, kept for one release | 1 — `test: run-e2e-tests` |
-| a key under `internal` | an **internal leg**: the value names the one user-facing entry point it serves | 2 — see below |
+| a key under `internal` | an **internal leg**: the value names the one user-facing entry point it serves | 6 — see below |
 
 The `internal` map is the design-phase **entry-point fold**, and it is a fold,
 not a collapse. A leg keeps everything that makes it a skill — its SKILL.md,
@@ -243,7 +243,26 @@ absent from every phase list:
 internal:
   create-project: project
   standardize-project: project
+  code-trivial: code
+  code-small: code
+  code-standard: code
+  code-complex: code
 ```
+
+`code`'s four legs are the **delivery paths** of ADR-0095, and they are legs
+for the same reason the project legs are: which one a ticket gets is decided
+for it — judged once from `plan.md` by `/acs:ship` and recorded — never chosen
+by hand. `/acs:code` is the entry point and dispatches to the recorded one.
+
+They differ from the project legs in one way worth stating: they own **no
+agents and no hook scripts of their own**. Each runs `skill-start.py --skill
+code`, passes `code`'s gate (mapped in `GATES` via `acs_lib.CODE_PATH_LEGS`),
+spawns `acs:code-executor` / `acs:code-verifier`, and finishes through
+`post-code.py` — so `phases/code/`, `code-state.json` and the `code` ledger key
+are shared by all four, and a resumed run reads them without caring which leg
+wrote them. What a leg owns is its SKILL.md: the executor fan-out, the verifier
+shape, the iteration ceiling and whether plan approval binds. The protocol they
+share lives in `skills/code/references/`.
 
 The four doc-set legs `/acs:create-docs` used to fan out — `create-quality`,
 `create-operations`, `create-principles`, `create-standards` — are no longer
@@ -265,11 +284,18 @@ enum, the README skill table, this document, and `/acs:metrics` grouping.
 absent), `entry_point_of(skill)` (a leg's entry point, else `None`),
 `phase_of(skill)`, and `allowed_ship_skills()` — build + test + ship minus
 `merge-pr` and `release`, which a human always drives. No leg is
-ship-eligible, and `allowed_ship_skills()` is unaffected by the fold.
+ship-eligible, and `allowed_ship_skills()` is unaffected by either fold.
+
+A step's `skill` may nonetheless RESOLVE to a leg, through the per-path mapping
+ADR-0095 added, so validation reads `allowed_step_skills()` — the ship-eligible
+set plus the legs those skills serve as entry point. Keeping the two functions
+apart is deliberate: a leg is still not a command, and the one place a leg
+becomes nameable is a mapping keyed by delivery path.
 
 **Grouping a leg's run.** `phase_of` resolves an internal leg **through** its
-entry point, so `phase_of("create-project")` is `"design"` (via `project`)
-and `phase_of("standardize-project")` is `"design"` (via `project`). That is
+entry point, so `phase_of("create-project")` is `"design"` (via `project`),
+`phase_of("standardize-project")` is `"design"`, and each `code-*` leg is
+`"build"` (via `code`). That is
 what keeps a leg's run inside a phase for any consumer that groups by phase —
 `/acs:metrics` above all — instead of falling outside the five groups the
 moment a skill leaves the phase lists. It does not merge a leg into its entry
@@ -406,11 +432,10 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
                 mode, inputs, evidence, open questions — records the survey in its
                 authoring notes (iter-<n>-authoring.md), and authors from them; an
                 open decision comes back as needs_input BEFORE any file is written.
-                (For /acs:create-impl-plan — which carved /acs:code's plan phase out into
-                 its own skill — this line is lane-conditional: STANDARD/COMPLEX spawn the
-                 executor as shown and it renders the plan.md draft; on TRIVIAL/SMALL the
-                 coordinator writes plan.md directly, with no XML execute message sent or
-                 returned — D-4)
+                (/acs:create-impl-plan — which carved /acs:code's plan phase out into its
+                 own skill — follows this line exactly, on every run. It cannot vary by
+                 delivery path: plan.md is the artifact the path is judged FROM, so the
+                 path does not exist yet when it runs — ADR-0095)
      verify  -> spawn <skill>-verifier  (XML <task phase="verify">,  returns <result> with findings)
      - every subagent WRITES ITS OWN PHASE ARTIFACT (see below) and references it
        in <outputs>; the XML stays compact
@@ -550,8 +575,10 @@ fourteen skills that run an execute → verify loop (the twelve authoring
 skills, `/acs:code` and `/acs:create-docs`) report it.
 
 `<cap>` is a constant **3** for thirteen of those fourteen. Only `/acs:code`
-derives its ceiling from the lane — `VERIFY_ITERATION_CAP`, 2 on light depth
-and 3 on full — so only `/acs:code`'s `<cap>` varies between runs.
+varies, and it varies by which of its four delivery-path legs ran: 2 on
+`code-trivial` and `code-small`, 3 on `code-standard` and `code-complex`. Each
+leg's SKILL.md states its own ceiling — there is no table to look it up in and
+nothing to derive it from, which is the point of ADR-0095.
 
 **Sanctioned substitutions.** A skill that runs without a ticket drops
 `<ticket-id>` from the heading and replaces the **Ticket** line with a
@@ -963,7 +990,7 @@ rationale for assumptions.
 2. **Ask once, at the cheapest phase.** Before asking the user ANYTHING, the
    coordinator runs `clarify.py list` and reuses recorded answers — re-asking
    an answered question is a defect. Each skill asks only what ITS phase
-   needs settled — ticket scope and the size/stakes/due-date fields at
+   needs settled — ticket scope and the due date at
    /create-ticket, design trade-offs at /create-design, requirement
    clarification (impact, assumptions, refined acceptance criteria) at
    /analyze-ticket, execution-level behavior at /code — batched, not dribbled.
