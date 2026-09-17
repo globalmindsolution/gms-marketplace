@@ -105,7 +105,7 @@ and — once the open questions are answered — authors `prd.md` and
 `<context>` and the executor authors the remediation.
 
 **What an iteration counts:** one execute -> verify round. `/acs:create-prd`
-has no lane-driven verify-depth selection: the cap is a fixed 3 in every
+has no path-driven verify-depth selection: the cap is a fixed 3 in every
 lane, and this ticket introduces none.
 
 Spawn subagents with the Agent tool:

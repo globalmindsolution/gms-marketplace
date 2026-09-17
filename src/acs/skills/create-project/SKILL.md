@@ -104,7 +104,7 @@ Decomposition is YOURS alone — subagents never spawn subagents. Before the
 loop: `mkdir -p <partition>/phases/create-project`.
 
 **What an iteration counts:** one execute -> verify round. create-project
-has no lane-driven verify-depth selection: the cap is a fixed 3 in every
+has no path-driven verify-depth selection: the cap is a fixed 3 in every
 lane, and this ticket introduces none.
 
 Messaging rules for every phase:

@@ -121,8 +121,8 @@ next executor `<task>` `<context>` and the executor authors the remediation.
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 **What an iteration counts:** one execute -> verify round.
-`/acs:create-architecture` has no lane-driven verify-depth selection: the
-cap is a fixed 3 in every lane.
+`/acs:create-architecture` has no path-driven verify-depth selection: the
+cap is a fixed 3 on every run.
 
 Spawn subagents with the Agent tool: subagent_type
 `acs:create-architecture-executor` /

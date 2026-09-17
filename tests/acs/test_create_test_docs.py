@@ -485,7 +485,11 @@ class TestTriadShape(unittest.TestCase):
         self.assertIn("## Survey — what you establish before you write (iteration 1)", executor)
         self.assertIn("## The authoring notes (mandatory, every iteration)", executor)
         self.assertRegex(agent("verifier"), r"(?m)^8\. `authoring-conformance`")
-        self.assertRegex(body, r"fixed \*\*3\*\*\s+in every lane")
+        # The pin is that the cap is unconditional, not that it is phrased in
+        # lane vocabulary: ADR-0095 retired lanes, so the same claim now reads
+        # "on every run" and disclaims a path-driven depth.
+        self.assertRegex(body, r"fixed \*\*3\*\* on every run")
+        self.assertRegex(body, r"no path-driven verify depth")
         self.assertIn("never spawn subagents", body.lower())
 
     def test_nobody_in_the_triad_writes_or_runs_tests(self):

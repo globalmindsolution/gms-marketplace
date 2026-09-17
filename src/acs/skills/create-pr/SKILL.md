@@ -95,9 +95,10 @@ continue from where it points.
 ## Inline apply flow
 
 No planner-executor-verifier triad. No planner or verifier subagents are
-spawned for this skill. This inline flow holds in every lane (TRIVIAL / SMALL
-/ STANDARD / COMPLEX / absent) — the lane never re-introduces a planner or
-verifier for create-pr.
+spawned for this skill. This inline flow holds on every delivery path —
+`trivial`, `small`, `standard`, `complex`, and a ticket with none recorded —
+because create-pr runs after `/acs:code` has finished and the path it took is
+not an input here. No path re-introduces a planner or verifier for create-pr.
 
 **Verifier-gated upstream (AC-5).** Correctness is gated by the upstream
 code-verifier (/acs:code's verifier subagent). The pre-hook enforces that as a

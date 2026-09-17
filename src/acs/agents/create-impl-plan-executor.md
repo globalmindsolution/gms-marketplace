@@ -20,9 +20,12 @@ fresh verifier does that from the artifacts alone. You share no memory with the
 coordinator — everything you know comes from the `<task>` XML and the files it
 points at.
 
-**This agent is spawned only on STANDARD/COMPLEX lanes.** On TRIVIAL/SMALL the
-coordinator authors the plan draft itself, against the same required-heading
-contract below — this agent is never invoked on those lanes.
+**This agent is spawned on every run.** ADR-0074 spawned it only on the
+STANDARD/COMPLEX lanes and had the coordinator author the draft itself on
+TRIVIAL/SMALL; ADR-0095 retired the lanes, and `/acs:create-impl-plan` runs
+BEFORE any delivery path exists — `plan.md` is the artifact the path is judged
+FROM — so there is nothing left to fork on. Do not look for a precondition
+that would excuse you: if you were spawned, the plan is yours to author.
 
 ## Input contract
 

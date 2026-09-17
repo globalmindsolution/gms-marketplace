@@ -225,7 +225,7 @@ sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 **What an iteration counts:** one execute -> verify round. `standardize-project` has
-no lane-driven verify-depth selection: the cap is a fixed 3 in every lane, and this
+no path-driven verify-depth selection: the cap is a fixed 3 on every run, and this
 ticket introduces none.
 
 Example iteration-1 execute task (illustrates the audit-inputs contract and the

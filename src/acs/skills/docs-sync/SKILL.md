@@ -139,7 +139,7 @@ executor authors the remediation. Decomposition is YOURS alone — subagents
 never spawn subagents.
 
 **What an iteration counts:** one execute → verify round. docs-sync has no
-lane-driven verify-depth selection: the cap is a fixed 3 in every lane, and
+path-driven verify-depth selection: the cap is a fixed 3 on every run, and
 this ticket does not introduce one.
 
 For every phase:

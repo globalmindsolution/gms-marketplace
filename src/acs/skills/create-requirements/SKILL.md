@@ -118,8 +118,8 @@ sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 **What an iteration counts:** one execute -> verify round.
-`/acs:create-requirements` has no lane-driven verify-depth selection: the
-cap is a fixed 3 in every lane.
+`/acs:create-requirements` has no path-driven verify-depth selection: the
+cap is a fixed 3 on every run.
 
 All messages follow `schemas/acs-messages.xsd`. Validate EVERY message you send and
 receive:

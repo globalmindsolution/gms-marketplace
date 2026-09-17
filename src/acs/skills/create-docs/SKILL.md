@@ -318,7 +318,7 @@ executor reads the upstream inputs, decides the mode, authors the set, and
 writes its authoring notes; the verifier judges the result fresh. On
 iterations 2-3 the verifier's findings go verbatim into the next executor
 `<task>` `<context>` and the executor authors the remediation. This skill has
-no lane-driven verify-depth selection: the cap is a fixed 3 for every set.
+no path-driven verify-depth selection: the cap is a fixed 3 for every set.
 
 Drive this slice's sets together from this coordinator, in parallel phase
 batches — the mechanism `/acs:code`'s coordinator already uses to run several

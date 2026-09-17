@@ -200,8 +200,8 @@ inline a file body):
 ## Reflection loop — execute → verify, no planner
 
 Run execute → verify until the verifier returns zero blocking findings or the
-cap is reached. The cap is a fixed **3** in every lane — `/acs:create-e2e-tests`
-has no lane-driven verify depth. There is no plan phase: iteration 1's
+cap is reached. The cap is a fixed **3** on every run — `/acs:create-e2e-tests`
+has no path-driven verify depth. There is no plan phase: iteration 1's
 executor surveys the inputs, writes its authoring notes, and authors the suites
 from them; the verifier judges the result fresh. On iterations 2-3 the
 verifier's findings go verbatim into the next executor `<task>` `<context>`
