@@ -28,62 +28,6 @@ CHANGELOG_MD = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
 
 def _normalize(text):
     return re.sub(r"\s+", " ", text).strip()
-
-
-class TestDeriveLaneNeedsDesignRuleRemoved(unittest.TestCase):
-    """AC-1/AC-2: Rule 4 (the needs_design floor) is removed by source text,
-    the docstring truth table drops its row, and the adjacent Rule 3 stakes
-    floor plus every other rule survive untouched.
-    """
-
-    def test_needs_design_true_no_longer_floors_trivial(self):
-        self.assertEqual(
-            lib.derive_lane("trivial", "low", True, "story"), "TRIVIAL"
-        )
-
-    def test_needs_design_true_no_longer_floors_small(self):
-        self.assertEqual(
-            lib.derive_lane("small", "normal", True, "story"), "SMALL"
-        )
-
-    def test_needs_design_true_task_uses_size_dispatch(self):
-        self.assertEqual(
-            lib.derive_lane("trivial", "low", True, "task"), "TRIVIAL"
-        )
-
-    def test_derive_lane_source_has_no_needs_design_branch(self):
-        source = inspect.getsource(lib.derive_lane)
-        self.assertNotIn("if needs_design:", source)
-
-    def test_docstring_truth_table_has_no_rule_4_needs_design_row(self):
-        doc = inspect.getdoc(lib.derive_lane)
-        self.assertNotRegex(doc, r"Rule 4 \(needs_design\)")
-        for line in doc.splitlines():
-            self.assertNotIn("needs_design", line)
-
-    def test_stakes_high_floor_survives_rule_removal(self):
-        self.assertEqual(
-            lib.derive_lane("trivial", "high", False, "task"), "STANDARD"
-        )
-
-    def test_stakes_high_floor_source_text_survives(self):
-        source = inspect.getsource(lib.derive_lane)
-        self.assertIn('if stakes == "high":', source)
-
-    def test_stakes_high_floor_survives_for_small_and_standard(self):
-        self.assertEqual(lib.derive_lane("small", "high", False, "task"), "STANDARD")
-        self.assertEqual(lib.derive_lane("standard", "high", False, "story"), "STANDARD")
-
-    def test_epic_override_still_wins_over_everything(self):
-        self.assertEqual(
-            lib.derive_lane("trivial", "low", True, "epic"), "COMPLEX"
-        )
-
-    def test_signature_unchanged(self):
-        params = tuple(inspect.signature(lib.derive_lane).parameters)
-        self.assertEqual(params, ("size", "stakes", "needs_design", "ticket_type"))
-
-
 class TestCreateTicketSkillNeedsDesignEpicOnly(unittest.TestCase):
     """AC-3: /acs:create-ticket no longer offers or confirms needs_design for
     story/task; the epic carve-out and the separate docs_only confirmation

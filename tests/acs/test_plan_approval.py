@@ -38,6 +38,7 @@ PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SCRIPTS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
+SKILLS = os.path.join(PLUGIN, "skills")
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 INTERNALS = os.path.join(PLUGIN, "docs", "INTERNALS.md")
@@ -309,7 +310,17 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
     """AC-1, AC-3 -- drives plan-approval.py via subprocess only (never Write)."""
 
     def _new_standard_ticket(self):
-        return self.new_ticket("Plan approval", "task")
+        """A ticket already judged onto the `standard` delivery path.
+
+        Approval binds per path (ADR-0095) and the path is READ, never derived:
+        a ticket that has not been classified is one nothing is waiting on, so
+        the script no-ops on it. Recording the path is what a fixture owes."""
+        tid = self.new_ticket("Plan approval", "task")
+        self._classify(tid, "standard")
+        return tid
+
+    def _classify(self, ticket, path, reason="fixture: a plan of that shape"):
+        lib.workflow.record_delivery_path(self.tdir(ticket), ticket, path, reason)
 
     def _plan_dir(self, ticket):
         return os.path.join(self.tdir(ticket), "phases", "code")
@@ -332,7 +343,7 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
     def _state(self, ticket):
         return lib.read_json(lib.state_path(self.tdir(ticket), "code"))
 
-    def test_writes_record_on_standard_lane(self):
+    def test_writes_record_on_the_standard_path(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
         out = self.run_script("plan-approval.py", "--ticket", tid)
@@ -421,27 +432,46 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         state = self._state(tid)
         self.assertFalse(state["states"]["plan_approved"])
 
-    def test_fast_lane_writes_no_record(self):
-        tid = self.new_ticket("Trivial fix", "task", "--size", "trivial")
+    def test_a_cheap_path_writes_no_record(self):
+        for path in ("trivial", "small"):
+            with self.subTest(path=path):
+                tid = self.new_ticket("Small fix", "task")
+                self._classify(tid, path)
+                self._write_plan(tid, CONFORMING_PLAN)
+                out = self.run_script("plan-approval.py", "--ticket", tid)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                payload = json.loads(out.stdout)
+                self.assertEqual(payload.get("skipped"), "delivery_path")
+                self.assertEqual(payload.get("delivery_path"), path)
+                self.assertFalse(payload["plan_approved"])
+                self.assertFalse(os.path.exists(
+                    os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
+
+    def test_an_unclassified_ticket_is_not_due_an_approval(self):
+        """No recorded path means the plan has not been judged, which means
+        nothing downstream is waiting on an approval. Not an error -- not due."""
+        tid = self.new_ticket("Unclassified", "task")
         self._write_plan(tid, CONFORMING_PLAN)
         out = self.run_script("plan-approval.py", "--ticket", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         payload = json.loads(out.stdout)
-        self.assertEqual(payload.get("skipped"), "lane")
-        self.assertFalse(payload["plan_approved"])
+        self.assertEqual(payload.get("skipped"), "unclassified")
+        self.assertIsNone(payload.get("delivery_path"))
         self.assertFalse(os.path.exists(
             os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
 
-    def test_lane_is_recomputed_not_read_from_ticket_json(self):
+    def test_the_path_is_read_from_the_ledger_never_from_the_ticket(self):
+        """The judgement lives on pipeline-state.json. A stale `lane` left on a
+        ticket by a pre-ADR-0095 partition must not steer anything."""
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
         ticket_path = os.path.join(self.tdir(tid), "ticket.json")
-        with open(ticket_path, encoding="utf-8") as fh:
-            ticket = json.load(fh)
-        self.assertEqual(ticket["size"], "standard")
-        ticket["lane"] = "TRIVIAL"
-        with open(ticket_path, "w", encoding="utf-8") as fh:
-            json.dump(ticket, fh)
+        if os.path.exists(ticket_path):
+            with open(ticket_path, encoding="utf-8") as fh:
+                ticket = json.load(fh)
+            ticket["lane"] = "TRIVIAL"          # inert data since ADR-0095
+            with open(ticket_path, "w", encoding="utf-8") as fh:
+                json.dump(ticket, fh)
         out = self.run_script("plan-approval.py", "--ticket", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertTrue(os.path.exists(
@@ -582,7 +612,9 @@ class PlanApprovalWriterIsTheOnlyWriterTest(unittest.TestCase):
                             "%r" % (fname, literal))
 
     def test_skill_forbids_subagent_write_of_the_record(self):
-        norm_body = _norm(_read(IMPL_PLAN_SKILL))
+        # The call site moved to the two deep legs (ADR-0095): approval binds
+        # per delivery path, and no path exists while create-impl-plan runs.
+        norm_body = _norm(_read(os.path.join(SKILLS, "code-standard", "SKILL.md")))
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), norm_body):
             window = norm_body[max(0, m.start() - 250):m.end() + 250]
@@ -620,10 +652,14 @@ class PlanApprovalContractTest(unittest.TestCase):
     def setUpClass(cls):
         cls.skill_body = _read(IMPL_PLAN_SKILL)
         cls.internals_body = _read(INTERNALS)
+        cls.leg_bodies = {leg: _read(os.path.join(SKILLS, leg, "SKILL.md"))
+                          for leg in ("code-standard", "code-complex")}
 
     def test_skill_finish_example_carries_plan_approved(self):
+        """create-impl-plan still RECORDS the key -- always false, because the
+        path it would be judged against does not exist yet (ADR-0095)."""
         idx_plan_path = self.skill_body.index('"plan_path"')
-        idx_plan_approved = self.skill_body.index('"plan_approved": true,')
+        idx_plan_approved = self.skill_body.index('"plan_approved": false,')
         self.assertGreater(idx_plan_approved, idx_plan_path)
         self.assertLess(idx_plan_approved - idx_plan_path, 200)
 
@@ -658,25 +694,43 @@ class PlanApprovalContractTest(unittest.TestCase):
         self.assertGreater(approval_idx, plan_idx)
         self.assertLess(approval_idx, revocation_idx)
 
-    def test_subsection_is_lane_qualified_and_non_gating(self):
+    def test_the_plan_skill_says_approval_happens_later_and_why(self):
+        """The reason is the load-bearing part: create-impl-plan produces the
+        artifact the delivery path is judged FROM, so it cannot know whether
+        approval is owed. A reader who misses that will put the call back."""
         start = self.skill_body.index("### Plan approval")
         end = self.skill_body.index("### Plan revocation")
         section_norm = _norm(self.skill_body[start:end])
-        self.assertRegex(section_norm, r"(?i)STANDARD/COMPLEX")
-        self.assertRegex(section_norm, r"(?i)TRIVIAL/SMALL.{0,80}no-ops?")
-        self.assertRegex(section_norm, r"(?i)nothing gates.{0,60}this release")
+        self.assertRegex(section_norm, r"(?i)`standard` and `complex` delivery paths")
+        self.assertRegex(section_norm, r"(?i)before any path exists")
+        self.assertRegex(section_norm, r"(?i)artifact the path\s+is judged FROM|"
+                                       r"artifact the path is judged FROM")
 
-    def test_subsection_carries_the_exact_command(self):
-        start = self.skill_body.index("### Plan approval")
-        end = self.skill_body.index("### Plan revocation")
-        self.assertIn("hooks/scripts/plan-approval.py", self.skill_body[start:end])
+    def test_each_deep_leg_carries_the_exact_command(self):
+        for leg, body in self.leg_bodies.items():
+            with self.subTest(leg=leg):
+                self.assertIn("hooks/scripts/plan-approval.py", body)
+
+    def test_each_deep_leg_says_approval_is_enforced_and_non_gating(self):
+        for leg, body in self.leg_bodies.items():
+            with self.subTest(leg=leg):
+                norm_leg = _norm(body)
+                self.assertRegex(norm_leg, r"(?i)Plan approval is enforced")
+                self.assertRegex(norm_leg, r"(?i)ineligible plan does not block")
+
+    def test_the_cheap_legs_never_name_the_writer(self):
+        """A leg that runs the script on a path where approval does not bind
+        would write a record the review then activates against."""
+        for leg in ("code-trivial", "code-small"):
+            with self.subTest(leg=leg):
+                self.assertNotIn("plan-approval.py",
+                                 _read(os.path.join(SKILLS, leg, "SKILL.md")))
 
     def test_subsection_avoids_forbidden_literals(self):
         start = self.skill_body.index("### Plan approval")
         end = self.skill_body.index("### Plan revocation")
         section = self.skill_body[start:end]
         self.assertNotIn("create-spec", section)
-        self.assertNotIn("E2", section)
         self.assertNotIn("hld/data-model.md", section)
 
 

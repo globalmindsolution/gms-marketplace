@@ -93,17 +93,16 @@ return, the coordinator itself performs the merge pass — never a subagent:
    verdicts; it refuses a subset of lenses, and refuses to replace a verdict
    that carries blocking findings with a passing one.
 6. Zero surviving blocking findings after the merge = pass, identical to
-   the zero-findings rule below — the merge pass changes WHICH findings
-   count, never the pass/fail rule itself. **`iter-<n>-verdict.json` governs
-   `verifier_passed`**; the report explains it. The in-loop escalation
-   check's trigger (a) (see
-   `${CLAUDE_PLUGIN_ROOT}/skills/code/references/lane-changes.md`) reads this
-   FINAL merged findings list — the merge write always happens before the
-   next iteration's trigger-(a) evaluation.
+   the zero-findings rule in `${CLAUDE_PLUGIN_ROOT}/skills/code/references/verify.md` — the merge pass changes
+   WHICH findings count, never the pass/fail rule itself.
+   **`iter-<n>-verdict.json` governs `verifier_passed`**; the report explains
+   it. The merged list is also what the next iteration's executors are given
+   as `<context>`, so the merge write always happens before the next iteration
+   starts.
 
 ### Dimensions
 
-Every dimension in `references/verify.md`, **Regression-risk (git-history)**
+Every dimension in `${CLAUDE_PLUGIN_ROOT}/skills/code/references/verify.md`, **Regression-risk (git-history)**
 (dimension 14) included — it is lens D's.
 
 ### Inputs
@@ -155,9 +154,9 @@ N/A — not that the run proceeds unreviewed.
 Run execute -> verify for at most **3** iterations. There is no plan
 phase and no planner subagent: `/acs:create-impl-plan` authored the plan before
 this skill started, and this run reads it (Plan input resolution, in
-`references/protocol.md`).
+`${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md`).
 
-Spawn the executors and the verifier as `references/protocol.md`'s
+Spawn the executors and the verifier as `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md`'s
 **Subagents and messaging** section describes — the agent names, the
 model/effort resolution, the foreground-wait rule, the XML task and
 result contract, and the phase-artifact persistence are identical on

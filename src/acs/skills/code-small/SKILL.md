@@ -55,7 +55,7 @@ writing `<partition>/phases/code/iter-<n>-verify.md` directly.
 
 ### Dimensions
 
-All dimensions in `references/verify.md` EXCEPT **Regression-risk
+All dimensions in `${CLAUDE_PLUGIN_ROOT}/skills/code/references/verify.md` EXCEPT **Regression-risk
 (git-history)** (dimension 14), which is scoped to the two deep paths.
 
 ### Inputs
@@ -74,9 +74,9 @@ plan-conformance dimension then reports N/A. Do not create one.
 Run execute -> verify for at most **2** iterations. There is no plan
 phase and no planner subagent: `/acs:create-impl-plan` authored the plan before
 this skill started, and this run reads it (Plan input resolution, in
-`references/protocol.md`).
+`${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md`).
 
-Spawn the executors and the verifier as `references/protocol.md`'s
+Spawn the executors and the verifier as `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md`'s
 **Subagents and messaging** section describes — the agent names, the
 model/effort resolution, the foreground-wait rule, the XML task and
 result contract, and the phase-artifact persistence are identical on
