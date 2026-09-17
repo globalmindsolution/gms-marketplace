@@ -20,15 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Tags, so tests/acs/test_marketplace_ref_resolves.py can ask
-          # whether the marketplace ref actually resolves. Between
-          # releases `ref` is the default branch and the check runs
-          # anyway; after a cut it is a tag, absent from the default
-          # depth-1 checkout, and the check SKIPS -- inert in exactly
-          # the steady state it exists to police. That is how #540
-          # (path moved to src/acs, ref left at v0.4.9) passed CI and
-          # broke every install.
-          fetch-tags: true
+          # Every ref, so tests/acs/test_marketplace_ref_resolves.py can ask
+          # whether the marketplace ref actually resolves. At the default
+          # depth-1 the checkout carries neither tags nor branches, so that
+          # check SKIPS on every value `ref` can hold -- a tag after a release
+          # cut, the default branch between cuts. That is how #540 (path moved
+          # to src/acs, ref left at tag v0.4.9, resolvable at neither) went
+          # green here and broke every install.
+          #
+          # fetch-tags alone is not enough: a pull_request checkout is detached
+          # at the merge ref, where `git rev-parse main` fails and only
+          # `origin/main` resolves. Full history is 6.4 MiB over 70 commits.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:

@@ -47,9 +47,13 @@ work: `v0.4.9` predates the `plugins/acs` -> `src/acs` move, so `src/acs` does
 not exist there. Until v0.5.0 is tagged, the default branch is the only value
 that satisfies all three.
 
-Offline and free: it asks the local clone. Where the ref is not present (a
-shallow CI clone with no tags) the check skips with that reason rather than
-failing on an absence it cannot distinguish from a defect.
+Offline and free: it asks the local clone, reading the ref through
+`origin/<ref>` when the bare name is absent -- which is the normal case in a
+`pull_request` checkout, detached at the merge ref with no local branches.
+Where neither name resolves the check skips with that reason rather than
+failing on an absence it cannot distinguish from a defect. `ci.yml` checks
+out at `fetch-depth: 0` so that absence does not arise there; at the default
+depth 1 it arose on every run, which is how #540 shipped green.
 """
 
 import json
@@ -67,6 +71,21 @@ SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
 def git(*args):
     return subprocess.run(["git"] + list(args), cwd=REPO_ROOT,
                           capture_output=True, text=True)
+
+
+def resolve(ref):
+    """The name to read `ref` through in THIS clone, or None if absent.
+
+    A `pull_request` checkout is detached at the merge ref and carries no
+    local branches, so a `ref` of `main` fails `rev-parse` while
+    `origin/main` resolves -- and git does not DWIM the one into the other.
+    Skipping on that absence made the checks below inert in CI on exactly
+    the value the manifest holds between releases.
+    """
+    for name in (ref, "origin/" + ref):
+        if git("rev-parse", "--verify", "--quiet", name + "^{commit}").returncode == 0:
+            return name
+    return None
 
 
 def entries():
@@ -106,9 +125,10 @@ class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
                     # No ref means the marketplace tracks the default branch,
                     # and the working-tree check above is the whole of it.
                     continue
-                if git("rev-parse", "--verify", "--quiet", ref + "^{commit}").returncode != 0:
+                readable = resolve(ref)
+                if readable is None:
                     self.skipTest("ref %r not present in this clone (shallow fetch?)" % ref)
-                probe = git("cat-file", "-t", "%s:%s" % (ref, path))
+                probe = git("cat-file", "-t", "%s:%s" % (readable, path))
                 self.assertEqual(
                     probe.returncode, 0,
                     "%s: '%s' does not exist at ref '%s' — an install of this "
@@ -125,9 +145,10 @@ class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
             with self.subTest(plugin=name):
                 if not ref:
                     self.skipTest("entry tracks the default branch")
-                if git("rev-parse", "--verify", "--quiet", ref + "^{commit}").returncode != 0:
+                readable = resolve(ref)
+                if readable is None:
                     self.skipTest("ref %r not present in this clone" % ref)
-                target = "%s:%s/.claude-plugin/plugin.json" % (ref, path)
+                target = "%s:%s/.claude-plugin/plugin.json" % (readable, path)
                 self.assertEqual(
                     git("cat-file", "-e", target).returncode, 0,
                     "%s: no plugin.json at %s — the subdirectory resolves but "
@@ -190,8 +211,7 @@ class TheRefMustBeCloneableTest(unittest.TestCase):
                 is_remote = git("show-ref", "--verify", "--quiet",
                                 "refs/remotes/origin/" + ref).returncode == 0
                 if not (is_branch or is_tag or is_remote):
-                    if git("rev-parse", "--verify", "--quiet",
-                           ref + "^{commit}").returncode != 0:
+                    if resolve(ref) is None:
                         self.skipTest(
                             "ref %r not present in this clone (shallow fetch?)" % ref)
                 self.assertTrue(
