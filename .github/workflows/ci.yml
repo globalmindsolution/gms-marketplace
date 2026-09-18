@@ -177,19 +177,41 @@ jobs:
                       f"'{pj_version}'. Remove the entry version or align them — plugin.json wins silently."
                   )
 
-              devin_manifest = os.path.join(rel, ".devin-plugin", "plugin.json")
-              if os.path.exists(devin_manifest):
-                  with open(devin_manifest, encoding="utf-8") as fh:
-                      dm = json.load(fh)
-                  dm_name = dm.get("name")
-                  if dm_name and dm_name != name:
-                      errors.append(f"'{name}': marketplace entry name != .devin-plugin/plugin.json name '{dm_name}'")
-                  dm_version = dm.get("version")
-                  if pj_version is not None and dm_version is not None and dm_version != pj_version:
-                      errors.append(
-                          f"'{name}': .devin-plugin/plugin.json version '{dm_version}' != .claude-plugin "
-                          f"plugin.json version '{pj_version}' — the repo ships one shared version."
-                      )
+          # The Devin manifests are working-tree files, so they are judged
+          # against the tree -- via plugin_dirs(), never via the entry's `path`.
+          # `path` is ref-relative (read_manifest above reads the Claude
+          # manifest AT the ref), so pairing the two switches this check off
+          # silently: with the entry pinned at plugins/acs@v0.4.9 while the
+          # tree holds src/acs, os.path.exists(rel + "/.devin-plugin") is False
+          # for the one plugin there is, and a wrong version passes green.
+          # Same trap, same remedy as .github/scripts/plugin_source_dirs.py.
+          sys.path.insert(0, ".github/scripts")
+          from plugin_source_dirs import plugin_dirs
+
+          for plugin_dir in plugin_dirs():
+              devin_manifest = os.path.join(plugin_dir, ".devin-plugin", "plugin.json")
+              if not os.path.exists(devin_manifest):
+                  continue
+              with open(devin_manifest, encoding="utf-8") as fh:
+                  dm = json.load(fh)
+              # plugin_dirs() found this dir BY its .claude-plugin/plugin.json.
+              with open(os.path.join(plugin_dir, ".claude-plugin", "plugin.json"),
+                        encoding="utf-8") as fh:
+                  cm = json.load(fh)
+
+              dm_name, cm_name = dm.get("name"), cm.get("name")
+              if dm_name and cm_name and dm_name != cm_name:
+                  errors.append(
+                      f"'{plugin_dir}': .devin-plugin/plugin.json name '{dm_name}' != "
+                      f".claude-plugin/plugin.json name '{cm_name}'"
+                  )
+              dm_version, cm_version = dm.get("version"), cm.get("version")
+              if dm_version is not None and cm_version is not None and dm_version != cm_version:
+                  errors.append(
+                      f"'{plugin_dir}': .devin-plugin/plugin.json version '{dm_version}' != "
+                      f".claude-plugin/plugin.json version '{cm_version}' — the repo ships "
+                      f"one shared version."
+                  )
 
           # Root Devin meta-plugin shares the marketplace's version.
           root_devin = ".devin-plugin/plugin.json"
