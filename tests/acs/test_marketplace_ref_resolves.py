@@ -56,10 +56,12 @@ out at `fetch-depth: 0` so that absence does not arise there; at the default
 depth 1 it arose on every run, which is how #540 shipped green.
 """
 
+import glob
 import json
 import os
 import re
 import subprocess
+import sys
 import unittest
 
 
@@ -109,18 +111,16 @@ class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
             ref = source.get("ref")
             with self.subTest(plugin=name):
                 self.assertTrue(path, "%s declares no path" % name)
-                # Two readers, two models, and the manifest must satisfy both.
-                # ci.yml's validator resolves `path` against the WORKING TREE
-                # and requires a plugin.json there; the installer resolves it
-                # at `ref`. With the tree moved and the ref stale, no value of
-                # `path` satisfies both, which is how fixing one broke the
-                # other on 2026-09-16.
-                self.assertTrue(
-                    os.path.isdir(os.path.join(REPO_ROOT, path)),
-                    "%s: path %r does not exist in the working tree — ci.yml's "
-                    "marketplace validator resolves it there and fails with "
-                    "'has no plugin.json at %s/.claude-plugin/plugin.json'"
-                    % (name, path, path))
+                # `path` is judged AT `ref` and nowhere else. It used to be
+                # asserted against the working tree here too, mirroring
+                # ci.yml -- and that pair of demands is unsatisfiable for the
+                # whole window between a directory move and the cut that
+                # publishes it, which is how 2026-09-16 broke: satisfying the
+                # tree reader broke the installer, and every later fix traded
+                # one for the other. ci.yml no longer asks that question (it
+                # resolves at ref, and the lint steps discover the source tree
+                # via .github/scripts/plugin_source_dirs.py), so neither does
+                # this test.
                 if not ref:
                     # No ref means the marketplace tracks the default branch,
                     # and the working-tree check above is the whole of it.
@@ -254,3 +254,35 @@ class TheCutMovesBothFieldsTogetherTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TheLintStepsFindASourceTreeTest(unittest.TestCase):
+    """ci.yml's per-plugin lint steps must have something to lint.
+
+    Those five steps (schemas, settings, XSD, hook byte-compile, skill
+    frontmatter) used to locate the plugin by reading `path` out of
+    marketplace.json and `continue` when the directory was absent. Once
+    `path` became ref-relative that was every run: five checks reporting
+    success while validating nothing. They now ask
+    .github/scripts/plugin_source_dirs.py instead, and it exits non-zero on
+    an empty answer -- this pins that the answer is not empty, and that the
+    directory it names really carries a plugin.
+    """
+
+    def test_discovery_names_a_real_plugin_tree(self):
+        sys.path.insert(0, os.path.join(REPO_ROOT, ".github", "scripts"))
+        from plugin_source_dirs import plugin_dirs
+
+        dirs = plugin_dirs(REPO_ROOT)
+        self.assertTrue(
+            dirs,
+            "no plugin source directory in the working tree — ci.yml's five "
+            "per-plugin lint steps would each skip and still report success")
+        for rel in dirs:
+            with self.subTest(plugin_dir=rel):
+                self.assertTrue(os.path.exists(os.path.join(
+                    REPO_ROOT, rel, ".claude-plugin", "plugin.json")))
+                self.assertTrue(
+                    glob.glob(os.path.join(REPO_ROOT, rel, "skills", "*", "SKILL.md")),
+                    "%s carries no skills — the frontmatter check would pass "
+                    "over an empty set" % rel)
