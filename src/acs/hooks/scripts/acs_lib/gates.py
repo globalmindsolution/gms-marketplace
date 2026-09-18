@@ -441,12 +441,14 @@ def run_pre_payload(skill, payload, record_marker=True):
             # below and block the very run this arm exists to let through.
             #
             # os.write, not sys.stderr.write, because the handler is not the
-            # last chance to fail. A buffered write can leave the message
-            # pending, and the interpreter's own flush at shutdown then fails
-            # where nothing can catch it: CPython exits 120. Observed on 3.12
-            # (0 on 3.11), so the buffered form is a portability trap, not a
-            # theoretical one. Writing the fd directly raises here, inside the
-            # handler, and leaves nothing behind to flush.
+            # last chance to fail: a buffered write leaves the message pending,
+            # and the interpreter's flush at shutdown then fails where nothing
+            # can catch it (CPython exits 120 -- seen on 3.12, not 3.11).
+            # Writing the fd directly raises here, inside the handler, and
+            # leaves nothing behind. Note this only makes THIS warning safe --
+            # any other buffered stderr write in the same process still exits
+            # 120 on an unwritable stderr, which is why the test that covers
+            # this asserts the gate did not BLOCK rather than asserting 0.
             try:
                 os.write(2, (
                     "acs: warning: could not record the gate's evidence (%r) — "

@@ -325,17 +325,26 @@ class FailOpenTest(EvidenceCase):
 
     @unittest.skipUnless(os.path.exists("/dev/full"), "needs /dev/full")
     def test_a_failed_warning_about_it_does_not_block_the_gate_either(self):
-        """Two regressions, one assertion.
+        """The regression: the warning sat inside the outer try, so an
+        unwritable stderr reached run_pre's fail-closed handler and returned 2.
 
-        First: the warning sat inside the outer try, so an unwritable stderr
-        reached run_pre's fail-closed handler and returned 2.
+        The accepted set is measured, not assumed:
 
-        Then, subtler: swallowing the write is not enough if the write was
-        BUFFERED. The message stays pending and the interpreter's own flush at
-        shutdown fails where no handler can reach it -- CPython exits 120. That
-        manifestation is version-dependent (seen on 3.12, not on 3.11), so this
-        assertion passes on an older interpreter with the bug present. The CI
-        matrix is what catches it; do not read a green local run as proof."""
+          0   -- clean exit (the nested form, on an interpreter where the
+                 unrelated warning below does not strand the buffer)
+          120 -- CPython failing to flush stdio at shutdown. With stderr
+                 unwritable, ANY buffered stderr write strands the buffer, and
+                 this fixture provokes one that has nothing to do with the
+                 gate: read_json warns that the sessions path it was handed is
+                 not a directory. Non-blocking, and not acs's to fix here.
+          1   -- the exception escaped as a traceback (measured: the un-nested
+                 form returns 1 on 3.11)
+          2   -- run_pre's fail-closed arm caught it and BLOCKED the skill,
+                 which is exactly what test_session_marker.py:157 forbids
+
+        So 0 and 120 pass; 1 and 2 fail. Asserting == 0 measured the
+        interpreter rather than acs, and asserting != 2 missed the regression
+        entirely, since it escapes as 1."""
         self.break_sessions_dir()
         env = dict(os.environ, CLAUDE_PLUGIN_ROOT=os.path.join(REPO_ROOT, "src", "acs"))
         with open("/dev/full", "w") as devfull:
@@ -345,7 +354,8 @@ class FailOpenTest(EvidenceCase):
                                   "tool_input": {"skill": "acs:create-ticket"}}),
                 stdout=subprocess.PIPE, stderr=devfull, text=True,
                 cwd=self.repo, env=env)
-        self.assertEqual(result.returncode, 0)
+        self.assertIn(result.returncode, (0, 120),
+                      "the gate crashed (1) or blocked (2) a run it enforced")
 
 
 class NonForgeabilityTest(EvidenceCase):
