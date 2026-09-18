@@ -394,6 +394,55 @@ class TestValidateSettings(unittest.TestCase):
         self.assertIn("e2e.per_iteration", str(ctx.exception))
 
 
+class TestHookGatesSetting(unittest.TestCase):
+    """MAR-583 AC-4: hook_gates.when_absent is a new TOP-LEVEL block (never
+    nested under `enforcement`, which settings.schema.json scopes to the CI
+    conventions checker) selecting warn (the default) or refuse when the hook
+    gates are not firing."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repo = _mkrepo(self.tmp, "repo")
+        self.ws = os.path.join(self.tmp, "outside-ws")
+
+    def base(self, hook_gates):
+        return {"workspace_path": self.ws, "ticket_prefix": "SHOP", "hook_gates": hook_gates}
+
+    def test_hook_gates_defaults_to_warn(self):
+        self.assertEqual(lib.DEFAULT_SETTINGS["hook_gates"], {"when_absent": "warn"})
+        self.assertNotIn("hook_gates", lib.DEFAULT_SETTINGS.get("enforcement", {}))
+        # Both accepted values pass validation unchanged.
+        for value in ("warn", "refuse"):
+            lib.validate_settings(self.base({"when_absent": value}), self.repo)
+
+    def test_unknown_when_absent_is_rejected_with_both_values_named(self):
+        with self.assertRaises(lib.GateError) as ctx:
+            lib.validate_settings(self.base({"when_absent": "block"}), self.repo)
+        message = str(ctx.exception)
+        self.assertIn("hook_gates.when_absent", message)
+        self.assertIn("block", message)
+        # Actionable, per AC-4: the message names both values AND what each does.
+        self.assertIn("warn", message)
+        self.assertIn("refuse", message)
+
+    def test_non_object_hook_gates_is_rejected(self):
+        for bad in ("refuse", ["refuse"], 3):
+            with self.assertRaises(lib.GateError) as ctx:
+                lib.validate_settings(self.base(bad), self.repo)
+            self.assertIn("hook_gates", str(ctx.exception))
+
+    def test_schema_declares_the_enum(self):
+        schema_path = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+        with open(schema_path, "r", encoding="utf-8") as fh:
+            schema = json.load(fh)
+        hook_gates = schema["properties"]["hook_gates"]
+        when_absent = hook_gates["properties"]["when_absent"]
+        self.assertEqual(when_absent["enum"], ["warn", "refuse"])
+        self.assertEqual(when_absent["default"], "warn")
+        self.assertTrue(hook_gates["additionalProperties"])
+
+
 class TestValidateFormats(unittest.TestCase):
     """629, 649, 652: blank template, non-object formats.tickets, unknown ticket type."""
 
