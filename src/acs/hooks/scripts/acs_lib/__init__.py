@@ -142,7 +142,7 @@ from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_
     validate_verdict, verdict_filename, verdict_path, write_verdict)  # noqa: F401
 
 from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
-    derive_verifier_passed, disagreements, execute_reports, gate_enforcement,
+    derive_verifier_passed, disagreements, execute_reports,
     gh_pr_for_branch, guard_denials, latest_verdict, review_iterations)  # noqa: F401
 
 from . import yamlsubset, workflow  # noqa: F401,E402

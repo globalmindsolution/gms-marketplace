@@ -103,20 +103,6 @@ def guard_denials(tdir, skill):
     return len(events) if isinstance(events, list) else 0
 
 
-def gate_enforcement(tdir, skill):
-    """This run's hook-gate verdict (acs_lib.hostgates) from the state file.
-
-    None when the run entry predates the record, when the run was refused
-    before any entry existed, and when there is no state file to read -- the
-    named read surface an audit uses to separate gated runs from ungated
-    ones, never a reason to raise."""
-    state = read_json(state_path(tdir, skill))
-    runs = state.get("runs") if isinstance(state, dict) else None
-    entry = runs[-1] if isinstance(runs, list) and runs else None
-    verdict = entry.get("gate_enforcement") if isinstance(entry, dict) else None
-    return verdict if isinstance(verdict, dict) else None
-
-
 def latest_verdict(tdir, skill, since=None):
     """(iteration, doc) for the highest iteration that has a verdict, or (None, None).
 
