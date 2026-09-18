@@ -7,11 +7,21 @@ outside its file map, and no phase artifact is validated. The skills still read
 as instructions, so a pipeline appears to execute and nothing says otherwise.
 
 This module makes that state answerable at runtime, from evidence rather than
-inference. `run_pre_payload` records the session marker (`repo.record_session_
-marker`) as its FIRST action, before the gate itself passes or blocks, and the
-only other caller passes `record_marker=False` precisely so `acs.py gate` cannot
-forge one. The marker is therefore written by the PreToolUse(Skill) hook and by
-nothing else: if it is there, the kernel ran the gate.
+inference. `run_pre_payload` records a DEDICATED gate-evidence artifact as one
+of its first actions, before the gate itself passes or blocks, and the only
+other caller passes `record_marker=False` precisely so `acs.py gate` cannot
+forge one. The artifact is therefore written by the PreToolUse(Skill) hook and
+by nothing else: if it is there, the kernel ran the gate.
+
+The artifact is its own file, not a field on the session marker. That marker
+carries cost attribution, whose invariants run opposite to these: attribution
+must never be clobbered by an envelope that cannot supply it and must age out
+honestly, while gate evidence must be rewritten by every fire and spent once.
+Sharing one file cost three defects before this was separated -- a consumed
+stamp surviving a genuine fire, a correlation pair split across two sessions,
+and an expired correlation revived by a refreshed timestamp. This artifact
+holds no `session_id`, `transcript_path` or `cwd`, so it cannot corrupt
+attribution: it has none.
 
 The converse does not hold, and nothing here claims it. That write is fail-open
 by design (MAR-514: a marker-write bug must never block a gated skill), so a
@@ -21,16 +31,17 @@ never as proof that the gate did not fire -- in the reason, in the verdict's
 field names and in the notice's wording alike.
 
 Three conditions make the evidence answer for THIS invocation rather than some
-earlier one: the marker is fresh and belongs to this checkout, it was recorded
-for this entry-point skill, and it has not already been spent by another run
+earlier one: it is fresh and belongs to this checkout, it was recorded for this
+entry-point skill, and it has not already been spent by another run
 (`consume_gate_evidence`). Anything else is reported ungated with the reason
 that says which condition failed -- never silently.
 """
 
+import os
 from datetime import datetime, timezone
 
 from ._common import now_iso, parse_iso, read_json, write_json
-from .repo import session_marker_path
+from .repo import sessions_dir, session_marker_path
 
 #: settings.hook_gates.when_absent. `warn` never blocks a run, and is the
 #: default everywhere: an install on a hookless runtime keeps working.
@@ -38,8 +49,14 @@ GATE_RESPONSES = ("warn", "refuse")
 DEFAULT_GATE_RESPONSE = "warn"
 
 #: The staleness window skill-start.py has applied to the session marker since
-#: MAR-1; evidence older than this belongs to some earlier session.
+#: MAR-1. Read here only by `accepted_session_marker`, which serves session
+#: CORRELATION; gate evidence has its own window below so that changing one
+#: clock never moves the other.
 SESSION_MARKER_MAX_AGE_SECONDS = 15 * 60
+
+#: How long a hook fire's evidence answers for a run that starts after it.
+#: Same duration as the marker's window today, declared separately on purpose.
+GATE_EVIDENCE_MAX_AGE_SECONDS = 15 * 60
 
 #: Every hooks/hooks.json binding, grouped under the enforcement it carries --
 #: the notice's whole vocabulary. tests/acs/test_hook_gate_detection.py derives
@@ -76,6 +93,47 @@ def accepted_session_marker(ctx):
     return marker, None
 
 
+def gate_evidence_path(workspace, repo_id, ckid):
+    """Where the PreToolUse(Skill) hook records that it fired."""
+    return os.path.join(sessions_dir(workspace, repo_id), "%s-gate.json" % ckid)
+
+
+def record_gate_evidence(ctx, skill):
+    """Write this fire's evidence, replacing any previous fire's.
+
+    Carries only what gating needs -- the normalized entry point and when it
+    fired. No correlation field appears here, by design: see the module
+    docstring. A rewrite clears the previous consumption stamp by construction,
+    because the whole document is replaced."""
+    evidence = {
+        "gate_skill": skill,
+        "checkout_id": ctx["checkout_id"],
+        "fired_at": now_iso(),
+        "consumed_for": None,
+    }
+    write_json(
+        gate_evidence_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]),
+        evidence)
+    return evidence
+
+
+def accepted_gate_evidence(ctx):
+    """Read the gate artifact under the staleness/cross-checkout guard,
+    returning (evidence, None) or (None, why it was rejected)."""
+    evidence = read_json(
+        gate_evidence_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
+    if not isinstance(evidence, dict):
+        return None, "no_gate_evidence"
+    if evidence.get("checkout_id") != ctx["checkout_id"]:
+        return None, "evidence_foreign_checkout"
+    fired_at = parse_iso(evidence.get("fired_at"))
+    if fired_at is None:
+        return None, "evidence_unparseable"
+    if (datetime.now(timezone.utc) - fired_at).total_seconds() > GATE_EVIDENCE_MAX_AGE_SECONDS:
+        return None, "evidence_stale"
+    return evidence, None
+
+
 def gate_evidence(ctx, skill):
     """Weigh the evidence that PreToolUse(Skill) fired for this `skill`.
 
@@ -84,24 +142,19 @@ def gate_evidence(ctx, skill):
     fire". `reason` names the condition that decided it, and `unconfirmed` the
     enforcements this run cannot vouch for.
 
-    Returns (marker, verdict). The marker comes back ONLY when the verdict is
-    gated, since its single use is consume_gate_evidence -- nothing can stamp
+    Returns (evidence, verdict). The evidence comes back ONLY when the verdict
+    is gated, since its single use is consume_gate_evidence -- nothing can stamp
     evidence the verdict rejected."""
-    marker, reason = accepted_session_marker(ctx)
-    if marker is not None:
-        if marker.get("gate_skill") is None:
-            # A marker written by an acs older than MAR-583 names no entry
-            # point: ungated is the honest answer, and the next hook fire
-            # corrects it.
-            reason = "marker_predates_gate_evidence"
-        elif marker["gate_skill"] != skill:
-            reason = "marker_for_other_skill"
-        elif marker.get("gate_consumed_for") == marker["updated_at"]:
-            reason = "marker_already_consumed"
-    gated = marker is not None and reason is None
+    evidence, reason = accepted_gate_evidence(ctx)
+    if evidence is not None:
+        if evidence.get("gate_skill") != skill:
+            reason = "evidence_for_other_skill"
+        elif evidence.get("consumed_for") == evidence["fired_at"]:
+            reason = "evidence_already_consumed"
+    gated = evidence is not None and reason is None
     verdict = {
         "gated": gated,
-        "reason": "gate_marker_accepted" if gated else reason,
+        "reason": "gate_evidence_accepted" if gated else reason,
         "response": gate_response(ctx.get("settings")),
         # `unconfirmed`, not `not_in_force`: this run found no evidence for these
         # enforcements, which is not the same as establishing their absence.
@@ -110,20 +163,20 @@ def gate_evidence(ctx, skill):
         "checked_at": now_iso(),
     }
     verdict["notice"] = gate_notice(verdict)
-    return (marker if gated else None), verdict
+    return (evidence if gated else None), verdict
 
 
-def consume_gate_evidence(ctx, marker):
-    """Spend the marker, so one hook fire gates exactly one run.
+def consume_gate_evidence(ctx, evidence):
+    """Spend the evidence, so one hook fire gates exactly one run.
 
-    The stamp is the previous fire's, so every genuine fire clears it:
-    repo.record_session_marker rewrites the marker, and on the one arm where it
-    must keep an existing session_id it merges this fire's evidence in rather
-    than leaving the spent record standing."""
-    spent = dict(marker)
-    spent["gate_consumed_for"] = marker["updated_at"]
+    The stamp records the instant it spent. A later genuine fire rewrites the
+    whole artifact (`record_gate_evidence`), which clears the stamp by
+    construction -- there is no arm that may preserve an older document,
+    because this file holds nothing worth preserving."""
+    spent = dict(evidence)
+    spent["consumed_for"] = evidence["fired_at"]
     write_json(
-        session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), spent)
+        gate_evidence_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), spent)
     return spent
 
 
