@@ -131,14 +131,26 @@ class MarketplaceConsistencyTest(unittest.TestCase):
     # Helper: build a synthetic fixture repo in a tempdir
     # ------------------------------------------------------------------
 
-    def _make_fixture(self, entry, plugin_path=None, plugin_json=None, plugin_root=None):
+    def _make_fixture(self, entry, plugin_path=None, plugin_json=None, plugin_root=None,
+                      devin_json=None):
         """Create a synthetic repo dir with .claude-plugin/marketplace.json.
 
-        If plugin_path is given, also writes plugin_path/.claude-plugin/plugin.json.
+        If plugin_path is given, also writes plugin_path/.claude-plugin/plugin.json,
+        and plugin_path/.devin-plugin/plugin.json when devin_json is given.
         Returns the path to the fixture directory (cleaned up via addCleanup).
         """
         tmp = tempfile.mkdtemp(prefix="acs-mktfixture-")
         self.addCleanup(shutil.rmtree, tmp, True)
+
+        # The validator imports plugin_dirs() to find the plugin source dirs in
+        # the TREE, so a fixture only stands in for a repo if it carries the
+        # same helper the ci.yml checkout does.
+        scripts_dir = os.path.join(tmp, ".github", "scripts")
+        os.makedirs(scripts_dir)
+        shutil.copy(
+            os.path.join(REPO_ROOT, ".github", "scripts", "plugin_source_dirs.py"),
+            scripts_dir,
+        )
 
         metadata = {}
         if plugin_root is not None:
@@ -160,6 +172,12 @@ class MarketplaceConsistencyTest(unittest.TestCase):
             os.makedirs(pj_dir, exist_ok=True)
             with open(os.path.join(pj_dir, "plugin.json"), "w") as fh:
                 json.dump(plugin_json, fh)
+
+            if devin_json is not None:
+                dm_dir = os.path.join(tmp, plugin_path, ".devin-plugin")
+                os.makedirs(dm_dir, exist_ok=True)
+                with open(os.path.join(dm_dir, "plugin.json"), "w") as fh:
+                    json.dump(devin_json, fh)
 
         # The validator judges a pinned entry AT its ref, because that is what
         # an install fetches -- so a fixture that only writes files on disk no
@@ -508,3 +526,61 @@ class TheReleaseCutWindowTest(MarketplaceConsistencyTest):
             out.returncode, 1,
             "the release-cut carve-out swallowed the #540 break: v1.0.0 EXISTS "
             "and lacks src/myplugin, so this pair must still be rejected")
+
+
+class DevinManifestIsJudgedInTheTreeTest(MarketplaceConsistencyTest):
+    """The Devin check must not be switched off by the entry's ref-relative path.
+
+    `.devin-plugin/plugin.json` is a working-tree file; `path` is not a
+    working-tree location. Resolving the first under the second made the whole
+    check vanish the moment the two diverged -- which is the steady state
+    between a directory move and the release cut that publishes it, and
+    exactly where this repo sat: entry pinned at plugins/acs@v0.4.9, tree
+    holding src/acs, so `rel + "/.devin-plugin"` named nothing and a wrong
+    version passed green. The remedy is the one .github/scripts/
+    plugin_source_dirs.py already exists to serve: ask the tree.
+
+    Both halves are pinned, because a guard nobody tests failing is how this
+    got in: the mismatch must fail, and the matching pair must still pass.
+    """
+
+    def _moved_tree_fixture(self, devin_json):
+        """Entry pinned at the OLD path at a real tag; plugin moved in the tree."""
+        entry = {
+            "name": "myplugin",
+            "source": {"source": "git-subdir", "url": "https://example.com/repo.git",
+                       "path": "plugins/myplugin", "ref": "v1.0.0"},
+        }
+        tmp = self._make_fixture(
+            entry,
+            plugin_path="plugins/myplugin",
+            plugin_json={"name": "myplugin", "version": "1.0.0"},
+            devin_json=devin_json,
+        )
+        os.renames(os.path.join(tmp, "plugins", "myplugin"),
+                   os.path.join(tmp, "src", "myplugin"))
+        return tmp
+
+    def test_version_mismatch_is_caught_although_path_is_ref_relative(self):
+        tmp = self._moved_tree_fixture({"name": "myplugin", "version": "9.9.9"})
+        out = self._run(tmp)
+        self.assertEqual(
+            out.returncode, 1,
+            "the Devin version guard validated nothing: the tree holds "
+            "src/myplugin at 9.9.9 against a Claude manifest at 1.0.0, while "
+            "the entry's `path` (plugins/myplugin, ref-relative) names no "
+            "directory in this tree. stdout=%r" % out.stdout)
+        self.assertIn("one shared version", out.stderr)
+
+    def test_name_mismatch_is_caught_in_the_same_shape(self):
+        tmp = self._moved_tree_fixture({"name": "notmyplugin", "version": "1.0.0"})
+        out = self._run(tmp)
+        self.assertEqual(out.returncode, 1, "stdout=%r" % out.stdout)
+        self.assertIn("notmyplugin", out.stderr)
+
+    def test_the_matching_pair_still_passes(self):
+        """The other half: same moved tree, versions and names agree."""
+        tmp = self._moved_tree_fixture({"name": "myplugin", "version": "1.0.0"})
+        out = self._run(tmp)
+        self.assertEqual(out.returncode, 0, "stderr=%r" % out.stderr)
+        self.assertIn("OK", out.stdout)
