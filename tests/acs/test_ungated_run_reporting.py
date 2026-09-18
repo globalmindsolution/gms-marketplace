@@ -7,9 +7,9 @@ skill-start.py -- the first action of every acs skill -- does with that answer:
   * it exposes the verdict as `gate_enforcement` in BOTH context documents it
     prints, the normal payload and the `/acs:merge-pr --pr` exempt-pr one, so
     neither mode can be silently unreported;
-  * when the gates are absent it writes the notice naming the four enforcements
-    that are not in force to stderr as well, and records the verdict on the run
-    entry, where an audit can still read it after the run;
+  * when there is no evidence the gates fired it writes the notice naming the
+    four enforcements this run cannot confirm to stderr as well, and records the
+    verdict on the run entry, where an audit can still read it after the run;
   * under `hook_gates.when_absent: refuse` it blocks the run with exit 2 BEFORE
     any partition, lock, pointer or ledger write, so a refused run leaves
     nothing to unwind and no run entry exists to carry a verdict;
@@ -129,7 +129,7 @@ class ContextFieldTest(SkillStartCase):
         verdict = payload["gate_enforcement"]
         self.assertTrue(verdict["gated"])
         self.assertEqual(verdict["reason"], "gate_marker_accepted")
-        self.assertEqual(verdict["not_in_force"], [])
+        self.assertEqual(verdict["unconfirmed"], [])
         self.assertIsNone(verdict["notice"])
 
     def test_ungated_run_reports_gated_false(self):
@@ -146,7 +146,7 @@ class ContextFieldTest(SkillStartCase):
         self.mint("SHOP-1")
         _code, payload, _err = self.start("SHOP-1")
         verdict = payload["gate_enforcement"]
-        self.assertEqual(verdict["not_in_force"], ENFORCEMENTS)
+        self.assertEqual(verdict["unconfirmed"], ENFORCEMENTS)
         for name in ENFORCEMENTS:
             self.assertIn(name, verdict["notice"])
 
@@ -185,8 +185,10 @@ class ContextFieldTest(SkillStartCase):
 
 
 class LedgerTest(SkillStartCase):
-    """AC-3: the verdict is durable on runs[-1], at the guard-denial grain, and
-    readable through a named accessor rather than by re-deriving it."""
+    """AC-3: the verdict is durable on runs[-1], at the guard-denial grain, so
+    an audit reads it off the ledger entry itself -- the record the run leaves
+    behind, not a value recomputed later from evidence that has since been
+    spent, rewritten, or aged out of the staleness window."""
 
     def test_run_entry_records_the_ungated_verdict(self):
         self.mint("SHOP-1")
@@ -196,7 +198,7 @@ class LedgerTest(SkillStartCase):
         self.assertFalse(verdict["gated"])
         self.assertEqual(verdict["reason"], "no_gate_marker")
         self.assertEqual(verdict["response"], "warn")
-        self.assertEqual(verdict["not_in_force"], ENFORCEMENTS)
+        self.assertEqual(verdict["unconfirmed"], ENFORCEMENTS)
         self.assertIn("DEGRADED ENFORCEMENT", verdict["notice"])
 
     def test_run_entry_records_a_gated_verdict(self):
@@ -208,16 +210,28 @@ class LedgerTest(SkillStartCase):
         self.assertTrue(verdict["gated"])
         self.assertEqual(verdict["reason"], "gate_marker_accepted")
 
-    def test_derive_accessor_reads_the_latest_run(self):
-        tdir = self.mint("SHOP-1")
+    def test_the_entry_records_what_the_context_document_reported(self):
+        """One verdict, two readers: the coordinator reads it now on stdout, an
+        audit reads the same object later on the entry."""
+        self.mint("SHOP-1")
         code, payload, err = self.start("SHOP-1")
         self.assertEqual(code, 0, err)
-        self.assertEqual(lib.gate_enforcement(tdir, "code"),
+        self.assertEqual(self.entry("SHOP-1")["gate_enforcement"],
                          payload["gate_enforcement"])
 
-    def test_derive_accessor_returns_none_without_a_run(self):
+    def test_a_run_that_never_started_carries_no_verdict(self):
+        """A refused run is refused before any entry exists, which is why the
+        schema declares the field optional rather than required."""
         tdir = self.mint("SHOP-1")
-        self.assertIsNone(lib.gate_enforcement(tdir, "code"))
+        self.assertEqual(lib.load_state(tdir, "code", "SHOP-1")["runs"], [])
+
+    def test_a_run_entry_predating_the_record_stays_readable(self):
+        """Forward-only: an entry written before this shipped simply has no
+        field, and reading the ledger must not depend on one being there."""
+        tdir = self.mint("SHOP-1")
+        lib.append_in_progress_run(tdir, "code", "SHOP-1")
+        self.assertNotIn("gate_enforcement",
+                         lib.load_state(tdir, "code", "SHOP-1")["runs"][-1])
 
 
 class DefaultResponseTest(SkillStartCase):

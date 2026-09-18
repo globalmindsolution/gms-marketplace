@@ -242,7 +242,7 @@ _GATED_VERDICT = {
     "gated": True,
     "reason": "gate_marker_accepted",
     "response": "warn",
-    "not_in_force": [],
+    "unconfirmed": [],
     "notice": None,
     "checked_at": "2026-01-01T00:00:00Z",
 }
@@ -251,7 +251,7 @@ _UNGATED_VERDICT = {
     "gated": False,
     "reason": "no_gate_marker",
     "response": "refuse",
-    "not_in_force": ["precondition gate", "file-map guard",
+    "unconfirmed": ["precondition gate", "file-map guard",
                      "phase-artifact validation", "session bookkeeping"],
     "notice": "acs: DEGRADED ENFORCEMENT — ...",
     "checked_at": "2026-01-01T00:00:00Z",

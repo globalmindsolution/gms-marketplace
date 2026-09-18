@@ -308,7 +308,11 @@ def record_session_marker(ctx, payload, skill=None):
     `skill` is the NORMALIZED entry-point skill the gate ran for (a delivery-path
     leg's `acs:code-standard` is recorded as `code`), stored as `gate_skill`: the
     evidence acs_lib.hostgates reads to tell whether this runtime gated THIS
-    invocation. Only the PreToolUse(Skill) hook passes it."""
+    invocation. Only the PreToolUse(Skill) hook passes it.
+
+    Every call records the evidence of the fire it is serving -- including on the
+    arm below, which preserves an existing session_id by merging rather than by
+    leaving the previous fire's record in place."""
     path = session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
     marker = {
         "session_id": cc.hook_session_id(payload),
@@ -331,7 +335,18 @@ def record_session_marker(ctx, payload, skill=None):
     if marker["session_id"] is None:
         existing = read_json(path)
         if isinstance(existing, dict) and existing.get("session_id") is not None:
-            return existing
+            # Merged, never returned whole: the correlation fields this envelope
+            # cannot supply survive, and everything THIS fire knows -- its entry
+            # point, its freshness, its unspent evidence -- replaces the previous
+            # fire's. Keeping the old record intact made a genuine hook fire read
+            # as already-consumed, or as some other skill's.
+            merged = dict(existing)
+            merged.update({key: value for key, value in marker.items()
+                           if value is not None})
+            merged["gate_skill"] = skill
+            merged.pop("gate_consumed_for", None)
+            write_json(path, merged)
+            return merged
     write_json(path, marker)
     return marker
 

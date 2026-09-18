@@ -26,6 +26,8 @@ Stdlib-only. Run:
   python3 -m unittest tests.acs.test_hook_gate_detection -v
 """
 
+import contextlib
+import io
 import json
 import os
 import sys
@@ -116,7 +118,7 @@ class GateEvidenceTest(MarkerCase):
         self.assertTrue(verdict["gated"])
         self.assertEqual(verdict["reason"], "gate_marker_accepted")
         self.assertEqual(marker["gate_skill"], written["gate_skill"])
-        self.assertEqual(verdict["not_in_force"], [])
+        self.assertEqual(verdict["unconfirmed"], [])
         self.assertIsNone(verdict["notice"])
 
     def test_no_marker_at_all_reads_ungated(self):
@@ -215,7 +217,24 @@ class NoticeTest(MarkerCase):
         for name in ("precondition gate", "file-map guard",
                      "phase-artifact validation", "session bookkeeping"):
             self.assertIn(name, notice)
-            self.assertIn(name, verdict["not_in_force"])
+            self.assertIn(name, verdict["unconfirmed"])
+
+    def test_the_notice_claims_only_that_the_evidence_is_absent(self):
+        """The marker write is deliberately fail-open (gates.run_pre_payload,
+        MAR-514), so its absence cannot tell a gate that never fired from one
+        whose write failed. The notice must claim the weaker, true thing --
+        under warn a false "the gate did not fire" is a signal that cries wolf."""
+        notice = lib.gate_notice(self.ungated_verdict())
+        self.assertNotIn("did not fire", notice)
+        self.assertIn("no evidence", notice)
+        self.assertIn("fail-open", notice)
+
+    def test_the_refuse_notice_says_what_it_refuses_on(self):
+        """Refusal rides on ABSENCE of evidence, which includes the gate that
+        fired and could not record it: the operator is told so, here."""
+        verdict = self.ungated_verdict({"hook_gates": {"when_absent": "refuse"}})
+        notice = lib.gate_notice(verdict)
+        self.assertIn("absence of that evidence", notice)
 
     def test_the_notice_names_the_reason_and_the_settings_key(self):
         verdict = self.ungated_verdict()
@@ -350,6 +369,95 @@ class EvidenceConsumptionTest(MarkerCase):
         _marker, verdict = lib.gate_evidence(ctx, "create-ticket")
         self.assertTrue(verdict["gated"])
         self.assertNotIn("gate_consumed_for", lib.read_json(self.marker_path(ctx)))
+
+
+class NoClobberArmTest(MarkerCase):
+    """record_session_marker refuses to write an envelope's nulls OVER a marker
+    that carries a real session_id, so the next run keeps its cost/usage
+    attribution. That arm must still let the fire it is serving REPLACE the gate
+    evidence: a genuine hook fire that inherits the previous marker's spent
+    stamp or entry point reads as ungated for a run the gate did enforce."""
+
+    def seed_attributed_marker(self, skill="create-ticket"):
+        """A marker as a real PreToolUse envelope leaves it: session_id present."""
+        return lib.record_session_marker(
+            self.context(),
+            {"session_id": "REAL", "transcript_path": "/tmp/real.jsonl",
+             "cwd": self.repo, "hook_event_name": "PreToolUse",
+             "tool_input": {"skill": "acs:" + skill}}, skill)
+
+    def test_a_fire_without_a_session_id_clears_the_consumption_stamp(self):
+        ctx = self.context()
+        self.seed_attributed_marker()
+        marker, first = lib.gate_evidence(ctx, "create-ticket")
+        self.assertTrue(first["gated"])
+        lib.consume_gate_evidence(ctx, marker)
+
+        # dispatch.py's envelope here carries no session_id -- the arm's case.
+        self.pre("create-ticket")
+
+        _marker, second = lib.gate_evidence(ctx, "create-ticket")
+        self.assertTrue(second["gated"], second["reason"])
+
+    def test_a_fire_without_a_session_id_records_its_own_entry_point(self):
+        ctx = self.context()
+        self.seed_attributed_marker()
+        self.pre("code-standard", args_text="SHOP-1")
+        on_disk = lib.read_json(self.marker_path(ctx))
+        self.assertEqual(on_disk["gate_skill"], "code")
+        self.assertEqual(on_disk["skill"], "acs:code-standard")
+
+    def test_the_attribution_the_arm_protects_still_survives(self):
+        ctx = self.context()
+        self.seed_attributed_marker()
+        self.pre("create-ticket")
+        on_disk = lib.read_json(self.marker_path(ctx))
+        self.assertEqual(on_disk["session_id"], "REAL")
+        self.assertEqual(on_disk["transcript_path"], "/tmp/real.jsonl")
+
+
+class FailOpenEvidenceTest(MarkerCase):
+    """run_pre_payload records the evidence inside a deliberate fail-open
+    try/except: MAR-514 established that a marker-write bug must never make the
+    gate exit 2 (tests/acs/test_session_marker.py). That write is now the only
+    proof the gate fired, so a swallowed failure must read as "no evidence" --
+    never as "the gate did not fire" -- and must not be silent about it."""
+
+    def break_the_marker_write(self):
+        """sessions/ as a plain file: write_json's makedirs then fails for real,
+        with no monkeypatching -- MAR-514's own fixture for the same failure."""
+        sessions = lib.sessions_dir(self.ws, "acme-shop")
+        os.makedirs(os.path.dirname(sessions), exist_ok=True)
+        with open(sessions, "w", encoding="utf-8") as fh:
+            fh.write("not a directory")
+
+    def fire_the_gate(self):
+        """The real pre path, in-process, returning what it wrote to stderr."""
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = lib.run_pre_payload(
+                "create-ticket",
+                {"cwd": self.repo, "session_id": "sess-1",
+                 "hook_event_name": "PreToolUse",
+                 "tool_input": {"skill": "acs:create-ticket"}})
+        return code, err.getvalue()
+
+    def test_a_failed_write_is_reported_rather_than_vanishing(self):
+        self.break_the_marker_write()
+        code, err = self.fire_the_gate()
+        self.assertEqual(code, 0, "MAR-514: a marker-write failure never blocks the gate")
+        self.assertIn("session marker", err)
+
+    def test_the_verdict_after_a_failed_write_claims_only_absence(self):
+        self.break_the_marker_write()
+        code, _err = self.fire_the_gate()
+        self.assertEqual(code, 0)
+        with contextlib.redirect_stderr(io.StringIO()):
+            marker, verdict = lib.gate_evidence(self.context(), "create-ticket")
+        self.assertIsNone(marker)
+        self.assertFalse(verdict["gated"])
+        self.assertEqual(verdict["reason"], "no_gate_marker")
+        self.assertNotIn("did not fire", verdict["notice"])
 
 
 if __name__ == "__main__":

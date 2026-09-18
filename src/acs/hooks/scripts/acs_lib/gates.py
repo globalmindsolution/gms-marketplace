@@ -427,8 +427,15 @@ def run_pre_payload(skill, payload, record_marker=True):
         try:
             if record_marker:
                 record_session_marker(ctx, payload, skill)
-        except Exception:  # a marker-write bug must never block a gated skill
-            pass
+        except Exception as exc:  # a marker-write bug must never block a gated skill
+            # Swallowed since MAR-514, but no longer silently: this write is the
+            # only evidence skill-start has that the gate fired, so a failure
+            # here is the reason a genuinely gated run will report its
+            # enforcement as unconfirmed.
+            sys.stderr.write(
+                "acs: warning: could not record the gate's session marker (%r) — "
+                "this run proceeds gated, but will report its hook enforcement "
+                "as unconfirmed\n" % (exc,))
         warn = tracker_cli_warning(ctx["settings"])
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)

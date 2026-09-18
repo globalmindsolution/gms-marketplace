@@ -11,8 +11,14 @@ inference. `run_pre_payload` records the session marker (`repo.record_session_
 marker`) as its FIRST action, before the gate itself passes or blocks, and the
 only other caller passes `record_marker=False` precisely so `acs.py gate` cannot
 forge one. The marker is therefore written by the PreToolUse(Skill) hook and by
-nothing else: if it is there the kernel ran the gate, and if it is not, it did
-not. The detection is exactly as accurate as the gate it reports on.
+nothing else: if it is there, the kernel ran the gate.
+
+The converse does not hold, and nothing here claims it. That write is fail-open
+by design (MAR-514: a marker-write bug must never block a gated skill), so a
+failure to record is indistinguishable from a runtime that never fired the hook.
+Absence of the evidence is therefore reported as absence of the evidence --
+never as proof that the gate did not fire -- in the reason, in the verdict's
+field names and in the notice's wording alike.
 
 Three conditions make the evidence answer for THIS invocation rather than some
 earlier one: the marker is fresh and belongs to this checkout, it was recorded
@@ -71,7 +77,12 @@ def accepted_session_marker(ctx):
 
 
 def gate_evidence(ctx, skill):
-    """Decide whether PreToolUse(Skill) fired for this invocation of `skill`.
+    """Weigh the evidence that PreToolUse(Skill) fired for this `skill`.
+
+    `gated` is true only on accepted evidence; false means no such evidence was
+    found, which the fail-open write above makes weaker than "the gate did not
+    fire". `reason` names the condition that decided it, and `unconfirmed` the
+    enforcements this run cannot vouch for.
 
     Returns (marker, verdict). The marker comes back ONLY when the verdict is
     gated, since its single use is consume_gate_evidence -- nothing can stamp
@@ -92,7 +103,9 @@ def gate_evidence(ctx, skill):
         "gated": gated,
         "reason": "gate_marker_accepted" if gated else reason,
         "response": gate_response(ctx.get("settings")),
-        "not_in_force": [] if gated else [name for _bindings, name in HOOK_ENFORCEMENTS],
+        # `unconfirmed`, not `not_in_force`: this run found no evidence for these
+        # enforcements, which is not the same as establishing their absence.
+        "unconfirmed": [] if gated else [name for _bindings, name in HOOK_ENFORCEMENTS],
         "notice": None,
         "checked_at": now_iso(),
     }
@@ -103,8 +116,10 @@ def gate_evidence(ctx, skill):
 def consume_gate_evidence(ctx, marker):
     """Spend the marker, so one hook fire gates exactly one run.
 
-    A genuine new hook fire rewrites the whole marker and clears the stamp by
-    construction (repo.record_session_marker writes, never merges)."""
+    The stamp is the previous fire's, so every genuine fire clears it:
+    repo.record_session_marker rewrites the marker, and on the one arm where it
+    must keep an existing session_id it merges this fire's evidence in rather
+    than leaving the spent record standing."""
     spent = dict(marker)
     spent["gate_consumed_for"] = marker["updated_at"]
     write_json(
@@ -113,27 +128,32 @@ def consume_gate_evidence(ctx, marker):
 
 
 def gate_notice(verdict):
-    """Render the degraded-enforcement notice for an ungated verdict, else None."""
+    """Render the degraded-enforcement notice for an unconfirmed verdict, else None."""
     if verdict.get("gated"):
         return None
     lines = [
-        "acs: DEGRADED ENFORCEMENT — the PreToolUse(Skill) gate did not fire for "
-        "this run (%s)." % verdict.get("reason"),
-        "This runtime is not enforcing acs's hooks. NOT in force for this run:",
+        "acs: DEGRADED ENFORCEMENT — no evidence that the PreToolUse(Skill) gate "
+        "fired for this run (%s)." % verdict.get("reason"),
+        "The gate records that evidence fail-open (MAR-514: a marker-write bug "
+        "must never block a gated skill), so a failed write looks exactly like a "
+        "runtime that never fired the hook. What this run cannot confirm is in "
+        "force:",
     ]
     for bindings, name in HOOK_ENFORCEMENTS:
         lines.append("  - %s (%s)" % (name, ", ".join(bindings)))
     lines.append(
-        "A skill can start with an unmet predecessor, an executor can write "
-        "outside its file map, and no phase artifact is validated.")
+        "Treat the run as ungated: a skill can start with an unmet predecessor, "
+        "an executor can write outside its file map, and no phase artifact is "
+        "validated.")
     if verdict.get("response") == "refuse":
         lines.append(
-            "settings.hook_gates.when_absent is 'refuse', so this run is blocked. "
-            "Run acs on a host that fires the hooks, or set the key to 'warn' to "
-            "continue ungated.")
+            "settings.hook_gates.when_absent is 'refuse', so this run is blocked "
+            "on the absence of that evidence — which includes a gate that fired "
+            "and could not record it. Run acs on a host that fires the hooks, or "
+            "set the key to 'warn' to continue ungated.")
     else:
         lines.append(
             "settings.hook_gates.when_absent is 'warn' (the default), so this run "
-            "continues ungated. Set the key to 'refuse' to block runs the gates "
-            "do not cover.")
+            "continues ungated. Set the key to 'refuse' to block runs whose "
+            "gating cannot be confirmed.")
     return "\n".join(lines)

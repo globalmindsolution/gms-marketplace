@@ -204,11 +204,14 @@
             }
           },
           "gate_enforcement": {
-            "description": "Whether acs's hook gates were actually enforcing this run (MAR-583), written at run start by skill-start.py from acs_lib.hostgates.gate_evidence -- evidence (the PreToolUse(Skill) session marker), never inference about the host. Optional and forward-only: a run started before it shipped carries none, and a run REFUSED under hook_gates.when_absent=refuse never becomes a run entry at all, so this only ever describes a run that started.",
+            "description": "Whether this run could confirm acs's hook gates were enforcing it (MAR-583), written at run start by skill-start.py from acs_lib.hostgates.gate_evidence -- evidence (the PreToolUse(Skill) session marker), never inference about the host. The evidence is recorded fail-open (MAR-514), so `gated: false` records the absence of that evidence and never establishes that the gate did not fire. Optional and forward-only: a run started before it shipped carries none, and a run REFUSED under hook_gates.when_absent=refuse never becomes a run entry at all, so this only ever describes a run that started.",
             "type": "object",
-            "required": ["gated", "reason", "response", "not_in_force", "checked_at"],
+            "required": ["gated", "reason", "response", "unconfirmed", "checked_at"],
             "properties": {
-              "gated": {"type": "boolean"},
+              "gated": {
+                "description": "True only on accepted evidence that the PreToolUse(Skill) gate fired for this run; false means no such evidence, which is weaker than proof that it did not fire.",
+                "type": "boolean"
+              },
               "reason": {
                 "description": "Which condition decided the verdict (e.g. gate_marker_accepted, no_gate_marker, marker_already_consumed). An open string, not an enum: the vocabulary lives in acs_lib.hostgates and grows as new ways for evidence to fail are found, and enumerating it here would make every addition retroactively invalidate old state files.",
                 "type": "string"
@@ -217,8 +220,8 @@
                 "description": "settings.hook_gates.when_absent as resolved for this run; warn (the default) never blocks.",
                 "enum": ["warn", "refuse"]
               },
-              "not_in_force": {
-                "description": "The enforcements acs_lib.HOOK_ENFORCEMENTS names as absent; empty on a gated run.",
+              "unconfirmed": {
+                "description": "The enforcements acs_lib.HOOK_ENFORCEMENTS names, which this run found no evidence for; empty on a gated run. Named for what the evidence supports: the marker write is fail-open (MAR-514), so its absence never establishes that an enforcement was not in force.",
                 "type": "array",
                 "items": {"type": "string"}
               },

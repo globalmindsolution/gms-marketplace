@@ -61,8 +61,8 @@ def append_in_progress_run(tdir, skill, ticket_id, session=None, gate=None):
     marker dict) is optional -- when given, its session_id/transcript_path are
     persisted onto the entry; the default None keeps every existing caller's
     entry shape byte-identical. `gate` (a hostgates verdict) is optional the
-    same way and records, durably, whether the hook gates were enforcing this
-    run at all."""
+    same way and records, durably, whether this run could confirm the hook gates
+    were enforcing it at all."""
     state = load_state(tdir, skill, ticket_id)
     entry = {
         "started_at": now_iso(),
