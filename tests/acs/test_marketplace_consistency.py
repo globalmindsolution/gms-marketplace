@@ -82,6 +82,20 @@ def _extract_validator_body():
     return textwrap.dedent("".join(body_lines))
 
 
+def _git_init(tmp, ref):
+    """Commit the fixture tree and make `ref` name that commit."""
+    env = dict(os.environ,
+               GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@e",
+               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@e")
+    run = lambda *a: subprocess.run(["git"] + list(a), cwd=tmp, env=env,
+                                    capture_output=True, text=True, check=True)
+    run("init", "--quiet", "-b", "main")
+    run("add", "-A")
+    run("commit", "--quiet", "-m", "fixture")
+    if ref != "main":
+        run("tag", ref)
+
+
 class MarketplaceConsistencyTest(unittest.TestCase):
 
     @classmethod
@@ -146,6 +160,16 @@ class MarketplaceConsistencyTest(unittest.TestCase):
             os.makedirs(pj_dir, exist_ok=True)
             with open(os.path.join(pj_dir, "plugin.json"), "w") as fh:
                 json.dump(plugin_json, fh)
+
+        # The validator judges a pinned entry AT its ref, because that is what
+        # an install fetches -- so a fixture that only writes files on disk no
+        # longer stands in for a repo. Commit the tree and name the ref, which
+        # is also what makes these cases able to fail: the pre-2026-09-17
+        # validator read the working tree and so could not tell a correct pair
+        # from one whose path does not exist at the ref it advertises.
+        ref = (entry.get("source") or {}).get("ref") if isinstance(entry.get("source"), dict) else None
+        if ref:
+            _git_init(tmp, ref)
 
         return tmp
 
@@ -380,3 +404,107 @@ class MarketplaceConsistencyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PathIsJudgedAtTheRefTest(MarketplaceConsistencyTest):
+    """The 2026-09-16 break, as a test the validator must fail on.
+
+    A directory move leaves `path` correct in the working tree and wrong at
+    the tag the entry still advertises. The validator used to resolve `path`
+    against the tree, so it saw a healthy plugin and passed, while every
+    install asked for that path at the old tag and got nothing. Judging at the
+    ref is what makes the two agree; this pins that it does.
+    """
+
+    def test_path_present_in_tree_but_absent_at_ref_is_rejected(self):
+        entry = {
+            "name": "myplugin",
+            "source": {"source": "git-subdir", "url": "https://example.com/repo.git",
+                       "path": "src/myplugin", "ref": "v1.0.0"},
+        }
+        # Commit the plugin at plugins/myplugin and tag it -- that is the
+        # release. Then move it to src/myplugin in the tree WITHOUT re-tagging,
+        # and point `path` at the new home: each field defensible alone, the
+        # pair unresolvable, which is precisely what shipped.
+        tmp = self._make_fixture(
+            entry,
+            plugin_path="plugins/myplugin",
+            plugin_json={"name": "myplugin", "version": "1.0.0"},
+        )
+        os.renames(os.path.join(tmp, "plugins", "myplugin"),
+                   os.path.join(tmp, "src", "myplugin"))
+        out = self._run(tmp)
+        self.assertEqual(
+            out.returncode, 1,
+            "validator passed a pair no install can resolve: 'src/myplugin' "
+            "exists in the tree but not at tag v1.0.0. stdout=%r" % out.stdout)
+        self.assertIn("no plugin.json", out.stderr)
+
+    def test_the_same_pair_passes_once_the_ref_carries_the_move(self):
+        """The other half: same move, ref advanced with it -> resolvable."""
+        entry = {
+            "name": "myplugin",
+            "source": {"source": "git-subdir", "url": "https://example.com/repo.git",
+                       "path": "src/myplugin", "ref": "v1.1.0"},
+        }
+        tmp = self._make_fixture(
+            entry,
+            plugin_path="src/myplugin",
+            plugin_json={"name": "myplugin", "version": "1.0.0"},
+        )
+        out = self._run(tmp)
+        self.assertEqual(out.returncode, 0,
+                         "stderr=%r" % out.stderr)
+        self.assertIn("OK", out.stdout)
+
+
+class TheReleaseCutWindowTest(MarketplaceConsistencyTest):
+    """The cut writes ref=v{version} before that tag exists; CI must not block it.
+
+    release.extra_refs rewrites source/ref and source/path in the release
+    commit, and release.yml creates the tag only once that commit reaches
+    main. So on the release PR the advertised ref names nothing yet. Judging
+    that as a broken pair would make every release PR unmergeable -- the
+    commit under test is precisely the one about to be tagged, so the tree is
+    what the tag will capture.
+    """
+
+    def test_ref_that_does_not_exist_yet_is_judged_against_the_tree(self):
+        entry = {
+            "name": "acs",
+            "source": {"source": "git-subdir", "url": "https://example.com/repo.git",
+                       "path": "src/acs", "ref": "v0.5.0"},
+        }
+        tmp = self._make_fixture(
+            entry,
+            plugin_path="src/acs",
+            plugin_json={"name": "acs", "version": "1.0.0"},
+        )
+        # _make_fixture tags the ref; drop it so the tag is genuinely absent,
+        # which is the state a release PR is actually in.
+        subprocess.run(["git", "tag", "-d", "v0.5.0"], cwd=tmp,
+                       capture_output=True, check=True)
+        out = self._run(tmp)
+        self.assertEqual(out.returncode, 0,
+                         "a release cut would be unmergeable. stderr=%r" % out.stderr)
+        self.assertIn("does not exist yet", out.stdout)
+
+    def test_but_a_ref_that_DOES_exist_is_still_judged_there(self):
+        """The carve-out must not swallow the 2026-09-16 break."""
+        entry = {
+            "name": "myplugin",
+            "source": {"source": "git-subdir", "url": "https://example.com/repo.git",
+                       "path": "src/myplugin", "ref": "v1.0.0"},
+        }
+        tmp = self._make_fixture(
+            entry,
+            plugin_path="plugins/myplugin",
+            plugin_json={"name": "myplugin", "version": "1.0.0"},
+        )
+        os.renames(os.path.join(tmp, "plugins", "myplugin"),
+                   os.path.join(tmp, "src", "myplugin"))
+        out = self._run(tmp)
+        self.assertEqual(
+            out.returncode, 1,
+            "the release-cut carve-out swallowed the #540 break: v1.0.0 EXISTS "
+            "and lacks src/myplugin, so this pair must still be rejected")
