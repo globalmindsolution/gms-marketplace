@@ -203,6 +203,33 @@
               "additionalProperties": true
             }
           },
+          "gate_enforcement": {
+            "description": "Whether acs's hook gates were actually enforcing this run (MAR-583), written at run start by skill-start.py from acs_lib.hostgates.gate_evidence -- evidence (the PreToolUse(Skill) session marker), never inference about the host. Optional and forward-only: a run started before it shipped carries none, and a run REFUSED under hook_gates.when_absent=refuse never becomes a run entry at all, so this only ever describes a run that started.",
+            "type": "object",
+            "required": ["gated", "reason", "response", "not_in_force", "checked_at"],
+            "properties": {
+              "gated": {"type": "boolean"},
+              "reason": {
+                "description": "Which condition decided the verdict (e.g. gate_marker_accepted, no_gate_marker, marker_already_consumed). An open string, not an enum: the vocabulary lives in acs_lib.hostgates and grows as new ways for evidence to fail are found, and enumerating it here would make every addition retroactively invalidate old state files.",
+                "type": "string"
+              },
+              "response": {
+                "description": "settings.hook_gates.when_absent as resolved for this run; warn (the default) never blocks.",
+                "enum": ["warn", "refuse"]
+              },
+              "not_in_force": {
+                "description": "The enforcements acs_lib.HOOK_ENFORCEMENTS names as absent; empty on a gated run.",
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "notice": {
+                "description": "The degraded-enforcement notice as printed to stderr; null on a gated run.",
+                "oneOf": [{"type": "string"}, {"type": "null"}]
+              },
+              "checked_at": {"type": "string"}
+            },
+            "additionalProperties": true
+          },
           "status": {"enum": ["in_progress", "completed", "failed", "interrupted", "handed_off"]},
           "stop_reason": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "handoff_summary": {

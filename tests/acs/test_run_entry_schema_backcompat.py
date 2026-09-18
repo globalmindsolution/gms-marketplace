@@ -1,11 +1,11 @@
 """Backward-compatibility guard for skill-state.schema.json's run-entry
 `model_usage` property (D4 Option A: additive, optional, forward-only), and
-for the `api_duration_*` run-entry/role_usage properties and the
+for the `api_duration_*` run-entry/role_usage properties, the
 `pipeline-state.schema.json`/`metrics.schema.json` `totals` counters added
-alongside them.
+alongside them, and the `gate_enforcement` run-entry property.
 
 Originating tickets: MAR-3 (model_usage); MAR-6 (api_duration_*, duration
-counters).
+counters); MAR-583 (gate_enforcement).
 
 Stdlib-only where possible; the full-schema validation tests guard a bare
 `import jsonschema` behind `skipUnless` so the CI "Tests & validation" job
@@ -236,6 +236,104 @@ class TestPipelineStateAndMetricsApiDurationCounters(unittest.TestCase):
             full_doc["totals"]["runs_api_duration_measured"] = 1
             full_doc["totals"]["runs_api_duration_unavailable"] = 0
             jsonschema.validate(full_doc, schema)
+
+
+_GATED_VERDICT = {
+    "gated": True,
+    "reason": "gate_marker_accepted",
+    "response": "warn",
+    "not_in_force": [],
+    "notice": None,
+    "checked_at": "2026-01-01T00:00:00Z",
+}
+
+_UNGATED_VERDICT = {
+    "gated": False,
+    "reason": "no_gate_marker",
+    "response": "refuse",
+    "not_in_force": ["precondition gate", "file-map guard",
+                     "phase-artifact validation", "session bookkeeping"],
+    "notice": "acs: DEGRADED ENFORCEMENT — ...",
+    "checked_at": "2026-01-01T00:00:00Z",
+}
+
+
+class TestRunEntrySchemaGateEnforcementProperty(unittest.TestCase):
+    """Structural checks on the schema file itself, no jsonschema needed.
+
+    Same additive/optional/forward-only shape as guard_events (MAR-578): the
+    verdict is recorded at run start, and a run started before it shipped
+    carries none."""
+
+    def test_gate_enforcement_property_declared_on_run_entry(self):
+        _, run_entry_schema = _run_entry_schema()
+        self.assertIn("gate_enforcement", run_entry_schema["properties"])
+        prop = run_entry_schema["properties"]["gate_enforcement"]
+        self.assertEqual(prop["type"], "object")
+        self.assertTrue(prop.get("additionalProperties") is True)
+
+    def test_gate_enforcement_not_added_to_required(self):
+        _, run_entry_schema = _run_entry_schema()
+        self.assertNotIn("gate_enforcement", run_entry_schema.get("required", []))
+
+    def test_response_is_the_settings_key_enum(self):
+        _, run_entry_schema = _run_entry_schema()
+        prop = run_entry_schema["properties"]["gate_enforcement"]
+        self.assertEqual(prop["properties"]["response"]["enum"], ["warn", "refuse"])
+
+    def test_reason_is_an_open_string_not_an_enum(self):
+        # The reason vocabulary lives in acs_lib.hostgates and grows as new
+        # ways for evidence to fail are found; enumerating it here would make
+        # every such addition retroactively invalidate old state files.
+        _, run_entry_schema = _run_entry_schema()
+        reason = run_entry_schema["properties"]["gate_enforcement"]["properties"]["reason"]
+        self.assertEqual(reason["type"], "string")
+        self.assertNotIn("enum", reason)
+
+
+@unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema not installed in this env")
+class TestRunEntrySchemaGateEnforcementValidation(unittest.TestCase):
+    """A run entry written before MAR-583 still validates; both a gated and an
+    ungated verdict validate; a verdict missing its core answer does not."""
+
+    def test_legacy_entry_without_gate_enforcement_still_validates(self):
+        with open(SCHEMA_PATH, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        jsonschema.validate(_LEGACY_STATE, schema)
+
+    def test_run_entry_with_a_gated_verdict_validates(self):
+        with open(SCHEMA_PATH, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        state = json.loads(json.dumps(_LEGACY_STATE))
+        state["runs"][0]["gate_enforcement"] = _GATED_VERDICT
+        jsonschema.validate(state, schema)
+
+    def test_run_entry_with_an_ungated_verdict_validates(self):
+        with open(SCHEMA_PATH, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        state = json.loads(json.dumps(_LEGACY_STATE))
+        state["runs"][0]["gate_enforcement"] = _UNGATED_VERDICT
+        jsonschema.validate(state, schema)
+
+    def test_verdict_without_the_gated_key_is_rejected(self):
+        with open(SCHEMA_PATH, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        state = json.loads(json.dumps(_LEGACY_STATE))
+        verdict = json.loads(json.dumps(_GATED_VERDICT))
+        del verdict["gated"]
+        state["runs"][0]["gate_enforcement"] = verdict
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(state, schema)
+
+    def test_verdict_with_an_unknown_response_is_rejected(self):
+        with open(SCHEMA_PATH, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        state = json.loads(json.dumps(_LEGACY_STATE))
+        verdict = json.loads(json.dumps(_GATED_VERDICT))
+        verdict["response"] = "block"
+        state["runs"][0]["gate_enforcement"] = verdict
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate(state, schema)
 
 
 if __name__ == "__main__":
