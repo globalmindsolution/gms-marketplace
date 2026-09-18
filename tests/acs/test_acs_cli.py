@@ -207,7 +207,7 @@ class TestDelegation(AcsCliCase):
         """Blank the timestamps/ids two runs cannot share, so the REST of the
         payload is compared rather than skipped."""
         import re
-        return re.sub(r'"(started_at|ended_at|updated_at|created_at|ts)": "[^"]*"',
+        return re.sub(r'"(started_at|ended_at|updated_at|created_at|checked_at|ts)": "[^"]*"',
                       r'"\1": "<ts>"', text)
 
     def test_finish_matches_pipeline_step(self):

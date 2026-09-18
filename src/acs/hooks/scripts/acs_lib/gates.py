@@ -24,6 +24,7 @@ from ._common import (DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_
                       RUN_STATUSES, now_iso, plugin_root, read_json, write_json)
 from .settings import load_settings, validate_settings
 from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
+from .hostgates import record_gate_evidence
 from .state import check_lock, finalize_run, last_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, update_index, update_pipeline
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
@@ -429,6 +430,33 @@ def run_pre_payload(skill, payload, record_marker=True):
                 record_session_marker(ctx, payload)
         except Exception:  # a marker-write bug must never block a gated skill
             pass
+        try:
+            if record_marker:
+                record_gate_evidence(ctx, skill)
+        except Exception as exc:  # fail-open too (MAR-514), but not silently
+            # This write is the only evidence skill-start has that the gate
+            # fired, so a failure here is why a genuinely gated run will report
+            # its enforcement as unconfirmed. The warning gets its OWN handler:
+            # an unwritable stderr must not escape into the fail-closed arm
+            # below and block the very run this arm exists to let through.
+            #
+            # os.write, not sys.stderr.write, because the handler is not the
+            # last chance to fail: a buffered write leaves the message pending,
+            # and the interpreter's flush at shutdown then fails where nothing
+            # can catch it (CPython exits 120 -- seen on 3.12, not 3.11).
+            # Writing the fd directly raises here, inside the handler, and
+            # leaves nothing behind. Note this only makes THIS warning safe --
+            # any other buffered stderr write in the same process still exits
+            # 120 on an unwritable stderr, which is why the test that covers
+            # this asserts the gate did not BLOCK rather than asserting 0.
+            try:
+                os.write(2, (
+                    "acs: warning: could not record the gate's evidence (%r) — "
+                    "this run proceeds gated, but will report its hook "
+                    "enforcement as unconfirmed\n" % (exc,)
+                ).encode("utf-8", "replace"))
+            except Exception:
+                pass
         warn = tracker_cli_warning(ctx["settings"])
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)

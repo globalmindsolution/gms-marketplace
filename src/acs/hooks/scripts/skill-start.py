@@ -6,6 +6,8 @@ and this script stays the implementation, so both spellings behave identically.
 
 Performs the deterministic start-of-run bookkeeping:
   * resolves settings, repo partition, and ticket id (argument -> pointer -> branch);
+  * reports whether this runtime's hook gates are enforcing the run at all, and
+    refuses it outright when they are not and settings say so;
   * for /create-ticket and the product-level skills, allocates the (delivery) ticket
     id and creates the partition + ticket.json skeleton (--allocate) -- unless the
     run is RESUMING one, in which case the existing partition is reused rather than
@@ -17,7 +19,8 @@ Performs the deterministic start-of-run bookkeeping:
   * marks the ticket — and its parent epic, on the first workflow-skill run of a
     child — In Progress;
   * prints a context JSON document for the coordinator: paths, resolved settings,
-    ticket, reconcile/handoff information, and the design source partition.
+    ticket, reconcile/handoff information, the gate-enforcement verdict, and the
+    design source partition.
 
 Usage:
   skill-start.py --skill code [--ticket SHOP-123] [--args "$ARGUMENTS"]
@@ -31,36 +34,29 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
 
 
 _PR_VIEW_FIELDS = "number,state,headRefName,baseRefName,labels,isDraft,url"
-_SESSION_MARKER_MAX_AGE_SECONDS = 15 * 60
 
 
 def _accepted_session_marker(ctx):
-    """Read the pre-hook's session marker (acs_lib.record_session_marker) and
-    apply the staleness/cross-session guard: accepted only when it belongs to
-    this checkout and is at most 15 minutes old. Anything else -- absent,
-    foreign checkout_id, unparseable/missing updated_at, or stale -- is
-    treated as absent (None). Never falls back to constructing a marker from
-    cwd (that reintroduces the tabp cwd-slug defect)."""
-    marker = lib.read_json(
-        lib.session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-    if not isinstance(marker, dict):
-        return None
-    if marker.get("checkout_id") != ctx["checkout_id"]:
-        return None
-    updated_at = lib.parse_iso(marker.get("updated_at"))
-    if updated_at is None:
-        return None
-    age_seconds = (datetime.now(timezone.utc) - updated_at).total_seconds()
-    if age_seconds > _SESSION_MARKER_MAX_AGE_SECONDS:
-        return None
-    return marker
+    """The pre-hook's session marker under acs_lib's staleness/cross-session
+    guard, or None -- the marker alone, without the rejection reason the gate
+    report needs. The guard itself lives in acs_lib.hostgates so its 15-minute
+    window is declared once."""
+    return lib.accepted_session_marker(ctx)[0]
+
+
+def _report_gate(gate):
+    """Announce a degraded-enforcement verdict on stderr, for a run that is
+    going ahead. The notice states that the run continues ungated, so it is
+    written where that is true rather than ahead of an unrelated refusal
+    (an archived ticket, an unresolvable id), which it would misdescribe."""
+    if not gate["gated"]:
+        sys.stderr.write(gate["notice"] + "\n")
 
 
 def _pr_view(number):
@@ -70,7 +66,7 @@ def _pr_view(number):
     return lib.gh_pr_view(number, _PR_VIEW_FIELDS)
 
 
-def _run_exempt_pr_mode(args, ctx):
+def _run_exempt_pr_mode(args, ctx, gate):
     """The /acs:merge-pr --pr exempt-pr path: validate the PR via gh, print an
     exempt-pr context JSON. Resolves NO ticket and writes NO partition, lock,
     pointer, or state. Exits 2 (clean stderr, never a traceback) on any failure."""
@@ -92,6 +88,7 @@ def _run_exempt_pr_mode(args, ctx):
     if not ok:
         sys.stderr.write("acs skill-start: %s\n" % message)
         sys.exit(2)
+    _report_gate(gate)
     print(json.dumps({
         "skill": args.skill,
         "mode": "exempt-pr",
@@ -102,6 +99,7 @@ def _run_exempt_pr_mode(args, ctx):
         "plugin_root": ctx["plugin_root"],
         "settings": ctx["settings"],
         "settings_sources": ctx["settings_sources"],
+        "gate_enforcement": gate,
         "exempt_reason": message,
         "pr": {
             "number": pr.get("number"),
@@ -193,10 +191,21 @@ def main():
 
     session_marker = _accepted_session_marker(ctx)
 
+    # Did PreToolUse(Skill) fire for THIS invocation? Answered here, before the
+    # exempt-pr branch so both modes report identically, and before any
+    # partition, lock, pointer or ledger write so a refusal leaves nothing to
+    # unwind.
+    marker, gate = lib.gate_evidence(ctx, args.skill)
+    if gate["gated"]:
+        lib.consume_gate_evidence(ctx, marker)
+    elif gate["response"] == "refuse":
+        sys.stderr.write(gate["notice"] + "\n")
+        sys.exit(2)
+
     # Exempt non-ticket PR mode (MAR-9): no ticket resolution, no partition/lock/
     # pointer/state. Slots BEFORE all of that and returns.
     if args.pr is not None:
-        _run_exempt_pr_mode(args, ctx)
+        _run_exempt_pr_mode(args, ctx, gate)
         return
 
     workspace, repo_id = ctx["workspace"], ctx["repo_id"]
@@ -310,7 +319,7 @@ def main():
 
     try:
         _start_run(args, ctx, tdir, ticket, ticket_id, workspace, repo_id, flow,
-                   session_marker)
+                   session_marker, gate)
     except lib.GuardTimeout as exc:
         # The lock is held by THIS process and the skill is not starting, so
         # holding on would strand it under a pid that is about to exit -- and a
@@ -323,7 +332,7 @@ def main():
 
 
 def _start_run(args, ctx, tdir, ticket, ticket_id, workspace, repo_id, flow,
-               session_marker):
+               session_marker, gate):
     """Everything the lock covers: the run entry, the pipeline row, the status
     flips, and the payload the skill starts from.
 
@@ -338,7 +347,8 @@ def _start_run(args, ctx, tdir, ticket, ticket_id, workspace, repo_id, flow,
         handoff_summary = entry.get("handoff_summary")
     reconcile = prior_status in ("in_progress", "failed", "interrupted", "handed_off")
 
-    lib.append_in_progress_run(tdir, args.skill, ticket_id, session=session_marker)
+    lib.append_in_progress_run(tdir, args.skill, ticket_id, session=session_marker,
+                               gate=gate)
     lib.update_pipeline(tdir, ticket_id, args.skill, "in_progress", flow=flow)
 
     # Work starts: ticket open -> in_progress; first child activity flips the epic.
@@ -358,6 +368,7 @@ def _start_run(args, ctx, tdir, ticket, ticket_id, workspace, repo_id, flow,
 
     design_required, design_dir, design_source = lib.design_requirement(ctx, tdir, ticket)
 
+    _report_gate(gate)
     print(json.dumps({
         "skill": args.skill,
         "flow": flow,
@@ -371,6 +382,7 @@ def _start_run(args, ctx, tdir, ticket, ticket_id, workspace, repo_id, flow,
         "plugin_root": ctx["plugin_root"],
         "settings": ctx["settings"],
         "settings_sources": ctx["settings_sources"],
+        "gate_enforcement": gate,
         "models": {role: lib.resolve_role_model(ctx["settings"], args.skill, role)
                    for role in ("planner", "executor", "verifier")},
         "prior_run_status": prior_status,

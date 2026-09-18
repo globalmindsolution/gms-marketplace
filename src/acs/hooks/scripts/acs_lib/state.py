@@ -56,11 +56,13 @@ def skill_completed(tdir, skill):
     return last_run_status(tdir, skill) == "completed"
 
 
-def append_in_progress_run(tdir, skill, ticket_id, session=None):
+def append_in_progress_run(tdir, skill, ticket_id, session=None, gate=None):
     """Append a new in_progress run entry. `session` (an accepted session
     marker dict) is optional -- when given, its session_id/transcript_path are
     persisted onto the entry; the default None keeps every existing caller's
-    entry shape byte-identical."""
+    entry shape byte-identical. `gate` (a hostgates verdict) is optional the
+    same way and records, durably, whether this run could confirm the hook gates
+    were enforcing it at all."""
     state = load_state(tdir, skill, ticket_id)
     entry = {
         "started_at": now_iso(),
@@ -77,6 +79,8 @@ def append_in_progress_run(tdir, skill, ticket_id, session=None):
         # files (cost_sampler.allocate_cost) -- schema-safe under the run
         # entry's own additionalProperties:true.
         entry["checkout_id"] = session.get("checkout_id")
+    if gate:
+        entry["gate_enforcement"] = gate
     state["runs"].append(entry)
     write_json(state_path(tdir, skill), state)
     return state

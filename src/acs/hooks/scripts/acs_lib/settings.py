@@ -16,6 +16,7 @@ import claude_code_adapter as cc  # noqa: E402
 
 from ._common import GateError, HOOKED_SKILLS, TICKET_TYPES, deep_merge, read_json
 from .repo import checkout_root, default_state_root, main_repo_root
+from .hostgates import DEFAULT_GATE_RESPONSE, GATE_RESPONSES
 
 
 
@@ -44,6 +45,7 @@ DEFAULT_SETTINGS = {
     "standards_path": "docs/standards",
     "suites": {},
     "workflow": {"advisories": True},
+    "hook_gates": {"when_absent": DEFAULT_GATE_RESPONSE},
     "artifacts": {"tickets_path": "docs/tickets"},
     "contracts_path": "docs/api",
     "tracker": {"provider": "local"},
@@ -150,6 +152,18 @@ def validate_settings(settings, cwd, require_workspace=True):
     strategy = settings.get("merge_strategy", "squash")
     if strategy not in ("squash", "merge", "rebase"):
         raise GateError("merge_strategy must be one of squash|merge|rebase; got %r." % (strategy,))
+    hook_gates = settings.get("hook_gates", {})
+    if not isinstance(hook_gates, dict):
+        raise GateError(
+            "hook_gates must be an object with an optional 'when_absent' key (%s); got %r."
+            % ("|".join(GATE_RESPONSES), hook_gates))
+    when_absent = hook_gates.get("when_absent", DEFAULT_GATE_RESPONSE)
+    if when_absent not in GATE_RESPONSES:
+        raise GateError(
+            "hook_gates.when_absent must be one of %s; got %r.\n"
+            "warn (the default) prints the degraded-enforcement notice and lets the run "
+            "continue; refuse blocks the run when the hook gates are not firing."
+            % ("|".join(GATE_RESPONSES), when_absent))
     e2e = settings.get("e2e")
     if e2e is not None:
         if not isinstance(e2e, dict) or not isinstance(e2e.get("command"), str) or not e2e["command"].strip():
