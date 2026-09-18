@@ -7,6 +7,7 @@ it always did. In dependency order:
   _common        json/time/path primitives, the skill registry, GateError
   settings       .acs settings load/validate/merge, model and format resolution
   repo           git and checkout identity, workspace layout, ticket-id resolution
+  hostgates      whether this runtime fires acs's hooks at all, and what to do if not
   planrules      the plan-approval predicate and the additive-diff classifier
   state          run ledgers, pipeline state, tickets, index, counters, locking
   metrics        token/cost apportionment and the metrics ledger
@@ -28,8 +29,9 @@ that USES it -- `mock.patch.object(lib.state, "write_json")` -- or, for a stdlib
 module (`lib.subprocess`), patch the shared module object as before.
 """
 
-from . import (_common, settings, repo, planrules, state, metrics, setup_helpers,  # noqa: F401
-               forge, verdict, derive, gate_inputs, gates, lifecycle, advisory)  # noqa: F401
+from . import (_common, settings, repo, hostgates, planrules, state, metrics,  # noqa: F401
+               setup_helpers, forge, verdict, derive, gate_inputs, gates, lifecycle,  # noqa: F401
+               advisory)  # noqa: F401
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
@@ -59,6 +61,10 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     resolve_active_partition, resolve_ticket_id, scan_local_ticket_evidence,
     session_marker_path, sessions_dir, state_path, ticket_dir,
     ticket_id_from_text)  # noqa: F401)  # noqa: F401
+
+from .hostgates import (DEFAULT_GATE_RESPONSE, GATE_RESPONSES, HOOK_ENFORCEMENTS,
+    SESSION_MARKER_MAX_AGE_SECONDS, accepted_session_marker, consume_gate_evidence,
+    gate_evidence, gate_notice, gate_response)  # noqa: F401
 
 from .planrules import (PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
     PLAN_REQUIRED_SECTIONS, _PLAN_HEADING_RE, _coverage_target_stated,

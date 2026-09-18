@@ -426,7 +426,7 @@ def run_pre_payload(skill, payload, record_marker=True):
         ctx = build_context(cwd)
         try:
             if record_marker:
-                record_session_marker(ctx, payload)
+                record_session_marker(ctx, payload, skill)
         except Exception:  # a marker-write bug must never block a gated skill
             pass
         warn = tracker_cli_warning(ctx["settings"])

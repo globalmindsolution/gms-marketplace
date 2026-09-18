@@ -299,11 +299,16 @@ def session_marker_path(workspace, repo_id, ckid):
     return os.path.join(sessions_dir(workspace, repo_id), "%s-session.json" % ckid)
 
 
-def record_session_marker(ctx, payload):
+def record_session_marker(ctx, payload, skill=None):
     """Persist the PreToolUse(Skill) envelope's session-correlation fields so
     skill-start.py can thread them onto the new run entry without guessing.
     Fields come straight off the envelope; a missing one is written as null,
-    never constructed (e.g. never a cwd-derived guess)."""
+    never constructed (e.g. never a cwd-derived guess).
+
+    `skill` is the NORMALIZED entry-point skill the gate ran for (a delivery-path
+    leg's `acs:code-standard` is recorded as `code`), stored as `gate_skill`: the
+    evidence acs_lib.hostgates reads to tell whether this runtime gated THIS
+    invocation. Only the PreToolUse(Skill) hook passes it."""
     path = session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
     marker = {
         "session_id": cc.hook_session_id(payload),
@@ -315,6 +320,7 @@ def record_session_marker(ctx, payload):
         "checkout_id": ctx["checkout_id"],
         "hook_event_name": cc.hook_event_name(payload),
         "skill": cc.hook_tool_input(payload).get("skill"),
+        "gate_skill": skill,
         "updated_at": now_iso(),
     }
     # A payload with no session_id carries nothing to correlate, and writing its
