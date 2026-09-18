@@ -31,6 +31,27 @@ claude plugin marketplace add globalmindsolution/gms-marketplace
 
 (Or run `/plugin` inside a Claude Code session and install from the UI.)
 
+### Devin CLI
+
+This repo is also a **Devin plugin source** (manifest:
+[`.devin-plugin/plugin.json`](.devin-plugin/plugin.json)). The repo root is a
+meta-plugin whose `requiredPlugins` pull in `acs` from `src/acs` via a
+`git-subdir` source, so installing the repo installs the plugin:
+
+```bash
+# Install the meta-plugin — pulls in acs automatically
+devin plugins install globalmindsolution/gms-marketplace
+
+# Or install just the plugin subfolder
+devin plugins install globalmindsolution/gms-marketplace#src/acs
+```
+
+Devin loads the plugin's `skills/` and `agents/` as-is. Caveat: acs's
+`hooks/hooks.json` targets Claude Code lifecycle events and tool names, so the
+hook gates (skill precondition checks, the executor file-map guard, handoff
+and session bookkeeping) do not fire under Devin — the pipeline runs
+**ungated** there. Skills still work as instructions; enforcement is degraded.
+
 For a team, pin the marketplace centrally via managed settings so members
 cannot drift onto unreleased versions — upgrade by changing `ref` to a
 newer `v<version>` tag:

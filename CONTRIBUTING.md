@@ -81,6 +81,11 @@ above:
 - Keep commit subjects imperative; reference the ticket id when there is one.
 - CI must be green (tests on 3.9 + 3.12, pre-commit, gitleaks, version
   consistency). PRs merge **squash**.
+- The repo ships one shared version across four manifests:
+  `.claude-plugin/marketplace.json`, `src/acs/.claude-plugin/plugin.json`,
+  `src/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
+  `/acs:release` bumps all of them via `release.version_locations` — never
+  bump one by hand.
 - Touching the plugin? Update the docs it affects in the same PR — acs treats
   docs as part of the change, not an afterthought.
 
