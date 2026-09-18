@@ -97,12 +97,12 @@ class SkillStartCase(acs_case.AcsWorkspaceCase):
     def gate(self, skill="code"):
         """Drive the REAL dispatch.py pre, which is the only writer of the
         evidence a gated verdict rests on. The gate's own verdict is irrelevant
-        here: record_session_marker runs before it, pass or block."""
+        here: the evidence write runs before it, pass or block."""
         self.pre(skill)
         ckid = lib.checkout_id(self.repo)
-        marker = lib.read_json(lib.session_marker_path(self.ws, REPO_ID, ckid))
-        self.assertIsInstance(marker, dict, "the pre-hook wrote no session marker")
-        self.assertEqual(marker["gate_skill"], skill)
+        evidence = lib.read_json(lib.gate_evidence_path(self.ws, REPO_ID, ckid))
+        self.assertIsInstance(evidence, dict, "the pre-hook wrote no gate evidence")
+        self.assertEqual(evidence["gate_skill"], skill)
 
     def start(self, ticket_id, skill="code", extra_argv=()):
         """Run skill-start.py in-process; returns (code, payload_or_None, stderr)."""
@@ -128,7 +128,7 @@ class ContextFieldTest(SkillStartCase):
         self.assertEqual(code, 0, err)
         verdict = payload["gate_enforcement"]
         self.assertTrue(verdict["gated"])
-        self.assertEqual(verdict["reason"], "gate_marker_accepted")
+        self.assertEqual(verdict["reason"], "gate_evidence_accepted")
         self.assertEqual(verdict["unconfirmed"], [])
         self.assertIsNone(verdict["notice"])
 
@@ -138,7 +138,7 @@ class ContextFieldTest(SkillStartCase):
         self.assertEqual(code, 0, err)
         verdict = payload["gate_enforcement"]
         self.assertFalse(verdict["gated"])
-        self.assertEqual(verdict["reason"], "no_gate_marker")
+        self.assertEqual(verdict["reason"], "no_gate_evidence")
         self.assertEqual(verdict["response"], "warn")
         self.assertTrue(verdict["checked_at"])
 
@@ -169,7 +169,7 @@ class ContextFieldTest(SkillStartCase):
         self.assertEqual(payload["mode"], "exempt-pr")
         verdict = payload["gate_enforcement"]
         self.assertFalse(verdict["gated"])
-        self.assertEqual(verdict["reason"], "no_gate_marker")
+        self.assertEqual(verdict["reason"], "no_gate_evidence")
         self.assertIn("DEGRADED ENFORCEMENT", out.stderr)
 
     def test_exempt_pr_payload_is_otherwise_unchanged(self):
@@ -196,7 +196,7 @@ class LedgerTest(SkillStartCase):
         self.assertEqual(code, 0, err)
         verdict = self.entry("SHOP-1")["gate_enforcement"]
         self.assertFalse(verdict["gated"])
-        self.assertEqual(verdict["reason"], "no_gate_marker")
+        self.assertEqual(verdict["reason"], "no_gate_evidence")
         self.assertEqual(verdict["response"], "warn")
         self.assertEqual(verdict["unconfirmed"], ENFORCEMENTS)
         self.assertIn("DEGRADED ENFORCEMENT", verdict["notice"])
@@ -208,7 +208,7 @@ class LedgerTest(SkillStartCase):
         self.assertEqual(code, 0, err)
         verdict = self.entry("SHOP-1")["gate_enforcement"]
         self.assertTrue(verdict["gated"])
-        self.assertEqual(verdict["reason"], "gate_marker_accepted")
+        self.assertEqual(verdict["reason"], "gate_evidence_accepted")
 
     def test_the_entry_records_what_the_context_document_reported(self):
         """One verdict, two readers: the coordinator reads it now on stdout, an
@@ -219,11 +219,11 @@ class LedgerTest(SkillStartCase):
         self.assertEqual(self.entry("SHOP-1")["gate_enforcement"],
                          payload["gate_enforcement"])
 
-    def test_a_run_that_never_started_carries_no_verdict(self):
-        """A refused run is refused before any entry exists, which is why the
-        schema declares the field optional rather than required."""
-        tdir = self.mint("SHOP-1")
-        self.assertEqual(lib.load_state(tdir, "code", "SHOP-1")["runs"], [])
+    # A refused run carries no verdict because it writes no entry at all. That
+    # property is pinned by RefuseResponseTest.test_no_partition_lock_pointer_
+    # or_state_is_written, which drives a real refusal. Asserting it here off a
+    # freshly minted partition held by fixture construction alone: it passed
+    # with the entire refuse path deleted.
 
     def test_a_run_entry_predating_the_record_stays_readable(self):
         """Forward-only: an entry written before this shipped simply has no
@@ -368,7 +368,7 @@ class EvidenceConsumptionTest(SkillStartCase):
         self.assertEqual(code, 0, err)
         self.assertFalse(second["gate_enforcement"]["gated"])
         self.assertEqual(second["gate_enforcement"]["reason"],
-                         "marker_already_consumed")
+                         "evidence_already_consumed")
 
     def test_a_fresh_hook_fire_clears_the_consumption_stamp(self):
         self.mint("SHOP-1")
@@ -389,7 +389,7 @@ class EvidenceConsumptionTest(SkillStartCase):
         self.assertEqual(code, 0, err)
         self.assertFalse(payload["gate_enforcement"]["gated"])
         self.assertEqual(payload["gate_enforcement"]["reason"],
-                         "marker_for_other_skill")
+                         "evidence_for_other_skill")
 
 
 class MarkerMaxAgeTest(unittest.TestCase):
