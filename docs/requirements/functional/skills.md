@@ -1285,8 +1285,8 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   when one exists (the ticket's own or its parent epic's). On the `complex`
   delivery path the review additionally gains a
   **multi-lens** shape: 4 parallel independent lenses, each reading a
-  different evidence source, plus a coordinator-performed confidence-scoring/
-  adversarial merge pass before findings count; every other path keeps the
+  different evidence source, plus a coordinator-performed adversarial
+  merge pass before findings count; every other path keeps the
   single-pass shape. Blocking findings
   trigger automatic remediation iterations (max 3); findings and stop
   reasons land in `code-state.json`

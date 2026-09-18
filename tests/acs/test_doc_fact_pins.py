@@ -17,6 +17,9 @@ ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 ACS_README = os.path.join(REPO_ROOT, "src", "acs", "README.md")
 SKILLS_DIR = os.path.join(REPO_ROOT, "src", "acs", "skills")
+CODE_VERIFIER_AGENT = os.path.join(REPO_ROOT, "src", "acs", "agents", "code-verifier.md")
+SKILLS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
+REFLECTION_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
 sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
 
 import acs_lib as lib  # noqa: E402
@@ -420,3 +423,74 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
                 if needle not in fh.read():
                     stale.append("%s no longer mentions %s (reason: %s)" % (rel, needle, reason))
         self.assertEqual(stale, [], "\n  " + "\n  ".join(stale))
+
+
+class MergePassIsNotCalledConfidenceScoringTest(unittest.TestCase):
+    """MAR-584 naming pin: the coordinator's lens merge is the ADVERSARIAL
+    merge pass, never a "confidence-scoring" one.
+
+    No scoring mechanism exists anywhere in acs -- no 0-100 scale, no
+    threshold, no numeric confidence value. Not in code-complex/SKILL.md's
+    merge procedure, not in verdict.py's merge_lens_verdicts (a conjunction of
+    passed, a union of findings, worst-result per dimension), and not in
+    ADR-0067's Decision, which specifies corroboration and adversarial
+    re-scrutiny and never a score. Three live documents named a mechanism that
+    was never built; the `adversarial` half of the name is accurate and stays.
+
+    docs/adr/0067-*.md is deliberately NOT pinned here. Its Context quotes epic
+    MAR-155's design D4, whose partition is no longer on disk, so the quotation
+    cannot be re-verified and rewriting it would falsify the record -- the same
+    reason ScriptPathReferencesResolveTest above exempts superseded ADRs.
+    """
+
+    #: Doc -> the phrase by which it says the COORDINATOR, not a subagent,
+    #: performs the pass. Two live spellings, both true, pinned as written.
+    PERFORMER = {
+        CODE_VERIFIER_AGENT: "coordinator (never a subagent)",
+        SKILLS_REQUIREMENTS: "coordinator-performed adversarial merge pass",
+        REFLECTION_REQUIREMENTS: "coordinator-performed adversarial merge pass",
+    }
+
+    #: Any spelling of the mechanism that does not exist.
+    SCORING = re.compile(r"confidence[-\s]*scor", re.IGNORECASE)
+
+    @staticmethod
+    def _join_wrapped(text):
+        """Rejoin a compound word broken at its hyphen by the line wrapper,
+        then flatten whitespace, so a phrase can be matched across a newline."""
+        return re.sub(r"\s+", " ", re.sub(r"-\n\s*", "-", text))
+
+    def _normalised(self, path):
+        return self._join_wrapped(_read(path))
+
+    def test_the_normaliser_joins_a_hyphen_broken_compound(self):
+        """Without this the pins below are vacuous: `confidence-` + newline +
+        `scoring` reads as two unrelated tokens, which is exactly how the
+        phrase survived line-wise greps through several refactors."""
+        joined = self._join_wrapped("performs the confidence-\n      scoring merge pass")
+        self.assertEqual(joined, "performs the confidence-scoring merge pass")
+        self.assertRegex(joined, self.SCORING)
+
+    def test_no_live_document_calls_the_merge_pass_confidence_scoring(self):
+        for path in sorted(self.PERFORMER):
+            with self.subTest(doc=os.path.relpath(path, REPO_ROOT)):
+                self.assertNotRegex(self._normalised(path), self.SCORING)
+
+    def test_each_live_document_names_the_adversarial_merge_pass(self):
+        for path, performer in sorted(self.PERFORMER.items()):
+            with self.subTest(doc=os.path.relpath(path, REPO_ROOT)):
+                body = self._normalised(path)
+                self.assertIn("adversarial merge pass", body)
+                self.assertIn(performer, body)
+
+    def test_the_true_surrounding_claims_survive(self):
+        """Only the invented mechanism goes. The lens split around it is
+        accurate and must read the same afterwards."""
+        for path in (SKILLS_REQUIREMENTS, REFLECTION_REQUIREMENTS):
+            with self.subTest(doc=os.path.relpath(path, REPO_ROOT)):
+                body = self._normalised(path)
+                self.assertIn("4 parallel independent lenses", body)
+                # skills.md says "different", reflection.md "distinct"; both are
+                # true, and levelling them is not this pin's business.
+                self.assertRegex(body, r"(?:distinct|different) evidence source")
+                self.assertIn("before findings count", body)

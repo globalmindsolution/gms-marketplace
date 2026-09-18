@@ -405,8 +405,8 @@ Each lens spawn writes its own artifact
 `<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md` instead of
 `iter-<n>-verify.md` (see Phase artifact below) — never the shared name, so
 4 lens spawns never race to write the same file. After all 4 lenses return,
-the `/acs:code` coordinator (never a subagent) performs the confidence-
-scoring merge pass and writes the single `iter-<n>-verify.md` itself.
+the `/acs:code` coordinator (never a subagent) performs the adversarial
+merge pass and writes the single `iter-<n>-verify.md` itself.
 
 When `verify_lens` is absent from `<constraints>` — every path but `complex`,
 or any spawn that predates this multi-lens shape — this is a single-pass
