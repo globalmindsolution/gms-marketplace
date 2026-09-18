@@ -325,8 +325,17 @@ class FailOpenTest(EvidenceCase):
 
     @unittest.skipUnless(os.path.exists("/dev/full"), "needs /dev/full")
     def test_a_failed_warning_about_it_does_not_block_the_gate_either(self):
-        """The revision-1 regression: the warning sat inside the outer try, so
-        an unwritable stderr reached run_pre's fail-closed handler."""
+        """Two regressions, one assertion.
+
+        First: the warning sat inside the outer try, so an unwritable stderr
+        reached run_pre's fail-closed handler and returned 2.
+
+        Then, subtler: swallowing the write is not enough if the write was
+        BUFFERED. The message stays pending and the interpreter's own flush at
+        shutdown fails where no handler can reach it -- CPython exits 120. That
+        manifestation is version-dependent (seen on 3.12, not on 3.11), so this
+        assertion passes on an older interpreter with the bug present. The CI
+        matrix is what catches it; do not read a green local run as proof."""
         self.break_sessions_dir()
         env = dict(os.environ, CLAUDE_PLUGIN_ROOT=os.path.join(REPO_ROOT, "src", "acs"))
         with open("/dev/full", "w") as devfull:

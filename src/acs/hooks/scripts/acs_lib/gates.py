@@ -439,11 +439,20 @@ def run_pre_payload(skill, payload, record_marker=True):
             # its enforcement as unconfirmed. The warning gets its OWN handler:
             # an unwritable stderr must not escape into the fail-closed arm
             # below and block the very run this arm exists to let through.
+            #
+            # os.write, not sys.stderr.write, because the handler is not the
+            # last chance to fail. A buffered write can leave the message
+            # pending, and the interpreter's own flush at shutdown then fails
+            # where nothing can catch it: CPython exits 120. Observed on 3.12
+            # (0 on 3.11), so the buffered form is a portability trap, not a
+            # theoretical one. Writing the fd directly raises here, inside the
+            # handler, and leaves nothing behind to flush.
             try:
-                sys.stderr.write(
+                os.write(2, (
                     "acs: warning: could not record the gate's evidence (%r) — "
                     "this run proceeds gated, but will report its hook "
-                    "enforcement as unconfirmed\n" % (exc,))
+                    "enforcement as unconfirmed\n" % (exc,)
+                ).encode("utf-8", "replace"))
             except Exception:
                 pass
         warn = tracker_cli_warning(ctx["settings"])
