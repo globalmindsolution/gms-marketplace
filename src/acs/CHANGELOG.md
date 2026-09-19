@@ -421,6 +421,28 @@ the notes.
 
 ### Fixed
 
+- **The coordinator's lens merge pass is the adversarial merge pass, not a
+  "confidence-scoring" one** (MAR-584). Three live documents —
+  `src/acs/agents/code-verifier.md`, `docs/requirements/functional/skills.md`
+  and `docs/requirements/functional/reflection.md` — described the `complex`
+  path's post-lens merge as a "confidence-scoring/adversarial" pass, naming a
+  mechanism that has never existed anywhere in acs: no 0-100 scale, no
+  threshold, no numeric confidence value. **The adversarial half is accurate
+  and unchanged.** The coordinator procedure in `code-complex/SKILL.md` still
+  corroborates a finding raised in substance by 2 or more lenses, still
+  re-scrutinizes a single-lens finding against its cited evidence itself, and
+  still records any downgrade in that lens's own verdict before
+  `acs.py verdict merge` unions the four — which is what ADR-0067 decided, and
+  what the v0.4.6 `### Changed` entry below already called "a coordinator
+  adversarial merge pass". **Naming only, zero behaviour change:** no skill
+  leg, no agent dispatch and no `merge_lens_verdicts` logic moved, and each
+  document keeps its surrounding claims verbatim — 4 parallel independent
+  lenses, each reading its own evidence source, coordinator-performed rather
+  than subagent-performed, before findings count. A regression pin in
+  `tests/acs/test_doc_fact_pins.py` fails if any of the three calls the pass
+  "confidence-scoring" again, matched with newlines normalised because one of
+  them split the phrase across a line break.
+
 - **The verifier's dimension 14 runs on `standard` again.** `Regression-risk
   (git-history)` was gated on the task carrying a `verify_lens`, which was a
   faithful proxy for "full depth" while full depth always meant the multi-lens

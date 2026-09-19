@@ -91,7 +91,7 @@ Requirements:
       run all 16 dimensions; `complex` is the one that runs the
       16-dimension, multi-lens review + e2e, splitting them across 4 parallel
       independent lenses (each reading a distinct evidence source) followed by a
-      coordinator-performed confidence-scoring/adversarial merge pass before
+      coordinator-performed adversarial merge pass before
       findings count. `standard` runs the same 16 in a single subagent pass.
 
       Dimension 14 (Regression-risk, git-history) is what separates 16 from
