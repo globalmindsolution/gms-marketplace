@@ -1,4 +1,4 @@
-# Redesign: the implementation pipeline (v0.6.0)
+# Redesign: the implementation pipeline (v0.5.0)
 
 **Status**: Proposed · **Date**: 2026-09-19 · **Scope**: implementation skills only
 
@@ -9,8 +9,32 @@ open PR. The **design** skills (`create-prd`, `create-requirements`,
 `create-design`) are out of scope and keep their current shape.
 
 It is a **breaking redesign with no backward-compatibility layer**. State
-written by v0.5.x is not read by v0.6.0; there is no dual-read release and no
+written by v0.4.9 is not read by v0.5.0; there is no dual-read release and no
 migration of in-flight runs. Finish or abandon open runs before upgrading.
+
+## 0. This ships AS v0.5.0, not after it
+
+v0.5.0 is **not yet released**. The installed plugin is v0.4.9, and the entire
+surface this redesign removes exists only on unreleased `main`:
+
+| Removed by this redesign | In released v0.4.9? |
+|---|---|
+| `code-trivial`, `code-small`, `code-standard`, `code-complex` | **no** |
+| `create-api-contract`, `create-test-docs` | **no** |
+| `analyze-ticket` (renamed here) | **no** |
+| delivery paths, `ship.yaml`, `phases.yaml` — the whole `workflows/` layer | **no** — the directory does not exist in 0.4.9 |
+| `test` alias | yes (already deprecated) |
+
+Cutting v0.5.0 from current `main` and *then* applying this redesign would
+publish eleven new skills and a workflow layer to consumers, and delete six of
+those skills weeks later. Consumers would migrate twice, the second time out of
+a surface that had existed for days. Nothing on unreleased `main` is a fix
+consumers are blocked on — v0.4.9 already resolved the in-repo state-root
+blocker that made v0.4.8 unusable.
+
+So there is no v0.6.0 in this plan and no interim cut: **v0.5.0 is the
+redesign**, measured and released once, against the tree that results from
+P1–P6.
 
 ---
 
@@ -388,10 +412,8 @@ Named explicitly so a "from scratch" reading does not discard them:
 ## 8. Refactor plan
 
 Six phases. Each is an epic; each lands independently and leaves the tree green.
-
-**P0 — cut v0.5.0 first.** The current release carries breaking changes already
-(ship.yaml v2, the lane retirement, ticket-field removal). Land it, then break
-cleanly at v0.6.0. Nothing in P1–P6 starts before this.
+There is **no interim release**: `[Unreleased]` accumulates through P1–P6 and
+the v0.5.0 cut happens once, at the end, against the finished tree.
 
 **P1 — state machine re-key.** Run ids, `run.json`, step-id keying, the open
 `steps` object, name validation moved from schema to `acs workflow validate`,
@@ -422,6 +444,23 @@ machinery, supersede the ADRs the redesign overturns, rewrite INTERNALS.
   `/acs:code`.
 - P5 is independent of P3/P4 and can run in parallel.
 - P6 lands last; deleting a skill before its replacement ships breaks the tree.
+
+### The release gate
+
+The paid eval gate runs **once, after P6**, against the finished tree. Running
+it earlier measures a build that is about to be replaced, and the measurement
+would be void before it was read.
+
+Two consequences for the eval dataset, both expected:
+
+- The **build digest** moves with every phase. It is not a stable precondition
+  during P1–P6; re-derive it at gate time and name the tree by what it is.
+- The **skill-surface fingerprint** (`60a7c34b59f402c0`) **will** move, because
+  the skill set changes from 32 to 26 and `analyze-ticket` is renamed. The
+  routing baseline and `dataset/manifest.json`'s `recorded_against_fingerprint`
+  are therefore invalidated by design, and both are re-recorded as part of the
+  gate rather than treated as a regression. The 43-probe routing set needs
+  editing in P6 to match the new skill names.
 
 ### Open decisions
 
