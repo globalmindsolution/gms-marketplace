@@ -192,9 +192,75 @@ def _ctx_of(rdir):
     return context_or_die("step start")
 
 
+#: The PR fields the exempt-pr validator reads.
+_PR_VIEW_FIELDS = "number,state,headRefName,baseRefName,labels,isDraft,url"
+
+
+def _exempt_pr_start(args, ctx, gate):
+    """`/acs:merge-pr --pr N`: the sanctioned exempt merge of a PR that is not
+    a run's. It resolves NO run and writes NO partition, lock, pointer or
+    state -- an exempt PR is not a step of anything, and creating a run for it
+    would put a position in a ledger nothing else will ever fill.
+
+    Exits 2 with clean stderr, never a traceback, on any failure.
+    """
+    if args.step != "merge-pr":
+        die("step start", "--pr is only valid with --step merge-pr (got --step %s)"
+            % args.step)
+    kind, pr_ref = lib.classify_merge_pr_arg(args.pr, ctx["settings"].get("ticket_prefix"))
+    if kind != "exempt-pr" or not pr_ref:
+        die("step start", "--pr %r does not parse to a PR reference "
+                          "(use --pr N, #N, or a PR URL)" % args.pr)
+    try:
+        pr = lib.gh_pr_view(pr_ref, _PR_VIEW_FIELDS)
+    except lib.GateError as exc:
+        die("step start", str(exc))
+    ok, message = lib.validate_exempt_pr(pr, ctx["settings"])
+    if not ok:
+        die("step start", message)
+    notice = lib.gate_notice(gate)
+    if notice:
+        sys.stderr.write(notice + "\n")
+    emit({
+        "ok": True,
+        "step": args.step,
+        "mode": "exempt-pr",
+        "repo_id": ctx["repo_id"],
+        "workspace": ctx["workspace"],
+        "checkout_id": ctx["checkout_id"],
+        "checkout_root": ctx["checkout_root"],
+        "plugin_root": ctx["plugin_root"],
+        "settings": ctx["settings"],
+        "settings_sources": ctx["settings_sources"],
+        "gate_enforcement": gate,
+        "exempt_reason": message,
+        "pr": {
+            "number": pr.get("number"),
+            "url": pr.get("url"),
+            "branch": pr.get("headRefName"),
+            "base": pr.get("baseRefName"),
+            "labels": lib._pr_labels(pr),
+        },
+    })
+
+
 def cmd_step_start(args):
     """step -> in_progress, after the invariants hold. Writer for the
     PreToolUse(Skill) transition."""
+    # The gate verdict FIRST, and the refusal with it. Under
+    # `hook_gates.when_absent: refuse` a run with no evidence that the gates
+    # fired is blocked BEFORE any partition, lock, pointer or ledger write, so
+    # a refused run leaves nothing to unwind and no invocation carrying a
+    # verdict nobody acted on.
+    ctx = context_or_die("step start")
+    evidence, verdict = lib.gate_evidence(ctx, args.step)
+    if verdict.get("response") == "refuse" and not verdict.get("gated"):
+        notice = lib.gate_notice(verdict)
+        if notice:
+            sys.stderr.write(notice + "\n")
+        sys.exit(2)
+    if getattr(args, "pr", None):
+        return _exempt_pr_start(args, ctx, verdict)
     rdir, doc, _ctx, wf = _resolve_run("step start", args.run)
     in_workflow = _require_step(wf, args.step, "step start")
     try:
@@ -227,8 +293,6 @@ def cmd_step_start(args):
         # is written fail-open, so a failed write looks exactly like a runtime
         # that never fired the hook -- which is why the run reports itself
         # degraded rather than pretending either way.
-        ctx = _ctx_of(rdir)
-        evidence, verdict = lib.gate_evidence(ctx, args.step)
         lib.append_invocation(rdir, args.step, doc["run_id"], gate=verdict)
         if evidence is not None:
             lib.consume_gate_evidence(ctx, evidence)
@@ -238,13 +302,60 @@ def cmd_step_start(args):
     notice = lib.gate_notice(verdict)
     if notice:
         sys.stderr.write(notice + "\n")
-    entry = lib.step_entry(doc, args.step)
-    emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
-          "status": entry.get("status") or "in_progress",
-          "in_workflow": in_workflow, "gate_enforcement": verdict,
-          "iteration": lib.iteration_of(doc, args.step, wf) if in_workflow else 1,
-          "reconcile": reconcile, "handoff_summary": handoff_summary,
-          "prior_status": previous.get("status")})
+    emit(_start_context(ctx, rdir, doc, args.step, wf,
+                        in_workflow=in_workflow, gate=verdict, reconcile=reconcile,
+                        handoff_summary=handoff_summary,
+                        prior_status=previous.get("status")))
+
+
+def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
+                   reconcile, handoff_summary, prior_status):
+    """The context document a coordinator parses at Start.
+
+    It replaces skill-start.py's, and it is the same document for every skill
+    (§3.11): one resolution, printed once, rather than a per-skill assembly
+    each gate had its own copy of. `ticket` and `design` are present only when
+    the run's SUBJECT is a ticket -- a run started from a prompt or a document
+    has neither, and inventing empty ones would read as "no design required"
+    rather than "not that kind of run".
+    """
+    entry = lib.step_entry(doc, step)
+    subject = doc.get("subject") or {}
+    ticket_id = subject.get("ticket_id")
+    out = {
+        "ok": True,
+        "run_id": doc["run_id"],
+        "step": step,
+        "status": entry.get("status") or "in_progress",
+        "in_workflow": in_workflow,
+        "iteration": lib.iteration_of(doc, step, wf) if in_workflow else 1,
+        "subject": subject,
+        "ticket_id": ticket_id,
+        "partition": rdir,
+        "workflow": doc.get("workflow"),
+        "cursor": doc.get("cursor"),
+        "repo_id": ctx["repo_id"],
+        "workspace": ctx["workspace"],
+        "checkout_id": ctx["checkout_id"],
+        "checkout_root": ctx["checkout_root"],
+        "plugin_root": ctx["plugin_root"],
+        "settings": ctx["settings"],
+        "settings_sources": ctx["settings_sources"],
+        "models": (ctx["settings"].get("models") or {}),
+        "reconcile": reconcile,
+        "handoff_summary": handoff_summary,
+        "prior_status": prior_status,
+        "gate_enforcement": gate,
+    }
+    if ticket_id:
+        tdir, _archived = lib.find_ticket_partition(
+            ctx["workspace"], ctx["repo_id"], ticket_id)
+        ticket = lib.load_ticket(tdir)
+        if isinstance(ticket, dict):
+            out["ticket"] = ticket
+            required, design_dir, source = lib.design_requirement(ctx, tdir, ticket)
+            out["design"] = {"required": required, "dir": design_dir, "source": source}
+    return out
 
 
 def cmd_step_finish(args):

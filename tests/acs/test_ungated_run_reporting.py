@@ -48,20 +48,23 @@ REPO_ID = "acme-shop"
 ENFORCEMENTS = ["precondition gate", "file-map guard",
                 "phase-artifact validation", "session bookkeeping"]
 
-#: The payload skill-start.py printed BEFORE this ticket (skill-start.py:361-383
-#: at the merge base). AC-6's "otherwise unchanged" is this set, verbatim.
-PRE_CHANGE_PAYLOAD_KEYS = {
-    "skill", "flow", "ticket_id", "ticket", "partition", "repo_id", "workspace",
-    "checkout_id", "checkout_root", "plugin_root", "settings", "settings_sources",
-    "models", "prior_run_status", "reconcile", "handoff_summary", "design",
-    "pipeline", "epic_marked_in_progress", "post_hook",
+#: The Start context, minus `gate_enforcement`. "Otherwise unchanged" is this
+#: set, verbatim: one document for every skill (§3.11), where skill-start.py
+#: assembled a per-skill one. `flow` went with `workflow` + `workflow_version`,
+#: `pipeline` with `run.json`, and `post_hook` with the per-skill post hooks --
+#: `acs step finish` is the one verb now.
+START_CONTEXT_KEYS = {
+    "ok", "step", "status", "in_workflow", "iteration", "run_id", "subject",
+    "ticket_id", "ticket", "partition", "workflow", "cursor", "repo_id",
+    "workspace", "checkout_id", "checkout_root", "plugin_root", "settings",
+    "settings_sources", "models", "prior_status", "reconcile", "handoff_summary",
+    "design",
 }
 
 #: The same, for the exempt-pr document (skill-start.py:95-114 at the merge base).
-PRE_CHANGE_EXEMPT_PR_KEYS = {
-    "skill", "mode", "repo_id", "workspace", "checkout_id", "checkout_root",
+EXEMPT_PR_KEYS = {
+    "ok", "step", "mode", "repo_id", "workspace", "checkout_id", "checkout_root",
     "plugin_root", "settings", "settings_sources", "exempt_reason", "pr",
-    "post_hook",
 }
 
 EXEMPT_PR_DOC = {
@@ -116,6 +119,15 @@ class SkillStartCase(acs_case.AcsWorkspaceCase):
         self.ensure_run(ticket_id)
         argv = ["acs.py", "step", "start", "--step", skill, "--run", ticket_id]
         out = self.run_script(*(argv + list(extra_argv)))
+        return (out.returncode,
+                json.loads(out.stdout) if out.stdout.strip() else None,
+                out.stderr)
+
+    def run_start_without_a_run(self, ticket_id, skill="code"):
+        """`acs step start` with NO run created first -- the shape a refusal
+        has to survive, since a refused start must create nothing."""
+        out = self.run_script("acs.py", "step", "start", "--step", skill,
+                              "--run", ticket_id)
         return (out.returncode,
                 json.loads(out.stdout) if out.stdout.strip() else None,
                 out.stderr)
@@ -189,7 +201,7 @@ class ContextFieldTest(SkillStartCase):
         payload = json.loads(out.stdout)
         self.assertIn("gate_enforcement", payload)
         self.assertEqual(set(payload) - {"gate_enforcement"},
-                         PRE_CHANGE_EXEMPT_PR_KEYS)
+                         EXEMPT_PR_KEYS)
 
 
 class LedgerTest(SkillStartCase):
@@ -290,7 +302,7 @@ class GatedRunIsSilentTest(SkillStartCase):
         self.assertEqual(code, 0, err)
         self.assertIn("gate_enforcement", payload)
         self.assertEqual(set(payload) - {"gate_enforcement"},
-                         PRE_CHANGE_PAYLOAD_KEYS)
+                         START_CONTEXT_KEYS)
 
 
 class RefuseResponseTest(SkillStartCase):
@@ -308,15 +320,17 @@ class RefuseResponseTest(SkillStartCase):
         self.assertIn("precondition gate", err)
         self.assertNotIn("Traceback", err)
 
-    def test_no_partition_lock_pointer_or_state_is_written(self):
+    def test_no_run_lock_pointer_or_state_is_written(self):
+        """A refused start leaves NOTHING to unwind. The refusal is weighed
+        before the run is even resolved, so no run directory is created, no
+        lock taken and no pointer written."""
         self.settings(when_absent="refuse")
-        tdir = self.mint("SHOP-1")
-        code, _payload, _err = self.start("SHOP-1")
+        self.mint("SHOP-1")
+        code, _payload, _err = self.run_start_without_a_run("SHOP-1")
         self.assertEqual(code, 2)
-        # The partition the fixture minted is untouched: no .lock, no
-        # <skill>-state.json run entry, no run.json row.
-        self.assertEqual(os.listdir(tdir), ["ticket.json"])
-        self.assertFalse(os.path.exists(lib.lock_path(tdir)))
+        rdir = lib.run_dir(lib.repo_dir(self.ws, REPO_ID), "SHOP-1")
+        self.assertFalse(os.path.isdir(rdir), "no run directory may be created")
+        self.assertFalse(os.path.exists(lib.lock_path(rdir)))
         ckid = lib.checkout_id(self.repo)
         self.assertFalse(os.path.exists(lib.pointer_path(self.ws, REPO_ID, ckid)))
 
@@ -347,17 +361,20 @@ class NoticePlacementTest(SkillStartCase):
     run that is going ahead -- never ahead of a refusal that says the opposite."""
 
     def test_an_unrelated_refusal_is_not_prefixed_by_the_notice(self):
-        code, _payload, err = self.start("SHOP-999")
+        code, _payload, err = self.run_start_without_a_run("SHOP-999")
         self.assertEqual(code, 2)
         self.assertNotIn("DEGRADED ENFORCEMENT", err)
-        self.assertIn("no partition for SHOP-999", err)
+        self.assertIn("no run 'SHOP-999'", err)
 
     def test_the_refusal_the_gate_itself_raises_still_carries_it(self):
+        """...and it comes FIRST: the gate is weighed before the run is
+        resolved, so a refused host says so rather than reporting a missing
+        run the operator was never going to be allowed to start."""
         self.settings(when_absent="refuse")
-        code, _payload, err = self.start("SHOP-999")
+        code, _payload, err = self.run_start_without_a_run("SHOP-999")
         self.assertEqual(code, 2)
         self.assertIn("DEGRADED ENFORCEMENT", err)
-        self.assertNotIn("no partition for SHOP-999", err)
+        self.assertNotIn("no run 'SHOP-999'", err)
 
 
 class EvidenceConsumptionTest(SkillStartCase):

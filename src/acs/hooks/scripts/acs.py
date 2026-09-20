@@ -169,6 +169,8 @@ def build_parser():
     sstart.add_argument("--step", required=True,
                         help="validated against the resolved workflow, not an enum")
     sstart.add_argument("--run")
+    sstart.add_argument("--pr", help="/acs:merge-pr's exempt-pr mode: N, #N or a PR "
+                                     "URL. Resolves no run and writes nothing.")
     sstart.set_defaults(func=cmd_step_start)
 
     sfinish = step_sub.add_parser("finish", help="step -> completed / failed / interrupted")
