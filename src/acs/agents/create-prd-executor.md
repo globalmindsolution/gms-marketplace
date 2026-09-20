@@ -155,7 +155,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-prd/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-prd/iter-<n>-authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Required headings: `## Mode & evidence`, `## PRD outline`, `## Roadmap outline`,
 `## Code evidence`, `## Answer fidelity`, `## Roadmap milestones`,
@@ -213,7 +213,7 @@ what fixing them requires.
 
 ## Phase artifact
 
-Write `<partition>/phases/create-prd/iter-<n>-execute.json` (`<n>` = the task's
+Write `steps/create-prd/iter-<n>-execute.json` (`<n>` = the task's
 `iteration`; the coordinator tells you `-<k>` suffixing when parallel executors run):
 
 ```json
@@ -232,7 +232,7 @@ Write `<partition>/phases/create-prd/iter-<n>-execute.json` (`<n>` = the task's
 - Mutate ONLY files under `<prd_path>` plus your own authoring notes and execute
   report. Do not create/switch branches, do not `git add`/`commit`/`push`, do not
   open PRs, do not run skill-start/post-hooks, do not edit `ticket.json`,
-  `pipeline-state.json`, or any other workspace state — all coordinator work.
+  `run.json`, or any other workspace state — all coordinator work.
 - Markdown hygiene: no trailing whitespace, files end with a newline, headings match
   the section names above exactly.
 

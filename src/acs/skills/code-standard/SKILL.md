@@ -51,7 +51,7 @@ tests, or docs — means those groups run sequentially instead.
 ### Verifier
 
 **One `acs:code-verifier` spawn**, no lens constraint and no `-lens-` suffix,
-writing `<partition>/phases/code/iter-<n>-verify.md` directly.
+writing `steps/code/iter-<n>-verify.md` directly.
 
 ### Dimensions
 
@@ -66,7 +66,7 @@ sub-check of the architecture dimension binds whenever `api-contract.md` exists.
 
 ### Plan approval
 
-**Plan approval is enforced.** `<partition>/phases/code/plan-approval.json`
+**Plan approval is enforced.** `steps/code/plan-approval.json`
 must record an eligible approval whose `plan_sha256` matches the current
 `plan.md` bytes; the plan-conformance dimension is then ACTIVE and a changed
 file tracing to no entry of the approved `## Executor tasks & file map` is a
@@ -84,14 +84,14 @@ it cannot know whether approval is owed. Immediately after Start, run:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-approval.py" --ticket <ticket-id>
 ```
 
-This script is the ONLY writer of `<partition>/phases/code/plan-approval.json`
+This script is the ONLY writer of `steps/code/plan-approval.json`
 — never a subagent's `Write` tool, and never your own. An LLM-asserted approval
 is not an approval: eligibility is computed by `acs_lib.plan_approval_eligible`
 from the plan artifact's own content plus `settings.test_coverage_percent`,
 never from any agent's self-report. It hashes the approval mirror
-(`<partition>/phases/code/plan.md`), which is why `/acs:create-impl-plan`
+(`steps/code/plan.md`), which is why `/acs:create-impl-plan`
 publishes that copy from the same bytes as the plan; an explicit `--plan` must
-resolve within `<partition>/phases/code/` and the script refuses (clean stderr,
+resolve within `steps/code/` and the script refuses (clean stderr,
 exit 2, no record written) any path whose realpath escapes it.
 
 It is idempotent per digest: a second invocation over the same plan bytes

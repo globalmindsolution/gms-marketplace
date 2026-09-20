@@ -45,7 +45,7 @@ from datetime import datetime, timezone
 from ._common import (GateError, HOOKED_SKILLS, _note, _warn, now_iso,
     read_json, write_json, write_text)
 from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessions_dir
-from .state import last_run, last_run_status, load_pipeline, load_state, load_ticket
+from .tickets import load_ticket
 from . import verdict
 
 #: agent_type suffix -> the phase name its artifact is filed under. Two roles
@@ -75,7 +75,7 @@ BLOCK_LIMIT = 2
 #: an entry loses that agent's `stop_attempts` too, which is the cap standing
 #: between a malformed message and an unbounded refuse-retry loop. Per-agent
 #: files remove the interleaving entirely -- each file has exactly one writer.
-ACTIVE_AGENTS_DIRNAME = "active-agents"
+ACTIVE_AGENTS_DIRNAME = "agents"
 
 #: What PreCompact writes, in the partition, for whoever picks the ticket up.
 HANDOFF_CONTEXT_FILENAME = "handoff-context.md"
@@ -248,8 +248,12 @@ def extract_message(text):
     return matches[-1].group(0) if matches else None
 
 
-def phase_artifact_path(tdir, skill, iteration, phase):
-    return os.path.join(tdir, "phases", skill, "iter-%s-%s.xml" % (iteration, phase))
+def phase_artifact_path(rdir, skill, iteration, phase):
+    """The phase snapshot, now JSON in the iteration directory. The `.xml`
+    snapshots and the XSD that validated them are removed (§6): a phase result
+    is JSON, validated in the hook against result.schema.json."""
+    from .run import iteration_dir
+    return os.path.join(iteration_dir(rdir, skill, int(iteration)), "%s.json" % phase)
 
 
 def in_flight_skill(tdir, ctx, ticket_id=None):
@@ -264,7 +268,7 @@ def in_flight_skill(tdir, ctx, ticket_id=None):
         candidates.append(pointer["skill"])
     candidates += [s for s in HOOKED_SKILLS if s not in candidates]
     for skill in candidates:
-        if last_run_status(tdir, skill) == "in_progress":
+        if last_status(tdir, skill) == "in_progress":
             return skill
     return None
 

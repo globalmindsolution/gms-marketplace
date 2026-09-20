@@ -12,7 +12,7 @@ lock and append a new run — the opposite of what a handoff does). You touch th
 consumer repo read-only; the only file you write is `handoff-context.md` inside
 the ticket partition. All state mutation (run finalization, pipeline ledger,
 lock release) is done by `handoff.py` — never edit `<skill>-state.json`,
-`pipeline-state.json`, or `.lock` by hand.
+`run.json`, or `.lock` by hand.
 
 A handoff is a *planned* resume, so it beats crash recovery: it captures the
 soft context that phase boundaries have not persisted yet, then releases the
@@ -127,7 +127,7 @@ Written by /acs:handoff on 2026-06-12T09:30:00Z.
 ## Step 4 — Record the handoff
 
 Run the helper (this finalizes `runs[-1]` as `handed_off` with your summary,
-updates `pipeline-state.json`, and releases the `.lock`):
+updates `run.json`, and releases the `.lock`):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket SHOP-123 \

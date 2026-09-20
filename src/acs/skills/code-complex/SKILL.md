@@ -57,7 +57,7 @@ executors in parallel... per the plan's file map" spawn mechanism already
 used for executors above — each `<task phase="verify">` carrying one
 additional `<constraint name="verify_lens">A|B|C|D</constraint>` (lens
 table: `code-verifier.md`'s Multi-lens review section). Each lens spawn
-writes its own `<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md`
+writes its own `steps/code/iter-<n>-verify-lens-<A|B|C|D>.md`
 artifact (never the shared `iter-<n>-verify.md` name) and returns its
 `<result>` with `lens="<A|B|C|D>"` set to the lens it was given — that
 attribute is how you tell the four results apart and how the SubagentStop
@@ -86,7 +86,7 @@ return, the coordinator itself performs the merge pass — never a subagent:
    VERDICT (MAR-523), not from the report. Order matters: re-scrutinize,
    amend the lens verdict, then merge.
 5. The coordinator writes the single merged
-   `<partition>/phases/code/iter-<n>-verify.md` itself: one section per
+   `steps/code/iter-<n>-verify.md` itself: one section per
    corroborated/confirmed finding (blocking), one per downgraded finding
    (info-level, with rationale), and a short per-lens evidence summary.
    `acs.py verdict merge` writes the merged verdict from the four lens
@@ -114,7 +114,7 @@ parent) whenever the ticket has one.
 ### Plan approval
 
 **Plan approval is enforced**, exactly as on `standard`:
-`<partition>/phases/code/plan-approval.json` must record an eligible approval
+`steps/code/plan-approval.json` must record an eligible approval
 whose `plan_sha256` matches the current `plan.md` bytes, the plan-conformance
 dimension is ACTIVE, and a missing or stale approval fails the run with
 `stop_reason: plan_superseded` rather than being written here.
@@ -129,14 +129,14 @@ it cannot know whether approval is owed. Immediately after Start, run:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-approval.py" --ticket <ticket-id>
 ```
 
-This script is the ONLY writer of `<partition>/phases/code/plan-approval.json`
+This script is the ONLY writer of `steps/code/plan-approval.json`
 — never a subagent's `Write` tool, and never your own. An LLM-asserted approval
 is not an approval: eligibility is computed by `acs_lib.plan_approval_eligible`
 from the plan artifact's own content plus `settings.test_coverage_percent`,
 never from any agent's self-report. It hashes the approval mirror
-(`<partition>/phases/code/plan.md`), which is why `/acs:create-impl-plan`
+(`steps/code/plan.md`), which is why `/acs:create-impl-plan`
 publishes that copy from the same bytes as the plan; an explicit `--plan` must
-resolve within `<partition>/phases/code/` and the script refuses (clean stderr,
+resolve within `steps/code/` and the script refuses (clean stderr,
 exit 2, no record written) any path whose realpath escapes it.
 
 It is idempotent per digest: a second invocation over the same plan bytes

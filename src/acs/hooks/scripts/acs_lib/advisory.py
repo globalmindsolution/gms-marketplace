@@ -1,87 +1,72 @@
-"""acs_lib.advisory — the out-of-order advisory the pre-hook prints in place of
-the order gates.
+"""acs_lib.advisory — the out-of-order advisory the pre-hook prints in place
+of an order gate.
 
-Since the skills-independence refactor no gate refuses a skill for running
-before its predecessor; the order lives in workflows/ship.yaml. When a hooked
-skill runs out of that declared order -- one of its step's `needs` is not
-satisfied for the ticket per pipeline-state.json -- run_pre_payload prints ONE
-stderr line naming the position and continues with exit 0:
+No gate refuses a skill for running before its neighbours: order lives in
+`workflows/ship.yaml` and is `/acs:ship`'s business, which is what makes every
+skill independently invocable (§3.11). When a hooked skill runs somewhere
+other than the run's cursor, `run_pre_payload` prints ONE stderr line naming
+the position and continues with exit 0:
 
-    acs: <skill> normally follows <needs> in ship.yaml; <need> has not completed for <ID>
+    acs: review-code normally follows code in ship.yaml; the cursor for MAR-590 is code
 
-`<needs>` are the step's declared needs and `<need>` the ones still pending,
-each rendered as a prose list ("a, b and c"); the verb agrees with the pending
-count ("has" / "have not completed"). Suppressed when
-settings.workflow.advisories is false. Read through acs_lib.workflow.resolve
-(the consumer override when present, else the plugin default) and
-workflow.pending_needs, which never writes the ledger. Never a refusal, never
-an exception: a workflow or ticket that cannot be read yields no line --
+The version-2 line named the step's unsatisfied `needs`. There are none now —
+the list IS the order — so the line names the cursor instead: the one step the
+run is actually waiting on. That is more useful as well as shorter, because a
+`needs` list never told the reader which of them to go and do.
+
+Suppressed when `settings.workflow.advisories` is false. Never a refusal,
+never an exception: a workflow or run that cannot be read yields no line, and
 `acs.py workflow validate` is where a broken override is reported.
 """
 
+import os
+
+from . import run as run_machine
 from . import workflow
+from .repo import repo_dir
 
 #: The substring every advisory line carries; tests filter stderr on it.
 ADVISORY_MARK = "normally follows"
 
 
-def _prose_list(names):
-    names = list(names)
-    if len(names) <= 1:
-        return "".join(names)
-    return "%s and %s" % (", ".join(names[:-1]), names[-1])
-
-
-def render_advisory(skill, ticket_id, needs, pending):
+def render_advisory(skill, run_id, predecessor, cursor):
     """The one advisory line, exactly:
-    'acs: <skill> normally follows <needs> in ship.yaml; <pending> has not completed for <ID>'
-    -- `needs` are the step's declared needs, `pending` the ones not satisfied."""
-    pending = list(pending)
-    verb = "has" if len(pending) == 1 else "have"
-    return "acs: %s %s %s in ship.yaml; %s %s not completed for %s" % (
-        skill, ADVISORY_MARK, _prose_list(needs), _prose_list(pending), verb, ticket_id)
+    'acs: <skill> normally follows <predecessor> in ship.yaml; the cursor for
+    <run> is <cursor>'."""
+    return ("acs: %s %s %s in ship.yaml; the cursor for %s is %s"
+            % (skill, ADVISORY_MARK, predecessor, run_id, cursor))
 
 
-def _workflow_step(doc, skill):
-    """The first ship.yaml step `skill` names (aliases resolved), or None.
+def workflow_advisory(ctx, skill, run_id):
+    """The out-of-order advisory for a hooked skill about to run, or None.
 
-    Matched through workflow.step_matches, which also answers to a step id and
-    to every skill a per-path `skill` mapping can resolve to -- a plain equality
-    test here silently missed the `code` step once it held four legs, and an
-    unmatched step renders an advisory with an empty needs list."""
-    skill = workflow.skill_aliases().get(skill, skill)
-    for step in doc.get("steps") or []:
-        if workflow.step_matches(step, skill):
-            return step
-    return None
-
-
-def workflow_advisory(ctx, skill, ticket_id, tdir=None, ticket=None):
-    """The out-of-order advisory line for a hooked skill about to run for a
-    ticket, or None when the skill is in its declared place (every `needs` of
-    its ship.yaml step is satisfied per pipeline-state.json), when the skill is
-    not a ship.yaml step at all, or when settings.workflow.advisories is false.
-
-    `tdir`/`ticket` are optional short-cuts for a caller that already loaded
-    the partition; otherwise the ticket is resolved through
-    workflow.ticket_context (which reads it via the acs_lib facade's
-    load_ticket at call time). NEVER raises and never refuses -- see the
-    module docstring."""
-    settings = ctx.get("settings") or {}
-    if not (settings.get("workflow") or {}).get("advisories", True):
+    None -- no line at all -- for every ordinary case: the skill IS the
+    cursor, the workflow does not name it, advisories are off, or anything
+    cannot be read. A line that appeared when nothing was wrong would train
+    the reader to ignore it.
+    """
+    settings = (ctx.get("settings") or {}).get("workflow") or {}
+    if settings.get("advisories") is False:
         return None
     try:
-        if tdir is not None and isinstance(ticket, dict):
-            wctx = dict(ctx)
-            wctx.update({"ticket_id": ticket_id, "tdir": tdir, "ticket": ticket})
-        else:
-            wctx = workflow.ticket_context(ctx, ticket_id, tdir=tdir)
         resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
-        pending = workflow.pending_needs(wctx, skill, resolved=resolved)
-        if not pending:
-            return None
-        step = _workflow_step(resolved["workflow"], skill)
-        needs = list((step or {}).get("needs") or [])
-        return render_advisory(skill, ticket_id, needs, [entry["step"] for entry in pending])
-    except Exception:  # noqa: BLE001 -- advice only, never a refusal
+        wf = workflow.validate_workflow_file(resolved["path"])
+    except Exception:  # noqa: BLE001 — an advisory never raises
         return None
+    if not workflow.has_step(wf, skill):
+        return None
+    try:
+        rdir = run_machine.run_dir(repo_dir(ctx["workspace"], ctx["repo_id"]), run_id)
+        doc = run_machine.load_run(rdir)
+    except Exception:  # noqa: BLE001
+        return None
+    if doc is None:
+        return None
+    cursor = run_machine.cursor(doc, wf)
+    if cursor is None or cursor == skill:
+        return None
+    index = workflow.step_index(wf, skill)
+    if index is None or index == 0:
+        return None
+    predecessor = workflow.steps_of(wf)[index - 1]
+    return render_advisory(skill, run_id, predecessor, cursor)

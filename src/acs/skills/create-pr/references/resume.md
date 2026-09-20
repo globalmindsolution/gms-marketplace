@@ -15,7 +15,7 @@ If `context.reconcile` is true, verify recorded state against reality BEFORE
 continuing:
 
 1. Read `<partition>/create-pr-state.json` (`runs[-1]`) and any
-   `<partition>/phases/create-pr/iter-*-*.xml` to see how far the prior run got.
+   `steps/create-pr/iter-*-*.xml` to see how far the prior run got.
 2. Re-check reality: does the branch exist on origin
    (`git ls-remote origin <branch>`)? Does an open PR for it exist
    (`gh pr list --head <branch> --state open --json number,url,baseRefName`)?
@@ -24,6 +24,6 @@ continuing:
 3. Continue from the first unfinished phase of the recorded iteration.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-pr/handoff-context.md` (if present), do a light
+`steps/create-pr/handoff-context.md` (if present), do a light
 reconcile (trust the summary, cheaply spot-check the PR/branch it names), and
 continue from where it points.

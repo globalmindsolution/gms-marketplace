@@ -88,7 +88,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-architecture/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-architecture/iter-<n>-authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Required sections:
 
@@ -183,7 +183,7 @@ finding to what you changed.
 
 ## The execute artifact
 
-Write `<partition>/phases/create-architecture/iter-<n>-execute.json` (parallel
+Write `steps/create-architecture/iter-<n>-execute.json` (parallel
 executors: `iter-<n>-execute-<k>.json`) recording: `files_changed` (every repo path you
 wrote), `commands` (each command run with its outcome), `decisions` (choices made inside
 your notes' latitude), and `problems` (anything that fought you). The XML result

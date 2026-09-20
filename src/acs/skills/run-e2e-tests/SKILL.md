@@ -15,10 +15,10 @@ in either mode.
 
 This skill was `/acs:test` until the skills-independence refactor renamed it
 after what it actually does. `skills/test/` is retained for one release as an
-alias directory that forwards here (`workflows/phases.yaml` records it under
+alias directory that forwards here (`skills/<name>/acs.yaml` records it under
 `aliases`, not in a phase); a ledger written before the rename recorded this
-step as `steps.test`, which `pipeline-state.schema.json` still accepts and
-`acs.py workflow next` still resolves to this step. `/acs:create-e2e-tests`
+step as `steps.test`, which `run.schema.json` still accepts and
+`acs.py run next` still resolves to this step. `/acs:create-e2e-tests`
 WRITES a ticket's e2e suites; this skill RUNS the configured suites.
 
 Scope honesty up front: this skill is **not read-only**. Every run **writes**
@@ -44,7 +44,7 @@ Parse `$ARGUMENTS` for zero or more `--suite <name>` flags and an optional
 - **`--for-ticket <id>`** (optional, combinable with `--suite`): switches
   this run into **ticket-scoped mode** — see "Ticket-scoped mode" below.
   `<id>` must match `^[A-Z][A-Z0-9]*-[0-9]+$` (the same pattern
-  `pipeline-state.schema.json`'s `ticket_id` property uses); an id that
+  `run.schema.json`'s `ticket_id` property uses); an id that
   fails this pattern, or that resolves to no partition under
   `<workspace>/<repo_id>/<id>/` or `archive/<id>/`, fails fast with a clear
   error — the same fail-fast posture below already applies to an unknown
@@ -163,7 +163,7 @@ a ticket id), the run set for Steps 2-3 below is narrowed to:
    ticket's own cases are what scopes this run.
 3. Fallback, only when `artifacts["test-cases.md"]` is null: any suite named in
    the ticket's folded Test-plan section, read from `artifacts["plan.md"]` —
-   which still resolves the legacy `<partition>/phases/code/plan.md` for a
+   which still resolves the legacy `steps/code/plan.md` for a
    ticket planned by `/acs:code`'s old plan phase.
 
 This selection is re-evaluated fresh on every `--for-ticket` invocation, never
@@ -181,7 +181,7 @@ zero-suites case.
 
 **Recording the run in the pipeline ledger.** After the run-set completes,
 record the outcome on the ticket's `steps.run-e2e-tests` entry. That entry is
-what `acs.py workflow next` reads to decide whether this step is satisfied and
+what `acs.py run next` reads to decide whether this step is satisfied and
 the ship walk may reach `create-pr`, and what `workflows/ship.yaml`'s
 `on_fail: {relay_to: code}` acts on when the suites are red. No gate blocks on
 it: `/acs:docs-sync` no longer refuses on this step's status, because pipeline

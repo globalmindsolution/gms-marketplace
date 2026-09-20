@@ -56,7 +56,7 @@ a grounding-input condition handled in Inputs & mode, not a Start-time concern.
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-- Read `<partition>/phases/standardize-project/` — the persisted `iter-<n>-<phase>.xml`
+- Read `steps/standardize-project/` — the persisted `iter-<n>-<phase>.xml`
   files tell you the last completed phase and iteration.
 - Re-read the actual artifacts: which files under `<checkout_root>` were scaffolded per
   the last recorded plan; whether the ticket branch exists (`git branch --list`), is
@@ -69,7 +69,7 @@ continuing:
   frozen allowlist every later iteration reads.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/standardize-project/handoff-context.md` (if present), do a light
+`steps/standardize-project/handoff-context.md` (if present), do a light
 reconcile, and continue from where it points.
 
 ## Brownfield orientation
@@ -213,7 +213,7 @@ un-namespaced name if the runtime rejects the namespaced one). Apply
 silent fallback) if the runtime rejects the model/effort. Communicate in XML per
 `schemas/acs-messages.xsd`; validate every message via `validate_xml.py`; on an invalid
 message, re-request once, then fail with the validation error recorded in `errors`.
-Persist every phase output to `<partition>/phases/standardize-project/iter-<n>-<phase>.xml`
+Persist every phase output to `steps/standardize-project/iter-<n>-<phase>.xml`
 before starting the next phase.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
@@ -253,7 +253,7 @@ Phases:
 
 1. **Execute** — iteration 1's executor first AUDITS (read-only): it reads the
    doc-set/target/readiness-tooling inputs above and writes its authoring notes
-   (`<partition>/phases/standardize-project/iter-1-authoring.md`): a gap list
+   (`steps/standardize-project/iter-1/authoring.md`): a gap list
    classified into scaffold-able (CI/tooling config) vs recommended-follow-up-only
    (missing doc sets, missing `hld/project-structure.md`, structural gaps against it),
    the additive-surface allowlist the verifier will enforce, and the
@@ -373,7 +373,7 @@ about anything the repo's own config already answers. If genuinely unreachable, 
 ## Context pressure
 
 If your context is running low mid-run: flush in-flight work plus soft context to
-`<partition>/phases/standardize-project/handoff-context.md`, then run:
+`steps/standardize-project/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -385,7 +385,7 @@ Tell the user the printed `continue_with` command.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/standardize-project/result.json` per the result-document
+1. Write `steps/standardize-project/result.json` per the result-document
    contract in INTERNALS.md (`docs/architecture/lld/contracts.md:27`). Canonical
    `states` keys: `audit`, `scaffold`, `pr` — plus the top-level `recommended_follow_ups`
    array (ALWAYS present, empty when there is nothing to recommend):
@@ -422,7 +422,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-standardize-project.py" --ticket <id> --result-file <partition>/phases/standardize-project/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-standardize-project.py" --ticket <id> --result-file steps/standardize-project/result.json
 ```
 
 3. Report a compact summary to the user: audit findings, files scaffolded, verifier

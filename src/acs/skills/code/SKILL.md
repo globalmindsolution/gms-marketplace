@@ -21,7 +21,7 @@ Four legs implement this step (ADR-0095):
 **The path is judged once, from the plan, and recorded.** It is not an option,
 not an argument, and not yours to choose. `/acs:ship` judges it after
 `/acs:create-impl-plan` completes and writes `delivery_path` to
-`pipeline-state.json`; every later read — including this one — takes the
+`run.json`; every later read — including this one — takes the
 recorded value. That is what keeps a resumed run on the path its first session
 chose rather than splitting a pipeline across two.
 
@@ -128,7 +128,7 @@ the behaviour it used to have.
 ## Finish
 
 The leg ran `skill-start.py --skill code` and `post-code.py`, wrote every phase
-artifact under `<partition>/phases/code/`, and produced the completion report.
+artifact under `steps/code/`, and produced the completion report.
 Relay its handoff unchanged, and add one line naming the path and why:
 
 > Delivery path: **`<path>`** — `<the recorded reason>`

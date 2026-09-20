@@ -75,7 +75,7 @@ input.
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-1. Re-read `<partition>/phases/create-prd/iter-*-*.xml` and
+1. Re-read `steps/create-prd/iter-*-*.xml` and
    `<partition>/create-prd-state.json` to see which phases completed.
 2. Re-read `<repo>/<settings.prd_path>/prd.md` and `roadmap.md` — does their content
    match what the recorded executor results claim?
@@ -90,7 +90,7 @@ continuing:
    belong to their iteration.
 
 If `context.handoff_summary` exists, read it (and
-`<partition>/phases/create-prd/handoff-context.md` if present), do a light reconcile
+`steps/create-prd/handoff-context.md` if present), do a light reconcile
 of the same checks, and continue from where it points.
 
 ## Reflection loop — execute -> verify, no planner
@@ -132,7 +132,7 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
 
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
-`<partition>/phases/create-prd/iter-<n>-<phase>.xml` at the phase boundary BEFORE
+`steps/create-prd/iter-<n>-<phase>.xml` at the phase boundary BEFORE
 starting the next phase. The executor's own artifacts are `iter-<n>-authoring.md`
 (Mode & evidence; PRD outline; Roadmap outline; Code evidence; Answer fidelity;
 Roadmap milestones; Open questions; Risks; Verifier checklist) and
@@ -283,7 +283,7 @@ label, the rendered title, the body template, the pre-open self-check and
 things are this run's own:
 
 - **Where the body lives.** Write the filled body to
-  `<partition>/phases/create-prd/pr-body.md`, and pass that path as
+  `steps/create-prd/pr-body.md`, and pass that path as
   `--body-file` to both the self-check and `gh pr create`.
 - **What goes in it**, beyond the template's placeholders: Changes = the PRD
   files added or amended; Test plan = the verifier dimensions checked; mark
@@ -330,7 +330,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 
 If your context is running low mid-run: flush in-flight work and soft context (user
 answers, decisions, partial findings, gotchas) to
-`<partition>/phases/create-prd/handoff-context.md`, then run
+`steps/create-prd/handoff-context.md`, then run
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
@@ -343,7 +343,7 @@ context on work that would be lost.
 
 MANDATORY final step — never skipped, also on failure.
 
-1. Write `<partition>/phases/create-prd/result.json` per the result-document contract
+1. Write `steps/create-prd/result.json` per the result-document contract
    (INTERNALS.md), with the canonical `states` keys for create-prd — `prd` and `pr`,
    exact names:
 
@@ -367,10 +367,10 @@ MANDATORY final step — never skipped, also on failure.
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-prd.py" --ticket <ticket-id> --result-file "<partition>/phases/create-prd/result.json"
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-prd.py" --ticket <ticket-id> --result-file "steps/create-prd/result.json"
    ```
 
-   It finalizes the run entry, updates `pipeline-state.json` / `tickets-index.json` /
+   It finalizes the run entry, updates `run.json` / `tickets-index.json` /
    `metrics.json`, flips the delivery ticket to `in_review` (PR recorded), and
    releases the `.lock`.
 

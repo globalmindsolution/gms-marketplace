@@ -52,12 +52,12 @@ Three cases:
   skill-start with `--ticket <PRIOR-ID>` (no `--allocate`) and continue with that
   context — it will report `reconcile: true`.
 - **`context.reconcile` is true** (resumed ticket): verify recorded progress against
-  reality BEFORE continuing — re-read `<partition>/phases/create-project/` artifacts,
+  reality BEFORE continuing — re-read `steps/create-project/` artifacts,
   inspect `git -C <checkout_root> status` and `git log` on the scaffold branch, and
   re-run any build/lint/test command recorded as passing. Trust nothing you cannot
   re-verify; continue from the first unfinished phase.
 - **`context.handoff_summary` exists**: read it, plus
-  `<partition>/phases/create-project/handoff-context.md` if present, do a light
+  `steps/create-project/handoff-context.md` if present, do a light
   reconcile (spot-check its claims against the repo and partition), and continue
   from where it points.
 - There is no plan artifact to reuse: an execute with no verify -> verify it; a
@@ -119,7 +119,7 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
 
 - Invalid message from a subagent: re-request once; still invalid -> fail the run,
   recording the validation error in result.json `errors`.
-- Persist every phase output to `<partition>/phases/create-project/iter-<n>-<phase>.xml`
+- Persist every phase output to `steps/create-project/iter-<n>-<phase>.xml`
   at the phase boundary, BEFORE starting the next phase (parallel executors: suffix
   `iter-<n>-execute-a.xml`, `-b.xml`, ...). The executor's own artifacts are
   `iter-1-authoring.md` (authored once, on iteration 1: Analysis; File manifest;
@@ -255,7 +255,7 @@ git -C <checkout_root> push -u origin task/SHOP-3-project-scaffold
    `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label, the
    rendered title, the body template, the pre-open self-check, `gh pr create`,
    and recording `{number, url, branch}` as `states.pr`. Write the filled body
-   to `<partition>/phases/create-project/pr-body.md` and pass that path as
+   to `steps/create-project/pr-body.md` and pass that path as
    `--body-file` to both the self-check and `gh pr create`; fill its
    placeholders from workspace state (ticket.json, scaffold plan, verifier
    results). Read the number back with
@@ -313,7 +313,7 @@ status="needs_input">` carrying the `<questions>` as your final message.
 
 If your context runs low mid-run: flush in-flight work and soft context (user
 answers, decisions, partial findings, gotchas, current iteration/phase) to
-`<partition>/phases/create-project/handoff-context.md`, then:
+`steps/create-project/handoff-context.md`, then:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "done: <...>; in flight: <...>; next: <...>; decisions: <...>"
@@ -328,7 +328,7 @@ the post-hook in this path.
 MANDATORY final step — never skipped, also on failure and on the greenfield refusal
 (only the Context-pressure path above replaces it):
 
-1. Write `<partition>/phases/create-project/result.json`:
+1. Write `steps/create-project/result.json`:
 
 ```json
 {
@@ -357,7 +357,7 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 2. Run the post-hook:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --ticket <ticket-id> --result-file <partition>/phases/create-project/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --ticket <ticket-id> --result-file steps/create-project/result.json
 ```
 
    It finalizes the run entry, updates pipeline-state/index/metrics, marks the

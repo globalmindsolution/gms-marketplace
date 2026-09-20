@@ -51,7 +51,7 @@ spawns and a merge to save nothing. Give that executor the whole file map.
 ### Verifier
 
 **One `acs:code-verifier` spawn**, no lens constraint and no `-lens-` suffix,
-writing `<partition>/phases/code/iter-<n>-verify.md` directly.
+writing `steps/code/iter-<n>-verify.md` directly.
 
 ### Dimensions
 

@@ -26,14 +26,14 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   document, `design.md` when the ticket or its parent epic has
   one, and the plan artifact `plan.md` — the path supplied in `<inputs>`, which
   the coordinator resolved (the ticket's docs folder, the partition, or the
-  pre-docs-tree `<partition>/phases/code/plan.md`); read ONLY its
+  pre-docs-tree `steps/code/plan.md`); read ONLY its
   `## Verifier checklist` — it is a
   floor, never a ceiling. `/acs:create-impl-plan`'s executor wrote that plan,
   on every run and every delivery path — ADR-0074's coordinator-authored fast
   path went with the lanes (ADR-0095). Dimensions 1, 8, 9 and 13 apply in full
   and are never waived on authorship grounds. Also `test-cases.md` and
   `api-contract.md` when they exist (dimensions 1 and 9), and
-  `<partition>/phases/code/plan-approval.json`,
+  `steps/code/plan-approval.json`,
   when present — the verifier reads this itself for dimension 15; it is never
   supplied as a coordinator-relayed value. READ EVERY ONE. Derive `<partition>`
   from the directory containing the run ledger named in `<inputs>`;
@@ -287,7 +287,7 @@ it safe: no pass without a green run, on the iteration where it counts.
 
 14. **Regression-risk (git-history)** — BLOCKING; the two DEEP delivery paths
     only, `standard` and `complex`, and on `complex` it is lens D's. Read
-    `delivery_path` from `<partition>/pipeline-state.json` — the same fresh,
+    `delivery_path` from `<partition>/run.json` — the same fresh,
     from-disk read dimension 16 makes, never a coordinator-relayed value — and
     evaluate this dimension on `standard` and `complex`, skip it as N/A on
     `trivial` and `small`, which is what keeps a cheap path's dimension set at
@@ -306,15 +306,15 @@ it safe: no pass without a green run, on the iteration where it counts.
 15. **Plan conformance** — BLOCKING when active, N/A otherwise; every path.
     Compute activation itself, from disk — never from a coordinator-relayed
     value (that would re-import the LLM self-assertion ADR 0076 D-1
-    rejects). Read `<partition>/phases/code/plan-approval.json` and check
+    rejects). Read `steps/code/plan-approval.json` and check
     ALL of the following hold: (1) the record exists and parses; (2) its
     `eligible` is `true`; (3) its `plan_path` is exactly `phases/code/plan.md`
     — a record produced from an explicit `--plan alt-plan.md`/
     `plan-superseded-<k>.md` does not describe the current plan and is
     therefore never a conformance contract; (4) `sha256` of the current
-    `<partition>/phases/code/plan.md` bytes equals the record's
+    `steps/code/plan.md` bytes equals the record's
     `plan_sha256` — a plan edited after approval is not an approved plan.
-    `<partition>/phases/code/plan.md` is the approval mirror
+    `steps/code/plan.md` is the approval mirror
     `/acs:create-impl-plan` publishes from the same bytes as the plan in
     `<inputs>`; when the two differ, the plan changed after approval, so the
     digest check fails and the dimension is N/A, exactly as intended.
@@ -340,7 +340,7 @@ it safe: no pass without a green run, on the iteration where it counts.
     understated the work, here is where it surfaces.
 
     Read `delivery_path` and `delivery_path_reason` from
-    `<partition>/pipeline-state.json` — fresh, from disk, never a
+    `<partition>/run.json` — fresh, from disk, never a
     coordinator-relayed value. Then run `git diff --name-only
     <default_branch>...HEAD` over the changeset and read the diff itself, and
     answer one question: **does this changeset look like the work that reason
@@ -361,7 +361,7 @@ it safe: no pass without a green run, on the iteration where it counts.
     `stop_reason: plan_superseded`, which sends /acs:ship back to
     `/acs:create-impl-plan` so the path is judged again from a corrected plan.
 
-    **Absent path.** When `pipeline-state.json` carries no `delivery_path`,
+    **Absent path.** When `run.json` carries no `delivery_path`,
     report the dimension N/A with that reason — a run that reached here
     unclassified has a `/acs:code` dispatch problem, not a changeset problem,
     and blocking the code for it would name the wrong thing.
@@ -391,7 +391,7 @@ mandatory diff/log-read step.
 | Lens | Dimensions covered (numbered per this file) | Evidence source |
 |------|-----------------------------------------------|------------------|
 | A — Correctness & Acceptance | 1, 2, 3, 4, 5 | the branch diff (`git diff <default_branch>...HEAD`) + the ticket document re-read fresh + `test-cases.md` when present; the ONLY lens that re-runs the test/coverage/e2e suite |
-| B — Security, Standards & Craftsmanship | 6, 7, 10, 12, 16 | the branch diff + `standards/` at `standards_path` when configured + `pipeline-state.json`'s `delivery_path`/`delivery_path_reason` (dimension 16); no suite re-run |
+| B — Security, Standards & Craftsmanship | 6, 7, 10, 12, 16 | the branch diff + `standards/` at `standards_path` when configured + `run.json`'s `delivery_path`/`delivery_path_reason` (dimension 16); no suite re-run |
 | C — Architecture & Documentation | 8, 9, 11, 13, 15 | the branch diff + `design.md` + `architecture_path` + `requirements_path` + `prd.md`/`roadmap.md` + the plan artifact's prose (dimensions 13, 15) + `plan-approval.json` (dimension 15); no suite re-run |
 | D — Regression-risk | 14 | the branch diff + `git log --follow -p` / `git log --oneline`, bounded lookback, scoped to touched files; no suite re-run |
 
@@ -402,7 +402,7 @@ sub-check above. This table itself is the documented lens-count/
 dimension-assignment decision.
 
 Each lens spawn writes its own artifact
-`<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md` instead of
+`steps/code/iter-<n>-verify-lens-<A|B|C|D>.md` instead of
 `iter-<n>-verify.md` (see Phase artifact below) — never the shared name, so
 4 lens spawns never race to write the same file. After all 4 lenses return,
 the `/acs:code` coordinator (never a subagent) performs the adversarial
@@ -418,13 +418,13 @@ is NOT decided by the lens's absence: dimension 14 reads the recorded
 ## Phase artifact
 
 When the task's `<constraints>` carries `verify_lens` (`A`-`D`), write your
-lens report to `<partition>/phases/code/iter-<n>-verify-lens-<A|B|C|D>.md`
+lens report to `steps/code/iter-<n>-verify-lens-<A|B|C|D>.md`
 instead — never the shared `iter-<n>-verify.md` name, which only the
 coordinator writes, after merging all 4 lenses' findings (see Multi-lens
 review above).
 
 Write the full verification report to
-`<partition>/phases/code/iter-<n>-verify.md` (`<n>` = the task's `iteration`,
+`steps/code/iter-<n>-verify.md` (`<n>` = the task's `iteration`,
 or the lens-scoped path above when `verify_lens` is set).
 Write it with the Write tool.
 Required structure: one `## <Dimension>` section per dimension above, each with
@@ -435,7 +435,7 @@ entries summarize this file, never replace it.
 
 ## The verdict (MAR-527)
 
-Alongside the report, write `<partition>/phases/code/iter-<n>-verdict.json` —
+Alongside the report, write `steps/code/iter-<n>-verdict.json` —
 or `iter-<n>-verdict-lens-<A|B|C|D>.json` when `verify_lens` is set. You are the
 only role that knows the verdict; nobody transcribes it for you, and the
 SubagentStop hook REFUSES your answer if this file is missing or does not hold

@@ -65,7 +65,7 @@ This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
 `design_approved` predicate and `/acs:code` look for, so the path this run
 chooses is the path that opens the next gate. Call it `<design_path>` below.
 
-The working draft lives at `<partition>/phases/create-design/design.md`; the
+The working draft lives at `steps/create-design/design.md`; the
 published file is a copy of those exact bytes (see Publish). The draft is
 workspace state — the executor writes it and the verifier judges it, and the
 file-map guard denies any subagent a write under the ticket docs tree.
@@ -74,7 +74,7 @@ file-map guard denies any subagent a write under the ticket docs tree.
 
 - If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
   `handed_off`): verify recorded progress against reality BEFORE continuing —
-  list `<partition>/phases/create-design/iter-*-*.xml`, re-resolve the design
+  list `steps/create-design/iter-*-*.xml`, re-resolve the design
   artifact (above) and re-read the draft and `<design_path>` if they exist, and
   check whether their content actually
   matches the last persisted phase output. Trust nothing you cannot see in a
@@ -83,7 +83,7 @@ file-map guard denies any subagent a write under the ticket docs tree.
   phase/iteration; never redo work that demonstrably holds, never trust work
   you cannot see in an artifact.
 - If `context.handoff_summary` exists: read it plus
-  `<partition>/phases/create-design/handoff-context.md` (when present), do a light
+  `steps/create-design/handoff-context.md` (when present), do a light
   reconcile (spot-check the named artifacts), and continue from where it points.
 - There is no plan artifact to reuse: continue from the first unfinished
   phase — an execute with no verify → verify it; a verify with findings and
@@ -170,7 +170,7 @@ sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 4. Persist the phase's `<task>` and `<result>` to
-   `<partition>/phases/create-design/iter-<n>-<phase>.xml` at the phase boundary,
+   `steps/create-design/iter-<n>-<phase>.xml` at the phase boundary,
    BEFORE starting the next phase. The executor's own artifacts are
    `iter-<n>-authoring.md` (its survey: Analysis; Decisions & candidate
    options with trade-offs; NFR checklist; Architecture conformance call;
@@ -194,7 +194,7 @@ If the executor returns `needs_input` with `<questions>`, resolve them in
 "User interaction" below and re-run execute for the same iteration with the
 answers in `<context>`.
 
-Then the draft: write it at `<partition>/phases/create-design/design.md`
+Then the draft: write it at `steps/create-design/design.md`
 (the executor mutates ONLY the workspace partition — never the consumer repo, and
 never the ticket docs tree, which the file-map guard denies it; the coordinator
 publishes the verified draft to `<design_path>` in Publish below). Required
@@ -266,7 +266,7 @@ partition).
 
 You MAY run multiple executors in parallel ONLY when their outputs cannot
 conflict (e.g. one drafting the design draft, one writing a research note to
-`<partition>/phases/create-design/research-<topic>.md`). Two executors never
+`steps/create-design/research-<topic>.md`). Two executors never
 touch the draft in the same iteration. The verifier runs after ALL executors
 finish and judges the combined result. On iterations 2-3 the verifier's
 findings go verbatim into the executor `<task>`'s `<context>`, with no
@@ -280,7 +280,7 @@ when set (see below).
 
 Spawn fresh — it sees artifacts (the design draft, ticket, architecture docs,
 code), never the executor's reasoning. Its `<inputs>` name the draft at
-`<partition>/phases/create-design/design.md`: the verifier judges the bytes
+`steps/create-design/design.md`: the verifier judges the bytes
 Publish then copies, so nothing unverified reaches `<design_path>`. It checks,
 each a finding `dimension`:
 
@@ -321,13 +321,13 @@ executor is checked against. Copy, never re-author — the published bytes must
 equal the verified bytes:
 
 ```bash
-cp "<partition>/phases/create-design/design.md" "<design_path>"
+cp "steps/create-design/design.md" "<design_path>"
 ```
 
 Committing it: `/acs:create-design` is Design-phase work and normally runs
 BEFORE any ticket branch exists, so it never commits to the repo's default
 branch. Leave the published file in the working tree — the first Build step
-(`/acs:analyze-ticket`) creates the ticket branch and commits the ticket's
+(`/acs:analyze-requirements`) creates the ticket branch and commits the ticket's
 docs folder, which carries this design into the branch and into the PR. If a
 ticket branch for `<id>` is ALREADY the checked-out branch (a re-design
 mid-ticket), commit `<design_path>` on it yourself with
@@ -378,7 +378,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 
 If your context is running low mid-run: flush in-flight work and soft context
 (user answers, decisions, partial findings, gotchas) to
-`<partition>/phases/create-design/handoff-context.md`, then run:
+`steps/create-design/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -391,7 +391,7 @@ last of your context on work that would be lost.
 
 MANDATORY final step — never skipped, including on failure or handoff:
 
-1. Write `<partition>/phases/create-design/result.json` per the result-document
+1. Write `steps/create-design/result.json` per the result-document
    contract in INTERNALS.md. Canonical `states` keys (EXACT names) on success:
 
    ```json
@@ -417,7 +417,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
 2. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-design.py" --ticket <id> --result-file <partition>/phases/create-design/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-design.py" --ticket <id> --result-file steps/create-design/result.json
    ```
 
    If it exits non-zero, surface its stderr verbatim — the /acs:code gate

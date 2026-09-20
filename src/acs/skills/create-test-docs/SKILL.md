@@ -45,7 +45,7 @@ Parse the printed context JSON. Fields you will use:
 - `ticket_id`, `ticket` — the resolved ticket. Its `acceptance_criteria` are the
   spine of this document: every one of them must end up traced.
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/create-test-docs/`; the run ledger stays
+  artifacts go in `steps/create-test-docs/`; the run ledger stays
   here too.
 - `checkout_root` — the consumer repo root; every suite and module a case names
   is repo-relative to it.
@@ -118,7 +118,7 @@ not re-derive them. A `null` entry means the artifact does not exist: work from
 what does, and say so in `## Gaps and assumptions`.
 
 The working draft lives at
-`<partition>/phases/create-test-docs/test-cases.md`; the published file is a
+`steps/create-test-docs/test-cases.md`; the published file is a
 copy of those exact bytes (see Publish).
 
 ## Resume & reconcile
@@ -127,7 +127,7 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
 `handed_off`), verify recorded progress against reality BEFORE continuing:
 
 1. Read `<partition>/create-test-docs-state.json` (`runs[-1]` and `states`) and
-   the phase artifacts under `<partition>/phases/create-test-docs/` to see where
+   the phase artifacts under `steps/create-test-docs/` to see where
    the prior run stopped.
 2. Re-resolve the artifact (above) and read it if it exists. Trust nothing you
    cannot see in a file: a document recorded published that is not on disk is
@@ -142,7 +142,7 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-test-docs/handoff-context.md` (when present), do a
+`steps/create-test-docs/handoff-context.md` (when present), do a
 light reconcile, and continue from where it points.
 
 ## Inputs — gather before the loop
@@ -206,7 +206,7 @@ Messaging rules (`schemas/acs-messages.xsd`):
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Persist every phase's `<task>` and `<result>` to
-  `<partition>/phases/create-test-docs/iter-<n>-<phase>.xml` at the phase
+  `steps/create-test-docs/iter-<n>-<phase>.xml` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:create-test-docs-executor`,
   `acs:create-test-docs-verifier` — fall back
@@ -229,7 +229,7 @@ Objective, iteration 1: from the criteria, the plan, the contract and the
 repo's existing tests, decide the CASE SET — for every acceptance criterion
 and every contract item, which cases prove it, at which level, and against
 which suite — and record that decision in the authoring notes
-(`<partition>/phases/create-test-docs/iter-<n>-authoring.md`), naming too the
+(`steps/create-test-docs/iter-<n>-authoring.md`), naming too the
 criteria that cannot be made testable and the questions that blocks. Then
 render `test-cases.md` from those notes. The notes are what the verifier
 checks the draft against.
@@ -241,7 +241,7 @@ interaction and re-run execute for the same iteration with the answers in
 ### Phase: execute — `acs:create-test-docs-executor`
 
 Objective: write the draft to
-`<partition>/phases/create-test-docs/test-cases.md` — one draft per run, revised
+`steps/create-test-docs/test-cases.md` — one draft per run, revised
 in place across iterations, never renumbered — with EXACTLY this front matter
 and these four headings, in this order:
 
@@ -292,7 +292,7 @@ Spawn `acs:create-test-docs-verifier` AFTER the draft is written, with
 contract when they exist, and the repo's test directories. It judges fresh —
 never forward the executor's reasoning — re-derives the traceability from the
 ticket's criteria itself, and writes
-`<partition>/phases/create-test-docs/iter-<n>-verify.md`.
+`steps/create-test-docs/iter-<n>-verify.md`.
 
 ALL blocking findings block — zero blocking findings = pass.
 `status="completed"` means verification RAN; the empty `<findings>` is the
@@ -310,14 +310,14 @@ never patched by you.
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
   --require "ticket: str; cases: int; e2e_cases: int" \
-  --ticket <id> "<partition>/phases/create-test-docs/test-cases.md"
+  --ticket <id> "steps/create-test-docs/test-cases.md"
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Scope; Cases; Traceability; Gaps and assumptions" \
-  --ordered "<partition>/phases/create-test-docs/test-cases.md"
+  --ordered "steps/create-test-docs/test-cases.md"
 
 python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import acs_lib; print(acs_lib.e2e_case_count(sys.argv[2]))" \
-  "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" "<partition>/phases/create-test-docs/test-cases.md"
+  "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" "steps/create-test-docs/test-cases.md"
 ```
 
 The third runs the GATE's own counter over the draft — the exact function
@@ -337,7 +337,7 @@ inputs an executor is checked against. Copy, never re-author — the published
 bytes must equal the verified bytes:
 
 ```bash
-cp "<partition>/phases/create-test-docs/test-cases.md" "<cases_path>"
+cp "steps/create-test-docs/test-cases.md" "<cases_path>"
 ```
 
 Then commit `<cases_path>` on the ticket branch when it is inside the repo (the
@@ -382,7 +382,7 @@ drop it and do NOT invent a case that only appears to cover it:
 A ticket with ZERO acceptance criteria is the vacuous case: `untraced_acs` is
 `[]` because there is nothing to trace, which is not the same as coverage. Say
 so plainly in `## Scope` and `## Gaps and assumptions`, record a clarification
-recommending criteria (`/acs:analyze-ticket`'s refined criteria may already
+recommending criteria (`/acs:analyze-requirements`'s refined criteria may already
 propose them), and derive the cases from the plan and the contract instead.
 
 `/acs:ship` asks the user each question and re-invokes this same skill with the
@@ -394,7 +394,7 @@ completion report.
 If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Commit any published document on the branch, flush
 in-flight state plus soft context (user answers, settled cases, gotchas) to
-`<partition>/phases/create-test-docs/handoff-context.md`, then run:
+`steps/create-test-docs/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -406,7 +406,7 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure or handoff:
 
-1. Write `<partition>/phases/create-test-docs/result.json` per the
+1. Write `steps/create-test-docs/result.json` per the
    result-document contract in INTERNALS.md:
 
    ```json
@@ -443,7 +443,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-test-docs.py" --ticket <id> --result-file <partition>/phases/create-test-docs/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-test-docs.py" --ticket <id> --result-file steps/create-test-docs/result.json
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed

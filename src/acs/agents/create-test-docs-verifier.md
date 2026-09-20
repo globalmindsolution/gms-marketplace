@@ -52,9 +52,9 @@ front matter. A case set that misses a criterion ships a ticket nobody proved.
 7. `scope` — the document specifies cases and does not implement them: no test
    code, no fixtures, no patch, no implementation instructions. And it does not
    silently amend the ticket — a criterion rewrite belongs to
-   `/acs:analyze-ticket` and the clarification ledger, not to this table.
+   `/acs:analyze-requirements` and the clarification ledger, not to this table.
 8. `authoring-conformance` — the draft is what the executor's authoring notes
-   (`<partition>/phases/create-test-docs/iter-<n>-authoring.md`) decided:
+   (`steps/create-test-docs/iter-<n>-authoring.md`) decided:
    every case in the notes' case set is a row of the draft (or its removal is
    recorded), the level and target suite agree between notes and draft, every
    untestable criterion in the notes reached the ledger, and every entry in
@@ -67,14 +67,14 @@ front matter. A case set that misses a criterion ships a ticket nobody proved.
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
   --require "ticket: str; cases: int; e2e_cases: int" \
-  --ticket SHOP-123 <partition>/phases/create-test-docs/test-cases.md
+  --ticket SHOP-123 steps/create-test-docs/test-cases.md
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Scope; Cases; Traceability; Gaps and assumptions" \
-  --ordered <partition>/phases/create-test-docs/test-cases.md
+  --ordered steps/create-test-docs/test-cases.md
 
 python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import acs_lib; print(acs_lib.e2e_case_count(sys.argv[2]))" \
-  "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" <partition>/phases/create-test-docs/test-cases.md
+  "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" steps/create-test-docs/test-cases.md
 ```
 
 Quote each command and its relevant output in your report. The third is the
@@ -86,7 +86,7 @@ you change nothing — NEVER run the repo's test suites here.
 ## Verify report (mandatory)
 
 Write the full verification report to
-`<partition>/phases/create-test-docs/iter-<n>-verify.md` (`<partition>` is the
+`steps/create-test-docs/iter-<n>-verify.md` (`<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), the criterion-by-criterion traceability you

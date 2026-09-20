@@ -41,7 +41,7 @@ Parse the printed context JSON. Fields you will use:
 - `ticket_id`, `ticket` — id, title, type, and `external` (the
   `{provider, key}` remote-tracker mapping, when synced).
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/create-pr/`.
+  artifacts go in `steps/create-pr/`.
 - `settings.formats` — `pr_title` (default `[{ticket_id}] {title}`; vocabulary
   `{ticket_id}` `{type}` `{title}` `{summary}` `{external_key}`) and
   `pr_description_template` (default `pr-default`).
@@ -122,7 +122,7 @@ exact error — no silent fallback.
    `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
    `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path.
    Unresolvable template = blocking problem, surface it. Fill the resolved
-   template into `<partition>/phases/create-pr/pr-body.md`: replace every
+   template into `steps/create-pr/pr-body.md`: replace every
    placeholder (`{ticket_id}`, `{type}`, `{title}`, `{summary}`,
    `{external_key}`; `{external_key_line}` renders as
    ` — tracker: <provider> <key>` when `ticket.external` is set, empty
@@ -176,7 +176,7 @@ exact error — no silent fallback.
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-     --title "<rendered title>" --body-file <partition>/phases/create-pr/pr-body.md \
+     --title "<rendered title>" --body-file steps/create-pr/pr-body.md \
      --require-label ACS --pr-title-format "<settings.formats.pr_title>" \
      --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
      --ticket-prefix <settings.ticket_prefix>
@@ -215,7 +215,7 @@ exact error — no silent fallback.
    If no open PR exists for the branch:
 
    ```bash
-   gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file <partition>/phases/create-pr/pr-body.md --label ACS
+   gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file steps/create-pr/pr-body.md --label ACS
    ```
 
    No `--draft` — PRs are created ready-for-review. If an open PR already
@@ -280,7 +280,7 @@ exact error — no silent fallback.
    PR discoverable from the issue and vice versa — the bidirectional
    cross-reference (AC-3) holds from both directions.
 
-Write a phase artifact `<partition>/phases/create-pr/iter-1-execute.json`
+Write a phase artifact `steps/create-pr/iter-1/execute.json`
 (commands run with outcomes, pushed SHA, PR number/url/base, sync result,
 problems hit, the pre-open self-check's pass/fail result and, on retry, how
 many attempts were used, plus the tracker-metadata-fill result — assignee/
@@ -381,7 +381,7 @@ run and record the error in the result document's `errors`.
 If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Flush in-flight work plus soft context (rendered
 title, body status, push/PR/sync progress, decisions, gotchas) to
-`<partition>/phases/create-pr/handoff-context.md`, then run:
+`steps/create-pr/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
@@ -393,7 +393,7 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/create-pr/result.json` per the result-document
+1. Write `steps/create-pr/result.json` per the result-document
    contract in INTERNALS.md:
 
    ```json
@@ -424,7 +424,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-pr.py" --ticket <ticket-id> --result-file <partition>/phases/create-pr/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-pr.py" --ticket <ticket-id> --result-file steps/create-pr/result.json
    ```
 
    If it exits non-zero, surface its stderr verbatim — the pipeline gate stays

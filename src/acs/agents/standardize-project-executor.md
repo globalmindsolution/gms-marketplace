@@ -85,7 +85,7 @@ coordinator re-runs you with the answer in `<context>`.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/standardize-project/iter-1-authoring.md` on iteration 1
+Write `steps/standardize-project/iter-1/authoring.md` on iteration 1
 with the Write tool, BEFORE writing anything else — this file is authored exactly
 once and never rewritten; later iterations read it and record their **Findings
 addressed** in `iter-<n>-execute.json` instead.
@@ -142,7 +142,7 @@ finding to what you changed.
 
 ## The execute artifact
 
-Write `<partition>/phases/standardize-project/iter-<n>-execute.json` (parallel
+Write `steps/standardize-project/iter-<n>-execute.json` (parallel
 executors: `iter-<n>-execute-<k>.json`) recording: `files_changed` (every repo path you
 wrote), `commands` (each command run with its outcome), `decisions` (choices made inside
 the notes' latitude), and `problems` (anything that fought you). The XML result

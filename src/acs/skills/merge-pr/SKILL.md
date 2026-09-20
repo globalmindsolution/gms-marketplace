@@ -71,7 +71,7 @@ Parse the printed context JSON. Fields you will use:
   (`{provider, key}` or null) drives the tracker sync, `ticket.parent` is why
   epic auto-done exists (handled by the post-hook, not you).
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/merge-pr/`.
+  artifacts go in `steps/merge-pr/`.
 - `settings` — `settings.merge_strategy` (`squash` | `merge` | `rebase`,
   default `squash`) and `settings.tracker` (`provider` `local`/`github`/`jira`
   plus `tracker.github` / `tracker.jira` sub-keys).
@@ -99,7 +99,7 @@ If `context.reconcile` is true, verify recorded progress against reality
 BEFORE continuing:
 
 1. Read `<partition>/merge-pr-state.json` (`runs[-1]`) and any
-   `<partition>/phases/merge-pr/iter-*-*.xml` files to see how far the prior
+   `steps/merge-pr/iter-*-*.xml` files to see how far the prior
    run got.
 2. Check reality first: `gh pr view <number> --json state,mergedAt` —
    **critical** (a failed read is gh's verbatim stderr plus the canonical
@@ -111,7 +111,7 @@ BEFORE continuing:
    readiness verdict is worthless; CI and reviews may have changed.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/merge-pr/handoff-context.md` (if present), do a light
+`steps/merge-pr/handoff-context.md` (if present), do a light
 reconcile (trust the summary, cheaply spot-check with `gh pr view`), and
 continue from where it points.
 
@@ -196,7 +196,7 @@ planner or verifier subagent for this skill; no such delegation is sanctioned
 on any delivery path or iteration.
 
 **Phase artifact:** Persist the execute outcome to
-`<partition>/phases/merge-pr/iter-<n>-execute.json` (whether done by the
+`steps/merge-pr/iter-<n>-execute.json` (whether done by the
 coordinator directly or by the executor) and validate the XML with:
 
 ```bash
@@ -410,7 +410,7 @@ what blocks.
 If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Flush in-flight work plus soft context (readiness
 verdicts gathered so far, which cleanup steps completed, user answers,
-gotchas) to `<partition>/phases/merge-pr/handoff-context.md`, then run:
+gotchas) to `steps/merge-pr/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
@@ -424,7 +424,7 @@ MANDATORY final step — never skipped, also on failure. Run it from the main
 checkout of the consumer repo (the worktree may be gone; the post-hook
 resolves the workspace from cwd):
 
-1. Write `<partition>/phases/merge-pr/result.json` per the result-document
+1. Write `steps/merge-pr/result.json` per the result-document
    contract in INTERNALS.md:
 
    ```json
@@ -460,7 +460,7 @@ resolves the workspace from cwd):
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-pr.py" --ticket <ticket-id> --result-file <partition>/phases/merge-pr/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-pr.py" --ticket <ticket-id> --result-file steps/merge-pr/result.json
    ```
 
    If it exits non-zero, surface its stderr verbatim. On success it prints a

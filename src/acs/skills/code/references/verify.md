@@ -22,7 +22,7 @@ ticket document, `<design_doc>` when it applies, the resolved
 (implementation-contract prose)</constraint>` — the register the folded plan
 content (or the plan's own analysis/decomposition prose) is judged against. The
 verifier judges fresh — never forward executor reasoning — and RE-RUNS the
-tests and coverage itself (artifact `<partition>/phases/code/iter-<n>-verify.md`).
+tests and coverage itself (artifact `steps/code/iter-<n>-verify.md`).
 Dimensions, each producing blocking findings on failure:
 
 - **Acceptance-criteria conformance** — the ticket's `acceptance_criteria`/
@@ -80,7 +80,7 @@ Dimensions, each producing blocking findings on failure:
   something a prior commit deliberately removed.
 - **Plan conformance** — blocking when active, N/A otherwise (dimension 15,
   lens C); the verifier computes activation itself from
-  `<partition>/phases/code/plan-approval.json` (never a coordinator-relayed
+  `steps/code/plan-approval.json` (never a coordinator-relayed
   value): an eligible record whose `plan_path` is `phases/code/plan.md` and
   whose `plan_sha256` matches the current `plan.md` bytes. When active, a
   changed file tracing to no entry of the approved
@@ -89,7 +89,7 @@ Dimensions, each producing blocking findings on failure:
   Acceptance-criteria conformance (dimension 1), which an approved plan can
   never substitute for.
 - **Path audit** — blocking (dimension 16; lens B on `complex`). Read
-  `delivery_path` and `delivery_path_reason` from `pipeline-state.json` and
+  `delivery_path` and `delivery_path_reason` from `run.json` and
   judge the CHANGESET against them: does the diff you actually have in front of
   you look like the work that reason describes? A changeset that contradicts
   its path — a `trivial` run that rewrote an authentication boundary, a
@@ -109,7 +109,7 @@ Dimensions, each producing blocking findings on failure:
 ## The verdict
 
 **The verdict is the verifier's, not yours (MAR-527).** Each verifier writes
-`<partition>/phases/code/iter-<n>-verdict.json` (lens-scoped on `complex`) with
+`steps/code/iter-<n>-verdict.json` (lens-scoped on `complex`) with
 its per-dimension results and findings, and the SubagentStop hook refuses an
 answer whose verdict is missing or does not hold together — in particular
 `passed` must agree with the findings. Read it; never conclude it:

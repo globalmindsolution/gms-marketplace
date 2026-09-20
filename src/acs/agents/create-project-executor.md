@@ -63,7 +63,7 @@ siblings beyond what the notes state.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-project/iter-1-authoring.md` on iteration 1 with
+Write `steps/create-project/iter-1/authoring.md` on iteration 1 with
 the Write tool, BEFORE touching the repo — this file is authored exactly once and
 never rewritten; later iterations read it and record their **Findings addressed** in
 `iter-<n>-execute.json` instead.
@@ -109,7 +109,7 @@ four commands, and record per finding what you changed.
 
 - Mutate ONLY what the notes cover: the scaffold files, the branch, and your own
   artifacts (the authoring notes on iteration 1, the execute report). Never edit the architecture docs, the PRD, `settings.json`, or workspace state
-  files (`ticket.json`, `pipeline-state.json`, …).
+  files (`ticket.json`, `run.json`, …).
 - NEVER spawn subagents; parallelism is the coordinator's decision, made before you exist.
 - Blocked by reality (toolchain missing, registry unreachable, a command in your notes
   simply wrong)? Stop, record the evidence, and return `status="failed"` — or
@@ -118,7 +118,7 @@ four commands, and record per finding what you changed.
 
 ## The execute report
 
-Write `<partition>/phases/create-project/iter-<n>-execute.json` (partition = the directory
+Write `steps/create-project/iter-<n>-execute.json` (partition = the directory
 containing `ticket.json`; `<n>` = the task's `iteration`; parallel executors append their
 slot: `iter-<n>-execute-<k>.json` when the objective names one). Shape:
 

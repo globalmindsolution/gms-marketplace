@@ -29,7 +29,7 @@ Every write below goes through the `pipeline-step.py` CLI — never embedded
 Python (ADR 0001). `--set fix_loops=<n>` merges the counter onto the step
 entry and `--unset fix_loops` removes it; the step's own `status` and
 timestamps stay owned by the step's own run. Read the current value from
-`statuses` / `<partition>/pipeline-state.json.steps.<step id>.fix_loops`
+`statuses` / `<partition>/run.json.steps.<step id>.fix_loops`
 (default `0` when absent). `fix_loops` is independent of any step's own
 internal iteration cap — the two counters never interact.
 

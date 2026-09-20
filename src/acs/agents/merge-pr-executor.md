@@ -22,7 +22,7 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
 
 - `<objective>` — merge the PR and complete the cleanup steps the plan lists;
 - `<inputs>` — absolute paths: the plan
-  (`<partition>/phases/merge-pr/iter-<n>-plan.md` — derive `<partition>` from
+  (`steps/merge-pr/iter-<n>-plan.md` — derive `<partition>` from
   it), the PR-bearing state file (`states.pr` = `{number, url, branch, base}`),
   and `<partition>/ticket.json` (`ticket.external` drives the tracker step);
 - `<constraints>` — at least `merge_strategy` (`squash`|`merge`|`rebase`) and
@@ -122,7 +122,7 @@ the worktree you are about to remove.
 
 ## The execute artifact
 
-Write `<partition>/phases/merge-pr/iter-<n>-execute.json` recording: `pr`
+Write `steps/merge-pr/iter-<n>-execute.json` recording: `pr`
 (number/url/branch/base), `merged_this_iteration` (false when step 0 found it
 already merged), `commands` — every command run, in order, with exit code and
 trimmed output — `steps_skipped` (each with why: not applicable / already

@@ -126,13 +126,13 @@ precedence is `--fan-out` -> split -> remote import -> raw request:
 
 - If `context.reconcile` is true: verify recorded progress against reality BEFORE
   continuing — re-read `<partition>/ticket.json`, the persisted
-  `<partition>/phases/create-ticket/iter-*-*.xml` files, and any child partitions
+  `steps/create-ticket/iter-*-*.xml` files, and any child partitions
   already minted (children listed in `ticket.json` must actually exist on disk with
   `parent` set). Continue from the first unfinished phase; do not redo work that
   verifiably holds, and never mint duplicate children for ones that already exist.
 - If `context.handoff_summary` exists: read it, do a light reconcile (trust it but
   cheaply re-check the artifacts it names), and continue from where it points. Also
-  read `<partition>/phases/create-ticket/handoff-context.md` if present.
+  read `steps/create-ticket/handoff-context.md` if present.
 
 ## Inline apply flow
 
@@ -157,7 +157,7 @@ echo "<xml...>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" 
 On invalid: re-request the message once with the validation error; still
 invalid → fail the run and record the error in the result document's `errors`.
 
-Persist each phase output to `<partition>/phases/create-ticket/iter-<n>-<phase>.xml`
+Persist each phase output to `steps/create-ticket/iter-<n>-<phase>.xml`
 at the phase boundary, BEFORE starting the next phase.
 
 ### The sizing rubric
@@ -212,7 +212,7 @@ and blocks until the user confirms or overrides:
    finalizing — what the work is, which type it is, and the fields items 2-7
    confirm. Deeper REQUIREMENTS clarification is no longer this skill's job:
    impact, assumptions, risks and refined acceptance criteria belong to
-   `/acs:analyze-ticket <id>`, the first Build step, which records each question
+   `/acs:analyze-requirements <id>`, the first Build step, which records each question
    through `clarify.py` and proposes AC rewrites for your confirmation. Ask here
    only what you need to write a well-formed ticket; park anything that needs
    the codebase read for the analysis, and say so when you present the proposal.
@@ -364,7 +364,7 @@ delegation rule.
 
 If your context is running low mid-run: flush in-flight work and soft context
 (user answers, confirmed decisions, partial findings, gotchas, minted child ids) to
-`<partition>/phases/create-ticket/handoff-context.md`, then run:
+`steps/create-ticket/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -376,7 +376,7 @@ Tell the user the exact `continue_with` command it prints, then stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/create-ticket/result.json` per the result-document
+1. Write `steps/create-ticket/result.json` per the result-document
    contract in INTERNALS.md. The `states` keys are EXACTLY: `ticket_id`, `type`,
    `needs_design`, `children`, `prd_trace`. Example:
 
@@ -407,7 +407,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-ticket.py" --ticket <id> --result-file <partition>/phases/create-ticket/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-ticket.py" --ticket <id> --result-file steps/create-ticket/result.json
    ```
 
 3. Report. Direct invocation: a compact summary — ticket id, type, title,
@@ -422,7 +422,7 @@ MANDATORY final step — never skipped, also on failure:
      <summary>Created epic SHOP-123 "Wishlist" (needs_design=true); no children yet — fan out later with /acs:create-ticket SHOP-123 --fan-out after its design; traced to PRD feature "Wishlist (Must-have)"; synced to jira PROJ-789.</summary>
      <artifacts>
        <file><partition>/ticket.json</file>
-       <file><partition>/phases/create-ticket/result.json</file>
+       <file>steps/create-ticket/result.json</file>
      </artifacts>
      <next-step>/acs:create-design SHOP-123</next-step>
    </handoff>

@@ -47,7 +47,7 @@ the coordinator: read every input yourself.
      executor recorded in the current iteration's `Upstream inventory`
      section — never just diff the output against the notes. Run `Bash
      python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py --plan
-     <partition>/phases/create-docs/iter-<n>-authoring.md --root prd=<prd_path>
+     steps/create-docs/iter-<n>-authoring.md --root prd=<prd_path>
      --root architecture=<architecture_path>` — and, for the `standards` set
      only, additionally `--root principles=<principles_path>`, but ONLY when
      the `principles_path` constraint is present and the `principles/` set
@@ -113,7 +113,7 @@ dimensions.
 
 ## The verification report
 
-Write the full report to `<partition>/phases/create-docs/iter-<n>-verify.md`
+Write the full report to `steps/create-docs/iter-<n>-verify.md`
 with the Write tool — your ONLY permitted write. For each dimension: the exact
 commands/inspections run, the evidence observed, and the verdict. Every XML
 `<finding>` summarizes a detailed entry in this file. Advisory observations

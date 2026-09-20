@@ -45,7 +45,7 @@ Parse the printed context JSON. Fields you will use:
   the ticket's `plan.md` (see Plan input resolution), `test-cases.md` and
   `api-contract.md` when they exist, and EVERY spec in `<partition>/specs/`
   (sorted `01-`, `02-`, ... — that is the dependency order). Phase artifacts
-  go in `<partition>/phases/code/`.
+  go in `steps/code/`.
 - `design` — `{required, dir, source}`. `design.dir` is the PARTITION of the
   ticket whose design applies (`source` is `"own"` or `"parent"` — child
   tickets use the parent epic's design); its basename is that ticket's id.
@@ -112,7 +112,7 @@ Messaging rules (schemas/acs-messages.xsd):
   On invalid: re-request once with the validation error; still invalid -> fail
   the run and record the error in the result document's `errors`.
 - Persist every phase output to
-  `<partition>/phases/code/iter-<n>-<phase>.xml` at the phase boundary,
+  `steps/code/iter-<n>-<phase>.xml` at the phase boundary,
   BEFORE starting the next phase.
 - Decomposition is YOURS alone — subagents never spawn subagents. You MAY run
   several executors in parallel ONLY when their specs touch disjoint files
@@ -172,7 +172,7 @@ If `context.reconcile` is true, verify recorded progress against reality
 BEFORE continuing:
 
 1. Read `<partition>/code-state.json` (`runs[-1]` and `states`) and
-   `<partition>/phases/code/iter-*-*.xml` / phase artifacts to see which specs
+   `steps/code/iter-*-*.xml` / phase artifacts to see which specs
    were recorded implemented and where the prior run stopped.
 2. Check out the recorded `states.branch` (it should exist — see Branch).
 3. Re-run the test suite — once. A single full run reports on every spec
@@ -184,7 +184,7 @@ BEFORE continuing:
    changeset; spec 02 green but 03 untouched -> resume at 03).
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/code/handoff-context.md` (if present), do a light
+`steps/code/handoff-context.md` (if present), do a light
 reconcile (trust the summary, but cheaply verify by running the tests it says
 pass), and continue from where it points.
 
@@ -200,13 +200,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <ti
 `artifacts["plan.md"]` is the path the gate already resolved — the ticket's
 docs folder (`<settings.artifacts.tickets_path>/<id>/plan.md`), the partition
 (`<partition>/plan.md`), or the pre-docs-tree location
-`<partition>/phases/code/plan.md`, in that order. Pass THAT path to every
+`steps/code/plan.md`, in that order. Pass THAT path to every
 executor and verifier `<inputs>`; it is the one plan this run reads, in every
 delivery path. Alongside it, `artifacts["test-cases.md"]` and
 `artifacts["api-contract.md"]` are read when present (Execute and Verify
 below).
 
-**`<partition>/phases/code/plan.md` is the approval mirror.**
+**`steps/code/plan.md` is the approval mirror.**
 `/acs:create-impl-plan` publishes a byte-identical copy there because
 `plan-approval.py` — the sole writer of `plan-approval.json` — hashes that
 path, and the verifier's plan-conformance dimension reads it. A mirror that
@@ -221,7 +221,7 @@ boundary, write the result document with `status: "failed"` and
 `stop_reason: plan_superseded` naming what the plan got wrong, run the Finish
 steps, and point at `/acs:create-impl-plan <ticket-id>`. Under `/acs:ship`
 that stop reason is what the workflow's `on_replan` edge reads.
-`<partition>/phases/code/plan-superseded-<k>.md` is written by
+`steps/code/plan-superseded-<k>.md` is written by
 `/acs:create-impl-plan`'s revocation path, never here.
 
 ---
@@ -303,7 +303,7 @@ If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Commit any uncommitted green work on the branch,
 flush in-flight state plus soft context (user answers, decisions, partial
 findings, which specs are green/in-progress, gotchas) to
-`<partition>/phases/code/handoff-context.md`, then run:
+`steps/code/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
@@ -317,7 +317,7 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/code/result.json` per the result-document
+1. Write `steps/code/result.json` per the result-document
    contract in INTERNALS.md:
 
    ```json
@@ -390,7 +390,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-code.py" --ticket <ticket-id> --result-file <partition>/phases/code/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-code.py" --ticket <ticket-id> --result-file steps/code/result.json
    ```
 
    If it exits non-zero, surface its stderr verbatim — the pipeline gate

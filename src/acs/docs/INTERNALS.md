@@ -13,7 +13,7 @@ component follows.
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `src/acs/.claude-plugin/plugin.json` | 1 |
 | Skills | `src/acs/skills/<name>/SKILL.md` | 32 |
-| Subagents | `src/acs/agents/<skill>-<role>.md` | 31 files, all reachable (14 executor + verifier pairs — the twelve authoring skills, `code` and `create-docs` — plus 3 apply-work executors; no skill has a planner since ADR-0092). Each skill declares the roles it owns under `agents` in `workflows/phases.yaml`; the files on disk are exactly that set |
+| Subagents | `src/acs/agents/<skill>-<role>.md` | 31 files, all reachable (14 executor + verifier pairs — the twelve authoring skills, `code` and `create-docs` — plus 3 apply-work executors; no skill has a planner since ADR-0092). Each skill declares the roles it owns under `agents` in `skills/<name>/acs.yaml`; the files on disk are exactly that set |
 | Hooks | `src/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 17 pre + 17 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,pipeline-step,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,skill-start,structure_lint,validate_xml}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 17 pre + 17 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` siblings MAR-572 split out of `acs.py` are importable libraries with no CLI entry point and are excluded — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 21 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 3; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
@@ -54,7 +54,7 @@ onto the plugin hooks API like this:
    a `tokens`/`cost_usd` pair on the result document is accepted for backward
    compatibility but silently ignored. The pipeline does not depend on the
    model's goodwill: skill-start has already appended an `in_progress` run
-   entry, and the ledger it writes is what `acs.py workflow next` walks, so a
+   entry, and the ledger it writes is what `acs.py run next` walks, so a
    skipped post-hook leaves the step UN-SATISFIED — the pipeline re-offers it
    rather than moving past it. (Before the skills-independence refactor the
    same fact held the next skill's gate closed; the gate no longer reads it,
@@ -218,7 +218,7 @@ not the place to have an opinion about that.
 
 ## The workflow registry and the delivery pipeline
 
-### `workflows/phases.yaml` — the skill registry
+### `skills/<name>/acs.yaml` — the skill registry
 
 Every `src/acs/skills/<dir>` appears exactly once, in exactly one of three
 places:
@@ -329,8 +329,8 @@ comments, 2-space-nested mappings, block lists, single-line inline scalar
 lists, quoted/bare strings, ints, booleans and nulls, and REFUSES anchors,
 aliases, tags, flow mappings, block scalars, tabs, duplicate keys and
 inconsistent indentation — each with the line that caused it. Validation is
-two-stage: the JSON Schema (`schemas/ship-workflow.schema.json`, whose
-`step.skill` enum is generated from phases.yaml) and then
+two-stage: the JSON Schema (`schemas/workflow.schema.json`, whose
+`step.skill` enum is generated from acs.yaml) and then
 `workflow.validate_workflow()` for what a schema cannot express — duplicate
 ids, `needs` naming a LATER step, unknown predicates, `on_fail.relay_to` /
 `on_replan` naming a non-step, `stop_after` naming a non-step, and acyclicity.
@@ -364,7 +364,7 @@ validation with a line number rather than at run time.
   `acs workflow validate: <path>:<line>: <reason>` on stderr. A broken consumer
   override is reported HERE, never by the advisory.
 - **`workflow next [--ticket ID] [--dry-run]`** evaluates the DAG against the
-  ticket's `pipeline-state.json` and prints the walk. The ticket resolves
+  ticket's `run.json` and prints the walk. The ticket resolves
   argument → session pointer → branch, like every other ticket-scoped command.
 
 The walk's rules, exactly:
@@ -637,7 +637,7 @@ Token/cost usage exception noted above) rather than trusting a coordinator-suppl
 value. Emitting them is harmless but has no effect.
 
 `post-<skill>.py` finalizes `runs[-1]`, merges `states` (replaces `findings` /
-`errors` when present), updates `pipeline-state.json`, `tickets-index.json`,
+`errors` when present), updates `run.json`, `tickets-index.json`,
 `metrics.json`, releases the `.lock`, and performs per-skill extras
 (create-pr → ticket `in_review` + prs.created; merge-pr → ticket `done`,
 epic auto-done check, partition archived to `archive/<ticket-id>/`).
@@ -656,7 +656,7 @@ every other key below is persisted verbatim from the result document:
 | create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (the published `design.md` — the docs folder, or the partition when the tree is opted out), `decision` (one line) |
-| analyze-ticket | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
+| analyze-requirements | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
 | create-impl-plan | `plan_path`, `plan_approved: true/false` (written by `plan-approval.py`), `file_map` (object) |
 | create-api-contract | `contract_path`, `items` (int), `traced_acs: [...]` |
 | create-test-docs | `cases` (int), `e2e_cases` (int), `untraced_acs: [...]` (empty on a completed run) |
@@ -681,7 +681,7 @@ runnable on its own:
 
 | Skill | Reads | Writes | Downstream use |
 |---|---|---|---|
-| `analyze-ticket` | the ticket, PRD/requirements/architecture, the codebase | `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `stakes_recommendation`, `needs_design_recommendation`) | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s executor plans from the impact map; a not-ready analysis returns `needs_input` |
+| `analyze-requirements` | the ticket, PRD/requirements/architecture, the codebase | `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `stakes_recommendation`, `needs_design_recommendation`) | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s executor plans from the impact map; a not-ready analysis returns `needs_input` |
 | `create-impl-plan` | `analysis.md`, `design.md`, the ticket | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code`'s input gate; `on_replan` re-runs it when execution finds the plan wrong |
 | `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts under `contracts_path` | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; the code-verifier checks conformance |
 | `create-test-docs` | the ticket's ACs, `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the executor writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
@@ -722,11 +722,11 @@ All coordinator <-> subagent communication uses the three message shapes in
 ## Subagents
 
 31 agent files named `<skill>-<role>` in `src/acs/agents/`, 31 reachable —
-every one of them: the files on disk are exactly the roles `workflows/phases.yaml`
+every one of them: the files on disk are exactly the roles `skills/<name>/acs.yaml`
 declares under `agents` (ADR-0092), which is what
 `tests/acs/test_docs_reflection_topology.py` asserts. There are two roles,
 **executor** and **verifier**; no skill has a planner. The twelve
-**authoring skills** (`analyze-ticket`, `create-impl-plan`,
+**authoring skills** (`analyze-requirements`, `create-impl-plan`,
 `create-api-contract`, `create-test-docs`, `create-e2e-tests`, `create-prd`,
 `create-design`, `create-architecture`, `create-project`, `docs-sync`,
 `standardize-project`, `create-requirements`) each ship the pair: the executor
@@ -777,7 +777,7 @@ Who commits the documents (ADR 0090): the skill that publishes a Build-phase
 document commits it on the ticket branch. `ticket.md` and `design.md` are
 published in the Design phase, BEFORE a ticket branch exists — acs never
 commits to the default branch — so their writers leave them in the working
-tree and `/acs:analyze-ticket`, the first Build step, commits the ticket's
+tree and `/acs:analyze-requirements`, the first Build step, commits the ticket's
 whole docs folder when it creates the branch.
 
 ```
@@ -791,7 +791,7 @@ whole docs folder when it creates the branch.
   sessions/<checkout-id>.json           # per-worktree current-ticket pointer
   archive/<ticket-id>/                  # moved here by post-merge-pr
   <ticket-id>/
-    .lock  lock-events.jsonl  pipeline-state.json  clarifications.json
+    .lock  lock-events.jsonl  run.json  clarifications.json
     ticket.json.moved                   # pointer left where ticket.json was
     active-agents/<agent_id>.json  specs/NN-slug.md
     phases/<skill>/iter-<n>-<phase>.xml  phases/<skill>/result.json
@@ -872,7 +872,7 @@ the budget raises `GuardTimeout` and writes nothing.** It used to write anyway, 
 case except the one it exists for. A refused write is recoverable; a clobbered
 one is invisible — and for `counters.json` it means two sessions holding the
 same ticket id. In `post-<skill>.py` the refusal exits 1 and says which half
-landed: the run, `ticket.json` and `pipeline-state.json` are already durable, the
+landed: the run, `ticket.json` and `run.json` are already durable, the
 index self-heals on the next post hook, and that run's tokens and cost are lost
 from `metrics.json` — except after **merge-pr**, the terminal post hook, where
 nothing runs afterwards and the message says so instead. Every other entry point
@@ -929,7 +929,7 @@ controls:
 | Control | Set where | Effect |
 |---------|-----------|--------|
 | `needs_design` | ticket analysis (epics always true) | `false`: `pre-create-design` BLOCKS the step (a skill with nothing to design); `skill-start.py`'s `design_requirement()` (`acs_lib/gates.py`) resolves that no design.md applies, so planning does not expect one, and the `design_approved` predicate is satisfied so ship.yaml does not block on it. The skip is enforced in both directions. |
-| `api_surface` | written by `/acs:analyze-ticket` into `analysis.md` front matter | ship.yaml's `when: api_surface_changed` on the `create-api-contract` step: false ⇒ the step is recorded `skipped` and `create-test-docs` (which needs it) proceeds. `pre-create-api-contract` refuses a hand run for the same reason, pointing at a re-run of `/acs:analyze-ticket` when the analysis is stale. |
+| `api_surface` | written by `/acs:analyze-requirements` into `analysis.md` front matter | ship.yaml's `when: api_surface_changed` on the `create-api-contract` step: false ⇒ the step is recorded `skipped` and `create-test-docs` (which needs it) proceeds. `pre-create-api-contract` refuses a hand run for the same reason, pointing at a re-run of `/acs:analyze-requirements` when the analysis is stale. |
 | `e2e` / `suites.e2e` | `/acs:setup` | ship.yaml's `when: e2e_configured` on `create-e2e-tests` and `when: post_code_test_active` on `run-e2e-tests`: unconfigured ⇒ both are recorded `skipped` and `create-pr` proceeds. |
 | `docs_only` | ticket analysis, user-confirmed | `true`: /code drops tests-first and the coverage hard fail (`coverage: n/a — docs_only`); the full suite still runs once and must be green; the verifier's Tests/Coverage dimensions become n/a, all others apply. A diff line touching executable code under this flag is a blocking finding. |
 | epic children | minted by `new-ticket.py` **in a `--fan-out` or split/restructure run** | a completed `create-ticket` run is recorded at mint time — a child never reruns `/acs:create-ticket` and never runs its own `/create-design`; its pipeline starts at the Build phase, and `design_requirement()` resolves the parent epic's `design.md` for it, without a fake step. (The recorded run is no longer what any gate reads; it keeps the ledger, the derived status and the walk honest.) |
@@ -993,8 +993,8 @@ rationale for assumptions.
    needs settled — ticket scope and the due date at
    /create-ticket, design trade-offs at /create-design, requirement
    clarification (impact, assumptions, refined acceptance criteria) at
-   /analyze-ticket, execution-level behavior at /code — batched, not dribbled.
-   `/acs:analyze-ticket` is where requirement questions now belong: it asks the
+   /analyze-requirements, execution-level behavior at /code — batched, not dribbled.
+   `/acs:analyze-requirements` is where requirement questions now belong: it asks the
    user through `AskUserQuestion` when one is reachable and records each
    question through `clarify.py`, falling back to `--source assumption`
    otherwise; `/acs:create-ticket` parks anything needing the codebase read for

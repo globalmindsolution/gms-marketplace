@@ -6,7 +6,7 @@
 
 The four paths are `trivial`, `small`, `standard` and `complex`. Exactly one is
 chosen, once, from `plan.md`, and recorded with the reason on
-`pipeline-state.json`. Everything downstream reads that record; nothing
+`run.json`. Everything downstream reads that record; nothing
 re-judges (ADR-0095).
 
 ## Why this is a judgement and not a score

@@ -114,7 +114,7 @@ fixed, and that the fixes introduced no regressions in the other dimensions.
 
 ## The verification report
 
-Write the full report to `<partition>/phases/create-architecture/iter-<n>-verify.md`
+Write the full report to `steps/create-architecture/iter-<n>-verify.md`
 with the Write tool — your ONLY permitted write. For
 each dimension: the exact commands/inspections run, the evidence observed, and the
 verdict. Every XML `<finding>` summarizes a detailed entry in this file. Advisory

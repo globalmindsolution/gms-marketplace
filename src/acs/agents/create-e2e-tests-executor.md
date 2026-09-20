@@ -178,7 +178,7 @@ Your FINAL message is ONLY an XML `<result>` valid against
 - Write ONLY the paths in your file map (all under the e2e location) and your
   execute report under `<partition>/phases/create-e2e-tests/`. NEVER product
   source, NEVER `test-cases.md` or any other ticket document, NEVER the ticket,
-  the clarification ledger, `pipeline-state.json`, another ticket's partition,
+  the clarification ledger, `run.json`, another ticket's partition,
   or another phase's artifacts.
 - NEVER `git commit`, `git checkout`, `git push`, or any other command that
   mutates the repository — the coordinator commits.

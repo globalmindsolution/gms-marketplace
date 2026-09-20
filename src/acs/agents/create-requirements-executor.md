@@ -144,7 +144,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-requirements/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-requirements/iter-<n>-authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: `## Mode & evidence`, `## Requirement outline`, `## Open questions`,
 `## Risks`, `## Verifier checklist`. Every entry cites the file (and line or heading) you read —
@@ -238,7 +238,7 @@ what fixing them requires.
 
 ## Phase artifact
 
-Write `<partition>/phases/create-requirements/iter-<n>-execute.json` (`<n>` = the
+Write `steps/create-requirements/iter-<n>-execute.json` (`<n>` = the
 task's `iteration`; the coordinator tells you `-<k>` suffixing when parallel
 executors run):
 
@@ -258,7 +258,7 @@ executors run):
 - Mutate ONLY files under `requirements_path` plus your own authoring notes and
   execute report. Do not create/switch branches, do not `git add`/`commit`/`push`,
   do not open PRs, do not run skill-start/post-hooks, do not edit `ticket.json`,
-  `pipeline-state.json`, or any other workspace state — all coordinator work.
+  `run.json`, or any other workspace state — all coordinator work.
 - Markdown hygiene: no trailing whitespace, files end with a newline, headings match
   your notes' `required_sections` exactly.
 

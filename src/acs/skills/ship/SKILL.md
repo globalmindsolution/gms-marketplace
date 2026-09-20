@@ -13,7 +13,7 @@ Ground rules, non-negotiable:
 
 - **The order is not yours.** It is declared in `workflows/ship.yaml` — the
   consumer's `.acs/workflows/ship.yaml` when present, else the plugin default
-  — and computed for this ticket by `acs.py workflow next`. You never
+  — and computed for this ticket by `acs.py run next`. You never
   hard-code a step sequence, never skip a step the walk offers, and never
   invent one it does not. Every skill name in this file is an example of a
   mechanism, never the pipeline itself: read the pipeline from the walk.
@@ -31,7 +31,7 @@ Ground rules, non-negotiable:
   spawns its own executor/verifier); you never do the step's work.
 - Keep your own context tiny. Never read step transcripts, phase XML files, or
   diffs. You read exactly five kinds of things: the `workflow next` JSON,
-  `pipeline-state.json`, the ticket document, the compact `<handoff>` XML each
+  `run.json`, the ticket document, the compact `<handoff>` XML each
   step returns (~1 KB), and — ONCE per ticket, at the classification point
   below — `plan.md`. That fifth read is the one exception and it is bounded: it
   happens once, it produces one word and one sentence, and you drop the plan
@@ -93,7 +93,7 @@ ticket partition path is always
   its design when it needs one, is Design-phase work that runs *before* ship.
   ship.yaml is Build/Test/Ship only.
 
-**Step 3 — product-flow refusal.** Read `<partition>/pipeline-state.json`
+**Step 3 — product-flow refusal.** Read `<partition>/run.json`
 once. If it has `"flow": "product"`, this is a product-level delivery ticket
 — /acs:ship does not drive those; tell the user to re-run the matching
 product skill (/acs:create-prd, /acs:create-architecture,
@@ -107,7 +107,7 @@ retired from the `models` settings contract. You simply inherit whatever
 model and reasoning effort the invoking session already has, and invoke
 each step skill directly in that same context.
 
-## The loop — `acs.py workflow next`
+## The loop — `acs.py run next`
 
 MANDATORY on entry, and again after every step (or parallel batch) returns.
 The ledger, not your memory, decides what comes next:
@@ -116,7 +116,7 @@ The ledger, not your memory, decides what comes next:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" workflow next --ticket <ticket-id>
 ```
 
-It evaluates ship.yaml's DAG against `<partition>/pipeline-state.json` and
+It evaluates ship.yaml's DAG against `<partition>/run.json` and
 prints one JSON object:
 
 | Field | What you do with it |
@@ -172,7 +172,7 @@ Read the rubric — it is the contract, not a summary of it:
 
 In short: read `plan.md` (the file `delivery.classify_after` produced; resolve
 it the way that step's handoff names it, or under the ticket's docs folder,
-else `<partition>/phases/code/plan.md`). Judge it onto one of
+else `steps/code/plan.md`). Judge it onto one of
 `delivery.paths`. Prefer the more expensive path whenever two fit — an
 unnecessary lens pass costs tokens, a missed regression in a load-bearing path
 costs more. Then record it:
@@ -192,7 +192,7 @@ second `path set`.
 
 Then **drop `plan.md` from your working context** and go back to the walk. You
 will not read it again this run; from here on the path is a word in
-`pipeline-state.json`, which is what keeps your context small enough to reach
+`run.json`, which is what keeps your context small enough to reach
 the end of the pipeline.
 
 **A plan you cannot classify is an unfinished plan.** If it has no file map, or
@@ -224,7 +224,7 @@ properties of every step skill you must understand as its coordinator:
   `<next-step>` when known.
 
 You read the step's outcome from its `<handoff>` and from
-`<partition>/pipeline-state.json` — that is the read mechanism that keeps your
+`<partition>/run.json` — that is the read mechanism that keeps your
 context lean. There is no returning subagent and no per-step task brief to
 compose; the step skill's own argument contract (`acs:<skill> <args>`) is the
 interface.
@@ -249,7 +249,7 @@ echo '<task ...>...</task>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
 Exit 1 means your XML is malformed — fix it and re-validate; never pass
 invalid XML into a step. When the step returns its handoff, validate it the
 same way. If the handoff is invalid or missing: first re-read
-`<partition>/pipeline-state.json` — if the ledger shows the step
+`<partition>/run.json` — if the ledger shows the step
 `completed`, trust the ledger and continue; otherwise re-run the step once;
 if the second handoff is also invalid, stop and report (see failed handling
 below).
@@ -343,7 +343,7 @@ lives in `ship.yaml` where a reviewer can see which paths are expensive, and
 
 **The stop report.** The boundary step is complete and /acs:ship stops here by
 design. The remaining steps run in a fresh session. Resume with
-`/acs:ship <ticket-id>` — `<partition>/pipeline-state.json` already records the
+`/acs:ship <ticket-id>` — `<partition>/run.json` already records the
 step completed AND the delivery path, so the resumed run's first
 `workflow next` picks up at the steps ready after it, on the same path, with no
 re-judgement. Close with the standard completion report block below,
@@ -354,7 +354,7 @@ in what order — that stays ship.yaml's to declare and the walk's to compute.
 
 ## The failure-path reference, and when to open it
 
-Nearly all of this skill is one loop: ask `acs.py workflow next` what is
+Nearly all of this skill is one loop: ask `acs.py run next` what is
 ready, invoke it, record the outcome, ask again. One part is not — what to do
 when an invoked step comes back `failed` and its `ready[]` entry says the
 pipeline is allowed to recover rather than stop:
@@ -367,7 +367,7 @@ pipeline is allowed to recover rather than stop:
 
 Branch strictly on `status`:
 
-- **completed** — re-read `<partition>/pipeline-state.json` to confirm the
+- **completed** — re-read `<partition>/run.json` to confirm the
   ledger agrees (the step's post-hook wrote it), keep only the one-line
   summary, drop the rest from your working context, and go back to "The loop"
   — except after a step carrying `boundary: full_verify_stop`, where you
@@ -424,7 +424,7 @@ auto-marked done by hooks once all children merge — not your concern.
 ## Context pressure
 
 Your per-step state is exactly: the ticket id, `<partition>`, and the last
-step's status — all recoverable from `pipeline-state.json` through the walk,
+step's status — all recoverable from `run.json` through the walk,
 so compaction at a step boundary loses nothing. If your context runs low
 mid-run: finish handling the current handoff (never abandon an in-flight
 handoff), then tell the user to continue with `/acs:ship <ticket-id>` in a
@@ -444,7 +444,7 @@ everything. End every run — success or failure — with a compact report:
   a consumer override is worth naming.
 - The PR reference when the walk reached its `stop_after`: take the URL from
   that step's handoff; if it is not there, read `states.pr.url` from
-  `<partition>/phases/create-pr/result.json` (a single small file — the one
+  `steps/create-pr/result.json` (a single small file — the one
   permitted exception to the "ledger and handoffs only" rule).
 - On failure: which step failed, its summary, `<partition>`, and the resume
   commands (`/acs:ship <ticket-id>` or `/acs:<skill> <ticket-id>`).

@@ -76,7 +76,7 @@ word for a command you can run yourself.
 
 ## The verification report
 
-Write the full report to `<partition>/phases/create-project/iter-<n>-verify.md` (partition
+Write the full report to `steps/create-project/iter-<n>-verify.md` (partition
 = the directory containing `ticket.json`; `<n>` = the task's `iteration`) with the
 Write tool — this artifact is the ONLY file you may write. For each
 of the 11 dimensions: the exact command or file checked, the evidence (exit code, key

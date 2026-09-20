@@ -75,7 +75,7 @@ Keep the free text of `$ARGUMENTS` (focus notes, amendment request): it is execu
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-1. Re-read `<partition>/phases/create-requirements/iter-*-*.xml` and
+1. Re-read `steps/create-requirements/iter-*-*.xml` and
    `<partition>/create-requirements-state.json` to see which phases completed.
 2. Re-read the `<requirements_path>` tree against recorded executor claims — does
    the actual `functional/`/`non-functional/` file set match what the recorded
@@ -91,7 +91,7 @@ continuing:
    belong to their iteration.
 
 If `context.handoff_summary` exists, read it (and
-`<partition>/phases/create-requirements/handoff-context.md` if present), do a light
+`steps/create-requirements/handoff-context.md` if present), do a light
 reconcile of the same checks, and continue from where it points.
 
 ## Reflection loop — execute -> verify, no planner
@@ -130,7 +130,7 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
 
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
-`<partition>/phases/create-requirements/iter-<n>-<phase>.xml` at the phase boundary
+`steps/create-requirements/iter-<n>-<phase>.xml` at the phase boundary
 BEFORE starting the next phase. The executor's own artifacts are
 `iter-<n>-authoring.md` (Mode & evidence; Requirement outline; Open
 questions; Risks; Verifier checklist) and `iter-<n>-execute.json`; every
@@ -326,14 +326,14 @@ gh label create ACS 2>/dev/null || true                # create the label if mis
   run's state — never from conversation memory. Changes = the area files added or
   amended; Test plan = the verifier dimensions checked; mark TDD/coverage checklist
   items `N/A (docs-only PR)`. Write the filled body to
-  `<partition>/phases/create-requirements/pr-body.md` before the self-check below.
+  `steps/create-requirements/pr-body.md` before the self-check below.
 - **Pre-open self-check** — before `gh pr create`, self-check the rendered
   title and filled body with the helper's `check` subcommand (a deterministic
   CLI call, never a spawned subagent):
 
   ```bash
   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-    --title "<rendered title>" --body-file "<partition>/phases/create-requirements/pr-body.md" \
+    --title "<rendered title>" --body-file "steps/create-requirements/pr-body.md" \
     --require-label ACS --pr-title-format "<settings.formats.pr_title>" \
     --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
     --ticket-prefix <settings.ticket_prefix>
@@ -349,7 +349,7 @@ gh label create ACS 2>/dev/null || true                # create the label if mis
 ```bash
 gh pr create --base "$DEFAULT_BRANCH" --head "<branch>" \
   --title "<rendered title>" \
-  --body-file "<partition>/phases/create-requirements/pr-body.md" \
+  --body-file "steps/create-requirements/pr-body.md" \
   --label ACS
 gh pr view "<branch>" --json number,url
 ```
@@ -399,7 +399,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 
 If your context is running low mid-run: flush in-flight work and soft context (user
 answers, decisions, partial findings, gotchas) to
-`<partition>/phases/create-requirements/handoff-context.md`, then run
+`steps/create-requirements/handoff-context.md`, then run
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
@@ -412,7 +412,7 @@ context on work that would be lost.
 
 MANDATORY final step — never skipped, also on failure.
 
-1. Write `<partition>/phases/create-requirements/result.json` per the result-document
+1. Write `steps/create-requirements/result.json` per the result-document
    contract (INTERNALS.md), with the canonical `states` keys for create-requirements —
    `requirements` and `pr`, exact names:
 
@@ -436,10 +436,10 @@ MANDATORY final step — never skipped, also on failure.
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-requirements.py" --ticket <ticket-id> --result-file "<partition>/phases/create-requirements/result.json"
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-requirements.py" --ticket <ticket-id> --result-file "steps/create-requirements/result.json"
    ```
 
-   It finalizes the run entry, updates `pipeline-state.json` / `tickets-index.json` /
+   It finalizes the run entry, updates `run.json` / `tickets-index.json` /
    `metrics.json`, flips the delivery ticket to `in_review` (PR recorded), and
    releases the `.lock`.
 

@@ -81,13 +81,15 @@ def owed_dimensions(lens=None):
 
 
 def verdict_filename(iteration, lens=None):
-    if lens:
-        return "iter-%s-verdict-lens-%s.json" % (iteration, lens)
-    return "iter-%s-verdict.json" % iteration
+    # The iteration is the DIRECTORY now, so the file no longer carries it.
+    return "verdict.json" if lens is None else "verdict-lens-%s.json" % lens
 
-
-def verdict_path(tdir, skill, iteration, lens=None):
-    return os.path.join(tdir, "phases", skill, verdict_filename(iteration, lens))
+def verdict_path(rdir, skill, iteration, lens=None):
+    """`steps/<skill>/iter-<n>/verdict.json` (§4.2). The step ROOT holds the
+    current verdict; this is the one that iteration wrote."""
+    from .run import iteration_dir
+    return os.path.join(iteration_dir(rdir, skill, int(iteration)),
+                        verdict_filename(iteration, lens))
 
 
 def load_verdict(tdir, skill, iteration, lens=None):

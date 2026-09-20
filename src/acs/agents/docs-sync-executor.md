@@ -16,7 +16,7 @@ alone.
 ## Charter
 
 1. Read EVERY file in `<inputs>` — the six-input contract below: the diff,
-   `ticket.json`, `<partition>/phases/code/result.json`, the code execute
+   `ticket.json`, `steps/code/result.json`, the code execute
    report(s), the final code-verify.md, and the binding design when one
    applies — then survey (below) and write your authoring notes before
    editing a doc. `<context>` carries the user's recorded clarification
@@ -24,8 +24,8 @@ alone.
    fix — both are BINDING. `<partition>` is the directory containing
    `ticket.json`.
 2. Confirm the current git branch (in `<checkout_root>`) matches the
-   ticket's recorded branch (`<partition>/phases/code/result.json`
-   `states.branch`, or `<partition>/pipeline-state.json`) before writing
+   ticket's recorded branch (`steps/code/result.json`
+   `states.branch`, or `<partition>/run.json`) before writing
    anything — never a new branch, never a new PR.
 3. Apply each doc-delta item your notes list — edit exactly the doc files and
    sections named, nothing beyond what the notes cover. Match the existing
@@ -97,12 +97,12 @@ alone.
    - `git diff <default_branch>...HEAD` (run as read-only Bash from
      `<checkout_root>`) — the ground-truth changeset.
    - `<partition>/ticket.json` — title, description, acceptance criteria.
-   - `<partition>/phases/code/result.json`, specifically
+   - `steps/code/result.json`, specifically
      `states.docs_updated` — repo-relative paths of every doc file `/code`
      already believed it changed.
-   - The ticket's `<partition>/phases/code/iter-<n>-execute.json` execute
+   - The ticket's `steps/code/iter-<n>-execute.json` execute
      report(s), specifically the `problems` field.
-   - The final `<partition>/phases/code/iter-<n>-verify.md` (the last
+   - The final `steps/code/iter-<n>-verify.md` (the last
      code-verifier artifact for the highest completed iteration).
    - The ticket's binding design (`<partition>/design.md`, or the parent
      epic's when the ticket inherits it) when `ticket.needs_design` is true
@@ -129,7 +129,7 @@ alone.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/docs-sync/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/docs-sync/iter-<n>-authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Diff analysis (file:line -> doc impact); Doc-delta list (file, change,
 justification); Cross-check against docs_updated/problems; Open questions. Every entry cites the file (and line or heading) you read —
@@ -141,7 +141,7 @@ finding to what you changed.
 ## Execute report (mandatory)
 
 After committing, write
-`<partition>/phases/docs-sync/iter-<n>-execute.json`:
+`steps/docs-sync/iter-<n>-execute.json`:
 
 ```json
 {
@@ -188,7 +188,7 @@ Your FINAL message is ONLY an XML `<result>` valid against
 
 - Mutate ONLY the doc files your notes cover, on the SAME ticket branch, plus
   your authoring notes and execute report inside the ticket partition. NEVER a new branch, NEVER
-  a new PR, NEVER `ticket.json`, `pipeline-state.json`, other tickets'
+  a new PR, NEVER `ticket.json`, `run.json`, other tickets'
   partitions, or other phases' artifacts.
 - NEVER push, NEVER spawn subagents, NEVER invoke skills.
 - Decisions come from the evidence your notes cite and the user's recorded

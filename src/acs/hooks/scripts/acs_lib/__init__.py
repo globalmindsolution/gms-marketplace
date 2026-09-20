@@ -9,7 +9,9 @@ it always did. In dependency order:
   repo           git and checkout identity, workspace layout, ticket-id resolution
   hostgates      whether this runtime fires acs's hooks at all, and what to do if not
   planrules      the plan-approval predicate and the additive-diff classifier
-  state          run ledgers, pipeline state, tickets, index, counters, locking
+  run / step     the two state machines (§4.3, §4.4)
+  lock           the run lock and its audit ledger
+  tickets        ticket.json, the id counter and tickets-index.json
   metrics        token/cost apportionment and the metrics ledger
   setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
   forge          PR-metadata fill and tracker sync against gh (MAR-525)
@@ -25,11 +27,11 @@ it always did. In dependency order:
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
 this facade does NOT reach a caller that already imported it. Patch the module
-that USES it -- `mock.patch.object(lib.state, "write_json")` -- or, for a stdlib
+that USES it -- `mock.patch.object(lib.step, "write_json")` -- or, for a stdlib
 module (`lib.subprocess`), patch the shared module object as before.
 """
 
-from . import (_common, settings, repo, hostgates, planrules, state, metrics,  # noqa: F401
+from . import (_common, settings, repo, hostgates, planrules, lock, tickets, metrics,  # noqa: F401
                setup_helpers, forge, verdict, derive, gate_inputs, gates, lifecycle,  # noqa: F401
                advisory)  # noqa: F401
 
@@ -77,13 +79,14 @@ from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
     PENDING_STATUSES, PR_VIEW_FIELDS, VERDICTS, check_name, check_state,
     classify_checks, merge_readiness)  # noqa: F401
 
-from .state import (LOCK_AUDIT_FILENAME, LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,
-    acquire_lock, allocate_ticket_id, append_in_progress_run, append_lock_event,
-    check_lock, empty_state, finalize_run, force_release_lock,
-    last_run, last_run_status, load_pipeline, load_state, load_ticket, lock_audit_path,
-    lock_is_stale, lock_staleness, new_ticket_doc, read_lock,
-    record_guard_event, release_lock, save_ticket, skill_completed, update_index,
-    update_pipeline)  # noqa: F401
+from . import lock as lock_module  # noqa: F401
+from .lock import (LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,  # noqa: F401
+    acquire_lock, append_lock_event, check_lock, force_release_lock,
+    lock_audit_path, lock_is_stale, lock_staleness, read_lock, release_lock)
+
+from . import tickets as tickets_module  # noqa: F401
+from .tickets import (allocate_ticket_id, load_ticket, new_ticket_doc,  # noqa: F401
+    save_ticket, update_index)
 
 from .metrics import (_EMPTY_MEASURED_TOKENS, _TOKEN_TOTAL_FIELDS, _measure_run_usage,
     _sum_role_tokens, _update_metrics_body, backfill_distinct_pr_count,
@@ -101,19 +104,14 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetR
     tracker_cli_warning,
     upsert_managed_block, validate_exempt_pr)  # noqa: F401
 
-from .gate_inputs import LEGACY_ARTIFACT_PATHS, e2e_case_count  # noqa: F401
-from .gates import (ARCHITECTURE_DEPENDENT_SKILLS, GATE_INPUTS, GATES,
-    _archive_partition, _clear_pointers_for_ticket,
-    _epic_auto_done, _merge_pr_arg_text, _read_result_from_argv,
-    _require_architecture_doc_set, _resolve_ticket_for_gate,
-    build_context, design_requirement, gate_analyze_ticket, gate_code,
-    gate_create_api_contract, gate_create_architecture, gate_create_design, gate_create_docs,
-    gate_create_e2e_tests, gate_create_impl_plan, gate_create_pr,
-    gate_create_prd, gate_create_project,
-    gate_create_requirements, gate_create_test_docs,
-    gate_create_ticket, gate_docs_sync, gate_merge_pr, gate_standardize_project,
-    parent_epic_dir, run_post, run_post_exempt_pr, run_pre, run_pre_payload,
-    session_end)  # noqa: F401
+from .gate_inputs import e2e_case_count  # noqa: F401
+from .gates import (ARCHITECTURE_GATED, BRAKES, NothingOwed,  # noqa: F401
+    _archive_partition, _clear_pointers_for_ticket, _epic_auto_done,
+    _read_result_from_argv, _require_architecture_doc_set, build_context,
+    design_requirement, gate_step, parent_epic_dir, resolve_run_for, run_post,
+    run_post_exempt_pr, run_pre, run_pre_payload, session_end,
+    subject_from_payload)
+ # noqa: F401
 from .advisory import ADVISORY_MARK, render_advisory, workflow_advisory  # noqa: F401
 
 # Re-exported so `lib.subprocess` / `lib.os` keep resolving: patching

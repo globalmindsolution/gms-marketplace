@@ -22,7 +22,7 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
 
 - `<objective>` — verify this iteration's plan draft;
 - `<inputs>` — absolute file paths: the draft
-  `<partition>/phases/create-impl-plan/plan.md`, the ticket document (read it
+  `steps/create-impl-plan/plan.md`, the ticket document (read it
   FRESH for the acceptance criteria — never the draft's restatement of them),
   `analysis.md` and `design.md` when they exist, every
   `<partition>/specs/*.md`, and the repo paths the file map names. READ EVERY
@@ -98,7 +98,7 @@ findings:
    intact, is not — note the location and move on.
 10. **Authoring-conformance** — ALWAYS active. The draft is a
     faithful rendering of the executor's authoring notes
-    (`<partition>/phases/create-impl-plan/iter-<n>-authoring.md`): every task,
+    (`steps/create-impl-plan/iter-<n>-authoring.md`): every task,
     test, documentation-map item and risk in the notes appears in the draft,
     nothing in the draft lacks a basis in the notes or the inputs, and every
     entry in the notes cites a file you can open or a command you can re-run.
@@ -114,7 +114,7 @@ truly fixed; an unfixed one is re-reported.
 ## Phase artifact
 
 Write the full verification report to
-`<partition>/phases/create-impl-plan/iter-<n>-verify.md` (`<n>` = the task's
+`steps/create-impl-plan/iter-<n>-verify.md` (`<n>` = the task's
 `iteration`). Write it with the Write tool. Required structure: one
 `## <Dimension>` section per dimension above, each with the commands run,
 their evidence (command output summaries, file:line references) and pass/fail;

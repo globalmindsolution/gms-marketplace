@@ -49,8 +49,8 @@ context JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
 
 **Branch confirmation (hard precondition).** Read the current git branch in
 `<checkout_root>` and confirm it matches the ticket's recorded branch — read
-`states.branch` from `<partition>/phases/code/result.json`, or the `branch`
-recorded in `<partition>/pipeline-state.json`. docs-sync NEVER creates a
+`states.branch` from `steps/code/result.json`, or the `branch`
+recorded in `<partition>/run.json`. docs-sync NEVER creates a
 branch and NEVER opens a PR; it always operates on the SAME ticket branch
 `/code`/`/create-pr` use, adding commits to the existing changeset (same
 PR/review). A mismatch is a fail-fast error — stop and surface it; never
@@ -60,13 +60,13 @@ silently switch branches.
 
 - If `context.reconcile` is true (prior run `in_progress`/`failed`/
   `interrupted`/`handed_off`): verify recorded progress against reality
-  BEFORE continuing — list `<partition>/phases/docs-sync/iter-*-*.xml`,
+  BEFORE continuing — list `steps/docs-sync/iter-*-*.xml`,
   re-read `<partition>/docs-sync-state.json` if it exists, and check whether
   its `states.docs_committed`/`commits` actually match `git log` on the
   branch. Continue from the first unfinished phase/iteration; never redo
   work that demonstrably holds.
 - If `context.handoff_summary` exists: read it plus
-  `<partition>/phases/docs-sync/handoff-context.md` (when present), do a
+  `steps/docs-sync/handoff-context.md` (when present), do a
   light reconcile, and continue from where it points.
 - Fresh run (`reconcile` false): start at iteration 1, execute phase.
 - There is no plan artifact to reuse: an execute with no verify → verify it;
@@ -82,11 +82,11 @@ MUST read, exactly these artifacts — never a bare hand-off summary:
 1. `git diff <default_branch>...HEAD` on the ticket branch (the ground-truth
    changeset) — run from `<checkout_root>`.
 2. `<partition>/ticket.json` (title, description, acceptance criteria).
-3. `<partition>/phases/code/result.json`, specifically `states.docs_updated`
+3. `steps/code/result.json`, specifically `states.docs_updated`
    (repo-relative paths of every doc file `/code` already changed).
-4. The ticket's `<partition>/phases/code/iter-<n>-execute.json` execute
+4. The ticket's `steps/code/iter-<n>-execute.json` execute
    report(s), specifically the `problems` field.
-5. The final `<partition>/phases/code/iter-<n>-verify.md` (the last
+5. The final `steps/code/iter-<n>-verify.md` (the last
    code-verifier artifact for the highest completed iteration).
 6. The ticket's binding design (`<partition>/design.md`, or the parent
    epic's when the ticket inherits it) when `ticket.needs_design` is true or
@@ -161,7 +161,7 @@ For every phase:
    when not `"inherit"`; if the runtime rejects the model or effort, FAIL
    the run with that exact error — no silent fallback.
 4. Persist the phase's `<task>` and `<result>` to
-   `<partition>/phases/docs-sync/iter-<n>-<phase>.xml` at the phase
+   `steps/docs-sync/iter-<n>-<phase>.xml` at the phase
    boundary, BEFORE starting the next phase. The executor's own artifacts
    are `iter-<n>-authoring.md` (Diff analysis; Doc-delta list; Cross-check
    against docs_updated/problems; Open questions) and
@@ -235,7 +235,7 @@ carries the answer into the execute `<task>` via `<context>`.
 ## Context pressure
 
 If your context is running low mid-run: flush in-flight work and soft
-context to `<partition>/phases/docs-sync/handoff-context.md`, then run:
+context to `steps/docs-sync/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -247,7 +247,7 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, including on failure or handoff:
 
-1. Write `<partition>/phases/docs-sync/result.json` per the result-document
+1. Write `steps/docs-sync/result.json` per the result-document
    contract in INTERNALS.md. Canonical `states` keys (EXACT names) on
    success:
 
@@ -279,11 +279,11 @@ MANDATORY final step — never skipped, including on failure or handoff:
 2. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-docs-sync.py" --ticket <id> --result-file <partition>/phases/docs-sync/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-docs-sync.py" --ticket <id> --result-file steps/docs-sync/result.json
    ```
 
    If it exits non-zero, surface its stderr verbatim — until it succeeds the
-   run stays un-finalized in the ledger, so `acs.py workflow next` keeps
+   run stays un-finalized in the ledger, so `acs.py run next` keeps
    offering docs-sync instead of moving on.
 
 3. Report:

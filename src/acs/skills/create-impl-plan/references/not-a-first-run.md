@@ -19,7 +19,7 @@ If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
 1. Read `<partition>/create-impl-plan-state.json` (`runs[-1]` and `states`) and
-   the phase artifacts under `<partition>/phases/create-impl-plan/` to see
+   the phase artifacts under `steps/create-impl-plan/` to see
    where the prior run stopped.
 2. Re-resolve the plan artifact (above) and read it if it exists. Trust
    nothing you cannot see in a file: a plan recorded published that is not on
@@ -32,7 +32,7 @@ continuing:
    never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-impl-plan/handoff-context.md` (when present), do a
+`steps/create-impl-plan/handoff-context.md` (when present), do a
 light reconcile, and continue from where it points.
 
 ### Plan revocation
@@ -49,7 +49,7 @@ Letting the loop dissolve its own contract without that record is precisely
 the rubber-stamp failure ADR 0004 exists to prevent.
 
 1. **Copy before revise, never move.**
-   `cp plan.md plan-superseded-<k>.md` inside `<partition>/phases/code/`,
+   `cp plan.md plan-superseded-<k>.md` inside `steps/code/`,
    `<k>` the smallest positive integer with no existing file. The copy is
    byte-identical, so every `plan.md:<line>` citation already written into an
    earlier `/acs:code` `iter-<n>-verify.md` resolves unchanged against

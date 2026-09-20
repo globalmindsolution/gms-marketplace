@@ -112,7 +112,7 @@ surface, and the executor never sees it again in a future `<context>`.
 
 ## The verification report
 
-Write the full report to `<partition>/phases/standardize-project/iter-<n>-verify.md`
+Write the full report to `steps/standardize-project/iter-<n>-verify.md`
 with the Write tool — your ONLY permitted write. For each dimension: the exact
 commands/inspections run, the evidence observed, and the verdict. Every XML `<finding>`
 summarizes a detailed entry in this file. Advisory observations that need no fix belong

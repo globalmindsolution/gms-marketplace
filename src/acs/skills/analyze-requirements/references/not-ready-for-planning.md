@@ -1,4 +1,4 @@
-# /acs:analyze-ticket — when the ticket is not plannable
+# /acs:analyze-requirements — when the ticket is not plannable
 
 Open this only once you have concluded that a question genuinely blocks —
 that no conventional default could settle it without risking the wrong

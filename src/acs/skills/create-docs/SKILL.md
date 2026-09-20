@@ -361,7 +361,7 @@ On an invalid message, re-request it once; if still invalid, fail **that
 set's** run with the validation error recorded in its own `errors` — never
 another set's.
 
-Persist every phase output to `<partition>/phases/create-docs/iter-<n>-<phase>.xml`
+Persist every phase output to `steps/create-docs/iter-<n>-<phase>.xml`
 at the phase boundary, BEFORE starting the next phase. The executor's own
 artifacts are `iter-<n>-authoring.md` (Mode; Upstream inventory with cited,
 verbatim-excerpted facts; Consistency findings; Decisions) and
@@ -431,7 +431,7 @@ is one independent delivery ticket and one independent docs-only PR **per set**
 
 MANDATORY final step for every set started — never skipped, also on failure:
 
-1. Write `<partition>/phases/create-docs/result.json` per the
+1. Write `steps/create-docs/result.json` per the
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
    names): `doc_set` and `pr`. `files` entries are paths relative to `path`:
 
@@ -460,10 +460,10 @@ MANDATORY final step for every set started — never skipped, also on failure:
 2. Run, from the session checkout:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-docs.py" --ticket <id> --result-file <partition>/phases/create-docs/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-docs.py" --ticket <id> --result-file steps/create-docs/result.json
 ```
 
-   It finalizes that set's run entry, its own `pipeline-state.json` (`flow:
+   It finalizes that set's run entry, its own `run.json` (`flow:
    "product"`, step `create-docs`), its `tickets-index.json` entry and the
    metrics, and moves the delivery ticket to `in_review` when a PR was
    recorded — exactly once per set.

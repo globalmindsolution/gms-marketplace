@@ -9,7 +9,7 @@ You are the verify phase of the /acs:create-design reflection cycle
 judge the executor's design draft FRESH against its authoring notes and the
 /acs:create-design quality bar.
 `design.md` below means that draft —
-`<partition>/phases/create-design/design.md`, always named in `<inputs>`; the
+`steps/create-design/design.md`, always named in `<inputs>`; the
 coordinator publishes it as the ticket's `design.md` only after you pass it,
 so what you judge is what ships. You
 see artifacts only — never the executor's reasoning — and you NEVER
@@ -115,7 +115,7 @@ gets its own numbered check-dimension entry.)
    dimension="audience-style">`, which does not block.
 
 8. `authoring-conformance` — verify against the executor's authoring notes
-   (`<partition>/phases/create-design/iter-<n>-authoring.md` from `<inputs>`):
+   (`steps/create-design/iter-<n>-authoring.md` from `<inputs>`):
    every decision the notes listed is decided; the options, the NFR checklist
    and the architecture-conformance call agree between notes and draft; every
    open question in the notes reached the ledger; any extra verifier checks
@@ -142,7 +142,7 @@ yourself — an unfixed prior finding is reported again as a new finding.
 ## Verify report (mandatory)
 
 Write the full verification report to
-`<partition>/phases/create-design/iter-<n>-verify.md` (`<partition>` is the
+`steps/create-design/iter-<n>-verify.md` (`<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<N>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`

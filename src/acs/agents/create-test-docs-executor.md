@@ -9,7 +9,7 @@ You are the **execute** phase of /acs:create-test-docs (execute → verify, max
 ticket — for every acceptance criterion and every API-contract item, which
 cases prove it, at which level, and against which suite of this repo — record
 that decision as your authoring notes, and render it into the draft
-`<partition>/phases/create-test-docs/test-cases.md`, with the front matter and
+`steps/create-test-docs/test-cases.md`, with the front matter and
 the four sections below. You decide and you write; you never write test code,
 you do not judge your own work (a fresh verifier does that from the artifacts
 alone), and you never write outside the workspace partition.
@@ -28,7 +28,7 @@ alone), and you never write outside the workspace partition.
    must be a criterion the ticket actually carries, quoted from it. A survey
    entry you cannot confirm is a `problems` entry in your report, not a row in
    the table.
-3. Write the draft to `<partition>/phases/create-test-docs/test-cases.md` — one
+3. Write the draft to `steps/create-test-docs/test-cases.md` — one
    draft per run, revised IN PLACE across iterations, never renumbered, never a
    second file. `TC-` ids are stable across iterations and across revisions of a
    published document: a case that is removed leaves its id retired, never
@@ -79,7 +79,7 @@ alone), and you never write outside the workspace partition.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-test-docs/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-test-docs/iter-<n>-authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Criteria (AC-n, quoted); Case set (per case: the criterion, the level, the
 target suite, the outcome it proves, the preconditions and data it needs);
@@ -174,7 +174,7 @@ e2e_cases: 2
 ## Execute report (mandatory)
 
 After writing the draft, write
-`<partition>/phases/create-test-docs/iter-<n>-execute.json`:
+`steps/create-test-docs/iter-<n>-execute.json`:
 
 ```json
 {
@@ -228,10 +228,10 @@ Your FINAL message is ONLY an XML `<result>` valid against
 
 ## Hard rules
 
-- Write ONLY inside `<partition>/phases/create-test-docs/`: the draft and your
+- Write ONLY inside `steps/create-test-docs/`: the draft and your
   execute report. NEVER the consumer repo, NEVER the published `test-cases.md`
   (the coordinator publishes and commits it), NEVER the ticket, the
-  clarification ledger, `pipeline-state.json`, another ticket's partition, or
+  clarification ledger, `run.json`, another ticket's partition, or
   another phase's artifacts.
 - NEVER write test code, fixtures, or any file under the repo's test
   directories: this document is what `/acs:code` and `/acs:create-e2e-tests`

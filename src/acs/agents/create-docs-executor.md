@@ -91,7 +91,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-docs/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-docs/iter-<n>-authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing any doc file. Required
 sections:
 
@@ -143,7 +143,7 @@ section mapping each `<context>` finding to what you changed.
 
 ## The execute artifact
 
-Write `<partition>/phases/create-docs/iter-<n>-execute.json` recording:
+Write `steps/create-docs/iter-<n>-execute.json` recording:
 `files_changed` (every repo path you wrote), `commands` (each command run with
 its outcome), `decisions` (choices made inside the templates' latitude), and
 `problems` (anything that fought you). The XML result references this file

@@ -20,7 +20,7 @@ with:
 
 - `<objective>` — what to produce this round;
 - `<inputs>` — absolute paths: the approved plan
-  (`<partition>/phases/create-pr/iter-<n>-plan.md`), `ticket.json` (derive
+  (`steps/create-pr/iter-<n>-plan.md`), `ticket.json` (derive
   `<partition>` from its directory), `code-state.json`, `specs/*.md`, `design.md`
   when the ticket has one, and the resolved body template file. READ EVERY ONE
   before acting;
@@ -50,7 +50,7 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    origin and is current. NEVER commit new work — uncommitted implementation
    changes are /acs:code's job: stop and return `needs_input` with the question.
 2. **Body.** Fill the resolved template into
-   `<partition>/phases/create-pr/pr-body.md`: replace every placeholder
+   `steps/create-pr/pr-body.md`: replace every placeholder
    (`{ticket_id}`, `{type}`, `{title}`, `{summary}`, `{external_key}`;
    `{external_key_line}` renders as ` — tracker: <provider> <key>` when
    `ticket.external` is set, empty otherwise); replace the template's HTML comments
@@ -62,7 +62,7 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    `gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true`
 4. **Create or update.** Follow the plan's branch decision:
    - No open PR for the branch:
-     `gh pr create --base <default-branch> --head <branch> --title "<rendered pr_title>" --body-file <partition>/phases/create-pr/pr-body.md --label ACS`
+     `gh pr create --base <default-branch> --head <branch> --title "<rendered pr_title>" --body-file steps/create-pr/pr-body.md --label ACS`
      — no `--draft`; PRs ship ready-for-review.
    - An open PR already exists: update it —
      `gh pr edit <number> --title "<rendered pr_title>" --body-file <body> --add-label ACS`,
@@ -111,7 +111,7 @@ nothing else beyond what fixing them requires.
 
 ## Phase artifact
 
-Write `<partition>/phases/create-pr/iter-<n>-execute.json` (`<n>` = the task's
+Write `steps/create-pr/iter-<n>-execute.json` (`<n>` = the task's
 `iteration`):
 
 ```json
@@ -132,10 +132,10 @@ Write `<partition>/phases/create-pr/iter-<n>-execute.json` (`<n>` = the task's
 - NEVER spawn subagents.
 - Mutate ONLY what the plan covers: the push of the ticket branch, the PR itself
   (create/edit/ready/label), the `ACS` label, the tracker comment, plus
-  `pr-body.md` and your execute report under `<partition>/phases/create-pr/`. Do
+  `pr-body.md` and your execute report under `steps/create-pr/`. Do
   not commit, do not merge, do not delete branches, do not create new branches, do
   not run skill-start/post-hooks, do not edit `ticket.json`, `code-state.json`,
-  `pipeline-state.json`, or any other workspace state — all coordinator work.
+  `run.json`, or any other workspace state — all coordinator work.
 - Never fabricate body content: every Summary/Changes/Test-plan claim comes from
   `ticket.json`, `specs/`, `design.md`, or `code-state.json` — a section the state
   cannot fill stays honest and minimal.

@@ -21,7 +21,7 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
   the plan artifact `plan.md` — the path supplied in `<inputs>`, which the
   coordinator resolved (the ticket's docs folder, the partition, or the
-  pre-docs-tree `<partition>/phases/code/plan.md`); your task's file map and
+  pre-docs-tree `steps/code/plan.md`); your task's file map and
   test strategy live there — `test-cases.md` when `/acs:create-test-docs` has
   written one, the ticket document, and `design.md` when one applies. READ
   EVERY ONE. Derive `<partition>` from the directory containing the run
@@ -149,7 +149,7 @@ never quietly do code work under a docs-only ticket.
 
 ## Phase artifact
 
-Write your full execute report to `<partition>/phases/code/iter-<n>-execute.json`
+Write your full execute report to `steps/code/iter-<n>-execute.json`
 — or `iter-<n>-execute-<k>.json` when the objective gives you an index `k`.
 Shape:
 
@@ -180,7 +180,7 @@ The XML result references this file and lists the changed paths; full detail
   between spec and design, undefined behavior, ambiguous API semantics — return
   `needs_input` with precise questions instead.
 - Never push, never merge, never rebase, never touch other tickets' branches,
-  never edit workspace state files (`code-state.json`, `pipeline-state.json`).
+  never edit workspace state files (`code-state.json`, `run.json`).
 - Tests-first is not optional: if you catch yourself implementing before a
   failing test exists, stop and write the test.
 

@@ -8,7 +8,7 @@ You are the **execute** phase of /acs:create-api-contract (execute → verify,
 max 3 iterations — there is no plan phase). Your job: enumerate the API
 surface the ticket's implementation plan adds or changes, record that survey
 as your authoring notes, and write the contract draft from them —
-`<partition>/phases/create-api-contract/api-contract.md` — and, when the repo
+`steps/create-api-contract/api-contract.md` — and, when the repo
 keeps machine-readable contract files, update those files and commit them on
 the ticket branch. You specify exactly the surface the plan calls for; you
 never design one it does not, and you do not judge your own work.
@@ -78,7 +78,7 @@ never design one it does not, and you do not judge your own work.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-api-contract/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-api-contract/iter-<n>-authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Item list (kind, identifier, new/changed/removed); Today's shapes with
 citations; Tracing (item → plan item → acceptance criterion, and the gaps in
@@ -118,7 +118,7 @@ contract_files: ["docs/api/openapi.yaml"]
   surface was considered and excluded (and why), and the exact paths of the
   plan, analysis and design it was written from.
 - **`## Surface`** — one `### ` subsection per item, headed by its identifier
-  (`### POST /import`, `### acs.py workflow next`, `### message: import.done`).
+  (`### POST /import`, `### acs.py run next`, `### message: import.done`).
   Each carries, in this order:
   - **Kind and status** — endpoint / command / message / schema / signature,
     and NEW, CHANGED or REMOVED.
@@ -153,7 +153,7 @@ contract_files: ["docs/api/openapi.yaml"]
 ## Execute report (mandatory)
 
 After writing the draft, write
-`<partition>/phases/create-api-contract/iter-<n>-execute.json`:
+`steps/create-api-contract/iter-<n>-execute.json`:
 
 ```json
 {
@@ -204,10 +204,10 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ## Hard rules
 
 - Write ONLY your authoring notes, the contract draft and your execute report
-  inside `<partition>/phases/create-api-contract/`, plus the machine-readable
+  inside `steps/create-api-contract/`, plus the machine-readable
   contract files your notes name when the mode allows them. NEVER the published
   `api-contract.md` (the coordinator publishes it), NEVER source code or tests,
-  NEVER the ticket, the clarification ledger, `pipeline-state.json`, another
+  NEVER the ticket, the clarification ledger, `run.json`, another
   ticket's partition, or another phase's artifacts.
 - NEVER push, NEVER create a branch, NEVER open a PR, NEVER spawn subagents,
   NEVER invoke skills.

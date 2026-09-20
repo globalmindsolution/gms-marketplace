@@ -17,7 +17,6 @@ from ._common import GateError, _note, _warn, now_iso, read_json, write_json
 from .artifacts import ticket_docs_root, tickets_path
 from .lifecycle import (BLOCK_LIMIT, active_agents, active_agents_dir,
     resolve_partition)
-from .state import record_guard_event
 
 
 # ---------------------------------------------------------------------------

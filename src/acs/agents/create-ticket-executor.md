@@ -18,7 +18,7 @@ phase="execute" ticket-id="..." iteration="n">` message conforming to
 
 - `<objective>` — what to produce this iteration.
 - `<inputs>` — file paths: `<partition>/ticket.json` (its parent directory IS
-  the partition), `<partition>/phases/create-ticket/iter-<n>-plan.md`, and the
+  the partition), `steps/create-ticket/iter-<n>-plan.md`, and the
   settings/template files you need.
 - `<constraints>` — `formats` (the rendered-format rules), `tracker_provider`
   (`local`|`github`|`jira`) and `tracker_sync` (`on`|`off`).
@@ -151,7 +151,7 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
      blocking finding); list which tickets synced (with their key) and which
      failed (with the error) so the failed ones can be retried individually.
 6. **Write the execute report** to
-   `<partition>/phases/create-ticket/iter-<n>-execute.json`: artifacts
+   `steps/create-ticket/iter-<n>-execute.json`: artifacts
    produced, files changed, commands run with outcomes, problems hit, and the
    confirmed decisions you applied.
 
@@ -191,7 +191,7 @@ plain creation run carries no `children` finding — `children` stays `[]`:
   minted child's own `ticket.json` after minting) and the remote tracker.
   Never touch consumer-repo source,
   never create branches/commits, never hand-edit `counters.json` /
-  `tickets-index.json` / `pipeline-state.json` — the helper scripts own those.
+  `tickets-index.json` / `run.json` — the helper scripts own those.
 - Never allocate ticket ids yourself — only `new-ticket.py` mints ids.
 - Never address the user — open points go into `<questions>`.
 - On iteration >= 2: remediate exactly the verifier findings passed in

@@ -5,7 +5,7 @@ argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:analyze-ticket. Your job: turn ONE ticket into
+You are the coordinator of /acs:analyze-requirements. Your job: turn ONE ticket into
 `analysis.md` — the problem restated, the impact map across components, files
 and tests, the questions the ticket leaves open, the assumptions and risks,
 refined acceptance criteria, and a verdict on whether the ticket is ready to be
@@ -29,11 +29,11 @@ deliverable, not decoration.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill analyze-ticket --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill analyze-requirements --args "$ARGUMENTS"
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (`pre-analyze-ticket.py` has verified the gate's inputs:
+improvise a workaround (`pre-analyze-requirements.py` has verified the gate's inputs:
 the ticket resolves to a live, unlocked partition and is not an epic — an epic
 is designed and fanned out, never analyzed as one ticket. Nothing else is
 required: no predecessor-completed check exists, because the pipeline order
@@ -45,7 +45,7 @@ Parse the printed context JSON. Fields you will use:
   `acceptance_criteria`, `needs_design`, `docs_only`,
   `parent`, `external`). The analysis is about THIS ticket.
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/analyze-ticket/`; the run ledger stays
+  artifacts go in `steps/analyze-requirements/`; the run ledger stays
   here too.
 - `checkout_root` — the consumer repo root; every impact path in the analysis
   is repo-relative to it.
@@ -63,7 +63,7 @@ Parse the printed context JSON. Fields you will use:
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see
   `references/resume.md`.
-- `post_hook` — absolute path to `post-analyze-ticket.py`.
+- `post_hook` — absolute path to `post-analyze-requirements.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -72,7 +72,7 @@ JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
 `ticket.type != "epic"`. If an epic reaches it anyway (a bypassed or
 best-effort pre-gate on some runtime), STOP and surface the same message the
 gate would have raised: design the epic with `/acs:create-design <id>`, fan it
-out with `/acs:create-ticket <id>`, then run `/acs:analyze-ticket` on a child.
+out with `/acs:create-ticket <id>`, then run `/acs:analyze-requirements` on a child.
 
 ## Branch — the analysis is a repo file
 
@@ -115,7 +115,7 @@ This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
 `/acs:create-api-contract` gate looks for, so the path this run chooses is the
 path that opens the next gate. Call it `<analysis_path>` below.
 
-The working draft lives at `<partition>/phases/analyze-ticket/analysis.md`;
+The working draft lives at `steps/analyze-requirements/analysis.md`;
 the published file is a copy of those exact bytes (see Publish).
 
 ## The two references, and when to open each
@@ -126,8 +126,8 @@ exactly one kind of run:
 
 | Open | When |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-ticket/references/resume.md` | `context.reconcile` or `context.handoff_summary` is set. It carries the reconcile procedure; a fresh run skips it. |
-| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-ticket/references/not-ready-for-planning.md` | You have concluded, by the rule under "User interaction" below, that a question genuinely blocks — no default could settle it without risking the wrong build. It carries the `ready_for_planning: false` / `needs_input` procedure. Most analyses never open it, and that is the intended outcome. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/resume.md` | `context.reconcile` or `context.handoff_summary` is set. It carries the reconcile procedure; a fresh run skips it. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/not-ready-for-planning.md` | You have concluded, by the rule under "User interaction" below, that a question genuinely blocks — no default could settle it without risking the wrong build. It carries the `ready_for_planning: false` / `needs_input` procedure. Most analyses never open it, and that is the intended outcome. |
 
 ## Inputs — gather before the loop
 
@@ -154,7 +154,7 @@ inline a file body):
 ## Reflection loop — execute → verify, no planner
 
 Run execute → verify until the verifier returns zero blocking findings or the
-cap is reached. The cap is a fixed **3** on every run — `/acs:analyze-ticket`
+cap is reached. The cap is a fixed **3** on every run — `/acs:analyze-requirements`
 has no path-driven verify depth. There is no plan phase: iteration 1's
 executor surveys the ticket against the codebase, writes its authoring notes,
 and authors the draft from them; the verifier judges the result fresh. On
@@ -167,7 +167,7 @@ Decomposition is YOURS alone — subagents never spawn subagents.
 
 Messaging rules (`schemas/acs-messages.xsd`):
 
-- Send each subagent one `<task skill="analyze-ticket"
+- Send each subagent one `<task skill="analyze-requirements"
   phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
   `<objective>`, `<inputs>` (file refs) and `<constraints>`. The subagent
   returns a `<result>` as its final content.
@@ -183,10 +183,10 @@ Messaging rules (`schemas/acs-messages.xsd`):
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Persist every phase's `<task>` and `<result>` to
-  `<partition>/phases/analyze-ticket/iter-<n>-<phase>.xml` at the phase
+  `steps/analyze-requirements/iter-<n>-<phase>.xml` at the phase
   boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:analyze-ticket-executor`,
-  `acs:analyze-ticket-verifier` — fall back to
+- Spawn subagents with the Agent tool: `acs:analyze-requirements-executor`,
+  `acs:analyze-requirements-verifier` — fall back to
   the un-namespaced name only if the runtime rejects the namespaced one. Apply
   `context.models.<role>.model` / `.effort` at spawn when not `"inherit"`; if
   the runtime rejects the model or effort, FAIL the run with that exact error —
@@ -200,12 +200,12 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Phase: execute — `acs:analyze-ticket-executor`
+### Phase: execute — `acs:analyze-requirements-executor`
 
 Objective, iteration 1: from the ticket, the design when one binds, the
 product docs and the codebase, survey what this ticket actually touches and
 record that survey as the authoring notes,
-`<partition>/phases/analyze-ticket/iter-<n>-authoring.md` — the candidate
+`steps/analyze-requirements/iter-<n>-authoring.md` — the candidate
 impact surface (components, files, tests, configuration) with the evidence
 for each entry, the API-surface assessment and its evidence, the design
 significance, which acceptance criteria are ambiguous or untestable as
@@ -218,7 +218,7 @@ interaction and re-run execute for the same iteration with the answers in
 `<context>`.
 
 Then write the analysis draft to
-`<partition>/phases/analyze-ticket/analysis.md` — one draft per run, revised in
+`steps/analyze-requirements/analysis.md` — one draft per run, revised in
 place across iterations, never renumbered — with EXACTLY this front matter and
 these seven headings, in this order:
 
@@ -241,7 +241,7 @@ needs_design_recommendation: false
 ## Verdict
 ```
 
-What each section carries is defined in `analyze-ticket-executor.md`; the
+What each section carries is defined in `analyze-requirements-executor.md`; the
 contract that matters here is that `## Impact map` is a table whose first
 column is a repo-relative path (that column is what the load-bearing-surface
 step below reads), and that the front-matter values agree with the sections
@@ -250,14 +250,14 @@ beneath them.
 On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
 else — no plan phase in between.
 
-### Phase: verify — `acs:analyze-ticket-verifier`
+### Phase: verify — `acs:analyze-requirements-verifier`
 
-Spawn `acs:analyze-ticket-verifier` AFTER the draft is written, with `<inputs>`
+Spawn `acs:analyze-requirements-verifier` AFTER the draft is written, with `<inputs>`
 of the draft, the authoring notes (`iter-<n>-authoring.md`), the ticket file,
 `design.md` when it binds,
 and the repo paths the impact map names. It judges fresh — never forward the
 executor's reasoning — re-derives the impact map from the codebase itself, and
-writes `<partition>/phases/analyze-ticket/iter-<n>-verify.md`.
+writes `steps/analyze-requirements/iter-<n>-verify.md`.
 
 ALL blocking findings block — zero blocking findings = pass. `status="completed"`
 means verification RAN; the empty `<findings>` is the pass. Never conclude a
@@ -275,11 +275,11 @@ never patched by you.
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
   --require "ticket: str; ready_for_planning: bool; api_surface: bool; needs_design_recommendation: bool" \
-  --ticket <id> "<partition>/phases/analyze-ticket/analysis.md"
+  --ticket <id> "steps/analyze-requirements/analysis.md"
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Problem restated; Impact map; Questions; Assumptions; Risks; Refined acceptance criteria; Verdict" \
-  --ordered "<partition>/phases/analyze-ticket/analysis.md"
+  --ordered "steps/analyze-requirements/analysis.md"
 ```
 
 The front-matter check uses the same parser the gate and the
@@ -315,7 +315,7 @@ codebase. Both are RECOMMENDATIONS recorded in the analysis (front-matter
 both are carried to the user through the clarification ledger:
 
 - Record the proposal as a ledger question BEFORE acting on it
-  (`clarify.py add --skill analyze-ticket --question "..."`).
+  (`clarify.py add --skill analyze-requirements --question "..."`).
 - Amend the ticket ONLY on an explicit user answer, and then only through the
   CLI that re-indexes it:
 
@@ -340,7 +340,7 @@ inputs an executor is checked against. Copy, never re-author — the published
 bytes must equal the verified bytes:
 
 ```bash
-cp "<partition>/phases/analyze-ticket/analysis.md" "<analysis_path>"
+cp "steps/analyze-requirements/analysis.md" "<analysis_path>"
 ```
 
 Then commit on the ticket branch when the analysis is inside the repo (the
@@ -364,7 +364,7 @@ serial round-trips. Record each answer as its own `clarify.py add` entry (one
 questions into one entry, or auto-answer outside the existing
 `--source assumption --rationale "..."` rule. Record every Q&A — obtained
 interactively or relayed in a `/acs:ship` brief — with
-`clarify.py add --skill analyze-ticket --question "..." --answer "..." --ticket <id>`
+`clarify.py add --skill analyze-requirements --question "..." --answer "..." --ticket <id>`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`.
 
@@ -402,7 +402,7 @@ risking the wrong build — the ticket is not plannable, and
 If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Commit any published analysis on the branch, flush
 in-flight state plus soft context (user answers, settled sections, gotchas) to
-`<partition>/phases/analyze-ticket/handoff-context.md`, then run:
+`steps/analyze-requirements/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -414,7 +414,7 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure or handoff:
 
-1. Write `<partition>/phases/analyze-ticket/result.json` per the
+1. Write `steps/analyze-requirements/result.json` per the
    result-document contract in INTERNALS.md:
 
    ```json
@@ -431,7 +431,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `post-analyze-ticket.py` documents
+   Canonical `states` keys — EXACT names; `post-analyze-requirements.py` documents
    them and the next steps read them:
    - `ready_for_planning` (bool): the verdict. `false` is the `needs_input`
      arm, and `/acs:create-impl-plan` is what consumes it.
@@ -452,7 +452,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-analyze-ticket.py" --ticket <id> --result-file <partition>/phases/analyze-ticket/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-analyze-requirements.py" --ticket <id> --result-file steps/analyze-requirements/result.json
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed
@@ -479,7 +479,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 `<handoff>` XML instead — this report is for direct invocations:
 
 ```markdown
-## /acs:analyze-ticket · <ticket-id> · <status>
+## /acs:analyze-requirements · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <stop_reason>

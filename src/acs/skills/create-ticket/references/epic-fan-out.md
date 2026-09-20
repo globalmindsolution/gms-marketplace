@@ -33,7 +33,7 @@ epic, after that epic's own design is approved. Resulting precedence:
    (`parent %s is a %s, not an epic`), so the two can never disagree.
 3. **Design precondition.** Read the epic's design source (its own
    partition's `design.md`, or the `create-design` step in
-   `pipeline-state.json`). When `create-design` has not completed, or
+   `run.json`). When `create-design` has not completed, or
    `design.md` is absent, surface that to the user and obtain their explicit
    confirmation before proceeding — never proceed silently, and never
    hard-refuse; the user may still choose to fan out an undesigned epic.
@@ -66,5 +66,5 @@ epic, after that epic's own design is approved. Resulting precedence:
    `prd_trace` (the epic's), then `post-create-ticket.py`. Never leave the
    epic's `create-ticket` run non-`completed`: no gate refuses on it any more
    (order lives in `workflows/ship.yaml`), but the ledger is what
-   `acs.py workflow next`, `/acs:metrics` and the derived ticket status read,
+   `acs.py run next`, `/acs:metrics` and the derived ticket status read,
    and a run left `in_progress` reports the epic as mid-flight for ever.

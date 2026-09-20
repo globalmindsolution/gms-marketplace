@@ -15,7 +15,7 @@ win — change them first, then the implementation.
 | `name` | Equals the directory name, kebab-case. Users invoke `/acs:<name>`. |
 | `description` | 1–2 sentences: what it does **and when to use it** — this text is what drives model auto-invocation, so write the trigger condition into it ("Use when …"). Keep it under ~2 lines; details belong in the body. |
 | `argument-hint` | Always set for skills taking arguments (`"[ticket-id]"`, `"<request or remote-key>"`). |
-| `disable-model-invocation` | `true` for exactly two classes: user-action-only skills (`update`, `install-hooks`) and the **internal legs** listed in `workflows/phases.yaml`'s `internal` map, which their entry point (`/acs:create-docs`, `/acs:project`) dispatches to and a user should not be routed to directly. Every other skill stays model-invocable — `/ship` invokes each step skill via the Skill tool. |
+| `disable-model-invocation` | `true` for exactly two classes: user-action-only skills (`update`, `install-hooks`) and the **internal legs** listed in `skills/<name>/acs.yaml`'s `internal` map, which their entry point (`/acs:create-docs`, `/acs:project`) dispatches to and a user should not be routed to directly. Every other skill stays model-invocable — `/ship` invokes each step skill via the Skill tool. |
 | `disallowed-tools` | `Edit, NotebookEdit` on every hooked skill and `/ship`: coordinators orchestrate — they Write workspace files but never edit repo source themselves (a fix is a remediation iteration through the executor, not a coordinator hot-patch). `/setup` and `/handoff` stay unrestricted (user-present utility skills; `/setup` legitimately edits `.gitignore`). |
 | `model` / `effort` / `context` / `agent` | **Do not set.** Hooked skills must run in the invoking context so they can talk to the user; `context: fork` would break clarifying questions. Model/effort for *subagents* comes from `settings.json`, not frontmatter. |
 
@@ -29,7 +29,7 @@ win — change them first, then the implementation.
    `hooks/scripts/*` — the SKILL.md *calls* the script and parses its JSON. If
    you find yourself writing "carefully update the JSON so that …", add a
    helper script instead. ORDER is declared in `workflows/ship.yaml` and walked
-   by `acs.py workflow next` — never restated in prose, and never enforced by
+   by `acs.py run next` — never restated in prose, and never enforced by
    asking the model to behave.
 3. **Follow the hooked-skill skeleton** (INTERNALS.md lifecycle) section by
    section: Start → Resume & reconcile → Reflection loop → User interaction →
@@ -42,7 +42,7 @@ win — change them first, then the implementation.
    fresh session from recorded state alone. If an instruction depends on "what
    was said earlier", rewrite it to read a file — and make sure something wrote
    that file. Which file depends on the audience: the run ledger
-   (`<skill>-state.json`, `pipeline-state.json`, phase artifacts) stays in the
+   (`<skill>-state.json`, `run.json`, phase artifacts) stays in the
    workspace partition; the documents a human reads or reviews (`ticket.md`,
    `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`)
    live in the repo's ticket docs tree. NEVER hard-code either path: resolve a
@@ -194,9 +194,9 @@ them for ordering or safety guarantees.
 ## Adding a skill
 
 A new skill is not "a directory with a SKILL.md". It is a registration, and the
-registry is `workflows/phases.yaml`. In order:
+registry is `skills/<name>/acs.yaml`. In order:
 
-1. **Register it in `workflows/phases.yaml`** — exactly once, in one of the
+1. **Register it in `skills/<name>/acs.yaml`** — exactly once, in one of the
    five phase groups, or as an `aliases` key when the directory only forwards
    to another skill. `tests/acs/test_phases_registry.py` asserts the registry
    and `src/acs/skills/` agree in both directions, so an unregistered
@@ -210,7 +210,7 @@ registry is `workflows/phases.yaml`. In order:
    `WORKFLOW_SKILLS` / `PLANNING_SKILLS` — never a sixth list), a gate in
    `acs_lib/gates.py`'s `GATES` and the matching `GATE_INPUTS` family, thin
    `hooks/scripts/pre-<name>.py` and `post-<name>.py` wrappers, an entry in
-   `pipeline-state.schema.json`'s `steps` enum and `pipeline-step.py`'s
+   `run.schema.json`'s `steps` enum and `pipeline-step.py`'s
    mirror, and a line in `.coveragerc`'s forwarder omit list. `HOOKED_SKILLS`
    is derived from the three lists, so `skill-start.py --skill`,
    `dispatch.py`, the SessionEnd net and `models.overrides` all follow for

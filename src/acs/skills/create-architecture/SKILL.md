@@ -49,7 +49,7 @@ or `jira`, sync the ticket out via `gh`/`acli` per the tracker config.
 If `context.reconcile` is true, verify recorded progress against reality
 BEFORE continuing:
 
-- Read `<partition>/phases/create-architecture/` — the persisted
+- Read `steps/create-architecture/` — the persisted
   `iter-<n>-<phase>.xml` files tell you the last completed phase and
   iteration.
 - Re-read the actual artifacts: which files under
@@ -65,7 +65,7 @@ BEFORE continuing:
   (`iter-<n>-authoring.md`) belong to their iteration.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-architecture/handoff-context.md` (if present),
+`steps/create-architecture/handoff-context.md` (if present),
 do a light reconcile (spot-check the claimed artifacts), and continue from
 where the summary points.
 
@@ -172,7 +172,7 @@ On an invalid message, re-request it once; if still invalid, fail the run
 with the validation error recorded in `errors`.
 
 Persist every phase output to
-`<partition>/phases/create-architecture/iter-<n>-<phase>.xml` at the phase
+`steps/create-architecture/iter-<n>-<phase>.xml` at the phase
 boundary, BEFORE starting the next phase. The executor's own artifacts are
 `iter-<n>-authoring.md` (Mode; Inventory; Target doc set with the per-file
 outline; Flow selection; Delivery step; Risks & open decisions; Verifier
@@ -286,7 +286,7 @@ status="needs_input">` with the `<questions>` list instead.
 
 If your context is running low mid-run: flush in-flight work plus soft
 context (mode decision, confirmed flow list, partial verifier findings,
-gotchas) to `<partition>/phases/create-architecture/handoff-context.md`,
+gotchas) to `steps/create-architecture/handoff-context.md`,
 then run:
 
 ```bash
@@ -300,7 +300,7 @@ with the delivery-ticket id resumes via the Start section's resume form).
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/create-architecture/result.json` per the
+1. Write `steps/create-architecture/result.json` per the
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
    names): `architecture` and `pr`. `hld` entries are paths relative to
    `<path>/hld/`, `lld` entries relative to `<path>/lld/`:
@@ -330,7 +330,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --ticket <id> --result-file <partition>/phases/create-architecture/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --ticket <id> --result-file steps/create-architecture/result.json
 ```
 
 3. Report a compact summary to the user: mode, files written, verifier

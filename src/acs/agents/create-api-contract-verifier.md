@@ -46,7 +46,7 @@ A shape that is wrong here is built wrong and tested wrong.
    implementation detail masquerading as contract (internal function names,
    storage layout, and private helpers are not surface).
 8. `authoring-conformance` — the draft is what the executor's authoring notes
-   (`<partition>/phases/create-api-contract/iter-<n>-authoring.md`) surveyed:
+   (`steps/create-api-contract/iter-<n>-authoring.md`) surveyed:
    every item in the notes' item list is specified in the draft (or its
    exclusion is recorded), the compatibility and error-model entries agree
    between notes and draft, every open question in the notes reached the
@@ -59,11 +59,11 @@ A shape that is wrong here is built wrong and tested wrong.
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
   --require "ticket: str; items: int; contract_files: list" \
-  --ticket SHOP-123 <partition>/phases/create-api-contract/api-contract.md
+  --ticket SHOP-123 steps/create-api-contract/api-contract.md
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Scope & sources; Surface; Error model; Compatibility & versioning; Examples; Traceability; Contract files" \
-  --ordered <partition>/phases/create-api-contract/api-contract.md
+  --ordered steps/create-api-contract/api-contract.md
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket SHOP-123
 ```
@@ -75,7 +75,7 @@ draft claims to have updated. Bash is read-only inspection (`grep`, `ls`,
 ## Verify report (mandatory)
 
 Write the full verification report to
-`<partition>/phases/create-api-contract/iter-<n>-verify.md` (`<partition>` is
+`steps/create-api-contract/iter-<n>-verify.md` (`<partition>` is
 the directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`

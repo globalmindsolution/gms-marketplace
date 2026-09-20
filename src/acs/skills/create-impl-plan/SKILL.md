@@ -1,6 +1,6 @@
 ---
 name: create-impl-plan
-description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its executors run, and the spec fold. Writes plan.md to the ticket's docs folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-ticket and before /acs:code, which requires the plan.
+description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its executors run, and the spec fold. Writes plan.md to the ticket's docs folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-requirements and before /acs:code, which requires the plan.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -40,7 +40,7 @@ Parse the printed context JSON. Fields you will use:
   `acceptance_criteria`, `size`, `stakes`, `docs_only`, `external`). The plan
   must satisfy it.
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/create-impl-plan/`; the run ledger stays
+  artifacts go in `steps/create-impl-plan/`; the run ledger stays
   here too.
 - `design` — `{required, dir, source}`. `design.dir` is the PARTITION of the
   ticket whose design applies (`source` is `"own"` or `"parent"` — child
@@ -111,11 +111,11 @@ opens the next gate. Record it as `states.plan_path`.
 
 Two derived paths follow from it, and both are written from the SAME bytes:
 
-- `<partition>/phases/create-impl-plan/plan.md` — the working draft the
+- `steps/create-impl-plan/plan.md` — the working draft the
   executor writes and the verifier judges (see Publish).
-- `<partition>/phases/code/plan.md` — the approval mirror. `plan-approval.py`
+- `steps/code/plan.md` — the approval mirror. `plan-approval.py`
   is the sole writer of the approval record and resolves the plan it hashes
-  inside `<partition>/phases/code/`; `/acs:code`'s verifier reads that same
+  inside `steps/code/`; `/acs:code`'s verifier reads that same
   path for its plan-conformance dimension. The mirror is a byte-identical copy
   of the published plan, never an independent edit.
 
@@ -137,7 +137,7 @@ inline a file body):
 
 1. The ticket — `ticket` from the context JSON (its file is whatever
    `acs.py artifacts show` reports as `source_path`).
-2. `analysis.md` when `acs.py artifacts show` reports it — `/acs:analyze-ticket`'s
+2. `analysis.md` when `acs.py artifacts show` reports it — `/acs:analyze-requirements`'s
    impact map, assumptions, risks and refined acceptance criteria. Absent is
    not an error: plan from the ticket and the codebase instead, and say so in
    the plan.
@@ -192,7 +192,7 @@ Messaging rules (`schemas/acs-messages.xsd`):
   On invalid: re-request once with the validation error; still invalid → fail
   the run and record the error in the result document's `errors`.
 - Persist every phase output to
-  `<partition>/phases/create-impl-plan/iter-<n>-<phase>.xml` at the phase
+  `steps/create-impl-plan/iter-<n>-<phase>.xml` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:create-impl-plan-executor` and
   `acs:create-impl-plan-verifier` —
@@ -215,7 +215,7 @@ Iteration 1's executor surveys and decides before it
 writes the deliverable. Task it with `<inputs>` of the ticket file,
 `analysis.md` and `design.md` when they exist, every `<partition>/specs/*.md`,
 and the consumer-repo source/docs the ticket touches. Its authoring notes are
-`<partition>/phases/create-impl-plan/iter-<n>-authoring.md`, and they cover,
+`steps/create-impl-plan/iter-<n>-authoring.md`, and they cover,
 in the order `create-impl-plan-executor.md`'s survey defines:
 
 - Analysis of the ticket and of every spec: implementation order (follow the
@@ -283,7 +283,7 @@ the existing specs normally. The fold only activates when
 resolved `plan_path` and (on iteration 2+) the iteration-1 authoring notes
 and the verifier's findings in `<context>`. The executor writes the plan
 draft to
-`<partition>/phases/create-impl-plan/plan.md` — one draft per run, revised in
+`steps/create-impl-plan/plan.md` — one draft per run, revised in
 place across iterations, never renumbered — with EXACTLY these six top-level
 headings, in this order:
 
@@ -328,7 +328,7 @@ Spawn `acs:create-impl-plan-verifier` AFTER the draft is written, with
 `<inputs>` of the draft, the ticket file, `analysis.md` and `design.md` when
 they exist, every `<partition>/specs/*.md`, and the repo paths the file map
 names. The verifier judges fresh — never forward the executor's reasoning —
-and writes `<partition>/phases/create-impl-plan/iter-<n>-verify.md`. Its
+and writes `steps/create-impl-plan/iter-<n>-verify.md`. Its
 `<result>`'s `<findings>` is the verdict: `status="completed"` means
 verification RAN, and an empty `<findings>` is the pass. Never conclude a pass
 the verifier did not report.
@@ -352,9 +352,9 @@ checked against. Copy, never re-author — the published bytes must equal the
 verified bytes:
 
 ```bash
-draft="<partition>/phases/create-impl-plan/plan.md"
+draft="steps/create-impl-plan/plan.md"
 mkdir -p "$(dirname "<plan_path>")" && cp "$draft" "<plan_path>"
-mkdir -p "<partition>/phases/code" && cp "$draft" "<partition>/phases/code/plan.md"
+mkdir -p "<partition>/phases/code" && cp "$draft" "steps/code/plan.md"
 ```
 
 Then commit `<plan_path>` on the ticket branch when it is inside the repo
@@ -367,7 +367,7 @@ Approval binds on the `standard` and `complex` delivery paths only — and this
 skill runs before any path exists, because `plan.md` is the artifact the path
 is judged FROM. So `plan-approval.py` is not run here. The `code-standard` and
 `code-complex` legs run it at their own Start, over the approval mirror this
-skill publishes at `<partition>/phases/code/plan.md`, which is exactly why
+skill publishes at `steps/code/plan.md`, which is exactly why
 Publish writes that copy from the same bytes.
 
 What this skill owes approval is therefore one thing: **publish the mirror from
@@ -403,7 +403,7 @@ BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 
 **Entries the analysis left open are proposals, not blockers.**
 `analysis.md`'s front matter `ready_for_planning: true` is
-`/acs:analyze-ticket`'s verdict that the ticket can be planned as written;
+`/acs:analyze-requirements`'s verdict that the ticket can be planned as written;
 the ledger entries it recorded and left `open` alongside that verdict —
 refined-criteria rewrites, missing-criterion suggestions, a design
 recommendation — are for the user to take or leave, and that skill's own
@@ -430,11 +430,11 @@ planning against the current decomposition — nothing else changes. On
 "split": the run ends in an orderly way — run the mandatory Finish steps
 below first (so `post-create-impl-plan.py` closes the run entry like any
 other terminal run), writing
-`<partition>/phases/create-impl-plan/result.json` with `status: "failed"` and
+`steps/create-impl-plan/result.json` with `status: "failed"` and
 `stop_reason` "user chose to split; restructure required before
 implementation", and only then return `<handoff status="failed">` whose
 `<next-step>` reads `/acs:create-ticket split <id> per
-<partition>/phases/create-impl-plan/plan.md` — it is the handoff element's own
+steps/create-impl-plan/plan.md` — it is the handoff element's own
 `status` attribute, not only `result.json`'s field, that must read `failed`.
 The `<summary>` (≤1 KB) must also restate the split instruction in prose, not
 only `<next-step>`: under `/acs:ship` the failed branch surfaces `<summary>`
@@ -455,7 +455,7 @@ If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Commit any published plan on the branch, flush
 in-flight state plus soft context (user answers, decisions, which sections are
 settled, gotchas) to
-`<partition>/phases/create-impl-plan/handoff-context.md`, then run:
+`steps/create-impl-plan/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -467,7 +467,7 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/create-impl-plan/result.json` per the
+1. Write `steps/create-impl-plan/result.json` per the
    result-document contract in INTERNALS.md:
 
    ```json
@@ -506,7 +506,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-impl-plan.py" --ticket <id> --result-file <partition>/phases/create-impl-plan/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-impl-plan.py" --ticket <id> --result-file steps/create-impl-plan/result.json
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed
