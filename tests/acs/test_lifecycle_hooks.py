@@ -245,13 +245,17 @@ class SubagentStopTest(LifecycleCase):
         self.assertIsNone(lib.read_agent(self.tdir_path, "a-1"))
 
     def test_an_invalid_message_sends_the_subagent_back_with_the_errors(self):
+        """A message with no `phase=` cannot be filed: the snapshot path is
+        derived from it. (The old fixture's complaint was a `status` outside
+        the XSD's enumeration; there is no XSD now, and the hook checks what
+        it actually needs -- see validate_message.)"""
         out = self.hook("subagent-stop", self.payload(
             agent_id="a-1", agent_type="acs:code-executor",
-            last_assistant_message='<result skill="code" phase="execute" '
-                                   'ticket-id="%s" status="ok"/>' % self.ticket))
+            last_assistant_message='<result skill="code" iteration="1" '
+                                   'status="ok"/>'))
         self.assertEqual(out.returncode, 2)
-        self.assertIn("acs-messages.xsd", out.stderr)
-        self.assertIn("status='ok'", out.stderr)
+        self.assertIn("does not validate", out.stderr)
+        self.assertIn("phase=", out.stderr)
         self.assertFalse(os.path.exists(self._snapshot()))
 
     def test_a_message_with_no_xml_at_all_sends_it_back(self):
@@ -313,7 +317,7 @@ class SubagentStopTest(LifecycleCase):
     def test_the_give_up_message_names_the_validation_errors(self):
         """The coordinator has to record the failure, so the third refusal has
         to hand it the reason rather than just giving up quietly."""
-        bad = ('<result skill="code" phase="execute" ticket-id="%s" status="ok"/>' % self.ticket)
+        bad = '<result skill="code" iteration="1" status="ok"/>'   # no phase=
         payload = self.payload(agent_id="a-1", agent_type="acs:code-executor",
                                last_assistant_message=bad)
         for _ in range(lib.BLOCK_LIMIT):
@@ -321,7 +325,7 @@ class SubagentStopTest(LifecycleCase):
         out = self.hook("subagent-stop", payload)
         self.assertEqual(out.returncode, 0)
         self.assertIn("still invalid after", out.stderr)
-        self.assertIn("status='ok'", out.stderr)
+        self.assertIn("phase=", out.stderr)
 
     def test_a_message_that_is_not_parseable_xml_writes_nothing(self):
         """extract_message found something element-shaped, but it does not
@@ -476,15 +480,21 @@ class PreCompactTest(LifecycleCase):
 
     def test_names_the_parent_epic_when_the_ticket_has_one(self):
         self.start_run("code")
-        ticket = lib.load_ticket(self.tdir_path)
+        tpath = self.tdir(self.ticket)
+        ticket = lib.load_ticket(tpath)
         ticket["parent"] = "SHOP-99"
-        lib.save_ticket(self.tdir_path, ticket)
+        lib.save_ticket(tpath, ticket)
         self.hook("pre-compact", self.payload())
         self.assertIn("parent epic: `SHOP-99`", self._context())
 
     def test_says_so_when_no_pipeline_step_has_run_yet(self):
         self.start_run("code")
-        os.remove(os.path.join(self.tdir_path, "run.json"))
+        # EMPTY the ledger's steps rather than deleting run.json: a missing
+        # run.json means there is no run, and PreCompact correctly does
+        # nothing for a checkout that is not on one.
+        doc = lib.load_run(self.tdir_path)
+        doc["steps"] = {}
+        lib.save_run(self.tdir_path, doc)
         self.hook("pre-compact", self.payload())
         self.assertIn("no pipeline steps recorded yet", self._context())
 
