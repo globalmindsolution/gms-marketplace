@@ -243,10 +243,19 @@ BRAKES = {
 
 
 def _require_architecture_doc_set(ctx):
+    """Shared precondition for the doc-set producer gates: the architecture
+    set (hld/tech-stack.md) must exist before a downstream doc set is built.
+
+    The FILE, not the directory: an empty `docs/architecture/` is what a
+    half-finished /acs:create-architecture leaves behind, and treating it as
+    a doc set is how a downstream producer ends up auditing against nothing."""
     root = ctx["checkout_root"]
-    base = os.path.join(root, ctx["settings"].get("architecture_path", "docs/architecture"))
-    if not os.path.isdir(base):
-        raise GateError("no architecture doc set at %s — run /acs:create-architecture first." % base)
+    arch = os.path.join(root, ctx["settings"].get("architecture_path", "docs/architecture"))
+    tech_stack = os.path.join(arch, "hld", "tech-stack.md")
+    if not os.path.isfile(tech_stack):
+        raise GateError(
+            "no architecture doc set found at %s (expected hld/tech-stack.md) — "
+            "run /acs:create-architecture first." % arch)
     return None
 
 

@@ -1078,168 +1078,120 @@ before any test is written.
 
 ## 3. `/code`
 
-Purpose: implement the ticket's approved plan in the consumer repo using TDD.
+Purpose: implement the run's approved plan in the consumer repo using TDD.
 
-> **The plan phase left `/code` (skills-independence refactor).** `/code`
-> REQUIRES an approved `plan.md` and no longer produces one: the Plan, Plan
-> approval, Plan revocation and Plan-artifact-resolution steps — and
-> `code-planner.md` with them — are now `/create-impl-plan`'s (§2b; since
-> ADR-0092 that charter is the survey of `create-impl-plan-executor.md`, and
-> every `code-planner` mention below reads as that executor's survey). Every
-> plan-phase obligation stated in this section therefore binds
-> `/create-impl-plan` and its executor; they are stated here because `/code`'s
-> execute and verify phases anchor on their outputs, and because the
-> requirements they encode (spec fold, spec-simplicity, ADR-0012 doc-graph
-> gap, oversize signal, plan conformance) did not change — only which skill
-> discharges them. `/code` keeps execute → verify, the escalation triggers,
-> the coverage gate and the full-verify boundary; its executor writes tests
-> from `test-cases.md` when the ticket has one, and its verifier gains a
-> contract-conformance check when `api-contract.md` exists. When execution
-> finds the plan itself wrong, `/code` ends `failed` with
-> `stop_reason: plan_superseded`, which `ship.yaml`'s `on_replan` routes back
-> to `/create-impl-plan`.
+> **`/code` neither plans nor reviews.** The plan phase left for
+> `/create-impl-plan` (§2b) and the review left for `/review-code` (§3b).
+> What remains is the implementation itself: read the plan, write the tests
+> first, write the code, commit on the run's branch. `/code` REQUIRES an
+> approved `plan.md` and produces none; it writes no verdict and grades
+> nothing. Since ADR-0092 the plan charter is the survey of
+> `create-impl-plan-executor.md`, and every `code-planner` mention below
+> reads as that executor's survey. When execution finds the plan itself
+> wrong, `/code` ends `failed` with `stop_reason: plan_superseded`, which
+> `ship.yaml`'s loop routes back to `/create-impl-plan`.
 
-**Spec authoring (folded into the plan phase — ADR 0066).** When
-`<partition>/specs/` is absent or empty the plan's author — always
-`create-impl-plan-executor` — writes the spec content itself inside the plan
-artifact `plan.md`, unconditionally; when specs are already present it reads
-them unchanged. The
-obligations below — from ticket clarification through the oversized-ticket
-escalation — moved here from the retired spec-authoring section (MAR-161,
-ADR 0066) and now bind the plan phase, wherever it runs:
+**Plan authoring (folded into `/create-impl-plan` — ADR 0066).** The plan's
+author — always `create-impl-plan-executor` — writes the implementation
+content itself inside `plan.md`. The obligations below bind that step; they
+are stated here because `/code`'s execute phase anchors on their outputs:
 
 - MUST analyze and clarify the ticket (asking the user where ambiguous).
-- MUST produce **one or more** implementation specs ("different
-  implementation specs") — decomposition into multiple specs is expected for
-  larger tickets.
-- MUST write specs into `<workspace>/<repo>/<ticket-id>/` so `/code` can consume
-  them without conversation history. Since ADR 0066 the folded spec content
-  lives in that same partition, at `phases/code/plan.md`; a
-  pre-existing `specs/` directory is still read when one is present.
-- Spec format: **markdown** with required sections — **scope, approach,
-  API/data changes, test plan, out-of-scope**. The **approach** section stays
-  at contract level (components, interfaces, algorithms, error handling;
-  indicative paths at most) — the authoritative file map belongs to
-  `/create-impl-plan`'s executor. The **test plan** MUST state the **e2e impact** when `e2e` is
-  configured or the change affects user-facing flows (the tests land in the
-  same changeset), else "no e2e impact" with a reason.
+- MUST decompose the work into executor tasks with an honest file map, and
+  MUST write the plan into the RUN directory —
+  `<run>/steps/create-impl-plan/plan.md` — so `/code` can consume it without
+  conversation history.
+- Plan format: **markdown** with required sections — **scope, approach,
+  API/data changes, test plan, out of scope** — plus the `## Contract` block
+  (§2b) and `## Executor tasks & file map`. The **approach** section stays at
+  contract level (components, interfaces, algorithms, error handling;
+  indicative paths at most) — the authoritative file map is its own section.
+  The **test plan** MUST state the **e2e impact** when `e2e` is configured or
+  the change affects user-facing flows (the tests land in the same
+  changeset), else "no e2e impact" with a reason.
 - The **API/data changes** section SHOULD call out the documentation impact
   (which consumer-repo docs the change touches), so `/code` knows what to
   update.
-- When a design exists (the ticket's own or its parent epic's), specs MUST
-  **conform to it**, and the **`code-verifier`** MUST check that
-  conformance — through its **architecture** (dimension 8) and **system
-  design** (dimension 9) reviews, which also judge the folded plan artifact's
-  Approach/API-data-changes content when no separately-authored spec set
-  exists.
-- **Spec-simplicity gate (MAR-88):** the plan's author (the **`code-planner`** charter, now `create-impl-plan-executor`'s survey) MUST evaluate
-  each candidate decomposition for a **materially** simpler alternative that
-  meets the **same acceptance criteria** with materially less
-  code/complexity, before the spec gate closes. A found alternative is
-  **surfaced** (never blocked or auto-looped back) to the user/spec owner for
-  a **decision**, through the coordinator's existing User-interaction path —
-  the threshold is "materially" simpler, never a naming or style preference.
-  Deconflicted from `code-verifier` dimension 12 (spec-time vs code-time
-  simplicity; see [reflection.md](reflection.md)) — author-charter-only, no
-  **new `code-verifier`** dimension or meta-check is added.
-- MUST escalate an **oversized ticket** instead of producing a monster spec
-  set: when an honest decomposition exceeds ~4 specs (or the surface clearly
-  exceeds a reviewable diff), stop, record the split seams, and route to
-  `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
-  one large PR, recorded as a clarification. Implemented as a two-lever
-  control after ADR 0066 (ADR 0069): `/create-ticket`'s upfront PR-size
-  rubric fires before any decomposition exists; a non-blocking, plan-time
-  oversize signal in `code-planner.md`'s charter item 2 fires once the
-  decomposition itself is known, reusing the Spec-simplicity gate's
-  "surface, never block" contract to raise the same `<question>` through the
-  clarification ledger. On a "split" answer, `/code` writes `result.json`
-  and the returned `<handoff>`'s own `status` attribute as terminal
-  `"failed"` (`stop_reason` "user chose to split; restructure required
-  before implementation"), runs its mandatory Finish steps, and returns
-  `<next-step>` pointing at `/acs:create-ticket split <id> per
-  <partition>/phases/code/plan.md`.
+- When a design exists (the ticket's own or its parent epic's), the plan MUST
+  **conform to it**, and `/review-code`'s lens C MUST check that conformance
+  against `design.md` and the architecture doc set.
+- **Plan-simplicity gate (MAR-88):** the plan's author MUST evaluate each
+  candidate decomposition for a **materially** simpler alternative that meets
+  the **same acceptance criteria** with materially less code/complexity,
+  before the plan is published. A found alternative is **surfaced** (never
+  blocked or auto-looped back) to the user/plan owner for a **decision**,
+  through the coordinator's existing User-interaction path — the threshold is
+  "materially" simpler, never a naming or style preference. Deconflicted from
+  the review's craft lens (plan-time vs code-time simplicity; see
+  [reflection.md](reflection.md)) — author-charter-only, no new review check
+  is added.
+- MUST escalate an **oversized ticket** instead of producing a monster plan:
+  when an honest decomposition exceeds ~4 executor tasks (or the surface
+  clearly exceeds a reviewable diff), stop, record the split seams, and route
+  to `/create-ticket split <id>` (user-confirmed); the user MAY explicitly
+  accept one large PR, recorded as a clarification. Implemented as a two-lever
+  control after ADR 0066 (ADR 0069): `/create-ticket`'s upfront PR-size rubric
+  fires before any decomposition exists; a non-blocking, plan-time oversize
+  signal in the survey's charter item 2 fires once the decomposition itself is
+  known, reusing the plan-simplicity gate's "surface, never block" contract to
+  raise the same question through the clarification ledger. On a "split"
+  answer the step ends `failed` with a `stop_reason` naming the split, runs
+  its mandatory Finish steps, and points at `/acs:create-ticket split <id> per
+  steps/create-impl-plan/plan.md`.
 - **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by
-  MAR-73).** The plan artifact is a single per-ticket
-  `<partition>/phases/code/plan.md`, authored by `create-impl-plan-executor`,
-  written exactly once per run, before the loop. `plan.md` is the only name
-  ever read or written for the plan artifact, in every case — the
-  MAR-70-era resume-only read-both fallback to the highest-numbered
-  `<partition>/phases/code/iter-*-plan.md` has been retired (MAR-73, per
-  explicit product decision); a ticket that never completed its MAR-70-era
-  transition to `plan.md` is no longer resumable via this path.
-  `<partition>/phases/code/plan-superseded-<k>.md` is the plan-revocation
+  MAR-73).** The plan artifact is a single per-run
+  `<run>/steps/create-impl-plan/plan.md`, authored by
+  `create-impl-plan-executor`, written exactly once per run, before `/code`
+  starts. `plan.md` is the only name ever read or written for it, in every
+  case. The approval mirror under `steps/code/` is retired: one file, one
+  path, read by every step that needs it.
+  `<run>/steps/create-impl-plan/plan-superseded-<k>.md` is the plan-revocation
   path's superseded-plan artifact — a byte-identical copy of the revoked
-  `plan.md` (copy, never a move/rename), written by the coordinator at an
-  iteration/run boundary, so existing `iter-<n>-verify.md` `plan.md:<line>`
-  citations resolve unchanged; it is never an approval input and never a
-  conformance contract (MAR-74, slice 4 of MAR-69). This is the
-  naming axis only — the executor's `-execute[-<k>].json`, the verifier's
-  `-verify.md`, and the per-iteration `iter-<n>-<phase>.xml` message
-  snapshots are unaffected.
-- **Loop topology (MAR-71, slice 1b of MAR-69).** `/code`'s loop is
-  execute → verify: the plan above is authored exactly once per run, before
-  the loop starts, so exactly one plan-authoring `create-impl-plan-executor`
-  is spawned across the whole `/create-impl-plan` run, however many iterations
-  `/code` then uses. The fast-path fork MAR-72 introduced — the coordinator
-  authoring `plan.md` itself on TRIVIAL/SMALL, with zero executor spawns — is
-  gone: `/create-impl-plan` runs BEFORE any delivery path exists, because
-  `plan.md` is the artifact the path is judged from, so there is nothing to
-  fork on and its ceiling is a fixed 3 execute → verify rounds. On iteration
-  2+, the verifier's findings are delivered to the executor's `<context>` —
-  never to a new plan-authoring spawn — and the executor authors the
-  remediation. The per-path ceilings live on the four `/code` legs (2 on
-  `trivial` and `small`, 3 on `standard` and `complex`) and count
-  execute+verify rounds; there is no plan phase to count (ADR-0092) and no
-  mid-flight escalation to raise them (ADR-0095).
-- **Coordinator plan approval (MAR-73, slice 3 of MAR-69).** On
-  the **`standard`** and **`complex`** delivery paths only, at the leg's
-  Start — after `/create-impl-plan` published `plan.md` and after `/ship`
-  judged the path from it — `/code` MUST record a **deterministic
-  plan-approval verdict**:
-  `plan-approval.py` computes `acs_lib.plan_approval_eligible` from the plan
-  artifact's own content plus `settings.test_coverage_percent` and is the
-  **sole writer** of `<partition>/phases/code/plan-approval.json` — never a
-  subagent's `Write`, never the coordinator's, never an LLM self-assertion.
-  The record carries the predicate's inputs, checks, failures and the
-  approved plan's **sha256**, and is written **at most once per approved
-  plan digest** (idempotent on resume; a revised `plan.md` writes a fresh
-  record). `states.plan_approved` is copied verbatim into `/code`'s
-  `result.json` and mirrored into `code-state.json`; it is **`false`** on
-  the `trivial` and `small` paths (no record is written at all) and on an
-  ineligible plan. An
-  ineligible plan **does not block** this release: the run continues, at
-  most revising `plan.md` once and re-running the script. **Nothing gates on
-  `plan_approved`** — the `/create-pr` gate remains `verifier_passed` alone.
+  `plan.md` (copy, never a move/rename), written at an iteration/run boundary
+  so existing citations resolve unchanged; it is never an approval input and
+  never a conformance contract (MAR-74, slice 4 of MAR-69).
+- **Loop topology.** `/code` has no loop of its own. The plan is authored
+  exactly once per run, and the remediation loop is the WORKFLOW's:
+  `ship.yaml`'s `loops[]` sends the cursor from `review-code` back to `code`
+  when the verdict records blocking findings, up to
+  `loops[].max_iterations` — one cap, the same on every delivery path. On
+  iteration 2+ the confirmed findings are delivered to the executor's
+  `<context>`; no planner runs between the review and the fix (ADR-0092).
+- **Plan approval (MAR-73, slice 3 of MAR-69).** On the **`standard`** and
+  **`complex`** delivery paths only, at the leg's Start, `/code` MUST record a
+  **deterministic plan-approval verdict**: `plan-approval.py` computes
+  `acs_lib.plan_approval_eligible` from the plan artifact's own content plus
+  `settings.test_coverage_percent` and is the **sole writer** of
+  `<run>/steps/code/plan-approval.json` — never a subagent's `Write`, never
+  the coordinator's, never an LLM self-assertion. The record carries the
+  predicate's inputs, checks, failures and the approved plan's **sha256**, and
+  is written **at most once per approved plan digest** (idempotent on resume;
+  a revised `plan.md` writes a fresh record). `states.plan_approved` is
+  `false` on the `trivial` and `small` paths (no record is written at all) and
+  on an ineligible plan. An ineligible plan **does not block**: the run
+  continues, at most revising `plan.md` once and re-running the script.
+  **Nothing gates on `plan_approved`** — `/create-pr`'s brake is the review's
+  derived `verifier_passed` alone.
 - **Plan revocation (MAR-74, slice 4 of MAR-69).** When a blocking
-  `dimension="plan-conformance"` finding's remedy is that the *plan* is
-  wrong, `/code` MAY revoke the plan — **never automatically**, only at an
-  iteration/run boundary and only on an explicit `clarify.py`-recorded user
-  answer; the sequence is copy (`plan-superseded-<k>.md`, `<k>` the smallest
-  free positive integer) → revise `plan.md` in place (coordinator-authored;
-  no `create-impl-plan-executor` re-spawn) → re-run `plan-approval.py` for a fresh
-  record; superseded copies are the audit trail and are never deleted, never
-  an approval input, never a conformance contract.
-- **Fast-lane charter scoping (MAR-72) — retired.** MAR-72 made four of the
-  survey's charter items best-effort on TRIVIAL/SMALL, because on those lanes
-  no executor was spawned to carry them and the coordinator did the work
-  itself. ADR-0095 removed the fork: `/create-impl-plan` always spawns its
-  executor, so the spec-simplicity gate, the oversize signal, the ADR-0012
-  doc-graph-gap check (E1-E4) and the Boy-scout drift survey all run on every
-  run, and their omission is a finding again. The
-  `docs/product/prd.md`/`docs/product/roadmap.md` factual-impact assessment
-  below was BLOCKING throughout and is unchanged.
+  `kind: contract` finding's remedy is that the *plan* is wrong, the run MAY
+  revoke the plan — **never automatically**, only at an iteration/run boundary
+  and only on an explicit `clarify.py`-recorded user answer; the sequence is
+  copy (`plan-superseded-<k>.md`, `<k>` the smallest free positive integer) →
+  re-run `/create-impl-plan` → re-run `plan-approval.py` for a fresh record.
+  Superseded copies are the audit trail and are never deleted, never an
+  approval input, never a conformance contract.
 
-`/code`'s own obligations — unchanged by that migration — follow:
+`/code`'s own obligations follow:
 
-- MUST analyze and clarify the implementation specs before coding. This is
-  spec-level clarification of the content it implements — a pre-existing
-  `specs/` set, or the spec content the plan phase just authored — as
-  distinct from the ticket-level clarification that spec authoring itself
-  requires.
+- MUST analyze and clarify the plan before coding. This is plan-level
+  clarification of the content it implements, as distinct from the
+  ticket-level clarification the plan itself required.
 - MUST implement features, bug fixes, and tasks using the **TDD pattern**:
   write tests first, then implementation, iterating until green.
-- MUST generate unit tests and run them targeting the configured
-  `test_coverage_percent` (default 90) from `settings.json`.
+- MUST run the tests its change touches, not the full suite: the full suite is
+  the review's final gate, run once, last, on the iteration that survives
+  review. That discipline is safe precisely because the gate is unconditional
+  and terminal rather than buried inside an iteration that may be discarded.
 - MUST update the consumer repo's **documentation affected by the change**
   as part of the implementation: README, API/usage docs, code comments, the
   changelog where the repo keeps one — and the **product architecture doc
@@ -1253,10 +1205,10 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   [workflow.md](workflow.md#living-requirements)). Docs work is part
   of the change, not a follow-up.
 - **ADR-0012 participation (bounded, touched-area, post-plan — third
-  amendment).** `code-planner`'s item 4 detects, for the touched area
+  amendment).** The plan survey's item 4 detects, for the touched area
   only, four bounded missing doc-graph edges (E1-E4; full table at
-  `code-planner.md`'s item 4): a touched/added component missing from
-  the C4 component doc, a touched/added persisted entity or state
+  `create-impl-plan-executor.md`'s item 4): a touched/added component missing
+  from the C4 component doc, a touched/added persisted entity or state
   shape missing from the data model, a touched/added runtime flow
   missing an `lld/flows/` sequence diagram, and a user-visible
   capability missing a PRD goal or roadmap row — carried on the SAME
@@ -1269,87 +1221,47 @@ ADR 0066) and now bind the plan phase, wherever it runs:
 - Commit messages MUST follow the commit message format configured in
   `settings.json` ([configuration.md](configuration.md)).
 - `/acs:code` MUST NOT review its own changeset. The review is
-  **`/acs:review-code`**, a step of its own, and every delivery path gets the
-  same one. An implementer that grades its own output gave per-finding
-  adjudication to one path out of four and ran the full unit suite inside an
-  iteration that might be discarded.
-- `/acs:review-code` MUST review the changeset in three stages:
-    1. **Five read-only lenses in parallel**, each bounded by what it may
-       read: **A** acceptance (requirements, the plan, `test-cases.md`, the
-       diff), **B** changed-hunk defects and security (**the diff and nothing
-       else**), **C** contracts and architecture (`api-contract.md`,
-       `design.md`, architecture docs, the plan), **D** history and regression
-       (`git log --follow -p`, bounded lookback), **E** craft and scope
-       (`standards/` at `standards_path`, the diff). Lens B fans out across
-       the diff when the diff warrants it, measured from the changeset rather
-       than passed in; lens D runs on **every** run.
-    2. **One fresh-context adjudicator per candidate finding**, prompted to
-       refute it, receiving neither the other findings nor which lens raised
-       it, defaulting to refuted when uncertain. `confirmed` blocks and
-       carries a `resolved_when`; `refuted` is dropped with its reason
-       recorded; `needs-context` downgrades to advisory and is carried.
-       Corroboration is NOT a filter — per-finding re-derivation is.
-    3. **A final gate**, only when stage 2 leaves nothing blocking: build,
-       lint, the full unit suite, and coverage against
-       `settings.test_coverage_percent`. This is the only place the full suite
-       runs in the pipeline. A gate failure is a blocking finding of
-       `kind: gate` with the failing command as its evidence.
-- Blocking findings re-enter the review loop (`ship.yaml`'s
-  `loops[].max_iterations`, the same cap on every path), and `verifier_passed`
-  is DERIVED by the post-hook from `verdict.json` rather than asserted by any
-  skill ([workflow.md](workflow.md#review-feedback-loop)).
+  **`/acs:review-code`** (§3b), a step of its own, and every delivery path
+  gets the same one. An implementer that grades its own output gave
+  per-finding adjudication to one path out of four and ran the full unit suite
+  inside an iteration that might be discarded.
 - MUST record progress, findings, errors, and stop reasons so an interrupted
-  run can resume; final state lands in `code-state.json` via the post-hook.
-- On start, if the previous run is `in_progress`/`interrupted`/`failed`,
-  `/code` MUST **reconcile** before continuing: verify recorded progress
-  against reality (e.g. re-run tests for specs marked implemented) and
-  resume from the first unfinished spec/phase
-  ([workflow.md](workflow.md#resuming-a-ticket)).
-- Pre-hook (`pre-code.py`) MUST verify that the ticket's partition resolves,
-  that an approved **`plan.md` exists** for it (the input `/code` now
-  consumes rather than produces — a ticket without one is refused with a
-  pointer at `/acs:create-impl-plan <id>`), and that the ticket's own `type`
-  is not `epic`: the check is unconditional and has no `specs/`
-  precondition, but an epic ticket is refused outright with a `GateError`
-  directing the user to `/acs:create-design` (if the epic has no design yet)
-  then `/acs:create-ticket <id> --fan-out` then `/acs:code` on a child;
-  otherwise it exits 2 to stop the skill. It MUST NOT require that
-  `/create-ticket`, `/analyze-requirements` or any other skill has completed.
-  Whether `<partition>/specs/` already has
-  content is discovered by `create-impl-plan-executor`, not asserted by the
-  gate — when
-  it is absent or empty, spec authoring (scope, approach, API/data changes,
-  and a test plan with every acceptance criterion mapped to a test) is folded
-  into `/create-impl-plan`'s plan. The
-  TDD/coverage hard-fail and the verifier-as-gate are preserved unchanged on
-  every delivery path; what varies by path is only the iteration ceiling (2
-  on `trivial` and `small` — one pass plus one remediation round — 3 on
-  `standard` and `complex`) and the review's shape.
-- Subagents: `code-executor`, `code-verifier`. `/code` ships **no planner**:
-  the plan phase and `code-planner.md` moved to `/create-impl-plan` (§2b),
-  whose executor's survey inherited that charter (ADR-0092) and is spawned on
-  every run — MAR-72's STANDARD/COMPLEX-only spawn went with the lanes
-  (ADR-0095). The four delivery-path legs `code-trivial`, `code-small`,
-  `code-standard` and `code-complex` own no agents of their own: each spawns
-  these same two.
-- When the coverage target cannot be reached, `/code` MUST **hard fail**:
-  stop, record the achieved coverage and reason in `code-state.json`. A
-  failed run leaves `verifier_passed` unset, which is what `/create-pr`'s
-  brake refuses.
+  run can resume; final state lands in `steps/code/state.json` via the
+  post-hook.
+- On start, if the previous invocation is `interrupted` or `failed`, `/code`
+  MUST **reconcile** before continuing: verify recorded progress against
+  reality (e.g. re-run tests for tasks marked implemented) and resume from the
+  first unfinished task ([workflow.md](workflow.md#resuming-a-ticket)).
+- The pre-hook MUST verify that the run resolves, that an approved `plan.md`
+  exists for it (the input `/code` consumes rather than produces — a run
+  without one is refused with a pointer at `/acs:create-impl-plan <id>`), and
+  that the subject ticket's own `type` is not `epic`: an epic is refused
+  outright with a `GateError` directing the user to `/acs:create-design` (if
+  the epic has no design yet), then `/acs:create-ticket <id> --fan-out`, then
+  `/acs:code` on a child. The epic brake is unconditional and runs for every
+  implementation step, not only this one.
+- Subagents: `code-executor` and nothing else. `/code` ships **no planner**
+  (the plan phase moved to `/create-impl-plan`, §2b) and **no verifier** (the
+  review moved to `/review-code`, §3b). The four delivery-path legs
+  `code-trivial`, `code-small`, `code-standard` and `code-complex` own no
+  agents of their own: each spawns this same executor, and what varies is how
+  many and over which partition of the plan's file map.
+- When the coverage target cannot be reached, the run MUST **hard fail** at
+  the review's gate: coverage is a `kind: gate` blocking finding with the
+  failing command as its evidence. A failed review leaves `verifier_passed`
+  false, which is what `/create-pr`'s brake refuses.
 - On a **`docs_only`** ticket the TDD steps relax (no new tests, no coverage
-  measurement) but the guarantees do not: the full suite still runs once and
-  must stay green, and executable-code diffs under the flag are blocking
-  findings.
+  measurement) but the guarantees do not: the full suite still runs once at
+  the gate and must stay green, and executable-code diffs under the flag are
+  blocking findings.
 - When **`e2e`** is configured ([configuration.md](configuration.md)):
-  executors author the e2e tests their specs declared (same changeset) and run
-  the affected subset; the `code-verifier` runs the **full e2e suite** (setup
-  -> command -> teardown, always) — no zero-findings verdict without a green
-  run (`per_iteration: false` only defers it past iterations that already have
-  other blocking findings).
-- `/code` works on a dedicated git branch (and optionally a worktree) per
-  ticket; the branch name follows `formats.branch_name` from `settings.json`
-  and embeds the `<ticket-id>` so later skills and hooks can resolve ticket
-  context from it.
+  executors author the e2e tests their tasks declared (same changeset) and run
+  the affected subset; the full e2e suite is `/acs:run-e2e-tests`' own step
+  (setup → command → teardown, always).
+- `/code` works on a dedicated git branch (and optionally a worktree) per run;
+  the branch name follows `formats.branch_name` from `settings.json` and
+  embeds the `<ticket-id>` so later skills and hooks can resolve context from
+  it.
 
 ### The delivery path is judged once (ADR-0095)
 
@@ -1361,34 +1273,37 @@ the run (MAR-57). Three triggers could fire it, one of them deterministic
 (a `high_stakes_paths` glob match), and the whole contract was upward-only so
 that nothing could quietly lower rigor a user had confirmed.
 
-None of that survives. A ticket is judged onto ONE delivery path — `trivial`,
-`small`, `standard` or `complex` — after `/create-impl-plan` publishes the
-plan, and that judgement stands for the run:
+None of that survives. A run is judged onto ONE delivery path — `trivial`,
+`small`, `standard` or `complex` — by `/create-impl-plan`, and that judgement
+stands for the run:
 
-1. **One judgement, from the plan.** `/ship` reads `plan.md` after the step
-   `delivery.classify_after` names and judges the path from it, using the
+1. **One judgement, from the plan.** `/create-impl-plan` judges the path from
+   the work itself and records it in the plan's `## Contract` block, using the
    rubric in `skills/code/references/classify.md`. The plan is the first
    artifact that says what the change actually IS — its file map, its test
    strategy, the surfaces it names — rather than what the request sounded like
    before anyone read the code, which is what the axes were guessing at.
 
 2. **Recorded once, read thereafter.** The path and the one-sentence reason
-   for it are written to `pipeline-state.json` as `delivery_path` and
-   `delivery_path_reason` (`acs.py path set`). The writer REFUSES to move a
-   ticket already on a path, so a resumed run reads the recorded value instead
-   of judging again and splitting one pipeline across two rigors.
+   for it live in the plan's `## Contract` block, as `delivery_path` and the
+   `owes.reason` beside it — one artifact, written once and never re-judged.
+   `/code` dispatches to the leg the plan names; a resumed run reads the same
+   recorded value instead of judging again and splitting one run across two
+   rigors. Nobody picks a path by hand, and a path passed as an argument is
+   refused.
 
 3. **No raise, no lower, no ceiling arithmetic.** There is no `derive_lane`,
    no `verify_depth`, no iteration-ceiling recompute and no escalation event,
-   because there is nothing to move. Each leg states its own ceiling in its own
-   SKILL.md, which is both the cheaper read and the harder thing to get wrong.
+   because there is nothing to move. The one ceiling is `ship.yaml`'s
+   `loops[].max_iterations`, which the workflow owns and no leg restates.
 
-4. **What catches a wrong judgement is the review, not a trigger.** The
-   `code-verifier`'s **path audit** dimension (blocking, every path) reads the
-   recorded path and reason and judges the diff against them. Its remedy is a
-   replan — the run fails with `stop_reason: plan_superseded` and `/ship`
-   returns to `/create-impl-plan` — never a mid-run re-route, because half a
-   run at one rigor and half at another is exactly what this replaces.
+4. **What catches a wrong judgement is the review, not a trigger.** A leg that
+   believes the path is wrong for the work in front of it says so with
+   `stop_reason: needs_input` rather than behaving like another leg, and
+   `/review-code` judges the diff against the plan it was written from. The
+   remedy is a replan — the run fails with `stop_reason: plan_superseded` and
+   the loop returns to `/create-impl-plan` — never a mid-run re-route, because
+   half a run at one rigor and half at another is exactly what this replaces.
 
 5. **What got worse, and why that is accepted.** Rigor can no longer RISE
    mid-run, so a plan that understates the work is caught at the next review
@@ -1398,6 +1313,50 @@ plan, and that judgement stands for the run:
 
 6. **Sibling behavior unchanged.** The apply-tier inlining (MAR-60:
    `create-pr` → `merge-pr` → `create-ticket`) is unaffected.
+
+## 3b. `/acs:review-code`
+
+Purpose: judge the changeset `/acs:code` produced, and be the only place the
+full unit suite runs.
+
+- `/acs:review-code` is a **step of the workflow**, not a phase inside
+  `/acs:code`, and it runs on **every** delivery path. It reviews the
+  changeset — not one executor's output, not one iteration's diff — against
+  the gated upstream contracts.
+- It MUST review in three stages:
+    1. **Five read-only lenses in parallel**, each bounded by what it may
+       read: **A** acceptance (requirements, the plan, `test-cases.md`, the
+       diff), **B** changed-hunk defects and security (**the diff and nothing
+       else**), **C** contracts and architecture (`api-contract.md`,
+       `design.md`, architecture docs, the plan), **D** history and regression
+       (`git log --follow -p`, bounded lookback), **E** craft and scope
+       (`standards/` at `standards_path`, the diff; **Simplicity & scope** —
+       overcomplication and out-of-scope edits — is blocking and lives here).
+       Lens B fans out across the diff when the diff warrants it, measured
+       from the changeset rather than passed in; lens D runs on **every** run.
+    2. **One fresh-context adjudicator per candidate finding**, prompted to
+       refute it, receiving neither the other findings nor which lens raised
+       it, defaulting to refuted when uncertain. `confirmed` blocks and
+       carries a `resolved_when`; `refuted` is dropped with its reason
+       recorded; `needs-context` downgrades to advisory and is carried.
+       Corroboration is NOT a filter — per-finding re-derivation is.
+    3. **A final gate**, only when stage 2 leaves nothing blocking: build,
+       lint, the full unit suite, and coverage against
+       `settings.test_coverage_percent`. This is the only place the full suite
+       runs in the pipeline. A gate failure is a blocking finding of
+       `kind: gate` with the failing command as its evidence.
+- The step's conclusion is a **document**, not a status: `verdict.json` under
+  `<run>/steps/review-code/`. Completing the step without a usable verdict is
+  refused. `verifier_passed` is **derived** by the post-hook from that verdict
+  and never asserted by a coordinator
+  ([workflow.md](workflow.md#review-feedback-loop)).
+- Blocking findings re-enter the loop: `ship.yaml`'s `loops[]` returns the
+  cursor to `code`, up to `loops[].max_iterations`, and `on_exhausted: fail`
+  means a run that cannot clear its findings fails rather than passing with
+  them.
+- Subagents: `review-code-lens` and `review-code-adjudicator`. That is not an
+  executor/verifier pair and is not meant to be — the two roles fan out
+  independently of each other.
 
 ## 3a. `/create-e2e-tests`
 

@@ -132,6 +132,14 @@ from the review — not the lens reports, not the adjudication transcripts. Ever
 Each finding carries a `resolved_when` — what the fix must make true. Work to
 that, not to your own reading of the claim.
 
+The findings go straight into the executor's `<context>` — no planner runs
+between the review and the fix, on this or any path. A finding already says
+what is wrong and what would make it right; re-deriving that through a
+planning pass would spend a round restating the verdict, and the plan
+`/acs:create-impl-plan` wrote is still the plan. When a finding genuinely
+invalidates that plan, the remedy is `stop_reason: plan_superseded`, not a
+planner inside this loop.
+
 ## Finish
 
 The leg ran `acs step start --step code` and `acs step finish`, wrote every

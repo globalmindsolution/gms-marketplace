@@ -26,37 +26,40 @@ Conventions, uniform across every subcommand:
   * A usage or precondition failure writes `acs <command>: <reason>` to stderr
     and exits 2 — the same shape and code the existing scripts use.
   * Exit 0 means the command ran; it does NOT mean the answer was yes. Read
-    the JSON (`delivery_path`, `eligible`, `ok`) for the verdict.
+    the JSON (`ok`, `next`, `eligible`, `passed`) for the verdict.
 
 Usage:
   acs.py context
-  acs.py gate --skill code [--ticket MAR-1]
-  acs.py start --skill code --args MAR-1
-  acs.py finish --ticket MAR-1 --skill test --status completed
-  acs.py path show --ticket MAR-1
-  acs.py path set --ticket MAR-1 --path standard --reason "adds a public endpoint and migrates orders"
+  acs.py gate --skill code [--run MAR-1]
+  acs.py run new --ticket MAR-1 | --prompt "..." | --document path.md
+  acs.py run show [--run MAR-1]
+  acs.py run next [--run MAR-1]
+  acs.py run check [--run MAR-1]
+  acs.py run abandon --run MAR-1 --reason "superseded by MAR-2"
+  acs.py step start --step code [--run MAR-1]
+  acs.py step finish --step code [--run MAR-1] [--status completed]
+  acs.py step show --step code [--run MAR-1]
+  acs.py result validate --skill code result.json
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py pr metadata fill --ticket MAR-1 --pr 42
   acs.py tracker sync --ticket MAR-1 --ticket MAR-2
   acs.py readiness --pr 42
   acs.py readiness --from recorded-pr.json
-  acs.py lock status --ticket MAR-1
-  acs.py lock force-unlock --ticket MAR-1 --reason "the holding container died"
+  acs.py lock status [--run MAR-1]
+  acs.py lock force-unlock --run MAR-1 --reason "the holding container died"
   acs.py filemap set --task 1 --file src/a.py --file tests/test_a.py
   acs.py filemap show
-  acs.py guard events --ticket MAR-1
+  acs.py guard events [--run MAR-1]
   acs.py verdict show --iteration 2
-  acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
   acs.py setup detect
   acs.py setup apply --answers answers.json
-  acs.py result validate --skill code result.json
   acs.py slug --text "Introduce the acs CLI"
+  acs.py fanout ...
   acs.py doctor
   acs.py workflow show
   acs.py workflow validate [--file PATH]
-  acs.py workflow next --ticket MAR-1 [--dry-run]
   acs.py artifacts migrate [--dry-run]
   acs.py artifacts show --ticket MAR-1
 """

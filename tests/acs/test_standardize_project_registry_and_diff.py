@@ -51,22 +51,39 @@ class Mar121RegistryCase(unittest.TestCase):
             self.assertEqual(acs_lib.DELIVERY_TICKET_TITLES.get(key), value)
 
     def test_gate_registered_for_standardize_project(self):
-        self.assertIn("standardize-project", lib.HOOKED_SKILLS)
-        self.assertIs(
-            lib.gate_step, acs_lib.gate_standardize_project
-        )
+        self.assertIn("standardize-project", acs_lib.HOOKED_SKILLS)
+        # v0.5.0: one gate for every step (`gate_step`), with the
+        # architecture precondition declared as membership rather than as a
+        # per-skill function. The registry row IS the registration now.
+        self.assertIn("standardize-project", acs_lib.ARCHITECTURE_GATED)
 
 
 class Mar121GateStandardizeProjectCase(unittest.TestCase):
-    """AC-3 boundary + R1 non-reproduction, direct function-level."""
+    """AC-3 boundary + R1 non-reproduction, direct function-level.
+
+    The per-skill `gate_standardize_project` is gone: `gate_step` runs the
+    shared `_require_architecture_doc_set` for every member of
+    ARCHITECTURE_GATED. The PRECONDITION is unchanged, so it is still
+    asserted here -- against the function that now owns it."""
 
     def _ctx(self, root, settings=None):
         return {"checkout_root": root, "settings": settings or {}}
 
+    def _gate(self, ctx):
+        return acs_lib.gates._require_architecture_doc_set(ctx)
+
     def test_blocks_without_architecture_tech_stack(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(acs_lib.GateError):
-                acs_lib.gate_standardize_project(self._ctx(tmp), {})
+                self._gate(self._ctx(tmp))
+
+    def test_an_empty_architecture_directory_is_not_a_doc_set(self):
+        """What a half-finished /acs:create-architecture leaves behind: the
+        directory without the file it exists to hold."""
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "docs", "architecture", "hld"))
+            with self.assertRaises(acs_lib.GateError):
+                self._gate(self._ctx(tmp))
 
     def test_passes_with_tech_stack_present(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -74,7 +91,7 @@ class Mar121GateStandardizeProjectCase(unittest.TestCase):
             os.makedirs(hld)
             with open(os.path.join(hld, "tech-stack.md"), "w") as fh:
                 fh.write("# tech stack")
-            self.assertIsNone(acs_lib.gate_standardize_project(self._ctx(tmp), {}))
+            self.assertIsNone(self._gate(self._ctx(tmp)))
 
     def test_passes_with_principles_and_standards_path_unset_or_absent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -83,12 +100,8 @@ class Mar121GateStandardizeProjectCase(unittest.TestCase):
             with open(os.path.join(hld, "tech-stack.md"), "w") as fh:
                 fh.write("# tech stack")
             null_settings = {"principles_path": None, "standards_path": None}
-            self.assertIsNone(
-                acs_lib.gate_standardize_project(self._ctx(tmp, null_settings), {})
-            )
-            self.assertIsNone(
-                acs_lib.gate_standardize_project(self._ctx(tmp, {}), {})
-            )
+            self.assertIsNone(self._gate(self._ctx(tmp, null_settings)))
+            self.assertIsNone(self._gate(self._ctx(tmp, {})))
 
     def test_does_not_hard_require_project_structure_md(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -97,7 +110,7 @@ class Mar121GateStandardizeProjectCase(unittest.TestCase):
             with open(os.path.join(hld, "tech-stack.md"), "w") as fh:
                 fh.write("# tech stack")
             # hld/project-structure.md deliberately absent.
-            self.assertIsNone(acs_lib.gate_standardize_project(self._ctx(tmp), {}))
+            self.assertIsNone(self._gate(self._ctx(tmp)))
 
 
 class Mar121AdditiveDiffHelperCase(unittest.TestCase):

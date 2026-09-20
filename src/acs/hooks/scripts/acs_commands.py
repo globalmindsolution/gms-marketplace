@@ -600,9 +600,10 @@ def cmd_ticket_save(args):
     it and blanking the index row, which `gate_code`, `_epic_auto_done` and
     `fanout_batches` all read.
 
-    Refuses to write a delivery path: it is judged once from the plan and
-    recorded through `acs.py path set`, which is the call that refuses to move
-    a ticket already on one (ADR-0095)."""
+    Refuses to write a delivery path: it is judged once, by
+    `/acs:create-impl-plan`, and recorded in the plan's own `## Contract`
+    block (ADR-0095). A ticket field holding a second copy is how one run ends
+    up on two rigors."""
     ticket_id, tdir, ctx = partition_or_die("ticket save", args.ticket)
     current = load_ticket_or_die("ticket save", tdir, ticket_id)
     incoming = read_json_arg("ticket save", args.source)
@@ -615,9 +616,9 @@ def cmd_ticket_save(args):
     guarded = [k for k in ("delivery_path", "delivery_path_reason")
                if k in incoming and incoming[k] != current.get(k)]
     if guarded:
-        die("ticket save", "%s is not a ticket field — the delivery path lives on "
-            "pipeline-state.json and moves only through `acs.py path set`"
-            % ", ".join(guarded))
+        die("ticket save", "%s is not a ticket field — the delivery path is judged "
+            "once by /acs:create-impl-plan and lives in the plan's `## Contract` "
+            "block" % ", ".join(guarded))
 
     updated = dict(current)
     updated.update(incoming)

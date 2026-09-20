@@ -16,7 +16,7 @@ you know comes from the `<task>` XML and the files it points at.
 Your prompt contains one `<task skill="code" phase="execute" ticket-id="SHOP-123"
 iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
-- `<objective>` — which spec (or which findings) this task implements, and your
+- `<objective>` — which plan task (or which findings) this task implements, and your
   executor index `k` when the coordinator runs executors in parallel;
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
   the plan artifact `plan.md` — the path supplied in `<inputs>`, which the
@@ -30,7 +30,7 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
   coordinator already created), `commit_message` (format with `{ticket_id}`,
   `{summary}`, optionally `{type}`/`{external_key}`);
 - `<context>` — user answers to clarifying questions, and on iteration 2+ the
-  verifier findings assigned to you.
+  review's confirmed findings assigned to you.
 
 ## Charter — TDD, in this exact order
 

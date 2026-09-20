@@ -327,8 +327,10 @@ class TestAgentContracts(unittest.TestCase):
                 if skill == "create-impl-plan" and role == "executor":
                     # The deliverable IS the plan: its executor writes the
                     # single per-run draft plan.md the coordinator publishes,
-                    # alongside the standard iter-<n>-execute.json report.
-                    self.assertIn("phases/create-impl-plan/plan.md", body,
+                    # alongside the standard iter-<n>/execute.json report. The
+                    # draft is per-RUN, not per-iteration, so it sits beside
+                    # the iteration directories rather than inside one.
+                    self.assertIn("steps/create-impl-plan/plan.md", body,
                                   "create-impl-plan-executor missing plan.md draft")
                 self.assertRegex(body, r"iter-<n(?:>|\b)[^\n]*%s" % kind,
                                  "%s-%s missing iter-<n>-%s artifact" % (skill, role, kind))
@@ -805,13 +807,27 @@ class TestApplyTierInline(unittest.TestCase):
 
     def test_skills_md_apply_skills_no_triad_in_subagents(self):
         """AC-7: skills.md must not list planner for apply skills and must carry
-        an inline/apply-work carve-out token."""
+        an inline/apply-work carve-out token.
+
+        Sliced by SECTION rather than by proximity: the `## N. /<skill>`
+        heading is what says whose Subagents line a given sentence is, and a
+        character window around a mere MENTION of an apply skill is not. The
+        window read `/code`'s own "ships **no planner**" line as `create-ticket`'s
+        once the epic-brake pointer moved within 500 characters of it."""
         body = read(self.doc_path("docs", "requirements", "functional", "skills.md"))
-        self.assertIsNone(
-            re.search(
-                r"(?s)(create-pr|merge-pr|create-ticket).{0,500}Subagents.{0,300}planner",
-                body),
-            "AC-7: skills.md per-skill Subagents must not list planner for apply skills")
+        headings = [m.start() for m in re.finditer(r"(?m)^## ", body)] + [len(body)]
+        for skill in ("create-pr", "merge-pr", "create-ticket"):
+            found = False
+            for start, end in zip(headings, headings[1:]):
+                title = body[start:body.index("\n", start)]
+                if re.search(r"`?/(acs:)?%s`?\b" % re.escape(skill), title):
+                    found = True
+                    section_body = body[start:end]
+                    with self.subTest(skill=skill):
+                        self.assertIsNone(
+                            re.search(r"(?s)Subagents.{0,300}planner", section_body),
+                            "AC-7: /%s's Subagents must not list a planner" % skill)
+            self.assertTrue(found, "skills.md must have a section for /%s" % skill)
         self.assertIsNotNone(
             re.search(r"(?i)(inline|deterministic.inline|apply.work)", body),
             "AC-7: skills.md must carry an inline/apply-work carve-out token")
@@ -1320,11 +1336,15 @@ class TestDeliveryPathContract(unittest.TestCase):
     make a rigor decision SAFE to change mid-run.
 
     ADR-0095 removed the need for it by moving the decision: rigor is judged
-    once, from `plan.md`, by /ship, and recorded. So what is pinned now is the
-    single judgement and the things that keep it single — the record, the
-    refusal to re-judge, and the review dimension that catches a wrong call —
-    plus the absence of the machinery, because a doc that still described the
-    triggers would send a reader looking for helpers that are gone."""
+    once, from the work itself, and recorded. v0.5.0 moved WHERE: the judge is
+    `/acs:create-impl-plan` and the record is the plan's own `## Contract`
+    block, not a `delivery:` block in the workflow and not a second copy on
+    `run.json` — one artifact, written once, read by everything downstream.
+    So what is pinned now is the single judgement and the things that keep it
+    single — the record, the refusal to re-judge, and what catches a wrong
+    call — plus the absence of the machinery, because a doc that still
+    described the triggers would send a reader looking for helpers that are
+    gone."""
 
     def _body(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional",
@@ -1338,11 +1358,12 @@ class TestDeliveryPathContract(unittest.TestCase):
     def test_the_path_is_judged_once_from_the_plan(self):
         self.assertIsNotNone(
             re.search(r"(?i)judged onto ONE delivery path", self._norm()),
-            "skills.md must state the ticket is judged onto one delivery path")
+            "skills.md must state the run is judged onto one delivery path")
         self.assertIsNotNone(
-            re.search(r"(?i)`/ship` reads `plan\.md`.{0,200}judges the path from it",
-                      self._norm()),
-            "skills.md must say /ship judges the path from the plan")
+            re.search(r"(?i)`/create-impl-plan` judges the path from\b.{0,200}"
+                      r"records it in the plan", self._norm()),
+            "skills.md must say /create-impl-plan judges the path and records "
+            "it in the plan")
 
     def test_the_four_paths_are_named(self):
         body = self._norm()
@@ -1353,17 +1374,23 @@ class TestDeliveryPathContract(unittest.TestCase):
     def test_the_judgement_is_recorded_and_re_judging_is_refused(self):
         body = self._norm()
         self.assertIn("delivery_path", body)
-        self.assertIn("delivery_path_reason", body)
-        self.assertIn("run.json", body)
         self.assertIsNotNone(
-            re.search(r"(?i)REFUSES to move a ticket already on a path", body),
-            "skills.md must state the writer refuses to re-judge a recorded path")
+            re.search(r"(?i)`## Contract` block", body),
+            "skills.md must name the plan's `## Contract` block as the record")
+        self.assertIsNotNone(
+            re.search(r"(?i)written once and never re-judged", body),
+            "skills.md must state the recorded path is never re-judged")
+        self.assertIsNotNone(
+            re.search(r"(?i)a path passed as an argument is refused", body),
+            "skills.md must state a hand-passed path is refused")
 
     def test_a_wrong_judgement_is_caught_by_the_review_not_a_trigger(self):
         body = self._norm()
         self.assertIsNotNone(
-            re.search(r"(?i)\*\*path audit\*\*", body),
-            "skills.md must name the verifier's path-audit dimension")
+            re.search(r"(?i)`stop_reason: needs_input` rather than behaving like "
+                      r"another leg", body),
+            "skills.md must say a leg that disagrees with the path says so "
+            "rather than acting like another leg")
         self.assertIn("plan_superseded", body)
         self.assertIsNotNone(
             re.search(r"(?i)remedy is a replan", body),
@@ -1473,35 +1500,41 @@ class TestReflectionMdCeilingContract(unittest.TestCase):
             os.path.isfile(self._reflection_md_path()),
             "docs/requirements/functional/reflection.md must exist")
 
-    def test_the_ceiling_is_stated_per_path_and_never_moves(self):
+    def test_the_ceiling_belongs_to_the_workflow_not_the_path(self):
+        """v0.5.0 finished the move the ADR started. The per-path ceilings
+        were a property of the in-skill verify loop; that loop is now the
+        WORKFLOW's (code -> review-code), so there is one cap and one place
+        it is written. A doc restating a per-path number is restating a cap
+        it does not own."""
         body = self._body()
         self.assertRegex(
-            body, r"(?i)ceiling never moves mid-run|never moves mid-run",
-            "reflection.md must state the ceiling does not move mid-run")
+            body, r"(?i)ceiling is \*\*not\*\* a property of the path",
+            "reflection.md must say the ceiling is not a property of the path")
         self.assertRegex(
-            body, r"(?i)at most \*\*2 iterations\*\*",
-            "reflection.md must state the cheap paths' ceiling")
-        self.assertRegex(
-            body, r"(?i)at most \*\*3 iterations\*\*",
-            "reflection.md must state the deep paths' ceiling")
+            body, r"(?i)loops\[\]\.max_iterations.{0,60}same on every path",
+            "reflection.md must name ship.yaml's loop cap as the one ceiling")
+        self.assertNotRegex(
+            body, r"(?i)at most \*\*\d+ iterations\*\*",
+            "reflection.md must not restate a per-path iteration ceiling")
 
     def test_reflection_md_invariants_preserved(self):
         """AC-7, unchanged in substance: the two absolute invariants survive
-        the rewrite. Only the words that scoped them moved, from "in every
-        lane" to "on every delivery path"."""
+        the rewrite. Only the words that scoped them moved -- from "in every
+        lane" to "on every delivery path", and from the in-skill verifier to
+        /acs:review-code, which is the step that now runs on all of them."""
         body = self._body()
         self.assertIn(
             "Absolute invariants", body,
             "reflection.md must retain the 'Absolute invariants' block")
         self.assertRegex(
             body,
-            r"(?i)verifier.{0,80}(always runs|every delivery path|every path)|"
-            r"every (delivery )?path.{0,80}verifier",
-            "reflection.md must retain the verifier-always-runs invariant")
+            r"(?i)review always runs.{0,60}every delivery path|"
+            r"every delivery path.{0,80}review always runs",
+            "reflection.md must retain the review-always-runs invariant")
         self.assertRegex(
             body,
-            r"(?i)TDD.{0,80}coverage.{0,80}(gate|never trimmed|in full)|"
-            r"coverage.{0,80}gate.{0,80}(never trimmed|in full)",
+            r"(?i)TDD.{0,120}coverage gate.{0,60}never trimmed|"
+            r"coverage gate.{0,60}never trimmed",
             "reflection.md must retain the TDD/coverage-gate invariant")
 
     def test_the_retired_motion_is_not_still_described_as_live(self):
