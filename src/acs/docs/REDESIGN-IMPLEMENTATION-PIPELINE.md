@@ -21,7 +21,7 @@ surface this redesign removes exists only on unreleased `main`:
 |---|---|
 | `analyze-ticket` (renamed here) | **no** |
 | the verifier inside `/acs:code`, and the legs' per-path verifier shape | **no** |
-| `ship.yaml`, `phases.yaml` — the whole `workflows/` layer | **no** — the directory does not exist in 0.4.9 |
+| `ship.yaml`, `phases.yaml` — the whole `workflows/` layer (`phases.yaml` is removed outright, §2.4) | **no** — the directory does not exist in 0.4.9 |
 | ticket-keyed state partitions | yes |
 | `test` alias | yes (already deprecated) |
 
@@ -174,8 +174,9 @@ written in an order that cannot work — `create-api-contract` before
 *loudly* (the step's input gate refuses: "no plan for this run"), but only at
 runtime, after the steps before it have already spent their cost. So
 `acs workflow validate` catches it first, and it does so **without any edge
-in `ship.yaml`**: every skill declares in the registry what artifacts it
-`reads` and `writes` — a fact about the skill, true in every workflow — and
+in `ship.yaml`**: every skill declares **in its own directory** what artifacts
+it `reads` and `writes` (§2.4) — a fact about the skill, true in every
+workflow — and
 the validator checks that each step's required reads are written by some
 earlier step or are a run-level input. Swap two steps whose order does not
 matter (`docs-sync` and the e2e pair) and it passes; swap two whose order does
@@ -213,6 +214,54 @@ the gate cannot disagree about what a skill needs. It is not `needs:` by
 another name: `needs:` was a per-workflow edge list an author maintained and
 that duplicated what the skills already knew; this is the skills saying it
 once, and every workflow being checked against it.
+
+### 2.4 There is no registry
+
+`workflows/phases.yaml` is removed. It was the fifth central list of the
+skills — after the 18-name enum, the 33-name enum and the two `argparse`
+copies, all of which §4 removes — and keeping it would have left the one
+that the other four were copies of. Everything it holds either **derives from
+the filesystem** or **belongs to the skill**:
+
+| `phases.yaml` held | Where it lives now |
+|---|---|
+| which skills exist | `skills/<name>/SKILL.md` exists |
+| `agents:` — which subagent roles a skill owns | `agents/<skill>-<role>.md` exists; PRD G8 (every agent file is reachable) becomes a naming-convention check |
+| `internal:` — which skill a leg belongs to | `leg_of: code` in the leg's own `acs.yaml` |
+| `phases:` — the lifecycle group | `phase: build` in `acs.yaml`, read by the README table and the metrics grouping and by nothing else |
+| `aliases:` | the one alias is removed (§6); none remain |
+| the rule "only build, test and ship skills may be steps" | dropped — a step is any skill that declares `reads` / `writes`; the validator checks the order, not the group |
+| — | `reads:` / `writes:` (§2.1), which never had a home |
+
+So each skill directory gains one small file:
+
+```yaml
+# skills/create-api-contract/acs.yaml
+phase: build
+reads:
+  required: [plan]
+  optional: []
+writes: [api-contract]
+```
+
+```yaml
+# skills/code-standard/acs.yaml
+phase: build
+leg_of: code            # not a step; /acs:code dispatches to it
+```
+
+A skill with no `acs.yaml`, or one that declares no `reads` / `writes`, is not
+a step candidate — `setup`, `metrics`, `handoff`, and `ship` itself are
+skills, not steps, and that is the whole admission rule. `acs.yaml` is not
+Claude Code's `SKILL.md` frontmatter, which stays exactly the four keys it
+carries today; acs's facts about a skill live beside it, in a file acs owns.
+
+The cost is honest: 32 small files where there was one. The return is that
+the redesign's own rule — *a skill is described by its directory* — has no
+exception, that adding a skill is a directory and nothing else, and that
+"phases" stops meaning two things (§4.1 already removed the other one).
+`acs_lib/phases.py` becomes `acs_lib/skills.py`: discovery by listing, facts
+by reading `acs.yaml`, agents by naming convention.
 
 **Where the removed predicates went.** Nothing is lost; each moves to the party
 that can evaluate it from its own inputs:
@@ -898,12 +947,12 @@ allows a transition:
   to loop past it; a hand-driven run may exceed it and `acs run check` reports
   that as a warning, not a violation (§3.11)
 - **I5** every key of `steps` is a step of the resolved workflow, and every
-  `leg` is a leg of that step's skill in `workflows/phases.yaml`
+  `leg` names a skill whose `acs.yaml` says `leg_of: <that step>`
 
 I5 is where the closed enums went: the *workflow* validates step names, the
-*registry* validates skill and leg names, and the JSON schema validates shape.
-Adding a workflow is a YAML file; adding a skill is a registry entry; neither
-touches a schema.
+*skill directories* validate skill and leg names (§2.4), and the JSON schema
+validates shape. Adding a workflow is a YAML file; adding a skill is a
+directory; neither touches a schema or a central list.
 
 ### 4.4 The step machine — `steps/<skill>/state.json`
 
@@ -916,8 +965,8 @@ status and stop reason. Four changes:
    a `runs` array inside a step's state means the wrong thing. An invocation
    is one session's attempt at this step.
 2. **`ticket_id` becomes `run_id`.**
-3. **`skill` is validated against the registry, not an enum.** The 33-name
-   list leaves the schema.
+3. **`skill` is validated against the skill directories, not an enum.** The
+   33-name list leaves the schema.
 4. **The `states` keys are declared per skill.** Today one central schema
    lists every skill's `states` keys — `verifier_passed`, `plan_approved`,
    `file_map`, `pr`, `merged`, `readiness`, sixteen of them. Each skill's
@@ -967,7 +1016,7 @@ Fifteen JSON schemas and one XSD today; the table is every one of them.
 | `clarifications.schema.json` | same | `ticket_id` → `run_id` |
 | `verdict.schema.json` | same | owned by `review-code`; gains `reviewed_sha`, and per finding `id`, `status`, `kind`, `lens`, `claim`, `evidence`, `resolved_when`, `traces_to`, `adjudication` (§2.3) — today a finding is `severity`, `dimension`, `detail`, `file`, `line` |
 | — | `result.schema.json` | **new** — the step result document, today validated ad hoc by `acs phase validate`; for `code` it carries `since_sha` and `resolutions[]` (§2.3) |
-| `phases.schema.json` | same | each skill gains `reads` (required + optional) and `writes` — the artifact declarations `acs workflow validate` and the input gates share (§2.1) |
+| `phases.schema.json` | `acs-skill.schema.json` | validates one `skills/<name>/acs.yaml` (§2.4): `phase`, `leg_of`, `reads`, `writes` |
 | `ticket.schema.json`, `tickets-index.schema.json`, `counters.schema.json`, `lock.schema.json`, `lock-events.schema.json`, `metrics.schema.json`, `settings.schema.json` | same | unchanged (settings loses the removed keys) |
 | `acs-messages.xsd` | — | removed (§6) |
 
@@ -987,7 +1036,8 @@ everything §2.1 removed.
 | `workflow.py` | load, validate, `loops`, the step list | minus `delivery_*`, `per_path`, `is_path_dependent`, `step_skills`, every predicate, `next_steps` |
 | `derive.py` | unchanged role; reads `iter-<n>/` directories instead of globbing prefixes | — |
 | `lifecycle.py` | unchanged role; writes under `runs/<run-id>/` | — |
-| `gates.py` | `build_context`, `run_pre`, `run_post`; reads the cursor, not `needs` | minus the ready-set logic |
+| `gates.py` | `build_context`, `run_pre`, `run_post`; input gates read `acs.yaml`'s `reads` | minus the ready-set logic and `GATE_INPUTS` |
+| `skills.py` | discovery: which skills exist, their `acs.yaml`, their agents by naming convention (§2.4) | `phases.py`, minus `load_phases`, `skill_aliases`, `allowed_ship_skills`, `allowed_step_skills` |
 
 ### 4.8 The CLI
 
@@ -1000,7 +1050,7 @@ the run gets a verb of its own:
 | `acs run new \| show \| next \| check \| abandon` | `acs workflow next`; nothing for the rest | `next` is the cursor; `check` is I1–I5; every verb defaults to **this checkout's current run** and takes `--run` only to name another |
 | `acs step start \| finish \| show --step <name>` | `acs start`, `acs finish` | `--step` validated against the resolved workflow, not an enum; `--run` as above |
 | `acs result validate` | `acs phase validate` | "phase" meant three things; this one is the result document |
-| `acs workflow show \| validate` | same | `next` moved to `acs run`; `validate` now checks the list's order against the registry's `reads` / `writes` and the loop rule (§2.1) |
+| `acs workflow show \| validate` | same | `next` moved to `acs run`; `validate` now checks the list's order against each skill's `reads` / `writes` and the loop rule (§2.1) |
 | `acs plan path` | `acs path` | the path is read from the plan's `## Contract` block |
 | `acs lock`, `acs ticket`, `acs verdict`, `acs filemap`, `acs guard`, `acs context` | same | unchanged |
 | — | `acs artifacts migrate` | removed: there is no migration |
@@ -1079,7 +1129,8 @@ No compatibility shims. These go in the same release.
 | `status: skipped` | replaced by `completed` + an `outcome` the skill wrote |
 | `status: handed_off` | a reason, not a state: `interrupted` + `stop_reason` (§4.3) |
 | `id:`, `name:`, `stop_after:` in `ship.yaml` | the skill name, the file name, the end of the list |
-| the 18- and 33-name skill enums, and the `argparse` copies in `acs start` / `acs finish` | the workflow and the registry validate names (§4.3 I5) |
+| the 18- and 33-name skill enums, and the `argparse` copies in `acs start` / `acs finish` | the workflow and the skill directories validate names (§4.3 I5) |
+| `workflows/phases.yaml`, `phases.schema.json`, `acs_lib/phases.py`, and the "only build/test/ship skills may be steps" rule | `skills/<name>/acs.yaml`, discovery by listing, agents by naming convention (§2.4) |
 | `acs start`, `acs finish`, `acs phase validate`, `acs workflow next`, `acs artifacts migrate` | `acs step`, `acs result validate`, `acs run next`; no migration (§4.8) |
 | the `iter-<n>-*` filename-prefix scheme and the `phases/code/plan.md` approval mirror | `iter-<n>/` directories; one plan (§4.2) |
 | `test` (alias) | ambiguous; `run-e2e-tests` is the skill |
@@ -1111,10 +1162,10 @@ Named explicitly so a "from scratch" reading does not discard them:
   (`/acs:code`, not the workflow), never that the path exists
 - **plan approval** bound to `plan_sha256`, written only by `plan-approval.py`
   and never by an agent
-- `workflows/phases.yaml` as the single, non-overridable skill registry feeding
-  the workflow schema, the README table, INTERNALS and metrics grouping
-- the split where the **plugin owns the registry and the consumer owns the
-  pipeline** — this is what makes "add more workflows" safe
+- the split where the **plugin owns the skills and the consumer owns the
+  pipeline** — a consumer writes `ship.yaml` and cannot change what a skill
+  reads, writes or is a leg of, because those facts ship inside the plugin
+  beside the skill (§2.4); this is what makes "add more workflows" safe
 
 ---
 
@@ -1143,8 +1194,9 @@ change the workflow, only what records its progress — so the tree stays green
 between P1 and P2a.
 
 **P2a — workflow engine.** `ship.yaml` version 3: the flat step list, the
-`loops:` construct, order validation from the registry's `reads` / `writes`
-declarations (which also replace `GATE_INPUTS`), `cursor` in `run.json`, and
+`loops:` construct, `skills/<name>/acs.yaml` replacing `workflows/phases.yaml`
+(§2.4) with order validation from its `reads` / `writes` (which also replace
+`GATE_INPUTS`), `cursor` in `run.json`, and
 a workflow schema that
 **rejects** `needs:` / `when:` / `paths:` / `requires:` / `delivery:` /
 `max_parallel` / `exclusive:` / `on_fail:` / `boundary:` / `id:` / `name:` /
