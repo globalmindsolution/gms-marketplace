@@ -67,12 +67,12 @@ class RecordGuardEventTest(unittest.TestCase):
 
     def _seed_run(self):
         lib.write_json(lib.state_path(self.tdir_path, "code"), {
-            "skill": "code", "ticket_id": "SHOP-1", "states": {}, "findings": [],
-            "errors": [], "runs": [{"started_at": lib.now_iso(), "status": "in_progress"}]})
+            "skill": "code", "run_id": "SHOP-1", "states": {}, "findings": [],
+            "errors": [], "invocations": [{"started_at": lib.now_iso(), "status": "in_progress"}]})
 
     def _events(self):
         state = lib.read_json(lib.state_path(self.tdir_path, "code")) or {}
-        return (state.get("runs") or [{}])[-1].get("guard_events")
+        return (state.get("invocations") or [{}])[-1].get("guard_events")
 
     def test_the_event_lands_on_the_last_run_entry(self):
         self._seed_run()
@@ -133,7 +133,7 @@ class GuardEventsCase(FileMapGuardCase):
 
     def entry(self, skill="code"):
         state = lib.read_json(lib.state_path(self.tdir_path, skill)) or {}
-        runs = state.get("runs") or []
+        runs = state.get("invocations") or []
         return runs[-1] if runs else {}
 
     def events(self, skill="code"):
@@ -214,7 +214,7 @@ class RecordedDenialTest(GuardEventsCase):
         self.write_attempt("src/one.py")
         self.write_attempt("src/two.py")
         state = lib.read_json(lib.state_path(self.tdir_path, "code"))
-        self.assertEqual(len(state["runs"]), 1, "no second run entry is created")
+        self.assertEqual(len(state["invocations"]), 1, "no second run entry is created")
         self.assertEqual([e["target"] for e in self.events()], ["src/one.py", "src/two.py"])
 
     def test_the_iteration_in_force_is_the_one_recorded(self):
@@ -280,7 +280,7 @@ class VerdictInvarianceTest(GuardEventsCase):
     def _clear_runs(self):
         path = lib.state_path(self.tdir_path, "code")
         state = lib.read_json(path)
-        state["runs"] = []
+        state["invocations"] = []
         lib.write_json(path, state)
 
     def test_with_no_run_entry_the_deny_is_unchanged_and_says_so_once(self):
@@ -292,7 +292,7 @@ class VerdictInvarianceTest(GuardEventsCase):
         self.assertIn("is outside this task's file map.", out.stderr)
         notes = [line for line in out.stderr.splitlines() if line.startswith(NOTE_PREFIX)]
         self.assertEqual(len(notes), 1, out.stderr)
-        self.assertEqual(lib.read_json(lib.state_path(self.tdir_path, "code"))["runs"], [])
+        self.assertEqual(lib.read_json(lib.state_path(self.tdir_path, "code"))["invocations"], [])
 
     def test_a_writer_that_raises_leaves_the_verdict_and_notes_once(self):
         self.declare("src/a.py")
@@ -407,13 +407,13 @@ class DerivedGuardDenialsCase(AcsWorkspaceCase):
     def seed_run(self, events=None, skill="code"):
         path = lib.state_path(self.tdir_path, skill)
         state = lib.read_json(path)
-        if not isinstance(state, dict) or not state.get("runs"):
+        if not isinstance(state, dict) or not state.get("invocations"):
             state = lib.empty_state(skill, self.ticket)
-            state["runs"] = [{"started_at": lib.now_iso(), "ended_at": None,
+            state["invocations"] = [{"started_at": lib.now_iso(), "ended_at": None,
                               "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0,
                               "status": "in_progress", "stop_reason": None}]
         if events is not None:
-            state["runs"][-1]["guard_events"] = [
+            state["invocations"][-1]["guard_events"] = [
                 {"ts": lib.now_iso(), "skill": skill, "iteration": "1", "tool": "Write",
                  "target": "src/%d.py" % n, "reason": "outside_map", "declared_count": 2}
                 for n in range(events)]
@@ -492,7 +492,7 @@ class SchemaTest(unittest.TestCase):
     def setUp(self):
         with open(SCHEMA_PATH, encoding="utf-8") as fh:
             self.schema = json.load(fh)
-        self.entry = (self.schema["properties"]["runs"]["items"])
+        self.entry = (self.schema["properties"]["invocations"]["items"])
 
     def test_guard_events_is_declared_on_the_run_entry(self):
         events = self.entry["properties"]["guard_events"]
@@ -516,8 +516,8 @@ class SchemaTest(unittest.TestCase):
                  "declared_count": 2}
 
         def state(entry):
-            return {"skill": "code", "ticket_id": "SHOP-1", "states": {},
-                    "findings": [], "errors": [], "runs": [entry]}
+            return {"skill": "code", "run_id": "SHOP-1", "states": {},
+                    "findings": [], "errors": [], "invocations": [entry]}
 
         jsonschema.validate(state(legacy), self.schema)
         recorded = dict(legacy, guard_events=[event])

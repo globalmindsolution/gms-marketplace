@@ -186,8 +186,9 @@ class AcsWorkspaceCase(unittest.TestCase):
                       for ident in lib.owed_dimensions(lens)]
         if not passed:
             dimensions[1]["result"] = "fail"
-        return lib.write_verdict(self.tdir(ticket), skill, iteration, {
-            "skill": skill, "ticket_id": ticket, "iteration": iteration, "lens": lens,
+        self.ensure_run(ticket)
+        return lib.write_verdict(self.rdir(ticket), skill, iteration, {
+            "skill": skill, "run_id": ticket, "iteration": iteration, "lens": lens,
             "passed": passed,
             "dimensions": dimensions,
             "findings": finding,

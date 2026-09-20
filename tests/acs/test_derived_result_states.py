@@ -90,7 +90,7 @@ class VerifierPassedTest(DeriveCase):
 
     def test_a_malformed_verdict_is_false_and_names_the_errors(self):
         lib.write_verdict(self.tdir_path, "code", 1, {
-            "skill": "code", "ticket_id": self.ticket, "iteration": 1, "passed": True,
+            "skill": "code", "run_id": self.ticket, "iteration": 1, "passed": True,
             "dimensions": [{"id": 3, "result": "fail"}],
             "findings": [{"severity": "blocking", "dimension": "coverage", "detail": "86%"}]})
         value, why = lib.derive_verifier_passed(self.tdir_path, "code")
@@ -119,11 +119,11 @@ class VerifierPassedTest(DeriveCase):
         """Only the PATH was ever checked, so a document naming another ticket,
         skill or iteration was accepted as this run's verdict."""
         lib.write_verdict(self.tdir_path, "code", 1, {
-            "skill": "docs-sync", "ticket_id": "OTHER-999", "iteration": 1,
+            "skill": "docs-sync", "run_id": "OTHER-999", "iteration": 1,
             "passed": True, "findings": [],
             "dimensions": [{"id": i, "result": "pass"} for i in lib.owed_dimensions()]})
         value, why = lib.derive_verifier_passed(self.tdir_path, "code",
-                                                ticket_id=self.ticket)
+                                                run_id=self.ticket)
         self.assertFalse(value)
         self.assertIn("evidence only for the run that produced it", why)
 
@@ -131,11 +131,11 @@ class VerifierPassedTest(DeriveCase):
         """A one-dimension document used to validate as a complete pass -- and
         this suite's own fixture helper wrote exactly that shape."""
         lib.write_verdict(self.tdir_path, "code", 1, {
-            "skill": "code", "ticket_id": self.ticket, "iteration": 1,
+            "skill": "code", "run_id": self.ticket, "iteration": 1,
             "passed": True, "findings": [],
             "dimensions": [{"id": 1, "result": "pass"}]})
         value, why = lib.derive_verifier_passed(self.tdir_path, "code",
-                                                ticket_id=self.ticket)
+                                                run_id=self.ticket)
         self.assertFalse(value)
         self.assertIn("not reported", why)
 
@@ -333,7 +333,7 @@ class PostHookDerivationTest(DeriveCase):
         self.seed_verdict(self.ticket, iteration=1)
         path = lib.state_path(self.tdir_path, "code")
         state = lib.load_state(self.tdir_path, "code", self.ticket)
-        state["runs"][-1]["guard_events"] = [
+        state["invocations"][-1]["guard_events"] = [
             {"ts": lib.now_iso(), "skill": "code", "iteration": "1", "tool": "Write",
              "target": "src/a.py", "reason": "outside_map", "declared_count": 1}]
         lib.write_json(path, state)

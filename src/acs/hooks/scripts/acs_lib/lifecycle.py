@@ -450,13 +450,39 @@ def subagent_start(payload):
     return 0
 
 
+def validate_message(message):
+    """[error, ...] for a subagent's returned message; empty means usable.
+
+    The XSD and `validate_xml.py` are gone (§6). What a subagent returns is
+    still a `<result>` or `<handoff>` element -- that is the wire format Claude
+    Code gives us -- but the CONTRACT it has to satisfy is now the small set of
+    attributes the snapshot path is derived from, checked here rather than by
+    a schema in a second language.
+    """
+    errors = []
+    try:
+        root = ET.fromstring(message)
+    except ET.ParseError as exc:
+        return ["not well-formed: %s" % exc]
+    if root.tag not in RESULT_ROOTS:
+        errors.append("root element is <%s>; expected one of %s"
+                      % (root.tag, " or ".join("<%s>" % r for r in RESULT_ROOTS)))
+    for attr in ("skill", "phase"):
+        if not (root.get(attr) or "").strip():
+            errors.append("%s= is required and must be non-empty" % attr)
+    iteration = (root.get("iteration") or "").strip()
+    if not iteration.isdigit() or int(iteration) < 1:
+        errors.append("iteration= is required and must be a positive integer")
+    return errors
+
+
 def subagent_stop(payload, validator=None):
-    """SubagentStop: validate the returned XML and write the phase snapshot.
+    """SubagentStop: validate the returned message and write the phase snapshot.
 
     The snapshot was the coordinator's job, which made it the coordinator's job
     to get right on every iteration of every skill. The message carries `skill`,
-    `phase`, `ticket-id` and `iteration` (acs-messages.xsd), so the path is
-    fully determined by the message and nothing has to be remembered.
+    `phase` and `iteration`, so the path is fully determined by the message and
+    nothing has to be remembered.
 
     Blocks (exit 2) on a message that does not validate, so the subagent gets
     the errors and can answer again — but only BLOCK_LIMIT times: a hook that
@@ -479,12 +505,13 @@ def subagent_stop(payload, validator=None):
                   "the coordinator must record the failure in its own result document"
                   % (cc.hook_agent_type(payload), attempts))
             return 0  # record kept: it carries the refusal count that got us here
-        _warn("%s returned no <result> or <handoff> element. Return one, validated "
-              "against acs-messages.xsd, as your final message." % payload.get("agent_type"))
+        _warn("%s returned no <result> or <handoff> element. Return one, carrying "
+              "skill=, phase= and iteration=, as your final message."
+              % payload.get("agent_type"))
         return 2
 
     if validator is None:
-        from validate_xml import validate_structurally as validator  # noqa: N813
+        validator = validate_message
     errors = validator(message)  # a LIST of error strings; empty means valid
     if errors:
         if attempts > BLOCK_LIMIT:

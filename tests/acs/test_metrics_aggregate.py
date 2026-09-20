@@ -70,7 +70,7 @@ def write_metrics(ws, data):
 
 def write_pipeline(ws, tid, steps=None, totals=None, archived=False):
     tdir = _ticket_dir(ws, tid, archived)
-    payload = {"ticket_id": tid, "flow": "ticket", "steps": steps or {}, "totals": totals or {}}
+    payload = {"run_id": tid, "flow": "ticket", "steps": steps or {}, "totals": totals or {}}
     _write_json(os.path.join(tdir, "run.json"), payload)
 
 
@@ -79,13 +79,13 @@ def write_code_state(ws, tid, states, archived=False, runs=None):
     pre-existing caller's shape."""
     tdir = _ticket_dir(ws, tid, archived)
     _write_json(os.path.join(tdir, "code-state.json"),
-                {"skill": "code", "ticket_id": tid, "states": states, "runs": runs or []})
+                {"skill": "code", "run_id": tid, "states": states, "runs": runs or []})
 
 
 def write_create_pr_state(ws, tid, states=None, archived=False):
     tdir = _ticket_dir(ws, tid, archived)
     _write_json(os.path.join(tdir, "create-pr-state.json"),
-                {"skill": "create-pr", "ticket_id": tid, "states": states or {}, "runs": []})
+                {"skill": "create-pr", "run_id": tid, "states": states or {}, "invocations": []})
 
 
 def write_ticket_json(ws, tid, created_at, archived=False, due_date=None):
@@ -140,7 +140,7 @@ def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
     state_path = os.path.join(tdir, "%s-state.json" % skill_dir)
     state = acs_lib.read_json(state_path)
     if not isinstance(state, dict):
-        state = {"skill": skill_dir, "ticket_id": tid, "states": {}, "runs": []}
+        state = {"skill": skill_dir, "run_id": tid, "states": {}, "invocations": []}
     role = _TEST_PHASE_ROLE.get(phase, phase)
     run_entry = {
         "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
@@ -303,7 +303,7 @@ class Panel3ApiDuration(unittest.TestCase):
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
             _write_json(os.path.join(tdir, "create-docs-state.json"), {
-                "skill": "create-docs", "ticket_id": "MAR-6", "states": {}, "runs": [
+                "skill": "create-docs", "run_id": "MAR-6", "states": {}, "invocations": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
                      "status": "completed", "api_duration_ms": 500.0,
                      "api_duration_basis": "apportioned"},
@@ -322,7 +322,7 @@ class Panel3ApiDuration(unittest.TestCase):
             write_pipeline(ws, "MAR-6", steps={}, archived=True)
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
             _write_json(os.path.join(tdir, "create-docs-state.json"), {
-                "skill": "create-docs", "ticket_id": "MAR-6", "states": {}, "runs": [
+                "skill": "create-docs", "run_id": "MAR-6", "states": {}, "invocations": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
                      "status": "completed", "api_duration_ms": 750.0,
                      "api_duration_basis": "apportioned"},
@@ -967,7 +967,7 @@ class UsageByTicketSkillWidening(unittest.TestCase):
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
             _write_json(os.path.join(tdir, "create-design-state.json"), {
-                "skill": "create-design", "ticket_id": "MAR-6", "states": {}, "runs": [
+                "skill": "create-design", "run_id": "MAR-6", "states": {}, "invocations": [
                     {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:01:00Z",
                      "status": "completed", "api_duration_ms": 200.0,
                      "api_duration_basis": "apportioned"},
@@ -997,15 +997,15 @@ class UsageByTicketSkillWidening(unittest.TestCase):
             ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
                          if r["ticket_id"] == "MAR-6")
             code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
-            self.assertEqual(len(code_skill["runs"]), 3)
-            self.assertEqual(code_skill["runs"][0]["started_at"], "2026-01-01T00:00:00Z")
-            self.assertEqual(code_skill["runs"][0]["wall_clock_seconds"], 60)
-            self.assertEqual(code_skill["runs"][0]["api_duration_ms"], 100.0)
-            self.assertEqual(code_skill["runs"][0]["api_duration_basis"], "apportioned")
-            self.assertEqual(code_skill["runs"][1]["api_duration_ms"], None)
-            self.assertEqual(code_skill["runs"][1]["api_duration_basis"], "unavailable")
-            self.assertEqual(code_skill["runs"][2]["wall_clock_seconds"], 30)
-            self.assertEqual(set(code_skill["runs"][0].keys()),
+            self.assertEqual(len(code_skill["invocations"]), 3)
+            self.assertEqual(code_skill["invocations"][0]["started_at"], "2026-01-01T00:00:00Z")
+            self.assertEqual(code_skill["invocations"][0]["wall_clock_seconds"], 60)
+            self.assertEqual(code_skill["invocations"][0]["api_duration_ms"], 100.0)
+            self.assertEqual(code_skill["invocations"][0]["api_duration_basis"], "apportioned")
+            self.assertEqual(code_skill["invocations"][1]["api_duration_ms"], None)
+            self.assertEqual(code_skill["invocations"][1]["api_duration_basis"], "unavailable")
+            self.assertEqual(code_skill["invocations"][2]["wall_clock_seconds"], 30)
+            self.assertEqual(set(code_skill["invocations"][0].keys()),
                              {"started_at", "wall_clock_seconds", "api_duration_ms", "api_duration_basis"})
 
     def test_usage_by_ticket_skills_empty_list_not_no_data_when_ticket_has_runs_but_no_duration(self):
@@ -1486,16 +1486,16 @@ class Panel7ReworkCount(unittest.TestCase):
             # The simplest approach: write the state file with two distinct PR numbers across
             # runs (the helper reads states.pr.number from the root; the plan note says
             # "simplest is distinct numbers in the single resolved partition's state file").
-            # Since the current write_create_pr_state writes {"states": {...}, "runs": []},
+            # Since the current write_create_pr_state writes {"states": {...}, "invocations": []},
             # we write a custom state file with multiple runs, each carrying a pr.number.
             # _rework_count should collect distinct PR numbers from any place they appear.
             # We store PR numbers 10 and 11 (with a dup 10 in runs) to test de-dup.
             tdir = _ticket_dir(ws, "MAR-X")
             _write_json(os.path.join(tdir, "create-pr-state.json"), {
                 "skill": "create-pr",
-                "ticket_id": "MAR-X",
+                "run_id": "MAR-X",
                 "states": {"pr": {"number": 10}},
-                "runs": [
+                "invocations": [
                     {"pr": {"number": 10}},   # duplicate
                     {"pr": {"number": 11}},   # distinct
                 ],
@@ -2487,7 +2487,7 @@ class TestTestRunsRead(unittest.TestCase):
                 "ended_at": "2026-07-02T00:01:00Z",
                 "suites": [{"name": "unit", "command": "pytest", "exit_code": 1,
                             "duration_s": 1.0, "status": "fail", "failure_output": "boom"}],
-                "regressions": [{"key": "unit:__suite__", "ticket_id": "MAR-200", "action": "minted"}],
+                "regressions": [{"key": "unit:__suite__", "run_id": "MAR-200", "action": "minted"}],
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertIn("test_runs", out)

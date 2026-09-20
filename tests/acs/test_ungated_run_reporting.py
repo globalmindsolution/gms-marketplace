@@ -114,7 +114,7 @@ class SkillStartCase(acs_case.AcsWorkspaceCase):
 
     def entry(self, ticket_id, skill="code"):
         tdir = lib.ticket_dir(self.ws, REPO_ID, ticket_id)
-        return lib.load_state(tdir, skill, ticket_id)["runs"][-1]
+        return lib.load_state(tdir, skill, ticket_id)["invocations"][-1]
 
 
 class ContextFieldTest(SkillStartCase):
@@ -231,7 +231,7 @@ class LedgerTest(SkillStartCase):
         tdir = self.mint("SHOP-1")
         lib.append_invocation(tdir, "code", "SHOP-1")
         self.assertNotIn("gate_enforcement",
-                         lib.load_state(tdir, "code", "SHOP-1")["runs"][-1])
+                         lib.load_state(tdir, "code", "SHOP-1")["invocations"][-1])
 
 
 class DefaultResponseTest(SkillStartCase):

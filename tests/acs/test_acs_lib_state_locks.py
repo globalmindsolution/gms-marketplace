@@ -54,7 +54,7 @@ class TestResolveTicketId(AcsWorkspaceCase):
     def test_resolves_from_session_pointer_file(self):
         ckid = lib.checkout_id(self.repo)
         pointer = lib.pointer_path(self.ws, "acme-shop", ckid)
-        lib.write_json(pointer, {"ticket_id": "SHOP-77"})
+        lib.write_json(pointer, {"run_id": "SHOP-77"})
         result = lib.resolve_ticket_id(self.repo, {"ticket_prefix": "SHOP"}, self.ws, "acme-shop")
         self.assertEqual(result, ("SHOP-77", "pointer"))
 
@@ -85,7 +85,7 @@ class TestLastRunStatus(unittest.TestCase):
     def test_returns_none_for_absent_empty_or_non_list_runs(self):
         lib.write_json(lib.state_path(self.tdir, "code"), {"skill": "code"})
         self.assertIsNone(lib.last_status(self.tdir, "code"))
-        lib.write_json(lib.state_path(self.tdir, "code"), {"runs": []})
+        lib.write_json(lib.state_path(self.tdir, "code"), {"invocations": []})
         self.assertIsNone(lib.last_status(self.tdir, "code"))
         lib.write_json(lib.state_path(self.tdir, "code"), {"runs": "oops"})
         self.assertIsNone(lib.last_status(self.tdir, "code"))
@@ -120,7 +120,7 @@ class TestFinalizeRun(unittest.TestCase):
     def test_synthesizes_run_entry_when_none_in_progress(self):
         state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertEqual(entry["status"], "completed")
-        self.assertEqual(len(state["runs"]), 1)
+        self.assertEqual(len(state["invocations"]), 1)
 
     def test_persists_findings_and_errors_from_result(self):
         lib.append_invocation(self.tdir, "code", "SHOP-1")
@@ -497,7 +497,7 @@ class TestComputeTicketTotals(unittest.TestCase):
     def test_skips_non_dict_run_entries(self):
         tdir = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
             None,
             "oops",
             {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
@@ -505,7 +505,7 @@ class TestComputeTicketTotals(unittest.TestCase):
              "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
         ]})
         totals = lib.compute_ticket_totals(tdir)
-        self.assertEqual(totals["runs"], 1)
+        self.assertEqual(totals["invocations"], 1)
         self.assertEqual(totals["tokens"], {"input": 1, "output": 2, "cache_creation": 0, "cache_read": 0})
 
     def test_none_elapsed_run_excluded_from_working_seconds_not_zeroed(self):
@@ -514,14 +514,14 @@ class TestComputeTicketTotals(unittest.TestCase):
         the completed run's seconds alone — excluded, not counted as zero."""
         tdir = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
             {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
              "ended_at": "2026-01-01T00:05:00Z",
              "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
             {"status": "in_progress", "started_at": "2026-01-01T01:00:00Z"},
         ]})
         totals = lib.compute_ticket_totals(tdir)
-        self.assertEqual(totals["runs"], 2)
+        self.assertEqual(totals["invocations"], 2)
         self.assertEqual(totals["runs_timed"], 1)
         self.assertEqual(totals["runs_untimed"], 1)
         self.assertEqual(totals["working_seconds"], 300)
@@ -533,7 +533,7 @@ class TestComputeTicketTotals(unittest.TestCase):
         runs_cost_measured."""
         tdir = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
             {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
              "ended_at": "2026-01-01T00:05:00Z",
              "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
@@ -552,7 +552,7 @@ class TestComputeTicketTotals(unittest.TestCase):
         run entry's tokens dict, not silently drop the cache pair."""
         tdir = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
             {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
              "ended_at": "2026-01-01T00:05:00Z",
              "tokens": {"input": 10, "output": 20, "cache_creation": 1000, "cache_read": 2000},
@@ -573,7 +573,7 @@ class TestComputeTicketTotals(unittest.TestCase):
         runs_api_duration_unavailable."""
         tdir = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
             {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
              "ended_at": "2026-01-01T00:05:00Z",
              "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5, "cost_basis": "measured",
@@ -598,7 +598,7 @@ class TestComputeTicketTotals(unittest.TestCase):
         the api_duration_ms sum, counted in runs_api_duration_unavailable."""
         tdir = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"runs": [
+        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
             {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
              "ended_at": "2026-01-01T00:05:00Z",
              "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},

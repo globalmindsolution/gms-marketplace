@@ -57,7 +57,7 @@ def verdict(**over):
     """A well-formed passing verdict; each test spoils exactly one thing."""
     doc = {
         "skill": "code",
-        "ticket_id": "SHOP-1",
+        "run_id": "SHOP-1",
         "iteration": 1,
         "lens": None,
         "passed": True,
@@ -259,7 +259,7 @@ class SubagentStopVerdictTest(AcsWorkspaceCase):
 
     def _write(self, doc, iteration=1, lens=None):
         return lib.write_verdict(self.tdir_path, "code", iteration,
-                                 dict(doc, ticket_id=self.ticket), lens)
+                                 dict(doc, run_id=self.ticket), lens)
 
     def test_a_verifier_that_writes_no_verdict_is_sent_back(self):
         out = self._stop()
@@ -378,7 +378,7 @@ class VerdictCliTest(AcsWorkspaceCase):
 
     def _write(self, doc, iteration=1, lens=None):
         return lib.write_verdict(self.tdir_path, "code", iteration,
-                                 dict(doc, ticket_id=self.ticket), lens)
+                                 dict(doc, run_id=self.ticket), lens)
 
     def test_show_reports_the_derived_verdict(self):
         self._write(verdict())
@@ -404,7 +404,7 @@ class VerdictCliTest(AcsWorkspaceCase):
         """derived_passed({}) is True, so the emptiest possible file used to
         read as a pass all the way to the create-pr gate."""
         lib.write_verdict(self.tdir_path, "code", 1,
-                          {"skill": "code", "ticket_id": self.ticket})
+                          {"skill": "code", "run_id": self.ticket})
         out = self.run_script("acs.py", "verdict", "show")
         self.assertEqual(out.returncode, 2)
         self.assertIn("not usable", out.stderr)
