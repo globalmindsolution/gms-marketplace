@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - CI installs it; local runs may not
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 XSD = os.path.join(PLUGIN, "schemas", "acs-messages.xsd")
-STATE_SCHEMA = os.path.join(PLUGIN, "schemas", "skill-state.schema.json")
+STATE_SCHEMA = os.path.join(PLUGIN, "schemas", "step-state.schema.json")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 VALIDATOR = os.path.join(HOOKS_SCRIPTS, "validate_xml.py")
 CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
@@ -98,7 +98,7 @@ class ValidatorIsDerivedFromTheXsdTest(unittest.TestCase):
         validate_xml.py only if someone wrote a table again; the loader has
         no reason to spell any of them."""
         source = read(VALIDATOR)
-        for literal in ('"analyze-ticket"', '"create-spec"', '"needs_input"',
+        for literal in ('"analyze-requirements"', '"create-spec"', '"needs_input"',
                         '"handed_off"', '"blocking"', '"execute"', '"verify"',
                         '"ticket-id"', '"objective"', '"stop-reason"',
                         '"verify_lens"', '"coverage_target"'):

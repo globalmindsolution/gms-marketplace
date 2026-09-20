@@ -1,7 +1,7 @@
 """Bidirectional drift guard for the skillName enum (MAR-176).
 
 `src/acs/schemas/acs-messages.xsd`'s `skillName` enumeration, the identical
-copies in `src/acs/schemas/skill-state.schema.json` and
+copies in `src/acs/schemas/step-state.schema.json` and
 `clarifications.schema.json`, and `validate_xml.py`'s hardcoded `SKILLS` mirror
 must each equal the live set of directories under `src/acs/skills/` plus
 the single documented backward-compat exemption, `create-spec` (retired in
@@ -26,7 +26,7 @@ SCHEMAS_DIR = os.path.join(PLUGIN, "schemas")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 XSD = os.path.join(SCHEMAS_DIR, "acs-messages.xsd")
-SKILL_STATE_SCHEMA = os.path.join(SCHEMAS_DIR, "skill-state.schema.json")
+SKILL_STATE_SCHEMA = os.path.join(SCHEMAS_DIR, "step-state.schema.json")
 CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
 
 sys.path.insert(0, HOOKS_SCRIPTS)
@@ -92,7 +92,7 @@ class SkillEnumSourcesTest(unittest.TestCase):
         cls.expected = cls.shipped | {BACKWARD_COMPAT_EXEMPTION}
         cls.sources = {
             "acs-messages.xsd skillName": set(xsd_skill_enum_list()),
-            "skill-state.schema.json skill.enum": set(skill_state_enum_list()),
+            "step-state.schema.json skill.enum": set(skill_state_enum_list()),
             "clarifications.schema.json skill.enum": set(clarifications_enum_list()),
             "validate_xml.SKILLS": set(validate_xml.SKILLS),
         }

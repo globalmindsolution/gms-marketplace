@@ -149,7 +149,7 @@ class TestRegistryAgreement(unittest.TestCase):
                         os.path.join(HOOKS, "%s-%s.py" % (phase, name))))
 
     def test_the_ledger_keeps_the_pre_rename_step_name(self):
-        """A pipeline-state.json written before the rename must still validate,
+        """A run.json written before the rename must still validate,
         and `workflow next` still resolves steps.test to this step."""
         self.assertIn("run-e2e-tests", lib.PIPELINE_STEP_ORDER)
         self.assertIn("test", lib.PIPELINE_STEP_ORDER)

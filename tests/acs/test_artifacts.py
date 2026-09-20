@@ -308,8 +308,8 @@ class TestDeriveStatus(ArtifactsCase):
         tdir = self.partition()
         self.step("create-prd", "completed")
         self.assertEqual(artifacts.derive_status(tdir), "in_progress")
-        lib.append_in_progress_run(tdir, "create-prd", TICKET)
-        lib.finalize_run(tdir, "create-prd", TICKET,
+        lib.append_invocation(tdir, "create-prd", TICKET)
+        lib.finalize_invocation(tdir, "create-prd", TICKET,
                          {"status": "completed", "states": {"pr": {"number": 7}}})
         self.assertEqual(artifacts.derive_status(tdir), "in_review")
 
@@ -566,9 +566,9 @@ class TestCommitOwnership(unittest.TestCase):
         return " ".join(raw.split())
 
     def test_analyze_ticket_commits_the_whole_docs_folder(self):
-        body = self.skill("analyze-ticket")
+        body = self.skill("analyze-requirements")
         self.assertIn('git add "<docs_dir>"', body,
-                      "analyze-ticket's publish step must stage the ticket's docs folder")
+                      "analyze-requirements's publish step must stage the ticket's docs folder")
         self.assertIn("ticket.md", body)
 
     def test_create_design_publishes_and_does_not_commit_on_the_default_branch(self):
@@ -577,7 +577,7 @@ class TestCommitOwnership(unittest.TestCase):
         self.assertIn("never commits to the repo's default branch", body)
 
     def test_the_build_skills_commit_what_they_publish(self):
-        for name, artifact in (("analyze-ticket", "analysis.md"), ("create-impl-plan", "plan.md"),
+        for name, artifact in (("analyze-requirements", "analysis.md"), ("create-impl-plan", "plan.md"),
                                ("create-api-contract", "api-contract.md"),
                                ("create-test-docs", "test-cases.md")):
             with self.subTest(skill=name):

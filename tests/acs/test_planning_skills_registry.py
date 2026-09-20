@@ -35,7 +35,7 @@ from acs_lib import workflow  # noqa: E402
 metrics_aggregate = importlib.import_module("metrics_aggregate")  # noqa: E402
 
 PINNED_SORTED_HOOKED_SKILLS = [
-    "analyze-ticket", "code", "create-api-contract", "create-architecture",
+    "analyze-requirements", "code", "create-api-contract", "create-architecture",
     "create-design", "create-docs", "create-e2e-tests", "create-impl-plan",
     "create-pr", "create-prd", "create-project", "create-requirements",
     "create-test-docs", "create-ticket", "docs-sync", "merge-pr",
@@ -80,7 +80,7 @@ class RegistryShapeCase(unittest.TestCase):
 
     def test_hooked_skills_count_is_seventeen(self):
         # 15 through MAR-160; the skills-independence refactor hooks the five
-        # Build/Test skills (analyze-ticket, create-impl-plan,
+        # Build/Test skills (analyze-requirements, create-impl-plan,
         # create-api-contract, create-test-docs, create-e2e-tests), 15 -> 20.
         self.assertEqual(len(acs_lib.HOOKED_SKILLS), 17)
 
@@ -146,7 +146,7 @@ class MetricsAggregateFunnelCase(unittest.TestCase):
                 json.dump({"prs": {"created": 0, "merged": 0}}, fh)
             tdir = os.path.join(repo_dir, "MAR-1")
             os.makedirs(tdir)
-            with open(os.path.join(tdir, "pipeline-state.json"), "w") as fh:
+            with open(os.path.join(tdir, "run.json"), "w") as fh:
                 json.dump({"ticket_id": "MAR-1", "flow": "ticket", "steps": {}, "totals": {}}, fh)
             out = metrics_aggregate.aggregate(ws, repo_id)
             self.assertIn("create-design", out["panels"]["2"]["steps"])
@@ -162,13 +162,13 @@ class HandoffScanOrderCase(acs_case.AcsWorkspaceCase):
     def test_create_design_resumes_via_handoff(self):
         ticket = self.new_ticket("Design system revamp", "story")
         tdir = self.tdir(ticket)
-        acs_lib.append_in_progress_run(tdir, "create-design", ticket)
+        acs_lib.append_invocation(tdir, "create-design", ticket)
         result = self.run_script("handoff.py", "--summary", "s", "--ticket", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["skill"], "create-design")
         self.assertEqual(payload["continue_with"], "/acs:create-design %s" % ticket)
-        pipeline = acs_lib.read_json(os.path.join(tdir, "pipeline-state.json"))
+        pipeline = acs_lib.read_json(os.path.join(tdir, "run.json"))
         self.assertEqual(pipeline["flow"], "ticket")
 
 

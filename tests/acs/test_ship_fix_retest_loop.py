@@ -13,7 +13,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
-PIPELINE_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "pipeline-state.schema.json")
+PIPELINE_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "run.schema.json")
 SETTINGS_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
 SHIP_REFERENCES = os.path.join(PLUGIN, "skills", "ship", "references")

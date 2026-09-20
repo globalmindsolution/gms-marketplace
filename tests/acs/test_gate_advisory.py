@@ -3,7 +3,7 @@
 Since the skills-independence refactor no gate refuses a skill for running
 before its predecessor; the order lives in workflows/ship.yaml. When a hooked
 skill runs out of that declared order -- one of its step's `needs` is not
-satisfied for the ticket per pipeline-state.json -- the pre-hook prints ONE
+satisfied for the ticket per run.json -- the pre-hook prints ONE
 stderr line naming the position and continues with exit 0:
 
     acs: <skill> normally follows <needs> in ship.yaml; <need> has not completed for <ID>
@@ -181,7 +181,7 @@ class TestAdvisoryFollowsTheOverride(AdvisoryCase):
 
     def test_override_step_ids_are_what_the_line_names(self):
         self.override("version: 2\nname: custom\nstop_after: build\nsteps:\n"
-                      "  - id: analyze\n    skill: analyze-ticket\n"
+                      "  - id: analyze\n    skill: analyze-requirements\n"
                       "  - id: build\n    skill: code\n    needs: [analyze]\n")
         self.plan()
         result = self.pre("code", self.ticket)
@@ -201,7 +201,7 @@ class TestAdvisoryFollowsTheOverride(AdvisoryCase):
         self.assertEqual(advisory_lines(result.stderr), [])
 
     def test_an_entry_step_prints_nothing(self):
-        code, stderr = self.in_process("analyze-ticket")
+        code, stderr = self.in_process("analyze-requirements")
         self.assertEqual(code, 0, stderr)
         self.assertEqual(advisory_lines(stderr), [])
 
@@ -221,8 +221,8 @@ class TestNewSkillsAdviseInProcess(AdvisoryCase):
         code, stderr = self.in_process("create-impl-plan")
         self.assertEqual(code, 0, stderr)
         self.assertEqual(advisory_lines(stderr), [
-            "acs: create-impl-plan normally follows analyze-ticket in ship.yaml; "
-            "analyze-ticket has not completed for %s" % self.ticket])
+            "acs: create-impl-plan normally follows analyze-requirements in ship.yaml; "
+            "analyze-requirements has not completed for %s" % self.ticket])
 
     def test_create_test_docs_names_both_needs(self):
         code, stderr = self.in_process("create-test-docs")
@@ -233,7 +233,7 @@ class TestNewSkillsAdviseInProcess(AdvisoryCase):
             % self.ticket])
 
     def test_create_test_docs_in_order_is_quiet(self):
-        for sid in ("analyze-ticket", "create-impl-plan", "create-api-contract"):
+        for sid in ("analyze-requirements", "create-impl-plan", "create-api-contract"):
             self.step(sid, "completed")
         code, stderr = self.in_process("create-test-docs")
         self.assertEqual(code, 0, stderr)
@@ -242,7 +242,7 @@ class TestNewSkillsAdviseInProcess(AdvisoryCase):
     def test_a_skipped_need_counts_as_satisfied(self):
         """No API surface: create-api-contract is skipped (when false), so a
         create-test-docs run after the plan is in order."""
-        for sid in ("analyze-ticket", "create-impl-plan"):
+        for sid in ("analyze-requirements", "create-impl-plan"):
             self.step(sid, "completed")
         code, stderr = self.in_process("create-test-docs")
         self.assertEqual(code, 0, stderr)

@@ -1,7 +1,7 @@
-"""Backward-compatibility guard for skill-state.schema.json's run-entry
+"""Backward-compatibility guard for step-state.schema.json's run-entry
 `model_usage` property (D4 Option A: additive, optional, forward-only), and
 for the `api_duration_*` run-entry/role_usage properties, the
-`pipeline-state.schema.json`/`metrics.schema.json` `totals` counters added
+`run.schema.json`/`metrics.schema.json` `totals` counters added
 alongside them, and the `gate_enforcement` run-entry property.
 
 Originating tickets: MAR-3 (model_usage); MAR-6 (api_duration_*, duration
@@ -24,8 +24,8 @@ except ImportError:
     HAS_JSONSCHEMA = False
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "skill-state.schema.json")
-PIPELINE_STATE_SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "step-state.schema.json")
+PIPELINE_STATE_SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
 METRICS_SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "metrics.schema.json")
 
 # The exact 5 api_duration_scope strings cost_sampler.allocate_cost can emit
@@ -213,7 +213,7 @@ class TestRunEntrySchemaApiDurationValidation(unittest.TestCase):
 
 @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema not installed in this env")
 class TestPipelineStateAndMetricsApiDurationCounters(unittest.TestCase):
-    """pipeline-state.schema.json and metrics.schema.json totals gain
+    """run.schema.json and metrics.schema.json totals gain
     api_duration_ms/runs_api_duration_measured/runs_api_duration_unavailable
     (Spec 03); backward compatible in both directions (counters present or
     absent)."""

@@ -152,9 +152,9 @@ class TestGateAgreement(unittest.TestCase):
 
     def test_the_gate_requires_both_documents_the_prose_names(self):
         self.assertIn('"plan.md", "create-impl-plan"', self.gate_body)
-        self.assertIn('"analysis.md", "analyze-ticket"', self.gate_body)
+        self.assertIn('"analysis.md", "analyze-requirements"', self.gate_body)
         self.assertIn("run /acs:create-impl-plan <id> first", self.body)
-        self.assertIn("run /acs:analyze-ticket <id> first", self.body)
+        self.assertIn("run /acs:analyze-requirements <id> first", self.body)
 
     def test_the_gate_reads_the_api_surface_predicate(self):
         self.assertIn("api_surface_changed", self.gate_body)
@@ -163,7 +163,7 @@ class TestGateAgreement(unittest.TestCase):
 
     def test_the_prose_forbids_working_around_the_flag(self):
         self.assertRegex(self.body, r"Do not work around it by editing `analysis.md`")
-        self.assertRegex(self.body, r"re-run `/acs:analyze-ticket <id>`")
+        self.assertRegex(self.body, r"re-run `/acs:analyze-requirements <id>`")
 
     def test_order_is_declared_in_the_workflow_not_the_gate(self):
         self.assertIn("workflows/ship.yaml", self.body)

@@ -1,4 +1,4 @@
-"""Prose contracts for /acs:analyze-ticket — the first Build step.
+"""Prose contracts for /acs:analyze-requirements — the first Build step.
 
 The registration wiring (HOOKED_SKILLS, GATES, the hook wrappers, the pipeline
 enum) is tests/acs/test_build_test_skill_registry.py's; the gate bodies are
@@ -12,7 +12,7 @@ markdown and would otherwise drift away from the deterministic layer:
     the verifier's re-run, and linted here against a doc built from the skill's
     own skeleton;
   * the `states` keys the result document records, cross-checked against
-    post-analyze-ticket.py's docstring;
+    post-analyze-requirements.py's docstring;
   * independence: the skill points at workflows/ship.yaml for order and claims
     no predecessor-completed check, because there no longer is one;
   * the one recommendation (refined ACs / needs_design) going through its CLI
@@ -23,7 +23,7 @@ markdown and would otherwise drift away from the deterministic layer:
     — not a rigor setting written ahead of it;
   * the pair's shape (execute -> verify, no planner, artifacts, grounding).
 
-Run:  python3 -m unittest tests.acs.test_analyze_ticket -v
+Run:  python3 -m unittest tests.acs.test_analyze_requirements -v
 """
 
 import os
@@ -34,8 +34,8 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 HOOKS = os.path.join(PLUGIN, "hooks", "scripts")
-SKILL_PATH = os.path.join(PLUGIN, "skills", "analyze-ticket", "SKILL.md")
-SKILL_REFERENCES = os.path.join(PLUGIN, "skills", "analyze-ticket", "references")
+SKILL_PATH = os.path.join(PLUGIN, "skills", "analyze-requirements", "SKILL.md")
+SKILL_REFERENCES = os.path.join(PLUGIN, "skills", "analyze-requirements", "references")
 
 
 def skill_contract():
@@ -88,7 +88,7 @@ def frontmatter(text, path):
 
 
 def agent(role):
-    return read(os.path.join(AGENTS, "analyze-ticket-%s.md" % role))
+    return read(os.path.join(AGENTS, "analyze-requirements-%s.md" % role))
 
 
 def flag_values(body, flag):
@@ -112,7 +112,7 @@ class TestSkillFrontmatter(unittest.TestCase):
         cls.fm, cls.body = frontmatter(cls.text, SKILL_PATH)
 
     def test_name_matches_the_directory(self):
-        self.assertRegex(self.fm, r"(?m)^name: analyze-ticket$")
+        self.assertRegex(self.fm, r"(?m)^name: analyze-requirements$")
 
     def test_it_is_a_ticket_scoped_coordinator(self):
         self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\]"$')
@@ -132,11 +132,11 @@ class TestLifecycleWiring(unittest.TestCase):
 
     def test_start_hook_is_the_mandatory_first_action(self):
         self.assertIn("skill-start.py", self.body)
-        self.assertRegex(self.body, r"--skill analyze-ticket\b")
+        self.assertRegex(self.body, r"--skill analyze-requirements\b")
         self.assertIn("MANDATORY first action", self.body)
 
     def test_post_hook_closes_the_run_with_the_result_document(self):
-        self.assertIn("post-analyze-ticket.py", self.body)
+        self.assertIn("post-analyze-requirements.py", self.body)
         self.assertIn("--result-file", self.body)
 
     def test_every_message_is_schema_validated(self):
@@ -151,9 +151,9 @@ class TestLifecycleWiring(unittest.TestCase):
     def test_it_names_its_own_triad(self):
         for role in ROLES:
             with self.subTest(role=role):
-                self.assertIn("acs:analyze-ticket-%s" % role, self.body)
+                self.assertIn("acs:analyze-requirements-%s" % role, self.body)
                 self.assertTrue(os.path.isfile(
-                    os.path.join(AGENTS, "analyze-ticket-%s.md" % role)))
+                    os.path.join(AGENTS, "analyze-requirements-%s.md" % role)))
 
 
 class TestIndependence(unittest.TestCase):
@@ -176,13 +176,13 @@ class TestIndependence(unittest.TestCase):
     def test_the_gate_it_describes_is_the_gate_that_exists(self):
         """The skill tells the user the pre-hook checked the ticket resolves —
         so the registered gate must be the ticket-scoped one."""
-        self.assertIs(lib.GATES["analyze-ticket"], lib.gate_analyze_ticket)
-        self.assertIn("analyze-ticket", lib.GATE_INPUTS["ticket"])
+        self.assertIs(lib.GATES["analyze-requirements"], lib.gate_analyze_requirements)
+        self.assertIn("analyze-requirements", lib.GATE_INPUTS["ticket"])
 
     def test_the_epic_refusal_points_at_design_then_fan_out_then_a_child(self):
         self.assertIn("/acs:create-design <id>", self.body)
         self.assertIn("/acs:create-ticket <id>", self.body)
-        self.assertRegex(self.body, r"/acs:analyze-ticket` on a child")
+        self.assertRegex(self.body, r"/acs:analyze-requirements` on a child")
 
 
 class TestGateAgreement(unittest.TestCase):
@@ -193,12 +193,12 @@ class TestGateAgreement(unittest.TestCase):
         cls.gates_source = read(os.path.join(HOOKS, "acs_lib", "gates.py"))
 
     def test_the_gate_refuses_epics_for_this_skill(self):
-        self.assertIn('_refuse_epic(ticket_id, "analyze-ticket"', self.gates_source)
+        self.assertIn('_refuse_epic(ticket_id, "analyze-requirements"', self.gates_source)
 
     def test_the_gate_requires_no_artifact_of_its_own(self):
-        """analyze-ticket is the first Build step: its only inputs are the
+        """analyze-requirements is the first Build step: its only inputs are the
         ticket and the partition, so the gate must not require a document."""
-        body = re.search(r"(?s)def gate_analyze_ticket\(.*?\n\n\ndef ",
+        body = re.search(r"(?s)def gate_analyze_requirements\(.*?\n\n\ndef ",
                          self.gates_source).group(0)
         self.assertNotIn("_require_artifact", body)
         self.assertNotIn("skill_completed", body)
@@ -305,7 +305,7 @@ class TestResultDocument(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
-        cls.post_hook = read(os.path.join(HOOKS, "post-analyze-ticket.py"))
+        cls.post_hook = read(os.path.join(HOOKS, "post-analyze-requirements.py"))
 
     def test_the_skill_records_exactly_the_documented_states(self):
         block = re.search(r'(?s)"states": \{(.*?)\}', self.body).group(1)
@@ -377,7 +377,7 @@ class TestTicketAmendments(unittest.TestCase):
         self.assertIn("acs.py\" ticket save --ticket <id> --from -", self.body)
 
     def test_they_are_recorded_in_the_ledger_before_acting(self):
-        self.assertIn("clarify.py add --skill analyze-ticket", self.body)
+        self.assertIn("clarify.py add --skill analyze-requirements", self.body)
         self.assertRegex(self.body, r"ONLY on an explicit user answer")
 
     def test_without_an_answer_the_ticket_is_left_alone(self):
@@ -412,7 +412,7 @@ class TestNotReadyArm(unittest.TestCase):
         self.assertIn("keep `ready_for_planning: true`", skill)
         self.assertIn("where every default could build the wrong thing", skill)
         executor = " ".join(
-            read(os.path.join(AGENTS, "analyze-ticket-executor.md")).split())
+            read(os.path.join(AGENTS, "analyze-requirements-executor.md")).split())
         self.assertIn("A detail with a conventional default", executor)
         self.assertIn("never a reason for `false`", executor)
         self.assertIn("every default could build the wrong thing", executor)
@@ -431,7 +431,7 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("acs_lib.artifacts.artifact_path", self.body)
 
     def test_publishing_copies_the_verified_bytes(self):
-        self.assertRegex(self.body, r"cp \"<partition>/phases/analyze-ticket/analysis.md\"")
+        self.assertRegex(self.body, r"cp \"<partition>/phases/analyze-requirements/analysis.md\"")
         self.assertRegex(self.body, r"Copy, never re-author")
 
     def test_the_coordinator_publishes_and_the_guard_is_named(self):
@@ -462,15 +462,15 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/analyze-ticket/iter-<n>-authoring.md", agent("executor"))
-        self.assertIn("phases/analyze-ticket/iter-<n>-execute.json", agent("executor"))
-        self.assertIn("phases/analyze-ticket/iter-<n>-verify.md", agent("verifier"))
+        self.assertIn("phases/analyze-requirements/iter-<n>-authoring.md", agent("executor"))
+        self.assertIn("phases/analyze-requirements/iter-<n>-execute.json", agent("executor"))
+        self.assertIn("phases/analyze-requirements/iter-<n>-verify.md", agent("verifier"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:
             with self.subTest(role=role):
                 body = agent(role)
-                self.assertIn('<result skill="analyze-ticket"', body)
+                self.assertIn('<result skill="analyze-requirements"', body)
                 self.assertIn("FINAL message", body)
                 self.assertIn("Nothing follows the closing `</result>` tag.", body)
 
@@ -485,9 +485,9 @@ class TestTriadShape(unittest.TestCase):
         would be a second copy of the work — execute -> verify only."""
         body = read(SKILL_PATH)
         self.assertRegex(body, r"execute → verify, no planner")
-        self.assertNotIn("acs:analyze-ticket-planner", body)
+        self.assertNotIn("acs:analyze-requirements-planner", body)
         self.assertNotIn("iter-1-plan.md", body)
-        self.assertFalse(os.path.exists(os.path.join(AGENTS, "analyze-ticket-planner.md")))
+        self.assertFalse(os.path.exists(os.path.join(AGENTS, "analyze-requirements-planner.md")))
         self.assertRegex(body, r"fixed \*\*3\*\*\s+on every run")
         self.assertRegex(body, r"no path-driven verify depth")
         self.assertIn("never spawn subagents", body.lower())

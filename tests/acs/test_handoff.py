@@ -137,7 +137,7 @@ class TestResumeHint(acs_case.AcsWorkspaceCase):
 
     def test_summary_file_content_is_recorded_stripped(self):
         tdir, _ticket = _mint(self.ws, "SHOP-42")
-        acs_case.lib.append_in_progress_run(tdir, "code", "SHOP-42")
+        acs_case.lib.append_invocation(tdir, "code", "SHOP-42")
         summary_path = os.path.join(self.tmp, "summary.txt")
         with open(summary_path, "w", encoding="utf-8") as fh:
             fh.write("  done: probe; next: nothing  \n")
@@ -149,7 +149,7 @@ class TestResumeHint(acs_case.AcsWorkspaceCase):
         state = acs_case.lib.load_state(tdir, "code")
         self.assertEqual(
             state["runs"][-1]["handoff_summary"], "done: probe; next: nothing")
-        pipeline = acs_case.lib.read_json(os.path.join(tdir, "pipeline-state.json"))
+        pipeline = acs_case.lib.read_json(os.path.join(tdir, "run.json"))
         self.assertEqual(
             pipeline["steps"]["code"]["summary"], "done: probe; next: nothing")
 
@@ -169,7 +169,7 @@ class TestResumeHint(acs_case.AcsWorkspaceCase):
 
     def test_in_progress_run_resumes_with_that_skill_and_releases_the_lock(self):
         tdir, _ticket = _mint(self.ws, "SHOP-42")
-        acs_case.lib.append_in_progress_run(tdir, "code", "SHOP-42")
+        acs_case.lib.append_invocation(tdir, "code", "SHOP-42")
         acs_case.lib.acquire_lock(tdir, self.repo)
         mod = acs_case.load_module(MODULE_FILENAME)
         with acs_case.pushd(self.repo):

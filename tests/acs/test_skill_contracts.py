@@ -88,13 +88,13 @@ _PROJECT_RESPONSES = {
 }
 
 # The 20 hooked skills. The skills-independence refactor added the five
-# Build/Test coordinators (analyze-ticket, create-impl-plan,
+# Build/Test coordinators (analyze-requirements, create-impl-plan,
 # create-api-contract, create-test-docs, create-e2e-tests); `run-e2e-tests`
 # (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
 # for one release as the alias directory.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-docs", "create-requirements", "create-ticket",
-                 "create-design", "analyze-ticket", "create-impl-plan",
+                 "create-design", "analyze-requirements", "create-impl-plan",
                  "create-api-contract", "create-test-docs", "code",
                  "docs-sync", "create-e2e-tests", "create-pr",
                  "merge-pr", "standardize-project"]
@@ -120,7 +120,7 @@ ROLES = ["planner", "executor", "verifier"]
 # HOOKED_SKILLS}` with one hand-carved exception, which is how nineteen skills
 # came to carry a planner nobody chose for them: three of them forbade
 # spawning one in their own prose and shipped the file anyway, held in place
-# by this very test. The shape is now a declaration in workflows/phases.yaml
+# by this very test. The shape is now a declaration in skills/<name>/acs.yaml
 # and this asserts the declaration is honoured, not that a default holds.
 AGENT_ROLES = lib.skill_agents()
 
@@ -1339,7 +1339,7 @@ class TestDeliveryPathContract(unittest.TestCase):
         body = self._norm()
         self.assertIn("delivery_path", body)
         self.assertIn("delivery_path_reason", body)
-        self.assertIn("pipeline-state.json", body)
+        self.assertIn("run.json", body)
         self.assertIsNotNone(
             re.search(r"(?i)REFUSES to move a ticket already on a path", body),
             "skills.md must state the writer refuses to re-judge a recorded path")
@@ -3147,7 +3147,7 @@ class TestContractsMdDeliveryPathSection(unittest.TestCase):
         section = self._section()
         self.assertIn("delivery_path", section)
         self.assertIn("delivery_path_reason", section)
-        self.assertIn("pipeline-state.json", section)
+        self.assertIn("run.json", section)
 
     def test_the_section_names_the_one_writer_and_its_three_refusals(self):
         section = self._section()

@@ -24,7 +24,7 @@ except ImportError:
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "skill-state.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "step-state.schema.json")
 INTERNALS = os.path.join(REPO_ROOT, "src", "acs", "docs", "INTERNALS.md")
 WORKSPACE_DOC = os.path.join(REPO_ROOT, "docs", "requirements", "functional",
                              "workspace-and-state.md")
@@ -298,7 +298,7 @@ class VerdictInvarianceTest(GuardEventsCase):
         self.declare("src/a.py")
         self.spawn_executor()
         stderr = io.StringIO()
-        with mock.patch.object(lib.state, "write_json", side_effect=OSError("read-only")):
+        with mock.patch.object(lib.step, "write_json", side_effect=OSError("read-only")):
             with contextlib.redirect_stderr(stderr):
                 self.assertEqual(lib.file_map_guard(self.payload("src/nope.py")), 2)
         notes = [line for line in stderr.getvalue().splitlines()
@@ -310,8 +310,8 @@ class VerdictInvarianceTest(GuardEventsCase):
         self.declare("src/a.py")
         self.spawn_executor()
         before = sorted(self._partition_files())
-        with mock.patch.object(lib.state, "write_json",
-                               wraps=lib.state.write_json) as writer:
+        with mock.patch.object(lib.step, "write_json",
+                               wraps=lib.step.write_json) as writer:
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(lib.file_map_guard(self.payload("src/nope.py")), 2)
         self.assertEqual(writer.call_count, 1, "no retries on a deny path")
@@ -323,7 +323,7 @@ class VerdictInvarianceTest(GuardEventsCase):
         can absorb it; a recorder that caught it would unbound the guard."""
         self.declare("src/a.py")
         self.spawn_executor()
-        with mock.patch.object(lib.state, "write_json", side_effect=_Boom("timeout")):
+        with mock.patch.object(lib.step, "write_json", side_effect=_Boom("timeout")):
             with contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(_Boom):
                     lib.file_map_guard(self.payload("src/nope.py"))

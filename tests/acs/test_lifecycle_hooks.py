@@ -484,7 +484,7 @@ class PreCompactTest(LifecycleCase):
 
     def test_says_so_when_no_pipeline_step_has_run_yet(self):
         self.start_run("code")
-        os.remove(os.path.join(self.tdir_path, "pipeline-state.json"))
+        os.remove(os.path.join(self.tdir_path, "run.json"))
         self.hook("pre-compact", self.payload())
         self.assertIn("no pipeline steps recorded yet", self._context())
 

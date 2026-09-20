@@ -461,7 +461,7 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
             os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
 
     def test_the_path_is_read_from_the_ledger_never_from_the_ticket(self):
-        """The judgement lives on pipeline-state.json. A stale `lane` left on a
+        """The judgement lives on run.json. A stale `lane` left on a
         ticket by a pre-ADR-0095 partition must not steer anything."""
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)

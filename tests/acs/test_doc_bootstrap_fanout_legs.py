@@ -3,7 +3,7 @@
 Drives the REAL hook CLIs (dispatch.py pre, skill-start.py --allocate
 --doc-set, post-create-docs.py) against a throwaway consumer repo
 (AcsWorkspaceCase): one gate for every set (AC-2), failure isolation between
-two sets' delivery tickets (AC-3), and each set's own pipeline-state.json as
+two sets' delivery tickets (AC-3), and each set's own run.json as
 its resume record (AC-4). The skill's own prose is not directly executable by
 a unit test -- this proves the primitives it describes behave as claimed.
 
@@ -126,7 +126,7 @@ class SetIsolationTest(AcsWorkspaceCase):
 
 
 class LedgerTest(AcsWorkspaceCase):
-    """AC-4: each set's own pipeline-state.json records flow: "product" under
+    """AC-4: each set's own run.json records flow: "product" under
     the create-docs step, the ticket names the set, and re-running the
     eligibility predicate is the whole resume mechanism."""
 

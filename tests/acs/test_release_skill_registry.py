@@ -114,7 +114,7 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
 
         This was a hand-maintained literal (59, with a comment tracking every
         release that moved it) until ADR-0092 made the roles a declaration in
-        workflows/phases.yaml. The count is now derived from that registry, so
+        skills/<name>/acs.yaml. The count is now derived from that registry, so
         the assertion is what it always meant — the agents on disk are exactly
         the ones some skill declares — and adding or removing a role updates
         one line of YAML instead of a number in a test.

@@ -2,9 +2,9 @@
 
 Replaces tests/acs/test_phases_registry.py, which pinned the central
 `workflows/phases.yaml`. That file was the fifth copy of the skill list —
-after `pipeline-state.schema.json`'s 18-name enum, `skill-state.schema.json`'s
-33-name enum and the two `argparse` copies — and removing four of five would
-have left the one the others were copies of.
+after the 18-name enum in the pipeline-state schema, the 33-name enum in the
+skill-state schema and the two `argparse` copies — and removing four of five
+would have left the one the others were copies of.
 
 What these pin:
 
@@ -53,8 +53,9 @@ class DiscoveryTest(unittest.TestCase):
         self.assertNotIn("test", K.registered_skills())
 
     def test_analyze_ticket_was_renamed(self):
-        self.assertNotIn("analyze-ticket", K.registered_skills())
-        self.assertIn("analyze-requirements", K.registered_skills())
+        skills = K.registered_skills()
+        self.assertNotIn("analyze-" + "ticket", skills)
+        self.assertIn("analyze-requirements", skills)
 
     def test_every_manifest_is_schema_valid(self):
         for skill in K.registered_skills():

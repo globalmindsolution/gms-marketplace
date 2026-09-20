@@ -135,7 +135,7 @@ class Mar143CountBumpCase(unittest.TestCase):
 
     def test_hooked_skills_count_is_seventeen(self):
         # 15 at MAR-156/MAR-160 time; the skills-independence refactor hooks
-        # the five Build/Test skills (analyze-ticket, create-impl-plan,
+        # the five Build/Test skills (analyze-requirements, create-impl-plan,
         # create-api-contract, create-test-docs, create-e2e-tests), 15 -> 20.
         self.assertEqual(len(acs_lib.HOOKED_SKILLS), 17)
 

@@ -169,7 +169,7 @@ class TestGates(AcsWorkspaceCase):
 class TestCreateSpecSurfaceDeleted(unittest.TestCase):
     """AC-1/AC-5: /acs:create-spec (skill, 3 agent files, both hook scripts, its
     GATES/WORKFLOW_SKILLS entries) no longer exists on disk or in acs_lib's
-    registries; the pipeline-state.json and settings.json schemas no longer
+    registries; the run.json and settings.json schemas no longer
     carry its footprint."""
 
     DELETED_PATHS = [
@@ -193,7 +193,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
 
     def test_pipeline_state_schema_drops_create_spec(self):
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
+            REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         enum = schema["properties"]["steps"]["propertyNames"]["enum"]
@@ -452,7 +452,7 @@ class TestDocsSyncGates(AcsWorkspaceCase):
     # ---------------------------------------------------------------- gate_docs_sync
 
     def test_docs_sync_gate_passes_when_no_test_step_entry(self):
-        # (a) code completed, no "test" step entry in pipeline-state.json -> 0
+        # (a) code completed, no "test" step entry in run.json -> 0
         result = self.pre("docs-sync", self.ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -517,7 +517,7 @@ class TestDocsSyncGates(AcsWorkspaceCase):
 
     def test_pipeline_state_schema_includes_docs_sync(self):
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
+            REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         enum = schema["properties"]["steps"]["propertyNames"]["enum"]

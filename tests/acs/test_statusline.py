@@ -108,7 +108,7 @@ class TestCostAndLockSuffixes(acs_case.AcsWorkspaceCase):
             cost_tdir, acs_case.lib.new_ticket_doc("SHOP-10", "SHOP-10", "story"))
         pipeline = acs_case.lib.load_pipeline(cost_tdir, "SHOP-10")
         pipeline["totals"]["cost_usd"] = 4.21
-        acs_case.lib.write_json(os.path.join(cost_tdir, "pipeline-state.json"), pipeline)
+        acs_case.lib.write_json(os.path.join(cost_tdir, "run.json"), pipeline)
         acs_case.lib.write_json(
             acs_case.lib.lock_path(cost_tdir), {"checkout_id": "other-session-ckid"})
         acs_case.lib.write_json(
@@ -217,7 +217,7 @@ class TestDisplayCostPrefersSample(acs_case.AcsWorkspaceCase):
             tdir, acs_case.lib.new_ticket_doc("SHOP-30", "SHOP-30", "story"))
         pipeline = acs_case.lib.load_pipeline(tdir, "SHOP-30")
         pipeline["totals"]["cost_usd"] = 4.21
-        acs_case.lib.write_json(os.path.join(tdir, "pipeline-state.json"), pipeline)
+        acs_case.lib.write_json(os.path.join(tdir, "run.json"), pipeline)
         acs_case.lib.write_json(
             acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-30"})
         mod = acs_case.load_module(MODULE_FILENAME)

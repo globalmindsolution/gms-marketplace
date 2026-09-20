@@ -1,10 +1,10 @@
 """Registry + dispatch wiring for the six Build/Test skills.
 
-The skills-independence refactor adds five HOOKED skills — analyze-ticket,
+The skills-independence refactor adds five HOOKED skills — analyze-requirements,
 create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests —
 and renames today's `test` suite runner to `run-e2e-tests`, which stays
 UNHOOKED with `test` retained beside it for one release as the alias
-directory (workflows/phases.yaml `aliases`).
+directory (skills/<name>/acs.yaml `aliases`).
 
 What that registration actually consists of, and what this module pins:
 
@@ -19,7 +19,7 @@ What that registration actually consists of, and what this module pins:
     tests/acs/test_acs_lib_gates.py's);
   * a thin `pre-<name>.py` / `post-<name>.py` wrapper pair per hooked skill,
     and NO wrapper for the unhooked runner;
-  * `pipeline-state.schema.json`'s steps enum (mirrored by
+  * `run.schema.json`'s steps enum (mirrored by
     `acs_lib.PIPELINE_STEP_ORDER` and pipeline-step.py's PIPELINE_STEPS) plus
     the `skipped` status the ship.yaml walk records for a `when`-false step;
   * a `skills/<name>/` directory whose SKILL.md frontmatter names it (the
@@ -47,7 +47,7 @@ import acs_lib as lib  # noqa: E402
 from acs_case import AcsWorkspaceCase  # noqa: E402
 
 #: The five that gained hooks, in ship.yaml order.
-HOOKED_BUILD_TEST_SKILLS = ("analyze-ticket", "create-impl-plan", "create-api-contract",
+HOOKED_BUILD_TEST_SKILLS = ("analyze-requirements", "create-impl-plan", "create-api-contract",
                             "create-test-docs", "create-e2e-tests")
 
 #: The suite runner, renamed, and the alias directory retained beside it.
@@ -62,7 +62,7 @@ def read(path):
 
 
 def pipeline_state_schema():
-    return json.loads(read(os.path.join(PLUGIN, "schemas", "pipeline-state.schema.json")))
+    return json.loads(read(os.path.join(PLUGIN, "schemas", "run.schema.json")))
 
 
 class TestRegistryLists(unittest.TestCase):
@@ -155,7 +155,7 @@ class TestHookScripts(unittest.TestCase):
         skill and the next; it is written down where the hook that persists it
         lives, not only in INTERNALS.md."""
         expected = {
-            "analyze-ticket": ["ready_for_planning", "api_surface", "questions_open"],
+            "analyze-requirements": ["ready_for_planning", "api_surface", "questions_open"],
             "create-impl-plan": ["plan_path", "plan_approved", "file_map"],
             "create-api-contract": ["contract_path", "items", "traced_acs"],
             "create-test-docs": ["cases", "e2e_cases", "untraced_acs"],
@@ -266,24 +266,24 @@ class TestPostHookRoundTrip(AcsWorkspaceCase):
         self.ticket = self.new_ticket("Analyze me", "task")
 
     def _pipeline(self):
-        with open(os.path.join(self.tdir(self.ticket), "pipeline-state.json"),
+        with open(os.path.join(self.tdir(self.ticket), "run.json"),
                   encoding="utf-8") as fh:
             return json.load(fh)
 
     def test_analyze_ticket_records_its_run_states_and_step(self):
-        self.assertEqual(self.start("analyze-ticket", self.ticket).returncode, 0)
+        self.assertEqual(self.start("analyze-requirements", self.ticket).returncode, 0)
         states = {"ready_for_planning": True, "api_surface": True, "questions_open": 0}
-        out = self.post("analyze-ticket", self.ticket,
+        out = self.post("analyze-requirements", self.ticket,
                         {"status": "completed", "states": states})
         self.assertEqual(out.returncode, 0, out.stderr)
 
-        state = lib.load_state(self.tdir(self.ticket), "analyze-ticket", self.ticket)
-        self.assertEqual(state["skill"], "analyze-ticket")
+        state = lib.load_state(self.tdir(self.ticket), "analyze-requirements", self.ticket)
+        self.assertEqual(state["skill"], "analyze-requirements")
         self.assertEqual(state["runs"][-1]["status"], "completed")
         self.assertEqual(state["states"], states)
-        self.assertTrue(lib.skill_completed(self.tdir(self.ticket), "analyze-ticket"))
+        self.assertTrue(lib.skill_completed(self.tdir(self.ticket), "analyze-requirements"))
 
-        step = self._pipeline()["steps"]["analyze-ticket"]
+        step = self._pipeline()["steps"]["analyze-requirements"]
         self.assertEqual(step["status"], "completed")
 
     def test_create_e2e_tests_records_its_own_step_beside_the_others(self):

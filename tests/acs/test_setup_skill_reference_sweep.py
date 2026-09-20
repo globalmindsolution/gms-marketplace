@@ -51,7 +51,7 @@ SCHEMAS_DIR = os.path.join(PLUGIN, "schemas")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 XSD = os.path.join(SCHEMAS_DIR, "acs-messages.xsd")
-SKILL_STATE_SCHEMA = os.path.join(SCHEMAS_DIR, "skill-state.schema.json")
+SKILL_STATE_SCHEMA = os.path.join(SCHEMAS_DIR, "step-state.schema.json")
 CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
 
 sys.path.insert(0, HOOKS_SCRIPTS)
@@ -247,7 +247,7 @@ class SkillNameMirrorsTest(unittest.TestCase):
     def test_every_skill_name_mirror_says_setup(self):
         sources = {
             "acs-messages.xsd skillName": xsd_skill_enum_values(),
-            "skill-state.schema.json skill.enum": json_schema_skill_enum_values(
+            "step-state.schema.json skill.enum": json_schema_skill_enum_values(
                 SKILL_STATE_SCHEMA, SKILL_STATE_POINTER),
             "clarifications.schema.json skill.enum": json_schema_skill_enum_values(
                 CLARIFICATIONS_SCHEMA, CLARIFICATIONS_POINTER),

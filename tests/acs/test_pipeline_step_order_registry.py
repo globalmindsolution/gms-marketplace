@@ -17,7 +17,7 @@ sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
 
-PIPELINE_STATE_SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
+PIPELINE_STATE_SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
 
 
 class TestPipelineStepOrderRegistry(unittest.TestCase):

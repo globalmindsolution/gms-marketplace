@@ -71,7 +71,7 @@ def write_metrics(ws, data):
 def write_pipeline(ws, tid, steps=None, totals=None, archived=False):
     tdir = _ticket_dir(ws, tid, archived)
     payload = {"ticket_id": tid, "flow": "ticket", "steps": steps or {}, "totals": totals or {}}
-    _write_json(os.path.join(tdir, "pipeline-state.json"), payload)
+    _write_json(os.path.join(tdir, "run.json"), payload)
 
 
 def write_code_state(ws, tid, states, archived=False, runs=None):
@@ -1351,7 +1351,7 @@ class LeadCyclePanel7(unittest.TestCase):
             self.assertEqual(row["cycle_seconds"], 9000)       # cycle still positive
 
     def test_pipeline_absent_panel7_open_ticket_row(self):
-        # ticket in index, NO pipeline-state.json -> panel-7 row present, both "no data", degrade.
+        # ticket in index, NO run.json -> panel-7 row present, both "no data", degrade.
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-X": {"status": "in_progress", "type": "task"}})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
@@ -1882,11 +1882,11 @@ class TestDeliverySummaryDeliveryPaths(unittest.TestCase):
 
     def _summary(self, ws, paths):
         """Aggregate with `paths` = {ticket_id: delivery_path or None} written
-        onto each ticket's pipeline-state.json, as `acs.py path set` does."""
+        onto each ticket's run.json, as `acs.py path set` does."""
         for ticket_id, path in paths.items():
             write_pipeline(ws, ticket_id)
             if path is not None:
-                target = os.path.join(_ticket_dir(ws, ticket_id), "pipeline-state.json")
+                target = os.path.join(_ticket_dir(ws, ticket_id), "run.json")
                 with open(target, encoding="utf-8") as fh:
                     doc = json.load(fh)
                 doc["delivery_path"] = path
@@ -2134,7 +2134,7 @@ class TestProgress(unittest.TestCase):
         """Done ticket with no merge-pr and no readable ticket.json -> burn_up == 'no data' + meta.degraded."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"T1": {"status": "done", "type": "story"}})
-            # No ticket.json, no pipeline-state.json -> no timestamps recoverable
+            # No ticket.json, no run.json -> no timestamps recoverable
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             burn = out["panels"]["progress"]["burn_up"]
             self.assertEqual(burn, "no data")

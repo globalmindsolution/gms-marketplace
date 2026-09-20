@@ -153,7 +153,7 @@ class _GuardedWriterCaseMixin:
 
 
 class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
-    MODULE = lib.state
+    MODULE = lib.step
     guard_name = "tickets-index.json.lock"
 
     def _call(self, n=1):
@@ -207,7 +207,7 @@ class ConcurrentWritersTest(unittest.TestCase):
         def _write(n):
             lib.update_index(self.workspace, "acme-shop", _ticket("SHOP-%d" % n))
 
-        with mock.patch.object(lib.state, "read_json", side_effect=slow_read):
+        with mock.patch.object(lib.step, "read_json", side_effect=slow_read):
             t1 = threading.Thread(target=_write, args=(1,))
             t2 = threading.Thread(target=_write, args=(2,))
             t1.start()

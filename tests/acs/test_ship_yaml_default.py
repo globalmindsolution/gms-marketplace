@@ -24,7 +24,7 @@ import acs_lib as lib  # noqa: E402
 from acs_lib import workflow  # noqa: E402
 
 #: The step order the refactor brief fixes (brief section 2.1).
-EXPECTED_IDS = ["analyze-ticket", "create-impl-plan", "create-api-contract", "create-test-docs",
+EXPECTED_IDS = ["analyze-requirements", "create-impl-plan", "create-api-contract", "create-test-docs",
                 "code", "create-e2e-tests", "docs-sync", "run-e2e-tests", "create-pr"]
 
 
@@ -62,12 +62,12 @@ class TestShippedDefault(unittest.TestCase):
             import jsonschema
         except ImportError:
             self.skipTest("jsonschema is not installed")
-        with open(os.path.join(PLUGIN, "schemas", "ship-workflow.schema.json"), encoding="utf-8") as fh:
+        with open(os.path.join(PLUGIN, "schemas", "workflow.schema.json"), encoding="utf-8") as fh:
             schema = json.load(fh)
         jsonschema.validate(self.doc, schema)
 
     def test_the_schema_skill_enum_mirrors_the_registry(self):
-        with open(os.path.join(PLUGIN, "schemas", "ship-workflow.schema.json"), encoding="utf-8") as fh:
+        with open(os.path.join(PLUGIN, "schemas", "workflow.schema.json"), encoding="utf-8") as fh:
             schema = json.load(fh)
         # `skill` and `boundary` are each `oneOf` a scalar and a per-path
         # mapping since ADR-0095, so the enum lives on the scalar branch and on
@@ -116,7 +116,7 @@ class TestShippedDefault(unittest.TestCase):
 
     def test_create_impl_plan_requires_design_approved(self):
         self.assertEqual(self.steps["create-impl-plan"]["requires"], "design_approved")
-        self.assertEqual(self.steps["create-impl-plan"]["needs"], ["analyze-ticket"])
+        self.assertEqual(self.steps["create-impl-plan"]["needs"], ["analyze-requirements"])
 
     def test_create_api_contract_runs_after_the_plan_when_the_api_surface_changed(self):
         self.assertEqual(self.steps["create-api-contract"]["needs"], ["create-impl-plan"])

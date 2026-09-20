@@ -66,7 +66,7 @@ class ReadmeSkillCountPinTest(unittest.TestCase):
     The design-phase entry-point fold moved the row half of this pin with the
     fact it pins. Before the fold every skill on disk was a `/acs:<name>`
     command, so one `| `/acs:` row per directory was the whole truth. Six
-    skills are now INTERNAL LEGS (`workflows/phases.yaml`'s `internal` map):
+    skills are now INTERNAL LEGS (`skills/<name>/acs.yaml`'s `internal` map):
     they keep their SKILL.md, agents, hooks and gate and stay Skill-invocable,
     but they are not commands a user runs, so the table renders them as legs
     (`| `<leg>` | `/acs:<entry point>` | …`) and not as commands. The pin is

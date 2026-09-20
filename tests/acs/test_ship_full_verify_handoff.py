@@ -82,7 +82,7 @@ class FullVerifyHandoffBoundaryTest(unittest.TestCase):
             re.search(r"(?i)full_verify_stop.{0,200}STOP", sect),
             "the section must state that a boundary step STOPs")
         self.assertIn("/acs:ship <ticket-id>", sect)
-        self.assertIn("pipeline-state.json", sect)
+        self.assertIn("run.json", sect)
 
     def test_stop_is_a_designed_boundary_not_a_failure(self):
         sect = normalize(section(self.body, BOUNDARY_HEADING))

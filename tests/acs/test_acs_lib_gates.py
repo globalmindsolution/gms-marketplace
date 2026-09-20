@@ -74,8 +74,8 @@ class GateCase(AcsWorkspaceCase):
 
     def record_run(self, skill, ticket_id, status, states=None):
         tdir = self.tdir(ticket_id)
-        lib.append_in_progress_run(tdir, skill, ticket_id)
-        lib.finalize_run(tdir, skill, ticket_id, {"status": status, "states": states or {}})
+        lib.append_invocation(tdir, skill, ticket_id)
+        lib.finalize_invocation(tdir, skill, ticket_id, {"status": status, "states": states or {}})
 
     def foreign_lock(self, ticket_id):
         """A live lock held by another checkout on another host: never stale
@@ -182,7 +182,7 @@ class TestGateCreateDesign(GateCase):
 
     def test_passes_when_the_create_ticket_run_is_recorded_in_progress(self):
         self.ticket("SHOP-3", needs_design=True)
-        lib.append_in_progress_run(self.tdir("SHOP-3"), "create-ticket", "SHOP-3")
+        lib.append_invocation(self.tdir("SHOP-3"), "create-ticket", "SHOP-3")
         self.assertEqual(lib.gate_create_design(self.ctx(), self.payload("SHOP-3")), "SHOP-3")
 
     def test_still_refuses_a_ticket_not_flagged_needs_design(self):
@@ -315,7 +315,7 @@ class TestGateAnalyzeTicket(GateCase):
         msg = str(ctx.exception)
         self.assertIn("epic", msg)
         self.assertLess(msg.index("/acs:create-design"), msg.index("/acs:create-ticket"))
-        self.assertIn("/acs:analyze-ticket", msg)
+        self.assertIn("/acs:analyze-requirements", msg)
 
     def test_refuses_an_unresolvable_ticket(self):
         with self.assertRaises(lib.GateError) as ctx:
@@ -360,7 +360,7 @@ class TestGateCreateApiContract(GateCase):
         self.partition_artifact("SHOP-13", "plan.md")
         with self.assertRaises(lib.GateError) as ctx:
             lib.gate_create_api_contract(self.ctx(), self.payload("SHOP-13"))
-        self.assertIn("run /acs:analyze-ticket SHOP-13 first", str(ctx.exception))
+        self.assertIn("run /acs:analyze-requirements SHOP-13 first", str(ctx.exception))
 
     def test_refuses_when_the_analysis_found_no_api_surface(self):
         self.partition_artifact("SHOP-13", "plan.md")
@@ -368,7 +368,7 @@ class TestGateCreateApiContract(GateCase):
         with self.assertRaises(lib.GateError) as ctx:
             lib.gate_create_api_contract(self.ctx(), self.payload("SHOP-13"))
         self.assertIn("api_surface", str(ctx.exception))
-        self.assertIn("/acs:analyze-ticket SHOP-13", str(ctx.exception))
+        self.assertIn("/acs:analyze-requirements SHOP-13", str(ctx.exception))
 
     def test_passes_with_a_plan_and_an_api_surface_analysis(self):
         self.partition_artifact("SHOP-13", "plan.md")
@@ -680,7 +680,7 @@ class TestGateInputsTable(GateCase):
     def test_ticket_gates_return_the_ticket_id_when_they_pass(self):
         """The id is what run_pre_payload hands the advisory."""
         self.ticket("SHOP-91")
-        for skill in ("create-test-docs", "analyze-ticket", "create-impl-plan", "docs-sync", "create-pr"):
+        for skill in ("create-test-docs", "analyze-requirements", "create-impl-plan", "docs-sync", "create-pr"):
             with self.subTest(skill=skill):
                 self.assertEqual(lib.GATES[skill](self.ctx(), self.payload("SHOP-91")), "SHOP-91")
 

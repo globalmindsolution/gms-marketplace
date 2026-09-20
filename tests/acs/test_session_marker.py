@@ -114,7 +114,7 @@ class TestAppendInProgressRunSession(unittest.TestCase):
         self.addCleanup(lambda: __import__("shutil").rmtree(self.tdir, ignore_errors=True))
 
     def test_default_session_none_leaves_entry_shape_unchanged(self):
-        state = lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
+        state = lib.append_invocation(self.tdir, "code", "SHOP-1")
         entry = state["runs"][-1]
         self.assertNotIn("session_id", entry)
         self.assertNotIn("transcript_path", entry)
@@ -123,20 +123,20 @@ class TestAppendInProgressRunSession(unittest.TestCase):
 
     def test_session_marker_persists_session_id_and_transcript_path(self):
         marker = {"session_id": "sess-abc", "transcript_path": "/tmp/sess-abc.jsonl"}
-        state = lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session=marker)
+        state = lib.append_invocation(self.tdir, "code", "SHOP-1", session=marker)
         entry = state["runs"][-1]
         self.assertEqual(entry["session_id"], "sess-abc")
         self.assertEqual(entry["transcript_path"], "/tmp/sess-abc.jsonl")
 
     def test_new_ticket_py_real_call_site_unaffected(self):
-        """new-ticket.py:117 calls append_in_progress_run(tdir, "create-ticket",
+        """new-ticket.py:117 calls append_invocation(tdir, "create-ticket",
         ticket_id) with no session argument -- grounds the "existing callers keep
         working" claim against the actual second call site, not just this
         module's own fixtures."""
         with open(os.path.join(SCRIPTS, "new-ticket.py")) as fh:
             body = fh.read()
-        self.assertIn('lib.append_in_progress_run(tdir, "create-ticket", ticket_id)', body)
-        state = lib.append_in_progress_run(self.tdir, "create-ticket", "SHOP-2")
+        self.assertIn('lib.append_invocation(tdir, "create-ticket", ticket_id)', body)
+        state = lib.append_invocation(self.tdir, "create-ticket", "SHOP-2")
         self.assertNotIn("session_id", state["runs"][-1])
 
 

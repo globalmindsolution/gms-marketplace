@@ -559,7 +559,7 @@ class ChildAcceptanceCriteriaWriteInstructedInBothFilesCase(unittest.TestCase):
 class ExecutorHardRulesPermitTheChildAcceptanceCriteriaWriteCase(unittest.TestCase):
     """F2-c: the executor's Hard rules permit the child ticket.json AC
     write while still forbidding counters.json/tickets-index.json/
-    pipeline-state.json hand-edits -- landing F2-b without this widening
+    run.json hand-edits -- landing F2-b without this widening
     would leave the executor contract self-contradictory."""
 
     def test_executor_hard_rules_permit_the_child_acceptance_criteria_write(self):
@@ -568,7 +568,7 @@ class ExecutorHardRulesPermitTheChildAcceptanceCriteriaWriteCase(unittest.TestCa
             re.search(r"(?i)acceptance_criteria.{0,200}child|"
                       r"child.{0,200}acceptance_criteria", section_norm),
             "Hard rules must permit the child acceptance_criteria write")
-        for token in ("counters.json", "tickets-index.json", "pipeline-state.json"):
+        for token in ("counters.json", "tickets-index.json", "run.json"):
             self.assertIn(token, section_norm)
 
 

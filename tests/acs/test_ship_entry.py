@@ -86,7 +86,7 @@ class EntryContractTest(unittest.TestCase):
         start = section(self.body, "## Start")
         self.assertIn("[A-Z][A-Z0-9]*-[0-9]+", start,
                       "ship must recognise a ticket id by the same pattern "
-                      "pipeline-state.schema.json uses")
+                      "run.schema.json uses")
 
     def test_no_new_request_path_survives(self):
         for token in ("new request", "new_request"):

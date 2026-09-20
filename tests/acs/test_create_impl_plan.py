@@ -595,7 +595,7 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
-    """analyze-ticket promises that with no user answer create-impl-plan
+    """analyze-requirements promises that with no user answer create-impl-plan
     plans against the ticket as written; the plan skill has to keep that
     promise rather than re-ask the open proposals (the 2026-09-14 PIPE-code
     diagnostic lost a run to a plan run that asked and had no one to answer)."""
@@ -603,7 +603,7 @@ class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.norm = norm(read(IMPL_PLAN_SKILL))
-        cls.analyze = norm(read(os.path.join(SKILLS_DIR, "analyze-ticket", "SKILL.md")))
+        cls.analyze = norm(read(os.path.join(SKILLS_DIR, "analyze-requirements", "SKILL.md")))
 
     def test_the_plan_skill_carries_open_proposals_instead_of_asking(self):
         self.assertIn("Entries the analysis left open are proposals, not blockers.", self.norm)

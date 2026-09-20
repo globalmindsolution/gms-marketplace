@@ -218,7 +218,7 @@ class Dimension16PathAuditTest(unittest.TestCase):
         window = dimension_window(code_verifier_body(), 16, "Path audit")
         self.assertIn("delivery_path", window)
         self.assertIn("delivery_path_reason", window)
-        self.assertIn("pipeline-state.json", window)
+        self.assertIn("run.json", window)
         self.assertRegex(
             window, r"(?i)fresh, from disk, never a coordinator-relayed value")
 

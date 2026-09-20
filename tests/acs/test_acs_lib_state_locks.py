@@ -84,11 +84,11 @@ class TestLastRunStatus(unittest.TestCase):
 
     def test_returns_none_for_absent_empty_or_non_list_runs(self):
         lib.write_json(lib.state_path(self.tdir, "code"), {"skill": "code"})
-        self.assertIsNone(lib.last_run_status(self.tdir, "code"))
+        self.assertIsNone(lib.last_status(self.tdir, "code"))
         lib.write_json(lib.state_path(self.tdir, "code"), {"runs": []})
-        self.assertIsNone(lib.last_run_status(self.tdir, "code"))
+        self.assertIsNone(lib.last_status(self.tdir, "code"))
         lib.write_json(lib.state_path(self.tdir, "code"), {"runs": "oops"})
-        self.assertIsNone(lib.last_run_status(self.tdir, "code"))
+        self.assertIsNone(lib.last_status(self.tdir, "code"))
 
 
 class TestFinalizeRun(unittest.TestCase):
@@ -102,9 +102,9 @@ class TestFinalizeRun(unittest.TestCase):
 
     def test_raises_for_invalid_or_in_progress_status(self):
         with self.assertRaises(ValueError):
-            lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "bogus"})
+            lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "bogus"})
         with self.assertRaises(ValueError):
-            lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "in_progress"})
+            lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "in_progress"})
 
     def test_raises_when_the_result_states_no_status(self):
         """finalize_run writes the status the next pre-hook gates on, so it is
@@ -113,18 +113,18 @@ class TestFinalizeRun(unittest.TestCase):
         default intact at the point of persistence, reachable by any in-process
         caller."""
         with self.assertRaises(ValueError) as ctx:
-            lib.finalize_run(self.tdir, "code", "SHOP-1", {"stop_reason": "no status given"})
+            lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"stop_reason": "no status given"})
         self.assertIn("None", str(ctx.exception))
         self.assertEqual(lib.load_state(self.tdir, "code", "SHOP-1").get("runs", []), [])
 
     def test_synthesizes_run_entry_when_none_in_progress(self):
-        state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+        state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertEqual(entry["status"], "completed")
         self.assertEqual(len(state["runs"]), 1)
 
     def test_persists_findings_and_errors_from_result(self):
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
-        state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {
+        lib.append_invocation(self.tdir, "code", "SHOP-1")
+        state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {
             "status": "completed",
             "findings": [{"severity": "info", "summary": "x"}],
             "errors": ["boom"],
@@ -137,7 +137,7 @@ class TestFinalizeRun(unittest.TestCase):
         """AC-3: a coordinator-supplied tokens/cost_usd self-estimate in
         `result` is ignored; the persisted figures come from
         usage_reader/cost_sampler instead."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
         })
         measured_role_usage = [
@@ -167,7 +167,7 @@ class TestFinalizeRun(unittest.TestCase):
                 "api_duration_ms": None, "api_duration_basis": "unavailable",
                 "api_duration_scope": "duration_unavailable_on_cursor",
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {
                 "status": "completed",
                 "tokens": {"input": 999999, "output": 999999},
                 "cost_usd": 123.45,
@@ -187,7 +187,7 @@ class TestFinalizeRun(unittest.TestCase):
         """finalize_run's own `skill` argument -- not a fixed constant -- is
         what reaches usage_reader.read_transcript_usage, so a run's own-skill
         filter always matches this run's own skill, whichever skill it is."""
-        lib.append_in_progress_run(self.tdir, "create-design", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "create-design", "SHOP-1", session={
             "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
         })
         with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
@@ -202,7 +202,7 @@ class TestFinalizeRun(unittest.TestCase):
                 "api_duration_ms": None, "api_duration_basis": "unavailable",
                 "api_duration_scope": "duration_unavailable_on_cursor",
             }
-            state, entry = lib.finalize_run(self.tdir, "create-design", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "create-design", "SHOP-1", {"status": "completed"})
         read_usage.assert_called_once_with(
             "/fake/sess-2.jsonl", entry["started_at"], entry["ended_at"], "create-design")
 
@@ -210,9 +210,9 @@ class TestFinalizeRun(unittest.TestCase):
         """Required short-circuit (Risk R-N): a run entry with no session_id/
         transcript_path (e.g. new-ticket.py's synthetic create-ticket runs)
         performs NO transcript I/O and finalizes as completed/unavailable."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
+        lib.append_invocation(self.tdir, "code", "SHOP-1")
         with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         read_usage.assert_not_called()
         self.assertEqual(entry["status"], "completed")
         self.assertIsNone(entry["cost_usd"])
@@ -227,7 +227,7 @@ class TestFinalizeRun(unittest.TestCase):
         stay empty, role_usage stays empty, and allocate_cost is never
         invoked (no degraded run may consume a real cost sample or advance
         the per-checkout cursor)."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
         })
         with mock.patch("usage_reader.read_transcript_usage") as read_usage, \
@@ -235,7 +235,7 @@ class TestFinalizeRun(unittest.TestCase):
             read_usage.return_value = {
                 "degraded": True, "reason": "cap_exceeded", "role_usage": [], "model_usage": [],
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         allocate.assert_not_called()
         self.assertIsNone(entry["cost_usd"])
         self.assertEqual(entry["cost_basis"], "unavailable")
@@ -249,7 +249,7 @@ class TestFinalizeRun(unittest.TestCase):
         sums exactly that figure -- a ticket with a non-zero excluded_token_share
         on one of its runs must never roll up the full (unattributed-inclusive)
         session-window delta into its cost_usd total."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
         })
         measured_role_usage = [
@@ -276,7 +276,7 @@ class TestFinalizeRun(unittest.TestCase):
                 "api_duration_ms": None, "api_duration_basis": "unavailable",
                 "api_duration_scope": "duration_unavailable_on_cursor",
             }
-            lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
 
         totals = lib.compute_ticket_totals(self.tdir)
         self.assertEqual(totals["cost_usd"], 2.5)
@@ -287,7 +287,7 @@ class TestFinalizeRun(unittest.TestCase):
         tokens-only (no cost keys), mirroring role_usage's own behavior at
         this branch (acs_lib/state.py): measured token data is never
         discarded just because cost can't be located."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl",
         })
         measured_model_usage = [
@@ -298,7 +298,7 @@ class TestFinalizeRun(unittest.TestCase):
             read_usage.return_value = {
                 "degraded": False, "reason": None, "role_usage": [], "model_usage": measured_model_usage,
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         allocate.assert_not_called()
         self.assertEqual(entry["model_usage"], measured_model_usage)
         for item in entry["model_usage"]:
@@ -309,28 +309,28 @@ class TestFinalizeRun(unittest.TestCase):
         """No session_id/transcript_path, and a degraded transcript read,
         both persist model_usage=[] -- same rule as role_usage's own
         empty-list branches (acs_lib/state.py)."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
+        lib.append_invocation(self.tdir, "code", "SHOP-1")
         with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         read_usage.assert_not_called()
         self.assertEqual(entry["model_usage"], [])
 
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
         })
         with mock.patch("usage_reader.read_transcript_usage") as read_usage:
             read_usage.return_value = {
                 "degraded": True, "reason": "unreadable_transcript", "role_usage": [], "model_usage": [],
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertEqual(entry["model_usage"], [])
 
     def test_model_usage_is_a_sibling_of_tokens_never_inside_it(self):
         """F10 guard at the persistence layer: model_usage must be a
         top-level key on the run entry, never nested inside entry['tokens']
-        (skill-state.schema.json's tokens object is additionalProperties:
+        (step-state.schema.json's tokens object is additionalProperties:
         false and must stay that way)."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
         })
         measured_model_usage = [
@@ -348,7 +348,7 @@ class TestFinalizeRun(unittest.TestCase):
                 "api_duration_ms": None, "api_duration_basis": "unavailable",
                 "api_duration_scope": "duration_unavailable_on_cursor",
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertIn("model_usage", entry)
         self.assertNotIn("model_usage", entry["tokens"])
         self.assertEqual(set(entry["tokens"]), {"input", "output", "cache_creation", "cache_read"})
@@ -358,7 +358,7 @@ class TestFinalizeRun(unittest.TestCase):
         api_duration_ms/api_duration_basis/api_duration_scope from
         allocate_cost's return dict onto entry, as siblings of
         cost_usd/cost_basis/cost_scope (never inside entry['tokens'] -- F10)."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
         })
         measured_role_usage = [
@@ -381,7 +381,7 @@ class TestFinalizeRun(unittest.TestCase):
                 "api_duration_ms": 500.0, "api_duration_basis": "measured",
                 "api_duration_scope": "session_total",
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertEqual(entry["api_duration_ms"], 500.0)
         self.assertEqual(entry["api_duration_basis"], "measured")
         self.assertEqual(entry["api_duration_scope"], "session_total")
@@ -394,7 +394,7 @@ class TestFinalizeRun(unittest.TestCase):
         api_duration_basis="unavailable" -- tokens/model_usage are still
         measured; duration needs the checkout-scoped cursor it has no id to
         locate, exact parity with cost_usd's own rule there."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl",
         })
         measured_role_usage = [
@@ -405,7 +405,7 @@ class TestFinalizeRun(unittest.TestCase):
             read_usage.return_value = {
                 "degraded": False, "reason": None, "role_usage": measured_role_usage, "model_usage": [],
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         allocate.assert_not_called()
         self.assertIsNone(entry["api_duration_ms"])
         self.assertEqual(entry["api_duration_basis"], "unavailable")
@@ -418,22 +418,22 @@ class TestFinalizeRun(unittest.TestCase):
         entry["api_duration_basis"]="unavailable" -- no api_duration_scope
         key in either, mirroring how those branches set cost_usd/cost_basis
         but never cost_scope."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1")
+        lib.append_invocation(self.tdir, "code", "SHOP-1")
         with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         read_usage.assert_not_called()
         self.assertIsNone(entry["api_duration_ms"])
         self.assertEqual(entry["api_duration_basis"], "unavailable")
         self.assertNotIn("api_duration_scope", entry)
 
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
         })
         with mock.patch("usage_reader.read_transcript_usage") as read_usage:
             read_usage.return_value = {
                 "degraded": True, "reason": "unreadable_transcript", "role_usage": [], "model_usage": [],
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertIsNone(entry["api_duration_ms"])
         self.assertEqual(entry["api_duration_basis"], "unavailable")
         self.assertNotIn("api_duration_scope", entry)
@@ -442,7 +442,7 @@ class TestFinalizeRun(unittest.TestCase):
         """Inverse obligation: entry['tokens'] still equals the role-sum
         result (acs_lib._sum_role_tokens) on a mixed-model fixture --
         model_usage introduces no new total."""
-        lib.append_in_progress_run(self.tdir, "code", "SHOP-1", session={
+        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
         })
         measured_role_usage = [
@@ -465,7 +465,7 @@ class TestFinalizeRun(unittest.TestCase):
                 "api_duration_ms": None, "api_duration_basis": "unavailable",
                 "api_duration_scope": "duration_unavailable_on_cursor",
             }
-            state, entry = lib.finalize_run(self.tdir, "code", "SHOP-1", {"status": "completed"})
+            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
         self.assertEqual(entry["tokens"], lib._sum_role_tokens(measured_role_usage))
         self.assertEqual(entry["tokens"], {"input": 10, "output": 5, "cache_creation": 0, "cache_read": 0})
 
@@ -732,10 +732,10 @@ class TestAllocateTicketId(unittest.TestCase):
                 pass
             return original_write_json(path, data)
 
-        # acs_lib is a package (MAR-522): acs_lib.state bound this name at import
+        # acs_lib is a package (MAR-522): acs_lib.step bound this name at import
         # time, so patching the facade would leave the real one in place and
         # this branch would go uncovered while the test still passed.
-        with mock.patch.object(lib.state, "write_json", side_effect=shim):
+        with mock.patch.object(lib.step, "write_json", side_effect=shim):
             result = lib.allocate_ticket_id(self.workspace, "acme-shop", "SHOP")
         self.assertEqual(result, "SHOP-1")
 

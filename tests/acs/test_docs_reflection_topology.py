@@ -12,7 +12,7 @@ drift again.
 ADR-0092 retired the planner role from every skill, so the "triad" the
 original pins counted no longer exists: the unit is now the executor +
 verifier PAIR, and the count of skills that own one is read from the
-registry (`workflows/phases.yaml`), never hardcoded.
+registry (`skills/<name>/acs.yaml`), never hardcoded.
 
 Stdlib-only (ast, glob, importlib, os, re, unittest). Run:
   python3 -m unittest tests.acs.test_docs_reflection_topology -v
@@ -132,7 +132,7 @@ def derive():
 D = derive()
 
 NEW_TRIAD_SUFFIXES = (
-    "standardize-project", "create-requirements", "analyze-ticket",
+    "standardize-project", "create-requirements", "analyze-requirements",
     "create-impl-plan", "create-api-contract", "create-test-docs",
     "create-e2e-tests",
 )
@@ -405,7 +405,7 @@ class SkillsMdUnchangedTest(unittest.TestCase):
 
     def test_skill_count_word_present(self):
         # 25 -> 31 with the skills-independence refactor: five new hooked
-        # Build/Test skills (analyze-ticket, create-impl-plan,
+        # Build/Test skills (analyze-requirements, create-impl-plan,
         # create-api-contract, create-test-docs, create-e2e-tests) plus the
         # `test` -> `run-e2e-tests` rename, which keeps the old directory as a
         # forwarding alias for one release.

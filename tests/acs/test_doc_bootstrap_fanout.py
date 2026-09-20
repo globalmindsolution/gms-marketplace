@@ -24,7 +24,7 @@ try:
 except ImportError:
     HAS_JSONSCHEMA = False
 
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
 
 # v1 scope only: principles/standards deliberately unconfigured so the
 # eligible set is exactly the pair (D7-A).

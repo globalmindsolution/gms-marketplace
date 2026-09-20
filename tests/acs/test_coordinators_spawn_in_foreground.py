@@ -1,7 +1,7 @@
 """Every coordinator that spawns a subagent spawns it in the foreground and
 waits on the result, never on a clock.
 
-On the 2026-09-15 release gate an /acs:analyze-ticket coordinator's executor
+On the 2026-09-15 release gate an /acs:analyze-requirements coordinator's executor
 and verifier were both moved to the background by the runtime; the
 coordinator waited on each with `for i in $(seq 1 40); do sleep 15; done`,
 ten fixed minutes apiece, and the 1800s setup budget ran out as iteration 2

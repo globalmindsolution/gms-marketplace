@@ -26,7 +26,7 @@ Three conventions, each with the concrete failure that motivated it:
 2. No acs_case.run_main() call outside a `with ... .pushd(...):`. MAR-177
    proved an unguarded call can flip a live coordinator run to handed_off,
    release the partition lock, and rewrite the operator's REAL
-   pipeline-state.json -- not a fixture's throwaway one -- when the process
+   run.json -- not a fixture's throwaway one -- when the process
    cwd is wrong. Seven sites are legitimately exempt; see
    ALLOWED_UNGUARDED_RUN_MAIN below, each entry carrying its own reason and
    evidence, plus a staleness check so a retired exemption cannot rot into a
@@ -733,7 +733,7 @@ class T(unittest.TestCase):
 
     def test_negative_controls_flag_against_real_scripts(self):
         """Coupled to live production content on purpose: it holds only while
-        clarify.py never gains the token "pipeline-state.json" and codeowners.py
+        clarify.py never gains the token "run.json" and codeowners.py
         never gains "lock_path". If either script legitimately does, re-point the
         control at a token that script still cannot create rather than deleting
         it; the hermetic twin (test_detector_fires_on_a_never_created_path) is
@@ -741,7 +741,7 @@ class T(unittest.TestCase):
         lib_source = acs_lib_source()
         clarify_source = read(os.path.join(SCRIPTS_DIR, "clarify.py"))
         corpus_clarify = build_corpus(clarify_source, lib_source, depth=1)
-        self.assertEqual(_verdict("pipeline-state.json", corpus_clarify), "flag")
+        self.assertEqual(_verdict("run.json", corpus_clarify), "flag")
 
         codeowners_source = read(os.path.join(SCRIPTS_DIR, "codeowners.py"))
         corpus_codeowners = build_corpus(codeowners_source, lib_source, depth=1)

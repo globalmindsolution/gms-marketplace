@@ -371,7 +371,7 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         self._assert_clean_refusal(out, "handoff")
         self.assertFalse(os.path.exists(lib.lock_path(tdir)),
                          "the lock must be released even when metrics is refused")
-        self.assertEqual(lib.last_run_status(tdir, "code"), "handed_off")
+        self.assertEqual(lib.last_status(tdir, "code"), "handed_off")
 
     def test_session_end_releases_the_lock_even_when_metrics_refuses(self):
         """The SessionEnd net's whole job is the release, and dispatch.py
@@ -387,7 +387,7 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertFalse(os.path.exists(lib.lock_path(tdir)),
                          "the safety net must release the lock it came to release")
-        self.assertEqual(lib.last_run_status(tdir, "code"), "interrupted")
+        self.assertEqual(lib.last_status(tdir, "code"), "interrupted")
 
     def test_path_set_has_no_second_half_to_diverge(self):
         """`acs.py lane apply` used to stand here: it wrote the ticket, the
@@ -397,7 +397,7 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
 
         ADR-0095 retired that writer. `acs.py path set` replaces it and has no
         interior to be interrupted: one refusal check, then ONE write to
-        pipeline-state.json, no ticket field, no index row, no audit event. So
+        run.json, no ticket field, no index row, no audit event. So
         the property to hold is the stronger one -- a held index lock cannot
         reach it at all, and the recorded path is either absent or complete."""
         ticket = self.new_ticket("Audit", "task")
@@ -457,7 +457,7 @@ class PostHookReportsGuardTimeoutTest(AcsWorkspaceCase):
         self.assertIn("ARE written", out.stderr)
         self.assertIn("Do NOT re-run this hook", out.stderr)
         # The half that landed really did land...
-        self.assertEqual(lib.last_run_status(tdir, "standardize-project"), "completed")
+        self.assertEqual(lib.last_status(tdir, "standardize-project"), "completed")
         self.assertEqual(lib.load_ticket(tdir)["status"], "in_review")
         # ...the repo-level half did not: the index still carries the pre-call
         # status, which is the divergence the message tells the operator about.

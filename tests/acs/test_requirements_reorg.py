@@ -216,7 +216,7 @@ RETIRED_BY_TABP_REMOVAL = {
 
 #: Retired by ADR-0095 (static delivery-path routing). The `size`/`stakes`
 #: axes and the lane derived from them are gone: rigor is one judgement, made
-#: once from `plan.md` by /ship and recorded on pipeline-state.json, so there
+#: once from `plan.md` by /ship and recorded on run.json, so there
 #: is no axis for /create-ticket to capture, nothing for an in-flight trigger
 #: to raise, and nothing a user has to confirm before it can be lowered. The
 #: guarantees these clauses carried did not lapse — they became unnecessary,

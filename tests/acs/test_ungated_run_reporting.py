@@ -229,7 +229,7 @@ class LedgerTest(SkillStartCase):
         """Forward-only: an entry written before this shipped simply has no
         field, and reading the ledger must not depend on one being there."""
         tdir = self.mint("SHOP-1")
-        lib.append_in_progress_run(tdir, "code", "SHOP-1")
+        lib.append_invocation(tdir, "code", "SHOP-1")
         self.assertNotIn("gate_enforcement",
                          lib.load_state(tdir, "code", "SHOP-1")["runs"][-1])
 
@@ -306,7 +306,7 @@ class RefuseResponseTest(SkillStartCase):
         code, _payload, _err = self.start("SHOP-1")
         self.assertEqual(code, 2)
         # The partition the fixture minted is untouched: no .lock, no
-        # <skill>-state.json run entry, no pipeline-state.json row.
+        # <skill>-state.json run entry, no run.json row.
         self.assertEqual(os.listdir(tdir), ["ticket.json"])
         self.assertFalse(os.path.exists(lib.lock_path(tdir)))
         ckid = lib.checkout_id(self.repo)
