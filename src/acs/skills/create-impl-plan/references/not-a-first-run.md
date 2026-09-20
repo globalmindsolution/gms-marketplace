@@ -39,12 +39,13 @@ light reconcile, and continue from where it points.
 
 The escape hatch reached when a plan already exists and is wrong — a re-run of
 this skill on a planned ticket, including the one `/acs:ship` drives when
-`/acs:code` ends with `stop_reason: plan_superseded`.
+`/acs:code` ends `failed` with a `summary` naming the plan as superseded.
 
 **Never automatic for a plan nobody challenged.** Revocation is reached only
 at an iteration or run boundary — never mid-iteration — and only on a recorded
 trigger: an explicit user answer recorded via `clarify.py add`, or a
-`/acs:code` run whose result document records `stop_reason: plan_superseded`.
+`/acs:code` run whose result document records `failed` with a `summary`
+naming the plan as superseded.
 Letting the loop dissolve its own contract without that record is precisely
 the rubber-stamp failure ADR 0004 exists to prevent.
 

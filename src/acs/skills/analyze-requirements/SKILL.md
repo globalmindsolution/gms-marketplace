@@ -418,7 +418,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 1; analysis published",
+     "summary": "verifier passed with zero findings on iteration 1; analysis published",
      "states": {
        "ready_for_planning": true,
        "api_surface": true,
@@ -445,7 +445,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    (`acs.py ticket save`), so it belongs in
    `findings` and the completion report, not in `states`. On failure keep
    whatever is true: `ready_for_planning: false`, the open findings in
-   `findings`, and the reason (iteration cap, needs input) in `stop_reason`.
+   `findings`, and the reason (iteration cap, needs input) in `summary`.
 
 2. Run the post-hook:
 
@@ -479,7 +479,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 ## /acs:analyze-requirements · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: verdict (ready_for_planning); impact map counts; api_surface; load-bearing surfaces named in Risks; needs_design / refined-AC proposals
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <analysis path, partition phase artifacts, branch>

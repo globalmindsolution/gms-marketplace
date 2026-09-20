@@ -410,7 +410,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 1; 7 cases published, every AC traced",
+     "summary": "verifier passed with zero findings on iteration 1; 7 cases published, every AC traced",
      "states": {
        "cases": 7,
        "e2e_cases": 2,
@@ -436,7 +436,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 
    On failure keep whatever is true: the counts as published (or `0` when
    nothing was published), the open findings in `findings`, and the reason
-   (iteration cap, needs input) in `stop_reason`.
+   (iteration cap, needs input) in `summary`.
 
 2. Run the post-hook:
 
@@ -469,7 +469,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 ## /acs:create-test-docs · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: <n> cases (<u> unit / <i> integration / <e> e2e); <k>/<k> acceptance criteria traced; suites targeted
 - **Findings**: <untraced criteria / open clarifications, or "none">
 - **Artifacts**: <test-cases.md path, partition phase artifacts, branch>

@@ -431,7 +431,7 @@ planning against the current decomposition — nothing else changes. On
 below first (so `acs step finish` closes the run entry like any
 other terminal run), writing
 `steps/create-impl-plan/result.json` with `status: "failed"` and
-`stop_reason` "user chose to split; restructure required before
+`summary` "user chose to split; restructure required before
 implementation", and only then return `<handoff status="failed">` whose
 `<next-step>` reads `/acs:create-ticket split <id> per
 steps/create-impl-plan/plan.md` — it is the handoff element's own
@@ -472,7 +472,7 @@ MANDATORY final step — never skipped, also on failure:
    ```json
    {
      "status": "completed",
-     "stop_reason": "plan published and approved; 3 executor tasks, disjoint file maps",
+     "summary": "plan published and approved; 3 executor tasks, disjoint file maps",
      "states": {
        "plan_path": "docs/tickets/SHOP-123/plan.md",
        "plan_approved": false,
@@ -500,7 +500,7 @@ MANDATORY final step — never skipped, also on failure:
    On failure keep whatever is true: the `plan_path` only when a plan was
    actually published, `plan_approved: false`, the file map as far as it was
    declared, open findings in `findings`, and the reason (iteration cap,
-   needs input, user chose to split) in `stop_reason`.
+   needs input, user chose to split) in `summary`.
 
 2. Run the post-hook:
 
@@ -533,7 +533,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 ## /acs:create-impl-plan · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: plan path; executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code executors will run
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <plan path, partition phase artifacts, branch>

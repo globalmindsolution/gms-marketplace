@@ -224,7 +224,7 @@ same order, `none` where empty:
 ## /acs:handoff · <run-id> · <status>
 
 - **Run**: <run-id> — <subject>
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: what was flushed to the run directory (soft context, decisions, partial findings); the in-flight invocation and step finalized `interrupted`; lock released
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <run-directory files, repo paths, branch, PR URL>

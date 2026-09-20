@@ -253,7 +253,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 1",
+     "summary": "verifier passed with zero findings on iteration 1",
      "states": {
        "docs_committed": ["docs/api/import.md", "README.md"],
        "commits": ["a1b2c3d SHOP-123 sync API doc for the new 409 response"],
@@ -269,11 +269,11 @@ MANDATORY final step — never skipped, including on failure or handoff:
    message list of the additional commits docs-sync made. `review`:
    `{iterations, findings_open}` — to which the post-hook's derivation may add
    `guard_denials` when the file-map guard denied a write during THIS run
-   (the derivation reads `<skill>-state.json` for every skill, docs-sync's
-   own included); never write that key yourself, and a run that tripped
-   nothing carries no key at all. On `failed`: keep whatever is true, put the
-   verifier's blocking findings in `findings`, and the reason in
-   `stop_reason`.
+   (the derivation reads `steps/<skill>/state.json` for every step,
+   docs-sync's own included); never write that key yourself, and a run that
+   tripped nothing carries no key at all. On `failed`: keep whatever is true,
+   put the verifier's blocking findings in `findings`, and the reason in
+   `summary`.
 
 2. Run:
 
@@ -306,7 +306,7 @@ invocations:
 ## /acs:docs-sync · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: doc files committed; commits made; review iterations and open findings
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch>

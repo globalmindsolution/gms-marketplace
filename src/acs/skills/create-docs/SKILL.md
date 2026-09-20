@@ -437,7 +437,7 @@ MANDATORY final step for every set started — never skipped, also on failure:
 ```json
 {
   "status": "completed",
-  "stop_reason": "quality doc set verified against the architecture set; docs-only PR opened",
+  "summary": "quality doc set verified against the architecture set; docs-only PR opened",
   "states": {
     "doc_set": {
       "set": "quality",
@@ -452,7 +452,7 @@ MANDATORY final step for every set started — never skipped, also on failure:
 ```
 
    On failure: `status: "failed"`, the blocking findings in `findings`, the
-   reason in `stop_reason`, keep whatever is true in `states` (e.g. the
+   reason in `summary`, keep whatever is true in `states` (e.g. the
    written `doc_set` files without `pr`). On handoff: `status: "handed_off"`
    plus `handoff_summary`.
 

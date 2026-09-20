@@ -395,7 +395,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 2; 2 e2e cases covered by 1 suite, committed",
+     "summary": "verifier passed with zero findings on iteration 2; 2 e2e cases covered by 1 suite, committed",
      "states": {
        "suites_written": ["e2e/shop-123-csv-import.spec.ts"],
        "cases_covered": ["TC-5", "TC-6"]
@@ -421,7 +421,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 
    On failure keep whatever is true: the suites actually written, the cases
    actually covered, the open findings, and the reason (iteration cap, needs
-   input) in `stop_reason`.
+   input) in `summary`.
 
 2. Run the post-hook:
 
@@ -454,7 +454,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 ## /acs:create-e2e-tests · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: <n> suite file(s) under <e2e root>; cases covered TC-…; suite run: <passing / red on TC-… because …>
 - **Findings**: <product failures, uncovered cases, open clarifications, or "none">
 - **Artifacts**: <suite paths, partition phase artifacts, branch, commit>

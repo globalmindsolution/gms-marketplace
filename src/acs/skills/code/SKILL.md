@@ -107,7 +107,8 @@ judgement.
   exactly when it counts, and that is what makes this discipline safe.
 - **Never pick a path to suit the work you expect.** A plan that looks bigger
   than its recorded path is a finding for `/acs:review-code` to raise, and
-  `stop_reason: plan_superseded` is the remedy — it re-runs
+  ending `failed` with a `summary` naming the plan as superseded is the
+  remedy — it re-runs
   `/acs:create-impl-plan` and re-judges from the corrected plan.
 - **Never pass a path as an argument.** A second token naming a path is
   refused: the path is judged from the plan.
@@ -137,7 +138,8 @@ between the review and the fix, on this or any path. A finding already says
 what is wrong and what would make it right; re-deriving that through a
 planning pass would spend a round restating the verdict, and the plan
 `/acs:create-impl-plan` wrote is still the plan. When a finding genuinely
-invalidates that plan, the remedy is `stop_reason: plan_superseded`, not a
+invalidates that plan, the remedy is to fail the step with a `summary`
+naming the plan as superseded, not a
 planner inside this loop.
 
 ## Finish

@@ -24,6 +24,8 @@ TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_ACS))
 HOOKS_DIR = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
 SHIP_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "ship", "SKILL.md")
+WORKFLOW_SCHEMA = os.path.join(REPO_ROOT, "src", "acs", "schemas",
+                               "workflow.schema.json")
 
 sys.path.insert(0, TESTS_ACS)
 sys.path.insert(0, HOOKS_DIR)
@@ -45,9 +47,13 @@ PINNED_SORTED_HOOKED_SKILLS = [
 HOOKED_SKILL_COUNT = len(PINNED_SORTED_HOOKED_SKILLS)
 
 
-def _read_ship_skill():
-    with open(SHIP_SKILL, encoding="utf-8") as fh:
+def _read(path):
+    with open(path, encoding="utf-8") as fh:
         return fh.read()
+
+
+def _read_ship_skill():
+    return _read(SHIP_SKILL)
 
 
 def _section(body, heading):
@@ -208,14 +214,16 @@ class HandoffResumeCase(acs_case.AcsWorkspaceCase):
 
 
 class ShipPipelineOrderTableCase(unittest.TestCase):
-    """AC-3 restated for the skills-independence refactor: /acs:ship no longer
-    carries an implementation-step table at all, and create-design is not one
-    of its steps -- create-design is Design-phase work that runs BEFORE ship,
-    which workflows/ship.yaml enforces by admitting build/test/ship skills
-    only. What survives is the guarantee the AC was really about: ship never
-    presents create-design as one of its own numbered steps, and the design
-    requirement still reaches the user -- now as ship.yaml's
-    `requires: design_approved` predicate, whose pointer /acs:ship surfaces."""
+    """AC-3 restated for v0.5.0: /acs:ship carries no implementation-step
+    table at all, and create-design is not one of its steps -- create-design
+    is Design-phase work that runs BEFORE ship, and ship.yaml simply does not
+    list it.
+
+    The `requires: design_approved` predicate that used to carry the design
+    requirement is gone with every other workflow condition. The requirement
+    did not go with it: it moved to `/acs:create-impl-plan`'s own start check,
+    where the approval file already lives, and a skill refusing on its own
+    input is what makes it independently invocable."""
 
     @classmethod
     def setUpClass(cls):
@@ -230,15 +238,29 @@ class ShipPipelineOrderTableCase(unittest.TestCase):
         doc = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
         self.assertNotIn("create-design", workflow.steps_of(doc))
 
-    def test_a_blocked_requires_predicate_is_surfaced_to_the_user(self):
-        """The design pointer ("run /acs:create-design <id> first") comes back
-        as `blocked_by.pointer`; the skill must stop and surface it verbatim
-        rather than deciding for itself that design is needed."""
-        loop = _section(self.body, "## The loop")
-        self.assertIn("blocked_by", loop)
+    def test_the_workflow_carries_no_requires_predicate_at_all(self):
+        """`requires:` is one of the keys the schema rejects outright, so
+        there is no predicate left to block on."""
+        schema = json.loads(_read(WORKFLOW_SCHEMA))
+        self.assertIs(schema.get("additionalProperties"), False)
+        self.assertNotIn("requires", schema.get("properties", {}))
+        # The file's own header NAMES the rejected keys, which is the point;
+        # the pin is on what it DECLARES, so read the parsed document.
+        wf = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
+        self.assertEqual(set(wf) - {"version", "steps", "loops"}, set())
+
+    def test_a_refusal_from_a_step_is_surfaced_verbatim(self):
+        """What replaced `blocked_by.pointer`: a step's own pre-hook refuses
+        on its own missing input, naming which skill produces it, and
+        /acs:ship relays that stderr unchanged rather than deciding for itself
+        that design is needed."""
+        handling = _section(self.body, "## Handling the handoff")
         self.assertIsNotNone(
-            re.search(r"(?s)blocked_by.{0,600}verbatim", loop),
-            "the loop must surface blocked_by.pointer verbatim")
+            re.search(r"(?s)pre-hook exit 2.{0,400}verbatim", handling),
+            "ship must surface a hook refusal verbatim")
+        self.assertIsNotNone(
+            re.search(r"(?s)verbatim.{0,300}which skill produces it", handling),
+            "the refusal names the skill that produces the missing input")
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ The load-bearing claims:
 Run:  python3 -m unittest tests.acs.test_workflow_v3 -v
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -85,6 +86,33 @@ class ShippedWorkflowTest(unittest.TestCase):
 
     def test_the_name_is_the_file_name(self):
         self.assertEqual(W.workflow_name(SHIP), "ship")
+
+    def test_it_lives_under_the_plugin_workflows_dir(self):
+        self.assertEqual(SHIP, os.path.join(PLUGIN, "workflows", "ship.yaml"))
+
+    def test_it_validates_with_jsonschema_too(self):
+        """The stdlib subset validator and the JSON Schema must AGREE: two
+        validators that disagree means one of them is decoration."""
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest("jsonschema is not installed")
+        with open(os.path.join(PLUGIN, "schemas", "workflow.schema.json"),
+                  encoding="utf-8") as fh:
+            schema = json.load(fh)
+        jsonschema.validate(self.doc, schema)
+
+    def test_the_header_comment_states_the_rules_it_is_enforced_by(self):
+        """Successor to test_ship_yaml_default's header pin. The rules the
+        header must state are v3's, not v2's: what the schema rejects, why
+        (the standalone-skill rule), and that `loops:` is the one construct."""
+        with open(SHIP, encoding="utf-8") as fh:
+            head = fh.read().split("version:")[0]
+        for phrase in ("A LIST", "the schema rejects every one of",
+                       "`loops:` is the only construct",
+                       "evidenced no-op", "acs workflow validate"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, head)
 
 
 class RemovedKeyTest(unittest.TestCase):

@@ -46,7 +46,7 @@ Three cases:
 - **Prior unfinished scaffold run.** Check `<workspace>/<repo_id>/tickets-index.json`
   for an earlier "Project scaffold" ticket that is not `done`. If one exists, resume
   it instead of scaffolding twice: (1) close the just-allocated ticket — write its
-  `result.json` (see Finish) with `status: "failed"`, `stop_reason: "duplicate
+  `result.json` (see Finish) with `status: "failed"`, `summary: "duplicate
   allocation; resumed <PRIOR-ID>"`, and run the post-hook for it; (2) re-run
   skill-start with `--ticket <PRIOR-ID>` (no `--allocate`) and continue with that
   context — it will report `reconcile: true`.
@@ -86,7 +86,7 @@ If substantive sources exist, REFUSE politely:
    then `/acs:ship` per change (and `/acs:create-architecture` re-runs keep the doc
    set current on an existing codebase).
 2. Skip the reflection loop and go straight to Finish with `status: "failed"`,
-   `stop_reason: "greenfield-only: repository already contains substantive sources"`,
+   `summary: "greenfield-only: repository already contains substantive sources"`,
    all `states.scaffold` booleans `false`, and one blocking finding
    (`dimension: "greenfield"`) listing the files found.
 
@@ -331,7 +331,7 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 ```json
 {
   "status": "completed",
-  "stop_reason": "scaffold verified green locally and on the PR CI run",
+  "summary": "scaffold verified green locally and on the PR CI run",
   "states": {
     "scaffold": {"build": true, "lint": true, "tests": true, "coverage_tooling": true},
     "pr": {"number": 7, "url": "https://github.com/acme/shop/pull/7", "branch": "task/SHOP-3-project-scaffold"}
@@ -380,7 +380,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-project · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: scaffold summary — layout, build, test framework + coverage tooling, lint, CI, green vertical slice (build/lint/tests verified passing); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

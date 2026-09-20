@@ -349,7 +349,7 @@ MANDATORY final step — never skipped, also on failure.
    ```json
    {
      "status": "completed",
-     "stop_reason": "PRD created and docs-only PR opened",
+     "summary": "PRD created and docs-only PR opened",
      "states": {
        "prd": {"path": "docs/product", "files": ["docs/product/prd.md", "docs/product/roadmap.md"]},
        "pr": {"number": 12, "url": "https://github.com/acme/shop/pull/12", "branch": "task/MAR-51-amend-prd-add-org-enforcement-policy"}
@@ -361,7 +361,7 @@ MANDATORY final step — never skipped, also on failure.
 
    On failure keep whatever is true: status `failed`, remaining verifier findings in
    `findings`, `states.prd` if the files were written, NO `states.pr` if no PR was
-   opened, and the reason in `stop_reason`.
+   opened, and the reason in `summary`.
 
 2. Run the post-hook:
 
@@ -391,7 +391,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-prd · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: PRD files written/amended at `prd_path` (`prd.md`, `roadmap.md`); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

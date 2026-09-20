@@ -1,9 +1,14 @@
-"""Contract tests for /acs:ship's entry contract and its ship.yaml-driven loop.
+"""Contract tests for /acs:ship's entry contract and its cursor-driven loop.
 
-The skills-independence refactor made /acs:ship a thin loop over
-`acs.py workflow next`: its entry is a ticket id and nothing else, the order
-lives in `src/acs/workflows/ship.yaml`, and the two things the skill may
-still decide for itself are the two REFUSALS -- a non-id argument and an epic.
+v0.5.0 made /acs:ship a PURE ORCHESTRATOR over `acs.py run next`: the
+workflow is a flat list with one loop and no predicates, so there is no
+ready-set, no parallel mode and no skipping -- the cursor names one step, ship
+runs it, and asks again.
+
+Its entry widened with the run's subject (4.9): no argument resumes this
+checkout's run, a ticket id / prompt / document names a subject, and `--run`
+is the only form that names an id. The one refusal it still owns is the epic,
+and the pointer it surfaces is the gate's own.
 
 These are prose-contract checks over `src/acs/skills/ship/SKILL.md` (stdlib
 re, the shape every other SKILL.md test in this package uses), cross-checked
@@ -20,16 +25,6 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
-SHIP_FAILURE_PATHS = os.path.join(
-    PLUGIN, "skills", "ship", "references", "failure-paths.md")
-
-
-def ship_contract():
-    """SKILL.md plus the reference it points at. `on_fail` and `on_replan`
-    moved into `references/failure-paths.md` -- a pipeline whose steps all
-    complete never reads them -- so a pin on what the skill SAYS reads both."""
-    return read(SHIP_SKILL) + "\n" + read(SHIP_FAILURE_PATHS)
-
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
 
@@ -65,16 +60,22 @@ def frontmatter(body):
 
 
 class EntryContractTest(unittest.TestCase):
-    """A ticket id, and nothing else -- the `new request` path is gone."""
+    """A SUBJECT, resolved the way `--continue` / `--resume` resolves one."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SHIP_SKILL)
         cls.norm = norm(cls.body)
 
-    def test_argument_hint_is_a_ticket_id_only(self):
-        self.assertRegex(frontmatter(self.body),
-                         r'(?m)^argument-hint: "<ticket-id>"$')
+    def test_argument_hint_names_the_subject_forms(self):
+        """The entry is a SUBJECT (4.9), not a run id: no argument resumes
+        this checkout's run, a ticket id / prompt / document names one, and
+        `--run` is the only form that names an id."""
+        hint = frontmatter(self.body)
+        self.assertRegex(hint, r'(?m)^argument-hint: "\[.*\]"$')
+        for form in ("ticket-id", "prompt", "document", "--run"):
+            with self.subTest(form=form):
+                self.assertIn(form, hint)
 
     def test_description_no_longer_promises_create_ticket_through_create_pr(self):
         fm = frontmatter(self.body)
@@ -82,16 +83,31 @@ class EntryContractTest(unittest.TestCase):
         self.assertIn("ship.yaml", fm,
                       "the description must say the pipeline is the declared one")
 
-    def test_start_parses_a_single_ticket_id_token(self):
+    def test_start_recognises_a_ticket_id_by_the_shared_pattern(self):
         start = section(self.body, "## Start")
         self.assertIn("[A-Z][A-Z0-9]*-[0-9]+", start,
                       "ship must recognise a ticket id by the same pattern "
                       "run.schema.json uses")
 
-    def test_no_new_request_path_survives(self):
-        for token in ("new request", "new_request"):
-            self.assertNotIn(token, self.norm,
-                             "the prompt-as-argument path is removed: %r" % token)
+    def test_start_resolves_every_subject_form(self):
+        start = norm(section(self.body, "## Start"))
+        for form in ("the run this checkout is on", "a new run from that prompt",
+                     "a new run from that document", "exactly that run"):
+            with self.subTest(form=form):
+                self.assertIn(form, start)
+
+    def test_no_product_flow_refusal_survives(self):
+        """`flow: ticket|product` is retired: a run has a SUBJECT, and the
+        product skills are not steps of this workflow, so the cursor never
+        offers one."""
+        self.assertNotIn('"flow": "product"', self.body)
+        self.assertIn("There is no `flow: product` refusal any more", self.body)
+
+    def test_the_prompt_path_is_a_run_subject_not_a_ticket_shortcut(self):
+        """A prompt starts a RUN over that prompt (4.2/4.9); it never mints a
+        ticket behind the user's back."""
+        self.assertIn("a new run from that prompt", self.norm)
+        self.assertNotIn("new_request", self.norm)
 
     def test_create_ticket_is_not_one_of_ships_steps(self):
         """create-ticket is Design-phase work that runs before ship. It may be
@@ -105,48 +121,38 @@ class EntryContractTest(unittest.TestCase):
                 "create-ticket may only appear as the /acs:create-ticket "
                 "pointer, never as a bare step name: %r" % line)
 
-    def test_ship_yaml_admits_no_design_phase_skill(self):
-        """The prose claim above is the workflow's, not the skill's: ship.yaml
-        may name build/test/ship skills only.
+    def test_ship_yaml_names_no_design_phase_skill(self):
+        """The prose claim above is the workflow's, not the skill's.
 
-        A step's `skill` is one name or, since ADR-0095, a mapping keyed by
-        delivery path, so the check reads every name a step can resolve to —
-        `allowed_step_skills` is the wider set that also admits the internal
-        legs a step reaches only through such a mapping."""
-        doc = lib.load_workflow(lib.default_workflow_path())[0]
-        allowed = set(lib.allowed_step_skills())
-        for step in doc["steps"]:
-            for name in lib.step_skills(step):
-                with self.subTest(step=step["id"], skill=name):
-                    self.assertIn(name, allowed)
-        for retired in ("create-ticket", "create-design"):
+        There is no allowed-skill ENUM any more: a step names a skill, a skill
+        is a directory, and the schema checks shape. So the pin is membership
+        in the list itself — the design and product skills are simply not
+        steps, which is also what makes them independently invocable."""
+        wf = lib.validate_workflow_file(lib.default_workflow_path())
+        steps = lib.steps_of(wf)
+        for retired in ("create-ticket", "create-design", "create-prd",
+                        "create-architecture", "merge-pr", "release"):
             with self.subTest(skill=retired):
-                self.assertNotIn(retired, allowed)
-                self.assertNotIn(retired, lib.allowed_ship_skills())
+                self.assertNotIn(retired, steps)
 
-    def test_the_user_facing_set_names_no_internal_leg(self):
-        """`allowed_ship_skills` is what a user is offered; a leg is reachable
-        only through a per-path mapping, so offering one would invite the hand
-        pick ADR-0095 took away."""
-        user_facing = set(lib.allowed_ship_skills())
-        self.assertEqual(user_facing & set(lib.CODE_PATH_LEGS), set())
-        self.assertLess(user_facing, set(lib.allowed_step_skills()))
+    def test_no_step_is_an_internal_delivery_leg(self):
+        """A leg is reached only through the plan's recorded delivery path, so
+        naming one as a step would invite the hand pick ADR-0095 took away."""
+        wf = lib.validate_workflow_file(lib.default_workflow_path())
+        self.assertEqual(set(lib.steps_of(wf)) & set(lib.CODE_PATH_LEGS), set())
 
 
 class RefusalPointerTest(unittest.TestCase):
-    """The two refusals /acs:ship still owns, each with its pointer."""
+    """The refusals /acs:ship still surfaces, each with its pointer."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SHIP_SKILL)
         cls.norm = norm(cls.body)
 
-    def test_non_id_argument_refusal_pointer(self):
-        self.assertIn(
-            "ship takes a ticket id; run `/acs:create-ticket \"<prompt>\"` "
-            "(Design phase) and then `/acs:ship <id>`",
-            self.norm,
-            "a non-id argument must be refused with the create-ticket pointer")
+    def test_an_unresolvable_subject_asks_rather_than_guesses(self):
+        start = norm(section(self.body, "## Start"))
+        self.assertIn("ask the user what to ship rather than guessing", start)
 
     def test_epic_refusal_pointer_names_design_then_fan_out_then_ship(self):
         epic = section(self.body, "## Epic fan-out")
@@ -157,22 +163,25 @@ class RefusalPointerTest(unittest.TestCase):
             re.search(r"(?i)never shipped|refuse", norm(epic)),
             "the epic section must state that an epic is refused")
 
-    def test_epic_refusal_is_the_walks_verdict_not_ships_own_guess(self):
+    def test_epic_refusal_is_the_gates_verdict_not_ships_own_guess(self):
         epic = norm(section(self.body, "## Epic fan-out"))
-        self.assertIn("workflow next", epic)
-        self.assertIn('"error": "epic"', epic)
+        self.assertIn("epic brake", epic)
+        self.assertIn("verbatim", epic)
 
-    def test_prose_matches_the_pointer_workflow_next_actually_emits(self):
-        """The skill surfaces `workflow next`'s epic pointer verbatim, so the
-        two must name the same three commands."""
-        source = read(os.path.join(PLUGIN, "hooks", "scripts", "acs_lib", "workflow.py"))
-        pointer = re.search(r"(?s)is an epic — epics are never shipped.*?on each child\.", source)
-        self.assertIsNotNone(pointer, "workflow.py must carry the epic pointer")
+    def test_prose_matches_the_pointer_the_epic_brake_actually_emits(self):
+        """The skill surfaces the brake's pointer verbatim, so the two must
+        name the same three commands. The brake is `_refuse_epic`, which runs
+        for EVERY implementation step now, not a `workflow next` verdict."""
+        source = read(os.path.join(PLUGIN, "hooks", "scripts", "acs_lib",
+                                   "gate_inputs.py"))
+        pointer = re.search(r"(?s)is an epic — epics are never .*?on a child\.", source)
+        self.assertIsNotNone(pointer, "gate_inputs.py must carry the epic pointer")
         pointer_text = norm(pointer.group(0))
         epic = norm(section(self.body, "## Epic fan-out"))
-        for command in ("/acs:create-design", "/acs:create-ticket", "--fan-out", "/acs:ship"):
+        for command in ("/acs:create-design", "/acs:create-ticket", "fan-out"):
             self.assertIn(command, pointer_text, command)
             self.assertIn(command, epic, command)
+        self.assertIn("/acs:ship <child-id>", epic)
 
 
 class LoopDelegationTest(unittest.TestCase):
@@ -185,56 +194,45 @@ class LoopDelegationTest(unittest.TestCase):
 
     def test_loop_invokes_the_cli(self):
         self.assertIsNotNone(
-            re.search(r"acs\.py\"? workflow next --ticket", self.loop),
-            "the loop must call `acs.py workflow next --ticket <ticket-id>`")
+            re.search(r"acs\.py\"? run next", self.loop),
+            "the loop must call `acs.py run next`")
         self.assertIn("CLAUDE_PLUGIN_ROOT", self.loop,
                       "hooks/scripts is not on PATH: the fenced call must "
                       "resolve through CLAUDE_PLUGIN_ROOT")
 
-    def test_loop_consumes_every_field_workflow_next_returns(self):
-        for field in ("mode", "ready", "done", "blocked_by", "statuses", "workflow"):
+    def test_loop_consumes_every_field_run_next_returns(self):
+        for field in ("run_id", "next", "status", "done"):
             self.assertIn(field, self.loop, field)
 
-    def test_both_modes_have_a_section(self):
-        self.assertIn("## Single mode", self.body)
-        self.assertIn("## Parallel mode", self.body)
+    def test_there_is_no_mode_and_no_parallel_section(self):
+        """A flat list with no `needs:` graph has no ready-set to fan out."""
+        for heading in ("## Single mode", "## Parallel mode"):
+            with self.subTest(heading=heading):
+                self.assertNotIn(heading, self.body)
+        self.assertNotIn("git worktree add", self.body)
 
-    def test_parallel_mode_uses_a_worktree_and_branch_per_leg(self):
-        parallel = section(self.body, "## Parallel mode")
-        self.assertIn("git worktree add", parallel)
-        self.assertIn("git worktree remove", parallel)
-        self.assertIn("git merge", parallel)
+    def test_the_cursor_offers_one_step(self):
         self.assertIsNotNone(
-            re.search(r"(?i)conflict.{0,200}(STOPS|stop)", norm(parallel)),
-            "a leg-merge conflict must stop the pipeline")
+            re.search(r"(?i)there is one step at a time", norm(self.body)))
         self.assertIsNotNone(
-            re.search(r"(?i)failed leg never cancels|failed leg.{0,200}ready again",
-                      norm(parallel)),
-            "a failed leg must leave its step ready again, not cancel its siblings")
+            re.search(r"(?i)the first step that is not\s+`?completed`?",
+                      norm(self.body)))
 
-    def test_parallel_mode_reuses_the_create_docs_fan_out_shape(self):
-        parallel = norm(section(self.body, "## Parallel mode"))
-        self.assertIn("create-docs", parallel,
-                      "the fan-out mechanism is cited, not reinvented")
-
-    def test_on_replan_and_on_fail_are_keyed_on_the_step_fields(self):
-        # Both sections now live in `references/failure-paths.md`; SKILL.md
-        # routes to them. What is pinned is that each stays keyed on its own
-        # step field, not which file states it.
-        contract = ship_contract()
-        self.assertIn("## Replan", contract)
-        self.assertIn("## Fix loop", contract)
-        self.assertIn("references/failure-paths.md", self.body)
-        replan = section(contract, "## Replan")
-        self.assertIn("plan_superseded", replan)
-        self.assertIn("on_replan", replan)
+    def test_a_no_op_step_is_the_pre_hooks_call_not_ships(self):
+        """2.2: a step owing nothing is completed by its own pre-hook from
+        the plan's `## Contract` block. Silence is not permission to skip."""
+        body = norm(self.body)
+        self.assertIn("evidenced no-op", body)
+        self.assertIn("Silence is not permission to skip", body)
 
     def test_never_merges(self):
         body = norm(self.body)
         self.assertIn("Never run /acs:merge-pr", body)
-        self.assertIn("stop_after", body,
-                      "the stop before merge is the workflow's stop_after, "
-                      "not a hard-coded final step")
+        self.assertIsNotNone(
+            re.search(r"(?i)the list ends at `create-pr`", body),
+            "the stop before merge is the workflow list's end, not a "
+            "hard-coded final step")
+        self.assertNotIn("stop_after", body)
 
 
 if __name__ == "__main__":

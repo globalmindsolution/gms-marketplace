@@ -356,7 +356,7 @@ with a conflicting base. Do not guess.
 
 If you genuinely cannot reach the user (e.g. a non-interactive run): do not
 guess. Write the result document with status `"failed"` and
-`stop_reason` "needs user input", run the Finish steps, and return as your
+`summary` "needs user input", run the Finish steps, and return as your
 final message a handoff like:
 
 ```xml
@@ -395,7 +395,7 @@ MANDATORY final step — never skipped, also on failure:
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed on iteration 1 with 0 findings; PR #42 ready for review",
+     "summary": "verifier passed on iteration 1 with 0 findings; PR #42 ready for review",
      "states": {
        "pr": {
          "number": 42,
@@ -415,7 +415,7 @@ MANDATORY final step — never skipped, also on failure:
    updated but verification failed, still record the real `pr` object; if no
    PR exists, omit `pr` entirely (never a stub) — the /acs:merge-pr gate stays
    closed. Put verifier findings in `findings`, errors in `errors`, the reason
-   in `stop_reason`.
+   in `summary`.
 
 2. Run the post-hook:
 
@@ -447,7 +447,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-pr · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: PR number and URL; base branch; head branch; `ACS` label applied
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

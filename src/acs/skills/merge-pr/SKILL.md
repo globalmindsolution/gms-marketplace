@@ -278,7 +278,7 @@ is:
 REPORT-ONLY stop. Do not proceed to merge, do not retry, do not fix. Go
 straight to Finish with status `"failed"`, `states.merged: false`, the
 per-dimension verdicts in `states.readiness`, and the command's own
-`stop_reason` (e.g. "readiness failed: ci required check(s) failing: build;
+`summary` (e.g. "readiness failed: ci required check(s) failing: build;
 approvals CHANGES_REQUESTED — a reviewer has requested changes"). Tell the user
 what blocks and that resolving it — and re-invoking /acs:merge-pr — is theirs
 to do.
@@ -299,7 +299,7 @@ poll's own `gh pr checks <number> --required` reads.
 
 (merge-update — no `--rebase`, no force-push). If exit non-zero (conflict
 detected): REPORT-ONLY stop with
-`stop_reason: "update-branch conflict — base cannot be merged into PR branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`.
+`summary: "update-branch conflict — base cannot be merged into PR branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`.
 Do NOT push fix commits; do NOT amend the PR.
 
 If exit 0: poll `gh pr checks <number> --required` at 15-second intervals for
@@ -308,9 +308,9 @@ up to 5 minutes:
   (merge).
 - `mergeStateStatus == BEHIND` again (base advanced mid-poll) → re-run step 1a
   if total update-branch attempts < 2, else REPORT-ONLY stop with
-  `stop_reason: "base advanced again after 2 update attempts — re-invoke /acs:merge-pr once the base stabilizes"`.
+  `summary: "base advanced again after 2 update attempts — re-invoke /acs:merge-pr once the base stabilizes"`.
 - Poll timeout (5 minutes elapsed) → REPORT-ONLY stop with
-  `stop_reason: "branch updated but required CI still running after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
+  `summary: "branch updated but required CI still running after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
 
 After a successful update-branch sub-flow the protections verdict is recorded
 as `"pass (was BEHIND; auto-updated via gh pr update-branch)"`.
@@ -428,7 +428,7 @@ resolves the workspace from cwd):
    ```json
    {
      "status": "completed",
-     "stop_reason": "PR #87 merged (squash); remote+local branch deleted, worktree removed, tracker synced",
+     "summary": "PR #87 merged (squash); remote+local branch deleted, worktree removed, tracker synced",
      "states": {
        "merged": true,
        "merge_strategy": "squash",
@@ -451,7 +451,7 @@ resolves the workspace from cwd):
    On a report-only readiness stop: status `"failed"`, `merged: false`, the
    failing dimensions verbatim in `readiness`, each blocker also as a
    `{"severity": "blocking", "dimension": "readiness", "detail": "..."}`
-   finding, and the blockers summarized in `stop_reason`. On a
+   finding, and the blockers summarized in `summary`. On a
    merged-but-cleanup-failed stop: status `"failed"`, `merged: true`, the
    unresolved verifier findings in `findings`.
 
@@ -484,7 +484,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:merge-pr · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, partition archived, epic auto-done when last child)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

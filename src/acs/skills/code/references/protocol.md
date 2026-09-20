@@ -278,7 +278,7 @@ MANDATORY final step — never skipped, also on failure:
 
    On failure keep whatever is true: the branch, the tasks that ARE implemented
    and green, docs actually updated, open findings in `findings`, and the
-   reason in `stop_reason`.
+   reason in `summary`.
 
 2. Run:
 
@@ -310,7 +310,7 @@ AFTER `step finish` succeeded. Same labels, same order, `none` where empty:
 ## /acs:code · <run-id> · <status>
 
 - **Subject**: <id or title> (<kind>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: branch; what was implemented; targeted tests passed/failed; docs updated
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <run files, repo paths, branch>

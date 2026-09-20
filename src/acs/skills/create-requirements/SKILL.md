@@ -418,7 +418,7 @@ MANDATORY final step — never skipped, also on failure.
    ```json
    {
      "status": "completed",
-     "stop_reason": "Requirements doc set produced/amended and docs-only PR opened",
+     "summary": "Requirements doc set produced/amended and docs-only PR opened",
      "states": {
        "requirements": {"path": "docs/requirements", "files": ["docs/requirements/functional/checkout.md"]},
        "pr": {"number": 12, "url": "https://github.com/acme/shop/pull/12", "branch": "task/MAR-51-product-requirements-doc-set"}
@@ -430,7 +430,7 @@ MANDATORY final step — never skipped, also on failure.
 
    On failure keep whatever is true: status `failed`, remaining verifier findings in
    `findings`, `states.requirements` if any files were written, NO `states.pr` if no
-   PR was opened, and the reason in `stop_reason`.
+   PR was opened, and the reason in `summary`.
 
 2. Run the post-hook:
 
@@ -459,7 +459,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-requirements · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: requirements area files written/amended at `requirements_path`; delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

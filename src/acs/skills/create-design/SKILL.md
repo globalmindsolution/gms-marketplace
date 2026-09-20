@@ -395,7 +395,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 2",
+     "summary": "verifier passed with zero findings on iteration 2",
      "states": {
        "design_path": "docs/tickets/SHOP-123/design.md",
        "decision": "Queue-backed export worker behind the existing API gateway (Option B)"
@@ -410,7 +410,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    out); `decision` is the one-line decision statement from "Decision &
    rationale". On `failed`: keep whatever is true (e.g. `design_path` when a
    draft exists but was never published, naming the draft), put the verifier's
-   blocking findings in `findings`, and the reason in `stop_reason`.
+   blocking findings in `findings`, and the reason in `summary`.
 
 2. Run:
 
@@ -445,7 +445,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-design · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: `design.md` (the published `<design_path>`); the decision in one line; architecture changes required (or "conforms")
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

@@ -302,7 +302,7 @@ pass. On findings: persist, then AUTOMATICALLY re-execute with every finding in
 the next executor's `<context>`. After iteration 3 with findings remaining:
 stop with final status `"failed"`, findings recorded, and no published
 contract — `/acs:code` then implements against the plan alone, which is exactly
-the ambiguity this step exists to remove, so say so in `stop_reason`.
+the ambiguity this step exists to remove, so say so in `summary`.
 
 ### Deterministic checks the coordinator runs before publishing
 
@@ -389,7 +389,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 2; contract published and committed",
+     "summary": "verifier passed with zero findings on iteration 2; contract published and committed",
      "states": {
        "contract_path": "docs/tickets/SHOP-123/api-contract.md",
        "items": 3,
@@ -414,7 +414,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    recorded in `states`; name them in the completion report instead. On failure
    keep whatever is true: `contract_path` only when a contract was actually
    published, the open findings in `findings`, and the reason (iteration cap,
-   needs input) in `stop_reason`.
+   needs input) in `summary`.
 
 2. Run the post-hook:
 
@@ -448,7 +448,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 ## /acs:create-api-contract · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: contract path; items specified; acceptance criteria traced; compatibility verdict; machine-readable contract files changed
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <contract path, contract files, partition phase artifacts, branch>

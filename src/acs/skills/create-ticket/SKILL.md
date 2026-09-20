@@ -382,7 +382,7 @@ MANDATORY final step — never skipped, also on failure:
    ```json
    {
      "status": "completed",
-     "stop_reason": "epic created; children deferred to --fan-out",
+     "summary": "epic created; children deferred to --fan-out",
      "states": {
        "ticket_id": "SHOP-123",
        "type": "epic",
@@ -442,7 +442,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-ticket · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: ticket id, type, title; `needs_design`; children created (ids) (none on an epic's own creation run); PRD trace or flagged divergence; tracker key when synced
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

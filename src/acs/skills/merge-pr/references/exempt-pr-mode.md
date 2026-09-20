@@ -60,11 +60,11 @@ artifacts to):
    `--rebase`, no force-push), then poll `gh pr checks <pr.number> --required`
    at 15-second intervals for up to 5 minutes (same C-6/C-8 parameters as the
    ticket path — up to 2 total update-branch attempts). On conflict: REPORT-ONLY
-   with `stop_reason: "update-branch conflict — base cannot be merged into PR
+   with `summary: "update-branch conflict — base cannot be merged into PR
    branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`. On
-   poll timeout: REPORT-ONLY with `stop_reason: "branch updated but required CI
+   poll timeout: REPORT-ONLY with `summary: "branch updated but required CI
    still running after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
-   On base advancing again beyond 2 attempts: REPORT-ONLY with `stop_reason:
+   On base advancing again beyond 2 attempts: REPORT-ONLY with `summary:
    "base advanced again after 2 update attempts — re-invoke /acs:merge-pr once
    the base stabilizes"`. When all four dimensions pass (or after a successful
    update-branch sub-flow), merge with the configured strategy and delete the

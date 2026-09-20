@@ -392,7 +392,7 @@ MANDATORY final step — never skipped, also on failure:
 ```json
 {
   "status": "completed",
-  "stop_reason": "audit complete; additive scaffold verified additive-only; PR opened with recommended follow-ups listed",
+  "summary": "audit complete; additive scaffold verified additive-only; PR opened with recommended follow-ups listed",
   "states": {
     "audit": {
       "principles": "absent",
@@ -415,7 +415,7 @@ MANDATORY final step — never skipped, also on failure:
    `"present" | "absent" | "n/a"` (`"n/a"` when the corresponding `<set>_path` setting is
    unset); `readiness_tooling.e2e` is boolean OR the literal string `"n/a"` when
    `settings.e2e` is unset. On failure: `status: "failed"`, blocking findings in
-   `findings`, reason in `stop_reason`, keep whatever is true in `states`,
+   `findings`, reason in `summary`, keep whatever is true in `states`,
    `recommended_follow_ups` still reflects whatever the last passing plan found. On
    handoff: `status: "handed_off"` plus `handoff_summary`.
 2. Run:
@@ -439,7 +439,7 @@ same labels/order, `none` where empty; under `/acs:ship` the final message is th
 ## /acs:standardize-project · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: audit summary (doc sets / project-structure / readiness tooling); files additively scaffolded; delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Recommended follow-ups**: <recommended_follow_ups titles, or "none">

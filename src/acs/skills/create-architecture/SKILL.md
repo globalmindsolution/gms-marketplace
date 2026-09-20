@@ -307,7 +307,7 @@ MANDATORY final step — never skipped, also on failure:
 ```json
 {
   "status": "completed",
-  "stop_reason": "doc set verified against PRD and codebase; docs-only PR opened",
+  "summary": "doc set verified against PRD and codebase; docs-only PR opened",
   "states": {
     "architecture": {
       "path": "docs/architecture",
@@ -322,7 +322,7 @@ MANDATORY final step — never skipped, also on failure:
 ```
 
    On failure: `status: "failed"`, the blocking findings in `findings`, the
-   reason in `stop_reason`, keep whatever is true in `states` (e.g. the
+   reason in `summary`, keep whatever is true in `states` (e.g. the
    written `architecture` files without `pr`). On handoff:
    `status: "handed_off"` plus `handoff_summary`.
 
@@ -351,7 +351,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-architecture · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: HLD/LLD files written at `architecture_path`; delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

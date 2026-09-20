@@ -251,30 +251,6 @@
       },
       "additionalProperties": true
     },
-    "post_code_test": {
-      "description": "Gates /acs:ship's conditional post-code, pre-create-pr test step (D5). enabled: null (default) auto-resolves per the e2e-presence rule -- OFF only when neither settings.e2e nor suites.e2e is configured, ON otherwise (preserves PRD G13's e2e-gating guarantee). Explicit true/false overrides the auto-resolved default. Setting enabled: true with no e2e configured is not a validation error -- the step still runs against any ticket-named Test-plan suites, a harmless no-op otherwise.",
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "oneOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "fix_loops_cap": {
-          "type": "integer",
-          "minimum": 0,
-          "default": 2,
-          "description": "Cap on pipeline-state.json.steps.test.fix_loops -- independent of /code's own internal iteration cap."
-        }
-      },
-      "additionalProperties": true
-    },
     "workflow": {
       "description": "Orchestration settings. The pipeline ORDER itself lives in workflows/ship.yaml (the plugin default, or the consumer override at .acs/workflows/ship.yaml, which replaces it wholesale). advisories: when a hooked skill runs out of that declared order (its `needs` are not satisfied for the ticket), its pre-hook prints one stderr advisory naming the position and continues; false silences the line. Never a refusal either way \u2014 skills keep only input and safety checks.",
       "type": "object",
