@@ -76,14 +76,14 @@ class RecordGuardEventTest(unittest.TestCase):
 
     def test_the_event_lands_on_the_last_run_entry(self):
         self._seed_run()
-        self.assertIs(lib.record_guard_event(self.rdir_path, "code", self.ticket, {"reason": "outside_map"}),
+        self.assertIs(lib.record_guard_event(self.rdir_path, "code", "SHOP-1", {"reason": "outside_map"}),
                       True)
         self.assertEqual(self._events(), [{"reason": "outside_map"}])
 
     def test_a_second_event_appends_rather_than_replaces(self):
         self._seed_run()
-        lib.record_guard_event(self.rdir_path, "code", self.ticket, {"reason": "outside_map"})
-        lib.record_guard_event(self.rdir_path, "code", self.ticket, {"reason": "control_input"})
+        lib.record_guard_event(self.rdir_path, "code", "SHOP-1", {"reason": "outside_map"})
+        lib.record_guard_event(self.rdir_path, "code", "SHOP-1", {"reason": "control_input"})
         self.assertEqual([e["reason"] for e in self._events()],
                          ["outside_map", "control_input"])
 
@@ -95,7 +95,7 @@ class RecordGuardEventTest(unittest.TestCase):
         deny must stand whatever the recording did. ADR-0095 retired the
         sibling, so what is pinned now is the surviving half's own behaviour —
         plus the absence of the one that could raise."""
-        self.assertIs(lib.record_guard_event(self.rdir_path, "code", self.ticket, {"reason": "outside_map"}),
+        self.assertIs(lib.record_guard_event(self.rdir_path, "code", "SHOP-1", {"reason": "outside_map"}),
                       False)
         self.assertIsNone(self._events())
         self.assertFalse(hasattr(lib, "record_escalation_event"))
