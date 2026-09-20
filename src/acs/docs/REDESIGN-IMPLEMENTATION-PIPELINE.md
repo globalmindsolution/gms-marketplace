@@ -17,20 +17,19 @@ migration of in-flight runs. Finish or abandon open runs before upgrading.
 v0.5.0 is **not yet released**. The installed plugin is v0.4.9, and the entire
 surface this redesign removes exists only on unreleased `main`:
 
-| Removed by this redesign | In released v0.4.9? |
+| Removed or renamed by this redesign | In released v0.4.9? |
 |---|---|
 | `code-trivial`, `code-small`, `code-standard`, `code-complex` | **no** |
-| `create-api-contract`, `create-test-docs` | **no** |
 | `analyze-ticket` (renamed here) | **no** |
 | delivery paths, `ship.yaml`, `phases.yaml` — the whole `workflows/` layer | **no** — the directory does not exist in 0.4.9 |
 | `test` alias | yes (already deprecated) |
 
 Cutting v0.5.0 from current `main` and *then* applying this redesign would
-publish eleven new skills and a workflow layer to consumers, and delete six of
-those skills weeks later. Consumers would migrate twice, the second time out of
-a surface that had existed for days. Nothing on unreleased `main` is a fix
-consumers are blocked on — v0.4.9 already resolved the in-repo state-root
-blocker that made v0.4.8 unusable.
+publish eleven new skills and a workflow layer to consumers, then delete four of
+those skills and rename a fifth weeks later. Consumers would migrate twice, the
+second time out of a surface that had existed for days. Nothing on unreleased
+`main` is a fix consumers are blocked on — v0.4.9 already resolved the in-repo
+state-root blocker that made v0.4.8 unusable.
 
 So there is no v0.6.0 in this plan and no interim cut: **v0.5.0 is the
 redesign**, measured and released once, against the tree that results from
@@ -68,31 +67,40 @@ makes the pipeline unusable for the most common case — a developer with a
 prompt and a repo.
 
 **4. Redundant surface.** 32 skills ship, of which four are delivery-path legs
-of one skill, one is a deprecated alias, and two author documents that the
-implementation plan already contains.
+of one skill — differing only in verify depth, a dimension that disappears once
+the review is its own step — and one is a deprecated alias.
 
 ---
 
 ## 2. The pipeline
 
-Eight steps, declared in `workflows/ship.yaml`. `/acs:ship` is a **pure
+Ten steps, declared in `workflows/ship.yaml`. `/acs:ship` is a **pure
 orchestrator**: it reads the workflow, resolves which steps are ready, invokes
 them, and records state. It contains no step logic of its own.
 
 ```
-1  analyze-requirements   clarify the requirement from a ticket, a prompt or a document
-2  create-impl-plan       the implementation plan and its test strategy
-3  code                   implement with TDD — targeted tests only
-4  review-code            five-lens review + adjudication + final gate     ← loops with 3, cap 3
-5  create-e2e-tests       author the e2e tests the plan declared
-6  run-e2e-tests          run them
-7  docs-sync              re-derive and apply the doc deltas
-8  create-pr              create the branch, push, open the PR
+ 1  analyze-requirements   clarify the requirement from a ticket, a prompt or a document
+ 2  create-impl-plan       the implementation plan and its test strategy
+ 3  create-api-contract    the API/data contract, when the plan declares that surface
+ 4  create-test-docs       test-cases.md — the TC-n set code and review both trace to
+ 5  code                   implement with TDD — targeted tests only
+ 6  review-code            five-lens review + adjudication + final gate    ← loops with 5, cap 3
+ 7  create-e2e-tests       author the e2e tests the plan declared
+ 8  run-e2e-tests          run them
+ 9  docs-sync              re-derive and apply the doc deltas
+10  create-pr              create the branch, push, open the PR
 ```
 
-Steps 3 and 4 form a loop with a **cap of 3 iterations**. Steps 6 and 7 have no
-dependency on each other and run in parallel. The run stops at `create-pr`;
-merging stays a human action through `/acs:merge-pr`.
+Steps 5 and 6 form a loop with a **cap of 3 iterations**. `docs-sync` needs only
+`review-code`, so it runs in parallel with the e2e pair. The run stops at
+`create-pr`; merging stays a human action through `/acs:merge-pr`.
+
+Steps 3 and 4 are **conditional**, each on a predicate the plan itself
+declares. A step whose predicate is false is recorded `skipped`, and a skipped
+step satisfies a `needs` edge — so a change with no API surface still reaches
+`code` with no extra wiring. `create-test-docs` depends on
+`create-api-contract` rather than running beside it, because test cases read
+the contract's endpoints and shapes when one exists.
 
 ### 2.1 `workflows/ship.yaml` (version 3)
 
@@ -110,9 +118,19 @@ steps:
     skill: create-impl-plan
     needs: [analyze-requirements]
 
+  - id: create-api-contract
+    skill: create-api-contract
+    needs: [create-impl-plan]
+    when: plan.api_surface_changed
+
+  - id: create-test-docs
+    skill: create-test-docs
+    needs: [create-impl-plan, create-api-contract]
+    when: plan.test_cases_required
+
   - id: code
     skill: code
-    needs: [create-impl-plan]
+    needs: [create-test-docs]
 
   - id: review-code
     skill: review-code
@@ -170,15 +188,49 @@ downstream.
 
 ### 3.2 `/acs:create-impl-plan`
 
-Unchanged in role. Its input is now `requirements.md` rather than a ticket. It
-absorbs two skills that are being removed:
+Unchanged in role. Its input is now `requirements.md` rather than a ticket.
 
-- the **API/data contract** section replaces `/acs:create-api-contract`
-- the **test strategy** section replaces `/acs:create-test-docs`, and is what
-  `/acs:code` takes its targeted test set from and what `/acs:create-e2e-tests`
-  reads for e2e impact
+It does **not** author the contract or the test cases. It *declares whether
+they are owed*: its API/data-changes section sets `api_surface_changed`, and
+its test strategy sets `test_cases_required` and `e2e_impact`. Those three
+predicates are what steps 3, 4 and 7 gate on. The plan decides the shape of the
+run; the specialist skills produce the artifacts.
 
-### 3.3 `/acs:code`
+### 3.3 `/acs:create-api-contract`
+
+Unchanged in role, and kept as its own step rather than folded into the plan.
+Runs when the plan declares that the change touches an API or data surface;
+skipped otherwise, which satisfies the `needs` edge below it.
+
+It produces `api-contract.md`: endpoints, commands or messages with their
+request/response shapes and error codes. Two downstream consumers depend on it
+being a separate artifact rather than a section of the plan:
+
+- `/acs:create-test-docs` reads its shapes when authoring test cases
+- `/acs:review-code`'s **lens C** checks contract conformance against it — every
+  item the contract specifies is implemented, and the changeset adds no public
+  surface the contract does not describe
+
+### 3.4 `/acs:create-test-docs`
+
+Unchanged in role, and kept as its own step. Runs when the plan's test strategy
+declares test cases are owed. Depends on `create-api-contract` rather than
+running beside it, because test cases read the contract's shapes when one
+exists.
+
+It produces `test-cases.md`: the `TC-n` set. This is the artifact that makes
+the split between `/acs:code` and `/acs:review-code` tractable —
+
+- `/acs:code` takes its **targeted test set** from it, and names the `TC-n` id
+  in each test's docstring
+- `/acs:review-code`'s **lens A** rebuilds the acceptance matrix against it: a
+  `TC-n` with no test, or a cited id that does not exist, is a finding
+
+Without a shared `TC-n` vocabulary, "targeted tests only" has no definition the
+reviewer can check, and the reviewer would be left inferring which tests the
+implementer meant to write.
+
+### 3.5 `/acs:code`
 
 Implements the plan with TDD. **Targeted tests only** — the tests its change
 touches, never the full suite. It has **no verifier**, and the four delivery
@@ -189,7 +241,7 @@ On iteration 2+ it receives the previous `review-code` findings as context and
 authors the remediation; TDD still applies (failing test first for a behavioural
 finding).
 
-### 3.4 `/acs:review-code` *(new)*
+### 3.6 `/acs:review-code` *(new)*
 
 The changeset review, modelled on Claude Code's own `/code-review`, in three
 stages.
@@ -236,22 +288,22 @@ the loop as a blocking finding. This is what makes `/acs:code`'s targeted-test
 discipline safe: the guarantee is unconditional and terminal rather than buried
 inside an iteration that may be discarded.
 
-### 3.5 `/acs:create-e2e-tests` · 3.6 `/acs:run-e2e-tests`
+### 3.7 `/acs:create-e2e-tests` · 3.8 `/acs:run-e2e-tests`
 
 Unchanged. `create-e2e-tests` runs only when the plan declared e2e impact.
 `run-e2e-tests` is the only place the e2e suite runs.
 
 > **Open naming decision.** The request called step 6 `/tests`. Recommend
-> keeping `run-e2e-tests`: step 4's final gate already runs the *unit* suite, so
+> keeping `run-e2e-tests`: step 6's final gate already runs the *unit* suite, so
 > a skill called `/tests` that runs only e2e is the kind of name that costs a
 > reader ten minutes. The deprecated `test` alias is removed either way.
 
-### 3.7 `/acs:docs-sync`
+### 3.9 `/acs:docs-sync`
 
 Unchanged. Re-derives the doc delta from the diff itself rather than from any
 upstream summary, and commits on the same branch.
 
-### 3.8 `/acs:create-pr`
+### 3.10 `/acs:create-pr`
 
 **Creates the branch.** Nothing earlier in the pipeline does.
 
@@ -357,7 +409,7 @@ Every skill keeps hook-backed gating; prose is never the enforcement mechanism.
 | `PreToolUse(Write\|Edit\|MultiEdit)` | the executor stays inside the plan's file map |
 | `SubagentStart\|Stop` | the phase artifact exists and its verdict holds together |
 | `Stop` / `SessionEnd` | run bookkeeping, lock release |
-| `PreToolUse(Bash)` — new | refuses a `git push` of the base branch (§3.8) |
+| `PreToolUse(Bash)` — new | refuses a `git push` of the base branch (§3.10) |
 
 Two properties carry over unchanged because they are load-bearing and were
 expensive to get right:
@@ -379,8 +431,6 @@ No compatibility shims. These go in the same release.
 |---|---|
 | `code-trivial`, `code-small`, `code-standard`, `code-complex` | the review is a separate skill now; the legs differed only by verify depth |
 | delivery paths: `acs path`, `delivery:` in ship.yaml, `delivery_path` in state | nothing varies by path once the pipeline is fixed |
-| `create-api-contract` | folded into the plan's API/data changes section |
-| `create-test-docs` | folded into the plan's test strategy section |
 | `test` (alias) | ambiguous; `run-e2e-tests` is the skill |
 | the verifier inside `/acs:code` | moved to `/acs:review-code` |
 | XML messaging: `validate_xml.py`, `acs-messages.xsd`, `*-task.xml` snapshots | phase results are JSON, validated in the hook |
@@ -388,7 +438,7 @@ No compatibility shims. These go in the same release.
 | ticket-keyed partitions | replaced by run-keyed |
 | `phases/` artifact level | redundant under step directories |
 
-Skill count: **32 → 26**.
+Skill count: **32 → 28**.
 
 ---
 
@@ -429,7 +479,9 @@ suite, coverage ≥80%). Remove the four legs. The largest phase and the one
 carrying the most risk.
 
 **P4 — `/acs:analyze-requirements`.** Rename from `analyze-ticket`, accept
-prompt and document inputs, make the ticket id optional throughout.
+prompt and document inputs, make the ticket id optional throughout. Re-point
+`create-api-contract` and `create-test-docs` at `requirements.md` and the plan's
+predicates rather than at a ticket.
 
 **P5 — `/acs:create-pr` owns the branch.** Branch creation moves to the last
 step; add the base-branch push guard.
@@ -456,7 +508,7 @@ Two consequences for the eval dataset, both expected:
 - The **build digest** moves with every phase. It is not a stable precondition
   during P1–P6; re-derive it at gate time and name the tree by what it is.
 - The **skill-surface fingerprint** (`60a7c34b59f402c0`) **will** move, because
-  the skill set changes from 32 to 26 and `analyze-ticket` is renamed. The
+  the skill set changes from 32 to 28 and `analyze-ticket` is renamed. The
   routing baseline and `dataset/manifest.json`'s `recorded_against_fingerprint`
   are therefore invalidated by design, and both are re-recorded as part of the
   gate rather than treated as a regression. The 43-probe routing set needs
