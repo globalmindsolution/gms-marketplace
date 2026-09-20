@@ -244,6 +244,31 @@ It does **not** author the API contract or the test cases. It states in plain
 words whether they are owed, and steps 3 and 4 read that statement. It is no
 longer a predicate the workflow evaluates — see §3.3.
 
+**The machine-readable minimum.** "Not a template" does not mean "no
+structure": three things downstream code reads must be findable without
+parsing prose. `plan.md` therefore ends with one fixed section, and everything
+above it is free-form:
+
+```markdown
+## Contract                       ← the only section with a fixed shape
+delivery_path: standard           # trivial | small | standard | complex
+owes:
+  api_contract: true              # read by create-api-contract
+  test_cases:   true              # read by create-test-docs
+  e2e:          false             # read by create-e2e-tests / run-e2e-tests
+  reason: "CLI-only change; no HTTP surface, no browser flow"
+
+### Executor tasks & file map     ← unchanged heading; the file-map guard reads it
+- task 1: src/acs/hooks/scripts/acs_lib/workflow.py, tests/acs/test_workflow.py
+- task 2: src/acs/skills/ship/SKILL.md
+```
+
+The heading `## Executor tasks & file map` is kept verbatim because the guard
+and `plan-approval.py` already key on it. `plan_sha256` hashes the whole file,
+prose and contract alike, so editing either invalidates the approval. A skill
+that needs a value reads the `## Contract` block and nothing else; a human
+reads everything above it and need not read the block at all.
+
 ### 3.3 `/acs:create-api-contract`
 
 Kept as its own step rather than folded into the plan. **It runs on every run.**
@@ -507,6 +532,24 @@ whose status is not `completed`, and the cursor is that answer cached. And
 yet. `outcome` is the skill's word, written into its own artifact and mirrored
 here; the workflow never infers it.
 
+`outcome` is a closed vocabulary **per step**, declared in that skill's state
+schema and validated by its post-hook. A step with only one way to complete has
+no `outcome` at all. The steps with more than one:
+
+| Step | `outcome` values |
+|---|---|
+| `create-api-contract` | `contract_written` · `no_surface_owed` |
+| `create-test-docs` | `cases_written` · `no_cases_owed` |
+| `code` | `implemented` — always with `leg` |
+| `review-code` | `passed` · `blocking_findings` (re-enters the loop) · `exhausted` (cap reached; run fails) |
+| `create-e2e-tests` | `tests_written` · `no_e2e_owed` |
+| `run-e2e-tests` | `passed` · `no_harness` · `nothing_to_run` |
+
+A failure is not an outcome. A step that could not do its work records
+`status: failed` with an error, never a completed step with a sad `outcome`;
+the distinction is what keeps "nothing was owed" from being confused with
+"something went wrong".
+
 ### 4.3 Skill state — `steps/<step-id>/state.json`
 
 Keeps today's shape, which is sound: `states`, `findings`, `errors`, and a
@@ -599,24 +642,32 @@ Named explicitly so a "from scratch" reading does not discard them:
 
 ## 8. Refactor plan
 
-Six phases. Each is an epic; each lands independently and leaves the tree green.
-There is **no interim release**: `[Unreleased]` accumulates through P1–P6 and
-the v0.5.0 cut happens once, at the end, against the finished tree.
+Seven phases. Each is an epic; each lands independently and leaves the tree
+green. There is **no interim release**: `[Unreleased]` accumulates through
+P1–P6 and the v0.5.0 cut happens once, at the end, against the finished tree.
 
 **P1 — state machine re-key.** Run ids, `run.json`, step-id keying, the open
 `steps` object, name validation moved from schema to `acs workflow validate`,
 `phases/` level removed. Foundation for everything else; no user-visible
 behaviour change beyond the layout.
 
-**P2 — workflow engine.** `ship.yaml` version 3: the flat step list, the
-`loop:` construct, and the removal of `needs:` / `when:` / `paths:` /
-`requires:` / `delivery:` / `max_parallel` / `on_fail:` / `boundary:`. Each
-removed predicate is re-homed in the same phase (§2.1's table) — in particular
-`create-api-contract`, `create-test-docs`, `create-e2e-tests` and
-`run-e2e-tests` each gain their own applicability check and evidenced-no-op
-artifact, and `/acs:code` gains the leg dispatch that the per-path `skill:`
-mapping used to do. `/acs:ship` becomes a pure orchestrator over
-`acs workflow next`.
+**P2a — workflow engine.** `ship.yaml` version 3: the flat step list, the
+`loop:` construct, `cursor` in `run.json`, and a workflow schema that
+**rejects** `needs:` / `when:` / `paths:` / `requires:` / `delivery:` /
+`max_parallel` / `exclusive:` / `on_fail:` / `boundary:`. `/acs:ship` becomes
+a pure orchestrator over `acs workflow next`. Lands with an ADR — *Workflows
+carry no conditions* — because it is the rule every future workflow is held
+to, and ADR-0095 (which put the paths *in* the workflow) needs a successor
+that says why they came back out.
+
+**P2b — re-home the predicates.** Each removed predicate lands on the skill
+that can evaluate it from its own inputs (§2.1's table): `create-api-contract`,
+`create-test-docs`, `create-e2e-tests` and `run-e2e-tests` each gain their
+applicability check, their evidenced no-op artifact and their `outcome`
+vocabulary (§4.2); `/acs:code` gains the leg dispatch the per-path `skill:`
+mapping used to do; `/acs:create-impl-plan` gains the `## Contract` block
+(§3.2) that records the delivery path and the "owed" statements. Five skills,
+each a small change, none of which touches the engine.
 
 **P3 — split the review out of `/acs:code`.** Extract the verifier into
 `/acs:review-code`: five lenses, per-finding adjudication, final gate (build,
@@ -634,18 +685,22 @@ hook that enforces it), a plan written for one human read, approval bound to
 **P5 — `/acs:create-pr` owns the branch.** Branch creation moves to the last
 step; add the base-branch push guard.
 
-**P6 — removals and doc sweep.** Delete the skills in §6, remove the XML
-machinery, supersede the ADRs the redesign overturns, rewrite INTERNALS.
+**P6 — removals and doc sweep.** Delete what §6 lists, remove the XML
+machinery, supersede the remaining ADRs the redesign overturns (ADR-0067's
+merge rule relocates; the `/acs:code` triad chain), rewrite INTERNALS.
 
 ### Ordering constraints
 
 - P1 precedes everything — every other phase writes state.
-- P2 precedes P3: the loop must live in the workflow before the review can leave
-  `/acs:code`, and the legs cannot lose their iteration ceiling until something
-  else owns it.
-- P4's plan-mode re-shape precedes nothing and blocks nothing, but the delivery
-  path must be recorded on the plan before P2 can delete the `delivery:` block —
-  so that one line of P4 lands inside P2.
+- P2a and P2b land **together or P2b first**: deleting `when:` from the
+  workflow before the skill has its own check silently makes that skill run
+  unconditionally, and deleting `delivery:` before the plan records the path
+  leaves `/acs:code` with nothing to dispatch on.
+- P2a precedes P3: the loop must live in the workflow before the review can
+  leave `/acs:code`, and the legs cannot lose their iteration ceiling until
+  something else owns it.
+- P4 depends on P2b's `## Contract` block and builds the rest of plan mode on
+  top of it.
 - P5 is independent of P3/P4 and can run in parallel.
 - P6 lands last; deleting a skill before its replacement ships breaks the tree.
 
