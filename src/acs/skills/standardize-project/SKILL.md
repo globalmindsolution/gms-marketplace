@@ -31,7 +31,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardi
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardize-project --ticket SHOP-9
 ```
 
-If skill-start exits non-zero: stop immediately and surface its stderr to the user
+If `acs step start` exits non-zero: stop immediately and surface its stderr to the user
 verbatim — do not improvise. Otherwise parse the printed context JSON; the fields you
 need: `partition`, `ticket_id`, `ticket`, `settings` (`principles_path`,
 `standards_path`, `architecture_path`, `test_coverage_percent`, `e2e`, `formats`,
@@ -39,7 +39,7 @@ need: `partition`, `ticket_id`, `ticket`, `settings` (`principles_path`,
 `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled **"Brownfield project standardization"**
-(`DELIVERY_TICKET_TITLES`); skill-start has already created the
+(`DELIVERY_TICKET_TITLES`); `acs step start` has already created the
 partition, ticket.json, the lock, the session pointer, and the `in_progress` run entry.
 If `settings.tracker.provider` is `github` or `jira`, sync the ticket out via `gh`/`acli`
 per the tracker config.

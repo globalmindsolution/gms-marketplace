@@ -32,7 +32,7 @@ entry. Parse the printed context JSON; the fields you will use:
 - `models` — per-role `{model, effort}` resolved from settings
 - `reconcile`, `handoff_summary`, `prior_run_status`, `pipeline`
 
-If skill-start exits non-zero: stop and surface its stderr verbatim — do not improvise.
+If `acs step start` exits non-zero: stop and surface its stderr verbatim — do not improvise.
 
 Apply `context.models.<role>.model` / `.effort` when spawning each subagent, unless
 the value is `"inherit"`. If the runtime rejects the model id or effort, FAIL the run
@@ -48,7 +48,7 @@ Three cases:
   it instead of scaffolding twice: (1) close the just-allocated ticket — write its
   `result.json` (see Finish) with `status: "failed"`, `summary: "duplicate
   allocation; resumed <PRIOR-ID>"`, and run the post-hook for it; (2) re-run
-  skill-start with `--ticket <PRIOR-ID>` (no `--allocate`) and continue with that
+  `acs step start` with `--ticket <PRIOR-ID>` (no `--allocate`) and continue with that
   context — it will report `reconcile: true`.
 - **`context.reconcile` is true** (resumed ticket): verify recorded progress against
   reality BEFORE continuing — re-read `steps/create-project/` artifacts,

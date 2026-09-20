@@ -272,8 +272,13 @@ class TheDispatcherDispatchesTest(unittest.TestCase):
                 self.assertIn("Skill(acs:%s)" % leg, body)
 
     def test_it_reads_the_recorded_path_rather_than_judging_by_default(self):
+        """The pin is that the dispatcher READS the recorded path, and reads it
+        through the CLI. It used to name `plan_contract`, the library module,
+        because the SKILL.md open-coded a heredoc around it -- which is the ADR
+        0001 violation, not the contract. `acs.py plan path` is the contract."""
         body = norm(read(os.path.join(CODE_DIR, "SKILL.md")))
-        self.assertIn("plan_contract", body)
+        self.assertIn('acs.py" plan path', body)
+        self.assertNotIn("python3 - <<", body)
         self.assertIn("## Contract", body)
         self.assertIn("judged once, by the plan, and recorded in it", body)
 

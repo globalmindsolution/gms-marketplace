@@ -8,7 +8,7 @@ below belongs to exactly one of them:
 | | Repo docs tree | Workspace partition |
 |---|----------------|---------------------|
 | **Where** | `<repo>/<settings.artifacts.tickets_path>/<ID>/` (default `docs/tickets/<ID>/`) | `<workspace>/<repo>/<ticket-id>/` |
-| **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `<skill>-state.json`, `pipeline-state.json`, `phases/<skill>/`, verdicts, `.lock`, `lock-events.jsonl`, `clarifications.json`, `active-agents`, and the repo-level `tickets-index.json` / `counters.json` / `metrics.json` / `sessions/` |
+| **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `run.json`, `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `metrics.json` / `sessions/` |
 | **Versioned** | yes — committed on the ticket branch, reviewed in the PR | no — gitignored |
 | **Written by** | the coordinator and the ticket skills; an executor MUST NOT write there (the file-map guard treats it as a control input) | hooks and the skills' own subagents |
 
@@ -106,39 +106,51 @@ The workspace (gitignored, the run ledger):
 <workspace>/
 └── acme-shop/                          # one partition per consumer repo
     ├── tickets-index.json              # all tickets: id, type, status, parent/children
-    ├── counters.json                   # ticket id sequence (next ticket number)
+    ├── runs-index.json                 # all runs: id, workflow, subject, status, started/ended
+    ├── counters.json                   # ticket id sequence (run ids derive from the subject; no allocator)
     ├── metrics.json                    # repo aggregates: ticket/PR counts, time, tokens, cost
     ├── sessions/                       # per-checkout state for parallel worktree sessions
-    │   ├── <checkout-id>.json          # current ticket id for that checkout/worktree
-    │   ├── <checkout-id>-session.json  # ticket-independent session-correlation marker (MAR-1)
-    │   ├── <checkout-id>-cost-samples.jsonl  # append-only statusLine cost samples, rotated in place (MAR-1)
-    │   └── <checkout-id>-cost-cursor.json    # allocation cursor into the cost-sample log (MAR-1)
-    ├── archive/                        # partitions of done tickets move here post-merge
-    ├── SHOP-1/                         # a product-level delivery ticket (here: PRD)
-    │   ├── ticket.json                 # type task, e.g. "Product definition (PRD)"
-    │   ├── pipeline-state.json         # marks the flow as product-level
-    │   └── create-prd-state.json       # incl. the docs PR reference
-    ├── SHOP-122/                       # an epic: grouping + design
-    │   ├── ticket.json.moved           # the epic's ticket.md and design.md live in the docs tree
-    │   ├── pipeline-state.json
-    │   ├── create-ticket-state.json
-    │   └── create-design-state.json
-    └── SHOP-123/                       # a story/task: full pipeline
-        ├── .lock                       # held by the session working this ticket
-        ├── lock-events.jsonl           # append-only audit of every `lock force-unlock` (who, why, what was broken)
-        ├── ticket.json.moved           # pointer left by `acs.py artifacts migrate`: {ticket_id, moved_to, relative, migrated_at}
-        │                               # (an unmigrated partition, or artifacts.tickets_path: null, keeps ticket.json here instead)
-        ├── pipeline-state.json         # compact step ledger: what /ship's workflow walk and the order advisory read
-        ├── clarifications.json         # requirement Q&A ledger (answers, open questions, assumptions)
-        ├── phases/<skill>/             # per-phase artifacts: iter-<n>-plan.md / -execute.json / -verify.md + XML snapshots; /create-impl-plan also: plan-approval.json (STANDARD/COMPLEX, written by plan-approval.py, not a subagent — MAR-73, slice 3 of MAR-69), plan-superseded-<k>.md (written by the coordinator on revocation, a byte-identical copy of the revoked plan.md, never deleted — MAR-74, slice 4 of MAR-69). The approved plan.md itself is a human-facing document and lives in the docs tree.
-        ├── create-ticket-state.json
-        ├── specs/                      # legacy input: pre-existing specs (1..n, conform to the design) read by /code when present; new tickets have none — /code self-authors the fold content instead
-        │   ├── 01-data-model.md
-        │   └── 02-api-endpoints.md
-        ├── code-state.json             # written by post-code.py; incl. verifier review findings + runs[-1].escalations audit trail + runs[-1].guard_events, the file-map guard's denial audit trail (MAR-578)
-        ├── docs-sync-state.json        # written by post-docs-sync.py; the /docs-sync run ledger
-        ├── create-pr-state.json        # incl. PR number/URL
-        └── merge-pr-state.json
+    │   └── <checkout-id>/              # ONE directory per checkout, not five prefixed files
+    │       ├── pointer.json            # the run AND step this checkout is on
+    │       ├── session.json            # subject-independent session-correlation marker (MAR-1)
+    │       ├── cost.jsonl              # append-only statusLine cost samples, rotated in place (MAR-1)
+    │       └── runtime.json            # allocation cursor into the cost-sample log (MAR-1)
+    ├── archive/                        # runs of done tickets move here post-merge
+    ├── tickets/<ticket-id>/ticket.json # only when settings.artifacts.tickets_path is null
+    └── runs/
+        ├── SHOP-1/                     # a product-level delivery run (here: PRD)
+        │   ├── run.json                # THE RUN MACHINE
+        │   ├── subject/                # ticket.json | prompt.md | the document
+        │   └── steps/create-prd/state.json   # incl. the docs PR reference
+        ├── fix-the-login-timeout-3f2a/ # a run started from a PROMPT, not a ticket
+        │   ├── run.json
+        │   └── subject/prompt.md
+        └── SHOP-123/                   # a story/task: the full pipeline
+            ├── run.json                # THE RUN MACHINE: workflow, subject, loop iteration, status
+            ├── lock.json               # held by the session working this run
+            ├── lock-events.jsonl       # append-only audit of every `lock force-unlock` (who, why, what was broken)
+            ├── subject/ticket.json     # what this run is about
+            ├── requirements.md         # step 1's artifact, promoted: every later step reads it
+            ├── clarifications.json     # requirement Q&A ledger (answers, open questions, assumptions)
+            ├── agents/                 # runtime scratch: the active-agent records
+            ├── handoff-context.md      # written by /acs:handoff
+            ├── specs/                  # legacy input: pre-existing specs read by /code when present
+            └── steps/
+                ├── create-impl-plan/
+                │   ├── state.json      # THE STEP MACHINE: this step's own invocations[]
+                │   ├── result.json     # the post-hook's input
+                │   ├── plan.md        # THE plan — one, at the step root; plan_sha256 hashes it
+                │   ├── plan-approval.json   # written by plan-approval.py, never by a subagent
+                │   └── iter-<n>/      # the AUDIT TRAIL: the plans there were
+                ├── code/
+                │   ├── state.json     # incl. invocations[-1].guard_events, the file-map guard's denials
+                │   └── iter-<n>/execute.json · execute-<k>.json · task.json
+                ├── review-code/
+                │   ├── state.json · verdict.json
+                │   └── iter-<n>/lens-<A..E>.md · adjudication.json · gate.json
+                ├── docs-sync/state.json
+                ├── create-pr/state.json      # incl. PR number/URL
+                └── merge-pr/state.json
 ```
 
 Repo-level files (all maintained by hooks):
@@ -153,7 +165,7 @@ Repo-level files (all maintained by hooks):
   bounded, network-free local-evidence proposal rather than silently
   restarting the sequence at 1; a human confirms (or repairs a wrong/stuck
   reconciliation) via `--seed-next <n>` on either `new-ticket.py` or
-  `skill-start.py --allocate`. Confirmed reconciliation is recorded via three
+  `acs.py step start --allocate`. Confirmed reconciliation is recorded via three
   additive optional fields: `reconciled` (boolean), `seed_source`
   (`committed-files`\|`git-history`\|`branch-names`\|`explicit-user`), and
   `seeded_at` (ISO-8601 UTC). The evidence scan's `observed_max` is surfaced
@@ -249,29 +261,41 @@ Each state file MUST capture:
 - **findings** — anything discovered worth passing on (e.g. review findings,
   clarifications obtained from the user);
 - **error details** — what went wrong, if anything;
-- **runs** — an **append-only array** of run entries, each carrying that
-  run's timestamps, token counts, cost, **status**, and **stop reason**.
+- **invocations** — an **append-only array** of this step's invocations, each
+  carrying that invocation's timestamps, token counts, cost, **status**, and,
+  when `interrupted`, its **stop reason**. The array is `invocations`, not
+  `runs`: a RUN is the whole pass over the workflow (`run.json`), and a step
+  is invoked within it.
 
 **No duplicated fields** — single source of truth:
 
-- The **last `runs` entry is the current state**: `runs[-1].status` is what
-  the step ledger records, and therefore what `acs.py workflow next`, the
-  ticket's derived status, and the pre-hook order advisory all read. It is
+- The **last invocation is the current state**: its `status` is what the step
+  records, and therefore what the derived cursor (`acs.py run next`), the
+  subject's derived status, and the pre-hook order advisory all read. It is
   NOT a gate condition — since the skills-independence refactor no pre-hook
-  refuses a skill because another skill's `runs[-1].status` is not
-  `completed`. Status, stop reason, and last-updated time are NOT mirrored at
-  top level (they would only drift).
-- A run entry is appended with status **`in_progress`** by the coordinator
-  at skill start and finalized by the post-hook — so even a hard crash that
-  skips the post-hook leaves `runs[-1].status == "in_progress"`, which the
-  workflow walk treats as unsatisfied (the step is ready again) and the next
-  run reconciles
-  ([workflow.md](workflow.md#resuming-a-ticket)).
-- Run statuses: `in_progress`, `completed`, `failed`, `interrupted`, and
-  `handed_off` — a deliberate session handoff, where the entry also carries
-  a handoff summary ([workflow.md](workflow.md#session-handoff)).
+  refuses a skill because another skill's last status is not `completed`.
+  Status, stop reason, and last-updated time are NOT mirrored at top level
+  (they would only drift).
+- **The cursor is DERIVED, never stored:** the first step in workflow order
+  that is not `completed`. A stored position beside the statuses it
+  summarises is a second copy of one fact, and the two can disagree.
+- An invocation is appended with status **`in_progress`** by the coordinator
+  at step start and finalized by the post-hook — so even a hard crash that
+  skips the post-hook leaves the last invocation `in_progress`, which is not
+  `completed`, so the cursor is still on that step and the next run
+  reconciles ([workflow.md](workflow.md#resuming-a-ticket)).
+- **Step statuses are exactly four**: `in_progress`, `completed`, `failed`,
+  `interrupted`. A **`stop_reason`** belongs to an `interrupted` step only
+  and MUST come from the closed set `session_end | needs_input |
+  context_pressure`; a completed or failed step's narrative goes in
+  `summary`. `handed_off` is not a status — it named a *reason* a step
+  stopped, so it lost the "what"; a deliberate handoff is `interrupted` plus
+  `stop_reason: context_pressure` and a handoff summary
+  ([workflow.md](workflow.md#session-handoff)). `skipped` is not a status
+  either — a step that owes nothing is `completed` with the reason the plan's
+  `## Contract` block gave (ADR-0096).
 - Working time is **computed** from `started_at`/`ended_at`, never stored.
-- `skill` and `ticket_id` do echo the filename and partition folder — kept
+- `skill` and `run_id` do echo the directory the file sits in — kept
   deliberately so the file stays self-describing once moved to `archive/`,
   and as a cheap integrity check (path ↔ content mismatch = corruption).
 
@@ -310,9 +334,11 @@ Each state file MUST capture:
 ```
 
 JSON Schemas for the ticket (`ticket.json`, whose field set `ticket.md`'s
-front matter mirrors), `pipeline-state.json`, each
-`<skill>-state.json`, `settings.json`, `metrics.json`, and
-`clarifications.json` are **shipped with the plugin** (`schemas/`). Skills validate against the full schemas; hooks
+front matter mirrors), `run.json`, `steps/<skill>/state.json`, a step's
+`result.json`, the workflow file, the session pointer, `settings.json`,
+`metrics.json` and `clarifications.json` are **shipped with the plugin**
+(`schemas/`, fifteen of them). JSON Schema is the only validator: the XSD
+layer and `validate_xml.py` are gone. Skills validate against the full schemas; hooks
 perform lightweight stdlib-only structural checks
 ([hooks.md](hooks.md)).
 
@@ -407,21 +433,21 @@ worktree per ticket**:
 The workspace records effort and cost at every level; post-hooks maintain
 all of it:
 
-- **Per run**: each `runs` entry records `started_at`/`ended_at` (working
-  time is computed from them), token counts (input/output), and cost. Runs
-  finalized outside a post-hook — `handed_off` (session handoff) and
-  `interrupted` (SessionEnd safety net) — are counted in the repo aggregates
-  too, so `metrics.json` and the per-ticket roll-up never diverge.
-- **Per ticket**: `pipeline-state.json` rolls up totals across all skills
-  and runs for the ticket.
+- **Per invocation**: each entry records `started_at`/`ended_at` (working
+  time is computed from them), token counts (input/output), and cost.
+  Invocations finalized outside a post-hook — `interrupted`, whether by a
+  deliberate handoff or by the SessionEnd safety net — are counted in the
+  repo aggregates too, so `metrics.json` and the per-run roll-up never
+  diverge.
+- **Per run**: `run.json` rolls up totals across every step of the run.
 - **Per repo** (`metrics.json`): ticket counts (by status and type), PR
   counts (created, merged), and total working time, tokens, and cost.
-- **Measured, not self-reported (MAR-1, ADR 0082).** The coordinator's XML
-  result carries no token/cost figures at all — the standing `[ASSUMPTION]`
+- **Measured, not self-reported (MAR-1, ADR 0082).** The coordinator's
+  result document carries no token/cost figures at all — the standing `[ASSUMPTION]`
   this bullet used to record is resolved, not merely reworded. A run's
   `session_id`/`transcript_path` are captured from the genuine
   `PreToolUse(Skill)` hook envelope by a session-correlation marker,
-  threaded onto the run entry at `skill-start.py`. At finalize time,
+  threaded onto the invocation at `acs.py step start`. At finalize time,
   `usage_reader.py` reads real token counts (all four `message.usage`
   classes) from that exact recorded transcript plus its `subagents/`
   subtree — never a constructed path — and buckets them by role, including a
@@ -465,7 +491,7 @@ aggregates.
 
 ### Ticket allocation on resume
 
-`skill-start.py --allocate` MUST NOT mint a second ticket for work that
+`acs.py step start --allocate` MUST NOT mint a second ticket for work that
 already has one, and MUST NOT let one run adopt another's partition. Reuse
 is therefore resolved from EXPLICIT inputs only:
 

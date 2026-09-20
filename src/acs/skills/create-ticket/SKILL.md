@@ -39,7 +39,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ti
   re-invokes an interrupted create-ticket this way). A prompt that merely
   MENTIONS an id — "follow-up to SHOP-1: …" — is not a resume and still mints
   a new ticket.
-- If skill-start exits non-zero: STOP and surface its stderr verbatim to the user.
+- If `acs step start` exits non-zero: STOP and surface its stderr verbatim to the user.
   One specific case of this rule: on a fresh/unreconciled workspace partition,
   `--allocate` refuses with exit 2 and a local-evidence reconciliation proposal
   (`allocate_ticket_id`'s fail-closed gate, MAR-402) instead of minting an id.

@@ -618,6 +618,140 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
                 "with plan-approval.json")
 
 
+class PlanPathReadTest(acs_case.AcsWorkspaceCase):
+    """`acs.py plan path` -- the plan's Contract block, read and printed.
+
+    ADR 0001's rule is that a skill reaches Python through a CLI. `/acs:code`
+    broke it in one direction: it open-coded `build_context` ->
+    `current_run_id` -> `plan_contract.read` in a heredoc inside its SKILL.md
+    because no command answered "what path was this plan judged onto?".
+    Redesign SS4.8 names that command `acs plan path`; these are its pins.
+
+    The verb READS. Every test below asserts it wrote nothing, because the
+    moment this command can write, the path has two writers and a resumed run
+    can split across two rigors -- the exact failure ADR-0095 exists to
+    prevent."""
+
+    def _plan_dir(self, ticket):
+        self.ensure_run(ticket)
+        return os.path.join(self.rdir(ticket), "steps", "create-impl-plan")
+
+    def _write_plan(self, ticket, contract, filename="plan.md"):
+        d = self._plan_dir(ticket)
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, filename)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(PLAN_PROSE + contract)
+        return path
+
+    CONTRACT = ("\n## Contract\ndelivery_path: small\nowes:\n"
+                "  api_contract: false\n  test_cases: true\n  e2e: false\n"
+                '  reason: "CLI-only change"\n'
+                "\n### Executor tasks & file map\n"
+                "- task 1: src/retry/policy.py\n")
+
+    def _path_out(self, ticket, *extra):
+        out = self.run_script("plan-approval.py", "path", "--run", ticket, *extra)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+    def test_prints_the_judged_path_and_the_owes_flags(self):
+        tid = self.new_ticket("Plan path", "task")
+        self._write_plan(tid, self.CONTRACT)
+        doc = self._path_out(tid)
+        self.assertEqual(doc["delivery_path"], "small")
+        self.assertEqual(doc["owes"], {"api_contract": False,
+                                       "test_cases": True, "e2e": False})
+        self.assertEqual(doc["contract_errors"], [])
+        self.assertTrue(doc["plan"].endswith("steps/create-impl-plan/plan.md"))
+
+    def test_writes_nothing(self):
+        """The read must not create the approval record, and must not mirror
+        `plan_approved` into the step. `check` is the only writer."""
+        tid = self.new_ticket("Plan path", "task")
+        self._write_plan(tid, self.CONTRACT)
+        before = sorted(os.listdir(self._plan_dir(tid)))
+        self._path_out(tid)
+        self.assertEqual(sorted(os.listdir(self._plan_dir(tid))), before)
+        self.assertFalse(os.path.exists(
+            os.path.join(self._plan_dir(tid), "plan-approval.json")))
+
+    def test_an_unjudged_plan_prints_null_rather_than_guessing(self):
+        """Silence is not a default path. A plan with no Contract block is a
+        plan that is not ready to dispatch, and saying so IS the answer -- the
+        alternative, falling back to a path, is a second judge."""
+        tid = self.new_ticket("Plan path", "task")
+        self._write_plan(tid, "\n### Executor tasks & file map\n- task 1: a.py\n")
+        doc = self._path_out(tid)
+        self.assertIsNone(doc["delivery_path"])
+        self.assertEqual(doc["owes"],
+                         {"api_contract": None, "test_cases": None, "e2e": None})
+
+    def test_a_missing_plan_is_reported_not_raised(self):
+        tid = self.new_ticket("Plan path", "task")
+        self.ensure_run(tid)
+        doc = self._path_out(tid)
+        self.assertIsNone(doc["plan"])
+        self.assertIsNone(doc["delivery_path"])
+
+    def test_an_unparseable_contract_is_distinguishable_from_an_absent_one(self):
+        """`delivery_path: null` alone cannot tell a caller which of the two it
+        has; `contract_errors` is what separates them."""
+        tid = self.new_ticket("Plan path", "task")
+        self._write_plan(tid, "\n## Contract\ndelivery_path: enormous\n"
+                              "\n### Executor tasks & file map\n- task 1: a.py\n")
+        doc = self._path_out(tid)
+        self.assertIsNone(doc["delivery_path"])
+        self.assertTrue(doc["contract_errors"], doc)
+
+    def test_escaping_plan_argument_is_rejected_on_the_read_too(self):
+        tid = self.new_ticket("Plan path", "task")
+        self.ensure_run(tid)
+        outside_dir = tempfile.mkdtemp(prefix="acs-plan-path-escape-")
+        self.addCleanup(shutil.rmtree, outside_dir, True)
+        evil_path = os.path.join(outside_dir, "evil-plan.md")
+        with open(evil_path, "w", encoding="utf-8") as fh:
+            fh.write(PLAN_PROSE + self.CONTRACT)
+        out = self.run_script("plan-approval.py", "path", "--run", tid,
+                              "--plan", evil_path)
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(out.stdout, "")
+        self.assertNotIn("Traceback", out.stderr)
+
+    def test_the_default_verb_is_still_check(self):
+        """`acs.py plan check` forwards an EMPTY argv after dropping the verb,
+        so a positional with no default would have broken every existing
+        caller."""
+        tid = self.new_ticket("Plan path", "task")
+        self._write_plan(tid, self.CONTRACT)
+        out = self.run_script("plan-approval.py", "--run", tid)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(json.loads(out.stdout)["skipped"], "delivery_path")
+
+    def test_an_unknown_verb_is_refused(self):
+        tid = self.new_ticket("Plan path", "task")
+        self.ensure_run(tid)
+        out = self.run_script("plan-approval.py", "judge", "--run", tid)
+        self.assertNotEqual(out.returncode, 0)
+
+
+class CodeSkillReachesPythonThroughTheCliTest(unittest.TestCase):
+    """ADR 0001: a skill reaches Python through a CLI, never a heredoc.
+
+    `code/SKILL.md` is the skill this rule was broken in, so it is the one
+    pinned here; the pin is on the ABSENCE of an interpreter heredoc, not on
+    the command's wording, because the failure mode is "a skill grew its own
+    Python again", not "the command was renamed"."""
+
+    def test_code_skill_has_no_embedded_python_heredoc(self):
+        body = _read(CODE_SKILL)
+        self.assertNotIn("python3 - <<", body)
+
+    def test_code_skill_resolves_the_path_through_acs_py(self):
+        body = _norm(_read(CODE_SKILL))
+        self.assertIn('acs.py" plan path', body)
+
+
 class PlanApprovalContractTest(unittest.TestCase):
     """AC-3 + call site. The call site moved with the plan phase: the
     subsection now lives in create-impl-plan/SKILL.md (the deeper prose pins

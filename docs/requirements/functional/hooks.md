@@ -21,15 +21,15 @@ one advisory stderr line, never a refusal.
   (e.g. `pre-code.py`, `post-code.py`).
 - Hooks MUST read and write state files only in the **workspace folder**
   (`<workspace>/<repo>/…`), resolved via the `.acs` `settings.json`
-  (see [configuration.md](configuration.md)). Most access stays inside
-  the ticket's own partition, but hooks also maintain the repo-level files
-  (`tickets-index.json`, `metrics.json`, `sessions/`), and
-  the coordinator's `skill-start.py` MAY read the parent epic's partition to
+  (see [configuration.md](configuration.md)). Most access stays inside the
+  run's own directory (`runs/<run-id>/`), but hooks also maintain the
+  repo-level files (`tickets-index.json`, `runs-index.json`, `metrics.json`,
+  `sessions/`), and `acs step start` MAY read the parent epic's run to
   resolve its design state ([workspace-and-state.md](workspace-and-state.md)).
 - A pre-hook MAY additionally **read** (never write) the ticket's documents
   in the repo docs tree (`docs/tickets/<ID>/`) to check the inputs its skill
-  requires — `plan.md` for `/code`, `analysis.md` for `/create-api-contract`,
-  `test-cases.md` for `/create-e2e-tests`
+  requires — `plan.md` for `/code`, and the plan's `## Contract` block, from
+  which a step that owes nothing records its evidenced no-op
   ([workflow.md](workflow.md#where-a-tickets-artifacts-live)).
 
 ### Pre-hooks — input checks and safety brakes
@@ -108,18 +108,25 @@ doing any work. If a `plan.md` exists but `/acs:analyze-requirements` never ran,
 A post-hook runs after its skill and writes the skill's state into a JSON
 file in the workspace partition:
 
-- e.g. `post-code.py` writes `code-state.json` under
-  `<workspace>/<repo>/<ticket-id>/`.
+- e.g. `post-code.py` writes `steps/code/state.json` under
+  `<workspace>/<repo>/runs/<run-id>/`.
 - The state file MUST record at least: the states, findings, and error
-  details produced during the run, plus a new entry in the append-only
-  `runs` array (timestamps, tokens, cost, status, stop reason). The **last
-  `runs` entry is the current state** — `acs.py workflow next`, the ticket's
-  derived status, and the order advisory all read `runs[-1].status` through
-  the step ledger ([workspace-and-state.md](workspace-and-state.md));
-  nothing is mirrored at top level.
-- Post-hooks also update the ticket's **`pipeline-state.json`** step ledger,
-  and the repo-level **`tickets-index.json`** and **`metrics.json`**
-  (working time, tokens, cost per run — see
+  details produced during the step, plus a new entry in the append-only
+  **`invocations`** array (timestamps, tokens, cost, status, stop reason).
+  The array is `invocations`, not `runs`, because a RUN is the whole pass
+  over the workflow and a step is invoked within it. The **last invocation is
+  the current state** — the derived cursor, the subject's derived status and
+  the order advisory all read it
+  ([workspace-and-state.md](workspace-and-state.md)); nothing is mirrored at
+  top level.
+- A step's status is one of **`in_progress | completed | failed |
+  interrupted`**. A `stop_reason` belongs to an `interrupted` step only and
+  MUST come from the closed set `session_end | needs_input |
+  context_pressure`; a completed or failed step's narrative goes in
+  `summary`. `handed_off` and `skipped` are not statuses.
+- Post-hooks also update **`run.json`**, and the repo-level
+  **`tickets-index.json`**, **`runs-index.json`** and **`metrics.json`**
+  (working time, tokens, cost per invocation — see
   [workspace-and-state.md](workspace-and-state.md)).
 - If the skill ends abnormally (crash, interruption), the post-hook MUST
   still write a state with status `failed` or `interrupted` — never leave
@@ -155,11 +162,11 @@ Twenty hooked skills, each with one pre-hook and one post-hook:
 | `/create-pr` | `pre-create-pr.py` | `post-create-pr.py` | `create-pr-state.json` |
 | `/merge-pr` | `pre-merge-pr.py` | `post-merge-pr.py` | `merge-pr-state.json` |
 
-`/run-e2e-tests` (and the `/test` alias that forwards to it for one release)
-is **unhooked**: it has no pre- or post-hook and records its own
-`pipeline-state.json` step through `pipeline-step.py`. So are the utility
-skills (`/setup`, `/ship`, `/handoff`, `/update`, `/install-hooks`,
-`/metrics`, `/usage`, `/release`, `/create-docs`).
+The utility skills (`/setup`, `/ship`, `/handoff`, `/update`,
+`/install-hooks`, `/metrics`, `/usage`, `/release`) are **unhooked**: they
+have no pre- or post-hook and take no position in a run. The `/test` alias is
+removed — `/run-e2e-tests` is the skill, and it is hooked like any other
+step.
 
 ## Per-skill pre-hook conditions
 
@@ -203,16 +210,18 @@ worth stating explicitly, because each used to be an order gate:
 - **Run lifecycle**: at skill start the coordinator appends an
   **`in_progress` run entry** to the skill's state file; the post-hook
   finalizes it. A hard crash that skips the post-hook therefore still leaves
-  `runs[-1].status == "in_progress"` (plus a stale `.lock`) — the workflow
-  walk reads "not satisfied", so the step is simply ready again, and the next
-  run reconciles
+  the last invocation `in_progress` (plus a stale lock) — the cursor is
+  derived as the first step that is not `completed`, so the step is simply
+  due again, and the next run reconciles
   ([workflow.md](workflow.md#resuming-a-ticket)). A deliberate session
-  handoff finalizes the entry as `handed_off` and releases the lock
+  handoff finalizes the invocation `interrupted` with
+  `stop_reason: context_pressure` and releases the lock
   ([workflow.md](workflow.md#session-handoff)).
-- **Ticket id resolution for hooks**: the coordinator writes a
-  **per-checkout pointer file** at skill start —
-  `<workspace>/<repo>/sessions/<checkout-id>.json` (one per repo
-  checkout/worktree, so parallel sessions never clash). Hooks read it to
+- **Run resolution for hooks**: the coordinator writes a **per-checkout
+  pointer file** at step start —
+  `<workspace>/<repo>/sessions/<checkout-id>/pointer.json`, carrying the
+  current run and step (one directory per repo checkout/worktree, so parallel
+  sessions never clash). Hooks read it to
   resolve the current ticket; the **branch name is the fallback** when no
   pointer exists. Product-level skills create their **delivery ticket** at
   start, so their hooks resolve a normal ticket partition like any other
@@ -244,13 +253,13 @@ completed" event exists):
 - **Post-hooks** are invoked by the skill's **coordinator as its mandatory
   final step** (`post-<skill>.py --result-file …`) — their inputs (final
   status, findings, tokens, cost) exist only in the coordinator's context.
-  Enforcement does not rely on the model: the coordinator registers an
-  `in_progress` run entry at skill start (`skill-start.py`), so a skipped
-  post-hook leaves the step recorded `in_progress` — never `completed`. Since
-  the skills-independence refactor that fact no longer closes a gate; it
-  makes the step **ready again** on the next `acs.py workflow next`, so the
-  orchestrator re-runs it rather than the pipeline silently advancing past
-  it.
+  Enforcement does not rely on the model: the coordinator records the step
+  `in_progress` at skill start (`acs.py step start --step <name>`), so a
+  skipped post-hook leaves it `in_progress` — never `completed`. Since the
+  skills-independence refactor that fact no longer closes a gate; because the
+  cursor is derived as the first step that is not `completed`, it makes the
+  step **due again** on the next `acs.py run next`, so the orchestrator
+  re-runs it rather than the pipeline silently advancing past it.
 - A **`SessionEnd`** hook (`dispatch.py session-end`) finalizes any run this
   checkout left `in_progress` as `interrupted` and releases its lock, so
   abnormal endings still write state.

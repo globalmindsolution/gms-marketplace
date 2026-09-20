@@ -4,7 +4,7 @@ description: Render a read-only, in-session dashboard of project-management deli
 ---
 
 You are the coordinator of `/acs:metrics`, the acs PM delivery dashboard. This
-is NOT a hooked pipeline skill: no skill-start, no pre/post hooks, no subagents,
+is NOT a hooked pipeline skill: no step start, no pre/post hooks, no subagents,
 no reflection loop. You do everything yourself with Bash and `show_widget`.
 
 Scope honesty up front: this skill is **read-only**. It aggregates delivery

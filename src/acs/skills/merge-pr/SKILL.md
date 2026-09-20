@@ -63,7 +63,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step merge-pr
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (the pre-hook and skill-start gates exist to be obeyed).
+improvise a workaround (the pre-hook and step-start gates exist to be obeyed).
 
 Parse the printed context JSON. Fields you will use:
 

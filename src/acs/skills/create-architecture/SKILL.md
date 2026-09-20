@@ -31,7 +31,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ar
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-architecture --ticket SHOP-2
 ```
 
-If skill-start exits non-zero: stop immediately and surface its stderr to the
+If `acs step start` exits non-zero: stop immediately and surface its stderr to the
 user verbatim. Otherwise parse the printed context JSON; the fields you need:
 `partition`, `ticket_id`, `ticket`, `settings` (`prd_path`,
 `architecture_path`, `formats`, `tracker`), `models`
@@ -39,7 +39,7 @@ user verbatim. Otherwise parse the printed context JSON; the fields you need:
 `post_hook`, `pipeline`, `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled
-`Product architecture doc set` (`PRODUCT_TICKET_TITLES`); skill-start has
+`Product architecture doc set` (`PRODUCT_TICKET_TITLES`); `acs step start` has
 already created the partition, ticket.json, the lock, the session pointer,
 and the `in_progress` run entry. If `settings.tracker.provider` is `github`
 or `jira`, sync the ticket out via `gh`/`acli` per the tracker config.

@@ -132,7 +132,7 @@ win — change them first, then the implementation.
    unverifiable points are flagged as assumptions, never silently defaulted.
    Verifiers treat ungrounded plan/execute artifacts as findings.
 7. **Verifiers: independence is the value.** List every check dimension for
-   the skill explicitly (e.g. the code-verifier's eight review dimensions plus
+   the skill explicitly (e.g. `/acs:review-code`'s review dimensions plus
    spec conformance, tests, coverage). Re-run cheap checks rather than
    trusting recorded results. All findings block — write findings the
    executor can act on (file, expectation, observed behavior), one

@@ -16,6 +16,227 @@ the notes.
 
 ## [Unreleased]
 
+> ### ⚠️ v0.5.0 IS the implementation-pipeline redesign
+>
+> This section is APPEND-ONLY, so the entries below it are the cycle's own
+> history and several of them describe surface that a later entry in the same
+> cycle re-cut. **Where this block and an entry below disagree, this block is
+> what ships.** Nothing it supersedes was ever released: v0.4.9 is the
+> installed plugin, and the whole workflow layer, the eleven new skills and
+> the ticket-keyed run ledger exist only on unreleased `main`. Cutting v0.5.0
+> from mid-cycle `main` and applying the redesign afterwards would have
+> published eleven skills' contracts and then re-cut every one of them weeks
+> later — consumers migrating twice, the second time out of a surface that had
+> existed for days. See `src/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md` §0.
+>
+> Superseded within this cycle, by the entries under **The v0.5.0 redesign**
+> below: `workflows/ship.yaml` version 2 and its `delivery:` block; the
+> per-step `paths:`, `when:`, `requires:`, `needs:`, `boundary:`, `on_fail:`,
+> `on_replan:`, `exclusive:`, `id:`, `name:`, `stop_after:` and `max_parallel`
+> keys; `workflows/phases.yaml` and its `internal:`/`aliases` maps;
+> `acs.py path show | set`; `acs.py workflow next`; `acs.py start | finish |
+> phase validate`; `skill-start.py` and `pipeline-step.py`; the verifier inside
+> `/acs:code` and `agents/code-verifier.md`; `/acs:analyze-ticket` (renamed);
+> the `/acs:test` alias (removed outright rather than deprecated for a
+> release); ticket-keyed state partitions and the `phases/` artifact level; the
+> `status: skipped` and `status: handed_off` step statuses; and the XML message
+> contract.
+
+### The v0.5.0 redesign
+
+The pipeline had accumulated its decisions in the wrong places: a workflow
+file that decided whether a skill applied, a state machine that mixed the run
+with the step, and a `/acs:code` that planned, implemented and graded itself.
+Each of those is re-cut here. Nine entries, one theme — **every decision moves
+to the place that has the evidence for it**.
+
+- **⚠️ BREAKING: `workflows/ship.yaml` is version 3, and it is a LIST.** A
+  `version`, a flat list of skill names, and one optional `loops:` entry. The
+  schema REJECTS `when`, `paths`, `requires`, `needs`, `max_parallel`,
+  `exclusive`, `on_fail`, `boundary`, `delivery`, `id`, `name` and
+  `stop_after`. The declared order IS the dependency order and every step runs
+  on every run.
+
+  `loops:` is the one construct that is not a step, and it is not a condition
+  either — it tests nothing about the change, it declares that two steps form
+  a cycle and how many times (`from: review-code`, `back_to: code`,
+  `max_iterations: 3`, `on_exhausted: fail`). It cannot live inside a skill
+  because it spans two of them.
+
+  **Why no conditions:** a skill whose applicability is decided by a workflow
+  predicate cannot be invoked by hand and trusted, because on its own it never
+  evaluates the condition the workflow was evaluating for it. Every skill must
+  work standalone — from a ticket id, a prompt or a document — so the decision
+  has to live in the skill. **Migration:** a repo that overrode
+  `.acs/workflows/ship.yaml` must port its override; the shipped file is the
+  worked example and `acs.py workflow validate` names the offending line.
+
+- **A step that owes nothing records an EVIDENCED no-op, and is never skipped
+  by a predicate.** Its own pre-hook reads the plan's `## Contract` block and
+  completes the step from it at no token cost, carrying the sentence that says
+  why. **Silence is not permission to skip:** a step with no Contract entry to
+  stand on runs and decides for itself. This is what replaced the `when:` /
+  `paths:` / `requires:` predicates — the outcome is the same steps not
+  spending tokens, but the reason is now recorded by the skill that owns it
+  rather than asserted by a file that never saw the change.
+
+- **⚠️ BREAKING: order is VALIDATED, not declared twice.** Each skill ships
+  `skills/<name>/acs.yaml` — `phase`, `reads.required`, `reads.optional`,
+  `writes` — and `acs.py workflow validate` checks that every step's required
+  reads are written by an earlier step. Swap two steps whose order does not
+  matter and it passes; swap two whose order does and it names the pair and
+  the line. `workflows/phases.yaml`, `schemas/phases.schema.json` and
+  `acs_lib/phases.py` are removed with the registry they were, along with the
+  "only build/test/ship skills may be steps" rule. There is no central list of
+  skills any more: adding a skill is adding a directory.
+
+- **⚠️ BREAKING: two state machines, keyed by RUN.**
+  `runs/<run-id>/run.json` is the run machine; `steps/<skill>/state.json` is
+  the step machine. They are separate on purpose: that is what lets a skill
+  the workflow never names — `/acs:create-design`, say — keep step state and
+  take no position in any run. **The cursor is not stored, it is DERIVED:**
+  the first step in workflow order that is not `completed`, so it can never
+  disagree with the ledger it is read from.
+
+  A step is `in_progress | completed | failed | interrupted`. `handed_off` was
+  a reason wearing a state's clothes and `skipped` was a decision the workflow
+  had no standing to make; both are retired. A `stop_reason` belongs to an
+  `interrupted` step only and comes from a closed set of three —
+  `session_end`, `needs_input`, `context_pressure`. A completed or failed
+  step's narrative goes in `summary`. Step state records `invocations[]`, not
+  `runs[]`: a RUN is the whole pass over the workflow, and a step is invoked
+  within it.
+
+  Five invariants are checkable on demand with `acs.py run check` — among them
+  **I1** (at most one `in_progress` step per run) and **I5** (a `steps` entry
+  the workflow does not name is refused). The run id is derived from the
+  subject, so nobody has to remember one: ticket `MAR-590` runs as `MAR-590`,
+  a prompt as its slug plus four hex characters, a second run on the same
+  subject as `…-r2`. **Migration:** run-keyed partitions replace ticket-keyed
+  ones and the `phases/` artifact level is gone; `migrate_workspace.py`'s
+  preflight reads both the old flat `<skill>-state.json` and the new
+  `steps/<skill>/state.json` layouts.
+
+- **`acs.py run` and `acs.py step` — one CLI verb per machine.**
+  `run new | show | next | check | abandon` drives the run;
+  `step start | finish | show` drives the step; `result validate` checks a
+  step's result document before the post-hook consumes it. They replace
+  `acs start`, `acs finish`, `acs phase validate` and `acs workflow next`,
+  and with them the `argparse` skill enums that were a fourth central list of
+  the skills — `--step` validates against the resolved workflow instead.
+  `acs.py workflow show | validate` stays. `acs.py plan path` reads the plan's
+  `## Contract` block, so `/acs:code` reaches it through a CLI rather than the
+  heredoc Python its SKILL.md used to carry (ADR 0001). `/acs:ship` is a thin
+  loop over `acs.py run next` and nothing else.
+
+- **⚠️ BREAKING: `/acs:review-code` — the review is a step, not a phase inside
+  `/acs:code`.** An implementer that grades its own output ran the full unit
+  suite inside an iteration that might be discarded, and gave per-finding
+  adjudication to only one of the four delivery paths. The review is now its
+  own step, and every path gets it:
+
+  Five read-only lenses run in parallel over the changeset; each candidate
+  finding then goes to ONE fresh-context adjudicator prompted to refute it, so
+  the agent that judges a finding is never the agent that raised it; and a
+  final gate runs the build, the lint, the full unit suite and coverage.
+  **That gate is the only place the full suite runs** — `/acs:code` writes the
+  tests its change touches and stops. Lens E blocks on the change's own
+  documentation as well as its correctness. Blocking findings re-enter at
+  `code` through the workflow's single loop for at most three rounds; a fourth
+  FAILS the run rather than passing it with findings. Gone with the carve-out:
+  the verifier inside `/acs:code`, `agents/code-verifier.md`, the legs'
+  per-path verifier shape and iteration ceiling (review properties, so they
+  left with the review), and the `post_code_test` settings block.
+
+- **`/acs:create-impl-plan` works the way Claude Code's plan mode works.** It
+  was a six-heading template — Scope, Approach, API/data changes, Test plan,
+  Risks, Out of scope — and a template with a section per heading gets a
+  section per heading whether or not that heading has content. The plan is now
+  free-form prose written for a human to approve in ONE read, ending in one
+  section of fixed shape:
+
+  ```
+  ## Contract
+  delivery_path: standard
+  owes:
+    api_contract: true
+    test_cases:   true
+    e2e:          false
+    reason: "CLI-only change; no HTTP surface, no browser flow"
+
+  ### Executor tasks & file map
+  - task 1: src/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py
+  ```
+
+  It is not a template and it is not a form: short is not empty, and a plan
+  that says everything it needs to in four paragraphs is a good plan.
+  `plan_sha256` hashes the whole file — prose and contract alike — so editing
+  either invalidates the approval. `### Executor tasks & file map` keeps its
+  exact heading because the file-map guard and `plan-approval.py` already key
+  on it. The retired headings are actively refused, so the template cannot
+  come back by habit.
+
+- **⚠️ BREAKING: the delivery path is judged ONCE, by `/acs:create-impl-plan`,
+  and recorded in the plan.** It is not a workflow key, not a separate CLI
+  write and not re-judged mid-run: `acs.py path show | set` and `ship.yaml`'s
+  `delivery:` block are both removed, and the plan's `## Contract` block is
+  the single record. The plan is the first artifact that names the files, the
+  tests and the surfaces, so it is the first place the judgement can rest on
+  evidence rather than a guess. `/acs:code` reads it with `acs.py plan path`
+  and dispatches to the matching leg; a plan that understates the work is
+  caught at review and its remedy is a replan, which rewrites the Contract —
+  never a raise that leaves two rigors inside one run.
+
+- **⚠️ BREAKING: `/acs:analyze-ticket` is `/acs:analyze-requirements`, and
+  `/acs:test` is removed outright.** The rename matches what the skill
+  produces (`analysis.md` is a requirements analysis, and the skill takes a
+  prompt or a document as readily as a ticket). The `test` alias that was to
+  survive one release is removed with this one instead, because the surface it
+  aliased was itself never released; `/acs:run-e2e-tests` is the skill, and no
+  ledger key named `test` is accepted. **Migration:** update any script or
+  prose that invokes either old name.
+
+- **Every skill takes a ticket id, a prompt OR a document.** The subject is
+  every skill's input, not a ticket id that some skills happen to accept. A
+  run started from a prompt records the prompt; from a document, the path and
+  its hash. This is the property the whole conditions-free workflow rests on:
+  a skill that decides for itself, from inputs it resolves itself, is a skill
+  that behaves the same whether `/acs:ship` reached it or a person typed it.
+
+**Skill count: 32 → 32.** One added (`review-code`), one removed (the `test`
+alias), one renamed. 32 agents, all reachable; 19 pre- and 19 post-hooks; 15
+JSON schemas. This release is not a surface reduction — it is a re-cut of
+where the decisions live, and the surface is the same size on the other side
+of it.
+
+**Kept deliberately**, named so a "from scratch" reading does not discard
+them: the clarification ledger and its `--source assumption` discipline; the
+lock protocol; gate evidence; derived verdicts; the file-map guard and its
+denial records; cost, token and session attribution; the four delivery paths
+and their `code-*` legs; plan approval bound to `plan_sha256` and written only
+by `plan-approval.py`; and the split where the plugin owns the skills and the
+consumer owns the pipeline.
+
+**Two documented divergences from the redesign note**, so neither is silent:
+
+1. `REDESIGN-IMPLEMENTATION-PIPELINE.md` §4.8 lists `acs artifacts migrate` as
+   removed ("there is no migration"). It ships anyway. That command migrates
+   the human-facing **ticket documents** into `docs/tickets/<ID>/` — a move a
+   v0.4.9 consumer does have to make — while "no migration" is a statement
+   about the **run ledger**, which is re-keyed and does not carry forward.
+   Removing it would strand the documents without giving the ledger anything.
+2. §3.10 (`/acs:create-pr` creates the branch, rather than
+   `/acs:analyze-requirements`) is NOT landed. The redesign calls it "the
+   riskiest mechanical change in the redesign", safe "only if step 4 is
+   reliable", and names the §5 pre-push guard as the enforcement that makes it
+   so. That guard does not exist: `hooks/hooks.json` carries `PreToolUse`
+   matchers for `Skill` and `Write|Edit|MultiEdit|NotebookEdit` only, and
+   nothing refuses a push of the base branch itself. Landing the branch move
+   without it would mean committing to a checked-out `main` with no backstop.
+   Branch creation therefore stays in `/acs:analyze-requirements`, exactly
+   where v0.4.9 has it, until the guard exists.
+
+
 > ### ⚠️ The skills-independence refactor contains BREAKING changes
 >
 > Read this before updating:

@@ -179,7 +179,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-do
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-docs --ticket <delivery-ticket-id>
 ```
 
-If skill-start exits non-zero: STOP and surface its stderr verbatim to the
+If `acs step start` exits non-zero: STOP and surface its stderr verbatim to the
 user — never improvise a substitute. One specific case: on a
 fresh/unreconciled workspace partition, `--allocate` refuses with exit 2 and
 a ranked local-evidence reconciliation proposal (`allocate_ticket_id`'s
@@ -195,7 +195,7 @@ Otherwise parse the printed context JSON; the fields you need: `partition`,
 `doc_sets[<set>].title`), `settings` (`prd_path`, `architecture_path`, the
 set's path key, `principles_path`, `formats`, `tracker`), `models`,
 `reconcile`, `handoff_summary`, `post_hook`, `pipeline`, `checkout_root`. The
-delivery ticket is type `task`; skill-start has already created the
+delivery ticket is type `task`; `acs step start` has already created the
 partition, ticket.json, the lock, the session pointer, and the `in_progress`
 run entry. If `settings.tracker.provider` is `github` or `jira`, sync the
 ticket out via `gh`/`acli` per the tracker config.

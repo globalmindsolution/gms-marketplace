@@ -15,10 +15,11 @@ unchanged).
     `/create-prd`, `/create-architecture`, `/create-project`,
     `/create-ticket`, `/create-design`, `/analyze-requirements`,
     `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
-    `/code`, `/create-e2e-tests`, `/docs-sync`, `/run-e2e-tests`,
-    `/create-pr`, `/merge-pr` — grouped into phases by
-    `workflows/phases.yaml`, which acs MUST also bundle alongside the default
-    `workflows/ship.yaml` the delivery order is declared in (ADR-0089).
+    `/code`, `/review-code`, `/create-e2e-tests`, `/docs-sync`,
+    `/run-e2e-tests`, `/create-pr`, `/merge-pr` — each declaring its own
+    phase, reads and writes in `skills/<name>/acs.yaml`, which acs MUST also
+    bundle alongside the default `workflows/ship.yaml` the delivery order is
+    declared in (ADR-0089 as superseded by ADR-0096).
   - **Subagents**: the twelve **authoring skills** (`create-prd`,
     `create-design`, `create-architecture`, `create-project`,
     `create-requirements`, `standardize-project`,

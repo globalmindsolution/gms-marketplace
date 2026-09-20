@@ -136,7 +136,7 @@ worktree, precisely so both worktrees share one state store (ADR-0086).
 ```text
 /handoff
   → flushed in-flight work + decisions to SHOP-5's partition
-  → run entry marked handed_off, lock released
+  → the in-flight step marked interrupted (stop_reason: context_pressure), lock released
   → continue with:  /code SHOP-5   (in a fresh session)
 ```
 
@@ -161,7 +161,7 @@ the tests for specs marked implemented) before continuing.
 
 Inspect progress and spend anytime: `tickets-index.json` for status across
 tickets, `metrics.json` for per-repo totals, a ticket's
-`pipeline-state.json` for where it stands in the pipeline.
+`acs.py run show` / `acs.py run next` for where it stands in the pipeline.
 
 Or run the two read-only in-session dashboards — both write nothing and make
 no network call:

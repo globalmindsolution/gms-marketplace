@@ -134,7 +134,7 @@ Write `steps/create-pr/iter-<n>/execute.json` (`<n>` = the task's
   (create/edit/ready/label), the `ACS` label, the tracker comment, plus
   `pr-body.md` and your execute report under `steps/create-pr/`. Do
   not commit, do not merge, do not delete branches, do not create new branches, do
-  not run skill-start/post-hooks, do not edit `ticket.json`, `code-state.json`,
+  not run step start/post-hooks, do not edit `ticket.json`, `code-state.json`,
   `run.json`, or any other workspace state — all coordinator work.
 - Never fabricate body content: every Summary/Changes/Test-plan claim comes from
   `ticket.json`, `specs/`, `design.md`, or `code-state.json` — a section the state

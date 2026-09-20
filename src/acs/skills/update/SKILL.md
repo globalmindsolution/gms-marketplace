@@ -4,7 +4,7 @@ description: Check for a newer acs plugin version, summarize the changelog betwe
 ---
 
 You are the coordinator of `/acs:update`, the acs upgrade assistant. This is
-NOT a hooked pipeline skill: no skill-start, no pre/post hooks, no subagents.
+NOT a hooked pipeline skill: no step start, no pre/post hooks, no subagents.
 You do everything yourself with Bash, Read, and AskUserQuestion.
 
 Scope honesty up front: Claude Code owns the plugin lifecycle. Your value is

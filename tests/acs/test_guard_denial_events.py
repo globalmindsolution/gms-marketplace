@@ -548,8 +548,12 @@ class ProseTest(unittest.TestCase):
         self.assertIn("review.guard_denials", self._body(INTERNALS))
 
     def test_the_requirements_doc_names_the_guard_audit_trail(self):
+        """The array is `invocations`, not `runs` (ADR-0097): a RUN is the
+        whole pass over the workflow, and a step is invoked within it. The
+        audit trail itself is unchanged."""
         body = self._body(WORKSPACE_DOC)
-        self.assertIn("runs[-1].guard_events", body)
+        self.assertIn("invocations[-1].guard_events", body)
+        self.assertNotIn("runs[-1].guard_events", body)
 
     def test_the_code_skill_names_the_derived_keys(self):
         """`guard_denials` is derived, so the skill's Finish section says so

@@ -70,8 +70,8 @@ clarification payload):
    `git diff --quiet origin/main -- plugins/` before a test-only commit.
 3. **Wrap every `run_main()` call in a test in `with ... .pushd(<tmpdir>):`.**
    An unguarded call was proven able to flip a live coordinator run to
-   `handed_off`, release the partition lock, and rewrite the operator's REAL
-   `pipeline-state.json` (MAR-177). **Enforced** —
+   a terminal status, release the run's lock, and rewrite the operator's REAL
+   run ledger (MAR-177). **Enforced** —
    `tests/acs/test_testing_conventions_guard.py` detector 2, with a
    staleness-checked allowlist of 7 legitimately-exempt sites, each carrying
    its own reason and on-disk evidence path.

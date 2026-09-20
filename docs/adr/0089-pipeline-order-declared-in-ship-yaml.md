@@ -1,6 +1,12 @@
 # 0089 — Pipeline order is declared in `ship.yaml`; skills are independent; hooks keep input and safety brakes
 
-**Status**: Accepted · **Date**: 2026-09-12
+**Status**: Superseded by [0096](0096-workflow-is-a-list-not-a-graph.md) · **Date**: 2026-09-12
+
+What this ADR decided and 0096 keeps: the order lives in a data file, the
+consumer overrides it wholesale, the parser is stdlib-only, and
+`_require_completed` stays deleted. What 0096 removes is the workflow
+*language* this ADR introduced — the predicates, the `needs` edges, the
+per-step keys and `phases.yaml`.
 
 ## Context
 

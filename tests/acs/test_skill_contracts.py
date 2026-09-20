@@ -3137,6 +3137,26 @@ class TestChangelogMar107Entry(unittest.TestCase):
             "graduate the entry)")
 
 
+
+def _hook_pair_count():
+    """The pre/post hook pair count, READ FROM DISK.
+
+    This used to be a hand-typed literal ("x9", then "x10", then "x15"), and
+    every skill added or retired needed someone to remember both halves. The
+    count IS the number of pre-/post- script pairs, so deriving it means a
+    skill added or retired moves the doc and the test together -- the same
+    rule tests/acs/test_coverage_measurement_config.py applies to the
+    .coveragerc omit list.
+    """
+    scripts = os.path.join(PLUGIN, "hooks", "scripts")
+    pre = {f[len("pre-"):] for f in os.listdir(scripts)
+           if f.startswith("pre-") and f.endswith(".py")}
+    post = {f[len("post-"):] for f in os.listdir(scripts)
+            if f.startswith("post-") and f.endswith(".py")}
+    assert pre == post, "unpaired hook scripts: %r" % (pre ^ post,)
+    return len(pre)
+
+
 class TestCreateQualityDocConformance(unittest.TestCase):
     """MAR-112 spec 04 (AC-7): doc-conformance for the quality doc-set
     closure — skills.md's product-level section (since ADR-0094 the
@@ -3171,8 +3191,13 @@ class TestCreateQualityDocConformance(unittest.TestCase):
                       "the create-docs section must name quality_path (MAR-112 AC-7)")
         self.assertIn("create-docs-executor", section,
                       "the create-docs section must name create-docs-executor (MAR-112 AC-7)")
-        self.assertIn("create-docs-state.json", section,
-                      "the create-docs section must name create-docs-state.json (MAR-112 AC-7)")
+        # The state file moved with the run re-key (ADR-0097): the flat
+        # `create-docs-state.json` is `steps/create-docs/state.json`. What
+        # this pins is that the section still says WHERE the step's state
+        # lives, not the filename it had in 2026.
+        self.assertIn("steps/create-docs/state.json", section,
+                      "the create-docs section must name the step's state "
+                      "file (MAR-112 AC-7)")
 
     def test_configuration_md_has_quality_path_row(self):
         """AC-7: configuration.md's Keys table has a quality_path row with
@@ -3220,20 +3245,21 @@ class TestCreateQualityDocConformance(unittest.TestCase):
                          "'27 reachable agents' text in that window (MAR-112/113 AC-7)")
 
     def test_c4_component_dispatch_pair_count_advanced(self):
-        """AC-7 sub-check 3: the dispatch.py component description shows
-        the current epic pre/post hook pair count (see
-        test_c4_component_triad_count_advanced); x9 is gone. MAR-160's
-        registration of the 15th HOOKED skill advances this to x15 (the true
-        15/15 hook count)."""
+        """AC-7 sub-check 3: the pre/post hook component descriptions name the
+        pair count that is actually on disk, and no stale literal survives.
+
+        The count is DERIVED, not pinned: "x9", "x10" and "x15" were each the
+        true number once, and each outlived it. See _hook_pair_count."""
         body = self._c4_component()
-        self.assertIn("x15", body,
-                      "c4-component.md's dispatch.py component description "
-                      "must read x15 pre/post hook pairs (MAR-112 AC-7, "
-                      "superseded by MAR-113/MAR-129/MAR-143; advanced to "
-                      "15/15 by MAR-160)")
-        self.assertNotIn("x9", body,
-                         "c4-component.md must not retain the stale x9 "
-                         "pre/post hook pair count (MAR-112 AC-7)")
+        self.assertIn("x%d" % _hook_pair_count(), body,
+                      "c4-component.md's pre/post hook component descriptions "
+                      "must name the pair count on disk (MAR-112 AC-7)")
+        for stale in ("x9", "x10", "x15"):
+            if stale == "x%d" % _hook_pair_count():
+                continue
+            self.assertNotIn(stale, body,
+                             "c4-component.md must not retain the stale %s "
+                             "pre/post hook pair count" % stale)
 
 
 class TestCreateQualityChangelogEntry(unittest.TestCase):
@@ -3302,7 +3328,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         section = body[section_start:section_end]
         self.assertIn("operations_path", section)
         self.assertIn("create-docs-executor", section)
-        self.assertIn("create-docs-state.json", section)
+        self.assertIn("steps/create-docs/state.json", section)
 
     def test_configuration_md_has_operations_path_row(self):
         """AC-7: configuration.md's Keys table has an operations_path row with
@@ -3350,17 +3376,14 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
                          "'27 reachable agents' text in that window (MAR-113 AC-7)")
 
     def test_c4_component_dispatch_pair_count_advanced(self):
-        """AC-7 sub-check 3: the dispatch.py component description shows
-        x15 pre/post hook pairs (MAR-160's registration of the 15th HOOKED
-        skill advances the true hook count to 15/15); x10 is gone."""
+        """AC-7 sub-check 3: the same derived pair count, from this skill's
+        side of the contract (MAR-113 AC-7)."""
         body = self._c4_component()
-        self.assertIn("x15", body,
-                      "c4-component.md's dispatch.py component description "
-                      "must advance to x15 pre/post hook pairs (MAR-113 AC-7; "
-                      "advanced to 15/15 by MAR-160)")
-        self.assertNotIn("x10", body,
-                         "c4-component.md must not retain the stale x10 "
-                         "pre/post hook pair count (MAR-113 AC-7)")
+        self.assertIn("x%d" % _hook_pair_count(), body)
+        for stale in ("x9", "x10", "x15"):
+            if stale == "x%d" % _hook_pair_count():
+                continue
+            self.assertNotIn(stale, body, stale)
 
 
 class TestCreateOperationsChangelogEntry(unittest.TestCase):

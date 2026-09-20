@@ -439,7 +439,8 @@ def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=Non
     else:
         notes["review"] = "no review artifact on disk"
     if denials:
-        notes["review"] += "; %d guard denial(s) on runs[-1].guard_events" % denials
+        notes["review"] += ("; %d guard denial(s) on invocations[-1].guard_events"
+                            % denials)
 
     pr, why = gh_pr_for_branch(branch, runner=pr_runner)
     notes["pr"] = why

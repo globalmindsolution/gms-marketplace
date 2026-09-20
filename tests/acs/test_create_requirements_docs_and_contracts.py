@@ -89,8 +89,11 @@ class ContractsD1NoteTest(unittest.TestCase):
         note = self._d1_note().lower()
         # Positive: the note explicitly disclaims a downstream requirements gate.
         self.assertRegex(
-            note, r"no code-verifier dimension",
-            "D1 note must disclaim any create-spec/code verifier dimension")
+            note, r"no code[- ](?:verifier|review) dimension",
+            "D1 note must disclaim any downstream code-review dimension "
+            "gating a ticket on the requirements set (the reviewer is "
+            "`/acs:review-code` since ADR-0099; the disclaimer is the pin, "
+            "not the reviewer's name)")
         # Negative: it must NOT assert a new verifier dimension was added.
         self.assertNotRegex(
             note,

@@ -113,7 +113,7 @@ onto the plugin hooks API like this:
    `iter-*-filemap.json` — since an executor that can rewrite either can answer
    the guard's own question.
 
-   **Every deny is recorded: `runs[-1].guard_events` (MAR-578).** A denial used
+   **Every deny is recorded: `invocations[-1].guard_events` (MAR-578).** A denial used
    to exist only as a line of stderr in a transcript, so "how often does the
    guard actually fire, and on what?" had no answer. Each deny now appends one
    event to the executor's `steps/<skill>/state.json` run entry — `ts`, `skill`,
@@ -338,13 +338,13 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 
 ```
 (PreToolUse fired pre-<skill>.py — already passed or we wouldn't be running)
-1. acs step start  --skill <skill> [--ticket|--args|--allocate ...]   # FIRST action
+1. acs step start  --step <skill> [--ticket|--args|--allocate ...]   # FIRST action
      -> context JSON: settings, partition, ticket, reconcile/handoff info,
         per-role models, design source, post_hook path
 2. if context.reconcile: reconcile recorded state against reality before continuing
    if context.handoff_summary: read it, light-verify, continue from where it points
 3. Reflection loop (max 3 iterations):
-     execute -> spawn <skill>-executor(s) (XML <task phase="execute">; parallel executors
+     execute -> spawn <skill>-executor(s) (a JSON task; parallel executors
                 allowed when outputs cannot conflict; decomposition is coordinator-only).
                 There is no plan phase (ADR-0092): iteration 1's executor SURVEYS first —
                 mode, inputs, evidence, open questions — records the survey in its
@@ -354,19 +354,14 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
                  own skill — follows this line exactly, on every run. It cannot vary by
                  delivery path: plan.md is the artifact the path is judged FROM, so the
                  path does not exist yet when it runs — ADR-0095)
-     verify  -> spawn <skill>-verifier  (XML <task phase="verify">,  returns <result> with findings)
-     - every subagent WRITES ITS OWN PHASE ARTIFACT (see below) and references it
-       in <outputs>; the XML stays compact
-     - the coordinator persists EVERY raw XML message to
-       steps/<skill>/iter-<n>-<phase>.xml at the phase boundary,
-       before starting the next phase
-       For Python callers that need to validate multiple messages without a
-       subprocess per message, use the batch API:
-           from validate_xml import validate_batch, batch_overall_ok
-           results = validate_batch([msg1, msg2, ...])   # list of (ok, errors) tuples
-           if not batch_overall_ok(results): ...         # False if any member invalid
-       validate_batch() calls the in-process validate_structurally() engine in a
-       plain loop — zero subprocess, zero third-party dependency.
+     verify  -> spawn <skill>-verifier  (a JSON task; returns a result with findings)
+     - every subagent WRITES ITS OWN ITERATION ARTIFACT (see below) and names it
+       in its outputs; the message itself stays compact
+     - the coordinator persists every message it receives under
+       steps/<skill>/iter-<n>/ at the phase boundary, before starting the next
+       phase. The messages are JSON, validated in the hook against the schemas
+       under src/acs/schemas/; there is no second schema language and no
+       validate_xml.py.
      - verifier findings == 0 -> done; findings > 0 -> feed findings into next iteration
      - iteration 3 still failing -> stop; final status "failed", findings recorded
 4. Write the result document steps/<skill>/result.json
@@ -397,14 +392,14 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `steps/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| authoring | `iter-<n>/authoring.md` (every authoring skill — the class-D author's notes, ADR-0092/ADR-0094; there is no `plan` row: no skill writes `iter-<n>/plan.md` any more. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its executor's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70; on TRIVIAL/SMALL the **coordinator** writes `plan.md` directly and no executor runs — MAR-72)) | executor | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the verifier corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the verifier's `authoring-conformance` dimension judges the draft against these notes |
+| authoring | `iter-<n>/authoring.md` (every authoring skill — the class-D author's notes, ADR-0092/ADR-0094; there is no `plan` row: no skill writes `iter-<n>/plan.md` any more. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its executor's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the executor) | executor | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the verifier corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the verifier's `authoring-conformance` dimension judges the draft against these notes |
 | execute | `iter-<n>/execute.json` (parallel executors: `iter-<n>-execute-<k>.json`) | executor | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | verify | `iter-<n>/verify.md` | verifier | the full verification report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
 **The verifier also writes a verdict** (MAR-527):
-`steps/<skill>/iter-<n>/verdict.json`, or `iter-<n>-verdict-lens-<A|B|C|D>.json`
-on full depth. It carries a per-dimension result table (by the numbers in
-`agents/code-verifier.md`, where `n/a` is a real answer), the findings, and
+`steps/<skill>/iter-<n>/verdict.json`, or one `lens-<A..E>.md` per lens for
+`/acs:review-code`. It carries a per-dimension result table (by the numbers in
+the verifying agent's own charter, where `n/a` is a real answer), the findings, and
 `passed` — which is **derived, not asserted**: `passed` is true exactly when no
 finding is `blocking`. `acs_lib.verdict.validate_verdict` enforces that, and the
 SubagentStop hook runs it, so a verdict claiming a pass over a blocking finding
@@ -474,7 +469,7 @@ pipeline end.
 ## /acs:<skill> · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <completed|failed|interrupted|handed_off> — <stop_reason>
+- **Status**: <completed|failed|interrupted> — <stop_reason, on interrupted only>
 - **Results**: <the skill's canonical states keys, as short bullets>
 - **Findings**: <open findings / clarifications obtained, or "none">
 - **Artifacts**: <what was written where: partition files, repo paths, branch, PR URL>
@@ -511,14 +506,14 @@ SKILL.md's "Completion report" section.
 
 ```json
 {
-  "status": "completed | failed | interrupted | handed_off",
-  "stop_reason": "one line: why the run ended",
+  "status": "completed | failed | interrupted",
+  "stop_reason": "session_end | needs_input | context_pressure (interrupted only)",
   "states":   { "<skill-specific result data for the next skill>": "..." },
   "findings": [ {"severity": "blocking|info", "dimension": "...", "detail": "..."} ],
   "errors":   [ "..." ],
   "tokens":   {"input": 0, "output": 0},
   "cost_usd": 0.0,
-  "handoff_summary": "only when status=handed_off"
+  "handoff_summary": "only when status=interrupted"
 }
 ```
 
@@ -539,7 +534,7 @@ the computed value wins:
 | `tests` | the last iteration's `iter-<n>-execute*.json` reports (`coverage_target` from `settings.test_coverage_percent`) | the coordinator's value is kept |
 | `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
 | `review.iterations` | the verify artifacts on disk | the coordinator's value is kept |
-| `review.guard_denials` | the length of `runs[-1].guard_events` on `steps/<skill>/state.json` | **absent, not `0`** — a run that never tripped the file-map guard carries no key |
+| `review.guard_denials` | the length of `invocations[-1].guard_events` on `steps/<skill>/state.json` | **absent, not `0`** — a run that never tripped the file-map guard carries no key |
 
 A disagreement is recorded, never silently resolved: `runs[-1].derived_states`
 carries `values`, a one-line `provenance` for every key considered (including
@@ -600,7 +595,7 @@ runnable on its own:
 |---|---|---|---|
 | `analyze-requirements` | the ticket, PRD/requirements/architecture, the codebase | `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `stakes_recommendation`, `needs_design_recommendation`) | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s executor plans from the impact map; a not-ready analysis returns `needs_input` |
 | `create-impl-plan` | `analysis.md`, `design.md`, the ticket | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code`'s input gate; `on_replan` re-runs it when execution finds the plan wrong |
-| `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts under `contracts_path` | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; the code-verifier checks conformance |
+| `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts under `contracts_path` | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
 | `create-test-docs` | the ticket's ACs, `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the executor writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
 | `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.e2e`/`suites.e2e` | e2e suites at the repo's configured location, on the ticket branch | `run-e2e-tests` executes them |
 | `run-e2e-tests` | the ticket's suites (from `test-cases.md`, falling back to the plan's Test-plan section) | the run artifact + triage | `on_fail: {relay_to: code}` with the fix-loop cap |
@@ -886,7 +881,7 @@ workflow.
 ## Testing layers — unit always, e2e by configuration, CI at the gate
 
 Tests belong to the same changeset as the change (like docs), and *executing*
-unit suites is verification, which the code-verifier owns — so there is
+unit suites is verification, which `/acs:review-code`'s final gate owns — so there is
 deliberately no skill that "writes the unit tests" as a separate step. What the
 Test phase adds is the layer the code loop cannot cover from inside itself:
 `/acs:create-test-docs` writes the traced `TC-n` case set (Build phase, so the
@@ -991,7 +986,7 @@ behavioral contract accumulates here instead — `/acs:docs-sync`'s executor
 merges the merged ticket's acceptance criteria and behavior-defining
 clarifications (answered/assumed ledger entries) into the touched area's
 file; /create-ticket reads it as standing behavior and flags
-contradictions; the code-verifier blocks a user-observable behavior change
+contradictions; `/acs:review-code` blocks a user-observable behavior change
 whose requirements file was not updated. Phrasing rule: the file states what
 the product DOES now — current behavior, not change history.
 

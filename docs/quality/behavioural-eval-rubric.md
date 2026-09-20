@@ -28,7 +28,7 @@ A scenario counts as behavioural evidence for a skill when all four hold.
 ### 1. It reads the workspace, not the transcript
 
 The assertion target is a file the skill wrote: `ticket.json`,
-`pipeline-state.json`, a `<skill>-state.json` run entry, a result document, a
+`run.json`, a `steps/<skill>/state.json` invocation, a result document, a
 doc under the consumer's `docs/` tree, a branch, a commit, a PR. If the
 scenario would still pass with the model's prose replaced by lorem ipsum, it is
 asserting the right thing.

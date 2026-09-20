@@ -35,10 +35,10 @@ because another skill has not run ([hooks.md](hooks.md)).
 Seventeen of the twenty-seven are **hooked** (a pre-hook and a post-hook
 each): the eight Design-phase skills except `/acs:project`, all six
 Build-phase skills, `/create-e2e-tests`, `/create-pr` and `/merge-pr`. The
-other eleven (`/setup`, `/ship`, `/handoff`, `/update`, `/install-hooks`,
-`/metrics`, `/usage`, `/acs:release`, `/acs:project`, `/run-e2e-tests`,
-`/acs:test`) are unhooked and record what they need through
-`pipeline-step.py`.
+the rest (`/setup`, `/ship`, `/handoff`, `/update`, `/install-hooks`,
+`/metrics`, `/usage`, `/acs:release`, `/acs:project`) are unhooked and take
+no position in a run. `/run-e2e-tests` is a hooked step like any other; the
+`/acs:test` alias is removed.
 
 Every **workflow** skill MUST:
 
@@ -153,40 +153,32 @@ command.
 - `/ship` MUST NOT hard-code the step order. It MUST derive every step from
   the resolved workflow file — `<repo>/.acs/workflows/ship.yaml` when the
   consumer ships one, else the plugin default — by looping over
-  `acs.py workflow next` until it reports `done`
+  `acs.py run next` until it reports the list is done
   ([workflow.md](workflow.md#umbrella-command-ship)).
-- In `single` mode it invokes the one ready skill with that step's declared
-  `args`; in `parallel` mode it MUST run the ready steps as **legs**, one
-  subagent and one git worktree each, on leg branches cut from the ticket
-  branch head, merging them back in file order when every leg returns. A
-  failed leg MUST NOT cancel its siblings — it is simply ready again on the
-  next `workflow next`.
+- It invokes the ONE step `run next` names. There is no parallel mode:
+  `ship.yaml` v3 rejects `max_parallel` and `exclusive`, and what the
+  parallel mode bought — not paying for a step with nothing to do — is bought
+  instead by the evidenced no-op, which costs no tokens and no worktree.
 - MUST stop before `/merge-pr` (which may not appear in a workflow file at
-  all), and MUST NOT bypass any pre/post hook; it adds orchestration only.
-- SHOULD be resumable: re-running it for a ticket re-evaluates
-  `workflow next` against `pipeline-state.json` and continues from whatever
-  is ready.
-- MUST stop after `/code` completes and before the post-code test gate when
-  the `code` step declares a `full_verify_stop` boundary for the ticket's
-  recorded delivery path — `standard` and `complex` in the shipped
-  `workflows/ship.yaml`, read from the step's per-path `boundary` mapping
-  (ADR-0095). The path is read from `pipeline-state.json`, where it was
-  recorded once after `/create-impl-plan`; it cannot have changed while
-  `/code` ran, because a path is never raised mid-run. The
-  stop is a designed boundary, not a failure: no step is marked `failed`,
-  no run entry is written (`/ship` is unhooked and owns none),
-  `pipeline-state.json` records `code` completed, and the run ends with
-  status `handed_off`. The remaining steps — whatever `workflow next` reports
-  ready after `code`, which in the default workflow is `docs-sync` alongside
-  `create-e2e-tests`, then `run-e2e-tests`, then `create-pr` — run in a fresh
-  session resumed with `/acs:ship <ticket-id>`. At `light` depth the pipeline continues straight
-  through, unchanged
-  (`ship/SKILL.md` "Full-verify pipeline boundary"; workflow.md#context-handoff-between-steps).
+  all), and MUST NOT bypass any pre/post hook; it adds orchestration only. It
+  stops because `create-pr` is the last name in the list, not because of a
+  `stop_after` key.
+- SHOULD be resumable: re-running it for a ticket re-derives the cursor — the
+  first step in workflow order that is not `completed` — and continues from
+  it. The cursor is never stored, so it cannot disagree with the ledger.
+- MUST NOT stop mid-pipeline by design. The `full_verify_stop` boundary is
+  removed: it existed to pre-empt a context limit the run can simply record.
+  A session that runs out of context ends the in-flight step `interrupted`
+  with `stop_reason: context_pressure`, and the next `/acs:ship <ticket-id>`
+  resumes from the derived cursor.
+- MUST re-enter `code` when `/acs:review-code` records blocking findings —
+  the workflow's single `loops:` entry, at most `max_iterations` (3) rounds;
+  a further round MUST fail the run rather than pass it with findings.
 - No executor/verifier of its own; each step skill is **invoked
   directly by the ship coordinator in its own context** and runs its own
-  reflection cycle, returning only a compact XML handoff — `/ship` tracks the
-  pipeline through `pipeline-state.json` so its context can be cleared between
-  steps ([workflow.md](workflow.md#context-handoff-between-steps)).
+  reflection cycle, returning only a compact handoff — `/ship` reads the
+  derived cursor rather than a stored position, so its context can be cleared
+  between steps ([workflow.md](workflow.md#context-handoff-between-steps)).
 
 ## `/handoff` (utility)
 
@@ -195,9 +187,9 @@ when the current one grows long
 ([workflow.md](workflow.md#session-handoff)).
 
 - Flushes all in-flight work and soft context (user clarifications,
-  decisions, partial findings, gotchas) to the ticket partition, finalizes
-  the current run entry with status `handed_off` plus a handoff summary, and
-  releases the `.lock`.
+  decisions, partial findings, gotchas) to the run, finalizes the in-flight
+  step `interrupted` with `stop_reason: context_pressure` plus a handoff
+  summary, and releases the run's lock.
 - Prints the exact command to continue in a new session (e.g.
   `/code SHOP-123`).
 - Not part of the gated pipeline; no executor/verifier subagents.
@@ -295,22 +287,20 @@ closing the loop on failures with a regression ticket.
 - **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`,
   `/acs:run-e2e-tests` has no executor/verifier pair, no pre- or
   post-hook, and no skill-start ticket allocation.
-- **`/acs:test` is a deprecated alias** kept for one release: the directory
-  survives and forwards to `/acs:run-e2e-tests`.
-  `src/acs/workflows/phases.yaml` lists it under `aliases`, never in a
-  phase, and `pipeline-state.json` still accepts a `steps.test` entry so a
-  pre-rename ledger validates and the workflow walk still finds it.
+- **`/acs:test` is removed, not deprecated.** The alias that was to survive
+  one release goes with the rename instead, because the surface it aliased
+  was never released; `/acs:run-e2e-tests` is the skill and no ledger key
+  named `test` is accepted.
 - **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
   artifact to the workspace, and a failure path can mint or comment-bump a
   ticket.
-- **Records its own pipeline step** in ticket-scoped mode: a
-  `--for-ticket` run writes the ticket's own step entry itself, since the
-  skill is unhooked and has no post-hook to do it. That entry is what
-  `acs.py workflow next` reads to decide whether the `run-e2e-tests` step is
-  satisfied; it no longer opens or shuts anyone's gate, because no gate
-  depends on it. A failing run updates the entry only when it already
-  exists, so a direct user-initiated run cannot newly mark a step failed for
-  a ticket that was not running one.
+- **It is a hooked step like any other.** `pre-run-e2e-tests.py` gates it on
+  its inputs and `post-run-e2e-tests.py` records the step, so it no longer
+  writes its own ledger entry through a side channel. The step's status is
+  what the derived cursor reads to decide whether the pipeline has passed it;
+  it opens or shuts no gate, because no gate depends on it. When there is no
+  suite configured and nothing owed, the pre-hook records an evidenced no-op
+  from the plan's `## Contract` block rather than running.
 - **All-green determinism:** when every suite passes, the run makes zero
   model calls and mints no tickets — triage only runs on the failure path.
 - **Failure-path triage:** on a failing suite, the skill derives a stable
@@ -319,7 +309,7 @@ closing the loop on failures with a regression ticket.
   recurred — never duplicating and never silently reopening a closed ticket.
   See `docs/adr/0044-acs-test-closed-loop-ticketing.md` for the full policy.
 - **Scheduling is the caller's job** — Claude Code routines/cron invoke
-  `/acs:test` headless; the concrete recipe lives in
+  `/acs:run-e2e-tests` headless; the concrete recipe lives in
   `templates/operations/test-scheduling.md` (shipped by `/acs:create-docs operations`),
   not duplicated here.
 - **Ticket-scoped mode (`--for-ticket <id>`):** reuses the same
@@ -329,8 +319,11 @@ closing the loop on failures with a regression ticket.
   falling back to the folded Test-plan section — but skips the
   regression-ticket triage/mint-or-bump loop entirely and instead returns a
   `{status, failure_output}` verdict. It is the `run-e2e-tests` step of
-  `ship.yaml`, whose `on_fail` relays a failure back into `code` under the
-  `post_code_test_fix_loops_cap` bound. See `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
+  `ship.yaml`. A failure ends the step `failed` and stops the run for a
+  human: `on_fail` and its `relay_to`/`max_loops` bound are removed with the
+  rest of the workflow language (ADR-0096), and the one loop the workflow
+  declares is `review-code` → `code`. See
+  `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
 
 ## /acs:release (utility)
 
@@ -341,7 +334,7 @@ history, bumps the version-location files plus any extra refs configured in
 the repo's `.acs/settings.json` `release` block, dates the section, and opens
 an exempt `release/*` PR for a mandatory human merge.
 
-- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`/`/acs:test`,
+- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`,
   `/acs:release` has no executor/verifier pair, no `release-state.json`
   skill-start ticket allocation, no `.lock`, no pointer file, no partition.
   It is not part of the gated pipeline.
@@ -354,7 +347,8 @@ an exempt `release/*` PR for a mandatory human merge.
   nothing bypasses the step. The release PR body carries each command's exit
   code and output tail as the cut's evidence. A repo that declares no gate
   is told so and proceeds.
-- **Writes no workspace artifact** — unlike `/acs:test`'s `results.json`, the
+- **Writes no workspace artifact** — unlike `/acs:run-e2e-tests`'s
+  `results.json`, the
   durable record of a release cut is the release PR itself; `workspace` is
   read-only input (to enumerate the merged-ticket archive), never a write
   target. The git-history fallback source is the repo checkout, not the
@@ -397,7 +391,7 @@ skills, while not running the ticket pipeline, MUST each create their own
   are not involved.
 - The skill's state file (`create-prd-state.json`, …) lives in the delivery
   ticket's partition like any other skill state, records the PR reference,
-  and `pipeline-state.json` marks the flow as product-level. Locking,
+  and `run.json` records the run's workflow. Locking,
   resume, handoff, and metrics work exactly as for any other ticket.
 - `/merge-pr` works as for any other ticket: readiness check, merge, mark
   done (and sync), archive the partition.
@@ -561,7 +555,7 @@ internal leg skills that differed only in a table row, and that table,
 - **One gate for every set**: the pre-hook (`pre-create-docs.py`) refuses the
   Skill call when the architecture doc set (`hld/tech-stack.md`) is missing,
   once, before any delivery ticket is minted.
-- **One delivery ticket per set**: `skill-start.py --skill create-docs
+- **One delivery ticket per set**: `acs.py step start --step create-docs
   --doc-set <set> --allocate` mints a `task` ticket titled from `DOC_SETS`
   that records its `doc_set`; each set runs in its own worktree on its own
   branch and lands as its own docs-only PR; sets run in capped parallel
@@ -605,7 +599,7 @@ internal leg skills that differed only in a table row, and that table,
   ledger; the verifier's `consistency` dimension confirms any such findings
   were resolved or explicitly deferred.
 - State lives in each set's delivery-ticket partition
-  (`create-docs-state.json`; `pipeline-state.json` under `flow: "product"`
+  (`steps/create-docs/state.json`; the run's own `workflow` field
   with the step key `create-docs`)
   ([workspace-and-state.md](workspace-and-state.md)).
 - Delivery: docs-only PR per set via the
@@ -1432,7 +1426,7 @@ Purpose: ship the implementation as a pull request.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
   directly, optionally delegating to at most one `create-pr-executor`
   subagent; no planner subagent; no verifier subagent. Correctness was gated
-  by the upstream code-verifier; the human checkpoint is the PR review.
+  by the upstream review (`/acs:review-code`); the human checkpoint is the PR review.
 - PR title and PR description MUST follow the formats configured in
   `settings.json` ([configuration.md](configuration.md)).
 - The PR targets the repo's **default branch** and MUST carry the **`ACS`**
@@ -1502,7 +1496,7 @@ Purpose: land the change.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
   directly, optionally delegating to at most one `merge-pr-executor`
   subagent; no planner subagent; no verifier subagent. Correctness was gated
-  by the upstream code-verifier.
+  by the upstream review (`/acs:review-code`).
 - Merge strategy is configurable via `merge_strategy` in `settings.json`
   (`squash` | `merge` | `rebase`), default **`squash`**.
 - Post-merge actions (all required): **delete the branch**, **clean up the

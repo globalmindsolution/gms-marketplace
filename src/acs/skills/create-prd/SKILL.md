@@ -61,7 +61,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
   `"Product definition (PRD)"` unless overridden by `--title`), its workspace
   partition, the `.lock`, the session pointer, and the `in_progress` run entry.
 
-If skill-start exits non-zero: STOP and surface its stderr verbatim.
+If `acs step start` exits non-zero: STOP and surface its stderr verbatim.
 
 Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
 `settings` (`prd_path`, `formats`, `ticket_prefix`), `models` (per-role model/effort),

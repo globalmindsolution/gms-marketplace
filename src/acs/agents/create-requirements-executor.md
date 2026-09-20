@@ -257,7 +257,7 @@ executors run):
 - NEVER spawn subagents.
 - Mutate ONLY files under `requirements_path` plus your own authoring notes and
   execute report. Do not create/switch branches, do not `git add`/`commit`/`push`,
-  do not open PRs, do not run skill-start/post-hooks, do not edit `ticket.json`,
+  do not open PRs, do not run step start/post-hooks, do not edit `ticket.json`,
   `run.json`, or any other workspace state — all coordinator work.
 - Markdown hygiene: no trailing whitespace, files end with a newline, headings match
   your notes' `required_sections` exactly.

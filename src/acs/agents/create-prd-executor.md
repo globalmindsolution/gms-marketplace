@@ -231,7 +231,7 @@ Write `steps/create-prd/iter-<n>/execute.json` (`<n>` = the task's
 - NEVER spawn subagents.
 - Mutate ONLY files under `<prd_path>` plus your own authoring notes and execute
   report. Do not create/switch branches, do not `git add`/`commit`/`push`, do not
-  open PRs, do not run skill-start/post-hooks, do not edit `ticket.json`,
+  open PRs, do not run step start/post-hooks, do not edit `ticket.json`,
   `run.json`, or any other workspace state — all coordinator work.
 - Markdown hygiene: no trailing whitespace, files end with a newline, headings match
   the section names above exactly.

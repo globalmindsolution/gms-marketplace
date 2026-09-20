@@ -62,7 +62,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
   overridable via `--title`), its workspace partition, the `.lock`, the session
   pointer, and the `in_progress` run entry.
 
-If skill-start exits non-zero: STOP and surface its stderr verbatim.
+If `acs step start` exits non-zero: STOP and surface its stderr verbatim.
 
 Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
 `settings` (`requirements_path`, `requirements_layout`, `formats`), `models`,

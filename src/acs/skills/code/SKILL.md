@@ -40,29 +40,12 @@ one pipeline across two.
 ## Resolve the path
 
 ```bash
-python3 - <<'PY'
-import json, os, sys
-sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
-import acs_lib as lib
-from acs_lib import plan_contract
-
-cwd = os.getcwd()
-try:
-    ctx = lib.build_context(cwd)
-    run_id = lib.current_run_id(ctx)
-    rdir = lib.run_dir(lib.repo_dir(ctx["workspace"], ctx["repo_id"]), run_id)
-    plan = os.path.join(rdir, "steps", "create-impl-plan", "plan.md")
-    contract = plan_contract.read(plan)
-    print(json.dumps({
-        "run_id": run_id,
-        "plan": plan if os.path.isfile(plan) else None,
-        "delivery_path": plan_contract.delivery_path(contract),
-    }, indent=2))
-except lib.GateError as exc:
-    sys.stderr.write("acs code: %s\n" % exc)
-    sys.exit(2)
-PY
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" plan path
 ```
+
+It prints the run, the plan it read, the judged `delivery_path`, the `owes`
+flags and any `contract_errors`. It writes nothing: the path was judged once,
+by `/acs:create-impl-plan`, and this is a read of that decision.
 
 On exit 2: surface stderr verbatim and stop.
 

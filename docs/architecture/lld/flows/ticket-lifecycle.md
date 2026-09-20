@@ -11,10 +11,10 @@ stateDiagram-v2
     done --> [*]: partition archived
 
     note right of in_progress
-        runs[-1].status per skill:
-        in_progress | completed | failed |
-        interrupted | handed_off
-        (gates read this, never ticket.status)
+        the last invocation's status per step:
+        in_progress | completed | failed | interrupted
+        (a stop_reason belongs to `interrupted` only;
+         gates read this, never ticket.status)
     end note
 ```
 
@@ -82,16 +82,17 @@ run.
 ## The ticket carries no classification fields
 
 MAR-56 put three on every ticket at mint time — `size`, `stakes`, and the
-`lane` cache `derive_lane` computed from them — mirrored into
-`pipeline-state.json` and `tickets-index.json` so metrics could slice by lane.
+`lane` cache `derive_lane` computed from them — mirrored into the run ledger
+and `tickets-index.json` so metrics could slice by lane.
 ADR-0095 retired all three. They were a guess made at ticket time, before
 anyone had read the code, and every later mechanism (mid-flight escalation,
 its audit trail, the user-confirmed de-escalation writer) existed to revise
 that guess safely.
 
-Rigor now lives on the PIPELINE, not the ticket: after `/create-impl-plan`
-publishes `plan.md`, `/ship` judges the ticket onto one delivery path and
-records `delivery_path` plus `delivery_path_reason` on `pipeline-state.json`
-(`acs.py path set`). `ticket.json` is unchanged by that judgement, and a
-ticket minted by an older build that still carries `size`, `stakes` or `lane`
-is read as if it did not.
+Rigor now lives on the PLAN, not the ticket and not the pipeline:
+`/acs:create-impl-plan` judges the change onto one delivery path from the
+plan's own scope and writes `delivery_path` plus a one-sentence reason into
+the plan's `## Contract` block (ADR-0098). There is no second writer and no
+ledger copy. `ticket.json` is unchanged by that judgement, and a ticket minted
+by an older build that still carries `size`, `stakes` or `lane` is read as if
+it did not.

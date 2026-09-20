@@ -1,17 +1,24 @@
 # Flow — /ship pipeline orchestration
 
-`/ship` adds orchestration only, and since the skills-independence refactor it
-adds it by **reading a declaration**: the step order lives in
-`src/acs/workflows/ship.yaml` (or the consumer's
-`.acs/workflows/ship.yaml`, which replaces it wholesale), and the coordinator
-loops over `acs.py workflow next`, which evaluates that DAG against the
-ticket's existing `pipeline-state.json`. No new state: the ledger is still the
-only memory `/ship` needs. Each ready step is invoked **directly** via the
-Skill tool in the coordinator's own context, returning a compact `<handoff>`.
+`/ship` adds orchestration only, and it adds it by **reading a declaration**:
+the step order lives in `src/acs/workflows/ship.yaml` (or the consumer's
+`.acs/workflows/ship.yaml`, which replaces it wholesale). The coordinator
+loops over `acs.py run next`, which prints the run's **derived** cursor — the
+first step in that list the run has not recorded `completed`. No new state:
+the ledger is the only memory `/ship` needs, and the cursor is computed from
+it on every call rather than stored beside it, so the two cannot disagree.
+
+**The workflow is a list, not a DAG.** Version 3 carries a `version`, a flat
+list of skill names and one `loops:` entry; `when`, `paths`, `requires`,
+`needs`, `max_parallel`, `exclusive`, `on_fail`, `boundary`, `delivery`,
+`id`, `name` and `stop_after` are all rejected by the schema (ADR-0096).
+Every step runs on every run: a step that owes nothing records an **evidenced
+no-op** from the plan's `## Contract` block, in its own pre-hook, at no token
+cost.
 
 `/ship` takes a **ticket id**. This diagram is therefore the whole of what it
-drives — the implementation walk for a ticket that has already been created
-(and, for an epic child, already fanned out). `create-ticket` and
+drives — the implementation walk for a subject that already exists (and, for
+an epic child, has already been fanned out). `create-ticket` and
 `create-design` are Design-phase work that runs before it; see "Planning
 pipeline (epics)" below.
 
@@ -19,54 +26,53 @@ pipeline (epics)" below.
 sequenceDiagram
     actor Dev as Developer
     participant SH as /acs:ship (coordinator)
-    participant WF as acs.py workflow next
-    participant WS as pipeline-state.json
+    participant WF as acs.py run next
+    participant WS as run.json + steps/
     participant SK as /acs:<step> (hooked skill)
 
     Dev->>SH: /acs:ship SHOP-123
     note over SH: a non-id argument is refused — create the ticket first
-    loop until workflow next reports done (stop_after satisfied)
-        SH->>WF: workflow next --ticket SHOP-123
-        WF->>WS: read steps ledger, evaluate ship.yaml needs/when/requires
-        WF-->>SH: {mode, ready[], done, blocked_by}
-        alt blocked_by (a `requires` predicate is false)
-            SH-->>Dev: pointer, e.g. "run /acs:create-design SHOP-122 first" — stop
-        else mode = single
-            SH->>SK: invoke Skill acs:<step> with the step's args<br/>(PreToolUse input/brake check fires on the coordinator's call)
-            SK-->>SH: full run (reflection, hooks, state) then <handoff status="..."><br/>(~1 KB: summary, artifacts, next-step)
+    loop until run next reports the list is done
+        SH->>WF: run next
+        WF->>WS: read the step ledger, derive the cursor<br/>(first step in ship.yaml order not `completed`)
+        WF-->>SH: {step, done}
+        SH->>SK: invoke Skill acs:<step><br/>(PreToolUse input/brake check fires on the coordinator's call)
+        alt the pre-hook finds nothing owed
+            SK->>WS: evidenced no-op — step `completed` with the Contract's reason<br/>(no model tokens spent)
+        else the step runs
+            SK-->>SH: full run (reflection, hooks, state) then a compact handoff<br/>(~1 KB: summary, artifacts, next step)
             alt status = needs_input
-                SH->>Dev: relay <questions>
+                SH->>Dev: relay the questions
                 Dev-->>SH: answers
-                SH->>SK: re-invoke same step directly + Q/A context<br/>(step records them in the clarification ledger)
+                SH->>SK: re-invoke the same step + Q/A context<br/>(the step records them in the clarification ledger)
             else status = failed
-                SH-->>Dev: step, summary, partition, resume command — stop
+                SH-->>Dev: step, summary, run, resume command — stop
+            else status = interrupted
+                SH-->>Dev: stop_reason + the command to resume in a fresh session
             else completed
-                SH->>WS: (already updated by the step's post-hook)
+                SK->>WS: (already written by the step's post-hook)
             end
-        else mode = parallel
-            note over SH,SK: one leg per ready step — own subagent, own worktree,<br/>leg branch cut from the ticket branch head
-            SH->>SK: run every ready leg
-            SK-->>SH: each leg returns its own handoff, its own post-hook wrote its ledger entry
-            SH->>WS: merge leg branches into the ticket branch in file order<br/>(a conflict stops the pipeline naming both legs)
         end
         note over SH: context may be cleared/compacted here — the ledger holds the pipeline
-        note over SH: boundary full_verify_stop — /ship stops after code by design, the tail resumes in a fresh session (MAR-179)
+        note over SH,SK: review-code recording blocking findings sends the cursor<br/>back to `code` — the workflow's ONE loop, max 3 rounds, then fail
     end
     SH-->>Dev: pipeline report + "Review the PR, then /acs:merge-pr SHOP-123"
     note over Dev: /ship never invokes /acs:merge-pr — merge-pr may not even appear in a workflow file
 ```
 
 Properties: every pre-hook still fires on the coordinator's direct Skill call
-(no bypass) — it now checks that step's **inputs** and **safety brakes**, not
-its position, so the declared order is enforced by this walk rather than by
-the gates (ADR-0089). Re-running `/ship <ticket>` re-evaluates `workflow next`
-against the ledger and continues from whatever is ready; a step recorded
-`failed`, `interrupted`, `in_progress` or `handed_off` is simply ready again,
-and a failed leg does not cancel its siblings. Epic fan-out — its own
-`--fan-out` invocation, run once after the epic's design is approved, never
-part of the epic's creation run — mints the children, and each child's
-implementation walk above then runs independently (parallel worktrees
-supported).
+(no bypass) — it checks that step's **inputs** and **safety brakes**, not its
+position, so the declared order is enforced by this walk rather than by the
+gates. `/ship` stops before `merge-pr` because `create-pr` is the last name
+in the list, not because of a `stop_after` key. Re-running `/ship <ticket>`
+re-derives the cursor and continues from it; a step recorded `failed`,
+`interrupted` or `in_progress` is not `completed`, so the cursor is still on
+it. There is no parallel mode: one step at a time, with parallelism inside a
+step (`/acs:review-code`'s five lenses, `/acs:create-docs`'s sets) remaining
+that skill's own business. Epic fan-out — its own `--fan-out` invocation, run
+once after the epic's design is approved, never part of the epic's creation
+run — mints the children, and each child's implementation walk above then
+runs independently (parallel worktrees supported).
 
 ## Planning pipeline (epics)
 
@@ -95,82 +101,59 @@ The epic path in one sentence: `create-ticket` (epic, `children: []`) →
 `create-design` → `create-ticket <epic-id> --fan-out` → STOP; implementation
 is the separate, per-child pipeline diagrammed above.
 
-> **NOTE (ADR-0095 — supersedes the MAR-56 lane note):** The ship coordinator
-> no longer reads a `ticket.lane` written at ticket time. After the step
-> `delivery.classify_after` names (`create-impl-plan` in the shipped workflow)
-> it JUDGES the ticket onto one delivery path from `plan.md`, using the rubric
-> in `skills/code/references/classify.md`, and records `delivery_path` plus a
-> one-sentence `delivery_path_reason` on `pipeline-state.json` (`acs.py path
-> set`). Every later step reads the recorded value — a step's `paths:` filter
-> decides whether it runs at all, and its `skill`/`boundary` may be given as a
-> mapping keyed by path — so a resumed run stays on the path its first session
-> chose. Those two fields are also what the metrics layer slices by (G14/G15),
-> in place of the retired `lane`.
->
-> **NOTE (MAR-161 — supersedes the MAR-59 fast-lane-fold note):**
-> The standalone spec-authoring skill no longer exists (ADR 0066 supersedes ADR 0006). The
-> `[create-design]` bracketing above is still conditional — on
-> `ticket.needs_design` — but there is no
-> bracketed spec-authoring step at all: the plan's author,
-> `create-impl-plan-executor` (MAR-72's coordinator-authored fast path went
-> with the lanes, ADR-0095),
-> self-authors the five-section spec content (Scope, Approach, API/data
-> changes, Test plan, Out of scope) inside the plan when
-> `<partition>/specs/` is absent or empty, and reads pre-existing specs
-> unchanged when they are present (backward-compat with tickets minted
-> before this ADR). See `ship/SKILL.md` "Pipeline order" (the `code` row) and
-> `code/SKILL.md`'s "Spec authoring fold" section.
->
-> **NOTE (MAR-159):** The pipeline also gains a new **conditional** step between
-> `code` and `create-pr` — a post-code, pre-create-pr `/acs:test --for-ticket <id>`
-> invocation. It is gated by `settings.post_code_test`: OFF only when neither
-> `settings.e2e` nor `suites.e2e` is configured (per AC-5); ON otherwise, or
-> whenever `post_code_test.enabled` is explicitly set to `true`/`false`. On
-> failure the step increments `pipeline-state.json.steps.test.fix_loops`
-> (capped by `post_code_test.fix_loops_cap`, default 2) and relays back into
-> `/acs:code <ticket-id>` via the pipeline's existing "Re-invoke after
-> needs_input" pattern — no new relay mechanism. See `ship/SKILL.md`
-> "Pipeline order" and "Post-code test gate", and ADR 0068
-> (`docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`).
->
-> **NOTE (MAR-160):** The pipeline gains one more step, `docs-sync`, inserted
-> between `code`/`test` and `create-pr` — a new hooked skill
-> (`docs-sync-executor`/`-verifier`; no planner since ADR 0092) that independently re-derives
-> doc impact from `git diff <default_branch>...HEAD`, `/code`'s
-> `result.json`, and the final code-verify artifact, committing any doc
-> updates as additional commits on the SAME ticket branch (never a new
-> branch, never a new PR). `gate_create_pr` now also requires `docs-sync`
-> `completed`, alongside its existing `code` `completed` +
-> `verifier_passed: true` checks. See `design.md`'s sequence diagram 1 and
-> `ship/SKILL.md` "Pipeline order" / "Picking the next step".
->
-> **NOTE (MAR-179):** On a full-verify lane the coordinator stops right
-> after `code` completes and before the post-code test gate, ending
-> `handed_off`; the remaining steps run in a fresh `/acs:ship <ticket-id>`
-> resumed from `pipeline-state.json`. Light lanes are unaffected. Which
-> steps run and in what order is unchanged. See `ship/SKILL.md` "Full-verify
-> pipeline boundary".
->
-> **NOTE (skills-independence refactor — supersedes the step-order clauses of
-> the MAR-159 and MAR-160 notes above; their mechanisms stand):** the steps and
-> their conditions are no longer stated in `ship/SKILL.md` prose at all. They
-> are declared in `src/acs/workflows/ship.yaml` — `analyze-requirements` →
-> `create-impl-plan` (`requires: design_approved`) → `create-api-contract`
-> (`when: api_surface_changed`) → `create-test-docs` → `code`
-> (`exclusive: true`, `boundary: full_verify_stop`,
-> `on_replan: create-impl-plan`) → `create-e2e-tests`
-> (`when: e2e_configured`) ∥ `docs-sync` → `run-e2e-tests`
-> (`when: post_code_test_active`, `on_fail: {relay_to: code, max_loops:
-> post_code_test_fix_loops_cap}`) → `create-pr` (`stop_after`) — and evaluated
-> by `acs.py workflow next`. Three consequences for the diagram above:
-> `gate_create_pr` no longer requires `docs-sync` (or `code`) completed — that
-> ordering is the walk's job now, and the gate keeps only its
-> `verifier_passed` brake, itself narrowed to a ticket that HAS a recorded
-> `code` run; the post-code test step is `run-e2e-tests` (today's `/acs:test`
-> renamed, alias kept one release) and its fix-loop counter is the declared
-> `on_fail`, not a prose rule; and the `code → create-pr` tail can run two
-> steps at once, so the loop is a walk over a DAG rather than a line.
-> The MAR-56 note's `ticket.lane` read now resolves the ticket document via
-> `docs/tickets/<ID>/ticket.md` first and the partition's `ticket.json` second
-> (ADR-0090); the field and its derivation are unchanged. See ADR 0089 and
-> ADR 0090.
+## The declared order
+
+```yaml
+version: 3
+steps:
+  - analyze-requirements
+  - create-impl-plan
+  - create-api-contract
+  - create-test-docs
+  - code
+  - review-code
+  - create-e2e-tests
+  - run-e2e-tests
+  - docs-sync
+  - create-pr
+loops:
+  - from: review-code
+    back_to: code
+    max_iterations: 3
+    on_exhausted: fail
+```
+
+Three things are worth saying about that list, because each replaced a
+mechanism this document used to describe at length:
+
+- **`review-code` is a step, not a phase inside `code`** (ADR-0099). Five
+  parallel lenses, one fresh-context adjudicator per finding, then a final
+  gate running build, lint, the full unit suite and coverage — the only place
+  the suite runs. `create-pr`'s brake reads this step's `verifier_passed`.
+- **The delivery path is judged by `/acs:create-impl-plan` and recorded in
+  the plan's `## Contract` block** (ADR-0098), not by `/acs:ship` and not on
+  the run ledger. `/acs:code` reads it with `acs.py plan path` and dispatches
+  to the matching leg. The path and its one-sentence reason are also what the
+  metrics layer slices by (G14/G15), in place of the retired `lane`.
+- **`create-api-contract`, `create-test-docs`, `create-e2e-tests` and
+  `run-e2e-tests` are unconditional steps that may cost nothing.** Each reads
+  the Contract's `owes` flags in its own pre-hook and records an evidenced
+  no-op when nothing is owed. That is what replaced the `when:` predicates,
+  and the difference is accountability: the skill that owns the question
+  answers it and records why, so the same answer is reached whether `/ship`
+  reached the skill or a person typed it.
+
+> **History.** Earlier revisions of this flow described a DAG walk over
+> `acs.py workflow next` with `needs`/`when`/`requires` predicates, a
+> `parallel` mode with one git worktree per leg, a `boundary:
+> full_verify_stop` that ended the run `handed_off` after `code`, an
+> `on_fail: {relay_to: code}` fix-loop counter on the e2e step, a
+> `delivery:` block, and `workflows/phases.yaml` as the skill registry. All
+> of it is removed in v0.5.0 — see ADR-0096 (the workflow is a list),
+> ADR-0097 (two state machines; `handed_off` is `interrupted` plus a
+> `stop_reason`), ADR-0098 (the path is the plan's) and ADR-0099 (the review
+> is a step). The mechanisms those notes introduced that still stand — doc
+> sync on the same branch as additional commits, never a second PR; a
+> ticket-scoped e2e run after the code is written; the epic planning pipeline
+> above — are stated in their own right in this document rather than as
+> amendments.

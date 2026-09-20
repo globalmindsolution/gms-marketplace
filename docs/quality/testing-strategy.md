@@ -223,9 +223,9 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
    with a pre-commit `git diff --quiet origin/main -- plugins/` hook as the
    next lever if it recurs.
 8. **Wrap every `run_main()` call in `with ... .pushd(<tmpdir>):`.** An
-   unguarded call was proven able to flip a live coordinator run to
-   `handed_off`, release the partition lock, and rewrite the operator's REAL
-   `pipeline-state.json` (MAR-177). **Enforced** by
+   unguarded call was proven able to flip a live coordinator's step to a
+   terminal status, release the run's lock, and rewrite the operator's REAL
+   run ledger (MAR-177). **Enforced** by
    `tests/acs/test_testing_conventions_guard.py` (detector 2, a
    staleness-checked allowlist of 7 legitimately-exempt sites).
 9. **Never assert the absence of an artifact the code under test never
@@ -280,7 +280,7 @@ no standing dashboard panel, no new mechanism.
    impact." Enumerate merged tickets whose changeset touches a user-facing /
    cross-component surface this release, and confirm each `specs/*.md` Test
    plan declares e2e impact or an explicit "no e2e impact" reason — already
-   enforced live by the `code-verifier`'s existing e2e-impact dimension (no
+   enforced live by `/acs:review-code`'s existing e2e-impact dimension (no
    new mechanism read here). Record the ratio and the enumerated ticket list.
 
 **Latest recorded result:** see the "First validated" annotation on PRD

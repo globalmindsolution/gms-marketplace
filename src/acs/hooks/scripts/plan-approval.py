@@ -12,11 +12,20 @@ is ONE plan (§4.2) and `plan_sha256` hashes it: the mirror existed only
 because the plan had two homes, and an approval that hashes a copy is an
 approval of the wrong bytes the moment the copy drifts.
 
-Reachable as `acs.py plan check` (MAR-521) — acs.py drops the verb and forwards
-the flags here unchanged; this script stays the implementation.
+It also answers the plan's OTHER machine-readable question, under a verb of
+its own: `plan-approval.py path` prints the `## Contract` block's
+`delivery_path` and `owes` flags and writes nothing. That read belongs here
+because this script already resolves the run, the plan and the contract, and
+because ADR 0001 says a skill reaches Python through a CLI — `/acs:code` used
+to open-code the same three calls in a heredoc inside its SKILL.md, which is
+the pattern the rule exists to prevent.
+
+Reachable as `acs.py plan check` and `acs.py plan path` (MAR-521, §4.8) —
+acs.py drops the `check` verb and forwards the rest here unchanged; this
+script stays the implementation.
 
 Usage:
-  plan-approval.py [--run <run-id>] [--plan <path>]
+  plan-approval.py [path] [--run <run-id>] [--plan <path>]
 """
 
 import argparse
@@ -83,8 +92,39 @@ def _fold_active(rdir):
     return True
 
 
+def _emit_contract(rdir, plan_path):
+    """`plan path` — the plan's Contract block, read and printed, nothing written.
+
+    `/acs:code` dispatches to its leg from `delivery_path`, and the four
+    always-run steps read `owes` to decide whether they owe anything (§2.2).
+    Both are reads of a decision already made: the path was judged ONCE, by
+    `/acs:create-impl-plan`, from the plan's own scope. Nothing here recomputes
+    it, and a plan that has not been judged prints `null` rather than a
+    guess — an unclassified plan is a plan that is not ready to dispatch, and
+    saying so is the answer.
+
+    `contract_errors` carries what `plan_contract.errors` found, so a caller
+    that sees `delivery_path: null` can tell "no Contract block yet" from
+    "a Contract block that does not parse"."""
+    contract = plan_contract.read(plan_path)
+    print(json.dumps({
+        "ok": True,
+        "run_dir": rdir,
+        "plan": plan_path if os.path.isfile(plan_path) else None,
+        "delivery_path": plan_contract.delivery_path(contract),
+        "owes": {key: plan_contract.owes(contract, key)
+                 for key in plan_contract.OWES_KEYS},
+        "contract_errors": plan_contract.errors(contract),
+    }, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser()
+    # `check` is the default so that `acs.py plan check`, which forwards an
+    # empty argv after dropping the verb, keeps meaning what it always meant.
+    parser.add_argument("verb", nargs="?", choices=("check", "path"), default="check",
+                        help="check: record the approval verdict (default). "
+                             "path: print the plan's Contract block, writing nothing.")
     parser.add_argument("--run", help="a run other than this checkout's current one")
     parser.add_argument("--plan")
     args = parser.parse_args()
@@ -105,6 +145,18 @@ def main():
     if lib.load_run(rdir) is None:
         sys.stderr.write("acs plan-approval: no run %s at %s\n" % (run_id, rdir))
         sys.exit(2)
+
+    if args.verb == "path":
+        # The same containment guard `check` applies below: a read is still a
+        # read of bytes, and an escaping --plan would print a contract that
+        # belongs to no run.
+        plan_path = _resolve_plan_path(rdir, args.plan)
+        if not _plan_dir_contains(rdir, plan_path):
+            sys.stderr.write(
+                "acs plan-approval: --plan must resolve within steps/%s/\n" % PLAN_STEP)
+            sys.exit(2)
+        _emit_contract(rdir, plan_path)
+        sys.exit(0)
 
     # Approval binds on the two deep delivery paths only. The path is READ from
     # the plan's own ## Contract block, never derived here: it was judged once,
