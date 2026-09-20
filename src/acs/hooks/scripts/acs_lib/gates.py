@@ -43,6 +43,16 @@ from .advisory import workflow_advisory
 
 
 
+def _workflow_for(ctx, with_path=False):
+    """The resolved workflow for this checkout, and optionally where it came
+    from. One spelling, because five copies of `resolve_workflow` +
+    `validate_workflow_file` is five places for an override to be honoured in
+    four."""
+    resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
+    wf = workflow.validate_workflow_file(resolved["path"])
+    return (wf, resolved["path"]) if with_path else wf
+
+
 def run_post_exempt_pr(cwd):
     """Metrics-only post-hook for /acs:merge-pr --pr: bump the repo pr_merged
     metric via the existing update_metrics pr_merged path and touch nothing else —
@@ -236,8 +246,7 @@ def gate_step(ctx, skill, payload, standalone=True):
     # `ship` at all. `create-ticket` in particular MAKES a subject; requiring
     # it to name one first would be circular.
     try:
-        resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
-        wf = workflow.validate_workflow_file(resolved["path"])
+        wf = _workflow_for(ctx)
     except WorkflowError as exc:
         raise GateError("the workflow does not validate: %s" % exc)
     if not workflow.has_step(wf, skill):
@@ -285,8 +294,7 @@ def resolve_run_for(ctx, skill, payload):
     """
     repo = repo_dir(ctx["workspace"], ctx["repo_id"])
     try:
-        resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
-        wf = workflow.validate_workflow_file(resolved["path"])
+        wf, wf_path = _workflow_for(ctx, with_path=True)
     except WorkflowError as exc:
         raise GateError("the workflow does not validate: %s" % exc)
 
@@ -311,7 +319,7 @@ def resolve_run_for(ctx, skill, payload):
                                   checkout_path=ctx.get("checkout_root"))
             return rdir, run_machine.require_run(rdir), wf
 
-    run_id, rdir, doc = run_machine.create_run(repo, subject, wf, resolved["path"])
+    run_id, rdir, doc = run_machine.create_run(repo, subject, wf, wf_path)
     sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id,
                           checkout_path=ctx.get("checkout_root"))
     return rdir, doc, wf
@@ -579,8 +587,7 @@ def run_post(skill):
         sys.stderr.write("acs post-%s: no run %s at %s.\n" % (skill, run_id, rdir))
         sys.exit(1)
     try:
-        resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
-        wf = workflow.validate_workflow_file(resolved["path"])
+        wf = _workflow_for(ctx)
     except WorkflowError as exc:
         sys.stderr.write("acs post-%s: %s\n" % (skill, exc))
         sys.exit(1)
@@ -694,8 +701,7 @@ def _mark_step_started(ctx, skill, run_id):
     repo = repo_dir(ctx["workspace"], ctx["repo_id"])
     rdir = run_machine.run_dir(repo, run_id)
     try:
-        resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
-        wf = workflow.validate_workflow_file(resolved["path"])
+        wf = _workflow_for(ctx)
         run_machine.start_step(rdir, skill, wf)
         step_machine.append_invocation(rdir, skill, run_id)
         sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id, step=skill,
@@ -730,50 +736,56 @@ _POST_GUARD_REPAIR = {
 
 
 def session_end(payload):
-    """Finalize any run this checkout left in_progress as `interrupted` and release
-    its lock — abnormal endings must still write state (docs/requirements/functional/hooks.md)."""
+    """Finalize whatever step this checkout left `in_progress` as `interrupted`
+    and release its lock — an abnormal ending must still write state
+    (docs/requirements/functional/hooks.md).
+
+    `interrupted` is the one resumable step state, and `session_end` is the
+    stop_reason that says which kind of ending it was (§4.3). A step left
+    `in_progress` by a session that no longer exists is the case resume exists
+    for, and leaving it that way is what makes the next invocation refuse
+    under I1.
+    """
     cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
     except GateError:
         return  # uninitialized repo: nothing to clean up
-    pointer = read_json(pointer_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-    if not isinstance(pointer, dict) or not pointer.get("ticket_id"):
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    run_id = sessions.current_run_id(repo, ctx["checkout_id"])
+    if not run_id:
         return
-    ticket_id = pointer["ticket_id"]
-    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
+    rdir = run_machine.run_dir(repo, run_id)
+    doc = run_machine.load_run(rdir)
+    if doc is None:
         return
-    lock = read_lock(tdir)
+    lock = read_lock(rdir)
     if not (isinstance(lock, dict) and lock.get("checkout_id") == ctx["checkout_id"]):
-        return  # not our session's ticket anymore
+        return  # not our session's run any more
     # The release is the POINT of this safety net, so it happens whatever the
-    # repo-level writes do. update_metrics is guarded and now refuses rather
-    # than writing unguarded; before this the raise skipped the release and
-    # dispatch.py swallowed it, so the net exited 0 having left the ticket
-    # locked by a process that no longer exists -- and a cross-host lock
-    # stranded that way does not read as stale for 24 hours.
+    # repo-level writes do. Before this, a raise skipped the release and
+    # dispatch.py swallowed it, so the net exited 0 having left the run locked
+    # by a process that no longer exists -- and a cross-host lock stranded that
+    # way does not read as stale for 24 hours.
     try:
-        for skill in HOOKED_SKILLS:
-            state = read_json(state_path(tdir, skill))
-            if not isinstance(state, dict):
-                continue
-            runs = state.get("runs") or []
-            if runs and isinstance(runs[-1], dict) and runs[-1].get("status") == "in_progress":
-                _state, entry = finalize_run(tdir, skill, ticket_id, {
-                    "status": "interrupted",
-                    "stop_reason": "session ended while the skill was in progress",
-                })
-                update_pipeline(tdir, ticket_id, skill, "interrupted",
-                                summary="session ended mid-skill",
-                                flow="product" if skill in PRODUCT_SKILLS else "ticket")
-                # keep repo-level metrics consistent with the ticket ledger:
-                # an interrupted run still spent time/tokens
-                update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
+        step = run_machine.in_progress_step(doc)
+        if step:
+            wf = _workflow_for(ctx)
+            _state, entry = step_machine.finalize_invocation(rdir, step, run_id, {
+                "status": "interrupted",
+                "stop_reason": "session_end",
+            })
+            run_machine.finish_step(rdir, step, wf, status="interrupted",
+                                    stop_reason="session_end",
+                                    summary="session ended mid-step")
+            # keep repo-level metrics consistent with the run ledger: an
+            # interrupted invocation still spent time and tokens.
+            update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
     except GuardTimeout as exc:
         sys.stderr.write(
-            "acs session-end: %s\n%s's run is finalized as interrupted and the "
-            "lock is released; metrics.json was not updated, so this run's tokens "
-            "and cost are lost from it.\n" % (exc, ticket_id))
+            "acs session-end: %s\n%s's step is finalized as interrupted and the "
+            "lock is released; metrics.json was not updated, so this step's tokens "
+            "and cost are lost from it.\n" % (exc, run_id))
     finally:
-        release_lock(tdir, cwd)
+        sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id, step=None)
+        release_lock(rdir, cwd)

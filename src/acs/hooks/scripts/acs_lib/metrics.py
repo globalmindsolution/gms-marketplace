@@ -169,7 +169,10 @@ def compute_ticket_totals(tdir):
     or absent -- a legacy pre-cutover run, C-11) counts in
     runs_cost_unavailable and contributes nothing to the cost_usd sum."""
     totals = {
-        "runs": 0, "working_seconds": 0,
+        # `invocations`, not `runs`: a "run" is the whole workflow over a
+        # subject now, and what this counts is a SESSION's attempt at one step.
+        # Two different things under one name is how a metric starts lying.
+        "invocations": 0, "working_seconds": 0,
         "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
         "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
         "api_duration_ms": 0.0, "runs_api_duration_measured": 0, "runs_api_duration_unavailable": 0,
@@ -183,7 +186,7 @@ def compute_ticket_totals(tdir):
         for entry in state.get("invocations") or []:
             if not isinstance(entry, dict):
                 continue
-            totals["runs"] += 1
+            totals["invocations"] += 1
             seconds = run_seconds(entry)
             if seconds is None:
                 totals["runs_untimed"] += 1

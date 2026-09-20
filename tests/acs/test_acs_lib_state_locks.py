@@ -484,7 +484,7 @@ class TestRecordGuardEventWithoutARunTest(unittest.TestCase):
         tdir = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tdir, True)
         self.assertIs(
-            lib.record_guard_event(tdir, "code", {"reason": "outside_map"}),
+            lib.record_guard_event(tdir, "code", "SHOP-1", {"reason": "outside_map"}),
             False)
 
     def test_the_retired_escalation_recorder_is_gone(self):

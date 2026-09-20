@@ -291,12 +291,17 @@ def sessions_dir(workspace, repo_id):
 
 
 def pointer_path(workspace, repo_id, ckid):
-    return os.path.join(sessions_dir(workspace, repo_id), "%s.json" % ckid)
+    """`sessions/<checkout-id>/pointer.json`. Five files related by a filename
+    prefix became one DIRECTORY per checkout (`acs_lib.sessions`); this keeps
+    the (workspace, repo_id, ckid) spelling every caller here already uses."""
+    from .sessions import pointer_path as _pointer_path
+    return _pointer_path(os.path.join(workspace, repo_id), ckid)
 
 
 def session_marker_path(workspace, repo_id, ckid):
-    """Ticket-independent session-correlation marker, sibling of pointer_path."""
-    return os.path.join(sessions_dir(workspace, repo_id), "%s-session.json" % ckid)
+    """Subject-independent session-correlation marker, beside pointer.json."""
+    from .sessions import session_path
+    return session_path(os.path.join(workspace, repo_id), ckid)
 
 
 def record_session_marker(ctx, payload):
@@ -395,9 +400,15 @@ def resolve_ticket_id(cwd, settings, workspace, repo_id, explicit=None, args_tex
     from_args = ticket_id_from_text(args_text, prefix)
     if from_args:
         return from_args, "argument"
+    # `run_id`, not `ticket_id`: the pointer names the RUN this checkout is on
+    # (§4.9), and a run whose subject is a ticket carries that ticket's id as
+    # its run id. A run started from a prompt or a document has no ticket, and
+    # the branch fallback below is the honest answer there.
     pointer = read_json(pointer_path(workspace, repo_id, checkout_id(cwd)))
-    if isinstance(pointer, dict) and pointer.get("ticket_id"):
-        return pointer["ticket_id"], "pointer"
+    if isinstance(pointer, dict):
+        from_pointer = pointer.get("run_id") or pointer.get("ticket_id")
+        if from_pointer and (not prefix or ticket_id_from_text(from_pointer, prefix)):
+            return from_pointer, "pointer"
     from_branch = ticket_id_from_text(current_branch(cwd), prefix)
     if from_branch:
         return from_branch, "branch"

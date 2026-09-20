@@ -138,17 +138,38 @@ def finalize_invocation(rdir, step, run_id, result):
     Appends an invocation when the coordinator never registered a start, so a
     step that crashed before its pre-hook still leaves a record rather than a
     silence."""
+    from .metrics import _measure_run_usage
+
+    # No default: this writes the status the next pre-hook reads, so a result
+    # document that never stated one must fail here rather than silently
+    # finalize the invocation as completed. Refusing only at the CLI boundary
+    # would leave the silent default reachable by any in-process caller.
+    status = result.get("status")
+    if status not in ("completed", "failed", "interrupted"):
+        raise ValueError("invalid final invocation status: %r" % status)
     doc = load_state(rdir, step, run_id)
     invocations = doc.setdefault("invocations", [])
     if not invocations or invocations[-1].get("status") != "in_progress":
         invocations.append({"started_at": now_iso()})
     entry = invocations[-1]
     entry["ended_at"] = now_iso()
-    entry["status"] = result.get("status") or "completed"
-    for key in ("stop_reason", "tokens", "cost_usd", "cost_basis", "role_usage",
-                "model_usage", "api_duration_ms", "guard_events"):
-        if result.get(key) is not None:
-            entry[key] = result[key]
+    entry["status"] = status
+    # `in result`, not `is not None`: for the measurement keys, None is an
+    # ANSWER -- "unavailable" -- and it is the answer the metrics roll-up folds
+    # on (`runs_cost_unavailable`, `runs_api_duration_unavailable`). Skipping a
+    # None left the key absent, which reads as a run that was never measured
+    # rather than one whose measurement could not be taken.
+    if "stop_reason" in result:
+        entry["stop_reason"] = result["stop_reason"]
+    if "guard_events" in result:
+        entry["guard_events"] = result["guard_events"]
+    # Tokens, cost and API duration are MEASURED from this invocation's own
+    # recorded transcript, never taken from `result`. A coordinator reporting
+    # its own spend is the same category of claim as one reporting its own
+    # verdict, and the metrics roll-up folds on the measurement's BASIS -- so
+    # "unavailable" is written as `None` with a basis beside it rather than
+    # left absent, which would read as a run nobody tried to measure.
+    _measure_run_usage(entry, rdir, step)
     if result.get("states"):
         doc.setdefault("states", {}).update(result["states"])
     for key in ("findings", "errors"):
