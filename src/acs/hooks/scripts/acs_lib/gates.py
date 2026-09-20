@@ -25,7 +25,7 @@ from ._common import (DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_
 from .settings import load_settings, validate_settings
 from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir
 from .hostgates import record_gate_evidence
-from .lock import check_lock, read_lock, release_lock
+from .lock import acquire_lock, check_lock, read_lock, release_lock
 from .tickets import load_ticket, save_ticket, update_index
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
@@ -217,8 +217,26 @@ def _require_architecture_doc_set(ctx):
     return None
 
 
+def _require_prd(ctx):
+    root = ctx["checkout_root"]
+    prd = os.path.join(root, ctx["settings"].get("prd_path", "docs/product"), "prd.md")
+    if not os.path.isfile(prd):
+        raise GateError("no PRD found at %s — run /acs:create-prd first (it also "
+                        "baselines existing products)." % prd)
+    return None
+
+
 #: Skills that need the architecture doc set before they can do anything.
 ARCHITECTURE_GATED = ("project", "create-project", "standardize-project", "create-docs")
+
+#: Skills that need the PRD.
+#:
+#: These REPO-DOCUMENT inputs are checked here rather than through a skill's
+#: `reads` declaration, because they are not run artifacts: a design or product
+#: skill is never a step of `ship` (§2.4), so it has no run to read them from.
+#: The declaration drives the artifact gate; this drives the document gate; the
+#: two do not overlap.
+PRD_GATED = ("create-architecture",)
 
 
 def gate_step(ctx, skill, payload, standalone=True):
@@ -238,6 +256,8 @@ def gate_step(ctx, skill, payload, standalone=True):
     manifests = skills_registry.load_manifests()
     if skill in ARCHITECTURE_GATED:
         _require_architecture_doc_set(ctx)
+    if skill in PRD_GATED:
+        _require_prd(ctx)
 
     # Only the skills the RESOLVED WORKFLOW runs go through a run. A skill
     # that declares reads/writes but is not a step of this workflow is a
@@ -255,6 +275,15 @@ def gate_step(ctx, skill, payload, standalone=True):
     rdir, doc, wf = resolve_run_for(ctx, skill, payload)
     if rdir is None:
         return None
+    # The LOCK, before the invariants and before any write. One run, one
+    # session: a second checkout that picked this run up would interleave two
+    # sessions' writes into one ledger, and the invariants that keep it honest
+    # are checked per process. `acquire_lock` is a no-op when this checkout
+    # already holds it, so a multi-step session takes it once.
+    ok, message = check_lock(rdir, ctx["checkout_id"])
+    if not ok:
+        raise GateError(message)
+    acquire_lock(rdir, ctx.get("checkout_root") or ctx["workspace"])
     stepgate.check_invariants(rdir, wf, manifests)
 
     fell_back = stepgate.check_inputs(rdir, skill, manifests, wf, standalone=standalone)

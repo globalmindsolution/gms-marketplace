@@ -161,6 +161,8 @@ def finalize_invocation(rdir, step, run_id, result):
     # rather than one whose measurement could not be taken.
     if "stop_reason" in result:
         entry["stop_reason"] = result["stop_reason"]
+    if result.get("handoff_summary"):
+        entry["handoff_summary"] = result["handoff_summary"]
     if "guard_events" in result:
         entry["guard_events"] = result["guard_events"]
     # Tokens, cost and API duration are MEASURED from this invocation's own

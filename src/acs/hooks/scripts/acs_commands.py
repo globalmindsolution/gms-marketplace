@@ -198,7 +198,23 @@ def cmd_step_start(args):
     rdir, doc, _ctx, wf = _resolve_run("step start", args.run)
     _require_step(wf, args.step, "step start")
     try:
+        # The lock, before the transition. This is the WRITER for `in_progress`
+        # (§4.3), and a transition written without the lock is exactly the
+        # two-sessions-one-ledger interleaving the lock exists to prevent. The
+        # gate takes it too; acquiring it twice from one checkout is a no-op.
+        ok, message = lib.check_lock(rdir, _ctx["checkout_id"])
+        if not ok:
+            die("step start", message)
+        lib.acquire_lock(rdir, _ctx.get("checkout_root") or os.getcwd())
         lib.check_invariants(rdir, wf)
+        # What the PREVIOUS invocation left behind, read before this one opens
+        # (§4.4 resumption). A step recorded `interrupted` or `failed` is simply
+        # re-run, and the coordinator reconciles recorded state against reality
+        # rather than trusting it -- so it has to be told there is something to
+        # reconcile, and handed whatever the last session flushed.
+        previous = lib.last_invocation(lib.load_step_state(rdir, args.step, doc["run_id"])) or {}
+        reconcile = previous.get("status") in ("interrupted", "failed")
+        handoff_summary = previous.get("handoff_summary") if reconcile else None
         doc = lib.start_step(rdir, args.step, wf)
         # Both machines, one verb. The run records the TRANSITION and the step
         # opens the INVOCATION; a caller that got only the first would leave a
@@ -224,7 +240,9 @@ def cmd_step_start(args):
     entry = lib.step_entry(doc, args.step)
     emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
           "status": entry.get("status"), "gate_enforcement": verdict,
-          "iteration": lib.iteration_of(doc, args.step, wf)})
+          "iteration": lib.iteration_of(doc, args.step, wf),
+          "reconcile": reconcile, "handoff_summary": handoff_summary,
+          "prior_status": previous.get("status")})
 
 
 def cmd_step_finish(args):

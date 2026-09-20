@@ -305,7 +305,9 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
     def test_the_advisory_can_be_switched_off(self):
         ticket = self.new_ticket("Quiet please", "task")
         self.ensure_run(ticket)
-        self.write_settings(workflow={"advisories": False})
+        settings = json.load(open(os.path.join(self.repo, ".acs", "settings.json")))
+        settings["workflow"] = {"advisories": False}
+        self.write_settings(settings)
         result = self.pre("docs-sync", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self._advisories(result.stderr), [])
@@ -375,28 +377,36 @@ class TestConcurrencyAndRecovery(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("locked", result.stderr)
 
-    def test_session_end_finalizes_interrupted_and_counts_metrics(self):
+    def test_session_end_interrupts_the_step_and_counts_metrics(self):
+        """`interrupted` is the one resumable state, and `session_end` is the
+        stop_reason that says which kind of ending it was (§4.3)."""
         with open(lib.metrics_path(self.ws, "acme-shop")) as fh:
             before = json.load(fh).get("totals", {}).get("runs", 0)
         result = self.run_script("dispatch.py", "session-end",
                                  stdin=json.dumps({"cwd": self.repo}))
         self.assertEqual(result.returncode, 0, result.stderr)
-        state = lib.load_state(self.tdir(self.ticket), "code")
-        self.assertEqual(state["runs"][-1]["status"], "interrupted")
-        self.assertFalse(os.path.exists(os.path.join(self.tdir(self.ticket), ".lock")))
+        rdir = self.rdir(self.ticket)
+        state = lib.load_step_state(rdir, "code", self.ticket)
+        self.assertEqual(state["invocations"][-1]["status"], "interrupted")
+        entry = lib.step_entry(lib.load_run(rdir), "code")
+        self.assertEqual(entry["status"], "interrupted")
+        self.assertEqual(entry["stop_reason"], "session_end")
+        self.assertFalse(os.path.exists(os.path.join(rdir, ".lock")))
         with open(lib.metrics_path(self.ws, "acme-shop")) as fh:
             after = json.load(fh)["totals"]["runs"]
         self.assertEqual(after, before + 1)
 
     def test_handoff_and_resume(self):
-        out = self.run_script("handoff.py", "--ticket", self.ticket,
-                              "--summary", "done: analysis; next: spec 02")
+        out = self.run_script("handoff.py", "--run", self.ticket,
+                              "--summary", "done: analysis; next: task 02")
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(json.loads(out.stdout)["continue_with"],
-                         "/acs:code %s" % self.ticket)
-        state = lib.load_state(self.tdir(self.ticket), "code")
-        self.assertEqual(state["runs"][-1]["status"], "handed_off")
-        self.assertIn("analysis", state["runs"][-1]["handoff_summary"])
+        body = json.loads(out.stdout)
+        self.assertEqual(body["continue_with"], "/acs:code %s" % self.ticket)
+        self.assertEqual(body["stop_reason"], "context_pressure")
+        rdir = self.rdir(self.ticket)
+        state = lib.load_step_state(rdir, "code", self.ticket)
+        self.assertEqual(state["invocations"][-1]["status"], "interrupted")
+        self.assertIn("analysis", state["invocations"][-1]["handoff_summary"])
         resumed = json.loads(self.start("code", self.ticket).stdout)
         self.assertTrue(resumed["reconcile"])
         self.assertTrue(resumed["handoff_summary"])
@@ -864,15 +874,20 @@ class TestBackfillDistinctPRCount(AcsWorkspaceCase):
     """AC-4: idempotent backfill of inflated prs.created."""
 
     def _write_create_pr_state(self, ws, repo_id, ticket_id, pr_number, archived=False):
-        """Seed a create-pr-state.json for a ticket partition."""
-        if archived:
-            tdir = os.path.join(ws, repo_id, "archive", ticket_id)
-        else:
-            tdir = os.path.join(ws, repo_id, ticket_id)
-        os.makedirs(tdir, exist_ok=True)
-        state = {"runs": [], "states": {"pr": {"number": pr_number, "url": "https://example.com/pull/%d" % pr_number}}}
-        lib.write_json(lib.state_path(tdir, "create-pr"), state)
-        return tdir
+        """Seed one run's create-pr step state. A ticket's PRs are its RUNS'
+        PRs, and a ticket-subject run's id IS the ticket id (§4.2), which is
+        what keeps the bridge a path join."""
+        repo = os.path.join(ws, repo_id)
+        rdir = (os.path.join(repo, "archive", ticket_id) if archived
+                else lib.run_dir(repo, ticket_id))
+        os.makedirs(rdir, exist_ok=True)
+        lib.write_json(lib.state_path(rdir, "create-pr"), {
+            "skill": "create-pr", "run_id": ticket_id, "invocations": [],
+            "findings": [], "errors": [],
+            "states": {"pr": {"number": pr_number,
+                              "url": "https://example.com/pull/%d" % pr_number}},
+        })
+        return rdir
 
     def _seed_workspace(self):
         """Build a workspace with two ticket partitions (one active, one archived)
