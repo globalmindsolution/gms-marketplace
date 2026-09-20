@@ -604,6 +604,12 @@ def run_post(skill):
     if derived:
         result.setdefault("states", {}).update(derived)
 
+    # Persist the document itself, not only its effects. I3 requires a
+    # completed step to have a result.json, and the reason it does is that the
+    # invocation record says WHAT happened while the result says what the
+    # skill claimed -- a step whose claim is gone cannot be audited against
+    # its outcome later.
+    write_json(step_machine.result_path(rdir, skill), result)
     state = step_machine.finalize_invocation(rdir, skill, run_id, result)
     entry = step_machine.last_invocation(state) or {}
     entry["derived_states"] = {"values": derived, "provenance": notes,

@@ -48,7 +48,12 @@ DERIVED_KEYS = ("verifier_passed", "tests", "pr", "review")
 
 #: Only /acs:code has the verifier whose verdict gates /acs:create-pr, so only
 #: its result document has a `verifier_passed` to derive.
-VERDICT_SKILLS = ("code",)
+#: The skills whose `verifier_passed` is DERIVED from a verdict document.
+#: `/acs:code` is not one of them any more -- it has no verifier, and the
+#: review is `/acs:review-code` (§3.5). Deriving code's pass from a verdict
+#: code never writes would have left the key absent, which reads as "did not
+#: pass" and would have shut the create-pr gate on every run.
+VERDICT_SKILLS = ("review-code",)
 
 #: The audit trail is `steps/<skill>/iter-<n>/`, one DIRECTORY per iteration
 #: (§4.2). Under the prefix scheme it replaced, the artifacts of an iteration
@@ -272,7 +277,7 @@ def _tests_from_execute_reports(tdir, skill):
     """
     reports = execute_reports(tdir, skill)
     if not reports:
-        return None, "no iter-<n>-execute*.json report to read"
+        return None, "no execute*.json report to read in any iteration directory"
     last = max(iteration for iteration, _path, _doc in reports)
     current = [(path, doc) for iteration, path, doc in reports if iteration == last]
 
