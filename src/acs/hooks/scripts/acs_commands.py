@@ -60,9 +60,9 @@ def cmd_context(args):
 def cmd_gate(args):
     """Run one skill's pre-gate without running the skill. Exit code mirrors
     the gate's own (0 open, 2 blocked); the gate writes its reason to stderr."""
-    if args.skill not in lib.GATES:
+    if args.skill not in lib.HOOKED_SKILLS:
         die("gate", "unknown skill %r (expected one of %s)"
-            % (args.skill, ", ".join(sorted(lib.GATES))))
+            % (args.skill, ", ".join(sorted(lib.HOOKED_SKILLS))))
     payload = {"cwd": os.getcwd(), "tool_input": {"skill": args.skill}}
     if args.ticket:
         payload["tool_input"]["args"] = args.ticket

@@ -80,7 +80,7 @@ class TestGate(AcsCliCase):
         self.refusal(self.acs("gate", "--skill", "not-a-skill"), "unknown skill")
 
     def test_a_blocked_gate_reports_ok_false_and_exit_two(self):
-        # gate_create_architecture requires a PRD; the fixture repo has none.
+        # create-architecture requires the PRD; the fixture repo has none.
         res = self.acs("gate", "--skill", "create-architecture")
         self.assertEqual(res.returncode, 2)
         self.assertEqual(json.loads(res.stdout)["ok"], False)
@@ -410,10 +410,10 @@ class TestReviewFixes(AcsCliCase):
     def test_a_group_prints_its_own_subcommands_not_the_root_help(self):
         res = self.acs("run")
         self.assertEqual(res.returncode, 2)
-        self.assertIn("acs.py path", res.stderr)
-        for sub in ("show", "set"):
+        self.assertIn("acs.py run", res.stderr)
+        for sub in ("show", "next", "check", "abandon"):
             self.assertIn(sub, res.stderr)
-        self.assertNotIn("doctor", res.stderr, "that is the ROOT help, not path's")
+        self.assertNotIn("doctor", res.stderr, "that is the ROOT help, not run's")
 
 
 class TestReviewFixesRoundTwo(AcsCliCase):
