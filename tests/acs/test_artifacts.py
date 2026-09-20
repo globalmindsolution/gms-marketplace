@@ -52,7 +52,7 @@ def read_text(path):
         return fh.read()
 
 
-def full_ticket(run_id=TICKET):
+def full_ticket(ticket_id=TICKET):
     """A ticket document exercising every field new_ticket_doc writes, with
     values chosen to trip a careless emitter: quotes, a hash, a colon, a
     multi-line acceptance criterion, a nested mapping and a list."""
@@ -77,7 +77,7 @@ class ArtifactsCase(AcsWorkspaceCase):
         """The docs tree is active once its root exists (migrate creates it)."""
         os.makedirs(self.docs_root(), exist_ok=True)
 
-    def partition(self, run_id=TICKET, ttype="task", **fields):
+    def partition(self, ticket_id=TICKET, ttype="task", **fields):
         """A workspace partition with a ticket.json, the way every existing
         fixture builds one -- no docs folder."""
         tdir = self.tdir(ticket_id)
@@ -87,10 +87,10 @@ class ArtifactsCase(AcsWorkspaceCase):
         lib.write_json(os.path.join(tdir, "ticket.json"), doc)
         return tdir
 
-    def md_path(self, run_id=TICKET):
+    def md_path(self, ticket_id=TICKET):
         return os.path.join(self.docs_root(), ticket_id, "ticket.md")
 
-    def write_md(self, ticket, run_id=TICKET):
+    def write_md(self, ticket, ticket_id=TICKET):
         path = self.md_path(ticket_id)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
@@ -281,7 +281,7 @@ class TestRenderParse(unittest.TestCase):
 
 class TestDeriveStatus(ArtifactsCase):
 
-    def step(self, step_id, status, run_id=TICKET):
+    def step(self, step_id, status, ticket_id=TICKET):
         lib.update_pipeline(self.tdir(ticket_id), ticket_id, step_id, status)
 
     def test_table(self):
@@ -324,7 +324,7 @@ class TestDeriveStatus(ArtifactsCase):
     def test_an_epic_follows_its_children(self):
         epic = "SHOP-9"
         tdir = self.partition(epic, ttype="epic", children=["SHOP-1", "SHOP-2"])
-        self.step("create-design", "completed", run_id=epic)
+        self.step("create-design", "completed", ticket_id=epic)
         self.index(("SHOP-1", "open"), ("SHOP-2", "open"))
         # A designed epic whose children have not started is in progress
         # (the design ran), never done.
@@ -601,7 +601,7 @@ class TestMigrate(ArtifactsCase):
         os.makedirs(os.path.join(self.a, "phases", "code"))
         with open(os.path.join(self.a, "phases", "code", "plan.md"), "w") as fh:
             fh.write("# Plan A\n")
-        lib.write_json(os.path.join(self.a, "clarifications.json"), {"run_id": "SHOP-1", "clarifications": [
+        lib.write_json(os.path.join(self.a, "clarifications.json"), {"ticket_id": "SHOP-1", "clarifications": [
             {"id": "C-1", "status": "answered", "source": "user", "question": "Q?", "answer": "A."}]})
         archived = os.path.join(lib.archive_dir(self.ws, REPO_ID), "SHOP-0")
         os.makedirs(archived)

@@ -178,7 +178,9 @@ def compute_ticket_totals(tdir):
         state = read_json(state_path(tdir, skill))
         if not isinstance(state, dict):
             continue
-        for entry in state.get("runs") or []:
+        # `invocations`, not `runs`: the partition is a run now, so a `runs`
+        # array inside a step would mean the wrong thing (§4.4).
+        for entry in state.get("invocations") or []:
             if not isinstance(entry, dict):
                 continue
             totals["runs"] += 1
@@ -302,7 +304,10 @@ def backfill_distinct_pr_count(workspace, repo_id):
 
     distinct_numbers = set()
     for tid in ticket_ids:
-        tdir, _archived = find_ticket_partition(workspace, repo_id, tid)
+        # A ticket's PRs are its RUNS' PRs: the run whose subject is this
+        # ticket is where create-pr wrote.
+        from .run import run_dir
+        tdir = run_dir(repo_dir(workspace, repo_id), tid)
         sp = state_path(tdir, "create-pr")
         state = read_json(sp)
         if not isinstance(state, dict):

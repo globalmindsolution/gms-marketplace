@@ -23,7 +23,7 @@ includes a `coordinator` bucket, resolving the former ledger C-5 exclusion; pane
 iterations from code-state states.review.iterations authoritative with the max
 verify-XML-iteration fallback), D1 (bounded single pass: enumerate tickets from
 tickets-index.json, resolve each partition active-then-archive, read the four state files once
-each, plus each HOOKED_SKILLS `<skill>-state.json` for role_usage; xml.etree is a documented
+each, plus each HOOKED_SKILLS `steps/<skill>/state.json` for role_usage; xml.etree is a documented
 reserved fallback, not used by default).
 
 New panel keys (MAR-14 spec 01):
@@ -163,7 +163,7 @@ def aggregate(workspace, repo_id, now=None):
     _ticket_skill_rows = []  # [(ticket_id, {skill -> raw duration accumulator}), ...] (MAR-7)
 
     # Per-ticket extra data collected for the new panels (no additional file reads — reuses
-    # the ticket.json and pipeline-state.json already opened below; spec 01:44-49).
+    # the ticket.json and run.json already opened below; spec 01:44-49).
     # _ticket_updated_at: {ticket_id -> updated_at str or None} for burn_up fallback (spec 01:198-202)
     _ticket_updated_at = {}
     # _merge_ended_at: {ticket_id -> ended_at str or None} for burn_up primary date (spec 01:193-197)
@@ -171,18 +171,18 @@ def aggregate(workspace, repo_id, now=None):
     # _tickets_due_data: [{id, due_date, status}] for deadline panel (spec 02)
     _tickets_due_data = []
     # _paths_by_ticket: {ticket_id -> delivery_path or None}, read off the same
-    # pipeline-state.json the funnel already loads — no extra file read (ADR-0095).
+    # run.json the funnel already loads — no extra file read (ADR-0095).
     _paths_by_ticket = {}
 
     for ticket_id in tickets:
         tdir, _archived = acs_lib.find_ticket_partition(workspace, repo_id, ticket_id)
 
-        pipeline = acs_lib.read_json(os.path.join(tdir, "pipeline-state.json"))
+        pipeline = acs_lib.read_json(os.path.join(tdir, "run.json"))
         if isinstance(pipeline, dict):
             _accumulate_funnel(funnel, pipeline)
         else:
-            degrade(ticket_id, 2, "pipeline-state.json absent — ticket omitted from the funnel")
-            degrade(ticket_id, 3, "pipeline-state.json absent — no cost/time row")
+            degrade(ticket_id, 2, "run.json absent — ticket omitted from the funnel")
+            degrade(ticket_id, 3, "run.json absent — no cost/time row")
 
         # Collect merge-pr.ended_at for burn_up (primary date source; spec 01:193-197).
         steps = pipeline.get("steps") if isinstance(pipeline, dict) else None

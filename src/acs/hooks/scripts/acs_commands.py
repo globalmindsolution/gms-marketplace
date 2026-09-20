@@ -204,13 +204,27 @@ def cmd_step_start(args):
         # opens the INVOCATION; a caller that got only the first would leave a
         # step in_progress with no record of the session doing it, and the
         # guard would have no invocation to append its denials to.
-        lib.append_invocation(rdir, args.step, doc["run_id"])
-        lib.point_checkout_at(_ctx_of(rdir), doc["run_id"], args.step)
+        # Gate evidence (MAR-583), which §7 keeps: weigh whether
+        # PreToolUse(Skill) actually fired for this step, record the verdict on
+        # the invocation, and SAY SO when it cannot be confirmed. The evidence
+        # is written fail-open, so a failed write looks exactly like a runtime
+        # that never fired the hook -- which is why the run reports itself
+        # degraded rather than pretending either way.
+        ctx = _ctx_of(rdir)
+        evidence, verdict = lib.gate_evidence(ctx, args.step)
+        lib.append_invocation(rdir, args.step, doc["run_id"], gate=verdict)
+        if evidence is not None:
+            lib.consume_gate_evidence(ctx, evidence)
+        lib.point_checkout_at(ctx, doc["run_id"], args.step)
     except lib.GateError as exc:
         die("step start", str(exc))
+    notice = lib.gate_notice(verdict)
+    if notice:
+        sys.stderr.write(notice + "\n")
     entry = lib.step_entry(doc, args.step)
     emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
-          "status": entry.get("status"), "iteration": lib.iteration_of(doc, args.step, wf)})
+          "status": entry.get("status"), "gate": verdict,
+          "iteration": lib.iteration_of(doc, args.step, wf)})
 
 
 def cmd_step_finish(args):

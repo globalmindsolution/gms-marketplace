@@ -144,7 +144,7 @@ def _panel4_row(ticket_id, code_state, degrade):
     states = code_state.get("states") if isinstance(code_state, dict) else None
     tests = states.get("tests") if isinstance(states, dict) else None
     if not isinstance(tests, dict):
-        degrade(ticket_id, 4, "code-state.json (states.tests) absent — coverage unavailable")
+        degrade(ticket_id, 4, "code's state.json (states.tests) absent — coverage unavailable")
         return {"ticket_id": ticket_id, "cell": "no data"}
     achieved = tests.get("coverage_percent")
     target = tests.get("coverage_target")
@@ -164,7 +164,7 @@ def _panel5_row(ticket_id, tdir, code_state, degrade):
     review = states.get("review") if isinstance(states, dict) else None
     if isinstance(review, dict) and isinstance(review.get("iterations"), int):
         return {"ticket_id": ticket_id, "iterations": review["iterations"]}
-    # fallback: max iteration among phases/code/iter-N-verify.xml result files
+    # fallback: the highest iteration directory holding a verify artifact
     max_iter = _max_verify_iteration(tdir)
     if max_iter is not None:
         return {"ticket_id": ticket_id, "iterations": max_iter}
@@ -173,9 +173,9 @@ def _panel5_row(ticket_id, tdir, code_state, degrade):
 
 
 def _rework_count(tdir):
-    """Count distinct positive PR numbers from create-pr-state.json in the resolved partition.
+    """Count distinct positive PR numbers from create-pr's state.json in the resolved partition.
 
-    Reads `state_path(tdir, 'create-pr')` (i.e. <tdir>/create-pr-state.json) and collects
+    Reads `state_path(tdir, 'create-pr')` (i.e. <tdir>/create-pr's state.json) and collects
     distinct positive integers from:
       - data["states"]["pr"]["number"] (the current/latest PR number)
       - data["runs"][i]["pr"]["number"] for each run entry (historical PR numbers)
@@ -206,7 +206,7 @@ def _rework_count(tdir):
         pass
 
     # Collect from runs[i].pr.number (historical PRs across all runs)
-    runs = data.get("runs")
+    runs = data.get("invocations")
     if isinstance(runs, list):
         for run in runs:
             try:
@@ -234,7 +234,7 @@ def _panel7_row(ticket_id, tdir, pipeline, degrade):
     meta.degraded (panel 7). One row is always returned per ticket; nothing is written.
 
     rework_count (spec 02 AC-8): per-ticket count of distinct positive PR numbers recoverable
-    from create-pr-state.json in the resolved partition (tdir). Additive field; always an int
+    from create-pr's state.json in the resolved partition (tdir). Additive field; always an int
     >= 0; not averaged. Never raises: missing or malformed state files contribute 0.
     """
     ticket = acs_lib.read_json(os.path.join(tdir, "ticket.json"))
@@ -285,7 +285,7 @@ def _panel7(p7_rows):
 
 def _max_verify_iteration(tdir):
     best = None
-    for path in glob.glob(os.path.join(tdir, "phases", "code", "iter-*-verify.xml")):
+    for path in glob.glob(os.path.join(tdir, "steps", "code", "iter-*", "verify.*")):
         match = _ITER_RE.search(_read_text(path))
         if match:
             n = int(match.group(1))
@@ -315,7 +315,7 @@ def _accumulate_burn(burn, tdir):
         state = acs_lib.read_json(acs_lib.state_path(tdir, skill))
         if not isinstance(state, dict):
             continue
-        for entry in state.get("runs") or []:
+        for entry in state.get("invocations") or []:
             if not isinstance(entry, dict):
                 continue
 
