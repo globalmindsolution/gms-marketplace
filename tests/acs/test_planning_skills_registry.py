@@ -3,8 +3,8 @@
 Originating ticket: MAR-77. `create-design` moves out of `WORKFLOW_SKILLS`
 into a new `PLANNING_SKILLS` list; `HOOKED_SKILLS` becomes the explicit
 three-way concatenation `PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS`
-so every existing `HOOKED_SKILLS` consumer (dispatch.py, skill-start.py,
-clarify.py, metrics_aggregate.py, handoff.py, acs_lib's own GATES/
+so every existing `HOOKED_SKILLS` consumer (dispatch.py, `acs step start`,
+clarify.py, metrics_aggregate.py, handoff.py, acs_lib's own
 compute_ticket_totals/session-end sweep) keeps seeing `create-design` with
 no code change of its own. `metrics_render.py`'s coverage of the same
 invariant is not duplicated here — see
@@ -39,9 +39,10 @@ PINNED_SORTED_HOOKED_SKILLS = [
     "analyze-requirements", "code", "create-api-contract", "create-architecture",
     "create-design", "create-docs", "create-e2e-tests", "create-impl-plan",
     "create-pr", "create-prd", "create-project", "create-requirements",
-    "create-test-docs", "create-ticket", "docs-sync", "merge-pr",
-    "standardize-project",
+    "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "review-code",
+    "run-e2e-tests", "standardize-project",
 ]
+HOOKED_SKILL_COUNT = len(PINNED_SORTED_HOOKED_SKILLS)
 
 
 def _read_ship_skill():
@@ -79,11 +80,12 @@ class RegistryShapeCase(unittest.TestCase):
             acs_lib.PRODUCT_SKILLS + acs_lib.WORKFLOW_SKILLS + acs_lib.PLANNING_SKILLS,
         )
 
-    def test_hooked_skills_count_is_seventeen(self):
+    def test_hooked_skills_count_matches_the_pinned_membership(self):
         # 15 through MAR-160; the skills-independence refactor hooks the five
         # Build/Test skills (analyze-requirements, create-impl-plan,
-        # create-api-contract, create-test-docs, create-e2e-tests), 15 -> 20.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 17)
+        # create-api-contract, create-test-docs, create-e2e-tests), and
+        # v0.5.0 adds review-code and run-e2e-tests as steps of their own.
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), HOOKED_SKILL_COUNT)
 
     def test_sorted_hooked_skills_membership_pinned(self):
         # Count alone cannot catch a silent membership swap -- pin the names.
@@ -94,28 +96,57 @@ class RegistryShapeCase(unittest.TestCase):
         # One gate per hooked skill: the dispatch table and the registry are
         # the same list seen from two sides (test_producer_skill_gates asserts
         # the membership direction).
-        self.assertEqual(len(lib.HOOKED_SKILLS), 17)
+        self.assertEqual(len(lib.HOOKED_SKILLS), HOOKED_SKILL_COUNT)
 
 
 class DispatchRoutingCase(acs_case.AcsWorkspaceCase):
-    """AC-2: dispatch.py's pre-hook still routes create-design through
-    gate_create_design. Asserted on the unresolvable-ticket refusal arm
-    (_resolve_ticket_for_gate), not the needs_design arm -- the latter is
-    sibling ticket MAR-76's to change."""
+    """AC-2, restated for v0.5.0: dispatch.py's pre-hook routes create-design
+    as a hooked skill, and passes it through because the resolved workflow
+    does not name it.
 
-    def test_create_design_still_gated_not_passed_through(self):
+    The per-skill `gate_create_design` is gone: the gate is workflow-driven
+    now (`gate_step`), and `ship.yaml` admits build/test/ship steps only.
+    A skill the workflow does not name takes NO run position -- which is
+    exactly what lets create-design run on its own (3.11) while remaining
+    hooked. The pass-through is the behaviour under test; a refusal here
+    would mean the workflow had silently adopted it."""
+
+    def test_create_design_is_routed_and_passed_through(self):
         result = self.pre("create-design")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("ticket id", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_the_resolved_workflow_does_not_name_it(self):
+        wf = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
+        self.assertFalse(acs_lib.has_step(wf, "create-design"))
 
 
-class SkillStartChoicesCase(acs_case.AcsWorkspaceCase):
-    """AC-2: skill-start.py's --skill choices still accept create-design."""
+class StepStartChoicesCase(acs_case.AcsWorkspaceCase):
+    """AC-2: `acs step start --step` still accepts create-design -- validated
+    against the resolved workflow AND the skill directories (4.8), so a
+    standalone planning skill is a valid step name even though ship.yaml does
+    not list it."""
 
-    def test_create_design_accepted_by_skill_start_argparse(self):
+    def test_create_design_accepted_by_step_start(self):
         epic = self.new_ticket("Wishlist", "epic")
         result = self.start("create-design", epic)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("invalid choice", result.stderr)
+
+    def test_a_step_the_workflow_does_not_name_takes_no_run_position(self):
+        """I5: the run's `steps` map admits only what the workflow names. The
+        step machine records the invocation either way -- two machines, and
+        this is the seam between them (4.3/4.4)."""
+        epic = self.new_ticket("Wishlist", "epic")
+        out = self.start("create-design", epic)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIs(json.loads(out.stdout)["in_workflow"], False)
+        rdir = self.rdir(epic)
+        self.assertNotIn("create-design", acs_lib.load_run(rdir)["steps"])
+        self.assertEqual(
+            acs_lib.last_invocation(
+                acs_lib.load_state(rdir, "create-design"))["status"],
+            "in_progress")
 
 
 class ClarifySkillChoicesCase(acs_case.AcsWorkspaceCase):
@@ -153,24 +184,27 @@ class MetricsAggregateFunnelCase(unittest.TestCase):
             self.assertIn("create-design", out["panels"]["2"]["steps"])
 
 
-class HandoffScanOrderCase(acs_case.AcsWorkspaceCase):
-    """AC-2: handoff.py's in-progress-run resume actually picks create-design
-    up as a candidate via HOOKED_SKILLS, and classifies its pipeline flow as
-    "ticket" -- the PRODUCT_SKILLS hazard guard (create-design must never be
-    folded into PRODUCT_SKILLS, which would silently flip this to
-    "product")."""
+class HandoffResumeCase(acs_case.AcsWorkspaceCase):
+    """AC-2, restated: handoff.py resumes a create-design invocation by name.
+
+    `flow: ticket|product` is retired (6) -- a run's SUBJECT says what it is
+    over, and there is no second classification to keep in step with
+    PRODUCT_SKILLS. What the hazard guard was really protecting is still
+    asserted: the resume names create-design itself, not whatever step the
+    workflow would have pointed at."""
 
     def test_create_design_resumes_via_handoff(self):
         ticket = self.new_ticket("Design system revamp", "story")
-        tdir = self.tdir(ticket)
-        acs_lib.append_invocation(tdir, "create-design", ticket)
-        result = self.run_script("handoff.py", "--summary", "s", "--ticket", ticket)
+        out = self.start("create-design", ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        result = self.run_script("handoff.py", "--summary", "s", "--run", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["skill"], "create-design")
+        self.assertEqual(payload["step"], "create-design")
         self.assertEqual(payload["continue_with"], "/acs:create-design %s" % ticket)
-        pipeline = acs_lib.read_json(os.path.join(tdir, "run.json"))
-        self.assertEqual(pipeline["flow"], "ticket")
+        self.assertEqual(payload["stop_reason"], "context_pressure")
+        subject = acs_lib.load_run(self.rdir(ticket))["subject"]
+        self.assertEqual(subject, {"kind": "ticket", "ticket_id": ticket})
 
 
 class ShipPipelineOrderTableCase(unittest.TestCase):
@@ -191,11 +225,10 @@ class ShipPipelineOrderTableCase(unittest.TestCase):
         self.assertNotIn("## Pipeline order", self.body)
 
     def test_create_design_is_not_a_ship_workflow_step(self):
-        doc = acs_lib.load_workflow(acs_lib.default_workflow_path())[0]
-        # A step's `skill` may be a per-path mapping since ADR-0095, so the set
-        # of skills a workflow can run is the union over every path.
-        skills = {name for step in doc["steps"] for name in workflow.step_skills(step)}
-        self.assertNotIn("create-design", skills)
+        # `steps:` is a LIST of skill names and nothing more (2): no
+        # per-path mapping to union over, so membership is the whole question.
+        doc = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
+        self.assertNotIn("create-design", workflow.steps_of(doc))
 
     def test_a_blocked_requires_predicate_is_surfaced_to_the_user(self):
         """The design pointer ("run /acs:create-design <id> first") comes back

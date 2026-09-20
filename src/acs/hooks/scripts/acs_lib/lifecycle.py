@@ -260,10 +260,25 @@ def phase_artifact_path(rdir, skill, iteration, phase):
 def in_flight_step(rdir, ctx=None, run_id=None):
     """The step whose invocation is `in_progress` in this run, or None.
 
-    I1 allows exactly one, and the run ledger names it, so there is nothing to
-    scan and nothing to guess. handoff.py, the Stop hook and PreCompact all
-    read it from here; a second copy is how two of them start disagreeing."""
+    Two places, in this order, because there are two state machines:
+
+      1. the checkout POINTER, which names the step this session started. It
+         is the only one that can name a step the workflow does not (I5 keeps
+         those out of the run ledger), so a standalone /acs:create-design is
+         resumable at all. Confirmed against that step's own state -- a stale
+         pointer must not report an invocation that already ended.
+      2. the RUN ledger, which names the one workflow step in flight (I1).
+
+    handoff.py, the Stop hook and PreCompact all read it from here; a second
+    copy is how two of them start disagreeing."""
     from .run import in_progress_step, load_run
+    from .repo import repo_dir
+    from .sessions import current_step
+    if ctx:
+        pointed = current_step(repo_dir(ctx["workspace"], ctx["repo_id"]),
+                               ctx["checkout_id"])
+        if pointed and last_status(rdir, pointed) == "in_progress":
+            return pointed
     return in_progress_step(load_run(rdir) or {})
 
 

@@ -67,10 +67,11 @@ def main():
         sys.stderr.write("acs handoff: no run recorded at %s\n" % rdir)
         sys.exit(2)
 
-    # The step this checkout is on, from the run's own ledger. There is at most
-    # one in_progress step (I1), so there is nothing to scan and nothing to
-    # guess: the ledger either names it or there is nothing to hand off.
-    step = lib.in_progress_step(doc)
+    # The step this checkout is on: the pointer first, then the run ledger.
+    # One resolution, shared with the Stop hook and PreCompact, so the three
+    # cannot disagree -- and the pointer half is what makes a standalone skill
+    # the workflow does not name (I5 keeps it out of the ledger) resumable.
+    step = lib.in_flight_step(rdir, ctx, run_id)
 
     handed = None
     metrics_error = None
@@ -90,8 +91,13 @@ def main():
             lib.write_handoff_context(rdir, run_id, step)
             wf = lib.validate_workflow_file(
                 lib.resolve_workflow(ctx["checkout_root"])["path"])
-            lib.finish_step(rdir, step, wf, status="interrupted",
-                            stop_reason=args.stop_reason, summary=summary)
+            # The RUN transition, only for a step the workflow names. A skill
+            # invoked on its own has step state but no position in a run, and
+            # I5 refuses a `steps` entry the workflow does not name -- the
+            # invocation above is recorded either way.
+            if lib.has_step(wf, step):
+                lib.finish_step(rdir, step, wf, status="interrupted",
+                                stop_reason=args.stop_reason, summary=summary)
             # a handed-off invocation still spent time and tokens -- keep repo
             # metrics consistent with the run ledger
             lib.update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)

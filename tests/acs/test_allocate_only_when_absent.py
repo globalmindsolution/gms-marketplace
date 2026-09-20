@@ -30,24 +30,31 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
     """--allocate must not mint a second ticket for work that already has one
     (MAR-509), and must not let one product-level leg adopt another's ticket."""
 
+    def _release(self, ticket_id):
+        """The lock is the RUN's (§4.5), and `acs step start --allocate` takes
+        it over the run it just minted. A second start from the same checkout
+        is a no-op re-acquire, but a fixture standing in for a LATER session
+        has to put it down the way SessionEnd would."""
+        lib.release_lock(self.rdir(ticket_id))
+
     def _ids(self):
         index = lib.read_json(lib.index_path(self.ws, lib.build_context(self.repo)["repo_id"]))
         return sorted((index or {}).get("tickets", {}))
 
     def test_fresh_run_allocates(self):
-        result = self.run_script("skill-start.py", "--skill", "create-ticket",
+        result = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                  "--allocate", "--args", "add a wishlist API")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(self._ids()), 1)
 
     def test_resume_with_the_id_in_args_reuses_the_partition(self):
-        first = self.run_script("skill-start.py", "--skill", "create-ticket",
+        first = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                 "--allocate", "--args", "add a wishlist API")
         self.assertEqual(first.returncode, 0, first.stderr)
         ticket_id = json.loads(first.stdout)["ticket_id"]
-        lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], ticket_id))
+        self._release(ticket_id)
 
-        again = self.run_script("skill-start.py", "--skill", "create-ticket",
+        again = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                 "--allocate", "--args", ticket_id)
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertEqual(json.loads(again.stdout)["ticket_id"], ticket_id)
@@ -56,9 +63,9 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
     def test_a_second_product_leg_still_gets_its_own_ticket(self):
         """Two doc sets run concurrently with no id in their args;
         neither may adopt the other's ticket through the session pointer."""
-        first = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set", "quality", "--allocate")
+        first = self.run_script("acs.py", "step", "start", "--step", "create-docs", "--doc-set", "quality", "--allocate")
         self.assertEqual(first.returncode, 0, first.stderr)
-        second = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set", "operations", "--allocate")
+        second = self.run_script("acs.py", "step", "start", "--step", "create-docs", "--doc-set", "operations", "--allocate")
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertNotEqual(json.loads(first.stdout)["ticket_id"],
                             json.loads(second.stdout)["ticket_id"])
@@ -72,14 +79,14 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         re.search, so a prompt that mentions an existing ticket would resolve
         to it -- and only when that ticket is live, i.e. exactly when adopting
         it overwrites active work."""
-        first = self.run_script("skill-start.py", "--skill", "create-ticket",
+        first = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                 "--allocate", "--args", "add a wishlist API")
         self.assertEqual(first.returncode, 0, first.stderr)
         existing = json.loads(first.stdout)["ticket_id"]
-        lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], existing))
+        self._release(existing)
 
         second = self.run_script(
-            "skill-start.py", "--skill", "create-ticket", "--allocate",
+            "acs.py", "step", "start", "--step", "create-ticket", "--allocate",
             "--args", "follow-up to %s: also handle the archived case" % existing)
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertNotEqual(json.loads(second.stdout)["ticket_id"], existing,
@@ -91,13 +98,13 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         --ticket call with no --allocate, so args-derived reuse buys them
         nothing -- and would let a delivery ticket be adopted by a flow that
         never owned it."""
-        first = self.run_script("skill-start.py", "--skill", "create-ticket",
+        first = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                 "--allocate", "--args", "add a wishlist API")
         self.assertEqual(first.returncode, 0, first.stderr)
         delivery = json.loads(first.stdout)["ticket_id"]
-        lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], delivery))
+        self._release(delivery)
 
-        leg = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set",
+        leg = self.run_script("acs.py", "step", "start", "--step", "create-docs", "--doc-set",
                               "quality", "--allocate", "--args", delivery)
         self.assertEqual(leg.returncode, 0, leg.stderr)
         self.assertNotEqual(json.loads(leg.stdout)["ticket_id"], delivery,
@@ -107,13 +114,13 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         """MAR-402's --seed-next repairs the counter for a newly minted id. A
         resume mints nothing, so combining the two would silently ignore the
         seed -- refuse instead of swallowing it."""
-        first = self.run_script("skill-start.py", "--skill", "create-ticket",
+        first = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                 "--allocate", "--args", "add a wishlist API")
         self.assertEqual(first.returncode, 0, first.stderr)
         ticket_id = json.loads(first.stdout)["ticket_id"]
-        lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], ticket_id))
+        self._release(ticket_id)
 
-        again = self.run_script("skill-start.py", "--skill", "create-ticket",
+        again = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                 "--allocate", "--ticket", ticket_id, "--seed-next", "42")
         self.assertEqual(again.returncode, 2, again.stdout)
         self.assertIn("--seed-next", again.stderr)
@@ -122,12 +129,12 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
     def test_an_explicit_ticket_flag_still_resumes_for_any_skill(self):
         """The narrowing is on --args only: --ticket is unambiguous by
         construction and stays the supported resume path everywhere."""
-        first = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set", "quality", "--allocate")
+        first = self.run_script("acs.py", "step", "start", "--step", "create-docs", "--doc-set", "quality", "--allocate")
         self.assertEqual(first.returncode, 0, first.stderr)
         leg = json.loads(first.stdout)["ticket_id"]
-        lib.release_lock(lib.ticket_dir(self.ws, lib.build_context(self.repo)["repo_id"], leg))
+        self._release(leg)
 
-        again = self.run_script("skill-start.py", "--skill", "create-docs", "--doc-set",
+        again = self.run_script("acs.py", "step", "start", "--step", "create-docs", "--doc-set",
                                 "quality", "--allocate", "--ticket", leg)
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertEqual(json.loads(again.stdout)["ticket_id"], leg)

@@ -251,13 +251,22 @@ def _resume_id_for_allocate(args, ctx):
     `create-ticket` with the ticket id as its argument, and allocating again
     there would mint a second ticket for the same work.
 
-    Only `--ticket`, or an `--args` value that IS an id, counts. The session
-    pointer and the branch name do not: both name whatever this checkout last
-    touched, which is not the same question as "is this run a resume".
+    Only `--ticket`, or -- for `create-ticket` alone -- an `--args` value that
+    IS an id, counts. The session pointer and the branch name do not: both name
+    whatever this checkout last touched, which is not the same question as "is
+    this run a resume".
+
+    The `--args` half is narrowed to `create-ticket` because it is the only
+    step `/acs:ship` re-invokes with the id as its argument. A product-level
+    leg routes its own resume through `--ticket`, so args-derived reuse buys it
+    nothing -- and would let a delivery ticket be adopted by a flow that never
+    owned it, writing one flow's state into another's partition.
     """
     explicit = (args.ticket or "").strip() if getattr(args, "ticket", None) else ""
     if explicit:
         return explicit
+    if args.step != "create-ticket":
+        return None
     text = (getattr(args, "args", None) or "").strip()
     prefix = (ctx.get("settings") or {}).get("ticket_prefix")
     if text and prefix and lib.ticket_id_from_text(text, prefix) == text:
