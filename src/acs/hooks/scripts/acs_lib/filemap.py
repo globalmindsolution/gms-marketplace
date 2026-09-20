@@ -38,7 +38,7 @@ from .lifecycle import (BLOCK_LIMIT, active_agents, active_agents_dir,
 # Disjointness BETWEEN tasks stays the coordinator's job, which is what its
 # parallel-vs-sequential decision already exists to decide.
 
-#: The declared file map for one iteration, under phases/<skill>/.
+#: The declared file map for one iteration, in its iteration directory.
 FILEMAP_FILENAME_FMT = "iter-%s-filemap.json"
 
 #: Tool -> the tool_input key naming the path it would write.
@@ -50,8 +50,9 @@ WRITE_TOOL_PATH_KEYS = {
 }
 
 
-def filemap_path(tdir, skill, iteration):
-    return os.path.join(tdir, "phases", skill, FILEMAP_FILENAME_FMT % iteration)
+def filemap_path(rdir, skill, iteration):
+    from .run import iteration_dir
+    return os.path.join(iteration_dir(rdir, skill, int(iteration)), "filemap.json")
 
 
 def load_filemap(tdir, skill, iteration):
@@ -236,7 +237,8 @@ def file_map_guard(payload):
         return 2
 
     # What IS exempt: this executor's own phase artifacts, and only those.
-    phase_dir = os.path.join(tdir, "phases", executor.get("skill") or "")
+    from .run import step_dir as _step_dir
+    phase_dir = _step_dir(tdir, executor.get("skill") or "")
     if _under(target, phase_dir):
         return 0
 
@@ -358,7 +360,8 @@ def _current_iteration(tdir, skill):
 
     The coordinator declares a fresh map before each iteration's executors, so
     the newest declaration is the one in force."""
-    directory = os.path.join(tdir, "phases", skill or "")
+    from .run import step_dir as _step_dir
+    directory = _step_dir(tdir, skill or "")
     best = "1"
     prefix, suffix = FILEMAP_FILENAME_FMT.split("%s")
     try:

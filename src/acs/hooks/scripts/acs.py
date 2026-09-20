@@ -243,11 +243,11 @@ def build_parser():
     lock_sub = lock.add_subparsers(dest="cmd")
 
     lstatus = lock_sub.add_parser("status", help="who holds the lock, and on what evidence")
-    lstatus.add_argument("--ticket")
+    lstatus.add_argument("--run")
     lstatus.set_defaults(func=cmd_lock_status)
 
     lforce = lock_sub.add_parser("force-unlock", help="break a lock, recording who and why")
-    lforce.add_argument("--ticket")
+    lforce.add_argument("--run")
     lforce.add_argument("--reason", required=True,
                         help="why the lock is being broken; recorded in the audit ledger")
     lforce.add_argument("--actor", help="who decided, when it was not the running checkout")
@@ -258,7 +258,7 @@ def build_parser():
     filemap_sub = filemap.add_subparsers(dest="cmd")
 
     fmset = filemap_sub.add_parser("set", help="declare one executor task's file map")
-    fmset.add_argument("--ticket")
+    fmset.add_argument("--run")
     fmset.add_argument("--skill", default="code")
     fmset.add_argument("--iteration", type=int, default=1)
     fmset.add_argument("--task", type=int, required=True, help="the executor task index")
@@ -269,7 +269,7 @@ def build_parser():
     fmset.set_defaults(func=cmd_filemap_set)
 
     fmshow = filemap_sub.add_parser("show", help="the declared map and the enforced union")
-    fmshow.add_argument("--ticket")
+    fmshow.add_argument("--run")
     fmshow.add_argument("--skill", default="code")
     fmshow.add_argument("--iteration", type=int, default=1)
     fmshow.set_defaults(func=cmd_filemap_show)
@@ -278,21 +278,21 @@ def build_parser():
     guard_sub = guard.add_subparsers(dest="cmd")
 
     gevents = guard_sub.add_parser("events", help="the denials the latest run recorded")
-    gevents.add_argument("--ticket")
+    gevents.add_argument("--run")
     gevents.add_argument("--skill", default="code")
     gevents.set_defaults(func=cmd_guard_events)
     verdict = group("verdict", help="the verifier's verdict document")
     verdict_sub = verdict.add_subparsers(dest="cmd")
 
     vshow = verdict_sub.add_parser("show", help="read and validate one verdict")
-    vshow.add_argument("--ticket")
+    vshow.add_argument("--run")
     vshow.add_argument("--skill", default="code")
     vshow.add_argument("--iteration", type=int, default=1)
     vshow.add_argument("--lens", choices=list(lib.LENSES))
     vshow.set_defaults(func=cmd_verdict_show)
 
     vmerge = verdict_sub.add_parser("merge", help="merge the full-depth lens verdicts")
-    vmerge.add_argument("--ticket")
+    vmerge.add_argument("--run")
     vmerge.add_argument("--skill", default="code")
     vmerge.add_argument("--iteration", type=int, default=1)
     vmerge.add_argument("--lens", action="append", choices=list(lib.LENSES),

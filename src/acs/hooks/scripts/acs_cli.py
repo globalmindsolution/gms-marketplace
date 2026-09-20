@@ -55,6 +55,25 @@ def partition_or_die(command, explicit):
     return ticket_id, tdir, ctx
 
 
+def run_or_die(command, explicit=None):
+    """Resolve (run_id, rdir, ctx) for THIS CHECKOUT'S run, or exit 2.
+
+    The run-scoped commands -- filemap, guard, verdict -- take no --ticket any
+    more: the partition is a run (§4.2), the checkout's pointer names it, and
+    `--run` exists only to name another. A ticket id still works, because a
+    ticket run's id IS the ticket id."""
+    ctx = context_or_die(command)
+    run_id = explicit or lib.current_run_id(ctx)
+    if not run_id:
+        die(command, "no current run for this checkout, and no --run given. "
+                     "Start one by invoking a skill with a ticket id, a prompt or a "
+                     "document, or name an existing run with --run.")
+    rdir = lib.run_dir(lib.repo_dir(ctx["workspace"], ctx["repo_id"]), run_id)
+    if lib.load_run(rdir) is None:
+        die(command, "no run %r (expected %s)" % (run_id, rdir))
+    return run_id, rdir, ctx
+
+
 def load_ticket_or_die(command, tdir, ticket_id):
     ticket = lib.load_ticket(tdir)
     if not isinstance(ticket, dict):

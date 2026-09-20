@@ -19,7 +19,7 @@ import acs_lib as lib  # noqa: E402
 from acs_lib import workflow  # noqa: E402
 
 from acs_cli import (context_or_die, die, emit, load_ticket_or_die,
-    partition_or_die, read_json_arg)  # noqa: E402
+    partition_or_die, read_json_arg, run_or_die)  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -480,10 +480,10 @@ def cmd_lock_status(args):
     `stale` is a verdict, `basis` is how it was reached — a lock held on
     another host has no liveness signal at all and degrades to an age timeout
     (lib.lock_staleness). Read both before breaking anything."""
-    ticket_id, tdir, ctx = partition_or_die("lock status", args.ticket)
-    view = _lock_view(tdir, ticket_id, ctx)
-    view["lock_path"] = lib.lock_path(tdir)
-    view["audit_path"] = lib.lock_audit_path(tdir)
+    run_id, rdir, ctx = run_or_die("lock status", args.run)
+    view = _lock_view(rdir, run_id, ctx)
+    view["lock_path"] = lib.lock_path(rdir)
+    view["audit_path"] = lib.lock_audit_path(rdir)
     emit(view)
 
 
@@ -494,21 +494,21 @@ def cmd_lock_force_unlock(args):
     holding session is gone but its lock is not (and, cross-host, will not read
     as stale for 24 hours). --reason is required and lands in the ticket's
     append-only lock-events.jsonl before the lock file is removed."""
-    ticket_id, tdir, ctx = partition_or_die("lock force-unlock", args.ticket)
-    before = _lock_view(tdir, ticket_id, ctx)
+    run_id, rdir, ctx = run_or_die("lock force-unlock", args.run)
+    before = _lock_view(rdir, run_id, ctx)
     if not before["held"]:
-        emit({"ok": True, "ticket_id": ticket_id, "forced": False,
-              "detail": "no lock file at %s" % lib.lock_path(tdir)})
+        emit({"ok": True, "run_id": run_id, "forced": False,
+              "detail": "no lock file at %s" % lib.lock_path(rdir)})
         return
     if before["held_by_me"] and not args.force:
         die("lock force-unlock",
             "this checkout holds the lock — the post hook releases it; pass --force "
             "to break your own lock anyway")
     try:
-        result = lib.force_release_lock(tdir, os.getcwd(), args.reason, actor=args.actor)
+        result = lib.force_release_lock(rdir, os.getcwd(), args.reason, actor=args.actor)
     except (ValueError, lib.GateError) as exc:
         die("lock force-unlock", str(exc))
-    emit({"ok": True, "ticket_id": ticket_id, "forced": result["forced"],
+    emit({"ok": True, "run_id": run_id, "forced": result["forced"],
           "detail": result["detail"], "audit_path": result["audit_path"],
           "broken_lock": result["lock"], "was_stale": before["stale"],
           "staleness_basis": before["basis"]})
@@ -518,41 +518,41 @@ def cmd_filemap_set(args):
 
     Per task and additive: the coordinator declares them one at a time as it
     decomposes the plan, and declaring task 2 must not erase task 1."""
-    ticket_id, tdir, _ctx = partition_or_die("filemap set", args.ticket)
+    run_id, rdir, _ctx = run_or_die("filemap set", args.run)
     files = list(args.file)
     if args.files_from:
         files += [line.strip() for line in
                   read_lines_arg("filemap set", args.files_from) if line.strip()]
     if not files:
         die("filemap set", "declare at least one file (--file, or --files-from FILE)")
-    tasks = lib.save_filemap_task(tdir, args.skill, args.iteration, args.task, files)
-    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+    tasks = lib.save_filemap_task(rdir, args.skill, args.iteration, args.task, files)
+    emit({"ok": True, "run_id": run_id, "skill": args.skill,
           "iteration": str(args.iteration), "task": str(args.task),
           "files": tasks[str(args.task)],
-          "path": lib.filemap_path(tdir, args.skill, args.iteration),
+          "path": lib.filemap_path(rdir, args.skill, args.iteration),
           "tasks": tasks})
 
 
 def cmd_filemap_show(args):
     """The declared map for an iteration, plus the union the guard enforces."""
-    ticket_id, tdir, _ctx = partition_or_die("filemap show", args.ticket)
-    tasks = lib.load_filemap(tdir, args.skill, args.iteration) or {}
-    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+    run_id, rdir, _ctx = run_or_die("filemap show", args.run)
+    tasks = lib.load_filemap(rdir, args.skill, args.iteration) or {}
+    emit({"ok": True, "run_id": run_id, "skill": args.skill,
           "iteration": str(args.iteration), "declared": bool(tasks), "tasks": tasks,
           "union": sorted({f for files in tasks.values() for f in files}),
-          "path": lib.filemap_path(tdir, args.skill, args.iteration)})
+          "path": lib.filemap_path(rdir, args.skill, args.iteration)})
 def cmd_guard_events(args):
     """The file-map guard denials the latest run recorded.
 
     The audit trail /acs:metrics and external tooling read without knowing the
     state-file layout: one object, `events` in the order they were denied."""
-    ticket_id, tdir, _ctx = partition_or_die("guard events", args.ticket)
-    path = lib.state_path(tdir, args.skill)
+    run_id, rdir, _ctx = run_or_die("guard events", args.run)
+    path = lib.state_path(rdir, args.skill)
     if not os.path.exists(path):
         die("guard events", "no %s state file at %s" % (args.skill, path))
-    entry = lib.last_run(lib.load_state(tdir, args.skill, ticket_id)) or {}
+    entry = lib.last_run(lib.load_state(rdir, args.skill, run_id)) or {}
     events = entry.get("guard_events") or []
-    emit({"ok": True, "ticket_id": ticket_id, "skill": args.skill,
+    emit({"ok": True, "run_id": run_id, "skill": args.skill,
           "count": len(events), "events": events, "path": path})
 
 
@@ -561,13 +561,13 @@ def cmd_verdict_show(args):
 
     `passed` in the output is DERIVED from the findings, so a document that
     claims otherwise shows up as an error here rather than as a pass."""
-    ticket_id, tdir, _ctx = partition_or_die("verdict show", args.ticket)
-    doc = lib.load_verdict(tdir, args.skill, args.iteration, args.lens)
-    path = lib.verdict_path(tdir, args.skill, args.iteration, args.lens)
+    run_id, rdir, _ctx = run_or_die("verdict show", args.run)
+    doc = lib.load_verdict(rdir, args.skill, args.iteration, args.lens)
+    path = lib.verdict_path(rdir, args.skill, args.iteration, args.lens)
     if doc is None:
         die("verdict show", "no verdict at %s" % path)
     errors = lib.validate_verdict(doc, lens=args.lens, skill=args.skill,
-                                  ticket_id=ticket_id, iteration=args.iteration)
+                                  run_id=run_id, iteration=args.iteration)
     if errors:
         # `passed` is DERIVED from the findings, and an absent findings list
         # derives True -- so emitting it beside ok:false told the coordinator
@@ -576,7 +576,7 @@ def cmd_verdict_show(args):
         # has no verdict to report.
         die("verdict show", "the verdict at %s is not usable: %s"
             % (path, "; ".join(errors)))
-    emit({"ok": True, "ticket_id": ticket_id, "path": path,
+    emit({"ok": True, "run_id": run_id, "path": path,
           "passed": lib.derived_passed(doc), "claimed_passed": doc.get("passed"),
           "blocking": len(lib.blocking_findings(doc)), "errors": [],
           "verdict": doc})
@@ -588,7 +588,7 @@ def cmd_verdict_merge(args):
     Mechanical — passed is the conjunction, findings the union, each dimension
     the worst result any lens reported — so the coordinator INVOKES the merge
     rather than authoring a verdict it did not reach."""
-    ticket_id, tdir, _ctx = partition_or_die("verdict merge", args.ticket)
+    run_id, rdir, _ctx = run_or_die("verdict merge", args.run)
     lenses = args.lens or list(lib.LENSES)
     # All four, always. --lens was an append flag with no completeness rule, so
     # `--lens A --lens C` merged a SUBSET and dropped lens B's blocking
@@ -601,7 +601,7 @@ def cmd_verdict_merge(args):
             % (", ".join(lib.LENSES), ", ".join(sorted(set(lenses)))))
     docs, missing = [], []
     for lens in lenses:
-        doc = lib.load_verdict(tdir, args.skill, args.iteration, lens)
+        doc = lib.load_verdict(rdir, args.skill, args.iteration, lens)
         if doc is None:
             missing.append(lens)
         else:
@@ -614,16 +614,16 @@ def cmd_verdict_merge(args):
     errors = lib.validate_verdict(merged)
     if errors:
         die("verdict merge", "the merged verdict is not well formed: %s" % "; ".join(errors))
-    existing = lib.load_verdict(tdir, args.skill, args.iteration)
+    existing = lib.load_verdict(rdir, args.skill, args.iteration)
     if existing is not None and lib.blocking_findings(existing) and merged["passed"]:
         die("verdict merge",
             "%s already holds a verdict with %d blocking finding(s); refusing to "
             "replace it with a passing one. Fix the findings and re-run the "
             "verifier rather than overwriting its verdict."
-            % (lib.verdict_path(tdir, args.skill, args.iteration),
+            % (lib.verdict_path(rdir, args.skill, args.iteration),
                len(lib.blocking_findings(existing))))
-    path = lib.write_verdict(tdir, args.skill, args.iteration, merged)
-    emit({"ok": True, "ticket_id": ticket_id, "path": path, "passed": merged["passed"],
+    path = lib.write_verdict(rdir, args.skill, args.iteration, merged)
+    emit({"ok": True, "run_id": run_id, "path": path, "passed": merged["passed"],
           "merged_from": merged["merged_from"], "blocking": len(lib.blocking_findings(merged)),
           "verdict": merged})
 
