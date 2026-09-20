@@ -91,10 +91,13 @@ decides for itself whether it has work, and records a positive, evidenced no-op
 when it does not.
 
 So `create-api-contract` on a change with no API surface does not get skipped by
-the workflow — it runs, reads the plan, records "no API surface in this plan"
-and completes. The same holds for `create-test-docs` and `create-e2e-tests`.
-The audit trail gains a step that says *why* nothing was owed, which a `skipped`
-status never carried.
+the workflow. Its **pre-hook** reads the plan's `## Contract` block, finds
+`api_contract: false`, records the step completed with
+`outcome: no_surface_owed` and the plan's reason — and the skill's coordinator
+is never spawned. Milliseconds, zero tokens. The same holds for
+`create-test-docs`, `create-e2e-tests` and `run-e2e-tests`. The audit trail
+gains a step that says *why* nothing was owed, which a `skipped` status never
+carried, at the price v2 paid for `skipped`: nothing.
 
 ```
  1  analyze-requirements   clarify the requirement from a ticket, a prompt or a document
@@ -178,6 +181,41 @@ that can evaluate it from its own inputs:
 | `needs:`, `max_parallel`, `exclusive` | the written order |
 | `on_fail: relay_to` | the `loops:` entry above, for the one loop there is |
 | `id:`, `name:`, `stop_after:` | the skill name, the file name, the end of the list |
+
+### 2.2 What a simple ticket costs
+
+The workflow's shape is fixed; its cost is not. A trivial ticket must stay
+cheap, and the legs alone do not make it so — they shrink the implementation
+side, which was never where a trivial ticket's cost was. Three mechanisms
+carry the saving, none of them a workflow condition:
+
+1. **No-ops are decided by the pre-hook**, from `## Contract`, before any
+   coordinator exists. Four of the ten steps cost nothing on a ticket that
+   owes nothing.
+2. **The review scales by its inputs, not by a rigor setting** (§3.6). Lens C
+   has nothing to check without a contract or a design and does not run;
+   lens B fans out by diff size; adjudicators are one per finding, and a
+   trivial diff has few. What does not scale down is what makes the review a
+   review: lenses A, B, D and E, per-finding adjudication, and the gate.
+3. **The leg** picks one executor and skips plan approval.
+
+In counts, on a trivial ticket with no API surface and no e2e impact:
+
+| | v2 `trivial` | **v3 `trivial`** | v3 `standard` |
+|---|---|---|---|
+| Coordinator turns | 5 | **6** + 4 hook-only | 10 |
+| Executors | 1 | **1** | per file map |
+| Reviewer agents | 1 verifier | **4 lenses** + one adjudicator per finding | 5 lenses (B fanned out) + adjudicators |
+| Full unit-suite runs | 1 per verify iteration (≤2) | **1 per surviving iteration** (≤3) | same |
+| Plan approval | no | **no** | enforced |
+| e2e | skipped | **hook no-op** | authored and run |
+
+Read honestly: v3 trivial is **one coordinator turn and three agent spawns
+more** than v2 trivial, and the same everywhere else. What the difference
+buys is what §1.2 asked for — per-finding adjudication and a git-history lens
+on the cheapest path, which v2 trivial had neither of, and a review that is
+not inside the thing it reviews. Against v3 `standard` it is less than half
+the agent work, which is the ratio PRD G14 measures.
 
 ---
 
@@ -284,9 +322,13 @@ so — the surfaces it checked, and why none is owed. That record is worth more
 than the `skipped` it replaces: `skipped` never distinguished *the plan says
 nothing is owed* from *the workflow never asked*.
 
-The no-op is cheap — one read of the plan and one short artifact — and it is
-what makes `/acs:create-api-contract` answer the same way whether `/acs:ship`
-invoked it or a developer did.
+The no-op is free. The decision is made by the skill's **pre-hook**, from the
+plan's `## Contract` block, and recorded by `acs step finish --no-op` before
+any coordinator is spawned: the invocation is refused with the message
+"nothing owed — recorded", exactly as a gate refuses today. Invoked by
+`/acs:ship` or by a developer, the answer is the same and the cost is the same.
+The rule that decides it lives in the skill's own directory, not in the
+workflow, which is what keeps the skill standalone.
 
 When there is a surface it produces `api-contract.md`: endpoints, commands or messages with their
 request/response shapes and error codes. Two downstream consumers depend on it
@@ -404,6 +446,17 @@ when the diff warrants it: one instance per coherent slice, each still bound by
 "the diff and nothing else". The trigger is measured from the changeset in front
 of it, never passed in by `/acs:code` or by `ship.yaml`. Five lenses is the
 shape; the number of *instances* is the reviewer's own call.
+
+**…and scales down by the same rule.** A lens runs when its inputs exist.
+Lens C judges conformance to the API contract and the design; on a run whose
+`create-api-contract` recorded `no_surface_owed` and whose subject has no
+`design.md`, it has nothing to judge and records that, exactly as the
+contract step did. Lens B's fan-out on a twenty-line diff is one instance.
+Adjudication is one validator per finding, and a small change yields few.
+None of this reads the delivery path: the reviewer looks at what is in front
+of it. What never scales down — on any path — is lenses A, B, D and E,
+per-finding adjudication, and the gate. That is the floor §1.2 asked for, and
+it is the same floor on `trivial` as on `complex`.
 
 **Stage 2 — adjudication.** Every candidate finding gets one fresh-context
 validator: given the finding, the requirement's intent, and read access to the
@@ -627,6 +680,7 @@ reason now lives in `stop_reason` on a single resumable state.
 |---|---|---|
 | run created | `acs run new` | the first step's pre-hook finds no run for this checkout |
 | step → `in_progress` | `acs step start` | `PreToolUse(Skill)` of that skill |
+| step → `completed` with a no-op `outcome` | `acs step finish --no-op` | the skill's pre-hook finds nothing owed in `## Contract`; no coordinator runs |
 | step → `completed` / `failed` | `acs step finish`, from `result.json` | the skill's post-hook |
 | step → `interrupted` | `acs step finish --interrupted` | `Stop` on an abandoned step; `SessionEnd` |
 | `loops.<step>.iteration` += 1 | `acs step finish` | `review-code` finishes with `outcome: blocking_findings` |
@@ -773,6 +827,7 @@ Every skill keeps hook-backed gating; prose is never the enforcement mechanism.
 | Event | Enforces |
 |---|---|
 | `PreToolUse(Skill)` | the step is at or behind `run.json`'s cursor |
+| `PreToolUse(Skill)` — new | records a no-op completion from `## Contract` and refuses the invocation, so nothing is owed costs nothing (§2.2) |
 | `PreToolUse(Write\|Edit\|MultiEdit)` | the executor stays inside the plan's file map |
 | `PreToolUse(Write\|Edit\|Bash)` — new | **refuses every mutation while `create-impl-plan` is the active step** (§3.2's read-only guarantee) |
 | `PreToolUse(Skill)` — new | refuses `code` when the plan's approval is absent or its `plan_sha256` is stale |
@@ -848,9 +903,15 @@ Named explicitly so a "from scratch" reading does not discard them:
 
 ## 8. Refactor plan
 
-Seven phases. Each is an epic; each lands independently and leaves the tree
-green. There is **no interim release**: `[Unreleased]` accumulates through
-P1–P6 and the v0.5.0 cut happens once, at the end, against the finished tree.
+Seven phases, each landing independently and leaving the tree green. There is
+**no interim release**: `[Unreleased]` accumulates through P1–P6 and the
+v0.5.0 cut happens once, at the end, against the finished tree.
+
+**This plan is executed directly, not through the acs pipeline.** The pipeline
+cannot rebuild its own state machine while running on it, and every phase
+below changes something `/acs:ship` or `/acs:code` depends on. The phases are
+ordinary branches and PRs, labelled `acs-exempt`; this document is the plan of
+record and there are no tracker tickets for it.
 
 **P1 — the state machine.** All of §4: the run partition and `runs-index.json`;
 `run.json` with its four run states, four step states, single-writer
@@ -876,8 +937,8 @@ that says why they came back out.
 **P2b — re-home the predicates.** Each removed predicate lands on the skill
 that can evaluate it from its own inputs (§2.1's table): `create-api-contract`,
 `create-test-docs`, `create-e2e-tests` and `run-e2e-tests` each gain their
-applicability check, their evidenced no-op artifact and their `outcome`
-vocabulary (§4.2); `/acs:code` gains the leg dispatch the per-path `skill:`
+applicability check **in their pre-hook** (§2.2), their evidenced no-op
+artifact and their `outcome` vocabulary (§4.5); `/acs:code` gains the leg dispatch the per-path `skill:`
 mapping used to do; `/acs:create-impl-plan` gains the `## Contract` block
 (§3.2) that records the delivery path and the "owed" statements. Five skills,
 each a small change, none of which touches the engine.
