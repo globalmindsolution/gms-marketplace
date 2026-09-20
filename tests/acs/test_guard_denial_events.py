@@ -375,7 +375,7 @@ class GuardEventsCliTest(GuardEventsCase):
         out = self.acs("guard", "events", "--run", self.ticket, "--skill", "docs-sync")
         self.assertEqual(out.returncode, 2)
         self.assertIn("acs guard events:", out.stderr)
-        self.assertIn("docs-sync-state.json", out.stderr)
+        self.assertIn("steps/docs-sync/state.json", out.stderr)
 
     def test_the_guard_group_is_registered_as_a_group_of_its_own(self):
         """Asserting the word "guard" in `--help` proves nothing: the untouched
@@ -402,6 +402,7 @@ class DerivedGuardDenialsCase(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
         self.ticket = self.new_ticket("Bulk import", "task")
+        self.rdir_path = self.ensure_run(self.ticket)
 
     def seed_run(self, events=None, skill="code"):
         path = lib.state_path(self.rdir_path, skill)
@@ -445,7 +446,7 @@ class PostHookGuardDenialsTest(DerivedGuardDenialsCase):
         return lib.load_state(self.rdir_path, "code", self.ticket)["states"]
 
     def _entry(self):
-        return lib.last_run(lib.load_state(self.rdir_path, "code", self.ticket))
+        return lib.last_invocation(lib.load_state(self.rdir_path, "code", self.ticket))
 
     def test_the_count_is_derived_from_the_state_file(self):
         self.seed_run(events=2)
@@ -491,7 +492,8 @@ class SchemaTest(unittest.TestCase):
     def setUp(self):
         with open(SCHEMA_PATH, encoding="utf-8") as fh:
             self.schema = json.load(fh)
-        self.entry = (self.schema["properties"]["invocations"]["items"])
+        # `invocations.items` is a $ref now; the shape lives in $defs.
+        self.entry = self.schema["$defs"]["invocation"]
 
     def test_guard_events_is_declared_on_the_run_entry(self):
         events = self.entry["properties"]["guard_events"]
@@ -549,8 +551,12 @@ class ProseTest(unittest.TestCase):
         body = self._body(WORKSPACE_DOC)
         self.assertIn("runs[-1].guard_events", body)
 
-    def test_the_code_skill_names_guard_denials_as_derived(self):
-        self.assertIn("guard_denials", self._body(CODE_SKILL))
+    def test_the_code_skill_names_the_derived_keys(self):
+        """`guard_denials` is derived, so the skill's Finish section says so
+        rather than telling a coordinator to count denials itself."""
+        body = self._body(CODE_SKILL)
+        self.assertIn("DERIVED", body)
+        self.assertIn("computed by the post-hook", body)
 
 
 if __name__ == "__main__":

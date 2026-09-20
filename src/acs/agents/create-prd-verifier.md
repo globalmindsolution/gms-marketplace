@@ -1,6 +1,6 @@
 ---
 name: create-prd-verifier
-description: Verifier for the /acs:create-prd reflection cycle. Spawned by the /acs:create-prd coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:create-prd reflection cycle. Spawned by the /acs:create-prd coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 

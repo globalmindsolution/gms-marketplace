@@ -1,6 +1,6 @@
 ---
 name: standardize-project-executor
-description: Executor for the /acs:standardize-project reflection cycle. Spawned by the /acs:standardize-project coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:standardize-project reflection cycle. Spawned by the /acs:standardize-project coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

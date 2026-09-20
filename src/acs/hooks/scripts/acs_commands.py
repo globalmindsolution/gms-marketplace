@@ -578,7 +578,7 @@ def cmd_guard_events(args):
     path = lib.state_path(rdir, args.skill)
     if not os.path.exists(path):
         die("guard events", "no %s state file at %s" % (args.skill, path))
-    entry = lib.last_run(lib.load_state(rdir, args.skill, run_id)) or {}
+    entry = lib.last_invocation(lib.load_state(rdir, args.skill, run_id)) or {}
     events = entry.get("guard_events") or []
     emit({"ok": True, "run_id": run_id, "skill": args.skill,
           "count": len(events), "events": events, "path": path})

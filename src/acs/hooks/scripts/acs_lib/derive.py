@@ -101,16 +101,22 @@ def execute_reports(tdir, skill):
     return sorted(out, key=lambda item: item[0])
 
 
-def review_iterations(tdir, skill):
-    """How many iterations actually produced a verify artifact.
+def review_iterations(rdir, skill=None):
+    """How many iterations actually produced a review artifact.
 
     Counted from the files on disk rather than from a number the coordinator
-    kept in its head across a loop it may have re-entered."""
+    kept in its head across a loop it may have re-entered. It counts
+    `review-code`'s directories whatever step is being posted: a run has one
+    review, and `code`'s own iteration directories hold implementation, not
+    judgement. `skill` is accepted and ignored so every caller can pass the
+    step it is finishing.
+    """
     seen = set()
-    for number, directory in _iterations(tdir, skill):
-        if any(name.startswith(("verify", "verdict", "lens-", "adjudication"))
-               for name in _listdir(directory)):
-            seen.add(number)
+    for step in VERDICT_SKILLS:
+        for number, directory in _iterations(rdir, step):
+            if any(name.startswith(("verdict", "lens-", "adjudication", "gate"))
+                   for name in _listdir(directory)):
+                seen.add((step, number))
     return len(seen)
 
 
@@ -429,9 +435,9 @@ def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=Non
             review["guard_denials"] = denials
         derived["review"] = review
     if iterations:
-        notes["review"] = "%d iteration(s) with a verify artifact on disk" % iterations
+        notes["review"] = "%d review iteration(s) with a verdict on disk" % iterations
     else:
-        notes["review"] = "no verify artifact on disk"
+        notes["review"] = "no review artifact on disk"
     if denials:
         notes["review"] += "; %d guard denial(s) on runs[-1].guard_events" % denials
 

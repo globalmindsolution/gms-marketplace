@@ -1,6 +1,6 @@
 ---
 name: create-e2e-tests-verifier
-description: Verifier for the /acs:create-e2e-tests reflection cycle. Spawned by the /acs:create-e2e-tests coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:create-e2e-tests reflection cycle. Spawned by the /acs:create-e2e-tests coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: create-architecture-executor
-description: Executor for the /acs:create-architecture reflection cycle. Spawned by the /acs:create-architecture coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-architecture reflection cycle. Spawned by the /acs:create-architecture coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: create-impl-plan-executor
-description: Executor for the /acs:create-impl-plan reflection cycle. Spawned by the /acs:create-impl-plan coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-impl-plan reflection cycle. Spawned by the /acs:create-impl-plan coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

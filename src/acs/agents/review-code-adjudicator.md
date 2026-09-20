@@ -1,6 +1,6 @@
 ---
 name: review-code-adjudicator
-description: Adjudicator for the /acs:review-code cycle — receives ONE candidate finding and tries to refute it. Spawned by the /acs:review-code coordinator with an XML task; not for direct invocation.
+description: Adjudicator for the /acs:review-code cycle — receives ONE candidate finding and tries to refute it. Spawned by the /acs:review-code coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 

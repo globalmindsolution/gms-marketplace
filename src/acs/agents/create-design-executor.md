@@ -1,6 +1,6 @@
 ---
 name: create-design-executor
-description: Executor for the /acs:create-design reflection cycle. Spawned by the /acs:create-design coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-design reflection cycle. Spawned by the /acs:create-design coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

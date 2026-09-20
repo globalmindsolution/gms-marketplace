@@ -55,7 +55,6 @@ SKILL_STATE_SCHEMA = os.path.join(SCHEMAS_DIR, "step-state.schema.json")
 CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
 
 sys.path.insert(0, HOOKS_SCRIPTS)
-import validate_xml  # noqa: E402
 import acs_lib  # noqa: E402
 
 XS_NS = "{http://www.w3.org/2001/XMLSchema}"
@@ -245,13 +244,11 @@ class SkillNameMirrorsTest(unittest.TestCase):
     """AC-3/AC-4: every skill-name registry mirror says setup, not initialize."""
 
     def test_every_skill_name_mirror_says_setup(self):
+        """The XSD and the two schema enums are gone: a skill name validates
+        against the skill DIRECTORIES now (§4.3 I5), so there are two mirrors
+        left instead of five and neither can drift from a list."""
         sources = {
-            "acs-messages.xsd skillName": xsd_skill_enum_values(),
-            "step-state.schema.json skill.enum": json_schema_skill_enum_values(
-                SKILL_STATE_SCHEMA, SKILL_STATE_POINTER),
-            "clarifications.schema.json skill.enum": json_schema_skill_enum_values(
-                CLARIFICATIONS_SCHEMA, CLARIFICATIONS_POINTER),
-            "validate_xml.SKILLS": list(validate_xml.SKILLS),
+            "skills/ (the tree itself)": list(acs_lib.registered_skills()),
             "acs_lib.UNHOOKED_SKILLS": list(acs_lib.UNHOOKED_SKILLS),
             "acs_lib.ATTRIBUTION_SKILL_MAP values": list(acs_lib.ATTRIBUTION_SKILL_MAP.values()),
         }

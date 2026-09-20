@@ -1,6 +1,6 @@
 ---
 name: review-code-lens
-description: One review lens of the /acs:review-code cycle. Spawned by the /acs:review-code coordinator with an XML task naming which lens it is; not for direct invocation.
+description: One review lens of the /acs:review-code cycle. Spawned by the /acs:review-code coordinator with a JSON task naming which lens it is; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: merge-pr-executor
-description: Executor for the /acs:merge-pr reflection cycle. Spawned by the /acs:merge-pr coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:merge-pr reflection cycle. Spawned by the /acs:merge-pr coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

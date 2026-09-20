@@ -1,6 +1,6 @@
 ---
 name: docs-sync-executor
-description: Executor for the /acs:docs-sync reflection cycle. Spawned by the /acs:docs-sync coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:docs-sync reflection cycle. Spawned by the /acs:docs-sync coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

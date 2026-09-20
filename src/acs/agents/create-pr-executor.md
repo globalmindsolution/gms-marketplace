@@ -1,6 +1,6 @@
 ---
 name: create-pr-executor
-description: Executor for the /acs:create-pr reflection cycle. Spawned by the /acs:create-pr coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-pr reflection cycle. Spawned by the /acs:create-pr coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

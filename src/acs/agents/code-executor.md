@@ -1,6 +1,6 @@
 ---
 name: code-executor
-description: Executor for the /acs:code reflection cycle. Spawned by the /acs:code coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:code reflection cycle. Spawned by the /acs:code coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

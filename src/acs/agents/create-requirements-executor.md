@@ -1,6 +1,6 @@
 ---
 name: create-requirements-executor
-description: Executor for the /acs:create-requirements reflection cycle. Spawned by the /acs:create-requirements coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-requirements reflection cycle. Spawned by the /acs:create-requirements coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

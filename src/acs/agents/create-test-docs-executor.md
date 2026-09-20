@@ -1,6 +1,6 @@
 ---
 name: create-test-docs-executor
-description: Executor for the /acs:create-test-docs reflection cycle. Spawned by the /acs:create-test-docs coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-test-docs reflection cycle. Spawned by the /acs:create-test-docs coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

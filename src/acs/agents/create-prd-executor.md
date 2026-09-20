@@ -1,6 +1,6 @@
 ---
 name: create-prd-executor
-description: Executor for the /acs:create-prd reflection cycle. Spawned by the /acs:create-prd coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-prd reflection cycle. Spawned by the /acs:create-prd coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

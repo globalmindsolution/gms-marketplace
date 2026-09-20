@@ -1,6 +1,6 @@
 ---
 name: analyze-requirements-executor
-description: Executor for the /acs:analyze-requirements reflection cycle. Spawned by the /acs:analyze-requirements coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:analyze-requirements reflection cycle. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

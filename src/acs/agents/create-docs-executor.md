@@ -1,6 +1,6 @@
 ---
 name: create-docs-executor
-description: Executor for the /acs:create-docs reflection cycle — authors one product doc set (quality, operations, principles or standards) from its templates and upstream docs. Spawned by the /acs:create-docs coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-docs reflection cycle — authors one product doc set (quality, operations, principles or standards) from its templates and upstream docs. Spawned by the /acs:create-docs coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

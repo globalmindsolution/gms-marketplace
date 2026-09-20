@@ -1,6 +1,6 @@
 ---
 name: standardize-project-verifier
-description: Verifier for the /acs:standardize-project reflection cycle. Spawned by the /acs:standardize-project coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:standardize-project reflection cycle. Spawned by the /acs:standardize-project coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 

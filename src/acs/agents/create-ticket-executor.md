@@ -1,6 +1,6 @@
 ---
 name: create-ticket-executor
-description: Executor for the /acs:create-ticket reflection cycle. Spawned by the /acs:create-ticket coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-ticket reflection cycle. Spawned by the /acs:create-ticket coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 

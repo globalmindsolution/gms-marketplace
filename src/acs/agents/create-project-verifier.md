@@ -1,6 +1,6 @@
 ---
 name: create-project-verifier
-description: Verifier for the /acs:create-project reflection cycle. Spawned by the /acs:create-project coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:create-project reflection cycle. Spawned by the /acs:create-project coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 

@@ -37,7 +37,6 @@ AGENTS = os.path.join(PLUGIN, "agents")
 sys.path.insert(0, HOOKS)
 
 import acs_lib as lib  # noqa: E402
-import validate_xml  # noqa: E402
 
 ROLES = ("executor", "verifier")
 
@@ -346,7 +345,7 @@ class TestTriadShape(unittest.TestCase):
             self.assertTrue(examples, role)
             for example in examples:
                 with self.subTest(role=role):
-                    self.assertEqual(validate_xml.validate_structurally(example), [])
+                    self.assertEqual(lib.validate_message(example), [])
 
     def test_grounding_everywhere_and_policing_in_the_verifier(self):
         for role in ROLES:

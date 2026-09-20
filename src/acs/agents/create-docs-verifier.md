@@ -1,6 +1,6 @@
 ---
 name: create-docs-verifier
-description: Verifier for the /acs:create-docs reflection cycle — judges one product doc set (quality, operations, principles or standards) fresh against its authoring notes, the templates and the upstream docs. Spawned by the /acs:create-docs coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:create-docs reflection cycle — judges one product doc set (quality, operations, principles or standards) fresh against its authoring notes, the templates and the upstream docs. Spawned by the /acs:create-docs coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 

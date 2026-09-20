@@ -35,7 +35,9 @@ class VerifierGroundingPrecisionTest(unittest.TestCase):
                       for p in cls.verifiers}
 
     def test_there_are_verifiers_to_check(self):
-        self.assertGreaterEqual(len(self.verifiers), 14, self.verifiers)
+        # /acs:code's verifier left with the review (§3.5); the rule still
+        # binds every verifier that remains.
+        self.assertGreaterEqual(len(self.verifiers), 13, self.verifiers)
 
     def test_every_verifier_still_polices_grounding(self):
         for name, body in self.bodies.items():

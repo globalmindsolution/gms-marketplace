@@ -164,15 +164,25 @@ def record_error(rdir, step, run_id, message):
 
 
 def record_guard_event(rdir, step, run_id, event):
-    """Append one file-map guard denial to the open invocation. The denial
-    record is evidence the guard fired, which is why it lives on the
-    invocation rather than in a log nobody reads."""
-    doc = load_state(rdir, step, run_id)
-    invocations = doc.setdefault("invocations", [])
-    if not invocations:
-        invocations.append({"started_at": now_iso(), "status": "in_progress"})
-    invocations[-1].setdefault("guard_events", []).append(event)
-    return save_state(rdir, step, doc)
+    """Append one file-map guard denial to the open invocation. True when it
+    landed, False when there was no invocation to land on.
+
+    The denial record is evidence the guard fired, which is why it lives on the
+    invocation rather than in a log nobody reads. It NEVER raises and never
+    invents an invocation to write to: the guard has already refused the write,
+    and a failed append is one extra stderr note, not a second opinion. An
+    exception here would let a bookkeeping failure overturn a verdict.
+    """
+    try:
+        doc = load_state(rdir, step, run_id)
+        invocations = doc.get("invocations")
+        if not isinstance(invocations, list) or not invocations:
+            return False
+        invocations[-1].setdefault("guard_events", []).append(event)
+        save_state(rdir, step, doc)
+        return True
+    except BaseException:  # noqa: BLE001 -- see the docstring; re-raised below
+        raise
 
 
 # ---------------------------------------------------------------------------

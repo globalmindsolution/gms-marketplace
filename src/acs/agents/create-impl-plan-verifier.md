@@ -1,6 +1,6 @@
 ---
 name: create-impl-plan-verifier
-description: Verifier for the /acs:create-impl-plan reflection cycle. Spawned by the /acs:create-impl-plan coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:create-impl-plan reflection cycle. Spawned by the /acs:create-impl-plan coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
