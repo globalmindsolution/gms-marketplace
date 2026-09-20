@@ -394,7 +394,8 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
                    reconcile, handoff_summary, prior_status):
     """The context document a coordinator parses at Start.
 
-    It replaces skill-start.py's, and it is the same document for every skill
+    It replaces the one `skill-start.py` printed before that script was
+    removed, and it is the same document for every skill
     (§3.11): one resolution, printed once, rather than a per-skill assembly
     each gate had its own copy of. `ticket` and `design` are present only when
     the run's SUBJECT is a ticket -- a run started from a prompt or a document

@@ -48,9 +48,9 @@ from .repo import sessions_dir, session_marker_path
 GATE_RESPONSES = ("warn", "refuse")
 DEFAULT_GATE_RESPONSE = "warn"
 
-#: The staleness window skill-start.py has applied to the session marker since
-#: MAR-1. Read here only by `accepted_session_marker`, which serves session
-#: CORRELATION; gate evidence has its own window below so that changing one
+#: The staleness window the Start path has applied to the session marker since
+#: MAR-1 (`skill-start.py` then, `acs step start` now). Read here only by
+#: `accepted_session_marker`, which serves session CORRELATION; gate evidence has its own window below so that changing one
 #: clock never moves the other.
 SESSION_MARKER_MAX_AGE_SECONDS = 15 * 60
 

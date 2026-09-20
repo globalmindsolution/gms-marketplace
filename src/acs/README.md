@@ -25,7 +25,6 @@ On the machine running Claude Code, inside the consumer repo:
 | `python3` 3.9+ | Yes | All hooks and helper CLIs (stdlib only — no pip installs) |
 | `gh` (authenticated) | Yes | Pull requests; ticket sync when `tracker.provider` is `github` |
 | `acli` (authenticated) | Only with `tracker.provider: "jira"` | Jira ticket sync |
-| `xmllint` | Optional | Full XSD validation of agent messages (structural fallback otherwise) |
 
 ## Install
 

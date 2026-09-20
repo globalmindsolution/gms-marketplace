@@ -435,7 +435,8 @@ def _recorded_pr(tdir, skill):
 def _children_view(tdir, fields):
     """For an epic with children: 'done' when the index says every child is
     done, 'active' when any child has started, else 'open'; None otherwise.
-    Mirrors what _epic_auto_done and skill-start's parent flip used to write."""
+    Mirrors what _epic_auto_done and the retired skill-start.py's parent flip
+    used to write."""
     if not isinstance(fields, dict) or fields.get("type") != "epic":
         return None
     children = [c for c in (fields.get("children") or []) if isinstance(c, str)]

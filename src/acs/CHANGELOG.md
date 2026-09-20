@@ -236,6 +236,20 @@ consumer owns the pipeline.
    Branch creation therefore stays in `/acs:analyze-requirements`, exactly
    where v0.4.9 has it, until the guard exists.
 
+**The record is reconciled with the re-cut** (follow-up). Every ADR whose
+Decision rested on a carrier this cycle removed now carries an append-only
+amendment naming what carries it instead, and ADR-0100 records the message
+contract that replaced `acs-messages.xsd` — two contracts, not one: a
+subagent's return is XML checked on the attributes the snapshot path needs
+(`acs_lib.lifecycle.validate_message`), and the documents a step writes are
+JSON validated by JSON Schema, one central envelope plus a
+`skills/<name>/state.schema.json` fragment per skill.
+
+- **`xmllint` is no longer part of the acs toolchain.** `/acs:setup`'s Step 0b
+  preflight (`acs_lib.check_toolchain`) stops listing and offering it: with the
+  XSD and `validate_xml.py` gone, nothing acs runs shells out to an XML tool.
+  A consumer that installed it for acs can drop it; nothing else changes.
+
 
 > ### ⚠️ The skills-independence refactor contains BREAKING changes
 >

@@ -506,7 +506,7 @@ class ToolchainTests(unittest.TestCase):
 
     def test_reports_every_known_tool(self):
         names = [r["name"] for r in lib.check_toolchain()]
-        self.assertEqual(set(names), {"git", "python3", "gh", "pre-commit", "xmllint", "acli"})
+        self.assertEqual(set(names), {"git", "python3", "gh", "pre-commit", "acli"})
 
     def test_core_tools_present_and_required(self):
         rows = {r["name"]: r for r in lib.check_toolchain()}
@@ -529,7 +529,7 @@ class ToolchainTests(unittest.TestCase):
         missing = lib.missing_tools()  # required + recommended by default
         self.assertNotIn("git", missing)
         self.assertNotIn("python3", missing)
-        self.assertNotIn("xmllint", missing)  # optional, never offered by default
+        self.assertNotIn("acli", missing)  # optional, never offered by default
         for name in missing:
             self.assertIn(name, {"gh", "pre-commit"})
 

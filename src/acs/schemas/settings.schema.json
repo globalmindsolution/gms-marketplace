@@ -263,7 +263,7 @@
       "additionalProperties": true
     },
     "hook_gates": {
-      "description": "What acs does when it detects that the hook gates are not firing for a run. acs's enforcement is carried by the hooks bound in hooks/hooks.json to Claude Code lifecycle events; on a runtime that does not raise them nothing is gated, and skill-start.py reports that in the context document it prints. when_absent: warn (the default) prints the degraded-enforcement notice naming every enforcement not in force and lets the run continue, so an install on a hookless runtime keeps working; refuse blocks the run with exit 2 before any partition, lock, pointer or ledger write. Deliberately top-level and NOT under `enforcement`, which scopes the CI conventions checker.",
+      "description": "What acs does when it detects that the hook gates are not firing for a run. acs's enforcement is carried by the hooks bound in hooks/hooks.json to Claude Code lifecycle events; on a runtime that does not raise them nothing is gated, and `acs step start` reports that in the context document it prints. when_absent: warn (the default) prints the degraded-enforcement notice naming every enforcement not in force and lets the run continue, so an install on a hookless runtime keeps working; refuse blocks the run with exit 2 before any partition, lock, pointer or ledger write. Deliberately top-level and NOT under `enforcement`, which scopes the CI conventions checker.",
       "type": "object",
       "properties": {
         "when_absent": {
