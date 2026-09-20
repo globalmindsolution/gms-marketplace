@@ -107,7 +107,7 @@ def derived_passed(doc):
     return not blocking_findings(doc)
 
 
-def validate_verdict(doc, lens=None, skill=None, ticket_id=None, iteration=None):
+def validate_verdict(doc, lens=None, skill=None, run_id=None, iteration=None):
     """Errors in a verdict document; an empty list means it is well formed.
 
     Two checks are the point of the module, and neither is expressible in JSON
@@ -118,7 +118,7 @@ def validate_verdict(doc, lens=None, skill=None, ticket_id=None, iteration=None)
         while carrying a blocking finding is not a verdict, and believing it is
         exactly what MAR-527 removes.
       * The document must be ABOUT the run it was read for. `skill`,
-        `ticket_id` and `iteration` are checked against the caller's when the
+        `run_id` and `iteration` are checked against the caller's when the
         caller supplies them, because a verdict is only evidence for the run
         that produced it -- iteration 1's clean verdict copied onto iteration
         3's path is not iteration 3's verdict, and the review loop's fixed
@@ -128,13 +128,13 @@ def validate_verdict(doc, lens=None, skill=None, ticket_id=None, iteration=None)
     if not isinstance(doc, dict):
         return ["verdict must be a JSON object, got %s" % type(doc).__name__]
 
-    for field in ("skill", "ticket_id"):
+    for field in ("skill", "run_id"):
         if not isinstance(doc.get(field), str) or not doc[field].strip():
             errors.append("%s is required and must be a non-empty string" % field)
     if not isinstance(doc.get("iteration"), int) or doc["iteration"] < 1:
         errors.append("iteration is required and must be a positive integer")
 
-    for field, expected in (("skill", skill), ("ticket_id", ticket_id),
+    for field, expected in (("skill", skill), ("run_id", run_id),
                             ("iteration", iteration)):
         if expected is None:
             continue
@@ -257,7 +257,7 @@ def merge_lens_verdicts(docs):
     first = next((d for d in docs if isinstance(d, dict)), {})
     out = {
         "skill": first.get("skill"),
-        "ticket_id": first.get("ticket_id"),
+        "run_id": first.get("run_id"),
         "iteration": first.get("iteration"),
         "lens": None,
         "merged_from": sorted(lenses),

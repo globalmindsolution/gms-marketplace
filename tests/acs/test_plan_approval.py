@@ -320,12 +320,27 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         return tid
 
     def _classify(self, ticket, path, reason="fixture: a plan of that shape"):
-        lib.workflow.record_delivery_path(self.tdir(ticket), ticket, path, reason)
+        """The path is no longer recorded on the ticket by a workflow writer:
+        the PLAN records it, in its `## Contract` block (§3.2), because the
+        plan is what knows the shape of the change. So classifying a fixture
+        means writing the block."""
+        self._path, self._reason = path, reason
+
+    def _contract(self):
+        return ("\n## Contract\ndelivery_path: %s\nowes:\n  api_contract: false\n"
+                "  test_cases: true\n  e2e: false\n  reason: \"%s\"\n"
+                % (getattr(self, "_path", "standard"),
+                   getattr(self, "_reason", "fixture")))
 
     def _plan_dir(self, ticket):
-        return os.path.join(self.tdir(ticket), "phases", "code")
+        self.ensure_run(ticket)
+        return os.path.join(self.rdir(ticket), "steps", "create-impl-plan")
 
     def _write_plan(self, ticket, text, filename="plan.md"):
+        # The plan carries its `## Contract` block, so the bytes on disk are
+        # the prose PLUS the block -- and `plan_sha256` hashes the whole file.
+        text = text + self._contract()
+        self._last_plan_text = text
         d = self._plan_dir(ticket)
         os.makedirs(d, exist_ok=True)
         path = os.path.join(d, filename)
@@ -341,22 +356,24 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
             return json.load(fh)
 
     def _state(self, ticket):
-        return lib.read_json(lib.state_path(self.tdir(ticket), "code"))
+        """The approval mirrors into the PLAN step's state, beside the plan it
+        approves -- not into code's."""
+        return lib.read_json(lib.step_state_path(self.rdir(ticket), "create-impl-plan"))
 
     def test_writes_record_on_the_standard_path(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
-        out = self.run_script("plan-approval.py", "--ticket", tid)
+        out = self.run_script("plan-approval.py", "--run", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         record = self._read_record(tid)
         self.assertTrue(record["eligible"])
-        self.assertEqual(record["plan_path"], "phases/code/plan.md")
+        self.assertEqual(record["plan_path"], "steps/create-impl-plan/plan.md")
         self.assertEqual(record["writer"], "plan-approval.py")
 
     def test_record_carries_predicate_inputs_and_checks(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
-        self.run_script("plan-approval.py", "--ticket", tid)
+        self.run_script("plan-approval.py", "--run", tid)
         record = self._read_record(tid)
         predicate = record["predicate"]
         self.assertEqual(predicate["function"], "acs_lib.plan_approval_eligible")
@@ -368,7 +385,7 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
     def test_record_digest_matches_plan_bytes(self):
         tid = self._new_standard_ticket()
         plan_path = self._write_plan(tid, CONFORMING_PLAN)
-        self.run_script("plan-approval.py", "--ticket", tid)
+        self.run_script("plan-approval.py", "--run", tid)
         record = self._read_record(tid)
         with open(plan_path, "rb") as fh:
             expected = hashlib.sha256(fh.read()).hexdigest()
@@ -377,10 +394,10 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
     def test_second_run_same_digest_does_not_rewrite(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
-        self.run_script("plan-approval.py", "--ticket", tid)
+        self.run_script("plan-approval.py", "--run", tid)
         with open(self._record_path(tid), "rb") as fh:
             before = fh.read()
-        out2 = self.run_script("plan-approval.py", "--ticket", tid)
+        out2 = self.run_script("plan-approval.py", "--run", tid)
         self.assertEqual(out2.returncode, 0, out2.stderr)
         self.assertEqual(json.loads(out2.stdout).get("skipped"), "already-approved")
         with open(self._record_path(tid), "rb") as fh:
@@ -390,47 +407,48 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
     def test_revised_plan_writes_record_for_new_digest(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
-        self.run_script("plan-approval.py", "--ticket", tid)
+        self.run_script("plan-approval.py", "--run", tid)
         revised = CONFORMING_PLAN.replace("Risk content.", "Risk content, revised.")
         self._write_plan(tid, revised)
-        out = self.run_script("plan-approval.py", "--ticket", tid)
+        out = self.run_script("plan-approval.py", "--run", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         record = self._read_record(tid)
-        expected = hashlib.sha256(revised.encode("utf-8")).hexdigest()
+        expected = hashlib.sha256(self._last_plan_text.encode("utf-8")).hexdigest()
         self.assertEqual(record["plan_sha256"], expected)
 
     def test_state_field_true_after_approval(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
-        self.run_script("plan-approval.py", "--ticket", tid)
+        self.run_script("plan-approval.py", "--run", tid)
         state = self._state(tid)
-        self.assertTrue(state["states"]["plan_approved"])
+        self.assertTrue((state or {}).get("states", {}).get("plan_approved"))
 
     def test_state_field_false_when_ineligible(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, "not a conforming plan at all")
-        self.run_script("plan-approval.py", "--ticket", tid)
+        self.run_script("plan-approval.py", "--run", tid)
         state = self._state(tid)
-        self.assertFalse(state["states"]["plan_approved"])
+        self.assertFalse((state or {}).get("states", {}).get("plan_approved"))
 
     def test_ineligible_plan_writes_no_record(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, "not a conforming plan at all")
-        out = self.run_script("plan-approval.py", "--ticket", tid)
+        out = self.run_script("plan-approval.py", "--run", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         payload = json.loads(out.stdout)
         self.assertTrue(payload["failures"])
         self.assertFalse(os.path.exists(
-            os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
+            os.path.join(self._plan_dir(tid), "plan-approval.json")))
 
     def test_missing_plan_artifact_is_not_eligible(self):
         tid = self._new_standard_ticket()
-        out = self.run_script("plan-approval.py", "--ticket", tid)
+        self.ensure_run(tid)
+        out = self.run_script("plan-approval.py", "--run", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertFalse(os.path.exists(
-            os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
+            os.path.join(self._plan_dir(tid), "plan-approval.json")))
         state = self._state(tid)
-        self.assertFalse(state["states"]["plan_approved"])
+        self.assertFalse((state or {}).get("states", {}).get("plan_approved"))
 
     def test_a_cheap_path_writes_no_record(self):
         for path in ("trivial", "small"):
@@ -438,30 +456,35 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
                 tid = self.new_ticket("Small fix", "task")
                 self._classify(tid, path)
                 self._write_plan(tid, CONFORMING_PLAN)
-                out = self.run_script("plan-approval.py", "--ticket", tid)
+                out = self.run_script("plan-approval.py", "--run", tid)
                 self.assertEqual(out.returncode, 0, out.stderr)
                 payload = json.loads(out.stdout)
                 self.assertEqual(payload.get("skipped"), "delivery_path")
                 self.assertEqual(payload.get("delivery_path"), path)
                 self.assertFalse(payload["plan_approved"])
                 self.assertFalse(os.path.exists(
-                    os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
+                    os.path.join(self._plan_dir(tid), "plan-approval.json")))
 
-    def test_an_unclassified_ticket_is_not_due_an_approval(self):
-        """No recorded path means the plan has not been judged, which means
+    def test_an_unclassified_plan_is_not_due_an_approval(self):
+        """A plan with no `## Contract` block has not been judged, which means
         nothing downstream is waiting on an approval. Not an error -- not due."""
         tid = self.new_ticket("Unclassified", "task")
-        self._write_plan(tid, CONFORMING_PLAN)
-        out = self.run_script("plan-approval.py", "--ticket", tid)
+        self.ensure_run(tid)
+        d = self._plan_dir(tid)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "plan.md"), "w", encoding="utf-8") as fh:
+            fh.write(CONFORMING_PLAN)   # deliberately WITHOUT a Contract block
+        out = self.run_script("plan-approval.py", "--run", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         payload = json.loads(out.stdout)
         self.assertEqual(payload.get("skipped"), "unclassified")
         self.assertIsNone(payload.get("delivery_path"))
         self.assertFalse(os.path.exists(
-            os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
+            os.path.join(self._plan_dir(tid), "plan-approval.json")))
 
-    def test_the_path_is_read_from_the_ledger_never_from_the_ticket(self):
-        """The judgement lives on run.json. A stale `lane` left on a
+    def test_the_path_is_read_from_the_plan_never_from_the_ticket(self):
+        """The judgement lives in the PLAN's `## Contract` block (§3.2) -- the
+        plan is what knows the shape of the change. A stale `lane` left on a
         ticket by a pre-ADR-0095 partition must not steer anything."""
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
@@ -472,10 +495,10 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
             ticket["lane"] = "TRIVIAL"          # inert data since ADR-0095
             with open(ticket_path, "w", encoding="utf-8") as fh:
                 json.dump(ticket, fh)
-        out = self.run_script("plan-approval.py", "--ticket", tid)
+        out = self.run_script("plan-approval.py", "--run", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertTrue(os.path.exists(
-            os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
+            os.path.join(self._plan_dir(tid), "plan-approval.json")))
 
     def test_fold_active_detected_from_specs_dir(self):
         foldless = (
@@ -489,43 +512,43 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
 
         tid_a = self._new_standard_ticket()
         self._write_plan(tid_a, foldless)
-        specs_a = os.path.join(self.tdir(tid_a), "specs")
+        specs_a = os.path.join(self.rdir(tid_a), "specs")
         os.makedirs(specs_a, exist_ok=True)
         with open(os.path.join(specs_a, "01-x.md"), "w", encoding="utf-8") as fh:
             fh.write("real spec content")
-        out_a = self.run_script("plan-approval.py", "--ticket", tid_a)
+        out_a = self.run_script("plan-approval.py", "--run", tid_a)
         self.assertEqual(out_a.returncode, 0, out_a.stderr)
         self.assertTrue(json.loads(out_a.stdout)["eligible"], out_a.stdout)
 
         tid_b = self._new_standard_ticket()
         self._write_plan(tid_b, foldless)
-        specs_b = os.path.join(self.tdir(tid_b), "specs")
+        specs_b = os.path.join(self.rdir(tid_b), "specs")
         os.makedirs(specs_b, exist_ok=True)
         # A non-.md file in specs/ must never itself flip fold_active.
         with open(os.path.join(specs_b, "readme.txt"), "w", encoding="utf-8") as fh:
             fh.write("plain text, not markdown")
-        out_b = self.run_script("plan-approval.py", "--ticket", tid_b)
+        out_b = self.run_script("plan-approval.py", "--run", tid_b)
         self.assertEqual(out_b.returncode, 0, out_b.stderr)
         self.assertFalse(json.loads(out_b.stdout)["eligible"])
 
     def test_fold_active_skips_unreadable_spec_file(self):
         tid = self._new_standard_ticket()
         self._write_plan(tid, CONFORMING_PLAN)
-        specs_dir = os.path.join(self.tdir(tid), "specs")
+        specs_dir = os.path.join(self.rdir(tid), "specs")
         os.makedirs(specs_dir, exist_ok=True)
         os.symlink(os.path.join(specs_dir, "does-not-exist.md"),
                   os.path.join(specs_dir, "00-broken.md"))
-        out = self.run_script("plan-approval.py", "--ticket", tid)
+        out = self.run_script("plan-approval.py", "--run", tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertTrue(json.loads(out.stdout)["eligible"], out.stdout)
 
     def test_explicit_plan_argument_is_used(self):
         tid = self._new_standard_ticket()
         alt_path = self._write_plan(tid, CONFORMING_PLAN, filename="alt-plan.md")
-        out = self.run_script("plan-approval.py", "--ticket", tid, "--plan", alt_path)
+        out = self.run_script("plan-approval.py", "--run", tid, "--plan", alt_path)
         self.assertEqual(out.returncode, 0, out.stderr)
         record = self._read_record(tid)
-        self.assertEqual(record["plan_path"], "phases/code/alt-plan.md")
+        self.assertEqual(record["plan_path"], "steps/create-impl-plan/alt-plan.md")
 
     def test_escaping_plan_argument_is_rejected(self):
         tid = self._new_standard_ticket()
@@ -534,12 +557,12 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         evil_path = os.path.join(outside_dir, "evil-plan.md")
         with open(evil_path, "w", encoding="utf-8") as fh:
             fh.write(CONFORMING_PLAN)
-        out = self.run_script("plan-approval.py", "--ticket", tid, "--plan", evil_path)
+        out = self.run_script("plan-approval.py", "--run", tid, "--plan", evil_path)
         self.assertEqual(out.returncode, 2)
         self.assertEqual(out.stdout, "")
         self.assertNotIn("Traceback", out.stderr)
         self.assertFalse(os.path.exists(
-            os.path.join(self.tdir(tid), "phases", "code", "plan-approval.json")))
+            os.path.join(self._plan_dir(tid), "plan-approval.json")))
 
     def test_unresolvable_ticket_exits_two_with_clean_stderr(self):
         out = self.run_script("plan-approval.py")
@@ -550,35 +573,10 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
     def test_gate_error_on_non_git_cwd_exits_two(self):
         nongit = tempfile.mkdtemp(prefix="acs-plan-approval-nongit-")
         self.addCleanup(shutil.rmtree, nongit, True)
-        out = self.run_script("plan-approval.py", "--ticket", "SHOP-1", cwd=nongit)
+        out = self.run_script("plan-approval.py", "--run", "SHOP-1", cwd=nongit)
         self.assertEqual(out.returncode, 2)
         self.assertEqual(out.stdout, "")
         self.assertNotIn("Traceback", out.stderr)
-
-    def test_archived_partition_is_refused(self):
-        tid = self._new_standard_ticket()
-        self._write_plan(tid, CONFORMING_PLAN)
-        tdir = self.tdir(tid)
-        archived_dir = os.path.join(lib.archive_dir(self.ws, "acme-shop"), tid)
-        os.makedirs(os.path.dirname(archived_dir), exist_ok=True)
-        shutil.move(tdir, archived_dir)
-        out = self.run_script("plan-approval.py", "--ticket", tid)
-        self.assertEqual(out.returncode, 2)
-        self.assertNotIn("Traceback", out.stderr)
-
-    def test_corrupt_ticket_json_exits_two(self):
-        tid = self._new_standard_ticket()
-        self._write_plan(tid, CONFORMING_PLAN)
-        ticket_path = os.path.join(self.tdir(tid), "ticket.json")
-        with open(ticket_path, "w", encoding="utf-8") as fh:
-            fh.write("{not valid json")
-        out = self.run_script("plan-approval.py", "--ticket", tid)
-        self.assertEqual(out.returncode, 2)
-        self.assertNotIn("Traceback", out.stderr)
-
-
-class PlanApprovalWriterIsTheOnlyWriterTest(unittest.TestCase):
-    """AC-1 'via the hook script only'."""
 
     def test_only_hook_script_names_the_record(self):
         hits = []

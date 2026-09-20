@@ -178,7 +178,7 @@ def derive_verifier_passed(tdir, skill, run_id=None, since=None):
     Three things have to hold, and each was a way in before:
       * the verdict belongs to THIS run (`since`), not one left behind by a
         previous /acs:code on the same ticket;
-      * it is ABOUT this ticket and skill (`ticket_id`) -- only its path was
+      * it is ABOUT this ticket and skill (`run_id`) -- only its path was
         ever checked, so a document naming another ticket was accepted;
       * it is COMPLETE -- validate_verdict now requires every owed dimension,
         so a one-dimension document no longer reads as a clean review.

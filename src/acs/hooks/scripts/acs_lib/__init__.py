@@ -184,7 +184,9 @@ from . import step as step_machine  # noqa: F401,E402
 from .step import (append_invocation, finalize_invocation, load_fragment,  # noqa: F401
     load_result, outcome_vocabulary, result_path, validate_result,
     write_noop_result)
-from .step import empty_state as empty_step_state  # noqa: F401
+from .step import empty_state, empty_state as empty_step_state  # noqa: F401
+from .step import record_error, record_guard_event  # noqa: F401
+from .step import load_state, save_state  # noqa: F401
 from .step import last_invocation, last_status  # noqa: F401
 from .step import load_state as load_step_state  # noqa: F401
 from .step import save_state as save_step_state  # noqa: F401
