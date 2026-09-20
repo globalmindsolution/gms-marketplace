@@ -49,10 +49,9 @@ is keyed by *skill name*: `pipeline-state.json`'s `steps` object, the
 `pipeline-state.schema.json` closes `steps.propertyNames` to a hard-coded
 **18-name enum**, and `flow` to a 2-value enum (`ticket`, `product`). No file
 records a workflow name, version, or instance. Consequences: a new workflow is
-a schema edit; a workflow cannot use a skill twice; two workflows cannot share
-a skill; the same workflow cannot run twice on one subject. `ship.yaml` already
-distinguishes a step's `id` from its `skill` — the state layer throws the `id`
-away.
+a schema edit; two workflows cannot share a skill; the same workflow cannot
+run twice on one subject. §4.1 lists what is on disk and the six things wrong
+with it.
 
 **2. The review is inside the thing it reviews.** `/acs:code` spawns its own
 verifier, so the implementation skill grades its own output, and the review's
@@ -122,52 +121,49 @@ a `max_parallel` knob are a poor price for one step's wall-clock. Ten steps run
 in the order they are written.
 
 What remains is a **list**, which is the whole point: the pipeline's shape is
-legible by reading it top to bottom, and `acs workflow next` is "the first step
+legible by reading it top to bottom, and `acs run next` is "the first step
 not yet completed" rather than a graph traversal.
 
 ### 2.1 `workflows/ship.yaml` (version 3)
 
 ```yaml
 version: 3
-name: ship
-stop_after: create-pr
 
 steps:
-  - id: analyze-requirements
-    skill: analyze-requirements
-  - id: create-impl-plan
-    skill: create-impl-plan
-  - id: create-api-contract
-    skill: create-api-contract
-  - id: create-test-docs
-    skill: create-test-docs
-  - id: code
-    skill: code
-  - id: review-code
-    skill: review-code
-    loop:
-      back_to: code           # on blocking findings, re-enter at `code`
-      max_iterations: 3       # counts code→review-code rounds
-      on_exhausted: fail      # never "pass with findings"
-  - id: create-e2e-tests
-    skill: create-e2e-tests
-  - id: run-e2e-tests
-    skill: run-e2e-tests
-  - id: docs-sync
-    skill: docs-sync
-  - id: create-pr
-    skill: create-pr
+  - analyze-requirements
+  - create-impl-plan
+  - create-api-contract
+  - create-test-docs
+  - code
+  - review-code
+  - create-e2e-tests
+  - run-e2e-tests
+  - docs-sync
+  - create-pr
+
+loops:
+  - from: review-code
+    back_to: code             # on blocking findings, re-enter at `code`
+    max_iterations: 3         # counts code→review-code rounds
+    on_exhausted: fail        # never "pass with findings"
 ```
 
-That is the entire file. Four keys at the top level, `id` and `skill` per step,
-and one `loop:`.
+That is the entire file: a version, a list of skill names, and the one loop.
 
-**`loop:` is the only construct, and it is not a condition.** It tests nothing
-about the change — it declares that two steps form a cycle and how many times.
-That cannot live inside a skill, because it spans two of them: today the
-execute↔verify loop lives *inside* `/acs:code`, which is precisely why the
-review cannot be a separate skill. Moving the loop into the workflow is what
-lets `/acs:review-code` be standalone, and it is the crux of this redesign.
+**No `id:`.** A step is a skill; with no conditions and no reuse of a skill
+inside one workflow, an `id` would name nothing the skill name does not.
+State is keyed by skill name (§4.2). **No `name:`** — the file name is the
+name, and `run.json` records it as such. **No `stop_after:`** — the list ends
+where the run ends; `merge-pr` is not in it.
+
+**`loops:` is the only construct, and it is not a condition.** A loop tests
+nothing about the change — it declares that two steps form a cycle and how
+many times. That cannot live inside a skill, because it spans two of them:
+today the execute↔verify loop lives *inside* `/acs:code`, which is precisely
+why the review cannot be a separate skill. Moving the loop into the workflow
+is what lets `/acs:review-code` be standalone, and it is the crux of this
+redesign. It is a top-level list rather than a key on a step for the same
+reason: it belongs to the pair, not to either member.
 
 **Where the removed predicates went.** Nothing is lost; each moves to the party
 that can evaluate it from its own inputs:
@@ -180,7 +176,8 @@ that can evaluate it from its own inputs:
 | `requires: design_approved` | `/acs:create-impl-plan`'s own start check, where the approval file already lives |
 | `delivery:` + per-path `skill:` mapping | the plan records the path; `/acs:code` dispatches to its leg (§3.5) |
 | `needs:`, `max_parallel`, `exclusive` | the written order |
-| `on_fail: relay_to` | the `loop:` above, for the one loop there is |
+| `on_fail: relay_to` | the `loops:` entry above, for the one loop there is |
+| `id:`, `name:`, `stop_after:` | the skill name, the file name, the end of the list |
 
 ---
 
@@ -230,6 +227,15 @@ Four properties, taken from plan mode and binding here:
    records `plan_sha256` over the approved plan, and an edited plan is an
    unapproved plan. This part acs already has and plan mode does not; it is what
    makes the approval survive a resumption hours later.
+
+**Modelled on plan mode, not built with it.** `INTERNALS.md` records why the
+reflection loop does not use `EnterPlanMode` / `ExitPlanMode`: those are for a
+user at the keyboard, and subagents have none. That reasoning stands and
+nothing here contradicts it. The four properties above are implemented by
+acs's own hook and by `plan-approval.py`, and the party that stops for
+approval is the coordinator, which does have a user. Under `/acs:ship` the run
+pauses at this step on the paths that enforce approval (§3.5) — as it does
+today.
 
 Two things the plan carries that a plan-mode plan does not, because downstream
 machinery reads them:
@@ -468,73 +474,217 @@ does not run.
 
 ## 4. State
 
-Two state machines, both explicit, both durable, both resumable.
+Two machines — the **run** (the workflow's progress) and the **step** (one
+skill's progress inside it) — both explicit, both durable, both resumable, and
+both redesigned here rather than re-keyed. §4.1 says what exists today and why
+it cannot hold a second workflow; §4.2–4.9 specify the replacement.
 
-### 4.1 Layout
+### 4.1 What exists today, and what is wrong with it
 
 ```
 .acs/state-machine/<repo-id>/
-  counters.json                       # id allocation
-  index.json                          # every run, its subject and status
-  runs/<run-id>/
-    run.json                          # WORKFLOW state
-    requirements.md                   # step 1's artifact, the run's authority
-    clarifications.json               # ledger, run-scoped
-    inputs/                           # the prompt / document / ticket ref given
-    steps/<step-id>/
-      state.json                      # SKILL state
-      <artifacts>                     # plan.md, iter-N-*.json, verdict.json, …
+  counters.json                    ticket id allocator
+  tickets-index.json               every ticket
+  metrics.json                     repo aggregates
+  sessions/<checkout>.json         current-ticket pointer   ┐
+  sessions/<checkout>-session.json                          │ five files per checkout,
+  sessions/<checkout>-cost-cursor.json                      │ related by filename prefix
+  sessions/<checkout>-cost-samples.jsonl                    │
+  sessions/<checkout>-claude-version.json                   ┘
+  <ticket-id>/                     THE PARTITION — a ticket id, nothing else
+    ticket.json
+    clarifications.json
+    pipeline-state.json            workflow state: steps keyed by SKILL NAME, closed 18-name enum
+    <skill>-state.json  × N        skill state: `skill` is a closed 33-name enum
+    phases/<skill>/                artifacts: iter-1-execute.json, iter-1-execute-task.xml,
+                                   iter-1-verify.md, iter-1-verdict.json, plan.md,
+                                   plan-superseded-1.md, result.json, pr-body.md …
+    .lock · lock-events.jsonl · active-agents/ · handoff-context.md
 ```
 
-**The run id replaces the ticket id as the primary key.** A ticket id, when
-supplied, is recorded as a *label* on the run (`run.json` → `subject`), not as
-the partition name. Runs without a ticket get a generated id
-(`YYYYMMDD-<6 hex>`).
+Six things are wrong with it, and none is fixable by renaming a directory:
 
-The `phases/` directory level is **removed**. Once a step is a directory,
-everything inside it is that step's phase output by construction, and `phases`
-collided with `workflows/phases.yaml`, which means something unrelated (the
-skill registry, grouped by lifecycle phase).
+1. **The partition is a ticket.** Nothing can run without one (§1.3).
+2. **Two closed enums name the skills** — 18 in `pipeline-state.schema.json`,
+   33 in `skill-state.schema.json` — and `acs.py start` / `acs.py finish` carry
+   the same lists a third and fourth time as `argparse` choices. Adding a
+   skill is four edits; adding a workflow is impossible.
+3. **No file says which workflow is running**, at what version, or which run
+   this is. `flow: ticket|product` is the only hint.
+4. **`acs_lib/state.py` owns six unrelated things** — skill state, pipeline
+   state, tickets, counters, the index and locks — in 25 public functions,
+   because they all happened to live in the same directory.
+5. **Iteration is a filename prefix.** `iter-1-execute-superseded-1.json` is
+   what the scheme produces under pressure; the audit trail of a step is a
+   glob, and the "current" artifact is whichever file sorts last.
+6. **Two statuses are not states.** `skipped` records a workflow predicate's
+   answer (§2), and `handed_off` records *why* a step stopped, not *that* it
+   stopped.
 
-### 4.2 Workflow state — `run.json`
+### 4.2 Layout
+
+```
+.acs/state-machine/<repo-id>/
+  counters.json                    id allocation — tickets, and runs when they share the allocator
+  tickets-index.json               every ticket (unchanged)
+  runs-index.json                  every run: id, workflow, subject, status, started/ended
+  metrics.json                     repo aggregates (unchanged)
+  tickets/<ticket-id>/ticket.json  only when settings.artifacts.tickets_path is null
+  sessions/<checkout-id>/          one directory per checkout, not five prefixed files
+    pointer.json                   current run + step  (was: current ticket + skill)
+    session.json · cost.jsonl · runtime.json
+  runs/<run-id>/
+    run.json                       THE RUN MACHINE                             (§4.3)
+    subject/                       what this run is about: ticket.json | prompt.md | document
+    requirements.md                step 1's artifact, promoted: every later step reads it
+    clarifications.json            the ledger, run-scoped
+    lock.json · lock-events.jsonl  the lock protocol, unchanged, relocated
+    agents/ · handoff-context.md   runtime scratch, unchanged, relocated
+    steps/<skill>/
+      state.json                   THE STEP MACHINE                            (§4.4)
+      result.json                  the step's final result document — the post-hook's input
+      plan.md · api-contract.md · test-cases.md · pr-body.md …   CURRENT artifacts
+      iter-<n>/                    the AUDIT TRAIL: one directory per iteration
+        plan.md · execute.json · execute-<k>.json · task.json
+        lens-<A..E>.md · adjudication.json · gate.json · verdict.json
+```
+
+**The run id is the primary key.** A ticket id, when supplied, is the run's
+*subject*, recorded in `run.json` and copied into `subject/` — never the
+partition name. A run started from a prompt records the prompt; from a
+document, the document's path and hash.
+
+**Steps are keyed by skill name.** With no `id:` in `ship.yaml` (§2.1) the
+step *is* the skill, and the state layer says so: `steps/review-code/`, not
+`steps/<some-id>/`. A workflow that wanted the same skill twice would need ids
+back; no workflow this plan can see wants that.
+
+**The step root is the present; `iter-<n>/` is the past.** `plan.md` at the
+step root is *the* plan; `iter-1/plan.md` and `iter-2/plan.md` are the plans
+there were. A reader who wants the current artifact reads the root; a reader
+who wants the history lists the directories. The prefix scheme's
+`plan-superseded-1.md` and the `phases/code/plan.md` approval mirror both
+disappear — there is one plan, at `steps/create-impl-plan/plan.md`, and
+`plan_sha256` hashes it.
+
+For `code` and `review-code`, `n` is the workflow loop's iteration (§4.3), so
+`steps/code/iter-2/` and `steps/review-code/iter-2/` are the same round. For
+a skill with its own internal cycle (`docs-sync`, `create-pr`, the design
+skills), `n` is that cycle's iteration. Either way: *the n-th time this step
+ran its cycle*.
+
+### 4.3 The run machine — `run.json`
 
 ```jsonc
 {
   "run_id": "20260919-a1b2c3",
-  "workflow": "ship",
+  "workflow": "ship",                    // the file name, workflows/ship.yaml
   "workflow_version": 3,
-  "subject": { "kind": "prompt", "ticket_id": null, "text": "…" },
+  "subject": { "kind": "ticket", "ticket_id": "MAR-590" },   // or kind: prompt | document
   "status": "in_progress",
-  "cursor": "review-code",
+  "cursor": "review-code",               // the first step not completed
   "steps": {
-    "analyze-requirements": { "status": "completed", "started_at": "…", "ended_at": "…" },
+    "analyze-requirements": { "status": "completed", "started_at": "…", "ended_at": "…", "summary": "…" },
     "create-api-contract":  { "status": "completed", "outcome": "no_surface_owed" },
     "code":                 { "status": "completed", "iteration": 2, "leg": "code-standard" },
     "review-code":          { "status": "in_progress", "iteration": 2 }
   },
-  "loop": { "review-code": { "iterations": 2, "max": 3 } },
-  "totals": { "…": "cost, tokens, wall time" }
+  "loops": { "review-code": { "iteration": 2, "max": 3 } },
+  "totals": { "…": "cost, tokens, wall time — unchanged" }
 }
 ```
 
-`steps` is keyed by the workflow's **step id** and is **open** — no enum. Step
-names are validated against the *resolved workflow document*, by
-`acs workflow validate`, not against a literal in a JSON schema. The schema
-validates shape; the workflow validates names. This is what makes a new
-workflow a YAML file rather than a schema edit, and it removes the
-hand-maintained 18-name enum that duplicates `workflows/phases.yaml`.
+**Run states** — four, one terminal pair and one human escape hatch:
 
-Two consequences of the flat step list land here. **`cursor` replaces the
-ready-set**: with no `needs:` graph, `acs workflow next` returns the first step
-whose status is not `completed`, and the cursor is that answer cached. And
-**`status: skipped` is gone from the vocabulary** — a step either completed
-(possibly with an `outcome` recording that nothing was owed) or it did not run
-yet. `outcome` is the skill's word, written into its own artifact and mirrored
-here; the workflow never infers it.
+```
+              ┌──────────────┐  last step completed   ┌───────────┐
+  created ──▶ │ in_progress  │ ─────────────────────▶ │ completed │
+              └──────┬───────┘                        └───────────┘
+                     │ a step failed · loop exhausted  ┌───────────┐
+                     ├──────────────────────────────▶ │  failed   │
+                     │ acs run abandon (a human)       ├───────────┤
+                     └──────────────────────────────▶ │ abandoned │
+                                                      └───────────┘
+```
 
-`outcome` is a closed vocabulary **per step**, declared in that skill's state
-schema and validated by its post-hook. A step with only one way to complete has
-no `outcome` at all. The steps with more than one:
+**Step states** — four. A step absent from `steps` is pending.
+
+```
+  (absent) ──▶ in_progress ──▶ completed          with an optional `outcome` (§4.5)
+                    │
+                    ├─────────▶ failed             could not do its work; the run fails
+                    │
+                    └─────────▶ interrupted        resumable; `stop_reason` says why:
+                                                   session_end · needs_input · context_pressure
+```
+
+`skipped` is gone (§2). `handed_off` is gone: it named a reason, and the
+reason now lives in `stop_reason` on a single resumable state.
+
+**Every transition has exactly one writer, and it is never an agent:**
+
+| Transition | Writer | Fires on |
+|---|---|---|
+| run created | `acs run new` | the first step's pre-hook finds no run for this checkout |
+| step → `in_progress` | `acs step start` | `PreToolUse(Skill)` of that skill |
+| step → `completed` / `failed` | `acs step finish`, from `result.json` | the skill's post-hook |
+| step → `interrupted` | `acs step finish --interrupted` | `Stop` on an abandoned step; `SessionEnd` |
+| `loops.<step>.iteration` += 1 | `acs step finish` | `review-code` finishes with `outcome: blocking_findings` |
+| `cursor` recomputed | every `acs step finish` | — |
+| run → `completed` | `acs step finish` | the last step of the workflow completes |
+| run → `failed` | `acs step finish` | a step fails, or a loop exhausts |
+| run → `abandoned` | `acs run abandon` | a human |
+
+**Invariants**, checked by `acs run check` and by every pre-hook before it
+allows a transition:
+
+- **I1** at most one step is `in_progress` per run
+- **I2** `cursor` is the first step in workflow order that is not `completed`;
+  the `in_progress` step, when there is one, is the cursor
+- **I3** a `completed` step has a `result.json`, and its `state.json` agrees
+- **I4** `loops.<step>.iteration ≤ max`
+- **I5** every key of `steps` is a step of the resolved workflow, and every
+  `leg` is a leg of that step's skill in `workflows/phases.yaml`
+
+I5 is where the closed enums went: the *workflow* validates step names, the
+*registry* validates skill and leg names, and the JSON schema validates shape.
+Adding a workflow is a YAML file; adding a skill is a registry entry; neither
+touches a schema.
+
+### 4.4 The step machine — `steps/<skill>/state.json`
+
+The current shape is sound and is kept: a `states` object, `findings`,
+`errors`, and one record per invocation carrying session id, transcript path,
+checkout id, tokens, cost, role/model usage, guard events, gate enforcement,
+status and stop reason. Four changes:
+
+1. **`runs[]` becomes `invocations[]`.** Once the partition is `runs/<run-id>/`,
+   a `runs` array inside a step's state means the wrong thing. An invocation
+   is one session's attempt at this step.
+2. **`ticket_id` becomes `run_id`.**
+3. **`skill` is validated against the registry, not an enum.** The 33-name
+   list leaves the schema.
+4. **The `states` keys are declared per skill.** Today one central schema
+   lists every skill's `states` keys — `verifier_passed`, `plan_approved`,
+   `file_map`, `pr`, `merged`, `readiness`, sixteen of them. Each skill's
+   directory gains `state.schema.json`, a fragment declaring *its* `states`
+   keys and *its* `outcome` vocabulary; the central `step-state.schema.json`
+   validates only the envelope. This is the same move as §4.3's I5: a new
+   skill is a directory, not a central edit. It is also the mechanism by
+   which a skill is standalone in state as well as in invocation.
+
+**Derived, never asserted** (MAR-523, MAR-527) carries over unchanged and is
+extended: `verifier_passed` is computed by the post-hook from
+`review-code`'s `verdict.json`; `tests` from the gate's own run; `outcome`
+is read from `result.json` and checked against the fragment. A skill that
+writes a value the post-hook derives is overwritten, and the disagreement is
+recorded in `errors`.
+
+### 4.5 `outcome` — a closed vocabulary per step
+
+`outcome` is declared in the skill's `state.schema.json` fragment and
+validated by its post-hook. A step with only one way to complete has no
+`outcome` at all. The steps with more than one:
 
 | Step | `outcome` values |
 |---|---|
@@ -550,19 +700,69 @@ A failure is not an outcome. A step that could not do its work records
 the distinction is what keeps "nothing was owed" from being confused with
 "something went wrong".
 
-### 4.3 Skill state — `steps/<step-id>/state.json`
+### 4.6 Schemas
 
-Keeps today's shape, which is sound: `states`, `findings`, `errors`, and a
-`runs[]` array carrying per-invocation session id, transcript path, checkout id,
-tokens, cost, role/model usage, guard events, gate enforcement, status and stop
-reason. Only its location and key change.
+Fifteen JSON schemas and one XSD today; the table is every one of them.
 
-### 4.4 Resumption
+| Today | v0.5.0 | Change |
+|---|---|---|
+| `pipeline-state.schema.json` | `run.schema.json` | open `steps`; `cursor`, `loops`, `subject`, `workflow`, `workflow_version`; no `flow`, no `delivery_path` |
+| `skill-state.schema.json` | `step-state.schema.json` + `skills/<skill>/state.schema.json` | envelope centrally, `states` and `outcome` per skill; `runs[]` → `invocations[]`; no `skill` enum |
+| `ship-workflow.schema.json` | `workflow.schema.json` | `steps` is a list of names; `loops`; **rejects** every v2 key §2.1 removed |
+| `session-pointer.schema.json` | same | `ticket_id`, `skill` → `run_id`, `step` |
+| `clarifications.schema.json` | same | `ticket_id` → `run_id` |
+| `verdict.schema.json` | same | owned by `review-code`; gains `iteration` |
+| — | `result.schema.json` | **new** — the step result document, today validated ad hoc by `acs phase validate` |
+| `ticket.schema.json`, `tickets-index.schema.json`, `counters.schema.json`, `lock.schema.json`, `lock-events.schema.json`, `metrics.schema.json`, `phases.schema.json`, `settings.schema.json` | same | unchanged (settings loses the removed keys) |
+| `acs-messages.xsd` | — | removed (§6) |
 
-A run resumes from `run.json` alone. `/acs:ship <run-id>` re-reads the ledger,
-asks `acs workflow next` for the ready steps, and continues. A step recorded
-`in_progress`, `failed` or `interrupted` is simply re-run; the step's own
-skill-start reconciles recorded state against reality rather than trusting it.
+### 4.7 The kernel — `acs_lib`
+
+The rule is **one module per machine, one machine per module**. `state.py`'s
+six concerns become five modules with one concern each; `workflow.py` loses
+everything §2.1 removed.
+
+| Module | Owns | Today |
+|---|---|---|
+| `run.py` | `run.json`: create, transition, cursor, loops, invariants I1–I5 | half of `state.py`, `workflow.next_steps`, `pending_needs` |
+| `step.py` | `state.json`: invocations, `states`, `outcome`, findings, errors | the other half of `state.py` |
+| `lock.py` | the lock and its ledger, unchanged in protocol | `state.py` |
+| `sessions.py` | `sessions/<checkout-id>/` | scattered across `repo.py`, `metrics.py`, `state.py` |
+| `tickets.py` | `ticket.json` and `tickets-index.json` | `state.py` + the ticket half of `artifacts.py` |
+| `workflow.py` | load, validate, `loops`, the step list | minus `delivery_*`, `per_path`, `is_path_dependent`, `step_skills`, every predicate, `next_steps` |
+| `derive.py` | unchanged role; reads `iter-<n>/` directories instead of globbing prefixes | — |
+| `lifecycle.py` | unchanged role; writes under `runs/<run-id>/` | — |
+| `gates.py` | `build_context`, `run_pre`, `run_post`; reads the cursor, not `needs` | minus the ready-set logic |
+
+### 4.8 The CLI
+
+`acs.py start` and `acs.py finish` carry the skill list as `argparse`
+choices, which is the closed enum in a fourth place. They are replaced, and
+the run gets a verb of its own:
+
+| v0.5.0 | Replaces | Notes |
+|---|---|---|
+| `acs run new \| show \| next \| check \| abandon` | `acs workflow next`; nothing for the rest | `next` is the cursor; `check` is I1–I5 |
+| `acs step start \| finish \| show --run <id> --step <name>` | `acs start`, `acs finish` | `--step` validated against the resolved workflow, not an enum |
+| `acs result validate` | `acs phase validate` | "phase" meant three things; this one is the result document |
+| `acs workflow show \| validate` | same | `next` moved to `acs run` |
+| `acs plan path` | `acs path` | the path is read from the plan's `## Contract` block |
+| `acs lock`, `acs ticket`, `acs verdict`, `acs filemap`, `acs guard`, `acs context` | same | unchanged |
+| — | `acs artifacts migrate` | removed: there is no migration |
+
+### 4.9 Resumption and concurrency
+
+A run resumes from `run.json` alone. `/acs:ship <run-id>` re-reads it, asks
+`acs run next` for the cursor, and continues. A step recorded `in_progress`
+or `interrupted` is re-run; its skill-start reconciles recorded state against
+reality (the working tree, the branch, the artifacts on disk) rather than
+trusting it, exactly as today.
+
+The lock protocol is unchanged — re-entrant for the same checkout, fail-closed
+for any other, force-release audited to the ledger — and moves from the ticket
+partition to the run partition. Two runs on the same subject are two
+partitions and two locks; the second is refused by `acs run new` unless the
+first is terminal.
 
 ---
 
@@ -577,7 +777,8 @@ Every skill keeps hook-backed gating; prose is never the enforcement mechanism.
 | `PreToolUse(Write\|Edit\|Bash)` — new | **refuses every mutation while `create-impl-plan` is the active step** (§3.2's read-only guarantee) |
 | `PreToolUse(Skill)` — new | refuses `code` when the plan's approval is absent or its `plan_sha256` is stale |
 | `SubagentStart\|Stop` | the phase artifact exists and its verdict holds together |
-| `Stop` / `SessionEnd` | run bookkeeping, lock release |
+| `Stop` / `SessionEnd` | step → `interrupted` with its `stop_reason`, lock release |
+| every pre-hook — new | `acs run check`: invariants I1–I5 (§4.3) hold before any transition |
 | `PreToolUse(Bash)` — new | refuses a `git push` of the base branch (§3.10) |
 
 Two properties carry over unchanged because they are load-bearing and were
@@ -604,6 +805,11 @@ No compatibility shims. These go in the same release.
 | `when:` / `paths:` / `requires:` predicates | each skill decides for itself and records why (§2.1) |
 | `delivery:` block in `ship.yaml` | the path is recorded on the plan, not configured on the workflow |
 | `status: skipped` | replaced by `completed` + an `outcome` the skill wrote |
+| `status: handed_off` | a reason, not a state: `interrupted` + `stop_reason` (§4.3) |
+| `id:`, `name:`, `stop_after:` in `ship.yaml` | the skill name, the file name, the end of the list |
+| the 18- and 33-name skill enums, and the `argparse` copies in `acs start` / `acs finish` | the workflow and the registry validate names (§4.3 I5) |
+| `acs start`, `acs finish`, `acs phase validate`, `acs workflow next`, `acs artifacts migrate` | `acs step`, `acs result validate`, `acs run next`; no migration (§4.8) |
+| the `iter-<n>-*` filename-prefix scheme and the `phases/code/plan.md` approval mirror | `iter-<n>/` directories; one plan (§4.2) |
 | `test` (alias) | ambiguous; `run-e2e-tests` is the skill |
 | XML messaging: `validate_xml.py`, `acs-messages.xsd`, `*-task.xml` snapshots | phase results are JSON, validated in the hook |
 | `flow: ticket\|product` | replaced by `workflow` + `workflow_version` |
@@ -646,16 +852,23 @@ Seven phases. Each is an epic; each lands independently and leaves the tree
 green. There is **no interim release**: `[Unreleased]` accumulates through
 P1–P6 and the v0.5.0 cut happens once, at the end, against the finished tree.
 
-**P1 — state machine re-key.** Run ids, `run.json`, step-id keying, the open
-`steps` object, name validation moved from schema to `acs workflow validate`,
-`phases/` level removed. Foundation for everything else; no user-visible
-behaviour change beyond the layout.
+**P1 — the state machine.** All of §4: the run partition and `runs-index.json`;
+`run.json` with its four run states, four step states, single-writer
+transitions and invariants I1–I5; `state.json` with `invocations[]`, `run_id`
+and the per-skill `state.schema.json` fragments; `iter-<n>/` directories;
+`sessions/<checkout-id>/`; the schema table in §4.6; `acs_lib` split into
+`run.py` / `step.py` / `lock.py` / `sessions.py` / `tickets.py`; `acs run` and
+`acs step` replacing `acs start` / `acs finish` / `acs workflow next`. The two
+closed skill enums and their `argparse` copies go here. Foundation for
+everything else. Lands against the *current* `ship.yaml` v2 — P1 does not
+change the workflow, only what records its progress — so the tree stays green
+between P1 and P2a.
 
 **P2a — workflow engine.** `ship.yaml` version 3: the flat step list, the
 `loop:` construct, `cursor` in `run.json`, and a workflow schema that
 **rejects** `needs:` / `when:` / `paths:` / `requires:` / `delivery:` /
-`max_parallel` / `exclusive:` / `on_fail:` / `boundary:`. `/acs:ship` becomes
-a pure orchestrator over `acs workflow next`. Lands with an ADR — *Workflows
+`max_parallel` / `exclusive:` / `on_fail:` / `boundary:` / `id:` / `name:` /
+`stop_after:`. `/acs:ship` becomes a pure orchestrator over `acs run next`. Lands with an ADR — *Workflows
 carry no conditions* — because it is the rule every future workflow is held
 to, and ADR-0095 (which put the paths *in* the workflow) needs a successor
 that says why they came back out.
@@ -738,6 +951,9 @@ Two consequences for the eval dataset, both expected:
    one genuinely *new* mechanism in this redesign rather than a relocation, so
    it is the one most worth a second opinion. The alternative is to collapse the
    two legs and let the plan say `standard` for both.
-5. **Wall-clock cost of the flat list** — `docs-sync` no longer runs beside the
+5. **`runs[]` → `invocations[]`** in step state (§4.4). Forced by naming the
+   partition `runs/`; the alternative is to name the partition something else
+   (`jobs/`? `executions/`?) and keep `runs[]`. Either way one of them moves.
+6. **Wall-clock cost of the flat list** — `docs-sync` no longer runs beside the
    e2e pair. Accepted here as the price of a workflow with no graph; measure it
    at the gate and reconsider only if it shows up.
