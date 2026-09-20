@@ -66,7 +66,6 @@ Parse the printed context JSON. Fields you will use:
   `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
-- `post_hook` — absolute path to `post-create-e2e-tests.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -390,7 +389,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `post-create-e2e-tests.py` documents
+   Canonical `states` keys — EXACT names; `acs step finish` documents
    them and the next step reads them:
    - `suites_written` (list): the repo-relative suite (and fixture) files this
      run wrote, as committed on the ticket branch. Files only — a suite you
@@ -411,7 +410,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-e2e-tests.py" --ticket <id> --result-file steps/create-e2e-tests/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-e2e-tests
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed

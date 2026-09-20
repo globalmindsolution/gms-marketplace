@@ -329,7 +329,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --ticket <id> --result-file steps/create-architecture/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-architecture
 ```
 
 3. Report a compact summary to the user: mode, files written, verifier

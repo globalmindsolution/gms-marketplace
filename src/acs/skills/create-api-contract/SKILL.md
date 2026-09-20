@@ -63,7 +63,6 @@ Parse the printed context JSON. Fields you will use:
   narrative), `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
-- `post_hook` — absolute path to `post-create-api-contract.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -386,7 +385,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `post-create-api-contract.py`
+   Canonical `states` keys — EXACT names; `acs step finish`
    documents them and the next steps read them:
    - `contract_path`: where `api-contract.md` was published (the ticket docs
      folder, or the partition when `artifacts.tickets_path` is null).
@@ -405,7 +404,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-api-contract.py" --ticket <id> --result-file steps/create-api-contract/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-api-contract
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed

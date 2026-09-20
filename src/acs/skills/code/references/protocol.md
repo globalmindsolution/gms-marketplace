@@ -82,8 +82,8 @@ Messaging rules (the SubagentStop hook checks them):
   exist, the subject document, `design.md` when it applies, repo paths) and
   `constraints`. The subagent returns a result document as its final content.
 - Messages are **JSON**, validated in the hook. There is no XSD and no
-  `validate_xml.py`: a malformed message is refused with the reason, and you
-  re-send it once before failing the run.
+  second validator in another language: a malformed message is refused with
+  the reason, and you re-send it once before failing the run.
 - Persist every phase output under `steps/code/iter-<n>/` at the phase
   boundary, BEFORE starting the next phase.
 - Decomposition is YOURS alone — subagents never spawn subagents. Parallel

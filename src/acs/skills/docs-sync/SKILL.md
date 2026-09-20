@@ -278,7 +278,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
 2. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-docs-sync.py" --ticket <id> --result-file steps/docs-sync/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step docs-sync
    ```
 
    If it exits non-zero, surface its stderr verbatim — until it succeeds the

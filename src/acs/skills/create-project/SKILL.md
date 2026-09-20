@@ -31,7 +31,6 @@ entry. Parse the printed context JSON; the fields you will use:
 - `settings` — `test_coverage_percent`, `architecture_path`, `prd_path`, `formats`, `tracker`
 - `models` — per-role `{model, effort}` resolved from settings
 - `reconcile`, `handoff_summary`, `prior_run_status`, `pipeline`
-- `post_hook` — absolute path of `post-create-project.py`
 
 If skill-start exits non-zero: stop and surface its stderr verbatim — do not improvise.
 
@@ -356,7 +355,7 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 2. Run the post-hook:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --ticket <ticket-id> --result-file steps/create-project/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-project
 ```
 
    It finalizes the run entry, updates pipeline-state/index/metrics, marks the

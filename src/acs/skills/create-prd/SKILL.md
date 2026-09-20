@@ -366,7 +366,7 @@ MANDATORY final step — never skipped, also on failure.
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-prd.py" --ticket <ticket-id> --result-file "steps/create-prd/result.json"
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-prd
    ```
 
    It finalizes the run entry, updates `run.json` / `tickets-index.json` /

@@ -27,7 +27,7 @@ Ground rules, non-negotiable:
 - This is a hooked skill: `pre-create-docs.py` gates the Skill call on the
   architecture doc set, once, for every set you go on to run; each set's own
   `acs step start --skill create-docs --doc-set <set> --allocate` mints its
-  delivery ticket, and each set's own `post-create-docs.py` finalizes it.
+  delivery ticket, and each set's own `acs step finish` finalizes it.
   You never bypass, simulate, or duplicate a hook.
 - You spawn `acs:create-docs-executor` and `acs:create-docs-verifier` — the
   same two agent files for every set; the set travels in the task's
@@ -459,7 +459,7 @@ MANDATORY final step for every set started — never skipped, also on failure:
 2. Run, from the session checkout:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-docs.py" --ticket <id> --result-file steps/create-docs/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-docs
 ```
 
    It finalizes that set's run entry, its own `run.json` (`flow:

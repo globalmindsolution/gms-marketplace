@@ -102,28 +102,27 @@ in-process under a bounded alarm that fails closed (exit 2 blocks);
 
 ## Delivery path (ADR-0095)
 
-`pipeline-state.json` carries the ticket's judged delivery path and the reason
-for it:
-- `delivery_path` — one of the names `workflows/ship.yaml`'s `delivery.paths`
-  declares (shipped vocabulary: `trivial`, `small`, `standard`, `complex`)
-- `delivery_path_reason` — one non-empty sentence naming what in `plan.md`
-  decided it, which is what the verifier's path-audit dimension judges the
-  changeset against
+**The path is recorded on the PLAN, not configured on the workflow.**
+`ship.yaml` has no `delivery:` block: the path is a property of the work, and
+the only reader who has seen the work when the judgement is made is
+`/acs:create-impl-plan`. It writes the judgement into the plan's machine-
+readable `## Contract` block:
 
-`record_delivery_path(tdir, ticket_id, path, reason, doc=None)`
-(`acs_lib/workflow.py`, exposed as `acs.py path set`) is the ONLY writer. It
-refuses three things, and the third is the load-bearing one:
+```yaml
+delivery_path: standard        # trivial | small | standard | complex
+delivery_path_reason: "seven files across two modules, with a schema change"
+```
 
-1. a path the workflow does not declare;
-2. an empty reason — a path recorded without one cannot be audited later;
-3. moving a ticket that is already on a path. This is what makes a resumed run
-   READ the recorded path rather than judge it again, so one pipeline cannot
-   end up half at one rigor and half at another.
+`acs_lib/plan_contract.py` is the reader — `delivery_path(read(plan))` — and
+`/acs:code`'s pre-hook is the one caller that acts on it, dispatching to the
+matching leg. `run.json` records nothing about the path: it is derivable from
+an artifact the run already has, and a second copy is a second thing to keep
+true.
 
-`recorded_delivery_path` / `recorded_delivery_reason` are the read side. The
-walk (`next_steps`) reports `delivery: {path, reason, classify_after, paths,
-awaiting_classification}` and HOLDS at `delivery.classify_after` until a path
-is recorded, so nothing downstream of the branch point runs unclassified.
+One judgement, made once from the plan. A resumed run re-reads the plan and
+reaches the same answer, so a pipeline cannot end up half on one path and half
+on another without the plan itself having changed — and an edited plan is an
+unapproved plan, which the deep paths' approval brake already refuses.
 
 **What this replaced.** MAR-56 put three optional fields on `ticket.json` —
 `size` (`trivial|small|standard|large`), `stakes` (`low|normal|high`) and a

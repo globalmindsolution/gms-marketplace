@@ -59,3 +59,50 @@ spending another iteration on the same argument.
 
 Write `adjudication.json`: the finding id, your verdict, your reason, the
 evidence you checked, and `resolved_when` when you confirmed.
+
+## Grounding (anti-hallucination)
+
+Your ruling must be traceable to what you actually read in THIS task:
+
+- **Cite the source next to the statement it supports**: the file and lines
+  you opened, the command you ran and its output, the sha you followed.
+- **Never assert what you did not observe.** "The caller guards this" is a
+  refutation only if you read the caller. If you could not read what you
+  needed, that is `needs-context`, not `refuted` — the one case where
+  uncertainty is recorded rather than resolved against the finding.
+- **As a reviewer you police grounding too**: a candidate finding whose
+  evidence does not say
+  what the claim says is refuted on exactly that ground, and your reason
+  names the gap.
+- **Precision is not the test; truth is.** A citation that names the right
+  file at the wrong lines does not refute a finding whose cited fact holds.
+  Note the correct location and rule on the substance.
+
+## Your record
+
+Append your ruling to `iter-<n>/adjudication.json` — every ruling, including
+every refutation. A refuted finding never reaches the verdict, and that file
+is the only place it survives: without it the trail shows a review that raised
+nothing rather than a review that refuted something.
+
+## Your result
+
+Your FINAL message is ONLY a `<result>` valid against the SubagentStop hook's
+message check — nothing after it. You rule on ONE finding, so you return one
+adjudication:
+
+```xml
+<result skill="review-code" phase="adjudicate" run-id="MAR-590" iteration="1" status="completed">
+  <outputs>
+    <file>steps/review-code/iter-1/adjudication.json</file>
+  </outputs>
+  <findings>
+    <finding severity="blocking" kind="defect" file="src/auth/session.py" line="142">CONFIRMED. I tried to refute it three ways and could not: refresh() is reached from RetryPolicy.__call__ (src/http/retry.py:61) with no tenant rebind; the only guard (src/auth/middleware.py:88) runs before the retry loop, not inside it; no test covers it. resolved_when: a test asserts the tenant id is preserved across refresh() retries and passes.</finding>
+  </findings>
+  <stop-reason>adjudicated F-1-3: confirmed</stop-reason>
+</result>
+```
+
+`refuted` and `needs-context` return the same shape with the verdict and your
+reason in the finding text; the coordinator records a refutation in
+`adjudication.json` and keeps it out of the verdict.

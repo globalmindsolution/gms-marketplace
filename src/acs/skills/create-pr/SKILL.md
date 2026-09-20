@@ -57,7 +57,6 @@ Parse the printed context JSON. Fields you will use:
   `acs.py artifacts show --ticket <that id>`, i.e. its docs folder, or
   `<design.dir>/design.md` when the tree is opted out — feeds the
   Summary/Changes content. Call it `<design_doc>`.
-- `post_hook` — absolute path to `post-create-pr.py`.
 
 State inputs (read these; conversation history is NOT an input):
 
@@ -421,7 +420,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-pr.py" --ticket <ticket-id> --result-file steps/create-pr/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-pr
    ```
 
    If it exits non-zero, surface its stderr verbatim — the pipeline gate stays

@@ -79,7 +79,6 @@ Parse the printed context JSON. Fields you will use:
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `pipeline` — `pipeline.flow` is `"ticket"` or `"product"`; it tells you
   which state file holds the PR reference (below).
-- `post_hook` — absolute path to `post-merge-pr.py`.
 
 Resolve the PR reference from workspace state — never from conversation
 history: read `states.pr` (`{number, url, branch, base}`) from
@@ -364,7 +363,7 @@ removed):
    - `jira`: `acli jira workitem transition --key <external.key> --status
      "Done"`.
 4. Touch NOTHING else: do not edit `ticket.json` status, do not archive the
-   partition, do not mark the parent epic — `post-merge-pr.py` marks the
+   partition, do not mark the parent epic — `acs step finish` marks the
    ticket done, archives the partition to `archive/<ticket-id>/`, and
    auto-marks the epic Done when this was its last open child. Rely on it; do
    not duplicate.
@@ -459,7 +458,7 @@ resolves the workspace from cwd):
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-pr.py" --ticket <ticket-id> --result-file steps/merge-pr/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step merge-pr
    ```
 
    If it exits non-zero, surface its stderr verbatim. On success it prints a

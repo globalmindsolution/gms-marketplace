@@ -96,6 +96,7 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
                  "create-docs", "create-requirements", "create-ticket",
                  "create-design", "analyze-requirements", "create-impl-plan",
                  "create-api-contract", "create-test-docs", "code",
+                 "review-code", "run-e2e-tests",
                  "docs-sync", "create-e2e-tests", "create-pr",
                  "merge-pr", "standardize-project"]
 # The unhooked skills, mirroring acs_lib.UNHOOKED_SKILLS (a second,
@@ -112,8 +113,11 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 ALL_SKILLS = (HOOKED_SKILLS + CODE_PATH_LEGS
               + ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
-                 "usage", "test", "run-e2e-tests", "release", "project"])
-ROLES = ["planner", "executor", "verifier"]
+                 "usage", "release", "project"])
+#: The roles an agent file may carry. `lens` and `adjudicator` came with
+#: /acs:review-code; they are not a triad and the triad assertions skip them.
+ROLES = list(lib.AGENT_ROLES)
+TRIAD = ["planner", "executor", "verifier"]
 
 # Which agent roles each skill owns — READ FROM THE REGISTRY, never derived
 # here (ADR-0092). This used to be `{skill: list(ROLES) for skill in
@@ -153,12 +157,16 @@ class TestSkillContracts(unittest.TestCase):
             self.assertRegex(fm, r"(?m)^description: \S")
 
     def test_hooked_skills_call_their_lifecycle_scripts(self):
+        """`acs step start` / `acs step finish` replaced skill-start.py and the
+        per-skill post hooks in the prose (§4.8), and `--step` replaced
+        `--skill`: the name validates against the resolved workflow now, not
+        against an argparse enum. `validate_xml.py` is gone with the XSD."""
         for name in HOOKED_SKILLS:
             body = read_skill_contract(name)
-            self.assertIn("skill-start.py", body, name)
-            self.assertRegex(body, r"--skill %s\b" % re.escape(name), name)
-            self.assertIn("post-%s.py" % name, body, name)
-            self.assertIn("validate_xml.py", body, name)
+            self.assertIn("acs.py\" step start", body, name)
+            self.assertRegex(body, r"--step %s\b" % re.escape(name), name)
+            self.assertIn("acs.py\" step finish", body, name)
+            self.assertNotIn("validate_xml.py", body, name)
 
     def test_every_skill_has_completion_report(self):
         for name in ALL_SKILLS:
@@ -285,11 +293,17 @@ class TestAgentContracts(unittest.TestCase):
                 self.assertNotRegex(fm, r"(?m)^effort:")
 
     def test_role_tool_restrictions(self):
+        """Every role that JUDGES is read-only; only an executor writes code.
+        `lens` and `adjudicator` join that first set: a reviewer that can edit
+        the changeset it is reviewing is not a reviewer."""
+        reading = ("planner", "verifier", "lens", "adjudicator")
         for skill, roles in AGENT_ROLES.items():
-            for role in [r for r in ("planner", "verifier") if r in roles]:
+            for role in [r for r in reading if r in roles]:
                 fm, _ = frontmatter(read(self.agent_path(skill, role)), skill)
                 self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$",
                                  "%s-%s" % (skill, role))
+            if "executor" not in roles:
+                continue
             fm, _ = frontmatter(read(self.agent_path(skill, "executor")), skill)
             self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$", skill)
             self.assertNotRegex(fm, r"(?m)^tools:", skill)  # executors keep broad access
@@ -300,11 +314,12 @@ class TestAgentContracts(unittest.TestCase):
                 body = read(self.agent_path(skill, role))
                 self.assertIn("## Grounding (anti-hallucination)", body,
                               "%s-%s" % (skill, role))
-                if role == "verifier":
+                if role in ("verifier", "lens", "adjudicator"):
                     self.assertIn("police grounding", body, skill)
 
     def test_phase_artifact_mandated(self):
-        artifact = {"planner": "plan", "executor": "execute", "verifier": "verify"}
+        artifact = {"planner": "plan", "executor": "execute", "verifier": "verify",
+                    "lens": "lens-", "adjudicator": "adjudication"}
         for skill, roles in AGENT_ROLES.items():
             for role in roles:
                 kind = artifact[role]
@@ -712,8 +727,8 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-pr]: states.pr.branch field must survive")
         self.assertIn('"base"', create_pr_body,
                       "AC-4 [create-pr]: states.pr.base field must survive")
-        self.assertIn("post-create-pr.py", create_pr_body,
-                      "AC-4 [create-pr]: post-hook reference must survive inline rewrite")
+        self.assertIn("step finish --step create-pr", create_pr_body,
+                      "AC-4 [create-pr]: the finish transition must survive inline rewrite")
 
         # merge-pr: canonical key set plus post-hook
         merge_pr_body = read(self.skill_path("merge-pr"))
@@ -723,7 +738,7 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [merge-pr]: Finish must name states.merge_strategy key")
         self.assertIn("readiness", merge_pr_body,
                       "AC-4 [merge-pr]: Finish must name states.readiness key")
-        self.assertIn("post-merge-pr.py", merge_pr_body,
+        self.assertIn("step finish --step merge-pr", merge_pr_body,
                       "AC-4 [merge-pr]: post-hook reference must survive")
 
         # create-ticket: canonical key set plus confirmation-gate tokens and post-hook
@@ -739,7 +754,7 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-ticket]: Finish must name states.children key")
         self.assertIn("prd_trace", create_ticket_body,
                       "AC-4 [create-ticket]: Finish must name states.prd_trace key")
-        self.assertIn("post-create-ticket.py", create_ticket_body,
+        self.assertIn("step finish --step create-ticket", create_ticket_body,
                       "AC-4 [create-ticket]: post-hook reference must survive")
         # ADR-0095 retired the size/stakes/lane axes, so the confirmation gate no
         # longer has them to confirm. What it still owes is the gate itself and
@@ -775,15 +790,15 @@ class TestApplyTierInline(unittest.TestCase):
                     re.search(r"acs:" + skill + r"-" + role, body),
                     "AC-6 [%s]: must still reference acs:%s-%s" % (skill, skill, role))
 
-    def test_code_references_its_executor_and_verifier(self):
-        """AC-6, /acs:code after the plan carve-out: no planner reference may
-        survive, and both surviving roles must still be named."""
+    def test_code_references_its_only_agent(self):
+        """/acs:code owns ONE agent now. The planner left with the plan phase
+        (ADR-0092) and the verifier left with the review (§3.5), so naming
+        either would name a file that is not there."""
         body = read_skill_contract("code")
         self.assertNotIn("acs:code-planner", body)
-        for role in ("executor", "verifier"):
-            self.assertIsNotNone(
-                re.search(r"acs:code-" + role, body),
-                "AC-6 [code]: must still reference acs:code-%s" % role)
+        self.assertNotIn("acs:code-verifier", body)
+        self.assertIsNotNone(re.search(r"acs:code-executor", body),
+                             "[code]: must still reference acs:code-executor")
 
     # ------------------------------------------------------------------ Group 7
     # AC-7: requirements docs updated to reflect inline shape.
@@ -870,7 +885,7 @@ class TestCreatePrConventionWiring(unittest.TestCase):
 
     def test_no_regression_guards(self):
         """AC-5: ACS label, base-branch detection, states.pr record,
-        post-create-pr.py, and tracker-sync invocations all survive."""
+        the finish transition, and tracker-sync invocations all survive."""
         body = read(self.skill_path("create-pr"))
         self.assertIn("gh label create ACS", body,
                       "AC-5 [create-pr]: ACS label creation must survive")
@@ -883,8 +898,8 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         self.assertIn('"url"', body)
         self.assertIn('"branch"', body)
         self.assertIn('"base"', body)
-        self.assertIn("post-create-pr.py", body,
-                      "AC-5 [create-pr]: post-create-pr.py reference must survive")
+        self.assertIn("step finish --step create-pr", body,
+                      "AC-5 [create-pr]: the finish transition must survive")
         self.assertIn("gh issue comment", body,
                       "AC-5 [create-pr]: github tracker-sync invocation must survive")
         self.assertIn("acli jira workitem comment", body,
@@ -1783,32 +1798,29 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
 
     # --- AC-7: regression guard (existing path tokens still present) ---
 
-    def test_skill_step4_still_has_requirements_path(self):
-        """AC-7: MAR-162: the token now survives via code/SKILL.md's Start
-        settings enumeration (:43), not via step 4 — step-4 absence is
-        asserted by test_code_doc_authoring_retired.py."""
-        body = self._code_body()
+    def test_docs_sync_still_reads_requirements_path(self):
+        """The doc-set paths belong to /acs:docs-sync now. They passed through
+        /acs:code while it authored docs per commit; it does not, and a token
+        it no longer reads is not a regression guard — this is."""
+        body = read_skill_contract("docs-sync")
         self.assertIn("requirements_path", body,
-                      "code/SKILL.md must still reference requirements_path "
-                      "(MAR-65 AC-7 regression guard)")
+                      "docs-sync/SKILL.md must still reference requirements_path")
 
-    def test_skill_step4_still_has_architecture_path(self):
-        """AC-7: MAR-162: the token now survives via code/SKILL.md's Start
-        settings enumeration (:43), not via step 4 — step-4 absence is
-        asserted by test_code_doc_authoring_retired.py."""
-        body = self._code_body()
+    def test_docs_sync_still_reads_architecture_path(self):
+        """The doc-set paths belong to /acs:docs-sync now. They passed through
+        /acs:code while it authored docs per commit; it does not, and a token
+        it no longer reads is not a regression guard — this is."""
+        body = read_skill_contract("docs-sync")
         self.assertIn("architecture_path", body,
-                      "code/SKILL.md must still reference architecture_path "
-                      "(MAR-65 AC-7 regression guard)")
+                      "docs-sync/SKILL.md must still reference architecture_path")
 
-    def test_skill_step4_still_has_adr_path(self):
-        """AC-7: MAR-162: the token now survives via code/SKILL.md's Start
-        settings enumeration (:43), not via step 4 — step-4 absence is
-        asserted by test_code_doc_authoring_retired.py."""
-        body = self._code_body()
+    def test_docs_sync_still_reads_adr_path(self):
+        """The doc-set paths belong to /acs:docs-sync now. They passed through
+        /acs:code while it authored docs per commit; it does not, and a token
+        it no longer reads is not a regression guard — this is."""
+        body = read_skill_contract("docs-sync")
         self.assertIn("adr_path", body,
-                      "code/SKILL.md must still reference adr_path "
-                      "(MAR-65 AC-7 regression guard)")
+                      "docs-sync/SKILL.md must still reference adr_path")
 
     def test_executor_still_has_requirements_path(self):
         """AC-7: MAR-162 (branch A): architecture_path/adr_path/
@@ -1839,123 +1851,6 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
         self.assertIn("adr_path", body,
                       "docs-sync-executor.md must reference adr_path "
                       "(MAR-65 AC-7 regression guard, re-homed by MAR-162)")
-
-
-class TestVerifierProductDocConsistency(unittest.TestCase):
-    """MAR-65 Spec 02 (AC-3, AC-6): pin the product-doc-consistency check in the
-    Documentation dimension of SKILL.md (Verify section) and code-verifier.md.
-    Additive assertions only — no existing assertion modified."""
-
-    def skill_path(self, name):
-        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
-
-    def agent_path(self, skill, role):
-        return os.path.join(PLUGIN, "agents", "%s-%s.md" % (skill, role))
-
-    def _code_body(self):
-        return read_skill_contract("code")
-
-    def _verifier_body(self):
-        return read(self.agent_path("code", "verifier"))
-
-    # --- AC-3: product-doc-consistency check in SKILL.md Verify / Documentation dimension ---
-
-    def test_skill_verify_documentation_names_prd_md(self):
-        """AC-3: prd.md must appear in SKILL.md within 2000 chars of the Verify
-        'Documentation' dimension heading."""
-        body = self._code_body()
-        anchor = body.find("**Documentation**")
-        self.assertGreater(anchor, 0,
-                           "code/SKILL.md must contain '**Documentation**' in Verify section")
-        window = body[anchor:anchor + 2000]
-        self.assertIn("prd.md", window,
-                      "code/SKILL.md Verify/Documentation dimension must name prd.md "
-                      "(MAR-65 AC-3)")
-
-    def test_skill_verify_documentation_names_roadmap_md(self):
-        """AC-3: roadmap.md must appear in SKILL.md within 2000 chars of the Verify
-        'Documentation' dimension heading."""
-        body = self._code_body()
-        anchor = body.find("**Documentation**")
-        self.assertGreater(anchor, 0,
-                           "code/SKILL.md must contain '**Documentation**' in Verify section")
-        window = body[anchor:anchor + 2000]
-        self.assertIn("roadmap.md", window,
-                      "code/SKILL.md Verify/Documentation dimension must name roadmap.md "
-                      "(MAR-65 AC-3)")
-
-    def test_skill_blocking_factual_co_occurrence(self):
-        """AC-3: code/SKILL.md must co-locate 'blocking' and 'factual'/'stale'
-        within 500 chars."""
-        body = self._code_body()
-        self.assertIsNotNone(
-            re.search(r"(?i)blocking.{0,500}(factual|stale)|(factual|stale).{0,500}blocking",
-                      body, re.DOTALL),
-            "code/SKILL.md must co-locate 'blocking' and 'factual'/'stale' within 500 chars "
-            "(MAR-65 AC-3 — stale factual claim produces blocking finding)")
-
-    def test_skill_flagged_intent_co_occurrence(self):
-        """AC-3: code/SKILL.md must co-locate 'flagged' and 'intent' within 500 chars."""
-        body = self._code_body()
-        self.assertIsNotNone(
-            re.search(r"(?i)flagged.{0,500}intent|intent.{0,500}flagged", body, re.DOTALL),
-            "code/SKILL.md must co-locate 'flagged' and 'intent' within 500 chars "
-            "(MAR-65 AC-3 — intent contradiction produces flagged divergence, not a block)")
-
-    def test_verifier_documentation_names_prd_md(self):
-        """AC-3: code-verifier.md must name prd.md in the Documentation dimension."""
-        body = self._verifier_body()
-        self.assertIn("prd.md", body,
-                      "code-verifier.md must name prd.md in Documentation dimension "
-                      "(MAR-65 AC-3)")
-
-    def test_verifier_documentation_names_roadmap_md(self):
-        """AC-3: code-verifier.md must name roadmap.md in the Documentation dimension."""
-        body = self._verifier_body()
-        self.assertIn("roadmap.md", body,
-                      "code-verifier.md must name roadmap.md in Documentation dimension "
-                      "(MAR-65 AC-3)")
-
-    def test_verifier_blocking_factual_co_occurrence(self):
-        """AC-3: code-verifier.md must co-locate 'blocking' and 'factual'/'stale'
-        within 500 chars."""
-        body = self._verifier_body()
-        self.assertIsNotNone(
-            re.search(r"(?i)blocking.{0,500}(factual|stale)|(factual|stale).{0,500}blocking",
-                      body, re.DOTALL),
-            "code-verifier.md must co-locate 'blocking' and 'factual'/'stale' within 500 chars "
-            "(MAR-65 AC-3)")
-
-    def test_verifier_flagged_intent_co_occurrence(self):
-        """AC-3: code-verifier.md must co-locate 'flagged'/'flagging' and 'intent' within 500
-        chars."""
-        body = self._verifier_body()
-        self.assertIsNotNone(
-            re.search(r"(?i)(flagged|flagging).{0,500}intent|intent.{0,500}(flagged|flagging)",
-                      body, re.DOTALL),
-            "code-verifier.md must co-locate 'flagged'/'flagging' and 'intent' within 500 chars "
-            "(MAR-65 AC-3 — intent contradiction is flagged, not blocking)")
-
-    # --- AC-6: docs_only relaxation prose intact (regression guard) ---
-
-    def test_skill_docs_only_present(self):
-        """AC-6: 'docs_only' must appear in code/SKILL.md (the relaxation block)."""
-        body = self._code_body()
-        self.assertIn("docs_only", body,
-                      "code/SKILL.md must contain 'docs_only' (docs_only relaxation block) "
-                      "(MAR-65 AC-6 regression guard)")
-
-    def test_skill_every_other_dimension_documentation_consistency(self):
-        """AC-6: 'every other dimension' must co-occur with 'Documentation consistency'
-        within 300 chars in code/SKILL.md."""
-        body = self._code_body()
-        self.assertIsNotNone(
-            re.search(
-                r"(?i)every other dimension.{0,300}Documentation consistency|"
-                r"Documentation consistency.{0,300}every other dimension",
-                body, re.DOTALL),
-            "code/SKILL.md must co-locate 'every other dimension' and "
-            "'Documentation consistency' within 300 chars (MAR-65 AC-6 regression guard)")
 
 
 class TestAdr0007Amendment(unittest.TestCase):
@@ -2051,7 +1946,9 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
         return read(self.agent_path("create-impl-plan", "executor"))
 
     def _verifier(self):
-        return read(self.agent_path("code", "verifier"))
+        """The restraint layer's REVIEW half moved with the review: lens E
+        judges quality, standards, simplicity and scope creep (§3.6)."""
+        return read(self.agent_path("review-code", "lens"))
 
     def _skill(self):
         return read(self.skill_path("code"))
@@ -2218,10 +2115,10 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
     # --- AC-6: cross-agent — all three agents carry both rule names ---
 
     def test_all_three_agents_carry_simplicity_first(self):
-        """AC-6: code-executor, code-verifier and the plan planner (whose
+        """AC-6: code-executor, review-code-lens and the plan planner (whose
         charter moved to create-impl-plan-planner.md) must each contain
         'Simplicity First'."""
-        for agent in ("code-executor", "code-verifier",
+        for agent in ("code-executor", "review-code-lens",
                       "create-impl-plan-executor"):
             body = read(os.path.join(PLUGIN, "agents", "%s.md" % agent))
             self.assertIn("Simplicity First", body,
@@ -2229,7 +2126,7 @@ class TestSimplicityScopeRestraintLayer(unittest.TestCase):
 
     def test_all_three_agents_carry_surgical_changes(self):
         """AC-6: the same three agents must each contain 'Surgical Changes'."""
-        for agent in ("code-executor", "code-verifier",
+        for agent in ("code-executor", "review-code-lens",
                       "create-impl-plan-executor"):
             body = read(os.path.join(PLUGIN, "agents", "%s.md" % agent))
             self.assertIn("Surgical Changes", body,
@@ -3147,14 +3044,16 @@ class TestContractsMdDeliveryPathSection(unittest.TestCase):
         section = self._section()
         self.assertIn("delivery_path", section)
         self.assertIn("delivery_path_reason", section)
-        self.assertIn("run.json", section)
 
-    def test_the_section_names_the_one_writer_and_its_three_refusals(self):
+    def test_the_section_names_where_the_path_lives_and_who_reads_it(self):
+        """The path moved from a state file onto the PLAN: it is a property of
+        the work, and the plan is the artifact that saw the work. A reader
+        arriving with the old contract must find that out here."""
         section = self._section()
-        self.assertIn("record_delivery_path", section)
-        self.assertIn("acs.py path set", section)
-        self.assertRegex(section, r"(?i)ONLY writer")
-        self.assertRegex(section, r"(?i)moving a ticket that is already on a path")
+        self.assertIn("## Contract", section)
+        self.assertIn("plan_contract", section)
+        self.assertRegex(section, r"(?i)no `delivery:` block")
+        self.assertRegex(section, r"(?i)`run\.json` records nothing about the path")
 
     def test_the_retired_event_is_recorded_as_retired(self):
         """A reader who knows the old contract must find out what happened to
@@ -3465,129 +3364,6 @@ class TestCreateOperationsChangelogEntry(unittest.TestCase):
             re.search(r"(?i)create-operations|operations_path", section),
             "the MAR-113 CHANGELOG entry must mention create-operations or "
             "operations_path (MAR-113 AC-9)")
-
-
-class TestVerifierFixedPointRelocated(unittest.TestCase):
-    """MAR-156 Task 03 (AC-3, AC-7): code-verifier's dimension 1 relocates the
-    review loop's fixed point to ticket.json; audience-style becomes a new
-    standalone dimension 13; consistency is retired with a stated rationale;
-    code/SKILL.md and ship/SKILL.md are updated to match."""
-
-    def agent_path(self, name):
-        return os.path.join(PLUGIN, "agents", name)
-
-    def skill_path(self, name):
-        return os.path.join(PLUGIN, "skills", name, "SKILL.md")
-
-    def _verifier_body(self):
-        return read(self.agent_path("code-verifier.md"))
-
-    def _code_body(self):
-        return read_skill_contract("code")
-
-    def _ship_body(self):
-        return read(self.skill_path("ship"))
-
-    def test_spec_conformance_dimension_gone(self):
-        body = self._verifier_body()
-        self.assertNotIn("**Spec conformance**", body,
-                         "code-verifier.md must no longer declare a 'Spec "
-                         "conformance' dimension (MAR-156 AC-3)")
-
-    def test_acceptance_criteria_conformance_dimension_present(self):
-        body = self._verifier_body()
-        self.assertIn("**Acceptance-criteria conformance**", body,
-                      "code-verifier.md must declare the new 'Acceptance-"
-                      "criteria conformance' dimension (MAR-156 AC-3)")
-        # The fixed point is THE TICKET, read fresh -- not a filename. ADR-0090
-        # moved ticket documents into the repo docs tree as ticket.md, so the
-        # charter names "the ticket document"; pinning `ticket.json` here pinned
-        # a storage detail that had already moved, and it only kept passing
-        # because an unrelated dimension happened to mention the old filename.
-        self.assertIn("ticket document", body,
-                      "code-verifier.md dimension 1 must name the ticket document "
-                      "as the fixed point it re-reads")
-        self.assertIsNotNone(
-            re.search(r"(?i)MUST NOT accept.{0,120}restatement", body, re.DOTALL),
-            "code-verifier.md dimension 1 must state the explicit negative "
-            "guarantee against trusting the plan artifact's restatement "
-            "(MAR-156 AC-3/D2)")
-        self.assertIn("FRESH, EVERY iteration", body)
-
-    def test_retired_dimensions_note_present(self):
-        body = self._verifier_body()
-        self.assertIn("Retired dimensions", body,
-                      "code-verifier.md must carry a 'Retired dimensions' note")
-        self.assertIsNotNone(
-            re.search(r"(?i)consistency.{0,300}no cross-file surface|"
-                      r"no cross-file surface.{0,300}consistency",
-                      body, re.DOTALL),
-            "the Retired dimensions note must state consistency's retirement "
-            "rationale (single-artifact judgment has no cross-file surface)")
-
-    def test_audience_style_dimension_13_standalone_blocking(self):
-        body = self._verifier_body()
-        self.assertIsNotNone(
-            re.search(r"(?m)^13\.\s+\*\*Audience-style\*\*", body),
-            "code-verifier.md must declare a standalone, numbered dimension "
-            "13 'Audience-style'")
-        self.assertIn("audience_style_profile", body)
-        self.assertIn('severity="blocking"', body)
-
-    def test_structure_subcheck_fixed_literal_not_settings_key(self):
-        body = re.sub(r"\s+", " ", self._verifier_body())
-        self.assertIn(
-            'Scope; Approach; API/data changes; Test plan; Out of scope',
-            body,
-            "code-verifier.md's structure sub-check must use the fixed "
-            "five-heading literal")
-        self.assertNotIn("settings.enforcement.spec_sections", body,
-                         "code-verifier.md must not reference the deleted "
-                         "settings.enforcement.spec_sections key")
-
-    def test_code_skill_declares_and_forwards_audience_style_profile(self):
-        body = re.sub(r"\s+", " ", self._code_body())
-        self.assertIn(
-            '<constraint name="audience_style_profile">engineers '
-            '(implementation-contract prose)</constraint>',
-            body,
-            "code/SKILL.md must declare/forward audience_style_profile "
-            "(MAR-156 Task 03)")
-
-    def test_code_skill_dimension_summary_bullets_updated(self):
-        body = self._code_body()
-        self.assertNotIn("**Spec conformance**", body)
-        self.assertIn("**Acceptance-criteria conformance**", body)
-        self.assertIn("**Audience-style**", body)
-
-    def test_ship_skill_no_create_spec_references(self):
-        """AC-7: ship/SKILL.md no longer names create-spec anywhere."""
-        body = self._ship_body()
-        self.assertNotIn("create-spec", body,
-                         "ship/SKILL.md must not reference create-spec "
-                         "anywhere (MAR-156 AC-7)")
-
-    def test_ship_skill_single_walk_order_no_lane_branch(self):
-        """AC-7: the walk is lane-uniform -- no TRIVIAL/SMALL branch language.
-
-        Since the skills-independence refactor the walk is not spelled out in
-        the prose at all: workflows/ship.yaml declares the order and
-        `acs.py workflow next` computes it, which makes lane-uniformity
-        structural rather than a sentence to keep in sync. The assertion is
-        therefore the delegation plus the absence of any lane branch."""
-        body = self._ship_body()
-        section_start = body.index("## The loop")
-        next_heading = re.search(r"\n## ", body[section_start + 1:])
-        section = body[section_start:section_start + 1 + next_heading.start()] \
-            if next_heading else body[section_start:]
-        self.assertNotIn("TRIVIAL", section)
-        self.assertNotIn("SMALL", section)
-        self.assertNotIn("TRIVIAL", body)
-        self.assertIn("workflow next", section,
-                      "ship/SKILL.md must compute the walk with "
-                      "`acs.py workflow next`")
-        self.assertNotIn("## Pipeline order", body,
-                         "no hard-coded pipeline table may survive")
 
 
 class TestCreateTicketAcDodGateDocs(unittest.TestCase):

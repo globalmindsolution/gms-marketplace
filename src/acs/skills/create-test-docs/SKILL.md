@@ -61,7 +61,6 @@ Parse the printed context JSON. Fields you will use:
   policy), `contracts_path`, `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
-- `post_hook` — absolute path to `post-create-test-docs.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -422,7 +421,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `post-create-test-docs.py` documents
+   Canonical `states` keys — EXACT names; `acs step finish` documents
    them and the next steps read them:
    - `cases` (int): every `TC-` row in the published table. It MUST equal the
      published front matter's `cases`.
@@ -442,7 +441,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-test-docs.py" --ticket <id> --result-file steps/create-test-docs/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-test-docs
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed

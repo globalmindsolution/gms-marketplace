@@ -163,3 +163,43 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step review-c
 `blocking_findings` or `exhausted`. On `blocking_findings` the kernel
 increments the loop and points the cursor back at `code`; you do not decide
 that and you do not invoke `/acs:code` yourself.
+
+A completed review without a usable `verdict.json` is refused: the review's
+conclusion is a document the kernel reads, not a status you assert.
+
+## User interaction
+
+**Clarification ledger first.** Before asking the user anything, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list` and reuse any
+recorded answer — re-asking an answered question is a defect. When ≥2
+clarifications are open, present them in ONE grouped interaction rather than
+serial round-trips, and record each answer as its own entry with
+`clarify.py add --skill review-code` — one `C-<n>` per question. Never skip a
+question, never merge two into one entry, and never auto-answer one outside
+the `--source assumption --rationale "..."` rule. When the user is
+unavailable, record the decision as an assumption under that rule.
+
+You rarely need this: a review judges what is in front of it. The one case
+that does is a finding disputed and then confirmed a second time — a human
+breaks the tie, and the question goes in the ledger before the run stops with
+`stop_reason: needs_input`.
+
+## Completion report (normative)
+
+Every terminal outcome of a direct invocation ends your final message with the
+standard block (`${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`, "Completion
+report"), rendered only AFTER `step finish` succeeded. Same labels, same
+order, `none` where empty:
+
+```markdown
+
+## /acs:review-code · <run-id> · <status>
+
+- **Subject**: <id or title> (<kind>)
+- **Status**: <status> — <outcome>
+- **Results**: lenses run; candidate findings raised; confirmed / refuted / advisory after adjudication; the gate's four checks and coverage vs target
+- **Findings**: <confirmed findings by id, or "none">
+- **Artifacts**: `verdict.json`, the lens reports, `adjudication.json`, `gate.json`
+- **Metrics**: iteration <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Next**: `/acs:code` on blocking findings; `/acs:docs-sync` then `/acs:create-pr` on a pass
+```

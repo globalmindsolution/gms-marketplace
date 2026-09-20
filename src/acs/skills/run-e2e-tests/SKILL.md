@@ -1,34 +1,57 @@
 ---
 name: run-e2e-tests
-description: Run this product's configured test suites (all of them, or a --suite-selected subset, or the suites one ticket's test cases name), capture pass/fail results to an auditable workspace artifact, and (on a failure) triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke — not for reading delivery or usage metrics (see /acs:metrics, /acs:usage).
+description: Run this product's configured test suites (all of them, a --suite-selected subset, or the suites one run's test cases name), capture pass/fail results to an auditable run artifact, and on a failure triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke — not for reading delivery or usage metrics (see /acs:metrics, /acs:usage).
+argument-hint: "[ticket-id | prompt | document] [--suite <name>]"
+disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of `/acs:run-e2e-tests`, the acs suite runner. In its
-default/standing invocation (no `--for-ticket`), this is NOT a hooked
-pipeline skill: no skill-start, no pre/post hooks, no subagents, no
-reflection loop. You do everything yourself with Bash. The `--for-ticket
-<id>` mode (see "Ticket-scoped mode" below) is the `run-e2e-tests` step of
-`workflows/ship.yaml` (`args: "--for-ticket {ticket_id}"`), which `/acs:ship`
-walks -- but `/acs:run-e2e-tests` itself still gains no pre/post hooks of its
-own, no skill-start ticket allocation, and no planner/executor/verifier triad
-in either mode.
+You are the coordinator of `/acs:run-e2e-tests`, the acs suite runner. It runs
+the e2e suites `/acs:create-e2e-tests` wrote — and any other suite the project
+configures — and records what happened.
 
-This skill was `/acs:test` until the skills-independence refactor renamed it
-after what it actually does. `skills/test/` is retained for one release as an
-alias directory that forwards here (`skills/<name>/acs.yaml` records it under
-`aliases`, not in a phase); a ledger written before the rename recorded this
-step as `steps.test`, which `run.schema.json` still accepts and
-`acs.py run next` still resolves to this step. `/acs:create-e2e-tests`
-WRITES a ticket's e2e suites; this skill RUNS the configured suites.
+It is a **step of `ship.yaml`** and it is also a standing command you can run
+at any time against a repo. Those are the same skill and the same protocol:
+the step records its start and finish like every other, and a standing run
+records them against whatever run the checkout is on. There is no second mode
+and no second set of rules (§3.11).
 
-Scope honesty up front: this skill is **not read-only**. Every run **writes**
-a results artifact to the workspace (see Step 3), and on a failure path it
-**mutates** ticket state (regression tickets minted, commented, or linked) —
-this is different from `/acs:metrics`/`/acs:usage`, which are read-only. What
-IS shared with those two unhooked utility skills: no skill-start ticket
-allocation, no delivery ticket of its own, no subagents, no reflection loop —
-`/acs:run-e2e-tests` runs its own lightweight start bookkeeping in-skill,
-exactly like `/acs:metrics`/`/acs:usage` do.
+`/acs:create-e2e-tests` WRITES a run's e2e suites; this skill RUNS the
+configured suites. It spawns no subagents: the work is running commands and
+reading their output, which is what the coordinator is already for.
+
+Scope honesty up front: this skill is **not read-only**. Every run **writes** a
+results artifact (see Step 3), and on a failure path it **mutates** ticket
+state (regression tickets minted, commented, or linked) — unlike
+`/acs:metrics` and `/acs:usage`, which only read.
+
+## Start
+
+MANDATORY first action — run exactly:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step run-e2e-tests
+```
+
+If it exits non-zero: STOP and surface its stderr verbatim. The pre-hook has
+verified this step's inputs. **When nothing is owed it does not start you at
+all**: a run whose `create-e2e-tests` recorded `no_e2e_owed`, or whose project
+configures no suite, is completed by the pre-hook from the plan's `## Contract`
+block with `outcome: nothing_to_run` and this skill is never invoked (§2.2).
+That is the cheapest possible answer to "are there e2e tests to run" — zero
+tokens — and it is why you may assume, once you are running, that there is
+something to run.
+
+`${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md` carries resume-and-reconcile,
+context pressure and the completion report — the parts every acs skill shares.
+
+**Clarification ledger first.** Before asking the user anything, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list` and reuse any
+recorded answer. When ≥2 clarifications are open, present them in ONE grouped
+interaction. Record each answer as its own `clarify.py add --skill
+run-e2e-tests` entry — one `C-<n>` per question — BEFORE acting on it. Never
+skip a question, never merge two into one entry, and never auto-answer one
+outside the `--source assumption --rationale "..."` rule; when the user is
+unavailable, record the decision as an assumption under that rule.
 
 ## Step 1 — Resolve context and arguments
 
@@ -406,6 +429,22 @@ and the caller (cron, a CI scheduled workflow, or a Claude Code routine)
 decides when to invoke it. See `operations/test-scheduling.md` for the
 concrete cron/CI/routine recipe; this skill itself has no built-in scheduler
 (ADR 0011 G8).
+
+## Finish
+
+MANDATORY final step — never skipped, also on failure. Write
+`steps/run-e2e-tests/result.json` with an `outcome` of `passed`, `no_harness`
+or `nothing_to_run`, then:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step run-e2e-tests
+```
+
+The status and outcome are read from that document — a step's transition is
+read from its result, not asserted on the command line. `no_harness` is an
+honest completion, not a failure: a project with no runner configured has
+nothing for this step to do and says so, rather than failing a run over the
+absence of its own evidence.
 
 ## Completion report (normative)
 

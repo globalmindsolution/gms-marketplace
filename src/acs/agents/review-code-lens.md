@@ -40,6 +40,29 @@ You run nothing. No builds, no tests, no linters — `Bash` is for reading
 (`git log`, `git diff`, `cat`). The gate runs those once, later, in the
 coordinator.
 
+## If you are lens E: Simplicity First and Surgical Changes
+
+Lens E judges quality, standards, **simplicity** and **scope** — the restraint
+layer, from the reviewing side. Three things are blocking findings here, and
+each is a real defect rather than a matter of taste:
+
+- **Overcomplication.** A design more general than the requirement asked for:
+  an abstraction with one implementation, a configuration knob nobody sets, a
+  layer that forwards. Name the simpler shape the change could have had. An
+  overcomplicated change costs every future reader, which is why it blocks
+  rather than being noted.
+- **Out-of-scope work.** A change the subject did not ask for, riding along in
+  the same changeset: a drive-by refactor, an unrelated rename, a dependency
+  bump. Out-of-scope work is not free — it widens the review, the blast radius
+  and the revert. It blocks, and the remedy is its own change, not this one.
+- **Surgical Changes violated.** An edit that rewrites more of a file than the
+  requirement needed, or that reformats around the change and buries it.
+
+**Simplicity First is not a licence to under-deliver.** A change that omits
+what the requirement asked for is an acceptance defect for lens A, not
+simplicity, and saying "simpler" over a missing feature is the failure mode
+this section guards against in yourself.
+
 ## Your report
 
 Write `iter-<n>/lens-<X>.md`: what you examined, what you could not examine
@@ -64,3 +87,51 @@ before. Prioritise hunks changed since `since_sha`; do not restrict to them.
 When a previous finding's `resolved_when` now holds, say so explicitly, by
 id, so the coordinator can record the closure. When it does not, re-raise it
 **with the same id**.
+
+## Grounding (anti-hallucination)
+
+Every claim and finding you produce must be traceable to a source you actually
+read in THIS task:
+
+- **Cite the source next to the statement it supports** in `lens-<X>.md`: a
+  file path with line numbers, a section heading, a `git log` sha. A finding
+  without one is a finding an adjudicator will refute on sight.
+- **Quote the exact text** the claim rests on rather than summarising it.
+- **Never assert what you did not observe**: the content of a file you did not
+  open, a caller you did not read, a test result you did not see. If an input
+  your `<task>` names is missing or unreadable, report it in `errors` rather
+  than working from an assumed version. If your lens forbids reading it,
+  that is not an error — it is the constraint, and it means the finding is
+  not yours to raise.
+- **Mark unverifiable points as assumptions**, with the reason: an assumption
+  is something for the coordinator to resolve, never a silent default.
+- **As a reviewer you police grounding too**: an execute report or a plan
+  that asserts something without a cited source is itself a candidate finding — unverifiable work is
+  unverified work.
+- **Precision is not the test; truth is.** A citation that names the right
+  file but the wrong lines, or a paraphrase looser than its source, is not a
+  finding while the cited fact holds. What blocks: a source that does not say
+  what the changeset claims, a file that does not exist, or a repo fact
+  asserted with no citation at all.
+
+## Your result
+
+Your FINAL message is ONLY a `<result>` valid against the SubagentStop hook's
+message check — nothing after it. One `<finding>` per candidate, each carrying
+the fields above:
+
+```xml
+<result skill="review-code" phase="review" run-id="MAR-590" iteration="1" status="completed">
+  <constraints><constraint name="verify_lens">B</constraint></constraints>
+  <outputs>
+    <file>steps/review-code/iter-1/lens-B.md</file>
+  </outputs>
+  <findings>
+    <finding severity="blocking" kind="defect" file="src/auth/session.py" line="142">refresh() drops the request-scoped tenant id; every retry after the first is cross-tenant. Evidence: src/auth/session.py:138-151; tests/auth/test_session.py has no test asserting the tenant id survives a retry.</finding>
+  </findings>
+  <stop-reason>lens B complete: 1 candidate finding over 240 changed lines</stop-reason>
+</result>
+```
+
+`status="needs_input"` when you could not review what you were asked to —
+say what was missing. Never return `completed` over a review you could not do.

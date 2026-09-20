@@ -114,8 +114,8 @@ every step it invokes IS gated by pre/post hooks", `ship/SKILL.md`, Ground
 rules) and `/acs:create-docs` relies on for its own legs. You never bypass,
 simulate, or duplicate that leg's hooks: its own `pre-create-project.py` /
 `pre-standardize-project.py` gate runs for real, its own Start mints its
-delivery ticket, and its own `post-create-project.py` /
-`post-standardize-project.py` finalizes the run for real.
+delivery ticket, and its own `acs step finish` /
+`acs step finish` finalizes the run for real.
 
 Never invoke a leg from inside a spawned subagent (no acs subagent holds both
 the Agent and Skill tools; decomposition stays the coordinator's job), and

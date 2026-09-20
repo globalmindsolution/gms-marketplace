@@ -63,7 +63,6 @@ Parse the printed context JSON. Fields you will use:
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see
   `references/resume.md`.
-- `post_hook` — absolute path to `post-analyze-requirements.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -430,7 +429,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `post-analyze-requirements.py` documents
+   Canonical `states` keys — EXACT names; `acs step finish` documents
    them and the next steps read them:
    - `ready_for_planning` (bool): the verdict. `false` is the `needs_input`
      arm, and `/acs:create-impl-plan` is what consumes it.
@@ -451,7 +450,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-analyze-requirements.py" --ticket <id> --result-file steps/analyze-requirements/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step analyze-requirements
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed

@@ -57,7 +57,6 @@ Parse the printed context JSON. Fields you will use:
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see
   `references/not-a-first-run.md`.
-- `post_hook` — absolute path to `post-create-impl-plan.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -427,7 +426,7 @@ the open oversize question, record the user's answer with `clarify.py add`,
 the same as any other question above. On "accept one large PR": continue
 planning against the current decomposition — nothing else changes. On
 "split": the run ends in an orderly way — run the mandatory Finish steps
-below first (so `post-create-impl-plan.py` closes the run entry like any
+below first (so `acs step finish` closes the run entry like any
 other terminal run), writing
 `steps/create-impl-plan/result.json` with `status: "failed"` and
 `stop_reason` "user chose to split; restructure required before
@@ -483,7 +482,7 @@ MANDATORY final step — never skipped, also on failure:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `post-create-impl-plan.py` documents
+   Canonical `states` keys — EXACT names; `acs step finish` documents
    them and the next steps read them:
    - `plan_path`: where `plan.md` was published (the ticket docs folder, or
      the partition when `artifacts.tickets_path` is null). `/acs:code`'s gate
@@ -504,7 +503,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-impl-plan.py" --ticket <id> --result-file steps/create-impl-plan/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-impl-plan
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed

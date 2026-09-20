@@ -1,21 +1,30 @@
 # Skill Requirements
 
-Twenty-seven skills in total, grouped into five phases by the registry
-`src/acs/workflows/phases.yaml` — every skill directory appears in
-exactly one group, or under `aliases`:
+Thirty-two skills in total. There is no registry file listing them: a skill is
+a **directory** under `src/acs/skills/` holding a `SKILL.md`, and that is the
+whole of what makes it a skill (§2.4). `skills/<name>/acs.yaml` declares what
+each one reads and writes; nothing declares which group it belongs to, because
+nothing needs to.
 
-- **Design** — `/create-prd`, `/create-requirements`, `/create-architecture`,
-  `/acs:create-docs` (the four product doc sets, one skill since ADR-0094),
-  `/create-project`, `/acs:standardize-project`, `/acs:project`,
-  `/create-ticket`, `/create-design`.
-- **Build** — `/analyze-ticket`, `/create-api-contract`,
-  `/create-impl-plan`, `/create-test-docs`, `/code`, `/docs-sync`.
-- **Test** — `/create-e2e-tests`, `/run-e2e-tests`.
-- **Ship** — `/create-pr`, `/merge-pr`, `/acs:release`.
-- **Utility** — `/setup`, `/install-hooks`, `/update`, `/handoff`,
-  `/metrics`, `/usage`, `/ship`.
-- **Alias** — `/acs:test`, kept for one release as a forwarding directory
-  for `/run-e2e-tests`; it is listed under `aliases`, never in a phase.
+The groups below are a reader's aid, not a structure the code knows about:
+
+- **Product & design** — `/acs:create-prd`, `/acs:create-requirements`,
+  `/acs:create-architecture`, `/acs:create-docs` (the four product doc sets,
+  one skill since ADR-0094), `/acs:create-project`,
+  `/acs:standardize-project`, `/acs:project`, `/acs:create-ticket`,
+  `/acs:create-design`.
+- **Implementation** — `/acs:analyze-requirements`,
+  `/acs:create-impl-plan`, `/acs:create-api-contract`,
+  `/acs:create-test-docs`, `/acs:code` and its four delivery-path legs,
+  `/acs:review-code`, `/acs:docs-sync`.
+- **Test** — `/acs:create-e2e-tests`, `/acs:run-e2e-tests`.
+- **Ship** — `/acs:create-pr`, `/acs:merge-pr`, `/acs:release`.
+- **Utility** — `/acs:setup`, `/acs:install-hooks`, `/acs:update`,
+  `/acs:handoff`, `/acs:metrics`, `/acs:usage`, `/acs:ship`.
+
+The ORDER of the implementation skills is `workflows/ship.yaml`'s list, and
+nothing else states it. A run's progress over that list is `run.json`; a
+skill's own progress inside a step is `steps/<skill>/state.json`.
 
 The phase a skill sits in is a grouping, not an order. The order the Build,
 Test and Ship steps run in for a ticket is declared in

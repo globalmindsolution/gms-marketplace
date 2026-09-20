@@ -63,7 +63,7 @@ epic, after that epic's own design is approved. Resulting precedence:
 9. **Finish.** The mandatory Finish below still applies unchanged:
    `result.json` with `states.ticket_id` = the epic, `type: "epic"`,
    `needs_design`, `children` (the epic's full children after this run),
-   `prd_trace` (the epic's), then `post-create-ticket.py`. Never leave the
+   `prd_trace` (the epic's), then `acs step finish`. Never leave the
    epic's `create-ticket` run non-`completed`: no gate refuses on it any more
    (order lives in `workflows/ship.yaml`), but the ledger is what
    `acs.py run next`, `/acs:metrics` and the derived ticket status read,
