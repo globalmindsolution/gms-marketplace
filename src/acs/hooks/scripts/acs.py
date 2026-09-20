@@ -12,10 +12,9 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, path, ticket, pr, tracker, readiness, lock, filemap,
-    guard, verdict, phase, slug, fanout, doctor, workflow, artifacts.
-  * Delegated — the verbs an existing script already implements: `start`
-    (skill-start.py), `finish` (pipeline-step.py), `plan check`
+    context, gate, run, step, result, ticket, pr, tracker, readiness, lock,
+    filemap, guard, verdict, slug, fanout, doctor, workflow, artifacts.
+  * Delegated — the verbs an existing script already implements: `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
     when called directly; acs.py forwards argv to them and returns their exit
     code unchanged. Nothing was reimplemented, so no behaviour could drift.
@@ -52,7 +51,7 @@ Usage:
   acs.py plan check --ticket MAR-1
   acs.py setup detect
   acs.py setup apply --answers answers.json
-  acs.py phase validate --skill code --result-file result.json
+  acs.py result validate --skill code result.json
   acs.py slug --text "Introduce the acs CLI"
   acs.py doctor
   acs.py workflow show
@@ -195,7 +194,8 @@ def build_parser():
     rvalidate = result_sub.add_parser("validate",
                                       help="check a result before the post-hook consumes it")
     rvalidate.add_argument("--skill", required=True)
-    rvalidate.add_argument("result_file")
+    rvalidate.add_argument("result_file", nargs="?", default="-",
+                           help="a path, or '-'/omitted for stdin")
     rvalidate.set_defaults(func=cmd_result_validate)
 
     ticket = group("ticket", help="read and write ticket.json")
@@ -298,6 +298,11 @@ def build_parser():
     vmerge.add_argument("--lens", action="append", choices=list(lib.LENSES),
                         help="restrict the merge to these lenses (default: all four)")
     vmerge.set_defaults(func=cmd_verdict_merge)
+
+    slug = group("slug", help="slugify (branch and file naming)")
+    slug.add_argument("--text", required=True)
+    slug.add_argument("--max-len", dest="max_len", type=int, default=40)
+    slug.set_defaults(func=cmd_slug)
 
     fanout = group("fanout", help="epic fan-out helpers")
     fanout_sub = fanout.add_subparsers(dest="cmd")

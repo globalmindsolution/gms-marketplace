@@ -180,6 +180,18 @@ def validate_result(doc, skill, root=None):
     """[error, ...] for one result document: the central envelope, then the
     skill's own `outcome` vocabulary. An empty list means it is admissible."""
     errors = []
+    # `status` first, and by name: the post-hook refuses a document without one
+    # (it would otherwise finalize a step and move the cursor on nothing), so
+    # that is the single most useful thing to say about a bad result.
+    status = doc.get("status")
+    if status is None:
+        errors.append("status is absent — the post-hook refuses a result document without one")
+    elif status not in STEP_STATUSES:
+        errors.append("status %r is not one of %s" % (status, ", ".join(STEP_STATUSES)))
+    elif status == "in_progress":
+        errors.append("status 'in_progress' does not finalize a step")
+    if errors:
+        return errors
     schema = skills_registry.load_schema(RESULT_SCHEMA_FILENAME)
     for node, message in schemasubset.schema_errors(schema, doc):
         errors.append("%s: %s" % (schemasubset.pointer(node), message))
@@ -203,9 +215,6 @@ def validate_result(doc, skill, root=None):
                       % (skill, outcome, skill))
     elif outcome not in vocabulary:
         errors.append("outcome: %r is not one of %s" % (outcome, " | ".join(vocabulary)))
-    if doc.get("status") not in STEP_STATUSES:
-        errors.append("status: %r is not one of %s"
-                      % (doc.get("status"), " | ".join(STEP_STATUSES)))
     if doc.get("status") == "interrupted" and doc.get("stop_reason") not in STOP_REASONS:
         errors.append("stop_reason: an interrupted step needs one of %s"
                       % " | ".join(STOP_REASONS))

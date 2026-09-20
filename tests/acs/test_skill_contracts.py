@@ -3670,7 +3670,7 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
         body = self._agent_body("executor")
         for token in ("git diff", "result.json", "docs_updated", "problems"):
             self.assertIn(token, body, token)
-        self.assertRegex(body, r"iter-.*-verify\.md")
+        self.assertRegex(body, r"iter-.*/verify\.md")
 
     # ------------------------------------------------------------------ AC-2
 
