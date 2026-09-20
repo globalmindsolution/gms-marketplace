@@ -644,10 +644,9 @@ def assert_no_vacuous_absence(results):
 # losing these is the signal that the repo arm stopped resolving anything.
 CHECKED_ABSENCE_SITES = {
     ("tests/acs/test_clarify.py", "clarifications.json"),
-    ("tests/acs/test_handoff.py", "state_path"),
     ("tests/acs/test_handoff.py", "lock_path"),
-    ("tests/acs/test_skill_start.py", "sessions_dir"),
-    ("tests/acs/test_skill_start.py", "lock_path"),
+    ("tests/acs/test_plan_approval.py", "plan-approval.json"),
+    ("tests/acs/test_ungated_run_reporting.py", "lock_path"),
 }
 MIN_CHECKED_ABSENCE_SITES = 7
 

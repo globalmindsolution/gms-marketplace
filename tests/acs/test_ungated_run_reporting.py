@@ -331,8 +331,12 @@ class RefuseResponseTest(SkillStartCase):
         rdir = lib.run_dir(lib.repo_dir(self.ws, REPO_ID), "SHOP-1")
         self.assertFalse(os.path.isdir(rdir), "no run directory may be created")
         self.assertFalse(os.path.exists(lib.lock_path(rdir)))
-        ckid = lib.checkout_id(self.repo)
-        self.assertFalse(os.path.exists(lib.pointer_path(self.ws, REPO_ID, ckid)))
+        # The POINTER's answer, not the file's existence: "this checkout was
+        # not pointed at a run" is the claim, and reading it back states that
+        # whether or not the pointer file happens to exist for other reasons.
+        repo = lib.repo_dir(self.ws, REPO_ID)
+        self.assertIsNone(
+            lib.sessions.current_run_id(repo, lib.checkout_id(self.repo)))
 
     def test_refused_exempt_pr_mode_prints_no_payload(self):
         self.settings(when_absent="refuse")

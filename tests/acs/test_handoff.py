@@ -177,9 +177,11 @@ class TestResumeHint(acs_case.AcsWorkspaceCase):
         self.assertIsNone(payload["step"])
         self.assertIsNone(payload["stop_reason"])
         self.assertEqual(payload["continue_with"], "/acs:ship SHOP-42")
+        # Read the STEP MACHINE rather than probing for a file: "no
+        # invocation was opened" is the claim, and a path check states it
+        # only as long as the layout does not move.
         for step in acs_case.lib.HOOKED_SKILLS:
-            self.assertFalse(
-                os.path.exists(acs_case.lib.state_path(rdir, step)), step)
+            self.assertIsNone(acs_case.lib.last_status(rdir, step), step)
 
     def test_in_progress_step_resumes_with_it_and_releases_the_lock(self):
         rdir = self._started()

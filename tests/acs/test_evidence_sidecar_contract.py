@@ -5,8 +5,8 @@ Prose-contract tests over the 6 producer/verifier charters +
 convention: create-requirements and create-architecture's executors write
 body + companion sidecar (clause anchor -> code-evidence citation list, no
 inline `path:line`); their verifiers actively check grounding (body-grep-to-0,
-anchor-join, count-not-reduced); `/acs:code`'s requirements-merge write path
-and `code-verifier.md`'s Documentation dimension route/guard the same way;
+anchor-join, count-not-reduced); /acs:docs-sync's requirements-merge write path
+and its verifier's `requirements-routing` dimension route/guard the same way;
 `contracts.md`'s requirements paragraph names the mechanism. This spec is the
 contract layer only — no repo doc is migrated (Spec 03) and no topology test
 is touched (Spec 02).
@@ -28,7 +28,11 @@ REQUIREMENTS_VERIFIER = os.path.join(AGENTS, "create-requirements-verifier.md")
 ARCHITECTURE_EXECUTOR = os.path.join(AGENTS, "create-architecture-executor.md")
 ARCHITECTURE_VERIFIER = os.path.join(AGENTS, "create-architecture-verifier.md")
 DOCS_SYNC_EXECUTOR = os.path.join(AGENTS, "docs-sync-executor.md")
-CODE_VERIFIER = os.path.join(AGENTS, "code-verifier.md")
+#: The guard side of the merge. MAR-162 moved the requirements merge onto
+#: /acs:docs-sync, and v0.5.0 retired code-verifier.md with the in-skill
+#: review, so the verifier that guards the routing is the one paired with the
+#: executor that performs it.
+DOCS_SYNC_VERIFIER = os.path.join(AGENTS, "docs-sync-verifier.md")
 CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 
 SIDECAR_TOKEN_RE = re.compile(r"(?i)\.evidence\.md")
@@ -247,35 +251,35 @@ class DocsSyncExecutorRequirementsMergeSidecarContractTest(unittest.TestCase):
         self.assertIn("<doc-basename-without-.md>.evidence.md", self.body)
 
 
-class CodeVerifierDocumentationSidecarContractTest(unittest.TestCase):
-    """AC-3: code-verifier.md dimension 11 (Documentation) blocks a
+class DocsSyncVerifierRequirementsRoutingSidecarContractTest(unittest.TestCase):
+    """AC-3, at its current home: the verifier of the merge blocks a
     requirements_path merge that leaves an inline in-scope citation instead
-    of routing it to the sidecar."""
+    of routing it to the sidecar.
+
+    MAR-162 demoted the equivalent `code-verifier` sub-check to advisory
+    precisely because docs-sync's own verifier re-derives and BLOCKS on the
+    same content. v0.5.0 retired that verifier, so the advisory half is gone
+    and the blocking half -- always the load-bearing one -- is what is pinned.
+    """
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CODE_VERIFIER)
-        cls.block = dimension_block(cls.body, "Documentation", "Simplicity & scope")
+        cls.body = read(DOCS_SYNC_VERIFIER)
+        cls.block = dimension_block(cls.body, "requirements-routing",
+                                    "authoring-conformance")
 
     def test_wrong_subfolder_language_preserved(self):
-        self.assertRegex(self.body, r"wrong subfolder|wrong-subfolder")
+        self.assertRegex(self.block, r"wrong subfolder|wrong-subfolder")
         self.assertRegex(
-            self.body, re.compile(r"outside.*requirements_layout", re.DOTALL))
+            self.block, re.compile(r"requirements_layout", re.DOTALL))
 
     def test_dimension_mentions_evidence_sidecar(self):
         self.assertRegex(self.block, SIDECAR_TOKEN_RE)
 
-    def test_dimension_reports_inline_citation_in_merge_as_advisory(self):
-        """MAR-162 supersedes the prior blocking assertion: dimension 11's
-        living-requirements sub-check is demoted to advisory — the inline
-        in-scope citation clause now reports severity="info", still fully
-        performed and reported, never gating verifier_passed (docs-sync's
-        own verifier independently re-derives and blocks on this content)."""
+    def test_an_inline_in_scope_citation_is_a_finding(self):
         self.assertRegex(
             self.block,
-            r'(?i)inline[\s\S]{0,200}citation[\s\S]{0,300}'
-            r'severity="info"\s+dimension="documentation"',
-        )
+            r"(?i)inline[\s\S]{0,200}sidecar is a finding")
 
 
 class ContractsMdSidecarNoteTest(unittest.TestCase):
