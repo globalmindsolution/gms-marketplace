@@ -610,8 +610,7 @@ def run_post(skill):
     # skill claimed -- a step whose claim is gone cannot be audited against
     # its outcome later.
     write_json(step_machine.result_path(rdir, skill), result)
-    state = step_machine.finalize_invocation(rdir, skill, run_id, result)
-    entry = step_machine.last_invocation(state) or {}
+    state, entry = step_machine.finalize_invocation(rdir, skill, run_id, result)
     entry["derived_states"] = {"values": derived, "provenance": notes,
                                "overrode": [{"key": key, "supplied": was, "derived": now}
                                             for key, was, now in conflicts]}

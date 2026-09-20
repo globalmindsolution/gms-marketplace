@@ -127,9 +127,17 @@ def append_invocation(rdir, step, run_id, session=None, gate=None):
 
 
 def finalize_invocation(rdir, step, run_id, result):
-    """Close the open invocation from the step's result document. Appends one
-    when the coordinator never registered a start, so a step that crashed
-    before its pre-hook still leaves a record rather than a silence."""
+    """Close the open invocation from the step's result document; returns
+    (state, entry).
+
+    Both, because every caller wants the entry it just closed -- to stamp the
+    derived-states provenance on it, or to hand it to the metrics roll-up --
+    and re-finding it through `invocations[-1]` is an invitation to find the
+    wrong one after a concurrent append.
+
+    Appends an invocation when the coordinator never registered a start, so a
+    step that crashed before its pre-hook still leaves a record rather than a
+    silence."""
     doc = load_state(rdir, step, run_id)
     invocations = doc.setdefault("invocations", [])
     if not invocations or invocations[-1].get("status") != "in_progress":
@@ -146,7 +154,7 @@ def finalize_invocation(rdir, step, run_id, result):
     for key in ("findings", "errors"):
         if result.get(key):
             doc.setdefault(key, []).extend(result[key])
-    return save_state(rdir, step, doc)
+    return save_state(rdir, step, doc), entry
 
 
 def record_error(rdir, step, run_id, message):
