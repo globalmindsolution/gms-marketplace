@@ -46,6 +46,7 @@ from ._common import (GateError, HOOKED_SKILLS, _note, _warn, now_iso,
     read_json, write_json, write_text)
 from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessions_dir
 from .tickets import load_ticket
+from .step import last_invocation, last_status, load_state
 from . import verdict
 
 #: agent_type suffix -> the phase name its artifact is filed under. Two roles
@@ -80,7 +81,7 @@ ACTIVE_AGENTS_DIRNAME = "agents"
 #: What PreCompact writes, in the partition, for whoever picks the ticket up.
 HANDOFF_CONTEXT_FILENAME = "handoff-context.md"
 
-#: The root elements a subagent may return (acs-messages.xsd). `task` is the
+#: The root elements a subagent may return. `task` is the
 #: coordinator's direction, never a subagent's answer, so it is not here.
 RESULT_ROOTS = ("result", "handoff")
 
@@ -371,10 +372,11 @@ def render_handoff_context(tdir, ticket_id, skill):
     lines += ["", "## In flight", ""]
     if skill:
         state = load_state(tdir, skill, ticket_id)
-        entry = last_run(state) or {}
+        entry = last_invocation(state) or {}
         lines.append("- `/acs:%s` run started %s is **%s**"
                      % (skill, entry.get("started_at"), entry.get("status")))
-        lines.append("- phase artifacts: `%s`" % os.path.join(tdir, "phases", skill))
+        from .run import step_dir as _step_dir
+        lines.append("- step artifacts: `%s`" % _step_dir(tdir, skill))
         result = result_document(tdir, skill)
         lines.append("- result document: %s"
                      % ("written (status `%s`)" % result.get("status") if result
@@ -467,9 +469,18 @@ def validate_message(message):
     if root.tag not in RESULT_ROOTS:
         errors.append("root element is <%s>; expected one of %s"
                       % (root.tag, " or ".join("<%s>" % r for r in RESULT_ROOTS)))
-    for attr in ("skill", "phase"):
-        if not (root.get(attr) or "").strip():
-            errors.append("%s= is required and must be non-empty" % attr)
+        return errors
+    if not (root.get("skill") or "").strip():
+        errors.append("skill= is required and must be non-empty")
+    if root.tag != "result":
+        # A <handoff> is a step coordinator's return to /acs:ship, not a
+        # phase's output: it has no phase and no iteration, and there is no
+        # snapshot path to derive from it. Requiring them here would refuse
+        # every correct handoff -- which is exactly what a subagent sends when
+        # it stops for input.
+        return errors
+    if not (root.get("phase") or "").strip():
+        errors.append("phase= is required and must be non-empty")
     iteration = (root.get("iteration") or "").strip()
     if not iteration.isdigit() or int(iteration) < 1:
         errors.append("iteration= is required and must be a positive integer")
@@ -519,7 +530,7 @@ def subagent_stop(payload, validator=None):
                   "subagent stop — the coordinator must record the failure"
                   % (cc.hook_agent_type(payload), attempts, "; ".join(errors)))
             return 0  # record kept: it carries the refusal count that got us here
-        _warn("%s's message does not validate against acs-messages.xsd:\n  %s\n"
+        _warn("%s's message does not validate:\n  %s\n"
               "Return a corrected message." % (cc.hook_agent_type(payload), "\n  ".join(errors)))
         return 2
 
