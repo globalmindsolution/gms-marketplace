@@ -302,10 +302,13 @@ ids. The gate runs again in full.
 
 **What the engine checks.** `acs step finish` on `review-code` with
 `outcome: blocking_findings` increments `loops.review-code.iteration` and
-sets the cursor to `code`. `code`'s pre-hook then verifies the verdict exists,
-its `iteration` matches, and it carries at least one `confirmed` finding — a
-loop-back with nothing to fix is a bug, and is refused. On the way back,
-`review-code`'s pre-hook verifies `result.json` answers every confirmed id.
+sets the cursor to `code`. **When, and only when, the run carries a prior
+iteration**, `code`'s pre-hook verifies the verdict exists, its `iteration`
+matches, and it carries at least one `confirmed` finding — a loop-back with
+nothing to fix is a bug, and is refused; and `review-code`'s pre-hook verifies
+`result.json` answers every confirmed id. On a run with no prior iteration
+neither check has anything to check, which is what makes each skill runnable
+on its own (§3.11).
 
 **What must not cross.** Refuted findings (noise — they stay in
 `iter-<n>/adjudication.json`); the lens reports (prose, for humans); and in
@@ -621,6 +624,46 @@ does not run.
 > The hook enforcement in §5 exists partly for this: a pre-push guard refuses a
 > push of the base branch itself.
 
+### 3.11 Standalone invocation
+
+The rule that makes every skill independently invocable is one `INTERNALS.md`
+already states and this redesign keeps: **order lives in the workflow; a
+skill's gate checks inputs and safety brakes, never position.** `/acs:ship`
+asks `acs run next` which step is due and invokes it; a skill invoked by hand
+is never asked whether it is "next". The one order-related thing a gate does
+is print the advisory line it prints today (*"review-code normally follows
+code; code has not completed for this run"*), on stderr, exit 0.
+
+Every invocation, by hand or under `/acs:ship`, writes into a run: the
+checkout's current run when there is one, else a new run for the subject
+given (a ticket id, a prompt) or — for a review with no subject at all — the
+branch. A run advanced by hand is the same run `/acs:ship` continues later:
+the cursor is the first step not completed, and a step completed by hand is
+not run again.
+
+For the pair the loop joins:
+
+| | `/acs:code` | `/acs:review-code` |
+|---|---|---|
+| **Input it refuses without** | a plan with a `## Contract` block — the run's, or `--plan <file>`. `code` implements a plan; a prompt with no plan is `/acs:ship "…"` | a changeset: `--base <ref>` (default: the repo's default branch) against HEAD **and the working tree** — uncommitted changes are reviewed |
+| **Safety brakes** | on `standard` / `complex`: an approval whose `plan_sha256` matches; another session's lock | another session's lock |
+| **Optional inputs, and what happens without them** | a prior verdict → iteration 1, no resolutions owed | `requirements.md` → lens A records "no requirement to judge against"; `api-contract.md` / `design.md` → lens C likewise; `test-cases.md` → lens A's `TC-n` matrix is empty. **B, D and E run on any diff.** |
+| **Writes** | `steps/code/state.json`, `result.json`, the commits | `steps/review-code/verdict.json`, the lens reports, the adjudication record; and the gate runs — it is part of what a review is |
+| **After** | done; a review is the user's choice | done; on blocking findings the verdict is on disk and `/acs:code` will read it — so `/acs:review-code` → `/acs:code` → `/acs:review-code` by hand **is the loop**, on the same artifacts, with the same ids |
+
+The loop's iteration counter increments whichever way the loop is driven. The
+**cap** is `/acs:ship`'s rule — it refuses to loop past `max_iterations` —
+and by hand the skills warn past it and continue, because by hand the user is
+the loop controller.
+
+The other eight are simpler and follow the same pattern: `analyze-requirements`
+needs a ticket, prompt or document; `create-impl-plan` needs
+`requirements.md`; the four always-run steps need the plan and decide from it;
+`docs-sync` needs a changeset; `create-pr` needs commits on the current
+branch. None needs `/acs:ship`, and none needs a step before it to have been
+recorded — only that step's *artifact* to exist, which the user may have
+produced any way they like.
+
 ---
 
 ## 4. State
@@ -742,7 +785,7 @@ ran its cycle*.
   "run_id": "MAR-590",
   "workflow": "ship",                    // the file name, workflows/ship.yaml
   "workflow_version": 3,
-  "subject": { "kind": "ticket", "ticket_id": "MAR-590" },   // or kind: prompt | document
+  "subject": { "kind": "ticket", "ticket_id": "MAR-590" },   // or kind: prompt | document | branch (§3.11)
   "status": "in_progress",
   "cursor": "review-code",               // the first step not completed
   "steps": {
@@ -805,7 +848,9 @@ allows a transition:
 - **I2** `cursor` is the first step in workflow order that is not `completed`;
   the `in_progress` step, when there is one, is the cursor
 - **I3** a `completed` step has a `result.json`, and its `state.json` agrees
-- **I4** `loops.<step>.iteration ≤ max`
+- **I4** `loops.<step>.iteration ≤ max` — enforced by `/acs:ship`, which refuses
+  to loop past it; a hand-driven run may exceed it and `acs run check` reports
+  that as a warning, not a violation (§3.11)
 - **I5** every key of `steps` is a step of the resolved workflow, and every
   `leg` is a leg of that step's skill in `workflows/phases.yaml`
 
@@ -931,7 +976,8 @@ pointer already exists today (it records the current ticket and skill); it
 gains `run_id` and `step` and loses nothing.
 
 Once found, `/acs:ship` re-reads `run.json`, asks `acs run next` for the
-cursor, and continues. A step recorded `in_progress` or `interrupted` is
+cursor, and continues — including on a run some of whose steps were completed
+by hand (§3.11): those are not run again. A step recorded `in_progress` or `interrupted` is
 re-run; its skill-start reconciles recorded state against reality (the working
 tree, the branch, the artifacts on disk) rather than trusting it, exactly as
 today.
@@ -950,7 +996,7 @@ Every skill keeps hook-backed gating; prose is never the enforcement mechanism.
 
 | Event | Enforces |
 |---|---|
-| `PreToolUse(Skill)` | the step is at or behind `run.json`'s cursor |
+| `PreToolUse(Skill)` | the skill's **inputs** exist and its **safety brakes** hold (§3.11) — never its position; order is `/acs:ship`'s, via `acs run next`, and the gate prints today's one advisory line when a step runs out of order |
 | `PreToolUse(Skill)` — new | records a no-op completion from `## Contract` and refuses the invocation, so nothing is owed costs nothing (§2.2) |
 | `PreToolUse(Write\|Edit\|MultiEdit)` | the executor stays inside the plan's file map |
 | `PreToolUse(Write\|Edit\|Bash)` — new | **refuses every mutation while `create-impl-plan` is the active step** (§3.2's read-only guarantee) |
