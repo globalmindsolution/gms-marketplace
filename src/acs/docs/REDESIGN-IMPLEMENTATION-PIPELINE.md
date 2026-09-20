@@ -99,12 +99,12 @@ status never carried.
 
 ```
  1  analyze-requirements   clarify the requirement from a ticket, a prompt or a document
- 2  create-impl-plan       the implementation plan and its test strategy
- 3  create-api-contract    the API/data contract, when the plan declares that surface
+ 2  create-impl-plan       plan mode: read-only until the human approves the plan
+ 3  create-api-contract    the API/data contract, or an evidenced "none owed"
  4  create-test-docs       test-cases.md — the TC-n set code and review both trace to
- 5  code                   implement with TDD — targeted tests only
+ 5  code                   implement with TDD — targeted tests only; dispatches to its leg
  6  review-code            five-lens review + adjudication + final gate    ← loops with 5, cap 3
- 7  create-e2e-tests       author the e2e tests the plan declared
+ 7  create-e2e-tests       the e2e tests the plan declared, or an evidenced "none owed"
  8  run-e2e-tests          run them
  9  docs-sync              re-derive and apply the doc deltas
 10  create-pr              create the branch, push, open the PR
