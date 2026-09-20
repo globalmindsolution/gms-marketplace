@@ -148,6 +148,25 @@ def validate_workflow(doc, manifests=None, lines=None, path=None):
               "`delivery`) that version 3 removed; rewrite it as a list of skill names."
               % (doc.get("version"), WORKFLOW_VERSION), path, lines, ("version",))
 
+    # The step SHAPE is checked before the schema, so an author who wrote a
+    # version-2 step gets "needs: removed in version 3 — the written order is
+    # the dependency order" rather than "expected string, got object". Naming
+    # where a key went is the whole reason REMOVED_STEP_KEYS exists.
+    for index, step in enumerate(doc.get("steps") or []):
+        if not isinstance(step, dict):
+            continue
+        node = ("steps", index)
+        # Every removed key this step carries, in one message: a real
+        # version-2 step carries `id` AND `needs` AND often `when`, and an
+        # author who has to fix them one round trip at a time is being told
+        # off three times for one mistake.
+        gone = [(key, REMOVED_STEP_KEYS[key]) for key in REMOVED_STEP_KEYS if key in step]
+        if gone:
+            _fail("steps[%d]: removed in version 3 — %s. A step is a skill NAME, not an "
+                  "object." % (index, "; ".join("%s (%s)" % (k, w) for k, w in gone)),
+                  path, lines, node)
+        _fail("steps[%d]: a step is a skill NAME, not an object" % index, path, lines, node)
+
     errors = schema_errors(load_schema(WORKFLOW_SCHEMA_FILENAME), doc)
     if errors:
         node, message = errors[0]
@@ -156,12 +175,6 @@ def validate_workflow(doc, manifests=None, lines=None, path=None):
     steps = doc["steps"]
     for index, step in enumerate(steps):
         node = ("steps", index)
-        if isinstance(step, dict):
-            for key, went in REMOVED_STEP_KEYS.items():
-                if key in step:
-                    _fail("steps[%d].%s: removed in version 3 — %s"
-                          % (index, key, went), path, lines, node)
-            _fail("steps[%d]: a step is a skill NAME, not an object" % index, path, lines, node)
         if not is_skill(step):
             _fail("steps[%d]: %r is not a skill that ships (no skills/%s/SKILL.md)"
                   % (index, step, step), path, lines, node)
