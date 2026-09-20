@@ -345,5 +345,3 @@ def run_post(skill):
     if epic_done:
         out["epic_done"] = epic_done
     print(json.dumps(out, indent=2))
-
-
