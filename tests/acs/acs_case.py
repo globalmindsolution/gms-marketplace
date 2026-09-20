@@ -135,7 +135,17 @@ class AcsWorkspaceCase(unittest.TestCase):
         validates against the resolved workflow rather than an argparse enum.
         A run over this ticket is created first when there is none, which is
         what the pre-hook does for a real invocation."""
-        self.ensure_run(ticket)
+        rdir = self.ensure_run(ticket)
+        # I1 allows one in_progress step per run. A fixture that moves to a
+        # different skill is standing in for a session that moved on, so it
+        # interrupts the one in flight exactly as a real session's Stop hook
+        # would -- rather than the harness quietly relaxing the invariant.
+        doc = lib.load_run(rdir) or {}
+        running = lib.in_progress_step(doc)
+        if running and running != skill:
+            self.run_script("acs.py", "step", "finish", "--step", running,
+                            "--run", ticket, "--status", "interrupted",
+                            "--stop-reason", "session_end")
         return self.run_script("acs.py", "step", "start", "--step", skill,
                                "--run", ticket)
 
