@@ -244,6 +244,104 @@ def _exempt_pr_start(args, ctx, gate):
     })
 
 
+def _resume_id_for_allocate(args, ctx):
+    """The ticket id an `--allocate` run is RESUMING, or None to mint a new one.
+
+    Resume reuses the existing partition: `/acs:ship` re-invokes an interrupted
+    `create-ticket` with the ticket id as its argument, and allocating again
+    there would mint a second ticket for the same work.
+
+    Only `--ticket`, or an `--args` value that IS an id, counts. The session
+    pointer and the branch name do not: both name whatever this checkout last
+    touched, which is not the same question as "is this run a resume".
+    """
+    explicit = (args.ticket or "").strip() if getattr(args, "ticket", None) else ""
+    if explicit:
+        return explicit
+    text = (getattr(args, "args", None) or "").strip()
+    prefix = (ctx.get("settings") or {}).get("ticket_prefix")
+    if text and prefix and lib.ticket_id_from_text(text, prefix) == text:
+        return text
+    return None
+
+
+def _allocate_delivery_ticket(args, ctx):
+    """Mint (or resume) the delivery ticket a product-level skill works under.
+
+    These skills are never steps of `ship` (§2.4): they produce a document set
+    and need a ticket to carry the work, so they allocate one at Start. That is
+    the one thing `acs step start` does beyond the two state machines.
+    """
+    workspace, repo_id = ctx["workspace"], ctx["repo_id"]
+    if args.doc_set and args.step != "create-docs":
+        die("step start", "--doc-set is only valid with --step create-docs")
+    if args.step not in lib.DELIVERY_TICKET_SKILLS and args.step != "create-ticket":
+        die("step start", "--allocate is only valid for /acs:create-ticket and the "
+                          "product-level skills")
+    if args.step == "create-docs" and not args.doc_set:
+        die("step start", "--step create-docs --allocate needs --doc-set <%s>: each "
+                          "run delivers exactly one doc set" % "|".join(sorted(lib.DOC_SETS)))
+
+    existing_id = _resume_id_for_allocate(args, ctx)
+    if existing_id:
+        existing_dir, archived = lib.find_ticket_partition(workspace, repo_id, existing_id)
+        if not archived and os.path.isdir(existing_dir):
+            existing = lib.load_ticket(existing_dir)
+            if existing:
+                if args.seed_next is not None:
+                    die("step start",
+                        "--seed-next repairs the id counter for a newly minted "
+                        "ticket, but %s already has a live partition to resume, so "
+                        "nothing would be minted and the seed would be ignored. "
+                        "Drop --seed-next to resume it, or name an id that does "
+                        "not exist yet." % existing_id)
+                return existing_id, existing_dir, existing, True
+
+    prefix = ctx["settings"]["ticket_prefix"]
+    repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
+    try:
+        ticket_id = lib.allocate_ticket_id(workspace, repo_id, prefix,
+                                           repo_root=repo_root, seed_next=args.seed_next)
+    except lib.ReconciliationRequired as exc:
+        die("step start", exc.render("acs.py step start --step %s --allocate "
+                                     "--seed-next <n>" % args.step))
+    except lib.GuardTimeout as exc:
+        # No id was minted and no partition exists: nothing is durable, so this
+        # is a clean refusal rather than a crash.
+        die("step start", "%s\nNo ticket id was minted and no state was written; "
+                          "re-run once the other writer finishes." % exc)
+    tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
+    os.makedirs(tdir, exist_ok=True)
+    title = args.title or (lib.DOC_SET_TITLES[args.doc_set] if args.doc_set
+                           else lib.DELIVERY_TICKET_TITLES.get(args.step,
+                                                               "(ticket under analysis)"))
+    ttype = "task" if args.step in lib.DELIVERY_TICKET_SKILLS else args.ttype
+    ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress",
+                                doc_set=args.doc_set)
+    lib.save_ticket(tdir, ticket)
+    try:
+        lib.update_index(workspace, repo_id, ticket, archived=False)
+    except lib.GuardTimeout as exc:
+        die("step start", "%s\nThe id %s IS minted and its partition written, but "
+                          "tickets-index.json has no entry for it yet; the entry is "
+                          "rebuilt from ticket.json by the next write to the index, "
+                          "and re-running resumes this same id." % (exc, ticket_id))
+    return ticket_id, tdir, ticket, False
+
+
+def _ensure_run_for_ticket(ctx, ticket_id):
+    """The run whose subject is this ticket, created when absent, and pointed
+    at by this checkout. Idempotent: a resumed allocation finds its own."""
+    repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    rdir = lib.run_dir(repo, ticket_id)
+    if lib.load_run(rdir) is None:
+        wf, wf_path = lib.workflow_for(ctx, with_path=True)
+        lib.create_run(repo, {"kind": "ticket", "ticket_id": ticket_id}, wf, wf_path,
+                       run_id=ticket_id)
+    lib.point_checkout_at(ctx, ticket_id, None)
+    return rdir
+
+
 def cmd_step_start(args):
     """step -> in_progress, after the invariants hold. Writer for the
     PreToolUse(Skill) transition."""
@@ -261,6 +359,15 @@ def cmd_step_start(args):
         sys.exit(2)
     if getattr(args, "pr", None):
         return _exempt_pr_start(args, ctx, verdict)
+    allocated = None
+    if getattr(args, "allocate", False):
+        ticket_id, _tdir, _ticket, reused = _allocate_delivery_ticket(args, ctx)
+        allocated = {"ticket_id": ticket_id, "reused": reused}
+        args.run = args.run or ticket_id
+        # A minted ticket needs the RUN that carries the work, and the run's
+        # id IS the ticket id (§4.2). Without this the step has a subject and
+        # nowhere to record itself, which is what "no run 'SHOP-1'" meant.
+        _ensure_run_for_ticket(ctx, ticket_id)
     rdir, doc, _ctx, wf = _resolve_run("step start", args.run)
     in_workflow = _require_step(wf, args.step, "step start")
     try:
@@ -302,10 +409,13 @@ def cmd_step_start(args):
     notice = lib.gate_notice(verdict)
     if notice:
         sys.stderr.write(notice + "\n")
-    emit(_start_context(ctx, rdir, doc, args.step, wf,
-                        in_workflow=in_workflow, gate=verdict, reconcile=reconcile,
-                        handoff_summary=handoff_summary,
-                        prior_status=previous.get("status")))
+    out = _start_context(ctx, rdir, doc, args.step, wf,
+                         in_workflow=in_workflow, gate=verdict, reconcile=reconcile,
+                         handoff_summary=handoff_summary,
+                         prior_status=previous.get("status"))
+    if allocated:
+        out["allocated"] = allocated
+    emit(out)
 
 
 def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,

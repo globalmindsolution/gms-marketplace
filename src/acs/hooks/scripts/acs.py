@@ -171,6 +171,21 @@ def build_parser():
     sstart.add_argument("--run")
     sstart.add_argument("--pr", help="/acs:merge-pr's exempt-pr mode: N, #N or a PR "
                                      "URL. Resolves no run and writes nothing.")
+    sstart.add_argument("--ticket", help="name the subject explicitly")
+    sstart.add_argument("--args", help="the invocation's raw argument text")
+    sstart.add_argument("--allocate", action="store_true",
+                        help="mint the delivery ticket a product-level skill works "
+                             "under, unless --ticket (or an --args value that IS an "
+                             "id) names a live partition to resume")
+    sstart.add_argument("--doc-set", dest="doc_set", choices=sorted(lib.DOC_SETS),
+                        help="the doc set a /acs:create-docs run delivers (required "
+                             "with --step create-docs --allocate)")
+    sstart.add_argument("--title", help="the minted ticket's title")
+    sstart.add_argument("--type", dest="ttype", default="task",
+                        help="the minted ticket's type (create-ticket only)")
+    sstart.add_argument("--seed-next", dest="seed_next", type=int,
+                        help="repair the id counter for a newly minted ticket "
+                             "(only valid together with --allocate)")
     sstart.set_defaults(func=cmd_step_start)
 
     sfinish = step_sub.add_parser("finish", help="step -> completed / failed / interrupted")

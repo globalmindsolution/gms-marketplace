@@ -105,6 +105,7 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetR
     upsert_managed_block, validate_exempt_pr)  # noqa: F401
 
 from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
+from .gates import _workflow_for as workflow_for  # noqa: F401
 from .gates import (ARCHITECTURE_GATED, BRAKES, NothingOwed,  # noqa: F401
     _archive_partition, _clear_pointers_for_ticket, _epic_auto_done,
     _merge_pr_arg_text,
