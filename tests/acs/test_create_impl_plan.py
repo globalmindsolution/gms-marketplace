@@ -49,9 +49,12 @@ POST_HOOK = os.path.join(HOOKS_DIR, "post-create-impl-plan.py")
 FOLD_SECTIONS = ("Scope", "Approach", "API/data changes", "Test plan",
                  "Out of scope")
 # The six required plan headings, unchanged by the move.
-PLAN_HEADINGS = ("## Spec analysis", "## Executor tasks & file map",
-                 "## Test strategy", "## Documentation map", "## Risks",
-                 "## Verifier checklist")
+#: The six-heading template §3.2 retired. Kept here as the negative space the
+#: guard above asserts: a plan graded on carrying these headings was graded on
+#: its shape. `## Executor tasks & file map` is NOT among them -- it survived,
+#: demoted to `###` inside the contract, because the file-map guard keys on it.
+PLAN_HEADINGS = ("## Spec analysis", "## Test strategy", "## Documentation map",
+                 "## Risks", "## Verifier checklist")
 C9_STOP_REASON = "user chose to split; restructure required before implementation"
 
 # .md-anchored only — iter-<n>-plan.xml (the message snapshot) must NOT match.
@@ -142,53 +145,103 @@ class SkillSurfaceTest(unittest.TestCase):
         self.assertIn('acs.py" step finish --step create-impl-plan', body)
 
 
-class PlanPhaseContractTest(unittest.TestCase):
-    """The plan artifact contract moved intact: six headings, the fold's five
-    sections and lint literal, and the two mandatory verbatim clauses."""
+class PlanContractTest(unittest.TestCase):
+    """The plan's machine-readable minimum, and the template it replaced.
+
+    §3.2 borrowed Claude Code's plan-mode shape: a plan is written for a human
+    to approve in one read, not filled into a template with a section per
+    heading whether or not that heading has content. Three things downstream
+    code reads must still be findable without parsing prose, and the skill
+    must name all three -- so what is pinned is the CONTRACT, plus the absence
+    of the six-heading template that graded a plan on its shape."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(IMPL_PLAN_SKILL)
         cls.norm = norm(cls.body)
 
-    def test_six_plan_headings_named(self):
+    def test_the_contract_block_and_its_three_readers_are_named(self):
+        self.assertIn("## Contract", self.body)
+        self.assertIn("### Executor tasks & file map", self.body)
+        for key in ("delivery_path", "owes", "api_contract", "test_cases", "e2e"):
+            with self.subTest(key=key):
+                self.assertIn(key, self.body)
+
+    def test_the_four_delivery_paths_are_named(self):
+        self.assertRegex(
+            self.norm, r"`trivial \| small \| standard \| complex`")
+        self.assertRegex(self.norm, r"(?i)judged ONCE,? here")
+
+    def test_silence_is_not_permission_to_skip(self):
+        """A step whose `owes` flag is absent does its work and decides for
+        itself -- the whole reason `owes` replaced a workflow predicate."""
+        self.assertRegex(self.norm, r"(?i)silence is not permission to skip")
+
+    def test_the_file_map_heading_is_kept_verbatim_and_why(self):
+        self.assertRegex(
+            self.norm,
+            r"(?i)keeps its exact heading because the guard and "
+            r"`plan-approval\.py` already key on it")
+
+    def test_the_approval_binds_to_the_approved_bytes(self):
+        self.assertRegex(
+            self.norm,
+            r"(?i)`plan_sha256` hashes the whole file, prose and contract alike")
+
+    def test_the_six_heading_template_is_gone(self):
         for heading in PLAN_HEADINGS:
-            self.assertIn(heading, self.body,
-                          "create-impl-plan/SKILL.md must name %r" % heading)
+            with self.subTest(heading=heading):
+                # As a HEADING (at the start of a line), not as a mention: the
+                # prose explains the removal by naming one of them.
+                self.assertNotRegex(self.body, r"(?m)^%s\b" % re.escape(heading))
+        self.assertNotIn('structure_lint.py --sections "Scope; Approach', self.body)
 
-    def test_five_fold_headings_and_lint_literal(self):
-        for heading in FOLD_SECTIONS:
-            self.assertIn(heading, self.body)
-        self.assertIn(
-            'structure_lint.py --sections "Scope; Approach; API/data '
-            'changes; Test plan; Out of scope"', self.body)
+    def test_it_says_outright_that_it_is_not_a_template(self):
+        self.assertRegex(self.norm, r"(?i)\*\*It is not a template\.\*\*")
+        self.assertRegex(
+            self.norm,
+            r"(?i)grades the document on its shape rather than on what it says")
 
-    def test_mandatory_verbatim_clauses_survive(self):
-        self.assertIn(
-            "no separate /acs:create-spec invocation and no separate "
-            "create-spec planner subagent", self.norm)
-        self.assertIn(
-            "every ticket.acceptance_criteria entry maps to at least one "
-            "test the folded plan will write", self.norm)
+    def test_the_plan_is_the_spec_content(self):
+        """The fold has no separate section set any more, and no verbatim
+        clauses: what a create-spec planner would have written is simply part
+        of the plan, in whatever shape the change needs. The two obligations
+        that content still carries are what is pinned."""
+        self.assertRegex(self.norm, r"(?i)\*\*The plan IS the spec content\.\*\*")
+        self.assertRegex(
+            self.norm,
+            r"(?i)every `ticket\.acceptance_criteria` entry maps to at least "
+            r"one test")
+        self.assertRegex(
+            self.norm, r"(?i)`settings\.test_coverage_percent` is stated")
+        for retired in FOLD_SECTIONS:
+            with self.subTest(section=retired):
+                self.assertNotIn("### %s" % retired, self.body)
 
-    def test_fold_activating_condition_stays_lane_agnostic(self):
-        self.assertIsNotNone(
-            re.search(r"specs/.{0,40}(absent or empty|empty or absent)", self.body))
-        self.assertNotRegex(
-            self.body, r"(?i)TRIVIAL.{0,10}(or|/).{0,10}SMALL lanes? with no specs")
+    def test_the_four_plan_mode_properties_are_stated(self):
+        self.assertRegex(self.norm, r"(?i)\*\*Read-only until approved\.\*\*")
+        self.assertRegex(self.norm, r"(?i)approve in one read")
+        self.assertRegex(
+            self.norm, r"(?i)\*\*Approval is an explicit act and it is the gate\*\*")
+        self.assertRegex(
+            self.norm, r"(?i)\*\*Approval binds to the text that was approved\*\*")
 
     def test_no_content_stub_rule(self):
-        self.assertRegex(
-            self.norm, r"(?i)never.{0,60}(empty|placeholder|see ticket)")
+        self.assertRegex(self.norm, r"(?i)\*\*Short is not empty\.\*\*")
+        self.assertRegex(self.norm, r"(?i)see ticket")
 
     def test_no_plan_section_survives(self):
         self.assertNotIn("### Plan (per iteration)", self.body)
         self.assertNotRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
-        self.assertRegex(self.body, r"(?m)^### Execute \(per iteration\) — survey, then author the plan draft$")
+        self.assertRegex(
+            self.body,
+            r"(?m)^### Execute \(per iteration\) — survey, then author the plan$")
 
     def test_the_executor_surveys_on_iteration_one(self):
         self.assertRegex(self.norm, r"(?i)There is no plan phase")
         self.assertRegex(self.norm, r"(?i)iteration 1'?s executor surveys")
+
+
 class PublishTest(unittest.TestCase):
     """`plan.md` is resolved through the artifacts resolver, written by the
     coordinator (never a guarded executor), and mirrored for plan approval."""
@@ -288,7 +341,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         it: `### Plan revocation` used to, and has since moved into
         `references/not-a-first-run.md`, leaving docs-only as the next
         heading and the slice above as exactly the approval note."""
-        plan_idx = self.body.index("### Execute (per iteration) — survey, then author the plan draft")
+        plan_idx = self.body.index("### Execute (per iteration) — survey, then author the plan")
         approval_idx = self.body.index("### Plan approval")
         docs_only_idx = self.body.index("### Docs-only tickets")
         self.assertGreater(approval_idx, plan_idx)
@@ -500,7 +553,7 @@ class DocGraphGapTest(unittest.TestCase):
         skill = read(IMPL_PLAN_SKILL)
         cls.bullet = slice_between(
             skill, "- The documentation map: whether any factual",
-            "**Spec authoring fold")
+            "- Risks, and what a reviewer")
         cls.bullet_norm = norm(cls.bullet)
 
     def test_all_four_edges_named_with_target_docs(self):

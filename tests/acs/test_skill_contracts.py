@@ -1152,32 +1152,34 @@ class TestGeneralizedFold(unittest.TestCase):
         # the plan charter is the executor's survey since ADR-0092
         return read(self.agent_path("create-impl-plan-executor.md"))
 
-    def test_fold_activating_condition_has_no_lane_qualifier(self):
-        """AC-2: the fold section states the activating condition as
-        `specs/` absent-or-empty with NO TRIVIAL/SMALL-only qualifier."""
+    def test_the_fold_has_no_activating_condition_left_to_qualify(self):
+        """AC-2 reached its limit: the fold generalized from TRIVIAL/SMALL to
+        every lane, then to every run. 3.2 finished the journey -- the plan IS
+        the spec content, unconditionally, so there is no `specs/`-absent
+        trigger and nothing a lane could qualify."""
         body = self._code_body()
-        self.assertIsNotNone(
-            re.search(r"specs/.{0,40}(absent or empty|empty or absent)", body),
-            "code/SKILL.md fold section must state the specs/-absent-or-empty "
-            "activating condition (MAR-156 AC-2)")
+        self.assertIn("**The plan IS the spec content.**", body)
         self.assertNotRegex(
-            body, r"(?i)TRIVIAL.{0,10}(or|/).{0,10}SMALL lanes? with no specs",
-            "code/SKILL.md fold section must not retain a TRIVIAL/SMALL-only "
-            "qualifier (MAR-156 AC-2 — the fold is now every-lane)")
+            body, r"specs/.{0,40}(absent or empty|empty or absent)",
+            "there is no activating condition any more: the fold is not a "
+            "mode the plan enters, it is what a plan is")
+        self.assertNotRegex(
+            body, r"(?i)TRIVIAL.{0,10}(or|/).{0,10}SMALL lanes? with no specs")
 
-    def test_fold_mandatory_verbatim_clauses_survive(self):
-        """AC-2: the two mandatory verbatim clauses carry over unchanged."""
-        body = self._code_body()
+    def test_the_two_obligations_the_fold_carried_survive(self):
+        """The mandatory VERBATIM clauses went with the template -- a plan
+        that had to recite a sentence to be approved was graded on its shape.
+        What they were protecting did not go: both obligations are stated as
+        obligations, and the coverage half is checked mechanically."""
+        body = re.sub(r"\s+", " ", self._code_body())
         self.assertIn(
-            "no separate /acs:create-spec invocation and no separate create-spec planner",
-            body,
-            "code/SKILL.md must retain the 'no separate /acs:create-spec "
-            "invocation' verbatim clause (MAR-156 AC-2)")
-        self.assertIn(
-            "every ticket.acceptance_criteria entry maps to at least one test the folded",
-            body,
-            "code/SKILL.md must retain the 'every ticket.acceptance_criteria "
-            "entry maps' verbatim clause (MAR-156 AC-2)")
+            "every `ticket.acceptance_criteria` entry maps to at least one "
+            "test the plan will write", body)
+        self.assertIn("`settings.test_coverage_percent` is stated explicitly", body)
+        self.assertNotIn(
+            "no separate /acs:create-spec invocation and no separate "
+            "create-spec planner subagent", body,
+            "the verbatim-recitation clause is retired with the template")
 
     def test_no_subagent_spawn_reference_to_create_spec_triad(self):
         """AC-7: code/SKILL.md contains no subagent-spawn reference to

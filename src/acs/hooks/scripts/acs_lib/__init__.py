@@ -70,8 +70,8 @@ from .hostgates import (DEFAULT_GATE_RESPONSE, GATE_EVIDENCE_MAX_AGE_SECONDS,
     gate_evidence, gate_evidence_path, gate_notice, gate_response,
     record_gate_evidence)  # noqa: F401
 
-from .planrules import (PLAN_FOLD_CLAUSES, PLAN_FOLD_SECTIONS,
-    PLAN_REQUIRED_SECTIONS, _PLAN_HEADING_RE, _coverage_target_stated,
+from .planrules import (PLAN_FILE_MAP_HEADING, RETIRED_PLAN_SECTIONS,
+    _PLAN_HEADING_RE, _coverage_target_stated,
     _plan_headings, classify_additive_diff, plan_approval_eligible)  # noqa: F401
 
 from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,

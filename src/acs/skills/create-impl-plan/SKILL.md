@@ -208,24 +208,22 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Execute (per iteration) — survey, then author the plan draft
+### Execute (per iteration) — survey, then author the plan
 
-Iteration 1's executor surveys and decides before it
-writes the deliverable. Task it with `<inputs>` of the ticket file,
-`analysis.md` and `design.md` when they exist, every `<partition>/specs/*.md`,
-and the consumer-repo source/docs the ticket touches. Its authoring notes are
-`steps/create-impl-plan/iter-<n>/authoring.md`, and they cover,
-in the order `create-impl-plan-executor.md`'s survey defines:
+Iteration 1's executor surveys and decides before it writes the deliverable.
+Task it with `<inputs>` of the ticket file, `analysis.md` and `design.md` when
+they exist, `requirements.md` when the run has one, and the consumer-repo
+source/docs the subject touches. Its authoring notes are
+`steps/create-impl-plan/iter-<n>/authoring.md`, and they cover, in the order
+`create-impl-plan-executor.md`'s survey defines:
 
-- Analysis of the ticket and of every spec: implementation order (follow the
-  spec numbering when specs exist), ambiguities and explicit clarifying
-  questions (surface these — see User interaction — before the plan is
-  published).
-- The decomposition: typically ONE executor task per spec (or per coherent
-  slice of the ticket when no specs exist), each listing the exact repo files
-  it will touch (source, tests, docs) — this file map decides whether
-  `/acs:code` may run its executors in parallel, and it is what the PreToolUse
-  write guard enforces.
+- Analysis of the subject: implementation order, ambiguities and explicit
+  clarifying questions (surface these — see User interaction — before the plan
+  is published).
+- The decomposition: typically ONE executor task per coherent slice, each
+  listing the exact repo files it will touch (source, tests, docs) — this file
+  map decides whether `/acs:code` may run its executors in parallel, and it is
+  what the PreToolUse write guard enforces.
 - The test strategy per slice: which failing tests to write first, the repo's
   test/coverage tooling and the exact commands to run them, how
   `settings.test_coverage_percent` will be measured.
@@ -239,76 +237,104 @@ in the order `create-impl-plan-executor.md`'s survey defines:
   check (`create-impl-plan-executor.md`'s survey item 4, edges E1-E4) — not the
   full shared design-time step `create-design`'s executor runs — riding the same
   `problems` carrier as the existing Boy-scout drift item.
-- Risks and the verifier checklist `/acs:code`'s verifier will run on top of
-  its standing dimensions.
+- Risks, and what a reviewer should look hardest at.
 
-**Spec authoring fold (`specs/` absent or empty)**
+**The plan is written for a human to approve in one read.** It works the way
+Claude Code's own plan mode works, which is a deliberate borrowing of a shape
+already proven and already familiar:
 
-Before producing the standard plan content, check whether
-`<partition>/specs/` already has `.md` content.
+1. **Read-only until approved.** The survey investigates with read and search
+   tools only. The executor writes exactly one file — the plan draft — and
+   nothing else; no production code, no tests, no repo docs.
+2. **Concrete steps against real paths**, the approach and the alternative
+   rejected, and what is explicitly NOT being done. Prose and bullets, as
+   short as the change allows.
+3. **Approval is an explicit act and it is the gate** (see "Plan approval
+   happens later, not here"). Feedback re-enters planning rather than leaking
+   into implementation.
+4. **Approval binds to the text that was approved** — `plan-approval.json`
+   records `plan_sha256` over the approved bytes, so an edited plan is an
+   unapproved plan.
 
-When `<partition>/specs/` is empty or absent, the plan's author (the
-`create-impl-plan-executor`) ADDITIONALLY produces, as part of the draft,
-the spec content a standalone
-create-spec planner would once have produced. This content covers, in order:
+**It is not a template.** There is no section-per-heading checklist to fill in
+whether or not that heading has content: a `## Risks` heading with "none"
+under it is worse than no heading, because it grades the document on its shape
+rather than on what it says. Write what this change needs and stop.
 
-- **Scope** — what the ticket delivers; acceptance criteria quoted verbatim.
-- **Approach** — solution shape at contract level (components, interfaces,
-  algorithms, error handling); indicative paths only.
-- **API/data changes** — endpoints, schemas, contracts, migrations, config;
-  documentation impact (which consumer-repo docs the change touches).
-- **Test plan** — every `ticket.acceptance_criteria` entry MUST map to at
-  least one test the plan will write; the coverage target
-  (`settings.test_coverage_percent`) stated explicitly; e2e impact stated.
-- **Out of scope** — adjacent work excluded.
+**The machine-readable minimum.** "Not a template" is not "no structure":
+three things downstream code reads must be findable without parsing prose, so
+the plan ENDS with one section of fixed shape and everything above it is
+free-form.
+
+```markdown
+## Contract
+delivery_path: standard
+owes:
+  api_contract: true
+  test_cases:   true
+  e2e:          false
+  reason: "CLI-only change; no HTTP surface, no browser flow"
+
+### Executor tasks & file map
+- task 1: src/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run_machine.py
+- task 2: src/acs/skills/ship/SKILL.md
+```
+
+Three readers, three reasons:
+
+- **`delivery_path`** — `trivial | small | standard | complex`, judged ONCE,
+  here, from the plan's own scope (`skills/code/references/classify.md` is the
+  rubric). `/acs:code` dispatches to its leg from it; nobody picks a path by
+  hand and nothing re-judges it. Prefer the more expensive path whenever two
+  fit: an unnecessary lens pass costs tokens, a missed regression in a
+  load-bearing path costs more.
+- **`owes`** — whether `/acs:create-api-contract`, `/acs:create-test-docs` and
+  the e2e steps have work on this run. Each of those steps reads its own flag
+  and records an evidenced no-op when the answer is false; **silence is not
+  permission to skip**, so a step whose flag is absent does its work and
+  decides for itself. `reason` is one sentence a reviewer can check.
+- **the file map** — the executor partition, and the contract the file-map
+  guard enforces on every Write. `### Executor tasks & file map` keeps its
+  exact heading because the guard and `plan-approval.py` already key on it.
+
+`plan_sha256` hashes the whole file, prose and contract alike, so editing
+either invalidates the approval. A skill that needs a value reads the
+`## Contract` block and nothing else; a human reads everything above it and
+need not read the block at all.
+
+**The plan IS the spec content.** There is no separate spec set and no
+separate spec-authoring step: what a standalone create-spec planner would once
+have written — the scope, the approach at contract level, the API and data
+changes, the test plan, what is out of scope — is simply part of what the plan
+says, in whatever shape this change needs. Two things that content must carry
+wherever it lands: every `ticket.acceptance_criteria` entry maps to at least
+one test the plan will write, and `settings.test_coverage_percent` is stated
+explicitly. The approval predicate checks the second mechanically; the
+verifier checks the first.
 
 **Oversize signal pointer.** `create-impl-plan-executor.md`'s survey item 2
-also compares this decomposition against the reviewable-diff bar; when it
-fires, the split seams recorded above are what `/acs:create-ticket split`
-reads (see User interaction for the split-answer termination).
-
-**Mandatory clauses** (both MUST appear verbatim in the plan artifact):
-
-- "no separate /acs:create-spec invocation and no separate create-spec planner
-  subagent" (AC-3)
-- "every ticket.acceptance_criteria entry maps to at least one test the folded
-  plan will write" (AC-4)
-
-If specs already exist, the fold does NOT activate — the plan's author reads
-the existing specs normally. The fold only activates when
-`<partition>/specs/` is absent or empty.
+compares this decomposition against the reviewable-diff bar; when it fires,
+the split seams recorded above are what `/acs:create-ticket split` reads (see
+User interaction for the split-answer termination).
 
 **The draft.** Send the executor a `<task phase="execute">` naming the
-resolved `plan_path` and (on iteration 2+) the iteration-1 authoring notes
-and the verifier's findings in `<context>`. The executor writes the plan
-draft to
-`steps/create-impl-plan/plan.md` — one draft per run, revised in
-place across iterations, never renumbered — with EXACTLY these six top-level
-headings, in this order:
+resolved `plan_path` and (on iteration 2+) the iteration-1 authoring notes and
+the verifier's findings in `<context>`. The executor writes the plan draft to
+`steps/create-impl-plan/plan.md` — one draft per run, revised in place across
+iterations, never renumbered.
 
-`## Spec analysis`, `## Executor tasks & file map`, `## Test strategy`,
-`## Documentation map`, `## Risks`, `## Verifier checklist`.
+**Short is not empty.** A plan that says "see ticket", or a file map with no
+files in it, fails the verifier's completeness sub-check and the approval
+predicate alike. What every plan carries, however short: the AC-to-test
+mapping, the executor file map, the test and coverage commands, the
+`docs/product/prd.md`/`docs/product/roadmap.md` factual assessment, and the
+`## Contract` block. The remaining survey items — the Boy-scout drift survey,
+the E1-E4 doc-graph-gap check, the simplicity gate and the oversize signal —
+are best-effort; their omission is never a finding.
 
-When the fold is active the draft additionally carries the five fold sections
-in the exact order
-`structure_lint.py --sections "Scope; Approach; API/data changes; Test plan; Out of scope" --ordered`
-checks, plus the two mandatory verbatim clauses above and an explicit
-statement of which intake mode applied (pre-existing specs, or folded).
-
-**"Minimal" never means empty.** A section that is empty, a placeholder, or
-"see ticket" fails the verifier's completeness sub-check. Every plan carries
-the AC-to-test mapping, the executor file map, the test/coverage commands and
-tooling, the `docs/product/prd.md`/`docs/product/roadmap.md` factual
-assessment, and the verifier checklist — and the **Test strategy** section
-earns its keep twice over now, because `/acs:code`'s executors take their
-targeted test set from it and never re-derive one. The remaining survey items
-— the Boy-scout drift survey, the E1-E4 doc-graph-gap check, the
-spec-simplicity gate and the oversize signal — are best-effort; their omission
-is never a finding.
-
-**Declare the file map** once the draft's `## Executor tasks & file map` is
+**Declare the file map** once the draft's `### Executor tasks & file map` is
 settled — one call per task, additive (declaring task 2 never erases task 1),
-with the exact paths that table lists:
+with the exact paths that list names:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" filemap set \

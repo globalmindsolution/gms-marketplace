@@ -56,28 +56,21 @@ def classify_additive_diff(diff_output, allowlist_globs):
 # Plan-approval predicate
 # ---------------------------------------------------------------------------
 
-PLAN_REQUIRED_SECTIONS = [
-    "Spec analysis",
-    "Executor tasks & file map",
-    "Test strategy",
-    "Documentation map",
-    "Risks",
-    "Verifier checklist",
-]
+#: The ONE heading the predicate requires by name. 3.2: a plan is written for
+#: a human to approve in one read, not filled into a template with a section
+#: per heading whether or not that heading has content -- so the structural
+#: floor is the machine-readable minimum and nothing else. This heading is kept
+#: verbatim because the file-map guard already keys on it.
+PLAN_FILE_MAP_HEADING = "Executor tasks & file map"
 
-PLAN_FOLD_SECTIONS = [
-    "Scope",
-    "Approach",
-    "API/data changes",
-    "Test plan",
-    "Out of scope",
-]
-
-PLAN_FOLD_CLAUSES = [
-    "no separate /acs:create-spec invocation and no separate create-spec "
-    "planner subagent",
-    "every ticket.acceptance_criteria entry maps to at least one test the "
-    "folded plan will write",
+#: Retired with the template they enforced. Named here rather than deleted
+#: silently: `plan-approval.json` records written before the change carry them
+#: in their `inputs`, and a reader of an older record needs to know what they
+#: were.
+RETIRED_PLAN_SECTIONS = [
+    "Spec analysis", "Test strategy", "Documentation map", "Risks",
+    "Verifier checklist", "Scope", "Approach", "API/data changes",
+    "Test plan", "Out of scope",
 ]
 
 #: Kept as an alias: the regex is named in this module's own tests and in the
@@ -106,16 +99,36 @@ def _coverage_target_stated(norm_text, target):
     return False
 
 
-def plan_approval_eligible(plan_text, settings, fold_active=True):
-    """Structural conformance of the plan artifact to code/SKILL.md's own
-    contract -- the deterministic half of plan approval (never an LLM
+def plan_approval_eligible(plan_text, settings, fold_active=None):
+    """Structural conformance of the plan artifact to the contract 3.2 leaves
+    it -- the deterministic half of plan approval (never an LLM
     self-assertion). Pure: plain values in, plain values out, no I/O/clock.
+
+    What it checks is the MACHINE-READABLE MINIMUM, not a template. A plan is
+    written for a human to approve in one read, so requiring six named
+    headings graded a document on its shape rather than its content: a plan
+    with a `## Risks` heading and "none" under it passed, and a two-paragraph
+    plan that said exactly what would change did not. Three things downstream
+    code reads must still be findable without parsing prose, and those are
+    what the floor is:
+
+      * the `## Contract` block parses, and what it declares is admissible
+        (`delivery_path` one of the four, `owes` a mapping of known keys);
+      * `### Executor tasks & file map` exists and is non-empty -- the
+        file-map guard enforces it on every Write, so an empty one is an
+        unguarded run;
+      * the coverage target is stated, because the plan is what states it.
+
+    `fold_active` is accepted and ignored: the spec fold has no separate
+    section set any more, because the plan IS the spec content.
 
     Returns (eligible, evaluation) where evaluation = {"inputs", "checks",
     "failures"}; eligible is `not failures`. The digest is computed here
     (not by the caller) so a verdict can never be paired with a digest of
     different bytes.
     """
+    from . import plan_contract
+
     text = plan_text or ""
     settings = settings or {}
     coverage_target = settings.get("test_coverage_percent", DEFAULT_SETTINGS["test_coverage_percent"])
@@ -129,86 +142,41 @@ def plan_approval_eligible(plan_text, settings, fold_active=True):
     if not plan_non_empty:
         failures.append("empty-plan")
 
+    contract = plan_contract.parse(text)
+    checks["contract_present"] = bool(contract)
+    if not contract:
+        failures.append("missing-section: Contract")
+    else:
+        contract_errors = plan_contract.errors(contract)
+        checks["contract_admissible"] = not contract_errors
+        for message in contract_errors:
+            failures.append("contract: %s" % message)
+        path_declared = plan_contract.delivery_path(contract) is not None
+        checks["delivery_path_declared"] = path_declared
+        if not path_declared:
+            failures.append("contract: delivery_path is not declared")
+
     lines = text.split("\n")
     headings = _plan_headings(text)
-    by_name = {}
-    for i, (_lineno, _level, htext) in enumerate(headings):
-        by_name.setdefault(htext, []).append(i)
-
-    def _scan(names):
-        # Mirrors structure_lint.lint_structure's `ambiguous` safeguard
-        # (structure_lint.py:72-81): a name repeated in the declared list, or
-        # matching more than one heading in the doc, is flagged so the order
-        # check below can exclude it -- an ambiguous name must never
-        # false-block a conforming doc (structure_lint.py:19-23).
-        unique_names = list(dict.fromkeys(names))
-        ambiguous = {n for n in unique_names if names.count(n) > 1}
-        for n in unique_names:
-            if len(by_name.get(n, [])) > 1:
-                ambiguous.add(n)
-        out = {}
-        for name in names:
-            occs = by_name.get(name, [])
-            if not occs:
-                out[name] = (False, False, None, name in ambiguous)
-                continue
-            i = occs[0]
-            own_level = headings[i][1]
-            end_line = len(lines) + 1
-            for j in range(i + 1, len(headings)):
-                if headings[j][1] <= own_level:
-                    end_line = headings[j][0]
-                    break
-            body = lines[headings[i][0]:end_line - 1]
-            out[name] = (True, any(l.strip() for l in body), i, name in ambiguous)
-        return out
-
-    required_scan = _scan(PLAN_REQUIRED_SECTIONS)
-    required_ok = True
-    for name in PLAN_REQUIRED_SECTIONS:
-        present, non_empty, _idx, _ambiguous = required_scan[name]
-        if not present:
-            failures.append("missing-section: %s" % name)
-            required_ok = False
-        elif not non_empty:
-            failures.append("empty-section: %s" % name)
-            required_ok = False
-    checks["required_sections_ok"] = required_ok
-
-    if fold_active:
-        fold_scan = _scan(PLAN_FOLD_SECTIONS)
-        fold_ok = True
-        for name in PLAN_FOLD_SECTIONS:
-            present, non_empty, _idx, _ambiguous = fold_scan[name]
-            if not present:
-                failures.append("missing-section: %s" % name)
-                fold_ok = False
-            elif not non_empty:
-                failures.append("empty-section: %s" % name)
-                fold_ok = False
-        checks["fold_sections_ok"] = fold_ok
-
-        ordered_ok = True
-        present_seq = [(name, fold_scan[name][2]) for name in PLAN_FOLD_SECTIONS
-                        if fold_scan[name][0] and not fold_scan[name][3]]
-        for k in range(len(present_seq) - 1):
-            name_a, idx_a = present_seq[k]
-            name_b, idx_b = present_seq[k + 1]
-            if idx_a > idx_b:
-                failures.append("section-order: %s before %s" % (name_b, name_a))
-                ordered_ok = False
-        checks["fold_sections_ordered"] = ordered_ok
-
-        clauses_ok = True
-        for clause in PLAN_FOLD_CLAUSES:
-            if re.sub(r"\s+", " ", clause) not in norm_text:
-                failures.append("missing-clause: %s" % clause)
-                clauses_ok = False
-        checks["mandatory_clauses_ok"] = clauses_ok
+    file_map_body = None
+    for i, (lineno, level, htext) in enumerate(headings):
+        if htext != PLAN_FILE_MAP_HEADING:
+            continue
+        end_line = len(lines) + 1
+        for j in range(i + 1, len(headings)):
+            if headings[j][1] <= level:
+                end_line = headings[j][0]
+                break
+        file_map_body = lines[lineno:end_line - 1]
+        break
+    checks["file_map_present"] = file_map_body is not None
+    if file_map_body is None:
+        failures.append("missing-section: %s" % PLAN_FILE_MAP_HEADING)
     else:
-        checks["fold_sections_ok"] = True
-        checks["fold_sections_ordered"] = True
-        checks["mandatory_clauses_ok"] = True
+        file_map_non_empty = any(l.strip() for l in file_map_body)
+        checks["file_map_non_empty"] = file_map_non_empty
+        if not file_map_non_empty:
+            failures.append("empty-section: %s" % PLAN_FILE_MAP_HEADING)
 
     coverage_stated = _coverage_target_stated(norm_text, coverage_target)
     checks["coverage_target_stated"] = coverage_stated
@@ -218,11 +186,9 @@ def plan_approval_eligible(plan_text, settings, fold_active=True):
     inputs = {
         "plan_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "plan_chars": len(text),
-        "fold_active": bool(fold_active),
         "coverage_target": coverage_target,
-        "required_sections": list(PLAN_REQUIRED_SECTIONS),
-        "fold_sections": list(PLAN_FOLD_SECTIONS),
-        "mandatory_clauses": list(PLAN_FOLD_CLAUSES),
+        "file_map_heading": PLAN_FILE_MAP_HEADING,
+        "contract_keys": sorted(contract) if contract else [],
     }
     evaluation = {"inputs": inputs, "checks": checks, "failures": failures}
     return not failures, evaluation

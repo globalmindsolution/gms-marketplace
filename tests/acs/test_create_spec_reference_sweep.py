@@ -5,7 +5,7 @@ skill remains anywhere in src/acs/{skills,agents}/**), the consistency
 half of AC-4 (every Rule-1 site names /acs:code as the positive replacement,
 never merely absence-of-token; every Rule-2 site re-flows without a
 duplicated stage), and the sweep's share of AC-5 (no regression to the
-3-provenance-line/2-file survivor set or the backward-compat schema/hooks
+2-provenance-line/2-file survivor set or the backward-compat schema/hooks
 surface).
 
 This is the LAST of the ticket's three executor tasks: its assertion-1
@@ -59,15 +59,18 @@ SHIP_SKILL = os.path.join(SKILLS_DIR, "ship", "SKILL.md")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
 SUBAGENT_STATUSLINE_PY = os.path.join(HOOKS_SCRIPTS, "subagent-statusline.py")
-PLANRULES_PY = os.path.join(HOOKS_SCRIPTS, "acs_lib", "planrules.py")
 
-# The 3 pinned past-tense provenance substrings (Decision 3) — deliberately
+# The pinned past-tense provenance substrings (Decision 3) — deliberately
 # permanent, asserted present, never removed.
+#
+# The plan skill's second line went with the fold's MANDATORY CLAUSES: §3.2
+# replaced the templated plan with one written for a human to read, and a
+# clause a plan had to repeat verbatim to be approved was part of that
+# template. What survives is the provenance sentence, which says where the
+# spec content went rather than demanding a plan recite it.
 PROVENANCE_SUBSTRINGS = [
     (IMPL_PLAN_SKILL,
-     "the spec content a standalone create-spec planner would once have produced"),
-    (IMPL_PLAN_SKILL,
-     "no separate /acs:create-spec invocation and no separate create-spec planner"),
+     "what a standalone create-spec planner would once have written"),
     (IMPL_PLAN_PLANNER, "migrated from the deleted create-spec-planner.md"),
 ]
 
@@ -165,7 +168,7 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
     src/acs/{skills,agents}/** containing "create-spec" is exactly
     {create-impl-plan/SKILL.md, create-impl-plan-executor.md} with per-file
-    line-hit counts {2, 1}. Requires spec 01 already landed (see the
+    line-hit counts {1, 1}. Requires spec 01 already landed (see the
     spec's "Why this spec is last")."""
 
     @classmethod
@@ -182,7 +185,7 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
             % (sorted(self.counts.keys()),))
 
     def test_per_file_line_hit_counts(self):
-        expected = {IMPL_PLAN_SKILL: 2, IMPL_PLAN_PLANNER: 1}
+        expected = {IMPL_PLAN_SKILL: 1, IMPL_PLAN_PLANNER: 1}
         for path, n in expected.items():
             with self.subTest(path=path):
                 self.assertEqual(
@@ -406,9 +409,6 @@ class NegativeGuardsBackwardCompatTest(unittest.TestCase):
 
     def test_subagent_statusline_alternation_present(self):
         self.assertIn("create-spec", read(SUBAGENT_STATUSLINE_PY))
-
-    def test_planrules_fold_clause_present(self):
-        self.assertIn("create-spec", read(PLANRULES_PY))
 
     def test_ship_skill_free_of_create_spec(self):
         self.assertNotIn("create-spec", read(SHIP_SKILL))
