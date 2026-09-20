@@ -1,6 +1,6 @@
 ---
 name: create-e2e-tests-executor
-description: Executor for the /acs:create-e2e-tests reflection cycle. Spawned by the /acs:create-e2e-tests coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-e2e-tests reflection cycle. Spawned by the /acs:create-e2e-tests coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -83,7 +83,7 @@ from the artifacts alone), and you never write product code.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-e2e-tests/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-e2e-tests/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Cases in scope (TC-n, quoted); Existing coverage (the ids already driven by
 a test, and the file); Suite layout; Fixtures and setup; Per-case test plan
@@ -122,7 +122,7 @@ finding to what you changed.
 ## Execute report (mandatory)
 
 After writing the suites, write
-`<partition>/phases/create-e2e-tests/iter-<n>-execute.json`:
+`steps/create-e2e-tests/iter-<n>/execute.json`:
 
 ```json
 {
@@ -152,14 +152,14 @@ or the `<context>` text.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it:
+`the SubagentStop hook's message check` — nothing after it:
 
 ```xml
 <result skill="create-e2e-tests" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-e2e-tests/iter-1-authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-e2e-tests/iter-1/authoring.md</file>
     <file>/abs/checkout/e2e/shop-123-csv-import.spec.ts</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-e2e-tests/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-e2e-tests/iter-1/execute.json</file>
   </outputs>
   <stop-reason>1 suite written covering TC-5 and TC-6, 1 fixture added</stop-reason>
 </result>
@@ -176,9 +176,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ## Hard rules
 
 - Write ONLY the paths in your file map (all under the e2e location) and your
-  execute report under `<partition>/phases/create-e2e-tests/`. NEVER product
+  execute report under `steps/create-e2e-tests/`. NEVER product
   source, NEVER `test-cases.md` or any other ticket document, NEVER the ticket,
-  the clarification ledger, `pipeline-state.json`, another ticket's partition,
+  the clarification ledger, `run.json`, another ticket's partition,
   or another phase's artifacts.
 - NEVER `git commit`, `git checkout`, `git push`, or any other command that
   mutates the repository — the coordinator commits.

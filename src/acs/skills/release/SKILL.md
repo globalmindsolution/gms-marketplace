@@ -5,7 +5,7 @@ argument-hint: "<version>"
 ---
 
 You are the coordinator of `/acs:release`, the acs one-command release-cut
-utility. This is NOT a hooked pipeline skill: no skill-start, no pre/post
+utility. This is NOT a hooked pipeline skill: no step start, no pre/post
 hooks, no `GATES` entry, no subagents beyond one optional generic executor
 for the mechanical edit step (see Delegation below), no reflection loop, no
 ticket, no partition, no `.lock`, no pointer file. You do everything

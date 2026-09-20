@@ -2,8 +2,9 @@
 
 Prose-contract unit test for `src/acs/skills/run-e2e-tests/SKILL.md` —
 today's home of the suite-runner prose that shipped as `/acs:test` and that the
-skills-independence refactor renamed (`skills/test/` is now a one-paragraph
-alias; `tests/acs/test_run_e2e_tests.py` pins the rename and the alias).
+skills-independence refactor renamed. `skills/test/` was a forwarding alias for
+one release and is now gone (§6); `tests/acs/test_run_e2e_tests.py` pins the
+rename, the alias's removal, and the skill's position as a step.
 Covers model-invocability, the --suite argument contract +
 setup/command/teardown, the results-artifact shape, the all-green
 no-model-call determinism, the report, and the R1 safety note.
@@ -89,19 +90,28 @@ class RunE2eTestsRunMechanicsCase(unittest.TestCase):
             msg="front matter must have a non-empty description for routing",
         )
 
-    # -- Opening framing: NOT hooked, NOT read-only ---------------------
+    # -- Opening framing: a hooked STEP, and NOT read-only ---------------
 
-    def test_opening_states_not_hooked_pipeline_skill(self):
+    def test_opening_states_it_is_a_step_and_a_standing_command(self):
+        """It was half-in: "not a hooked pipeline skill" in one mode and a
+        ship.yaml step in another. There is one mode (§3.11), so the opening
+        says both things about the SAME protocol rather than describing two."""
         self.assertRegex(
-            self.opening,
-            r"(?i)not\s+a\s+hooked\s+pipeline\s+skill",
-            msg="opening must state this is NOT a hooked pipeline skill",
-        )
-        for token in ("skill-start", "pre/post hooks", "subagents", "reflection loop"):
-            self.assertIn(
-                token, self.opening,
-                msg="opening must mirror metrics/usage framing: no %s" % token,
-            )
+            self.opening, r"(?i)step of \*\*`ship\.yaml`\*\*|step of `ship\.yaml`",
+            msg="opening must state this is a step of ship.yaml")
+        self.assertRegex(
+            self.opening, r"(?i)standing command",
+            msg="opening must state it is also a standing command")
+        for stale in ("not a hooked", "no skill-start", "no pre/post hooks"):
+            self.assertNotIn(
+                stale, self.opening,
+                msg="the two-modes framing went with the second mode: %r" % stale)
+
+    def test_opening_states_it_spawns_no_subagents(self):
+        """That part is unchanged and worth keeping: the work is running
+        commands and reading their output, which is what a coordinator is
+        already for."""
+        self.assertIn("spawns no subagents", self.opening)
 
     def test_opening_does_not_claim_read_only(self):
         metrics_body = read(METRICS_SKILL_PATH)

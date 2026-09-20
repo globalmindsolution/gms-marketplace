@@ -165,7 +165,7 @@ class PlanSkillPointerSentenceTest(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(IMPL_PLAN_SKILL)
         start = cls.body.index("- The documentation map: whether any factual")
-        end = cls.body.index("**Spec authoring fold")
+        end = cls.body.index("- Risks, and what a reviewer")
         cls.bullet = cls.body[start:end]
         cls.bullet_norm = norm(cls.bullet)
 

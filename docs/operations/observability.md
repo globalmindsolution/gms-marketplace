@@ -118,7 +118,7 @@ absent, the counts are recomputed from each ticket's `status` / `type` in
 ### 2 — Pipeline funnel
 
 How far tickets progress through the pipeline. For each ticket, the per-skill
-step status comes from `pipeline-state.json` (`steps.<skill>.status`), counted in
+step status comes from `steps/<skill>/state.json` (the last invocation's status), counted in
 `HOOKED_SKILLS` order — a ticket is counted at a step when that step is
 `completed`. Since `PLANNING_SKILLS` (`create-design`) is appended last to
 `HOOKED_SKILLS`, this order now renders the planning step after the terminal
@@ -147,7 +147,7 @@ present the panel shows "no data".
 
 Per-epic child progress: done vs total children, plus a **burn-up** visual
 plotting cumulative completions over time. The burn-up series derives a
-completion timestamp from `pipeline-state.json steps["merge-pr"]["ended_at"]`
+completion timestamp from `steps/merge-pr/state.json`'s last invocation `ended_at`
 for merged tickets, falling back to `ticket.json.updated_at` when `ended_at`
 is absent. A zero-children epic renders "no data" for the burn-up series.
 
@@ -203,7 +203,7 @@ Per-ticket **delivery-flow** times, plus the **average lead** and **average
 cycle** across the tickets that have a value. Definitions:
 
 - **Lead time** = `ticket.json.created_at` → the `merge-pr` step's `ended_at` in
-  `pipeline-state.json` — from when the ticket was created to when its PR merged.
+  the run ledger — from when the ticket was created to when its PR merged.
 - **Cycle time** = the `code` step's `started_at` → the `merge-pr` step's
   `ended_at` — from when coding began to when the PR merged.
 
@@ -273,8 +273,8 @@ as the other averages (no tickets, or no merged PR).
 ### 3 — Cost + time per ticket by step
 
 Per-ticket cost and elapsed time, broken down by pipeline step. Time comes from
-each step's start/end in `pipeline-state.json` (`steps.<skill>` → seconds); the
-per-ticket roll-up is `pipeline-state.json.totals`, cross-checked against the
+each step's start/end in `steps/<skill>/state.json` (→ seconds); the
+per-run roll-up is `run.json`'s `totals`, cross-checked against the
 repo-level `metrics.json.totals`.
 
 The panel also appends the same **four averages** as summary rows after the repo

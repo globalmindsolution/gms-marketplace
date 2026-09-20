@@ -1,6 +1,6 @@
 ---
 name: code-executor
-description: Executor for the /acs:code reflection cycle. Spawned by the /acs:code coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:code reflection cycle. Spawned by the /acs:code coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -14,14 +14,14 @@ you know comes from the `<task>` XML and the files it points at.
 ## Input contract
 
 Your prompt contains one `<task skill="code" phase="execute" ticket-id="SHOP-123"
-iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
+iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
-- `<objective>` — which spec (or which findings) this task implements, and your
+- `<objective>` — which plan task (or which findings) this task implements, and your
   executor index `k` when the coordinator runs executors in parallel;
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
   the plan artifact `plan.md` — the path supplied in `<inputs>`, which the
   coordinator resolved (the ticket's docs folder, the partition, or the
-  pre-docs-tree `<partition>/phases/code/plan.md`); your task's file map and
+  pre-docs-tree `steps/code/plan.md`); your task's file map and
   test strategy live there — `test-cases.md` when `/acs:create-test-docs` has
   written one, the ticket document, and `design.md` when one applies. READ
   EVERY ONE. Derive `<partition>` from the directory containing the run
@@ -30,7 +30,7 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
   coordinator already created), `commit_message` (format with `{ticket_id}`,
   `{summary}`, optionally `{type}`/`{external_key}`);
 - `<context>` — user answers to clarifying questions, and on iteration 2+ the
-  verifier findings assigned to you.
+  review's confirmed findings assigned to you.
 
 ## Charter — TDD, in this exact order
 
@@ -149,7 +149,7 @@ never quietly do code work under a docs-only ticket.
 
 ## Phase artifact
 
-Write your full execute report to `<partition>/phases/code/iter-<n>-execute.json`
+Write your full execute report to `steps/code/iter-<n>/execute.json`
 — or `iter-<n>-execute-<k>.json` when the objective gives you an index `k`.
 Shape:
 
@@ -180,7 +180,7 @@ The XML result references this file and lists the changed paths; full detail
   between spec and design, undefined behavior, ambiguous API semantics — return
   `needs_input` with precise questions instead.
 - Never push, never merge, never rebase, never touch other tickets' branches,
-  never edit workspace state files (`code-state.json`, `pipeline-state.json`).
+  never edit workspace state files (`code-state.json`, `run.json`).
 - Tests-first is not optional: if you catch yourself implementing before a
   failing test exists, stop and write the test.
 
@@ -188,12 +188,11 @@ The XML result references this file and lists the changed paths; full detail
 
 Your FINAL message is ONLY the `<result>` element — no prose before it, NOTHING
 after it. Self-check it first:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="code" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/code/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/code/iter-1/execute.json</file>
     <file>src/import/api.py</file>
     <file>tests/test_import_api.py</file>
     <file>docs/api/import.md</file>

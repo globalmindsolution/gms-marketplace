@@ -401,14 +401,33 @@ def parse_ticket_md(text):
 # Derived status
 # ---------------------------------------------------------------------------
 
+def _run_dir_for_partition(tdir):
+    """The run over this ticket, from its partition path alone.
+
+    A ticket is a run SUBJECT now, not the partition a run writes into (§4.2):
+    the ledger lives at `<repo>/runs/<run-id>/run.json`, and a ticket-subject
+    run's id IS the ticket id. Derived from the path because the callers here
+    have a partition and nothing else -- an active partition is
+    `<repo>/<ID>`, an archived one `<repo>/archive/<ID>`."""
+    from .run import run_dir
+    normalized = os.path.normpath(tdir)
+    ticket_id = os.path.basename(normalized)
+    parent = os.path.dirname(normalized)
+    if os.path.basename(parent) == "archive":
+        parent = os.path.dirname(parent)
+    return run_dir(parent, ticket_id)
+
+
 def _ledger_steps(tdir):
-    ledger = read_json(os.path.join(tdir, "pipeline-state.json"))
+    from .run import RUN_FILENAME
+    ledger = read_json(os.path.join(_run_dir_for_partition(tdir), RUN_FILENAME))
     steps = ledger.get("steps") if isinstance(ledger, dict) else None
     return steps if isinstance(steps, dict) else {}
 
 
 def _recorded_pr(tdir, skill):
-    state = read_json(_repo.state_path(tdir, skill))
+    from .step import state_path as _step_state_path
+    state = read_json(_step_state_path(_run_dir_for_partition(tdir), skill))
     states = state.get("states") if isinstance(state, dict) else None
     return bool(isinstance(states, dict) and states.get("pr"))
 

@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/step-state.schema.json",
+  "title": "acs step state (runs/<run-id>/steps/<skill>/state.json)",
+  "description": "The STEP machine (\u00a74.4): one skill's progress inside a run. Replaces <skill>-state.json. This schema validates the ENVELOPE only -- the `states` keys and the `outcome` vocabulary are declared per skill in skills/<name>/state.schema.json, so a new skill is a directory rather than an edit here. `skill` carries no enum for the same reason: it validates against the skill directories. `runs[]` became `invocations[]` because, once the partition is runs/<run-id>/, a `runs` array inside a step meant the wrong thing.",
+  "type": "object",
+  "required": [
+    "skill",
+    "run_id",
+    "states",
+    "findings",
+    "errors",
+    "invocations"
+  ],
+  "properties": {
+    "skill": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "states": {
+      "description": "Validated against the skill's own fragment, not here.",
+      "type": "object"
+    },
+    "findings": {
+      "type": "array"
+    },
+    "errors": {
+      "type": "array"
+    },
+    "invocations": {
+      "description": "One record per session's attempt at this step. A resumed step appends rather than overwriting, so an interrupted attempt's cost and session trail survive it.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/invocation"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "invocation": {
+      "type": "object",
+      "properties": {
+        "started_at": {
+          "type": "string"
+        },
+        "ended_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "null while the invocation is open."
+        },
+        "status": {
+          "enum": [
+            "in_progress",
+            "completed",
+            "failed",
+            "interrupted"
+          ]
+        },
+        "stop_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "transcript_path": {
+          "type": "string"
+        },
+        "checkout_id": {
+          "type": "string"
+        },
+        "tokens": {
+          "type": "object"
+        },
+        "cost_usd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cost_basis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cost_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "excluded_cost_usd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "excluded_token_share": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "api_duration_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "api_duration_basis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "api_duration_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role_usage": {
+          "type": "object"
+        },
+        "model_usage": {
+          "type": "object"
+        },
+        "guard_events": {
+          "description": "One entry per file-map guard denial during this invocation (MAR-578). The guard already refused the write; this is the durable record that it did. Absent, never 0-length-by-convention: a run that never tripped the guard carries no key.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "ts",
+              "skill",
+              "tool",
+              "target",
+              "reason"
+            ],
+            "properties": {
+              "ts": {
+                "type": "string"
+              },
+              "skill": {
+                "type": "string"
+              },
+              "iteration": {
+                "type": [
+                  "string",
+                  "integer"
+                ]
+              },
+              "tool": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "reason": {
+                "enum": [
+                  "outside_map",
+                  "control_input",
+                  "unreadable_payload"
+                ]
+              },
+              "declared_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "gate_enforcement": {
+          "type": "object"
+        },
+        "handoff_summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

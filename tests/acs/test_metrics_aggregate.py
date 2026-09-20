@@ -54,9 +54,11 @@ def _repo_dir(ws):
 
 
 def _ticket_dir(ws, tid, archived=False):
+    """The RUN partition for this ticket's run. Kept under its old name
+    because every call site here reads it the same way."""
     if archived:
         return os.path.join(_repo_dir(ws), "archive", tid)
-    return os.path.join(_repo_dir(ws), tid)
+    return os.path.join(_repo_dir(ws), "runs", tid)
 
 
 def write_index(ws, tickets):
@@ -69,32 +71,49 @@ def write_metrics(ws, data):
 
 
 def write_pipeline(ws, tid, steps=None, totals=None, archived=False):
+    """The RUN ledger. `flow` is gone -- the workflow names itself now (§4.3)."""
     tdir = _ticket_dir(ws, tid, archived)
-    payload = {"ticket_id": tid, "flow": "ticket", "steps": steps or {}, "totals": totals or {}}
-    _write_json(os.path.join(tdir, "pipeline-state.json"), payload)
+    payload = {"run_id": tid, "workflow": "ship", "workflow_version": 3,
+               "subject": {"kind": "ticket", "ticket_id": tid},
+               "status": "in_progress", "steps": steps or {}, "totals": totals or {}}
+    _write_json(os.path.join(tdir, "run.json"), payload)
+
+
+def write_step_state(ws, tid, skill, states, archived=False, runs=None):
+    """`steps/<skill>/state.json` with `invocations` (§4.4). `runs` keeps its
+    parameter name because every call site here reads it that way; what it
+    writes is the invocation list."""
+    tdir = _ticket_dir(ws, tid, archived)
+    _write_json(os.path.join(tdir, "steps", skill, "state.json"),
+                {"skill": skill, "run_id": tid, "states": states,
+                 "findings": [], "errors": [], "invocations": runs or []})
 
 
 def write_code_state(ws, tid, states, archived=False, runs=None):
-    """runs: optional list of run-entry dicts; defaults to [] to preserve every
-    pre-existing caller's shape."""
-    tdir = _ticket_dir(ws, tid, archived)
-    _write_json(os.path.join(tdir, "code-state.json"),
-                {"skill": "code", "ticket_id": tid, "states": states, "runs": runs or []})
+    write_step_state(ws, tid, "code", states, archived, runs)
 
 
 def write_create_pr_state(ws, tid, states=None, archived=False):
-    tdir = _ticket_dir(ws, tid, archived)
-    _write_json(os.path.join(tdir, "create-pr-state.json"),
-                {"skill": "create-pr", "ticket_id": tid, "states": states or {}, "runs": []})
+    write_step_state(ws, tid, "create-pr", states or {}, archived)
 
 
 def write_ticket_json(ws, tid, created_at, archived=False, due_date=None):
-    """Write <partition>/ticket.json carrying created_at (lead-time anchor for panel 7).
+    """Write the TICKET partition's ticket.json carrying created_at (the
+    lead-time anchor for panel 7).
+
+    The ticket partition, NOT the run partition. This fixture used to write it
+    into `runs/<id>/` because the aggregator read it from there, so both
+    halves were wrong together and the panel looked healthy on a layout that
+    cannot occur: `runs/<run-id>/` holds the ledger, and a ticket's own
+    document has never lived in it (ADR-0097).
 
     Optional due_date (ISO-8601 date string or None) is included when provided, supporting
     the MAR-15 spec 02 deadline derivation tests.
     """
-    tdir = _ticket_dir(ws, tid, archived)
+    if archived:
+        tdir = os.path.join(_repo_dir(ws), "archive", tid)
+    else:
+        tdir = os.path.join(_repo_dir(ws), tid)
     data = {"id": tid, "created_at": created_at}
     if due_date is not None:
         data["due_date"] = due_date
@@ -134,13 +153,14 @@ def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
     omitted entirely by default, matching a pre-MAR-3 legacy run entry with no `model_usage` key."""
     tdir = _ticket_dir(ws, tid, archived)
     body = _RESULT_XML.format(phase=phase, tid=tid, it=it)
-    _write_text(os.path.join(tdir, "phases", skill_dir, "iter-%d-%s.xml" % (it, phase)), body)
+    _write_text(os.path.join(tdir, "steps", skill_dir, "iter-%d" % it, "%s.xml" % phase), body)
     if no_metrics:
         return
-    state_path = os.path.join(tdir, "%s-state.json" % skill_dir)
+    state_path = os.path.join(tdir, "steps", skill_dir, "state.json")
     state = acs_lib.read_json(state_path)
     if not isinstance(state, dict):
-        state = {"skill": skill_dir, "ticket_id": tid, "states": {}, "runs": []}
+        state = {"skill": skill_dir, "run_id": tid, "states": {},
+                 "findings": [], "errors": [], "invocations": []}
     role = _TEST_PHASE_ROLE.get(phase, phase)
     run_entry = {
         "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
@@ -151,7 +171,7 @@ def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
     }
     if model_usage is not None:
         run_entry["model_usage"] = model_usage
-    state.setdefault("runs", []).append(run_entry)
+    state.setdefault("invocations", []).append(run_entry)
     _write_json(state_path, state)
 
 
@@ -302,8 +322,9 @@ class Panel3ApiDuration(unittest.TestCase):
                  "api_duration_basis": "apportioned"},
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "create-docs-state.json"), {
-                "skill": "create-docs", "ticket_id": "MAR-6", "states": {}, "runs": [
+            _write_json(os.path.join(tdir, "steps", "create-docs", "state.json"), {
+                "skill": "create-docs", "run_id": "MAR-6", "states": {},
+                "findings": [], "errors": [], "invocations": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
                      "status": "completed", "api_duration_ms": 500.0,
                      "api_duration_basis": "apportioned"},
@@ -321,8 +342,9 @@ class Panel3ApiDuration(unittest.TestCase):
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_pipeline(ws, "MAR-6", steps={}, archived=True)
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "create-docs-state.json"), {
-                "skill": "create-docs", "ticket_id": "MAR-6", "states": {}, "runs": [
+            _write_json(os.path.join(tdir, "steps", "create-docs", "state.json"), {
+                "skill": "create-docs", "run_id": "MAR-6", "states": {},
+                "findings": [], "errors": [], "invocations": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
                      "status": "completed", "api_duration_ms": 750.0,
                      "api_duration_basis": "apportioned"},
@@ -966,8 +988,9 @@ class UsageByTicketSkillWidening(unittest.TestCase):
                  "status": "completed", "api_duration_ms": 100.0, "api_duration_basis": "apportioned"},
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "create-design-state.json"), {
-                "skill": "create-design", "ticket_id": "MAR-6", "states": {}, "runs": [
+            _write_json(os.path.join(tdir, "steps", "create-design", "state.json"), {
+                "skill": "create-design", "run_id": "MAR-6", "states": {},
+                "findings": [], "errors": [], "invocations": [
                     {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:01:00Z",
                      "status": "completed", "api_duration_ms": 200.0,
                      "api_duration_basis": "apportioned"},
@@ -1351,7 +1374,7 @@ class LeadCyclePanel7(unittest.TestCase):
             self.assertEqual(row["cycle_seconds"], 9000)       # cycle still positive
 
     def test_pipeline_absent_panel7_open_ticket_row(self):
-        # ticket in index, NO pipeline-state.json -> panel-7 row present, both "no data", degrade.
+        # ticket in index, NO run.json -> panel-7 row present, both "no data", degrade.
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-X": {"status": "in_progress", "type": "task"}})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
@@ -1491,11 +1514,12 @@ class Panel7ReworkCount(unittest.TestCase):
             # _rework_count should collect distinct PR numbers from any place they appear.
             # We store PR numbers 10 and 11 (with a dup 10 in runs) to test de-dup.
             tdir = _ticket_dir(ws, "MAR-X")
-            _write_json(os.path.join(tdir, "create-pr-state.json"), {
+            _write_json(os.path.join(tdir, "steps", "create-pr", "state.json"), {
                 "skill": "create-pr",
-                "ticket_id": "MAR-X",
+                "run_id": "MAR-X",
                 "states": {"pr": {"number": 10}},
-                "runs": [
+                "findings": [], "errors": [],
+                "invocations": [
                     {"pr": {"number": 10}},   # duplicate
                     {"pr": {"number": 11}},   # distinct
                 ],
@@ -1728,8 +1752,11 @@ if __name__ == "__main__":
 
 # Helper: write a ticket.json with both created_at and updated_at
 def write_ticket_json_full(ws, tid, created_at, updated_at=None, archived=False):
-    """Write <partition>/ticket.json carrying created_at and optional updated_at."""
-    tdir = _ticket_dir(ws, tid, archived)
+    """Write the TICKET partition's ticket.json carrying created_at and
+    optional updated_at. The ticket partition, not the run one -- see
+    write_ticket_json."""
+    tdir = (os.path.join(_repo_dir(ws), "archive", tid) if archived
+            else os.path.join(_repo_dir(ws), tid))
     data = {"id": tid, "created_at": created_at}
     if updated_at is not None:
         data["updated_at"] = updated_at
@@ -1881,17 +1908,24 @@ class TestDeliverySummary(unittest.TestCase):
 class TestDeliverySummaryDeliveryPaths(unittest.TestCase):
 
     def _summary(self, ws, paths):
-        """Aggregate with `paths` = {ticket_id: delivery_path or None} written
-        onto each ticket's pipeline-state.json, as `acs.py path set` does."""
+        """Aggregate with `paths` = {ticket_id: delivery_path or None} declared
+        in each run's PLAN, which is the only place a delivery path lives.
+
+        It used to be written onto run.json "as `acs.py path set` does" -- a
+        command this release removed, and a key no writer has put on a run
+        since. The aggregator read the same absent key, so the panel agreed
+        with the fixture and neither agreed with a real run."""
         for ticket_id, path in paths.items():
             write_pipeline(ws, ticket_id)
             if path is not None:
-                target = os.path.join(_ticket_dir(ws, ticket_id), "pipeline-state.json")
-                with open(target, encoding="utf-8") as fh:
-                    doc = json.load(fh)
-                doc["delivery_path"] = path
-                doc["delivery_path_reason"] = "fixture"
-                _write_json(target, doc)
+                plan_dir = os.path.join(_ticket_dir(ws, ticket_id),
+                                        "steps", "create-impl-plan")
+                os.makedirs(plan_dir, exist_ok=True)
+                with open(os.path.join(plan_dir, "plan.md"), "w",
+                          encoding="utf-8") as fh:
+                    fh.write("# Plan\n\nProse.\n\n## Contract\n"
+                             "delivery_path: %s\nowes:\n  reason: \"fixture\"\n\n"
+                             "### Executor tasks & file map\n- task 1: a.py\n" % path)
         return metrics_aggregate.aggregate(ws, REPO_ID)["panels"]["delivery_summary"]["delivery_paths"]
 
     def test_the_distribution_counts_each_path(self):
@@ -1915,10 +1949,15 @@ class TestDeliverySummaryDeliveryPaths(unittest.TestCase):
             self.assertEqual(dp["classified"], 1)
             self.assertEqual(dp["unclassified"], 1)
 
-    def test_a_consumer_declared_path_is_counted_not_dropped(self):
-        """A consumer ship.yaml may declare its own vocabulary. Counting an
-        unrecognised name under other_paths is what keeps classified +
-        unclassified equal to the ticket count."""
+    def test_an_unrecognised_path_is_counted_not_dropped(self):
+        """A plan may carry a path outside the four -- hand-edited, or written
+        by an older build. Counting an unrecognised name under other_paths is
+        what keeps classified + unclassified equal to the ticket count.
+
+        (It is no longer a CONSUMER vocabulary: `ship.yaml` has no `delivery:`
+        block and the four paths ship inside the plugin, ADR-0098. What the
+        bucket catches now is a malformed plan, which is worth reporting
+        rather than silently dropping.)"""
         with TemporaryDirectory() as ws:
             write_index(ws, {"T-1": {"id": "T-1", "status": "open"}})
             dp = self._summary(ws, {"T-1": "enormous"})
@@ -2134,7 +2173,7 @@ class TestProgress(unittest.TestCase):
         """Done ticket with no merge-pr and no readable ticket.json -> burn_up == 'no data' + meta.degraded."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"T1": {"status": "done", "type": "story"}})
-            # No ticket.json, no pipeline-state.json -> no timestamps recoverable
+            # No ticket.json, no run.json -> no timestamps recoverable
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             burn = out["panels"]["progress"]["burn_up"]
             self.assertEqual(burn, "no data")

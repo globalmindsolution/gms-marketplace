@@ -26,8 +26,8 @@ is published today:
 |-----------|----------------------|
 | Enforceable ordering | Deterministic gate scripts on the `PreToolUse(Skill)` event; exit 2 blocks; gates fail closed. |
 | Resumability | File-based state only: append-only run history, phase artifacts, pipeline ledger; no conversation memory between steps. |
-| Verification independence | Separate executor/verifier contexts on the twelve authoring skills (create-prd, create-architecture, create-project, create-design, docs-sync, standardize-project, create-requirements, analyze-ticket, create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests) and on `code` and `create-docs` — no skill has a planner context (ADR 0092; `code`'s plan comes from `/acs:create-impl-plan`, ADR 0089; `create-docs` took the shape first, ADR 0094) — for `/acs:create-impl-plan`, the executor context is STANDARD/COMPLEX-only since MAR-72 (ADR 0074; on TRIVIAL/SMALL the coordinator authors the plan itself), while the verifier context is separate in every lane, so the independence property this row asserts is preserved; verifiers anchor on gated upstream contracts and the executor's authoring notes, re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline and are verifier-gated upstream by /code's verifier. |
-| Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket, plus phase-level fan-out from a single coordinator (e.g. `/acs:create-docs`, over its four doc sets) spawning independent delivery tickets in parallel worktrees — **capped**, never unbounded: the coordinator walks the declared batches in slices of at most `max_parallel` legs (default 2), so concurrency is bounded by the same knob the ship pipeline uses. |
+| Verification independence | Separate executor/verifier contexts on the twelve authoring skills (create-prd, create-architecture, create-project, create-design, docs-sync, standardize-project, create-requirements, analyze-requirements, create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests) and on `code` and `create-docs` — no skill has a planner context (ADR 0092; `code`'s plan comes from `/acs:create-impl-plan`, ADR 0089; `create-docs` took the shape first, ADR 0094) — for `/acs:create-impl-plan`, the executor context is STANDARD/COMPLEX-only since MAR-72 (ADR 0074; on TRIVIAL/SMALL the coordinator authors the plan itself), while the verifier context is separate in every lane, so the independence property this row asserts is preserved; verifiers anchor on gated upstream contracts and the executor's authoring notes, re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline and are verifier-gated upstream by /code's verifier. |
+| Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket, plus phase-level fan-out from a single coordinator (e.g. `/acs:create-docs`, over its four doc sets) spawning independent delivery tickets in parallel worktrees — **capped**, never unbounded: the coordinator walks the declared batches in slices of at most 2 legs, a limit it sets for itself. The ship pipeline itself runs one step at a time: `ship.yaml` v3 carries no `max_parallel` and no step-level fan-out (ADR-0096). |
 | Portability | stdlib-only Python ≥ 3.9 hooks; markdown skills/agents; no pip installs on consumer machines. |
 | Auditability | Pretty-printed JSON everywhere; archives never deleted; clarification ledger; per-run metrics. |
 
@@ -37,32 +37,40 @@ is published today:
    writes, validation) lives in Python scripts; everything judgment-shaped
    (analysis, authoring, review) lives in prompts (skills/agents). The prose
    layer is forced to leave deterministic footprints the script layer gates on.
-2. **The ticket partition is the only inter-step channel** — coordinators are
-   stateless between steps; `/ship`'s context can be cleared at any boundary.
+2. **The run is the only inter-step channel** — coordinators are stateless
+   between steps; `/ship`'s context can be cleared at any boundary. Two state
+   machines, separate on purpose: `run.json` for the run and
+   `steps/<skill>/state.json` for each step, with the cursor DERIVED from them
+   rather than stored beside them (ADR-0097).
 3. **Conformance chain** PRD → architecture → principles → standards → design → code, each level verified against the one above by a fresh context.
-4. **Fail-safe prose**: a skill that forgets its post-hook leaves
-   `runs[-1] = in_progress` — the next gate reads "not completed"; nothing
-   unlocks by omission.
-5. **Complexity-adaptive delivery, verifier-as-gate**: each ticket is judged
+4. **Fail-safe prose**: a skill that forgets its post-hook leaves its last
+   invocation `in_progress` — which is not `completed`, so the derived cursor
+   is still on that step; nothing unlocks by omission.
+5. **Complexity-adaptive delivery, review-as-gate**: each change is judged
    onto one of four DELIVERY PATHS (`trivial`, `small`, `standard`, `complex`)
-   — once, by `/ship`, from the implementation plan, and recorded on
-   `pipeline-state.json` as `delivery_path` plus the one-sentence reason for
-   it (ADR-0095). `/code` is a dispatcher over four legs, one per path. The
-   verifier subagent is the in-loop quality gate on *every* path; the path
-   scales the iteration ceiling (2 on the cheap paths, 3 on the deep ones) and
-   the review's shape, never whether the verifier runs. Spec content is
-   authored inside `/create-impl-plan`'s plan when `<partition>/specs/` is
-   absent or empty (pre-existing specs are still read when present). The path
-   never moves mid-run: this replaces the `size` × `stakes` axes, the lane
+   — once, by `/acs:create-impl-plan`, from the plan's own scope, and recorded
+   in the plan's `## Contract` block, which is its only home (ADR-0095 as
+   amended by ADR-0098). `/code` is a dispatcher over four legs, one per path.
+   **The review is a step, not a phase inside `/code`** (ADR-0099): every path
+   gets `/acs:review-code`'s five lenses, per-finding adjudication and final
+   gate, and the iteration ceiling is the workflow's one `loops:` entry rather
+   than a per-leg property. What the path still scales is the executor shape
+   and whether plan approval is enforced. Spec content is authored inside
+   `/create-impl-plan`'s plan when the run's `specs/` is absent or empty
+   (pre-existing specs are still read when present). The path never moves
+   mid-run: this replaces the `size` × `stakes` axes, the lane
    `derive_lane()` derived from them, the upward mid-flight escalation and the
    user-confirmed de-escalation that balanced it. What catches a wrong
-   judgement is the verifier's path-audit dimension, whose remedy is a replan
-   (`stop_reason: plan_superseded`), not a re-route.
+   judgement is the review's path-audit lens, whose remedy is a replan, not a
+   re-route.
 6. **Entry-point folds over skill collapses**: where several skills form one
    user-facing job, the surface is narrowed by declaring an entry point, not by
-   merging the skills. `workflows/phases.yaml`'s `internal` map names each
-   **leg** and the entry point that owns it (six legs today: four doc-bootstrap
-   behind `/acs:create-docs`, two project-scaffold behind `/acs:project`), and
+   merging the skills. A **leg** declares itself with
+   `disable-model-invocation: true` in its own front matter — there is no
+   registry listing them, since `workflows/phases.yaml` is gone (ADR-0096) —
+   and its SKILL.md names the entry point that owns it (six legs today: four
+   delivery paths behind `/acs:code`, two project-scaffold behind
+   `/acs:project`), and
    the entry point invokes a leg as a genuine Skill-tool call, so the leg's own
    gate, hooks, executor/verifier pair and delivery ticket are untouched. The consequence that
    matters architecturally: a narrower surface costs no verification

@@ -40,12 +40,16 @@ class _ScriptedSandbox:
     """
 
     def __init__(self, tmp, gates, health_wired=True, changed=120,
-                 pipeline=None, session_ok=True):
+                 pipeline=None, session_ok=True, step_status="completed"):
         self.tmp = tmp
         self.gates = gates
         self.health_wired = health_wired
         self.changed = changed
+        # The scenario reads the STEP machine now, not a `pipeline-state.json`
+        # step map (ADR-0097). `pipeline` is kept for the ticket_json callers
+        # that still exist; `step_status` is what s03 actually asserts on.
         self.pipeline = pipeline or {"steps": {"code": {"status": "completed"}}}
+        self.step_status = step_status
         self.session_ok = session_ok
         self.asked = []
         self.repo = os.path.join(tmp, "repo")
@@ -78,6 +82,11 @@ class _ScriptedSandbox:
 
     def ticket_json(self, ticket, name):
         return self.pipeline
+
+    def last_status(self, run_id, step):
+        """The step's current status, as `harness.Sandbox.last_status` reads it
+        from `steps/<step>/state.json`'s last invocation."""
+        return self.step_status
 
     def changed_lines(self):
         return self.changed

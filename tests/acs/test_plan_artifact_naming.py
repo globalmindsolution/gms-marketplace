@@ -30,12 +30,11 @@ AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 CODE_EXECUTOR = os.path.join(AGENTS_DIR, "code-executor.md")
-CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 
 # The plan phase left /acs:code for /acs:create-impl-plan, so the code side is
 # a dyad: the executor and the verifier READ the plan the other skill wrote.
-TRIAD_AGENT_FILES = [CODE_EXECUTOR, CODE_VERIFIER]
+TRIAD_AGENT_FILES = [CODE_EXECUTOR,]
 
 # .md-anchored only — iter-<n>-plan.xml (axis b) must NOT match this literal.
 LEGACY = re.compile(r"iter-(?:<n>|\{n\}|\*|\d+)-plan\.md")
@@ -88,14 +87,20 @@ def section_span(body, heading):
 
 
 class FreshRunNamingTest(unittest.TestCase):
-    """AC-1: plan.md is the artifact name on a fresh run."""
+    """AC-1: plan.md is the artifact name on a fresh run.
 
-    def test_plan_md_named_in_coordinator_and_both_agents(self):
+    There is ONE plan, at `steps/create-impl-plan/plan.md` -- the skill that
+    wrote it keeps it, and everything else reads it there. The approval mirror
+    at `steps/code/plan.md` is gone with the two-path resolution that needed
+    it (§6): a copy that can differ from its original is exactly the drift the
+    mirror was invented to detect."""
+
+    def test_plan_md_is_named_at_its_one_path(self):
         for label, body in [("the /acs:code contract", code_contract())] + [
                 (path, read(path)) for path in TRIAD_AGENT_FILES]:
-            self.assertIn("phases/code/plan.md", body,
-                           "%s must name phases/code/plan.md (the approval "
-                           "mirror and pre-docs-tree location)" % label)
+            with self.subTest(source=label):
+                self.assertIn("plan.md", body)
+                self.assertNotIn("phases/code/plan.md", body)
 
     def test_publishing_skill_names_plan_md_with_no_legacy_literal(self):
         body = read(IMPL_PLAN_SKILL)
@@ -130,15 +135,24 @@ class NoLegacyLiteralInTriadTest(unittest.TestCase):
                               "%r" % (path, matches))
 
 
-class XmlPersistenceUnchangedTest(unittest.TestCase):
-    """AC-4: axis (b) XML persistence and axis (c) execute/verify names are
-    still present and unaffected by the .md rename."""
+class PhaseArtifactPersistenceTest(unittest.TestCase):
+    """The mandate survives the layout change: every phase output is persisted
+    at its boundary, BEFORE the next phase starts.
 
-    def test_xml_persistence_mandate_still_present(self):
-        body = code_contract()
-        self.assertIn("<partition>/phases/code/iter-<n>-<phase>.xml", body)
+    What changed is where and in what. The iteration is a DIRECTORY now --
+    `steps/<skill>/iter-<n>/` -- rather than a filename prefix, and the
+    snapshots are JSON: the XSD and its second validator are gone (§6). The
+    rule is the same rule; only the path and the format moved."""
 
-    def test_axis_c_execute_and_verify_names_still_present(self):
+    def test_the_persistence_mandate_still_present(self):
         body = code_contract()
-        self.assertIn("iter-<n>-execute", body)
-        self.assertIn("iter-<n>-verify", body)
+        self.assertIn("steps/code/iter-<n>/", body)
+        self.assertRegex(body, r"(?i)BEFORE starting the next phase")
+
+    def test_the_prefix_scheme_is_gone(self):
+        """`iter-<n>-execute.json` and its siblings sorted lexically, which is
+        how `iter-1-execute-superseded-1.json` came to be "the current one"."""
+        body = code_contract()
+        self.assertNotIn("iter-<n>-execute", body)
+        self.assertNotIn("iter-<n>-verify", body)
+        self.assertNotIn(".xml", body)

@@ -40,7 +40,6 @@ sys.path.insert(0, HOOKS)
 import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
-import validate_xml  # noqa: E402
 
 ROLES = ("executor", "verifier")
 
@@ -150,17 +149,18 @@ class TestLifecycleWiring(unittest.TestCase):
         cls.body = read(SKILL_PATH)
 
     def test_start_hook_is_the_mandatory_first_action(self):
-        self.assertIn("skill-start.py", self.body)
-        self.assertRegex(self.body, r"--skill create-test-docs\b")
+        self.assertIn('acs.py" step start', self.body)
+        self.assertRegex(self.body, r"--step create-test-docs\b")
         self.assertIn("MANDATORY first action", self.body)
 
     def test_post_hook_closes_the_run_with_the_result_document(self):
-        self.assertIn("post-create-test-docs.py", self.body)
-        self.assertIn("--result-file", self.body)
+        self.assertIn('post-create-test-docs.py" --result-file', self.body)
+        self.assertIn("result.json", self.body)
 
     def test_every_message_is_schema_validated(self):
-        self.assertIn("validate_xml.py", self.body)
-        self.assertIn("schemas/acs-messages.xsd", self.body)
+        self.assertNotIn("validate_xml.py", self.body)
+        self.assertNotIn("acs-messages.xsd", self.body)
+        self.assertIn("the SubagentStop hook's message check", self.body)
 
     def test_clarification_ledger_rule_and_completion_report(self):
         self.assertIn("Clarification ledger first.", self.body)
@@ -197,14 +197,20 @@ class TestIndependence(unittest.TestCase):
         self.assertRegex(self.body, r"read WHEN PRESENT — neither is required")
 
     def test_the_gate_it_describes_is_the_gate_that_exists(self):
-        self.assertIs(lib.GATES["create-test-docs"], lib.gate_create_test_docs)
-        self.assertIn("create-test-docs", lib.GATE_INPUTS["ticket"])
+        """One `gate_step` serves every step and reads the skill's OWN
+        declaration (§2.4), so what the prose promises is pinned against
+        `skills/create-test-docs/acs.yaml` rather than a function body."""
+        self.assertTrue(lib.is_step_candidate("create-test-docs"))
+        self.assertIn("test-cases", lib.writes_of("create-test-docs"))
 
-    def test_the_gate_requires_no_artifact_of_its_own(self):
-        source = read(os.path.join(HOOKS, "acs_lib", "gates.py"))
-        body = re.search(r"(?s)def gate_create_test_docs\(.*?\n\n\ndef ", source).group(0)
-        self.assertNotIn("_require_artifact", body)
-        self.assertNotIn("skill_completed", body)
+    def test_it_reads_the_plan_and_treats_the_contract_as_optional(self):
+        """The declaration is the gate. `plan` is required because the cases
+        are derived from what the plan says will be built; `api-contract` is
+        optional because a run that owes no public surface never wrote one,
+        and a missing OPTIONAL read is a note rather than a refusal (§3.11)."""
+        required, optional = lib.reads_of("create-test-docs")
+        self.assertEqual(required, ["plan"])
+        self.assertEqual(optional, ["api-contract"])
 
 
 class TestFrontMatterContract(unittest.TestCase):
@@ -418,7 +424,7 @@ class TestPublishing(unittest.TestCase):
 
     def test_publishing_copies_the_verified_bytes(self):
         self.assertRegex(self.body,
-                         r'cp "<partition>/phases/create-test-docs/test-cases.md"')
+                         r'cp "<partition>/steps/create-test-docs/test-cases.md"')
         self.assertRegex(self.body, r"Copy, never re-author")
 
     def test_the_coordinator_publishes_and_the_guard_is_named(self):
@@ -447,9 +453,9 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/create-test-docs/iter-<n>-authoring.md", agent("executor"))
-        self.assertIn("phases/create-test-docs/iter-<n>-execute.json", agent("executor"))
-        self.assertIn("phases/create-test-docs/iter-<n>-verify.md", agent("verifier"))
+        self.assertIn("steps/create-test-docs/iter-<n>/authoring.md", agent("executor"))
+        self.assertIn("steps/create-test-docs/iter-<n>/execute.json", agent("executor"))
+        self.assertIn("steps/create-test-docs/iter-<n>/verify.md", agent("verifier"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:
@@ -465,7 +471,7 @@ class TestTriadShape(unittest.TestCase):
             self.assertTrue(examples, role)
             for example in examples:
                 with self.subTest(role=role):
-                    self.assertEqual(validate_xml.validate_structurally(example), [])
+                    self.assertEqual(lib.validate_message(example), [])
 
     def test_grounding_everywhere_and_policing_in_the_verifier(self):
         for role in ROLES:

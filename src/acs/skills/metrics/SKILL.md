@@ -4,7 +4,7 @@ description: Render a read-only, in-session dashboard of project-management deli
 ---
 
 You are the coordinator of `/acs:metrics`, the acs PM delivery dashboard. This
-is NOT a hooked pipeline skill: no skill-start, no pre/post hooks, no subagents,
+is NOT a hooked pipeline skill: no step start, no pre/post hooks, no subagents,
 no reflection loop. You do everything yourself with Bash and `show_widget`.
 
 Scope honesty up front: this skill is **read-only**. It aggregates delivery
@@ -79,7 +79,7 @@ The PM delivery view renders exactly nine panels:
   time, avg cycle time, coverage pass rate, plus the delivery-path mix (G14,
   G15): how many tickets were judged onto each of `trivial`, `small`,
   `standard` and `complex`, read from `delivery_path` on each ticket's
-  `pipeline-state.json`. This panel used to tally escalation events,
+  `run.json`. This panel used to tally escalation events,
   fast-lane-escalated tickets, de-escalations and silent reversals; ADR-0095
   retired the escalation mechanism those counted, and the path mix is what
   G14/G15 actually ask about. A ticket with no recorded path is reported as
@@ -91,7 +91,7 @@ The PM delivery view renders exactly nine panels:
    legs** of `/acs:create-docs` and `/acs:project` each keep their own row —
    a leg still runs as its own gated skill with its own delivery ticket, and
    the entry-point fold changed nothing about that. Where a run is grouped by
-   PHASE, `workflows/phases.yaml` is the source and `acs_lib.phase_of`
+   PHASE, `skills/<name>/acs.yaml` is the source and `acs_lib.phase_of`
    resolves a leg **through** its entry point, so a leg reports under its
    entry point's phase (`phase_of("create-project")` is `design`, via
    `project`) rather than falling outside the five groups.

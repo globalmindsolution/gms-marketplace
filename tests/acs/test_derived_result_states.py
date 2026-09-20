@@ -41,12 +41,12 @@ class DeriveCase(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
         self.ticket = self.new_ticket("Bulk import", "task")
-        self.tdir_path = self.tdir(self.ticket)
+        self.rdir_path = self.ensure_run(self.ticket)
 
     def write_execute(self, iteration=1, index=None, tests=None, coverage=None):
-        name = ("iter-%d-execute.json" % iteration if index is None
-                else "iter-%d-execute-%d.json" % (iteration, index))
-        path = os.path.join(self.tdir_path, "phases", "code", name)
+        name = "execute.json" if index is None else "execute-%d.json" % index
+        path = os.path.join(self.rdir_path, "steps", "code",
+                            "iter-%d" % iteration, name)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         doc = {"spec": "01.md"}
         if tests is not None:
@@ -57,11 +57,15 @@ class DeriveCase(AcsWorkspaceCase):
             json.dump(doc, fh)
         return path
 
-    def write_verify_report(self, iteration=1):
-        path = os.path.join(self.tdir_path, "phases", "code", "iter-%d-verify.md" % iteration)
+    def write_review_artifact(self, iteration=1):
+        """One review artifact for an iteration, which is what
+        `review_iterations` counts: a lens report is enough, because it means
+        that iteration's review actually ran."""
+        path = os.path.join(self.rdir_path, "steps", "review-code",
+                            "iter-%d" % iteration, "lens-B.md")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
-            fh.write("# verify\n")
+            fh.write("# lens B\n")
         return path
 
 
@@ -70,38 +74,41 @@ class VerifierPassedTest(DeriveCase):
 
     def test_a_passing_verdict_derives_true(self):
         self.seed_verdict(self.ticket, passed=True)
-        value, why = lib.derive_verifier_passed(self.tdir_path, "code")
+        value, why = lib.derive_verifier_passed(self.rdir_path, "review-code")
         self.assertTrue(value)
         self.assertIn("0 blocking finding", why)
 
     def test_a_failing_verdict_derives_false(self):
         self.seed_verdict(self.ticket, passed=False)
-        value, why = lib.derive_verifier_passed(self.tdir_path, "code")
+        value, why = lib.derive_verifier_passed(self.rdir_path, "review-code")
         self.assertFalse(value)
         self.assertIn("1 blocking finding", why)
 
     def test_no_verdict_at_all_is_false_and_says_where_it_looked(self):
         """Every other key answers "what happened"; this one answers "may the
         next step run", and the safe answer with no evidence is no."""
-        value, why = lib.derive_verifier_passed(self.tdir_path, "code")
+        value, why = lib.derive_verifier_passed(self.rdir_path, "review-code")
         self.assertFalse(value)
         self.assertIn("no verdict.json for this run in", why)
-        self.assertIn("phases/code", why)
+        self.assertIn("steps/review-code", why)
 
     def test_a_malformed_verdict_is_false_and_names_the_errors(self):
-        lib.write_verdict(self.tdir_path, "code", 1, {
-            "skill": "code", "ticket_id": self.ticket, "iteration": 1, "passed": True,
-            "dimensions": [{"id": 3, "result": "fail"}],
-            "findings": [{"severity": "blocking", "dimension": "coverage", "detail": "86%"}]})
-        value, why = lib.derive_verifier_passed(self.tdir_path, "code")
+        lib.write_verdict(self.rdir_path, "review-code", 1, {
+            "skill": "review-code", "run_id": self.ticket, "iteration": 1, "passed": True,
+            "reviewed_sha": "9c1e4a2",
+            "findings": [{"id": "F-1-1", "status": "confirmed", "severity": "blocking",
+                          "kind": "gate", "claim": "coverage 86%",
+                          "evidence": ["pytest --cov"],
+                          "resolved_when": "coverage >= 90%"}]})
+        value, why = lib.derive_verifier_passed(self.rdir_path, "review-code")
         self.assertFalse(value)
         self.assertIn("not usable", why)
 
     def test_the_highest_iteration_is_the_verdict_that_counts(self):
         self.seed_verdict(self.ticket, passed=False, iteration=1)
         self.seed_verdict(self.ticket, passed=True, iteration=2)
-        self.assertTrue(lib.derive_verifier_passed(self.tdir_path, "code")[0])
-        self.assertEqual(lib.latest_verdict(self.tdir_path, "code")[0], 2)
+        self.assertTrue(lib.derive_verifier_passed(self.rdir_path, "review-code")[0])
+        self.assertEqual(lib.latest_verdict(self.rdir_path, "review-code")[0], 2)
 
     def test_a_verdict_from_a_previous_run_does_not_count(self):
         """Nothing clears phase artifacts between runs and re-running
@@ -112,32 +119,51 @@ class VerifierPassedTest(DeriveCase):
         os.utime(stale, (1_600_000_000, 1_600_000_000))  # written long ago
         self.seed_verdict(self.ticket, passed=False, iteration=1)
         value, why = lib.derive_verifier_passed(
-            self.tdir_path, "code", since="2030-01-01T00:00:00+00:00")
+            self.rdir_path, "code", since="2030-01-01T00:00:00+00:00")
         self.assertFalse(value, why)
 
     def test_a_verdict_about_another_ticket_is_not_this_ones(self):
         """Only the PATH was ever checked, so a document naming another ticket,
         skill or iteration was accepted as this run's verdict."""
-        lib.write_verdict(self.tdir_path, "code", 1, {
-            "skill": "docs-sync", "ticket_id": "OTHER-999", "iteration": 1,
+        lib.write_verdict(self.rdir_path, "review-code", 1, {
+            "skill": "docs-sync", "run_id": "OTHER-999", "iteration": 1,
             "passed": True, "findings": [],
-            "dimensions": [{"id": i, "result": "pass"} for i in lib.owed_dimensions()]})
-        value, why = lib.derive_verifier_passed(self.tdir_path, "code",
-                                                ticket_id=self.ticket)
+            "reviewed_sha": "9c1e4a2"})
+        value, why = lib.derive_verifier_passed(self.rdir_path, "review-code",
+                                                run_id=self.ticket)
         self.assertFalse(value)
         self.assertIn("evidence only for the run that produced it", why)
 
     def test_an_incomplete_verdict_does_not_derive_a_pass(self):
-        """A one-dimension document used to validate as a complete pass -- and
-        this suite's own fixture helper wrote exactly that shape."""
-        lib.write_verdict(self.tdir_path, "code", 1, {
-            "skill": "code", "ticket_id": self.ticket, "iteration": 1,
-            "passed": True, "findings": [],
-            "dimensions": [{"id": 1, "result": "pass"}]})
-        value, why = lib.derive_verifier_passed(self.tdir_path, "code",
-                                                ticket_id=self.ticket)
+        """A document missing what the loop needs is not a clean review.
+
+        The completeness rule used to be "every owed dimension is reported";
+        it is "every field /acs:code cannot act without" now. A verdict with
+        no `reviewed_sha` cannot say what it reviewed, so it cannot say that
+        what it reviewed passed."""
+        lib.write_verdict(self.rdir_path, "review-code", 1, {
+            "skill": "review-code", "run_id": self.ticket, "iteration": 1,
+            "passed": True, "findings": []})
+        value, why = lib.derive_verifier_passed(self.rdir_path, "review-code",
+                                                run_id=self.ticket)
         self.assertFalse(value)
-        self.assertIn("not reported", why)
+        self.assertIn("not usable", why)
+        self.assertIn("reviewed_sha", why)
+
+    def test_a_finding_the_loop_cannot_act_on_does_not_derive_a_pass(self):
+        """The same rule from the other side: a finding with no evidence and
+        no `resolved_when` would reach /acs:code as an instruction to fix
+        something, with no way to tell when it is fixed."""
+        lib.write_verdict(self.rdir_path, "review-code", 1, {
+            "skill": "review-code", "run_id": self.ticket, "iteration": 1,
+            "reviewed_sha": "9c1e4a2", "passed": True,
+            "findings": [{"id": "F-1-1", "status": "confirmed",
+                          "severity": "advisory", "kind": "craft",
+                          "claim": "this reads oddly"}]})
+        value, why = lib.derive_verifier_passed(self.rdir_path, "review-code",
+                                                run_id=self.ticket)
+        self.assertFalse(value)
+        self.assertIn("needs evidence", why)
 
 
 class TestsAndCoverageTest(DeriveCase):
@@ -145,69 +171,69 @@ class TestsAndCoverageTest(DeriveCase):
     def test_numbers_come_from_the_execute_report(self):
         self.write_execute(tests={"passed": 84, "failed": 0},
                            coverage={"percent": 93.4, "target": 90})
-        value, why = lib.derive_tests(self.tdir_path, "code", {"test_coverage_percent": 90})
+        value, why = lib.derive_tests(self.rdir_path, "code", {"test_coverage_percent": 90})
         self.assertEqual(value, {"passed": 84, "failed": 0,
                                  "coverage_percent": 93.4, "coverage_target": 90})
-        self.assertIn("iter-1-execute.json", why)
+        self.assertIn("execute.json", why)
 
     def test_only_the_last_iterations_reports_count(self):
         """An earlier iteration describes a suite that has since changed."""
         self.write_execute(iteration=1, tests={"passed": 10, "failed": 3})
         self.write_execute(iteration=2, tests={"passed": 84, "failed": 0})
-        value, _why = lib.derive_tests(self.tdir_path, "code")
+        value, _why = lib.derive_tests(self.rdir_path, "code")
         self.assertEqual((value["passed"], value["failed"]), (84, 0))
 
     def test_a_suite_that_was_red_for_any_parallel_executor_is_red(self):
         self.write_execute(index=1, tests={"passed": 84, "failed": 0})
         self.write_execute(index=2, tests={"passed": 80, "failed": 2})
-        value, _why = lib.derive_tests(self.tdir_path, "code")
+        value, _why = lib.derive_tests(self.rdir_path, "code")
         self.assertEqual(value["failed"], 2)
 
     def test_coverage_target_comes_from_settings_not_from_the_report(self):
         """The target is a setting, so it is never anyone's claim."""
         self.write_execute(coverage={"percent": 91.0, "target": 50})
-        value, _why = lib.derive_tests(self.tdir_path, "code", {"test_coverage_percent": 90})
+        value, _why = lib.derive_tests(self.rdir_path, "code", {"test_coverage_percent": 90})
         self.assertEqual(value["coverage_target"], 90)
 
     def test_no_report_derives_nothing_rather_than_zero(self):
-        value, why = lib.derive_tests(self.tdir_path, "code")
+        value, why = lib.derive_tests(self.rdir_path, "code")
         self.assertIsNone(value)
-        self.assertIn("no iter-<n>-execute", why)
+        self.assertIn("no execute", why)
 
     def test_a_report_with_no_numbers_derives_nothing(self):
         self.write_execute()
-        value, why = lib.derive_tests(self.tdir_path, "code")
+        value, why = lib.derive_tests(self.rdir_path, "code")
         self.assertIsNone(value)
         self.assertIn("record no tests or coverage", why)
 
     def test_unreadable_reports_are_skipped_not_fatal(self):
-        path = os.path.join(self.tdir_path, "phases", "code", "iter-1-execute.json")
+        path = os.path.join(self.rdir_path, "steps", "code", "iter-1", "execute.json")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
             fh.write("{not json")
         self.write_execute(index=2, tests={"passed": 5, "failed": 0})
-        value, _why = lib.derive_tests(self.tdir_path, "code")
+        value, _why = lib.derive_tests(self.rdir_path, "code")
         self.assertEqual(value["passed"], 5)
 
 
 class ReviewIterationsTest(DeriveCase):
 
     def test_counted_from_the_artifacts_on_disk(self):
-        self.write_verify_report(1)
-        self.write_verify_report(2)
-        self.assertEqual(lib.review_iterations(self.tdir_path, "code"), 2)
+        self.write_review_artifact(1)
+        self.write_review_artifact(2)
+        self.assertEqual(lib.review_iterations(self.rdir_path, "code"), 2)
 
     def test_a_verdict_counts_as_a_verify_artifact(self):
         self.seed_verdict(self.ticket, iteration=1)
-        self.assertEqual(lib.review_iterations(self.tdir_path, "code"), 1)
+        self.assertEqual(lib.review_iterations(self.rdir_path, "code"), 1)
 
     def test_one_iterations_report_and_verdict_count_once(self):
-        self.write_verify_report(1)
+        self.write_review_artifact(1)
         self.seed_verdict(self.ticket, iteration=1)
-        self.assertEqual(lib.review_iterations(self.tdir_path, "code"), 1)
+        self.assertEqual(lib.review_iterations(self.rdir_path, "code"), 1)
 
     def test_nothing_on_disk_is_zero(self):
-        self.assertEqual(lib.review_iterations(self.tdir_path, "code"), 0)
+        self.assertEqual(lib.review_iterations(self.rdir_path, "code"), 0)
 
 
 class PrFromTheForgeTest(unittest.TestCase):
@@ -269,42 +295,55 @@ class PostHookDerivationTest(DeriveCase):
         super().setUp()
         self.assertEqual(self.start("code", self.ticket).returncode, 0)
 
-    def _states(self):
-        return lib.load_state(self.tdir_path, "code", self.ticket)["states"]
+    def _states(self, step="code"):
+        return lib.load_step_state(self.rdir_path, step, self.ticket)["states"]
 
-    def _entry(self):
-        return lib.last_run(lib.load_state(self.tdir_path, "code", self.ticket))
 
-    def test_a_claimed_pass_with_no_verdict_is_overwritten_and_logged(self):
-        """The acceptance criterion: asserting verifier_passed without a
-        passing verdict cannot open the create-pr gate."""
-        out = self.post("code", self.ticket,
-                        {"status": "completed", "states": {"verifier_passed": True}})
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIs(self._states()["verifier_passed"], False)
+
+    def _entry(self, step="code"):
+        return lib.last_invocation(lib.load_step_state(self.rdir_path, step, self.ticket))
+
+    def test_a_claimed_pass_with_no_verdict_is_overridden_and_then_refused(self):
+        """The acceptance criterion, twice over: asserting `verifier_passed`
+        without a passing verdict cannot open the create-pr gate, and a review
+        that completed without a verdict cannot complete at all.
+
+        The derivation still runs and still overrides the claim -- the record
+        of what the skill asserted, and what the artifacts say, is written
+        before the transition is refused, so the disagreement is auditable
+        rather than lost with the refusal."""
+        out = self.post("review-code", self.ticket,
+                        {"status": "completed", "outcome": "passed",
+                         "states": {"verifier_passed": True}})
+        self.assertEqual(out.returncode, 1, out.stdout)
+        self.assertIs(self._states("review-code")["verifier_passed"], False)
         self.assertIn("states.verifier_passed was True", out.stderr)
-        self.assertIn("no verdict.json", out.stderr)
+        self.assertIn("without a verdict", out.stderr)
 
-        self.start("docs-sync", self.ticket)
-        self.post("docs-sync", self.ticket, {"status": "completed"})
         gate = self.pre("create-pr", self.ticket)
         self.assertEqual(gate.returncode, 2)
         self.assertIn("verifier_passed", gate.stderr)
 
     def test_the_override_is_recorded_on_the_run_entry_not_only_on_stderr(self):
-        """stderr scrolls away; the ledger is the record."""
-        self.post("code", self.ticket, {"status": "completed",
-                                        "states": {"verifier_passed": True}})
-        derived = self._entry()["derived_states"]
+        """stderr scrolls away; the ledger is the record.
+
+        `verifier_passed` is review-code's now -- /acs:code has no verifier
+        (§3.5), so a claim it makes about one is not even overridden, it is
+        simply not a key the kernel derives for that step."""
+        self.post("review-code", self.ticket,
+                  {"status": "completed", "outcome": "passed",
+                   "states": {"verifier_passed": True}})
+        derived = self._entry("review-code")["derived_states"]
         self.assertEqual(derived["overrode"],
                          [{"key": "verifier_passed", "supplied": True, "derived": False}])
         self.assertIn("no verdict.json", derived["provenance"]["verifier_passed"])
 
     def test_a_real_verdict_derives_a_pass_the_coordinator_never_claimed(self):
-        self.seed_verdict(self.ticket, passed=True)
-        self.post("code", self.ticket, {"status": "completed"})
-        self.assertIs(self._states()["verifier_passed"], True)
-        self.assertEqual(self._entry()["derived_states"]["overrode"], [])
+        self.seed_verdict(self.ticket, passed=True, skill="review-code")
+        self.post("review-code", self.ticket,
+                  {"status": "completed", "outcome": "passed"})
+        self.assertIs(self._states("review-code")["verifier_passed"], True)
+        self.assertEqual(self._entry("review-code")["derived_states"]["overrode"], [])
 
     def test_test_numbers_come_from_the_report_over_the_prose(self):
         self.seed_verdict(self.ticket)
@@ -331,9 +370,9 @@ class PostHookDerivationTest(DeriveCase):
         """MAR-578 added a second derived key to the same merged dict, so the
         merge -- not just the number -- is what needs pinning."""
         self.seed_verdict(self.ticket, iteration=1)
-        path = lib.state_path(self.tdir_path, "code")
-        state = lib.load_state(self.tdir_path, "code", self.ticket)
-        state["runs"][-1]["guard_events"] = [
+        path = lib.state_path(self.rdir_path, "code")
+        state = lib.load_step_state(self.rdir_path, "code", self.ticket)
+        state["invocations"][-1]["guard_events"] = [
             {"ts": lib.now_iso(), "skill": "code", "iteration": "1", "tool": "Write",
              "target": "src/a.py", "reason": "outside_map", "declared_count": 1}]
         lib.write_json(path, state)
@@ -349,28 +388,47 @@ class PostHookDerivationTest(DeriveCase):
         supplied = {"passed": 12, "failed": 0, "coverage_percent": 91.0, "coverage_target": 90}
         self.post("code", self.ticket, {"status": "completed", "states": {"tests": supplied}})
         self.assertEqual(self._states()["tests"], supplied)
-        self.assertIn("no iter-<n>-execute",
+        self.assertIn("no execute",
                       self._entry()["derived_states"]["provenance"]["tests"])
 
-    def test_only_code_has_a_verifier_passed_to_derive(self):
+    def test_only_review_code_has_a_verifier_passed_to_derive(self):
         """Other skills' result documents must not acquire the key, and their
         post hooks must not start failing over a verdict they never write."""
-        self.assertEqual(lib.VERDICT_SKILLS, ("code",))
+        self.assertEqual(lib.VERDICT_SKILLS, ("review-code",))
         out = self.post("docs-sync", self.ticket, {"status": "completed"})
         self.assertEqual(out.returncode, 0, out.stderr)
-        state = lib.load_state(self.tdir_path, "docs-sync", self.ticket)
+        state = lib.load_step_state(self.rdir_path, "docs-sync", self.ticket)
         self.assertNotIn("verifier_passed", state["states"])
 
 
 class ProseTest(unittest.TestCase):
+    """The skills say what the kernel does, so a coordinator does not spend a
+    turn computing a value that will be overwritten."""
 
-    def test_the_skill_no_longer_asks_the_coordinator_to_supply_derived_values(self):
-        with open(CODE_SKILL, encoding="utf-8") as fh:
-            body = " ".join(fh.read().split())   # markdown wraps; the sentence does not
+    def _body(self, path):
+        with open(path, encoding="utf-8") as fh:
+            return " ".join(fh.read().split())  # markdown wraps; sentences do not
+
+    def test_the_implementer_is_told_which_keys_are_derived(self):
+        body = self._body(CODE_SKILL)
         self.assertIn("computed by the post-hook from the artifacts", body)
-        self.assertIn("You cannot open the /acs:create-pr gate by writing `true`", body)
-        for key in ("verifier_passed", "tests", "pr", "review.iterations"):
-            self.assertIn(key, body)
+        for key in ("tests", "pr", "review"):
+            with self.subTest(key=key):
+                self.assertIn(key, body)
+
+    def test_the_implementer_is_told_the_pass_is_not_its_key_at_all(self):
+        """`verifier_passed` is derived from /acs:review-code's verdict, so
+        /acs:code does not own it, cannot compute it, and writing it opens
+        nothing."""
+        body = self._body(CODE_SKILL)
+        self.assertIn("`verifier_passed` is **not yours at all**", body)
+        self.assertIn("you cannot open the `/acs:create-pr` gate by writing it", body)
+
+    def test_the_reviewer_is_told_not_to_assert_its_own_verdict(self):
+        review = self._body(os.path.join(
+            REPO_ROOT, "src", "acs", "skills", "review-code", "SKILL.md"))
+        self.assertIn("`passed` is **not yours to assert**", review)
+        self.assertIn("let the kernel conclude", review)
 
 
 if __name__ == "__main__":

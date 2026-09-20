@@ -1,6 +1,6 @@
 """Every verifier polices grounding for truth, not for citation precision.
 
-The 2026-09-15 release gate ran the app-profile /acs:analyze-ticket through
+The 2026-09-15 release gate ran the app-profile /acs:analyze-requirements through
 three executor+verifier iterations and was killed one second short of the
 1800s setup budget. Iteration 1 found one real omission (a test file missing
 from the impact map); iterations 2 and 3 were spent entirely on citations
@@ -35,7 +35,9 @@ class VerifierGroundingPrecisionTest(unittest.TestCase):
                       for p in cls.verifiers}
 
     def test_there_are_verifiers_to_check(self):
-        self.assertGreaterEqual(len(self.verifiers), 14, self.verifiers)
+        # /acs:code's verifier left with the review (§3.5); the rule still
+        # binds every verifier that remains.
+        self.assertGreaterEqual(len(self.verifiers), 13, self.verifiers)
 
     def test_every_verifier_still_polices_grounding(self):
         for name, body in self.bodies.items():
@@ -50,7 +52,7 @@ class VerifierGroundingPrecisionTest(unittest.TestCase):
             self.assertRegex(body, r"(?i)What blocks: a source that does not say what the draft claims", name)
 
     def test_the_analysis_and_plan_grounding_dimensions_say_so_too(self):
-        for name in ("analyze-ticket-verifier.md", "create-impl-plan-verifier.md"):
+        for name in ("analyze-requirements-verifier.md", "create-impl-plan-verifier.md"):
             self.assertIn("The right file cited at the wrong lines, with the fact intact, is not",
                           self.bodies[name], name)
 

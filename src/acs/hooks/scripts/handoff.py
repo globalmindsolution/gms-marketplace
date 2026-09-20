@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
-"""handoff.py — graceful session handoff for the current ticket.
+"""handoff.py — graceful session handoff for this checkout's run.
 
-Run by the /handoff utility skill (or proactively by a coordinator under context
-pressure) AFTER it has flushed all soft context to the ticket partition:
+Run by the /acs:handoff utility skill (or proactively by a coordinator under
+context pressure) AFTER it has flushed all soft context to the run directory:
 
-  * finalizes the current `in_progress` run entry as `handed_off`, attaching the
-    handoff summary (what is done, what is in flight, next actions, decisions);
-  * updates the pipeline ledger;
-  * releases the partition .lock so ANY session can take over;
+  * finalizes the open invocation and transitions the in-progress STEP to
+    `interrupted` with the stop_reason that says which kind of ending it was;
+  * releases the run's .lock so ANY session can take over;
   * prints the exact command to continue in a fresh session.
 
+`handed_off` is gone as a status. It named a REASON wearing a status: a handoff
+is an interruption, `interrupted` is the one resumable state, and `stop_reason`
+carries why (§4.3). What used to be `status: handed_off` is now
+`status: interrupted` + `stop_reason: context_pressure`.
+
 Usage:
-  handoff.py --summary "done: specs 1-2; in flight: spec 3 tests; next: coverage" [--ticket SHOP-123]
-  handoff.py --summary-file <path> [--ticket SHOP-123]
+  handoff.py --summary "done: tasks 1-2; in flight: task 3; next: coverage"
+  handoff.py --summary-file <path> [--run <run-id>]
 """
 
 import argparse
@@ -28,7 +32,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--summary", help="handoff summary text")
     parser.add_argument("--summary-file", help="file containing the handoff summary")
-    parser.add_argument("--ticket", help="ticket id (defaults to this checkout's pointer)")
+    parser.add_argument("--run", help="run id (defaults to this checkout's pointer)")
+    parser.add_argument("--ticket", dest="run", help=argparse.SUPPRESS)
+    parser.add_argument("--stop-reason", default="context_pressure",
+                        choices=list(lib.STOP_REASONS),
+                        help="why the session is stopping (default: context_pressure)")
     args = parser.parse_args()
 
     summary = args.summary
@@ -36,7 +44,8 @@ def main():
         with open(args.summary_file, "r", encoding="utf-8") as fh:
             summary = fh.read().strip()
     if not summary:
-        sys.stderr.write("acs handoff: a handoff summary is required (--summary or --summary-file)\n")
+        sys.stderr.write("acs handoff: a handoff summary is required "
+                         "(--summary or --summary-file)\n")
         sys.exit(2)
 
     cwd = os.getcwd()
@@ -46,60 +55,69 @@ def main():
         sys.stderr.write("acs handoff: %s\n" % exc)
         sys.exit(2)
 
-    ticket_id, _ = lib.resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"],
-                                         explicit=args.ticket)
-    if not ticket_id:
-        sys.stderr.write("acs handoff: no current ticket for this checkout (nothing to hand off)\n")
+    repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    run_id = args.run or lib.current_run_id(ctx)
+    if not run_id:
+        sys.stderr.write("acs handoff: no current run for this checkout "
+                         "(nothing to hand off)\n")
         sys.exit(2)
-    tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
-        sys.stderr.write("acs handoff: no active partition for %s\n" % ticket_id)
+    rdir = lib.run_dir(repo, run_id)
+    doc = lib.load_run(rdir)
+    if doc is None:
+        sys.stderr.write("acs handoff: no run recorded at %s\n" % rdir)
         sys.exit(2)
 
-    # Find the skill whose run is in progress (pointer first, then scan).
-    pointer = lib.read_json(lib.pointer_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-    candidates = []
-    if isinstance(pointer, dict) and pointer.get("skill"):
-        candidates.append(pointer["skill"])
-    candidates += [s for s in lib.HOOKED_SKILLS if s not in candidates]
+    # The step this checkout is on: the pointer first, then the run ledger.
+    # One resolution, shared with the Stop hook and PreCompact, so the three
+    # cannot disagree -- and the pointer half is what makes a standalone skill
+    # the workflow does not name (I5 keeps it out of the ledger) resumable.
+    step = lib.in_flight_step(rdir, ctx, run_id)
 
     handed = None
     metrics_error = None
     # Releasing the lock IS the handoff (see this file's docstring): the next
-    # session cannot pick the ticket up while it is held. update_metrics is
-    # repo-guarded and now refuses rather than writing unguarded, so it runs
-    # inside a try -- a refused metrics write must not finalize the run
-    # `handed_off` and then strand the lock, which is the one outcome that
-    # makes the handoff undeliverable.
+    # session cannot pick the run up while it is held. update_metrics is
+    # repo-guarded and refuses rather than writing unguarded, so it runs inside
+    # a try -- a refused metrics write must not interrupt the step and then
+    # strand the lock, which is the one outcome that makes the handoff
+    # undeliverable.
     try:
-        for skill in candidates:
-            if lib.last_run_status(tdir, skill) == "in_progress":
-                _state, entry = lib.finalize_run(tdir, skill, ticket_id, {
-                    "status": "handed_off",
-                    "stop_reason": "session handoff",
-                    "handoff_summary": summary,
-                })
-                lib.update_pipeline(tdir, ticket_id, skill, "handed_off", summary=summary,
-                                    flow="product" if skill in lib.PRODUCT_SKILLS else "ticket")
-                # a handed-off run still spent time/tokens — keep repo metrics
-                # consistent with the ticket ledger
-                lib.update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
-                handed = skill
-                break
+        if step:
+            _state, entry = lib.finalize_invocation(rdir, step, run_id, {
+                "status": "interrupted",
+                "stop_reason": args.stop_reason,
+                "handoff_summary": summary,
+            })
+            lib.write_handoff_context(rdir, run_id, step)
+            wf = lib.validate_workflow_file(
+                lib.resolve_workflow(ctx["checkout_root"])["path"])
+            # The RUN transition, only for a step the workflow names. A skill
+            # invoked on its own has step state but no position in a run, and
+            # I5 refuses a `steps` entry the workflow does not name -- the
+            # invocation above is recorded either way.
+            if lib.has_step(wf, step):
+                lib.finish_step(rdir, step, wf, status="interrupted",
+                                stop_reason=args.stop_reason, summary=summary)
+            # a handed-off invocation still spent time and tokens -- keep repo
+            # metrics consistent with the run ledger
+            lib.update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
+            handed = step
     except lib.GuardTimeout as exc:
         metrics_error = str(exc)
-        handed = handed or skill
+        handed = handed or step
     finally:
-        lib.release_lock(tdir, cwd)
+        lib.point_checkout_at(ctx, run_id, None)
+        lib.release_lock(rdir, cwd)
 
-    if handed:
-        resume = "/acs:%s %s" % (handed, ticket_id)
-    else:
-        resume = "/acs:ship %s" % ticket_id
+    # The command that resumes. A step that was in flight is re-run by name; a
+    # run with nothing in flight resumes through the workflow, which knows
+    # where its cursor is.
+    resume = "/acs:%s %s" % (handed, run_id) if handed else "/acs:ship %s" % run_id
     out = {
         "ok": True,
-        "ticket_id": ticket_id,
-        "skill": handed,
+        "run_id": run_id,
+        "step": handed,
+        "stop_reason": args.stop_reason if handed else None,
         "lock_released": True,
         "continue_with": resume,
     }
@@ -108,10 +126,10 @@ def main():
     print(json.dumps(out, indent=2))
     if metrics_error:
         sys.stderr.write(
-            "acs handoff: %s\nThe run is finalized as handed_off and the lock IS "
+            "acs handoff: %s\nThe step is finalized as interrupted and the lock IS "
             "released, so %s can be resumed; only metrics.json was not updated, "
-            "so this run's tokens and cost are lost from it.\n"
-            % (metrics_error, ticket_id))
+            "so this invocation's tokens and cost are lost from it.\n"
+            % (metrics_error, run_id))
         sys.exit(2)
 
 

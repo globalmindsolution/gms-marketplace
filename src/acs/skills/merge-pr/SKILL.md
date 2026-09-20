@@ -52,18 +52,18 @@ reference rather than inline so a routine ticket merge never reads it:
 
 | Open | When |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/merge-pr/references/exempt-pr-mode.md` | The invocation carried `--pr <PRNUMBER>`, or `skill-start.py` printed `mode: "exempt-pr"`. It replaces the whole flow below — there is no ticket, no partition, no tracker sync and no archive. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/merge-pr/references/exempt-pr-mode.md` | The invocation carried `--pr <PRNUMBER>`, or `acs step start` printed `mode: "exempt-pr"`. It replaces the whole flow below — there is no ticket, no partition, no tracker sync and no archive. |
 
 ## Start
 
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill merge-pr --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step merge-pr
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (the pre-hook and skill-start gates exist to be obeyed).
+improvise a workaround (the pre-hook and step-start gates exist to be obeyed).
 
 Parse the printed context JSON. Fields you will use:
 
@@ -71,7 +71,7 @@ Parse the printed context JSON. Fields you will use:
   (`{provider, key}` or null) drives the tracker sync, `ticket.parent` is why
   epic auto-done exists (handled by the post-hook, not you).
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/merge-pr/`.
+  artifacts go in `steps/merge-pr/`.
 - `settings` — `settings.merge_strategy` (`squash` | `merge` | `rebase`,
   default `squash`) and `settings.tracker` (`provider` `local`/`github`/`jira`
   plus `tracker.github` / `tracker.jira` sub-keys).
@@ -79,7 +79,6 @@ Parse the printed context JSON. Fields you will use:
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `pipeline` — `pipeline.flow` is `"ticket"` or `"product"`; it tells you
   which state file holds the PR reference (below).
-- `post_hook` — absolute path to `post-merge-pr.py`.
 
 Resolve the PR reference from workspace state — never from conversation
 history: read `states.pr` (`{number, url, branch, base}`) from
@@ -99,7 +98,7 @@ If `context.reconcile` is true, verify recorded progress against reality
 BEFORE continuing:
 
 1. Read `<partition>/merge-pr-state.json` (`runs[-1]`) and any
-   `<partition>/phases/merge-pr/iter-*-*.xml` files to see how far the prior
+   `steps/merge-pr/iter-*-*.xml` files to see how far the prior
    run got.
 2. Check reality first: `gh pr view <number> --json state,mergedAt` —
    **critical** (a failed read is gh's verbatim stderr plus the canonical
@@ -111,7 +110,7 @@ BEFORE continuing:
    readiness verdict is worthless; CI and reviews may have changed.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/merge-pr/handoff-context.md` (if present), do a light
+`steps/merge-pr/handoff-context.md` (if present), do a light
 reconcile (trust the summary, cheaply spot-check with `gh pr view`), and
 continue from where it points.
 
@@ -196,11 +195,10 @@ planner or verifier subagent for this skill; no such delegation is sanctioned
 on any delivery path or iteration.
 
 **Phase artifact:** Persist the execute outcome to
-`<partition>/phases/merge-pr/iter-<n>-execute.json` (whether done by the
+`steps/merge-pr/iter-<n>/execute.json` (whether done by the
 coordinator directly or by the executor) and validate the XML with:
 
 ```bash
-echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 On invalid: re-request the message once with the validation error; still
@@ -280,7 +278,7 @@ is:
 REPORT-ONLY stop. Do not proceed to merge, do not retry, do not fix. Go
 straight to Finish with status `"failed"`, `states.merged: false`, the
 per-dimension verdicts in `states.readiness`, and the command's own
-`stop_reason` (e.g. "readiness failed: ci required check(s) failing: build;
+`summary` (e.g. "readiness failed: ci required check(s) failing: build;
 approvals CHANGES_REQUESTED — a reviewer has requested changes"). Tell the user
 what blocks and that resolving it — and re-invoking /acs:merge-pr — is theirs
 to do.
@@ -301,7 +299,7 @@ poll's own `gh pr checks <number> --required` reads.
 
 (merge-update — no `--rebase`, no force-push). If exit non-zero (conflict
 detected): REPORT-ONLY stop with
-`stop_reason: "update-branch conflict — base cannot be merged into PR branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`.
+`summary: "update-branch conflict — base cannot be merged into PR branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`.
 Do NOT push fix commits; do NOT amend the PR.
 
 If exit 0: poll `gh pr checks <number> --required` at 15-second intervals for
@@ -310,9 +308,9 @@ up to 5 minutes:
   (merge).
 - `mergeStateStatus == BEHIND` again (base advanced mid-poll) → re-run step 1a
   if total update-branch attempts < 2, else REPORT-ONLY stop with
-  `stop_reason: "base advanced again after 2 update attempts — re-invoke /acs:merge-pr once the base stabilizes"`.
+  `summary: "base advanced again after 2 update attempts — re-invoke /acs:merge-pr once the base stabilizes"`.
 - Poll timeout (5 minutes elapsed) → REPORT-ONLY stop with
-  `stop_reason: "branch updated but required CI still running after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
+  `summary: "branch updated but required CI still running after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
 
 After a successful update-branch sub-flow the protections verdict is recorded
 as `"pass (was BEHIND; auto-updated via gh pr update-branch)"`.
@@ -365,7 +363,7 @@ removed):
    - `jira`: `acli jira workitem transition --key <external.key> --status
      "Done"`.
 4. Touch NOTHING else: do not edit `ticket.json` status, do not archive the
-   partition, do not mark the parent epic — `post-merge-pr.py` marks the
+   partition, do not mark the parent epic — `acs step finish` marks the
    ticket done, archives the partition to `archive/<ticket-id>/`, and
    auto-marks the epic Done when this was its last open child. Rely on it; do
    not duplicate.
@@ -410,7 +408,7 @@ what blocks.
 If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Flush in-flight work plus soft context (readiness
 verdicts gathered so far, which cleanup steps completed, user answers,
-gotchas) to `<partition>/phases/merge-pr/handoff-context.md`, then run:
+gotchas) to `steps/merge-pr/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
@@ -424,13 +422,13 @@ MANDATORY final step — never skipped, also on failure. Run it from the main
 checkout of the consumer repo (the worktree may be gone; the post-hook
 resolves the workspace from cwd):
 
-1. Write `<partition>/phases/merge-pr/result.json` per the result-document
+1. Write `steps/merge-pr/result.json` per the result-document
    contract in INTERNALS.md:
 
    ```json
    {
      "status": "completed",
-     "stop_reason": "PR #87 merged (squash); remote+local branch deleted, worktree removed, tracker synced",
+     "summary": "PR #87 merged (squash); remote+local branch deleted, worktree removed, tracker synced",
      "states": {
        "merged": true,
        "merge_strategy": "squash",
@@ -453,14 +451,14 @@ resolves the workspace from cwd):
    On a report-only readiness stop: status `"failed"`, `merged: false`, the
    failing dimensions verbatim in `readiness`, each blocker also as a
    `{"severity": "blocking", "dimension": "readiness", "detail": "..."}`
-   finding, and the blockers summarized in `stop_reason`. On a
+   finding, and the blockers summarized in `summary`. On a
    merged-but-cleanup-failed stop: status `"failed"`, `merged: true`, the
    unresolved verifier findings in `findings`.
 
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-pr.py" --ticket <ticket-id> --result-file <partition>/phases/merge-pr/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-pr.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim. On success it prints a
@@ -486,7 +484,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:merge-pr · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, partition archived, epic auto-done when last child)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

@@ -114,6 +114,23 @@ def make_fake_forge(run_skill_envelope=None, gh_json_value=None,
         def commit_file(self, rel, content, message, branch=None):
             self.commit_file_calls.append((rel, content, message, branch))
 
+        # -- the run-keyed seeding surface s08 drives (ADR-0097) ---------- #
+        #
+        # `skill-start.py` is `acs step start`, and the create-pr brake reads
+        # /acs:review-code's verdict document rather than a self-reported
+        # `verifier_passed` (ADR-0099). The fake records the calls so the
+        # sequence stays assertable; it writes nothing, because nothing here
+        # reads a real workspace.
+
+        def start_run(self, skill, ticket):
+            self.run_script_calls.append(("acs.py step start", (skill, ticket), None))
+            return subprocess.CompletedProcess([], 0, stdout="{}", stderr="")
+
+        def write_verdict(self, run_id, passed, iteration=1, reviewed_sha="0" * 40):
+            self.verdicts = getattr(self, "verdicts", [])
+            self.verdicts.append((run_id, bool(passed), iteration))
+            return os.path.join(self.tmp, "verdict.json")
+
     return _FakeForge
 
 
@@ -177,25 +194,42 @@ class DrivingSequenceTest(unittest.TestCase):
         self.assertIn(sb.run_id, seeded_branch)
         self.assertIn(seeded_ticket_id, seeded_branch)
 
-        # (d) both gate halves seeded: code AND docs-sync
+        # (d) every step ahead of create-pr seeded: code, review-code AND
+        # docs-sync. `review-code` joined the list when the review became a
+        # step of its own (ADR-0099) -- the create-pr brake reads ITS verdict
+        # now, so a seeding that stopped at `code` would no longer open it.
         scripts_run = [c[0] for c in sb.run_script_calls]
         self.assertIn("new-ticket.py", scripts_run)
         self.assertEqual(
-            scripts_run.count("skill-start.py"), 2,
-            "expected skill-start.py to run twice (code, docs-sync): %r" % scripts_run)
+            scripts_run.count("acs.py step start"), 3,
+            "expected a step start for code, review-code and docs-sync: %r"
+            % scripts_run)
         self.assertIn("post-code.py", scripts_run)
+        self.assertIn("post-review-code.py", scripts_run)
         self.assertIn("post-docs-sync.py", scripts_run)
 
-        skill_start_calls = [c for c in sb.run_script_calls if c[0] == "skill-start.py"]
-        skill_args = [c[1] for c in skill_start_calls]
-        self.assertTrue(any("code" in a for a in skill_args))
-        self.assertTrue(any("docs-sync" in a for a in skill_args))
+        started = [c[1][0] for c in sb.run_script_calls
+                   if c[0] == "acs.py step start"]
+        self.assertEqual(started, ["code", "review-code", "docs-sync"])
+
+        # The brake opens on a verdict DOCUMENT, never on a self-reported
+        # `verifier_passed`: the post-hook derives the field from it.
+        self.assertEqual([(passed, it) for _run, passed, it in sb.verdicts],
+                         [(True, 1)])
 
         post_code_calls = [c for c in sb.run_script_calls if c[0] == "post-code.py"]
         self.assertEqual(len(post_code_calls), 1)
         post_code_stdin = json.loads(post_code_calls[0][2])
-        self.assertIs(post_code_stdin["states"]["verifier_passed"], True)
         self.assertTrue(post_code_stdin["states"].get("branch"))
+        # /acs:code no longer reports a verdict at all: it has no verifier
+        # (ADR-0099), and a `verifier_passed` in ITS result would be exactly
+        # the self-report the derived-verdict rule exists to refuse.
+        self.assertNotIn("verifier_passed", post_code_stdin["states"])
+
+        post_review = [c for c in sb.run_script_calls
+                       if c[0] == "post-review-code.py"]
+        self.assertEqual(len(post_review), 1)
+        self.assertEqual(json.loads(post_review[0][2])["outcome"], "passed")
 
 
 class NeverFakeGreenTest(unittest.TestCase):

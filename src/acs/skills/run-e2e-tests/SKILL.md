@@ -1,34 +1,57 @@
 ---
 name: run-e2e-tests
-description: Run this product's configured test suites (all of them, or a --suite-selected subset, or the suites one ticket's test cases name), capture pass/fail results to an auditable workspace artifact, and (on a failure) triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke — not for reading delivery or usage metrics (see /acs:metrics, /acs:usage).
+description: Run this product's configured test suites (all of them, a --suite-selected subset, or the suites one run's test cases name), capture pass/fail results to an auditable run artifact, and on a failure triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke — not for reading delivery or usage metrics (see /acs:metrics, /acs:usage).
+argument-hint: "[ticket-id | prompt | document] [--suite <name>]"
+disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of `/acs:run-e2e-tests`, the acs suite runner. In its
-default/standing invocation (no `--for-ticket`), this is NOT a hooked
-pipeline skill: no skill-start, no pre/post hooks, no subagents, no
-reflection loop. You do everything yourself with Bash. The `--for-ticket
-<id>` mode (see "Ticket-scoped mode" below) is the `run-e2e-tests` step of
-`workflows/ship.yaml` (`args: "--for-ticket {ticket_id}"`), which `/acs:ship`
-walks -- but `/acs:run-e2e-tests` itself still gains no pre/post hooks of its
-own, no skill-start ticket allocation, and no planner/executor/verifier triad
-in either mode.
+You are the coordinator of `/acs:run-e2e-tests`, the acs suite runner. It runs
+the e2e suites `/acs:create-e2e-tests` wrote — and any other suite the project
+configures — and records what happened.
 
-This skill was `/acs:test` until the skills-independence refactor renamed it
-after what it actually does. `skills/test/` is retained for one release as an
-alias directory that forwards here (`workflows/phases.yaml` records it under
-`aliases`, not in a phase); a ledger written before the rename recorded this
-step as `steps.test`, which `pipeline-state.schema.json` still accepts and
-`acs.py workflow next` still resolves to this step. `/acs:create-e2e-tests`
-WRITES a ticket's e2e suites; this skill RUNS the configured suites.
+It is a **step of `ship.yaml`** and it is also a standing command you can run
+at any time against a repo. Those are the same skill and the same protocol:
+the step records its start and finish like every other, and a standing run
+records them against whatever run the checkout is on. There is no second mode
+and no second set of rules (§3.11).
 
-Scope honesty up front: this skill is **not read-only**. Every run **writes**
-a results artifact to the workspace (see Step 3), and on a failure path it
-**mutates** ticket state (regression tickets minted, commented, or linked) —
-this is different from `/acs:metrics`/`/acs:usage`, which are read-only. What
-IS shared with those two unhooked utility skills: no skill-start ticket
-allocation, no delivery ticket of its own, no subagents, no reflection loop —
-`/acs:run-e2e-tests` runs its own lightweight start bookkeeping in-skill,
-exactly like `/acs:metrics`/`/acs:usage` do.
+`/acs:create-e2e-tests` WRITES a run's e2e suites; this skill RUNS the
+configured suites. It spawns no subagents: the work is running commands and
+reading their output, which is what the coordinator is already for.
+
+Scope honesty up front: this skill is **not read-only**. Every run **writes** a
+results artifact (see Step 3), and on a failure path it **mutates** ticket
+state (regression tickets minted, commented, or linked) — unlike
+`/acs:metrics` and `/acs:usage`, which only read.
+
+## Start
+
+MANDATORY first action — run exactly:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step run-e2e-tests
+```
+
+If it exits non-zero: STOP and surface its stderr verbatim. The pre-hook has
+verified this step's inputs. **When nothing is owed it does not start you at
+all**: a run whose `create-e2e-tests` recorded `no_e2e_owed`, or whose project
+configures no suite, is completed by the pre-hook from the plan's `## Contract`
+block with `outcome: nothing_to_run` and this skill is never invoked (§2.2).
+That is the cheapest possible answer to "are there e2e tests to run" — zero
+tokens — and it is why you may assume, once you are running, that there is
+something to run.
+
+`${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md` carries resume-and-reconcile,
+context pressure and the completion report — the parts every acs skill shares.
+
+**Clarification ledger first.** Before asking the user anything, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list` and reuse any
+recorded answer. When ≥2 clarifications are open, present them in ONE grouped
+interaction. Record each answer as its own `clarify.py add --skill
+run-e2e-tests` entry — one `C-<n>` per question — BEFORE acting on it. Never
+skip a question, never merge two into one entry, and never auto-answer one
+outside the `--source assumption --rationale "..."` rule; when the user is
+unavailable, record the decision as an assumption under that rule.
 
 ## Step 1 — Resolve context and arguments
 
@@ -38,21 +61,10 @@ Call `acs_lib.build_context(cwd)` to resolve `settings`, `workspace`, and
 (it carries the normalized `"e2e"` entry automatically when `settings.e2e` is
 configured; you never read the raw `e2e` key yourself).
 
-Parse `$ARGUMENTS` for zero or more `--suite <name>` flags and an optional
-`--for-ticket <id>` flag:
+Parse `$ARGUMENTS` for zero or more `--suite <name>` flags:
 
-- **`--for-ticket <id>`** (optional, combinable with `--suite`): switches
-  this run into **ticket-scoped mode** — see "Ticket-scoped mode" below.
-  `<id>` must match `^[A-Z][A-Z0-9]*-[0-9]+$` (the same pattern
-  `pipeline-state.schema.json`'s `ticket_id` property uses); an id that
-  fails this pattern, or that resolves to no partition under
-  `<workspace>/<repo_id>/<id>/` or `archive/<id>/`, fails fast with a clear
-  error — the same fail-fast posture below already applies to an unknown
-  `--suite` name. Without `--for-ticket`, behavior is completely unchanged
-  (default/standing mode); this flag is purely additive.
-- **No `--suite` flag:** run every entry in the mode's run set (the full
-  `suites` map in standing mode; the narrower ticket-scoped run set,
-  described below, in `--for-ticket` mode).
+- **No `--suite` flag:** run every entry in this run's **run set** — see
+  "Which suites this run runs" below.
 - **One or more `--suite <name>` flags:** run only the named subset, in the
   order given, narrowing whichever run set the mode already resolved. If a
   named suite is not a key in `suites`, fail fast with a clear error
@@ -142,121 +154,33 @@ Only when at least one suite's `status` is `"fail"` does control pass to the
 failure-path steps below (triage, regression-key derivation, dedup/recurrence,
 ticket mint/comment/link).
 
-## Ticket-scoped mode (`--for-ticket`)
+## Which suites this run runs
 
-This section applies only when `--for-ticket <id>` was given on this
-invocation. Standing invocations (no `--for-ticket`) never consult it, and
-Steps 4a-4b below are completely unaffected by anything in this section.
-
-**Run-set resolution.** Once `--for-ticket <id>` resolves a partition (via
-`acs_lib.find_ticket_partition(workspace, repo_id, id)`, active partition
-first, then `archive/`, mirroring how other skills resolve a partition from
-a ticket id), the run set for Steps 2-3 below is narrowed to:
+The run set is **narrowed by the run's own subject**, always. There is no
+second mode: a standing invocation and a `ship.yaml` step resolve the same way
+(§3.11), which is what makes the two the same skill rather than two skills
+sharing a file.
 
 1. The reserved `e2e` key, if `ctx["settings"]["suites"]` carries one.
-2. Any suite named in the ticket's own `test-cases.md` — the `Suite` column of
-   its `## Cases` table. Resolve the document with
-   `acs.py artifacts show --ticket <id>` (in
-   `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/`) and read
-   `artifacts["test-cases.md"]` (null = the ticket has none).
-   `/acs:create-test-docs` is what assigns each case to a suite, so the
-   ticket's own cases are what scopes this run.
-3. Fallback, only when `artifacts["test-cases.md"]` is null: any suite named in
-   the ticket's folded Test-plan section, read from `artifacts["plan.md"]` —
-   which still resolves the legacy `<partition>/phases/code/plan.md` for a
-   ticket planned by `/acs:code`'s old plan phase.
+2. Any suite named in this run's `test-cases.md` — the `Suite` column of its
+   `## Cases` table, at `steps/create-test-docs/test-cases.md`.
+   `/acs:create-test-docs` is what assigns each case to a suite, so the run's
+   own cases are what scopes it.
+3. Fallback, only when the run wrote no `test-cases.md`: any suite named in the
+   plan's Test-strategy section, at `steps/create-impl-plan/plan.md`.
+4. Fallback, when the run has none of those — a run started from a prompt
+   against a repo, with nothing planned — every entry in
+   `ctx["settings"]["suites"]`. That is the honest answer there: nothing has
+   said which suites this change bears on, so the run cannot narrow.
 
-This selection is re-evaluated fresh on every `--for-ticket` invocation, never
-cached from an earlier call, so a later case-document or plan write is picked
-up automatically the next time this mode runs. A suite named in either document
-is included only when it is also a key in `ctx["settings"]["suites"]`.
+This is re-resolved on every invocation, never cached from an earlier call, so
+a later case-document or plan write is picked up automatically. A suite named
+in either document is included only when it is also a key in
+`ctx["settings"]["suites"]`.
 
-This is narrower than the standing default (which runs every `suites`
-entry): ticket-scoped mode never runs a suite unrelated to the ticket's own
-change or to e2e. When neither an `e2e` entry nor any suite named by the
-ticket's cases (or, on the fallback, its plan) resolves to a real `suites`
-key, apply the same "nothing configured,
-nothing to run" empty-artifact behavior Step 1 already defines for the
-zero-suites case.
-
-**Recording the run in the pipeline ledger.** After the run-set completes,
-record the outcome on the ticket's `steps.run-e2e-tests` entry. That entry is
-what `acs.py workflow next` reads to decide whether this step is satisfied and
-the ship walk may reach `create-pr`, and what `workflows/ship.yaml`'s
-`on_fail: {relay_to: code}` acts on when the suites are red. No gate blocks on
-it: `/acs:docs-sync` no longer refuses on this step's status, because pipeline
-order lives in `workflows/ship.yaml`, not in a gate.
-
-Every suite in the run-set green:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-  --ticket <ticket-id> --skill run-e2e-tests --status completed --summary "<suites> green"
-```
-
-A suite failed — update an active step entry, never open a new one:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
-  --ticket <ticket-id> --skill run-e2e-tests --status failed --only-if-present \
-  --summary "<suite> failed"
-```
-
-`--only-if-present` on the failure path guards the DIRECT invocation: a user
-running `/acs:run-e2e-tests --for-ticket <id>` themselves on a ticket whose
-pipeline never activated this step. Recording a failure there would fabricate a
-`run-e2e-tests` entry in a ledger that never had one — pipeline history
-invented out of a run the user performed on their own, which `workflow next`
-would then report as a step waiting to be re-run. Where `/acs:ship` did
-activate the step, the entry exists and the failure is recorded normally. (A
-standing run — no `--for-ticket` — never reaches this section at all.)
-
-`/acs:ship` still owns the `fix_loops` counter and its cap (the
-`on_fail.max_loops` of the `run-e2e-tests` step in `workflows/ship.yaml`); this
-records the outcome of the run this skill actually performed.
-
-**Zero run set.** When the run-set resolves empty, the "nothing configured,
-nothing to run" behavior above applies to execution — but the ledger write
-still happens, with `--status completed`: a ticket that names no suite has
-nothing that can fail, and `/acs:ship` may already have activated the step,
-which would otherwise leave the ship walk parked forever on a step no command
-could satisfy.
-
-**A non-zero `pipeline-step.py` exit** is a real error, not a warning: report
-it and stop rather than continuing as though the step were recorded. The
-common case is an archived partition (exit 2, `no active partition`), which
-`--for-ticket` resolution deliberately accepts for the run itself — an
-archived ticket's suites can still be run, but its ledger is closed and no
-longer records.
-
-**Steps 2-4 reused unmodified.** The per-suite setup→command→teardown
-execution (Step 2), the results-artifact write (Step 3), and the all-green
-short-circuit (Step 4) run exactly as documented above, taking the
-ticket-scoped run set as input — no separate mechanism is introduced for
-any of the three.
-
-**Skip of Steps 4a-4b.** In ticket-scoped mode, once at least one suite has
-failed, control never passes to Step 4a or Step 4b — this is checked once,
-on the presence of `--for-ticket`, with no secondary branch and no
-exception of any kind: a failure in this mode always belongs to the
-current, not-yet-merged ticket, never a spurious new standing regression
-ticket.
-
-**Verdict emission (replaces Step 4a-4b's ticket-mint reporting, in this
-mode only).** After the skip above, in addition to writing the same Step 3
-results artifact, ticket-scoped mode emits a compact verdict object (a
-returned/printed value, not a second artifact file):
-
-```json
-{"status": "pass" | "fail", "failure_output": "<captured, truncated>"}
-```
-
-- `status` is `"pass"` iff every suite that ran has `status: "pass"` (the
-  same test as Step 4's short-circuit condition).
-- `failure_output` is present only when `status` is `"fail"`; it is the
-  concatenation of the failing suites' `failure_output` values from the
-  results artifact (the same truncation bound Step 2 already applies per
-  suite — no larger bound is introduced for this mode).
+**When nothing resolves**, record `outcome: nothing_to_run` and finish. A run
+with no suite to run is a completed step with a reason, not a failure: the
+absence of a suite is not evidence that anything is broken.
 
 ## Step 4a — Triage (model step, failure path only)
 
@@ -392,11 +316,9 @@ tickets minted/bumped/linked" since `regressions` is always `[]` on that
 path). State explicitly that the results artifact is left in place on disk
 after the run — it is not cleaned up — so `/acs:metrics` can read it later.
 
-**Ticket-scoped mode variant.** Replace the tickets-minted/bumped/linked
-line with the verdict (`pass`/`fail`, per "Ticket-scoped mode" above), and
-add a one-line note that this run was ticket-scoped (naming the `--for-ticket`
-id), so the caller (`/acs:ship`) can tell the two modes apart in a
-transcript.
+**Under `/acs:ship`.** Replace the tickets-minted/bumped/linked line with the
+verdict (`pass` / `fail`) and name the run, so the caller can read the outcome
+out of a transcript without opening the artifact.
 
 ## Scheduling surface
 
@@ -407,13 +329,28 @@ decides when to invoke it. See `operations/test-scheduling.md` for the
 concrete cron/CI/routine recipe; this skill itself has no built-in scheduler
 (ADR 0011 G8).
 
+## Finish
+
+MANDATORY final step — never skipped, also on failure. Write
+`steps/run-e2e-tests/result.json` with an `outcome` of `passed`, `no_harness`
+or `nothing_to_run`, then:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-run-e2e-tests.py" --result-file "<the result.json you just wrote>"
+```
+
+The status and outcome are read from that document — a step's transition is
+read from its result, not asserted on the command line. `no_harness` is an
+honest completion, not a failure: a project with no runner configured has
+nothing for this step to do and says so, rather than failing a run over the
+absence of its own evidence.
+
 ## Completion report (normative)
 
-End your final message with the standard completion block; replace the
-Ticket line with **Run** (this skill is run-scoped, not tied to one ticket).
-In ticket-scoped mode, the **Findings** line states the verdict
-(`pass`/`fail`) instead of a tickets-minted count, and the **Run** line
-additionally names the `--for-ticket` id:
+End your final message with the standard completion block; replace the Ticket
+line with **Run** (this skill is run-scoped, not tied to one ticket). Under
+`/acs:ship` the **Findings** line states the verdict (`pass` / `fail`) instead
+of a tickets-minted count:
 
 ```markdown
 ## /acs:run-e2e-tests · <status>

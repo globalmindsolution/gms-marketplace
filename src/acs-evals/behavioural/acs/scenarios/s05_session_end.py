@@ -1,7 +1,8 @@
 """s05 — SessionEnd safety net (free).
 
 When a session ends mid-skill, the installed SessionEnd hook must finalize the
-in-progress run as `interrupted` and release the ticket lock — otherwise the
+in-flight step as `interrupted` with `stop_reason: session_end` and release
+the run lock — otherwise the
 next session is blocked by a stale lock and state lies about what happened.
 Seeds an in-progress run via the installed helper CLIs, fires the installed
 session-end hook, and asserts the transition against the shipped build
@@ -27,19 +28,18 @@ def run():
                              needs_design=False)
         sb.start_run("code", tid)  # in_progress + lock + session pointer
 
-        st = sb.ticket_json(tid, "code-state.json")
         check.eq("seed: code is in_progress",
-                 st["runs"][-1]["status"], "in_progress")
-        check.ok("seed: ticket lock held",
-                 os.path.exists(sb.ticket_path(tid, ".lock")))
+                 sb.last_status(tid, "code"), "in_progress")
+        check.ok("seed: run lock held", os.path.exists(sb.lock_path(tid)))
 
         rc, err = sb.session_end()
         check.eq("session-end exits 0", rc, 0)
 
-        st2 = sb.ticket_json(tid, "code-state.json")
-        check.eq("run finalized as interrupted",
-                 st2["runs"][-1]["status"], "interrupted")
-        check.ok("lock released",
-                 not os.path.exists(sb.ticket_path(tid, ".lock")), err)
+        check.eq("step finalized as interrupted",
+                 sb.last_status(tid, "code"), "interrupted")
+        check.eq("and the stop reason says why",
+                 (sb.step_json(tid, "code")["invocations"][-1]
+                  .get("stop_reason")), "session_end")
+        check.ok("lock released", not os.path.exists(sb.lock_path(tid)), err)
 
     return check

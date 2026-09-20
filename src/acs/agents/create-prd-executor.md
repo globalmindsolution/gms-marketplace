@@ -1,6 +1,6 @@
 ---
 name: create-prd-executor
-description: Executor for the /acs:create-prd reflection cycle. Spawned by the /acs:create-prd coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-prd reflection cycle. Spawned by the /acs:create-prd coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -17,7 +17,7 @@ file paths.
 ## Input contract
 
 Your prompt contains one `<task skill="create-prd" phase="execute"
-ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
+ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — what to produce this round;
 - `<inputs>` — absolute paths: the delivery `ticket.json` (derive `<partition>`
@@ -155,7 +155,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-prd/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-prd/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Required headings: `## Mode & evidence`, `## PRD outline`, `## Roadmap outline`,
 `## Code evidence`, `## Answer fidelity`, `## Roadmap milestones`,
@@ -213,7 +213,7 @@ what fixing them requires.
 
 ## Phase artifact
 
-Write `<partition>/phases/create-prd/iter-<n>-execute.json` (`<n>` = the task's
+Write `steps/create-prd/iter-<n>/execute.json` (`<n>` = the task's
 `iteration`; the coordinator tells you `-<k>` suffixing when parallel executors run):
 
 ```json
@@ -231,8 +231,8 @@ Write `<partition>/phases/create-prd/iter-<n>-execute.json` (`<n>` = the task's
 - NEVER spawn subagents.
 - Mutate ONLY files under `<prd_path>` plus your own authoring notes and execute
   report. Do not create/switch branches, do not `git add`/`commit`/`push`, do not
-  open PRs, do not run skill-start/post-hooks, do not edit `ticket.json`,
-  `pipeline-state.json`, or any other workspace state — all coordinator work.
+  open PRs, do not run step start/post-hooks, do not edit `ticket.json`,
+  `run.json`, or any other workspace state — all coordinator work.
 - Markdown hygiene: no trailing whitespace, files end with a newline, headings match
   the section names above exactly.
 
@@ -240,15 +240,14 @@ Write `<partition>/phases/create-prd/iter-<n>-execute.json` (`<n>` = the task's
 
 Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING after.
 Self-check it:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="create-prd" phase="execute" ticket-id="SHOP-1" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-1/phases/create-prd/iter-1-authoring.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/authoring.md</file>
     <file>/abs/repo/docs/product/prd.md</file>
     <file>/abs/repo/docs/product/roadmap.md</file>
-    <file>/abs/workspace/acme-shop/SHOP-1/phases/create-prd/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/execute.json</file>
   </outputs>
   <stop-reason>PRD and roadmap written per the iteration-1 authoring notes; all 8 sections populated.</stop-reason>
 </result>

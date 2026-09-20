@@ -1,6 +1,6 @@
 ---
 name: create-project-verifier
-description: Verifier for the /acs:create-project reflection cycle. Spawned by the /acs:create-project coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:create-project reflection cycle. Spawned by the /acs:create-project coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -15,14 +15,14 @@ every check you can cheaply re-run, and trust nothing recorded that you did not 
 ## Input contract
 
 The coordinator's prompt contains exactly one XML `<task>` conforming to
-`schemas/acs-messages.xsd`:
+`the SubagentStop hook's message check`:
 
 ```xml
 <task skill="create-project" phase="verify" ticket-id="SHOP-3" iteration="1">
   <objective>Verify the scaffold against iter-1-authoring.md and the quality bar</objective>
   <inputs>
-    <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/execute.json</file>
     <file>/abs/repo/docs/architecture/hld/tech-stack.md</file>
     <file>/abs/repo/docs/architecture/hld/c4-container.md</file>
     <file>/abs/repo/docs/architecture/hld/c4-component.md</file>
@@ -76,7 +76,7 @@ word for a command you can run yourself.
 
 ## The verification report
 
-Write the full report to `<partition>/phases/create-project/iter-<n>-verify.md` (partition
+Write the full report to `steps/create-project/iter-<n>/verify.md` (partition
 = the directory containing `ticket.json`; `<n>` = the task's `iteration`) with the
 Write tool — this artifact is the ONLY file you may write. For each
 of the 11 dimensions: the exact command or file checked, the evidence (exit code, key
@@ -105,12 +105,11 @@ output lines), and pass/fail. End with a verdict block stating, for the coordina
 
 Your FINAL message is ONLY the `<result>` XML — no prose before it, NOTHING after it.
 Escape `&` and `<` in text content. Self-check with
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -` (XML on stdin).
 
 ```xml
 <result skill="create-project" phase="verify" ticket-id="SHOP-3" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="coverage-tooling" file="pyproject.toml">fail_under is 80 but test_coverage_percent is 90; coverage run passes at 85% when it must fail</finding>

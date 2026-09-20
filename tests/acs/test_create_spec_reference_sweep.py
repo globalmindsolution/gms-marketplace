@@ -5,7 +5,7 @@ skill remains anywhere in src/acs/{skills,agents}/**), the consistency
 half of AC-4 (every Rule-1 site names /acs:code as the positive replacement,
 never merely absence-of-token; every Rule-2 site re-flows without a
 duplicated stage), and the sweep's share of AC-5 (no regression to the
-5-provenance-line/3-file survivor set or the backward-compat schema/hooks
+2-provenance-line/2-file survivor set or the backward-compat schema/hooks
 surface).
 
 This is the LAST of the ticket's three executor tasks: its assertion-1
@@ -21,7 +21,6 @@ Stdlib-only (os, re, sys, unittest). Run:
 
 import os
 import re
-import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,16 +30,14 @@ AGENTS_DIR = os.path.join(PLUGIN, "agents")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 SCHEMAS_DIR = os.path.join(PLUGIN, "schemas")
 
-sys.path.insert(0, HOOKS_SCRIPTS)
-import acs_lib as lib  # noqa: E402
-
-# --- The 3 files the AC-2 predicate says must still contain "create-spec" ---
+# --- The 2 files the AC-2 predicate says must still contain "create-spec" ---
 # The fold and its planner charter moved to /acs:create-impl-plan in the
-# skills-independence refactor, so two of the three survivors moved with them;
-# the line-hit counts per file are unchanged (2, 1, 2).
+# skills-independence refactor, so both survivors moved with them; the
+# line-hit counts per file are unchanged (2, 1). The third survivor,
+# code-verifier.md, went with the verifier itself when v0.5.0 replaced the
+# per-skill verifier pass with /acs:review-code's lens set.
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
-CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 
 # --- This spec's sweep-set files ---
 CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
@@ -60,24 +57,21 @@ RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
 # --- Untouched backward-compat / out-of-scope surface (negative guards) ---
 SHIP_SKILL = os.path.join(SKILLS_DIR, "ship", "SKILL.md")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
-XSD = os.path.join(SCHEMAS_DIR, "acs-messages.xsd")
-SKILL_STATE_SCHEMA = os.path.join(SCHEMAS_DIR, "skill-state.schema.json")
 CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
-STATUSLINE_PY = os.path.join(HOOKS_SCRIPTS, "statusline.py")
 SUBAGENT_STATUSLINE_PY = os.path.join(HOOKS_SCRIPTS, "subagent-statusline.py")
-VALIDATE_XML_PY = os.path.join(HOOKS_SCRIPTS, "validate_xml.py")
 
-# The 5 pinned past-tense provenance substrings (Decision 3) — deliberately
+# The pinned past-tense provenance substrings (Decision 3) — deliberately
 # permanent, asserted present, never removed.
+#
+# The plan skill's second line went with the fold's MANDATORY CLAUSES: §3.2
+# replaced the templated plan with one written for a human to read, and a
+# clause a plan had to repeat verbatim to be approved was part of that
+# template. What survives is the provenance sentence, which says where the
+# spec content went rather than demanding a plan recite it.
 PROVENANCE_SUBSTRINGS = [
     (IMPL_PLAN_SKILL,
-     "the spec content a standalone create-spec planner would once have produced"),
-    (IMPL_PLAN_SKILL,
-     "no separate /acs:create-spec invocation and no separate create-spec planner"),
+     "what a standalone create-spec planner would once have written"),
     (IMPL_PLAN_PLANNER, "migrated from the deleted create-spec-planner.md"),
-    (CODE_VERIFIER, "create-spec-verifier's `consistency` dimension"),
-    (CODE_VERIFIER,
-     "now that create-spec's separately-authored spec set no longer exists"),
 ]
 
 # The 7 Rule-1 lines assertion 4 covers (create-design's 7 sites plus the
@@ -173,9 +167,8 @@ def changelog_entry_section(body):
 class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
     src/acs/{skills,agents}/** containing "create-spec" is exactly
-    {create-impl-plan/SKILL.md, create-impl-plan-planner.md,
-    code-verifier.md} with per-file
-    line-hit counts {2, 1, 2}. Requires spec 01 already landed (see the
+    {create-impl-plan/SKILL.md, create-impl-plan-executor.md} with per-file
+    line-hit counts {1, 1}. Requires spec 01 already landed (see the
     spec's "Why this spec is last")."""
 
     @classmethod
@@ -183,16 +176,16 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
         cls.counts = line_hit_counts([SKILLS_DIR, AGENTS_DIR])
 
     def test_exact_file_set(self):
-        expected_files = {IMPL_PLAN_SKILL, IMPL_PLAN_PLANNER, CODE_VERIFIER}
+        expected_files = {IMPL_PLAN_SKILL, IMPL_PLAN_PLANNER}
         self.assertEqual(
             set(self.counts.keys()), expected_files,
             "src/acs/{skills,agents}/** must contain \"create-spec\" in "
-            "exactly {create-impl-plan/SKILL.md, create-impl-plan-planner.md, "
-            "code-verifier.md} after the sweep, got: %r"
+            "exactly {create-impl-plan/SKILL.md, "
+            "create-impl-plan-executor.md} after the sweep, got: %r"
             % (sorted(self.counts.keys()),))
 
     def test_per_file_line_hit_counts(self):
-        expected = {IMPL_PLAN_SKILL: 2, IMPL_PLAN_PLANNER: 1, CODE_VERIFIER: 2}
+        expected = {IMPL_PLAN_SKILL: 1, IMPL_PLAN_PLANNER: 1}
         for path, n in expected.items():
             with self.subTest(path=path):
                 self.assertEqual(
@@ -315,26 +308,29 @@ class Rule2OutcomeTextTest(unittest.TestCase):
         self.assertNotIn("create-spec", body)
 
 
-class Dr1HandoffScanOrderTest(unittest.TestCase):
-    """Assertion 5: handoff/SKILL.md Step 2 bullet 3 references
-    acs_lib.HOOKED_SKILLS instead of restating the list, carries no
-    create-spec token, and any skill count it states matches
-    len(acs_lib.HOOKED_SKILLS) computed live so the assertion cannot itself
-    re-drift if HOOKED_SKILLS changes again later."""
+class Dr1HandoffInFlightStepTest(unittest.TestCase):
+    """Assertion 5: handoff/SKILL.md Step 2 carries no create-spec token and
+    still restates no skill list.
+
+    DR-1's original subject was a hand-copied HOOKED_SKILLS enumeration in a
+    "scan the skills in order" bullet. v0.5.0 removed the scan itself: I1
+    allows one in_progress step per run and the run ledger names it, so
+    `acs_lib.in_flight_step` reads it rather than walking a list. The drift
+    guard survives as the shape it was protecting against — a restated list
+    must not come back, in any form.
+    """
 
     @classmethod
     def setUpClass(cls):
         body = read(HANDOFF_SKILL)
-        start = body.index("3. **Scan**")
-        end = body.index("If no skill is in flight")
+        start = body.index("## Step 2")
+        end = body.index("## Step 3")
         cls.bullet = body[start:end]
         cls.bullet_norm = norm(cls.bullet)
 
-    def test_references_hooked_skills_constant(self):
-        self.assertIn("acs_lib.HOOKED_SKILLS", self.bullet)
-        # The file the constant actually lives in: acs_lib is a package as of
-        # MAR-522, and HOOKED_SKILLS is defined in its _common module.
-        self.assertIn("acs_lib/_common.py", self.bullet)
+    def test_resolves_the_step_from_the_run_ledger(self):
+        self.assertIn("acs_lib.in_flight_step", self.bullet)
+        self.assertRegex(self.bullet_norm, r"(?i)run\.json")
 
     def test_no_create_spec_token(self):
         self.assertNotIn("create-spec", self.bullet)
@@ -344,32 +340,18 @@ class Dr1HandoffScanOrderTest(unittest.TestCase):
         # row) — the exact shape DR-1 says drifted; must not reappear.
         self.assertIsNone(
             re.search(r"(`[a-z][a-z-]*`,\s*){3,}", self.bullet),
-            "handoff/SKILL.md must not restate the skill list — reference "
-            "acs_lib.HOOKED_SKILLS instead (DR-1)")
+            "handoff/SKILL.md must not restate the skill list — the run "
+            "ledger names the in-flight step (DR-1)")
 
-    def test_do_not_restate_rationale_present(self):
-        self.assertRegex(self.bullet_norm, r"(?i)do not restate")
+    def test_do_not_re_derive_rationale_present(self):
+        self.assertRegex(self.bullet_norm, r"(?i)do not re-derive")
 
-    def test_same_order_as_handoff_py_claim_still_present(self):
+    def test_same_resolution_as_handoff_py_claim_still_present(self):
         self.assertRegex(
-            self.bullet_norm, r"(?i)handoff\.py.{0,40}(scans|itself scans)")
+            self.bullet_norm, r"(?i)handoff\.py.{0,40}(performs|resolution)")
 
-    def test_stated_counts_match_live_hooked_skills(self):
-        product_n = len(lib.PRODUCT_SKILLS)
-        workflow_n = len(lib.WORKFLOW_SKILLS)
-        total_n = len(lib.HOOKED_SKILLS)
-        self.assertIn(
-            "%d product" % product_n, self.bullet,
-            "bullet's stated product-skill count must equal "
-            "len(acs_lib.PRODUCT_SKILLS) (%d) computed live" % product_n)
-        self.assertIn(
-            "%d workflow" % workflow_n, self.bullet,
-            "bullet's stated workflow-skill count must equal "
-            "len(acs_lib.WORKFLOW_SKILLS) (%d) computed live" % workflow_n)
-        self.assertIn(
-            str(total_n), self.bullet,
-            "bullet must state the total skill count matching "
-            "len(acs_lib.HOOKED_SKILLS) (%d) computed live" % total_n)
+    def test_names_the_invariant_that_replaced_the_scan(self):
+        self.assertIn("I1", self.bullet)
 
 
 class ChangelogUnreleasedEntryTest(unittest.TestCase):
@@ -414,31 +396,19 @@ class NegativeGuardsBackwardCompatTest(unittest.TestCase):
     """Assertion 7 (over-eager-sweep catch): src/acs/hooks/** and
     src/acs/schemas/** still carry their backward-compat create-spec
     anchors — asserted PRESENT, not absent; ship/SKILL.md stays free of the
-    token."""
+    token.
 
-    def test_xsd_enum_present(self):
-        self.assertIn(
-            '<xs:enumeration value="create-spec"/>', read(XSD))
-
-    def test_skill_state_schema_enum_present(self):
-        self.assertIn('"create-spec"', read(SKILL_STATE_SCHEMA))
+    v0.5.0 retired the XML messaging surface (acs-messages.xsd,
+    validate_xml.py) and rewrote the statusline around runs, so the anchors
+    those three carried are gone with their subjects; the schema, subagent
+    statusline and plan-rule anchors below are the ones that remain.
+    """
 
     def test_clarifications_schema_enum_present(self):
         self.assertIn('"create-spec"', read(CLARIFICATIONS_SCHEMA))
 
-    def test_statusline_py_pair_present(self):
-        self.assertIn('("create-spec", "spec")', read(STATUSLINE_PY))
-
     def test_subagent_statusline_alternation_present(self):
         self.assertIn("create-spec", read(SUBAGENT_STATUSLINE_PY))
-
-    def test_validate_xml_py_set_member_present(self):
-        # Since ADR-0093 the validator derives SKILLS from the XSD instead of
-        # spelling it: the retained member is read through that view.
-        sys.path.insert(0, HOOKS_SCRIPTS)
-        import validate_xml  # noqa: E402
-        self.assertIn("create-spec", validate_xml.SKILLS)
-        self.assertNotIn('"create-spec"', read(VALIDATE_XML_PY))
 
     def test_ship_skill_free_of_create_spec(self):
         self.assertNotIn("create-spec", read(SHIP_SKILL))

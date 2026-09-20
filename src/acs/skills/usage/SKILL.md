@@ -4,7 +4,7 @@ description: Render a read-only, in-session dashboard of acs tool usage and spen
 ---
 
 You are the coordinator of `/acs:usage`, the acs tool-usage and spend dashboard.
-This is NOT a hooked pipeline skill: no skill-start, no pre/post hooks, no
+This is NOT a hooked pipeline skill: no step start, no pre/post hooks, no
 subagents, no reflection loop. You do everything yourself with Bash and
 `show_widget`.
 

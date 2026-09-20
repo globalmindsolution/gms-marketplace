@@ -19,7 +19,7 @@ never need this skill.
 MANDATORY first action — run before anything else:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-project --allocate
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-project --allocate
 ```
 
 `--allocate` creates the delivery ticket (type `task`, title "Project scaffold",
@@ -31,9 +31,8 @@ entry. Parse the printed context JSON; the fields you will use:
 - `settings` — `test_coverage_percent`, `architecture_path`, `prd_path`, `formats`, `tracker`
 - `models` — per-role `{model, effort}` resolved from settings
 - `reconcile`, `handoff_summary`, `prior_run_status`, `pipeline`
-- `post_hook` — absolute path of `post-create-project.py`
 
-If skill-start exits non-zero: stop and surface its stderr verbatim — do not improvise.
+If `acs step start` exits non-zero: stop and surface its stderr verbatim — do not improvise.
 
 Apply `context.models.<role>.model` / `.effort` when spawning each subagent, unless
 the value is `"inherit"`. If the runtime rejects the model id or effort, FAIL the run
@@ -47,17 +46,17 @@ Three cases:
 - **Prior unfinished scaffold run.** Check `<workspace>/<repo_id>/tickets-index.json`
   for an earlier "Project scaffold" ticket that is not `done`. If one exists, resume
   it instead of scaffolding twice: (1) close the just-allocated ticket — write its
-  `result.json` (see Finish) with `status: "failed"`, `stop_reason: "duplicate
+  `result.json` (see Finish) with `status: "failed"`, `summary: "duplicate
   allocation; resumed <PRIOR-ID>"`, and run the post-hook for it; (2) re-run
-  skill-start with `--ticket <PRIOR-ID>` (no `--allocate`) and continue with that
+  `acs step start` with `--ticket <PRIOR-ID>` (no `--allocate`) and continue with that
   context — it will report `reconcile: true`.
 - **`context.reconcile` is true** (resumed ticket): verify recorded progress against
-  reality BEFORE continuing — re-read `<partition>/phases/create-project/` artifacts,
+  reality BEFORE continuing — re-read `steps/create-project/` artifacts,
   inspect `git -C <checkout_root> status` and `git log` on the scaffold branch, and
   re-run any build/lint/test command recorded as passing. Trust nothing you cannot
   re-verify; continue from the first unfinished phase.
 - **`context.handoff_summary` exists**: read it, plus
-  `<partition>/phases/create-project/handoff-context.md` if present, do a light
+  `steps/create-project/handoff-context.md` if present, do a light
   reconcile (spot-check its claims against the repo and partition), and continue
   from where it points.
 - There is no plan artifact to reuse: an execute with no verify -> verify it; a
@@ -87,7 +86,7 @@ If substantive sources exist, REFUSE politely:
    then `/acs:ship` per change (and `/acs:create-architecture` re-runs keep the doc
    set current on an existing codebase).
 2. Skip the reflection loop and go straight to Finish with `status: "failed"`,
-   `stop_reason: "greenfield-only: repository already contains substantive sources"`,
+   `summary: "greenfield-only: repository already contains substantive sources"`,
    all `states.scaffold` booleans `false`, and one blocking finding
    (`dimension: "greenfield"`) listing the files found.
 
@@ -101,7 +100,7 @@ and then builds it; the verifier re-runs the commands and judges the result
 fresh. On iterations 2-3 the verifier's findings go verbatim into the next
 executor `<task>` `<context>` and the executor authors the remediation.
 Decomposition is YOURS alone — subagents never spawn subagents. Before the
-loop: `mkdir -p <partition>/phases/create-project`.
+loop: `mkdir -p steps/create-project`.
 
 **What an iteration counts:** one execute -> verify round. create-project
 has no path-driven verify-depth selection: the cap is a fixed 3 in every
@@ -109,22 +108,21 @@ lane, and this ticket introduces none.
 
 Messaging rules for every phase:
 
-- Communicate per `schemas/acs-messages.xsd`: you send a `<task>`, the subagent
+- Communicate per `the SubagentStop hook's message check`: you send a `<task>`, the subagent
   returns a `<result>` as the final content of its reply.
 - Validate EVERY message, sent and received:
 
 ```bash
-echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 - Invalid message from a subagent: re-request once; still invalid -> fail the run,
   recording the validation error in result.json `errors`.
-- Persist every phase output to `<partition>/phases/create-project/iter-<n>-<phase>.xml`
+- Persist every phase output to `steps/create-project/iter-<n>/<phase>.json`
   at the phase boundary, BEFORE starting the next phase (parallel executors: suffix
   `iter-<n>-execute-a.xml`, `-b.xml`, ...). The executor's own artifacts are
   `iter-1-authoring.md` (authored once, on iteration 1: Analysis; File manifest;
   Commands; Vertical slice; Delivery; Risks; Verifier checklist) and
-  `iter-<n>-execute.json`; every iteration's verifier `<inputs>` name the
+  `iter-<n>/execute.json`; every iteration's verifier `<inputs>` name the
   iteration-1 notes.
 - Spawn with the Agent tool, `subagent_type`
   `acs:create-project-executor` / `acs:create-project-verifier`; fall back to the
@@ -146,7 +144,7 @@ constraints. Example (iteration 1, repo-relative input paths):
 
 ```xml
 <task skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1">
-  <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes phases/create-project/iter-1-authoring.md (list it in outputs), then build it green on the delivery branch.</objective>
+  <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes steps/create-project/iter-1/authoring.md (list it in outputs), then build it green on the delivery branch.</objective>
   <inputs>
     <file>docs/architecture/hld/tech-stack.md</file>
     <file>docs/architecture/hld/c4-container.md</file>
@@ -230,7 +228,7 @@ installs and its hooks pass on the tree.
 
 A scaffold that does not run green FAILS verification — every failing command is a
 blocking finding. ALL findings block: zero findings = pass. On findings, persist
-`iter-<n>-verify.xml`, then AUTOMATICALLY re-execute, passing every finding to the
+`iter-<n>/verify.md`, then AUTOMATICALLY re-execute, passing every finding to the
 next iteration's executor `<task>` as `<context>`, with no plan phase in between
 — the executor authors the remediation. After iteration 3 with findings remaining:
 stop and go to Finish with `status: "failed"` and the findings recorded.
@@ -255,7 +253,7 @@ git -C <checkout_root> push -u origin task/SHOP-3-project-scaffold
    `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label, the
    rendered title, the body template, the pre-open self-check, `gh pr create`,
    and recording `{number, url, branch}` as `states.pr`. Write the filled body
-   to `<partition>/phases/create-project/pr-body.md` and pass that path as
+   to `steps/create-project/pr-body.md` and pass that path as
    `--body-file` to both the self-check and `gh pr create`; fill its
    placeholders from workspace state (ticket.json, scaffold plan, verifier
    results). Read the number back with
@@ -313,7 +311,7 @@ status="needs_input">` carrying the `<questions>` as your final message.
 
 If your context runs low mid-run: flush in-flight work and soft context (user
 answers, decisions, partial findings, gotchas, current iteration/phase) to
-`<partition>/phases/create-project/handoff-context.md`, then:
+`steps/create-project/handoff-context.md`, then:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "done: <...>; in flight: <...>; next: <...>; decisions: <...>"
@@ -328,12 +326,12 @@ the post-hook in this path.
 MANDATORY final step — never skipped, also on failure and on the greenfield refusal
 (only the Context-pressure path above replaces it):
 
-1. Write `<partition>/phases/create-project/result.json`:
+1. Write `steps/create-project/result.json`:
 
 ```json
 {
   "status": "completed",
-  "stop_reason": "scaffold verified green locally and on the PR CI run",
+  "summary": "scaffold verified green locally and on the PR CI run",
   "states": {
     "scaffold": {"build": true, "lint": true, "tests": true, "coverage_tooling": true},
     "pr": {"number": 7, "url": "https://github.com/acme/shop/pull/7", "branch": "task/SHOP-3-project-scaffold"}
@@ -357,7 +355,7 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 2. Run the post-hook:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --ticket <ticket-id> --result-file <partition>/phases/create-project/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --result-file "<the result.json you just wrote>"
 ```
 
    It finalizes the run entry, updates pipeline-state/index/metrics, marks the
@@ -382,7 +380,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-project · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: scaffold summary — layout, build, test framework + coverage tooling, lint, CI, green vertical slice (build/lint/tests verified passing); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

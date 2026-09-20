@@ -22,10 +22,10 @@ new — it mints the child story/task tickets of an EXISTING, already-created
 epic, after that epic's own design is approved. Resulting precedence:
 `--fan-out` -> split -> remote import -> raw request.
 
-1. **Start.** `skill-start.py --skill create-ticket --ticket <epic-id>` — no
-   `--allocate`: the epic's partition already exists, and this run is
-   recorded as a second `create-ticket` run against it (mirroring the split
-   mode's Start below).
+1. **Start.** `acs.py step start --step create-ticket --run <epic-id>` — no
+   `--allocate`: the epic's partition already exists, and this invocation is
+   recorded as a second `create-ticket` invocation against it (mirroring the
+   split mode's Start below).
 2. **Type refusal.** When the resolved ticket's `type` is not `epic`, stop
    with a message explaining `--fan-out` applies to epics only — this mode
    mints an epic's children, never a story or task's own children. This
@@ -33,7 +33,7 @@ epic, after that epic's own design is approved. Resulting precedence:
    (`parent %s is a %s, not an epic`), so the two can never disagree.
 3. **Design precondition.** Read the epic's design source (its own
    partition's `design.md`, or the `create-design` step in
-   `pipeline-state.json`). When `create-design` has not completed, or
+   `run.json`). When `create-design` has not completed, or
    `design.md` is absent, surface that to the user and obtain their explicit
    confirmation before proceeding — never proceed silently, and never
    hard-refuse; the user may still choose to fan out an undesigned epic.
@@ -63,8 +63,8 @@ epic, after that epic's own design is approved. Resulting precedence:
 9. **Finish.** The mandatory Finish below still applies unchanged:
    `result.json` with `states.ticket_id` = the epic, `type: "epic"`,
    `needs_design`, `children` (the epic's full children after this run),
-   `prd_trace` (the epic's), then `post-create-ticket.py`. Never leave the
+   `prd_trace` (the epic's), then `acs step finish`. Never leave the
    epic's `create-ticket` run non-`completed`: no gate refuses on it any more
    (order lives in `workflows/ship.yaml`), but the ledger is what
-   `acs.py workflow next`, `/acs:metrics` and the derived ticket status read,
+   `acs.py run next`, `/acs:metrics` and the derived ticket status read,
    and a run left `in_progress` reports the epic as mid-flight for ever.

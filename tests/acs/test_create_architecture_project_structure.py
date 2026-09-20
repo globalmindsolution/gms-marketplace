@@ -38,6 +38,13 @@ def shipped_skills():
     return len([n for n in os.listdir(root)
                 if os.path.isdir(os.path.join(root, n))])
 
+def shipped_agents():
+    """Agent .md files on disk. Derived, not pinned: a role added or retired
+    moves the diagram's count by itself rather than waiting for someone to
+    notice, which is how `31` outlived the 32nd agent."""
+    return len([n for n in os.listdir(
+        os.path.join(REPO_ROOT, "src", "acs", "agents")) if n.endswith(".md")])
+
 
 def read(path):
     with open(path, encoding="utf-8") as fh:
@@ -235,12 +242,12 @@ class ScopeGuardTest(unittest.TestCase):
     def test_c4_container_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "c4-container.md"))
         self.assertIn("%d x SKILL.md" % shipped_skills(), body)
-        self.assertIn("31 x agent .md (all reachable)", body)
+        self.assertIn("%d x agent .md (all reachable)" % shipped_agents(), body)
 
     def test_tech_stack_counts_unchanged(self):
         body = read(os.path.join(DOCS, "architecture", "hld", "tech-stack.md"))
         self.assertIn("acs Skills (%d)" % shipped_skills(), body)
-        self.assertIn("31 files, all reachable", body)
+        self.assertIn("%d files, all reachable" % shipped_agents(), body)
 
     def test_triad_keeping_phrase_unchanged(self):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))

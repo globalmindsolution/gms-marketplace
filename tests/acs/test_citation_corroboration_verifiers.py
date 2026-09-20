@@ -322,7 +322,7 @@ class DimensionFourInvocationTest(unittest.TestCase):
                               "%s authoring-conformance dimension must invoke %s" % (fname, HELPER_PATH))
                 self.assertIn("--plan", block)
                 self.assertIn("--root", block)
-                self.assertIn("iter-<n>-authoring.md", block)
+                self.assertIn("iter-<n>/authoring.md", block)
 
     def test_standards_names_principles_root(self):
         body = read(os.path.join(AGENTS, "create-docs-verifier.md"))

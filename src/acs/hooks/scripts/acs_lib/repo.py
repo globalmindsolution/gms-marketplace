@@ -291,12 +291,17 @@ def sessions_dir(workspace, repo_id):
 
 
 def pointer_path(workspace, repo_id, ckid):
-    return os.path.join(sessions_dir(workspace, repo_id), "%s.json" % ckid)
+    """`sessions/<checkout-id>/pointer.json`. Five files related by a filename
+    prefix became one DIRECTORY per checkout (`acs_lib.sessions`); this keeps
+    the (workspace, repo_id, ckid) spelling every caller here already uses."""
+    from .sessions import pointer_path as _pointer_path
+    return _pointer_path(os.path.join(workspace, repo_id), ckid)
 
 
 def session_marker_path(workspace, repo_id, ckid):
-    """Ticket-independent session-correlation marker, sibling of pointer_path."""
-    return os.path.join(sessions_dir(workspace, repo_id), "%s-session.json" % ckid)
+    """Subject-independent session-correlation marker, beside pointer.json."""
+    from .sessions import session_path
+    return session_path(os.path.join(workspace, repo_id), ckid)
 
 
 def record_session_marker(ctx, payload):
@@ -330,12 +335,11 @@ def record_session_marker(ctx, payload):
     return marker
 
 
-def state_path(tdir, skill):
-    return os.path.join(tdir, "%s-state.json" % skill)
-
-
-def lock_path(tdir):
-    return os.path.join(tdir, ".lock")
+def lock_path(rdir):
+    """`runs/<run-id>/lock.json`. Named rather than hidden: a lock a reader
+    cannot see is a lock a reader cannot reason about, and `.lock` predates
+    the run partition having a shape worth listing."""
+    return os.path.join(rdir, "lock.json")
 
 
 def find_ticket_partition(workspace, repo_id, ticket_id):
@@ -396,9 +400,25 @@ def resolve_ticket_id(cwd, settings, workspace, repo_id, explicit=None, args_tex
     from_args = ticket_id_from_text(args_text, prefix)
     if from_args:
         return from_args, "argument"
+    # `run_id`, not `ticket_id`: the pointer names the RUN this checkout is on
+    # (§4.9), and a run whose subject is a ticket carries that ticket's id as
+    # its run id. A run started from a prompt or a document has no ticket, and
+    # the branch fallback below is the honest answer there.
     pointer = read_json(pointer_path(workspace, repo_id, checkout_id(cwd)))
-    if isinstance(pointer, dict) and pointer.get("ticket_id"):
-        return pointer["ticket_id"], "pointer"
+    if isinstance(pointer, dict):
+        from_pointer = pointer.get("run_id") or pointer.get("ticket_id")
+        if from_pointer:
+            if not prefix:
+                return from_pointer, "pointer"
+            # The run id is not always the ticket id: a SECOND run over one
+            # subject is `<ticket>-r2` (run.derive_run_id). Returning that
+            # verbatim sent every consumer -- find_ticket_partition,
+            # resolve_active_partition, load_ticket -- looking for a partition
+            # named `MAR-590-r2`, which does not exist. Extract the ticket the
+            # run is about.
+            extracted = ticket_id_from_text(from_pointer, prefix)
+            if extracted:
+                return extracted, "pointer"
     from_branch = ticket_id_from_text(current_branch(cwd), prefix)
     if from_branch:
         return from_branch, "branch"

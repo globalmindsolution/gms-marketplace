@@ -111,17 +111,18 @@ class TestLifecycleWiring(unittest.TestCase):
         cls.body = read(SKILL_PATH)
 
     def test_start_hook_is_the_mandatory_first_action(self):
-        self.assertIn("skill-start.py", self.body)
-        self.assertRegex(self.body, r"--skill create-api-contract\b")
+        self.assertIn('acs.py" step start', self.body)
+        self.assertRegex(self.body, r"--step create-api-contract\b")
         self.assertIn("MANDATORY first action", self.body)
 
     def test_post_hook_closes_the_run_with_the_result_document(self):
-        self.assertIn("post-create-api-contract.py", self.body)
-        self.assertIn("--result-file", self.body)
+        self.assertIn('post-create-api-contract.py" --result-file', self.body)
+        self.assertIn("result.json", self.body)
 
     def test_every_message_is_schema_validated(self):
-        self.assertIn("validate_xml.py", self.body)
-        self.assertIn("schemas/acs-messages.xsd", self.body)
+        self.assertNotIn("validate_xml.py", self.body)
+        self.assertNotIn("acs-messages.xsd", self.body)
+        self.assertIn("the SubagentStop hook's message check", self.body)
 
     def test_clarification_ledger_rule_and_completion_report(self):
         self.assertIn("Clarification ledger first.", self.body)
@@ -137,45 +138,35 @@ class TestLifecycleWiring(unittest.TestCase):
 
 
 class TestGateAgreement(unittest.TestCase):
-    """The Start section is a map of the gate's refusals; it must be accurate."""
+    """The Start section is a map of what the kernel checks; it must be accurate.
+
+    One `gate_step` serves every step and reads the skill's OWN declaration
+    (§2.4), so these pin the declaration rather than a per-skill function body.
+    """
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
-        cls.gates_source = read(os.path.join(HOOKS, "acs_lib", "gates.py"))
-        cls.gate_body = re.search(r"(?s)def gate_create_api_contract\(.*?\n\n\ndef ",
-                                  cls.gates_source).group(0)
 
-    def test_the_registered_gate_is_the_ticket_scoped_one(self):
-        self.assertIs(lib.GATES["create-api-contract"], lib.gate_create_api_contract)
-        self.assertIn("create-api-contract", lib.GATE_INPUTS["ticket"])
-
-    def test_the_gate_requires_both_documents_the_prose_names(self):
-        self.assertIn('"plan.md", "create-impl-plan"', self.gate_body)
-        self.assertIn('"analysis.md", "analyze-ticket"', self.gate_body)
+    def test_the_declaration_names_both_documents_the_prose_names(self):
+        required, optional = lib.reads_of("create-api-contract")
+        declared = required + optional
+        self.assertIn("plan", declared)
         self.assertIn("run /acs:create-impl-plan <id> first", self.body)
-        self.assertIn("run /acs:analyze-ticket <id> first", self.body)
 
-    def test_the_gate_reads_the_api_surface_predicate(self):
-        self.assertIn("api_surface_changed", self.gate_body)
-        self.assertIn("api_surface_changed", lib.PREDICATES)
-        self.assertIn("api_surface: true", self.body)
+    def test_nothing_owed_completes_the_step_without_spawning_it(self):
+        """`api_surface_changed` was a workflow PREDICATE; the workflow has
+        none (§2.1). The step reads the plan's Contract block itself and
+        records `no_surface_owed` when nothing is owed -- zero tokens, and an
+        answer on the ledger rather than a step that silently did not run."""
+        self.assertIn("no_surface_owed", lib.outcome_vocabulary("create-api-contract"))
+        self.assertIn("no_surface_owed", self.body)
+        self.assertIn("api_surface", self.body)
 
     def test_the_prose_forbids_working_around_the_flag(self):
-        self.assertRegex(self.body, r"Do not work around it by editing `analysis.md`")
-        self.assertRegex(self.body, r"re-run `/acs:analyze-ticket <id>`")
+        self.assertRegex(self.body, r"Do not work around it by editing")
 
-    def test_order_is_declared_in_the_workflow_not_the_gate(self):
-        self.assertIn("workflows/ship.yaml", self.body)
-        self.assertRegex(self.body, r"no predecessor-completed check")
-        for dead in ("_require_completed", "has not run for"):
-            self.assertNotIn(dead, self.body)
 
-    def test_the_step_is_conditional_in_the_shipped_workflow(self):
-        """`when: api_surface_changed` is why the skill can say ship.yaml skips
-        it for a ticket whose analysis found no surface."""
-        workflow = read(os.path.join(PLUGIN, "workflows", "ship.yaml"))
-        self.assertRegex(workflow, r"(?s)skill: create-api-contract.*?when: api_surface_changed")
 
 
 class TestContractFrontMatterContract(unittest.TestCase):
@@ -382,7 +373,7 @@ class TestPublishing(unittest.TestCase):
 
     def test_publishing_copies_the_verified_bytes(self):
         self.assertRegex(self.body,
-                         r"cp \"<partition>/phases/create-api-contract/api-contract.md\"")
+                         r"cp \"<partition>/steps/create-api-contract/api-contract.md\"")
         self.assertIn("Copy, never re-author", self.body)
 
     def test_the_coordinator_publishes_and_the_guard_is_named(self):
@@ -410,9 +401,9 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/create-api-contract/iter-<n>-authoring.md", agent("executor"))
-        self.assertIn("phases/create-api-contract/iter-<n>-execute.json", agent("executor"))
-        self.assertIn("phases/create-api-contract/iter-<n>-verify.md", agent("verifier"))
+        self.assertIn("steps/create-api-contract/iter-<n>/authoring.md", agent("executor"))
+        self.assertIn("steps/create-api-contract/iter-<n>/execute.json", agent("executor"))
+        self.assertIn("steps/create-api-contract/iter-<n>/verify.md", agent("verifier"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:

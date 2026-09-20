@@ -702,6 +702,16 @@ upstream summary, and commits on the same branch.
 
 ### 3.10 `/acs:create-pr`
 
+> **NOT LANDED in v0.5.0.** This section describes an intended change that the
+> release deliberately leaves out. Its own warning below names the §5 pre-push
+> guard as the enforcement that makes it safe, and that guard does not exist:
+> `hooks/hooks.json` carries `PreToolUse` matchers for `Skill` and
+> `Write|Edit|MultiEdit|NotebookEdit` only, and nothing refuses a push of the
+> base branch itself. Landing the branch move without it would mean committing
+> to a checked-out `main` with no backstop. **Branch creation therefore stays
+> in `/acs:analyze-requirements`**, where v0.4.9 has it. Land the guard first,
+> then this.
+
 **Creates the branch.** Nothing earlier in the pipeline does.
 
 Steps 3, 4 and 7 commit to whatever branch the session is already on. At
@@ -1088,7 +1098,7 @@ the run gets a verb of its own:
 | `acs workflow show \| validate` | same | `next` moved to `acs run`; `validate` now checks the list's order against each skill's `reads` / `writes` and the loop rule (§2.1) |
 | `acs plan path` | `acs path` | the path is read from the plan's `## Contract` block |
 | `acs lock`, `acs ticket`, `acs verdict`, `acs filemap`, `acs guard`, `acs context` | same | unchanged |
-| — | `acs artifacts migrate` | removed: there is no migration |
+| `acs artifacts migrate` (kept) | — | **divergence, deliberate:** it ships. It migrates the ticket DOCUMENTS into `docs/tickets/<ID>/`, a move a v0.4.9 consumer does have to make; "no migration" is about the run ledger, which is re-keyed and does not carry forward |
 
 ### 4.9 Resumption and concurrency
 

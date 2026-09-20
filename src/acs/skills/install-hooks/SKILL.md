@@ -4,7 +4,7 @@ description: Write this clone's .git/hooks/commit-msg and .git/hooks/pre-push so
 ---
 
 You are the coordinator of `/acs:install-hooks`. This is NOT a hooked pipeline
-skill: no `skill-start.py`, no pre/post hooks, no subagents, no reflection loop.
+skill: no `acs step start`, no pre/post hooks, no subagents, no reflection loop.
 You do everything yourself in this session with Bash, Read, Edit, and Write.
 
 The job: install this clone's local git hooks so the conventions the user
@@ -159,7 +159,7 @@ Ticket line with **Scope** (no ticket):
 ## /acs:install-hooks · <scope> · <status>
 
 - **Scope**: local hooks for <repo>
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: install path (pre-commit framework / raw git hooks); hooks installed (commit-msg, pre-push) or skipped (with reason); files copied into `.acs/ci/` (and whether they still need committing); verification outcome
 - **Findings**: <missing conventions / pre-existing non-acs hooks / clarifications, or "none">
 - **Artifacts**: `.acs/ci/` files, this clone's `.git/hooks/*`, edited `.pre-commit-config.yaml`

@@ -3,63 +3,79 @@
 ## Pipeline
 
 The `acs` plugin implements a multi-step delivery workflow. Every skill
-belongs to exactly one of five **phases** — design, build, test, ship,
-utility — declared in the registry `src/acs/workflows/phases.yaml`; and
-the ORDER in which a ticket's build/test/ship steps run is **declared data,
-not hook code**: it lives in `src/acs/workflows/ship.yaml`, which a
-consumer repo MAY replace wholesale with `<repo>/.acs/workflows/ship.yaml`
-(an override, never a merge).
+declares its own **phase** — design, build, test, ship, utility — in
+`src/acs/skills/<name>/acs.yaml`, beside the artifacts it reads and writes.
+There is no registry file: the surfaces that need the grouping read the skill
+directories. The ORDER in which a ticket's build/test/ship steps run is
+**declared data, not hook code**: it lives in `src/acs/workflows/ship.yaml`,
+which a consumer repo MAY replace wholesale with
+`<repo>/.acs/workflows/ship.yaml` (an override, never a merge).
 
-Two requirements follow, and together they are what "pipeline" now means:
+**`ship.yaml` is a LIST, and deliberately nothing more.** Version 3 carries a
+`version`, a flat list of skill names, and one optional `loops:` entry. The
+schema REJECTS `when`, `paths`, `requires`, `needs`, `max_parallel`,
+`exclusive`, `on_fail`, `boundary`, `delivery`, `id`, `name` and `stop_after`
+(ADR-0096). Three requirements follow, and together they are what "pipeline"
+now means:
 
-- **Every skill MUST be runnable on its own.** A skill's pre-hook MUST NOT
-  refuse it for running before or after another skill; it checks only the
-  inputs that skill reads plus a small set of safety brakes
-  ([hooks.md](hooks.md)).
+- **Every skill MUST be runnable on its own**, from a ticket id, a prompt or
+  a document. A skill's pre-hook MUST NOT refuse it for running before or
+  after another skill; it checks only the inputs that skill reads plus a small
+  set of safety brakes ([hooks.md](hooks.md)).
+- **No workflow construct may decide whether a skill applies.** A predicate in
+  the workflow makes a skill untrustworthy standalone: invoked by hand it
+  never evaluates the condition the workflow was evaluating for it. Each skill
+  decides for itself, from inputs it resolves itself, and records why.
 - **The declared order is authoritative for orchestration only.** `/ship`
   walks `ship.yaml` and nothing else; a skill invoked by hand out of that
   order MUST still run, after one advisory line on stderr.
 
+**Every step runs on every run.** A step that owes nothing MUST record an
+**evidenced no-op** rather than be skipped: its own pre-hook reads the plan's
+`## Contract` block, completes the step from it at no token cost, and carries
+the sentence that says why. **Silence is not permission to skip** — a step
+with no Contract entry to stand on runs and decides for itself.
+
+**`loops:` is the only construct that is not a step, and it is not a
+condition.** It tests nothing about the change; it declares that two steps
+form a cycle and how many times. The shipped workflow has exactly one:
+`from: review-code`, `back_to: code`, `max_iterations: 3`,
+`on_exhausted: fail`. It cannot live inside a skill because it spans two of
+them, which is the test for what belongs in a workflow file at all.
+
+**Order is VALIDATED, not declared twice.** Each `skills/<name>/acs.yaml`
+declares `reads.required`, `reads.optional` and `writes`, and
+`acs.py workflow validate` checks that every step's required reads are
+written by an earlier step. Swap two steps whose order does not matter and it
+passes; swap two whose order does and it names the pair and the line.
+
 `/create-ticket` and `/create-design` are **design** work that runs before
-`/ship`; `/merge-pr` is **ship** work a human drives after review. None of
-the three may appear in `ship.yaml` — it may name build, test and ship
-skills only, and never `/merge-pr` or `/release`.
+`/ship`; `/merge-pr` is **ship** work a human drives after review.
 
-| Step (`ship.yaml` id) | Phase | Runs | Purpose (summary) |
-|-----------------------|-------|------|-------------------|
-| — `/create-ticket` | design | before `/ship` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |
-| — `/create-design` | design | before `/ship`, when `needs_design` | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. |
-| `analyze-ticket` | build | always | Read the ticket, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the walk branches on. A not-ready analysis returns `needs_input`. |
-| `create-impl-plan` | build | `requires: design_approved` | The plan phase carved out of `/code`: the executor's survey (the former planner charter), spec fold, executor file map, plan approval and the plan-revocation path, ending in an approved `plan.md`. |
-| `create-api-contract` | build | `when: api_surface_changed` | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
-| `create-test-docs` | build | always | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. |
-| `code` | build | always (`exclusive`) | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. Its verifier reviews the changeset for business logic, features, quality, technical standards, architecture, system design, security, and documentation — see [Review feedback loop](#review-feedback-loop). |
-| `create-e2e-tests` | test | `when: e2e_configured` | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, committed on the ticket branch. Runs **in parallel with `docs-sync`** — both need only `code`. |
-| `docs-sync` | build | always | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and the final code-verify artifact rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
-| `run-e2e-tests` | test | `when: post_code_test_active` | Run this product's configured suites for the ticket (`--for-ticket <id>`), scoped from `test-cases.md`. On failure the step's `on_fail` relays back into `code`, bounded by `post_code_test_fix_loops_cap`. |
-| `create-pr` | ship | `stop_after` | Create a pull request shipping the implementation. `/ship` stops here. |
-| — `/merge-pr` | ship | after `/ship`, user-invoked | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
+| Step (`ship.yaml`) | Phase | Purpose (summary) |
+|--------------------|-------|-------------------|
+| — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. Runs before `/ship`. |
+| — `/create-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
+| `analyze-requirements` | build | Read the subject, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict. A not-ready analysis returns `needs_input`. |
+| `create-impl-plan` | build | The plan phase carved out of `/code`: the executor's survey, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. **It also judges the delivery path**, once, from the plan's own scope, and writes it into the plan's `## Contract` block (ADR-0098). |
+| `create-api-contract` | build | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files under `contracts_path` when the repo keeps them. Records an evidenced no-op when the Contract says `owes.api_contract: false`. |
+| `create-test-docs` | build | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. Records an evidenced no-op when the Contract says `owes.test_cases: false`. |
+| `code` | build | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. It dispatches to the delivery-path leg the plan recorded. **It has no verifier, does not judge the changeset, and never runs the full suite** — targeted tests only. |
+| `review-code` | build | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding, then a final gate running build, lint, the full unit suite and coverage. **The only place the full suite runs.** Blocking findings re-enter at `code` through the workflow's single loop — see [Review feedback loop](#review-feedback-loop). |
+| `create-e2e-tests` | test | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, committed on the ticket branch. Records an evidenced no-op when no e2e suite is configured or the Contract says `owes.e2e: false`. |
+| `run-e2e-tests` | test | Run this product's configured suites for the subject, scoped from `test-cases.md`. Records an evidenced no-op when there is nothing configured to run. |
+| `docs-sync` | build | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and `/acs:review-code`'s verdict rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
+| `create-pr` | ship | Create a pull request shipping the implementation. It is the last step in the list, so `/ship` ends there. |
+| — `/merge-pr` | ship | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
-A step's condition is one of two kinds, and the difference is load-bearing:
-
-- **`when: <predicate>`** — a false predicate means the step does not apply
-  to this ticket. The walk records it `skipped` in `pipeline-state.json`
-  (with the reason) and treats it as satisfied, so everything downstream of
-  it proceeds.
-- **`requires: <predicate>`** — a false predicate means the step is not
-  allowed to proceed *yet*. The walk reports `blocked_by` with a human
-  pointer (for example, "run /acs:create-design MAR-12 first") and lists no
-  ready step; nothing downstream proceeds.
-
-The predicate vocabulary is closed — a workflow file naming an unknown
-predicate fails validation with its line number:
-
-| Predicate | True when |
-|-----------|-----------|
-| `design_approved` | the ticket needs no design; or its own (or its parent epic's) `design.md` exists **and** the ledger records `/create-design` completed for that ticket. |
-| `api_surface_changed` | `analysis.md`'s front matter declares `api_surface: true`. |
-| `e2e_configured` | `settings.e2e` or `settings.suites.e2e` is configured ([configuration.md](configuration.md)). |
-| `post_code_test_active` | `settings.post_code_test.enabled` when it is set; otherwise `e2e_configured`. |
+**There is no predicate vocabulary.** The `when:` / `requires:` kinds, their
+closed predicate list (`design_approved`, `api_surface_changed`,
+`e2e_configured`, `post_code_test_active`) and the `status: skipped` they
+produced are all removed. What each of them decided is now decided by the
+skill that owns the question, and recorded by it: an unapproved design is a
+brake in `/acs:create-impl-plan`'s own gate, an absent API surface is
+`owes.api_contract: false` on the plan, and an unconfigured e2e suite is an
+evidenced no-op that `/acs:create-e2e-tests` records for itself.
 
 ```mermaid
 flowchart LR
@@ -68,24 +84,23 @@ flowchart LR
     D -->|epic: after design| FO[/create-ticket --fan-out/]
     FO -->|per child| A
     D -->|child inherits the design| A
-    T -->|otherwise| A[/analyze-ticket/]
+    T -->|otherwise| A[/analyze-requirements/]
     A --> PL[/create-impl-plan/]
-    PL -->|when api_surface_changed| AC[/create-api-contract/]
-    PL --> TD[/create-test-docs/]
-    AC --> TD
+    PL --> AC[/create-api-contract/]
+    AC --> TD[/create-test-docs/]
     TD --> C[/code/]
-    C --> DS[/docs-sync/]
-    C -->|when e2e_configured| E[/create-e2e-tests/]
-    E -->|when post_code_test_active| RE[/run-e2e-tests/]
+    C --> RV[/review-code/]
+    RV -->|blocking findings, max 3 rounds| C
+    RV --> E[/create-e2e-tests/]
+    E --> RE[/run-e2e-tests/]
+    RE --> DS[/docs-sync/]
     DS --> P[/create-pr/]
-    RE --> P
     P --> M[/merge-pr/]
 ```
 
 `/create-design` runs only for tickets flagged **`needs_design: true`** —
 set for **epics only**; stories/tasks are always `false`. Child tickets of
-an epic do **not** repeat design: their `design_approved` predicate resolves
-against the parent epic's `design.md`.
+an epic do **not** repeat design: they inherit the parent epic's `design.md`.
 
 ### Where a ticket's artifacts live
 
@@ -99,10 +114,14 @@ document belongs to exactly one of them:
   the PR like any other doc. Setting `artifacts.tickets_path` to `null`
   keeps every one of them in the workspace partition instead, exactly as
   before this split.
-- **The workspace partition** — `<workspace>/<repo>/<ticket-id>/` holds the
-  **run ledger**: `<skill>-state.json`, `pipeline-state.json`, phase
-  artifacts, verdicts, `.lock`, `clarifications.json`, and the repo-level
-  index/metrics files ([workspace-and-state.md](workspace-and-state.md)).
+- **The workspace run** — `<workspace>/<repo>/runs/<run-id>/` holds the **run
+  ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
+  machine), each step's `result.json` and its `iter-<n>/` audit trail,
+  `subject/`, `requirements.md`, verdicts, `lock.json`,
+  `clarifications.json`, and the repo-level index/metrics files
+  ([workspace-and-state.md](workspace-and-state.md)). The run is keyed by the
+  **run id**, which is derived from the subject — a ticket id when there is
+  one, otherwise a slug of the prompt or document (ADR-0097).
 
 A ticket's `status` is **derived** from the ledger, never stored alongside
 the ticket's own fields, so the two can no longer disagree
@@ -116,40 +135,43 @@ job is to make sure the skill it guards can do its work at all, and to stop a
 run that would be unsafe.
 
 - Each hooked skill MUST be guarded by a **pre-hook**. Readiness means, at
-  minimum: the `.acs` `settings.json` resolves, the `<ticket-id>` partition
-  resolves, no other session holds the ticket's `.lock`, and every **input
-  artifact the skill itself reads** exists. Examples: `/code` requires an
-  approved `plan.md`; `/create-api-contract` requires `plan.md` **and** an
-  `analysis.md` declaring `api_surface: true`; `/create-e2e-tests` requires a
-  configured e2e suite **and** at least one e2e-typed case in
-  `test-cases.md`; `/create-architecture` requires the PRD doc set.
+  minimum: the `.acs` `settings.json` resolves, the run resolves, no other
+  session holds the run's lock, and every **input artifact the skill itself
+  reads** exists. Examples: `/code` requires an approved `plan.md`;
+  `/create-architecture` requires the PRD doc set.
+- **A pre-hook may also COMPLETE its step, from evidence, without running
+  it.** When the plan's `## Contract` block says the step owes nothing —
+  `owes.api_contract: false`, say — the pre-hook records an evidenced no-op
+  carrying the Contract's own reason, and the skill does not run. This is not
+  a skip: the step is `completed`, with a recorded sentence, by the hook that
+  owns it. A step with no Contract entry to stand on MUST run.
 - A pre-hook MUST NOT require that a *predecessor skill completed*. The
   primitive that did so was removed with the skills-independence refactor:
   running `/docs-sync` before `/code`, or `/create-pr` before `/docs-sync`,
   is allowed and produces whatever those skills can honestly produce from the
   inputs present.
 - **Safety brakes stay**, because they protect correctness rather than
-  sequence: epics are never implemented (`/code`, `/analyze-ticket` and
+  sequence: epics are never implemented (`/code`, `/analyze-requirements` and
   `/create-impl-plan` refuse an epic with an actionable breakdown message);
-  `/create-pr` refuses a ticket whose recorded `/code` run left
-  `verifier_passed != true` (a ticket with **no** recorded code run is
-  allowed through); `/merge-pr` requires a recorded PR reference; every
-  hooked skill refuses while another session holds the lock.
+  `/create-pr` refuses a run whose recorded `/acs:review-code` step left
+  `verifier_passed != true` (a run with **no** recorded review is allowed
+  through); `/merge-pr` requires a recorded PR reference; every hooked skill
+  refuses while another session holds the lock.
 - If a required input is missing, the pre-hook MUST exit with code **2**,
   which blocks the skill, and MUST name the artifact and the skill that
   produces it (e.g. "no plan.md found for SHOP-123 … — run
   /acs:create-impl-plan SHOP-123 first.").
 - **Out-of-order is an advisory, never a refusal.** When a hooked skill runs
-  whose `ship.yaml` `needs` are not satisfied for this ticket, the pre-hook
-  MUST print exactly one stderr line naming the position — e.g.
+  before a step that precedes it in the resolved `ship.yaml` has completed,
+  the pre-hook MUST print exactly one stderr line naming the position — e.g.
   `acs: docs-sync normally follows code in ship.yaml; code has not completed
   for SHOP-123` — and exit **0**. The line is suppressed when
   `settings.workflow.advisories` is `false` (default `true`), when the skill
   is not a step of the resolved workflow, and whenever anything it needs
   cannot be read — an advisory MUST never turn into a blocked gate.
 - Each hooked skill MUST be followed by a **post-hook** that writes the
-  skill's own state into a JSON state file in the workspace
-  (e.g. `post-code.py` writes `code-state.json`).
+  step's own state into the run (e.g. `post-code.py` writes
+  `steps/code/state.json`).
 
 See [hooks.md](hooks.md) for hook details and
 [workspace-and-state.md](workspace-and-state.md) for state file
@@ -165,36 +187,38 @@ with the design-and-fan-out pointer — an epic's own ticket is never
 implemented.
 
 `/ship` MUST NOT hard-code the order. It is a **loop over
-`acs.py workflow next`**:
+`acs.py run next`**:
 
-1. Ask `workflow next` for the ticket's READY steps, evaluated from
-   `ship.yaml` against `pipeline-state.json`.
-2. In `single` mode, invoke the one ready skill with its declared `args` and
-   handle its handoff exactly as before (`completed` / `needs_input` /
-   `failed` / `handed_off`).
-3. In `parallel` mode, fan the ready steps out as **legs** — one subagent per
-   step, each in its own git worktree on a leg branch cut from the ticket
-   branch head, so two legs never share an index. When every leg has
-   returned, merge each leg branch back into the ticket branch in file order;
-   a conflict stops the pipeline naming both legs. A failed leg does not
-   cancel its siblings — it is simply ready again on the next `workflow
-   next`.
-4. Repeat until `workflow next` reports `done` (its `stop_after` step, by
-   default `create-pr`, is satisfied).
+1. Ask `run next` for the cursor — the first step in `ship.yaml` order that
+   the run has not recorded `completed`. The cursor is **derived on every
+   call**, never stored, so it cannot disagree with the ledger it is read
+   from.
+2. Invoke that one skill and handle its handoff (`completed` / `needs_input`
+   / `failed` / `interrupted`).
+3. Ask again. Repeat until `run next` reports the list is done.
+
+There is no parallel mode and no fan-out of steps: `max_parallel` and
+`exclusive` are rejected by the v3 schema, and a step that owes nothing costs
+an evidenced no-op rather than a worktree. Parallelism inside one step
+remains that skill's own business.
 
 - `/ship` MUST **stop before `/merge-pr`** — the PR is landed separately
-  after review; `merge-pr` may not appear in a workflow file at all.
+  after review; `merge-pr` may not appear in a workflow file at all. It stops
+  because `create-pr` is the last name in the list, not because of a
+  `stop_after` key.
 - Every hook still runs on every step: `/ship` adds orchestration only and
   MUST NOT bypass pre/post hooks. Because gates no longer encode order,
   `/ship`'s walk is the only thing that sequences the pipeline — which is
   precisely why it reads the declared file rather than its own prose.
-- SHOULD be resumable: re-running `/ship <ticket-id>` re-evaluates
-  `workflow next` against the ledger and continues from whatever is ready.
-- A step carrying `boundary: full_verify_stop` applies the full-verify
-  pipeline boundary after it completes; a step carrying `on_fail` applies the
-  bounded fix-loop counter; a step carrying `on_replan` is re-run (and then
-  its dependants) when the ticket's `code` run ends with
-  `stop_reason: plan_superseded`.
+- SHOULD be resumable: re-running `/ship <ticket-id>` re-derives the cursor
+  from the ledger and continues from it.
+- **The one loop is the workflow's, not `/ship`'s prose.** When
+  `/acs:review-code` records blocking findings the cursor returns to `code`,
+  up to `loops[].max_iterations` (3) rounds; a fourth FAILS the run rather
+  than passing it with findings. `boundary`, `on_fail` and `on_replan` are
+  gone — a `/acs:code` step that finds the plan wrong ends `failed` with a
+  summary naming the plan as superseded, and the run re-enters
+  `/acs:create-impl-plan`.
 - `/ship` has no executor/verifier of its own; each invoked skill
   runs its own reflection cycle.
 
@@ -205,24 +229,22 @@ every skill's transcript in one context:
 
 - The `/ship` coordinator **invokes each step skill directly in its own
   context** (it holds the Agent tool the step needs to spawn its own
-  executor/verifier). Between steps it reads only `pipeline-state.json`,
-  the ticket's own document (`ticket.md` in the docs tree, or `ticket.json`
-  when `artifacts.tickets_path` is `null`), the output of
-  `acs.py workflow next`, and the step's `<handoff>` / `result.json` — never
-  the step's transcript — so its own context stays small.
-  - Exception: `code`'s full reflection cycle runs inside the coordinator's
-    own context, so at full verify depth the two rules are reconciled by
-    the boundary stop after `code` rather than by compaction
-    ([skills.md](skills.md#ship-umbrella)'s `/ship` entry; `ship/SKILL.md`
-    "Full-verify pipeline boundary").
-- A step returns only a **compact XML handoff result** (status, stop reason,
-  artifact references — bounded to roughly a kilobyte); full detail lives in
-  the workspace state files.
-- Post-hooks maintain **`pipeline-state.json`** in the ticket partition — a
-  small step ledger (per-step status, timestamps, handoff summaries). `/ship`
-  reads this single file to pick the next step or resume, so its context can
-  be **cleared or compacted at any step boundary** without losing the
-  pipeline.
+  executor/verifier). Between steps it reads only `run.json`, the subject's
+  own document (`ticket.md` in the docs tree, or `ticket.json` when
+  `artifacts.tickets_path` is `null`), the output of `acs.py run next`, and
+  the step's handoff / `result.json` — never the step's transcript — so its
+  own context stays small.
+  - A session that runs out of context anyway ends the in-flight step
+    `interrupted` with `stop_reason: context_pressure`, and the next session
+    resumes from the derived cursor. That replaced the full-verify boundary
+    stop, which existed to pre-empt a limit the run can simply record.
+- A step returns only a **compact handoff result** in JSON (status, stop
+  reason, artifact references — bounded to roughly a kilobyte); full detail
+  lives in the run's own files.
+- Post-hooks maintain **`steps/<skill>/state.json`**, and `run.json` records
+  the run itself. `/ship` reads the derived cursor rather than a stored
+  position, so its context can be **cleared or compacted at any step
+  boundary** without losing the pipeline.
 
 ## Ticket context
 
@@ -300,24 +322,45 @@ them in XML. Details in [reflection.md](reflection.md).
 
 ## Review feedback loop
 
-Changeset review happens **inside `/code`**, performed by the
-`code-verifier` — there is no separate review skill. The loop is
-**automatic**:
+Changeset review is **`/acs:review-code`, a step of its own** — not a phase
+inside `/code`. An implementer that grades its own output ran the full unit
+suite inside an iteration that might be discarded, and gave per-finding
+adjudication to only one of four delivery paths (ADR-0099). Every path gets
+the review now, and the loop is **automatic**:
 
-- The `code-verifier` checks spec conformance, tests, and coverage, **and**
-  reviews the whole changeset for business logic, features, quality,
-  technical standards, architecture, system design, security, and
-  documentation (affected docs updated and consistent with the code).
-- When the verifier produces blocking findings, the coordinator MUST
-  automatically run another remediation iteration: **re-execute, re-verify**
-  (TDD still applies) — passing every finding to the next iteration's
-  executor(s) in `<context>` with no intervening plan phase; the plan
-  `/create-impl-plan` approved is an input, authored before iteration 1
-  (MAR-71, slice 1b of MAR-69; ADR 0089).
-- **All findings block** — there is no severity threshold; the loop runs
-  until the verifier reports **zero findings**. When an `e2e` layer is
-  configured ([configuration.md](configuration.md)), a **green e2e
-  run** is part of the zero-findings bar.
+- `/acs:code` writes the change and stops. It MUST NOT spawn a verifier, MUST
+  NOT judge the changeset, and MUST NOT run the full suite — targeted tests
+  only, the tests its change touches.
+- `/acs:review-code` runs **five read-only lenses in parallel** over the
+  changeset. Between them they cover spec conformance, tests and coverage,
+  business logic, features, quality, technical standards, architecture,
+  system design, security, and the change's own documentation (affected docs
+  updated and consistent with the code).
+- **Each candidate finding then goes to ONE fresh-context adjudicator**,
+  prompted to refute it. The agent that judges a finding MUST NOT be the
+  agent that raised it, and MUST NOT receive the lens's reasoning — which is
+  what makes the refutation a second look rather than a re-read.
+  Corroboration-by-count is not used: two lenses agreeing is not evidence
+  when both read the same diff.
+- **A final gate runs the build, the lint, the full unit suite and
+  coverage — once, last.** This is the ONLY place in the pipeline the full
+  suite runs. It runs after the reading dimensions have had their say,
+  because an iteration already blocked by a finding does not need a suite run
+  to say so and the tree it would measure is about to change.
+- When the review records blocking findings, the workflow's single `loops:`
+  entry returns the cursor to `code`, which passes every confirmed finding to
+  the next iteration's executor(s) in its context **with no intervening plan
+  phase** — a finding already says what is wrong and what would make it
+  right, and carries a `resolved_when`. The plan `/create-impl-plan` approved
+  is an input, authored before iteration 1.
+- A finding MAY be **disputed once**, with the evidence that defeats the
+  claim; the next adjudicator receives the dispute and rules again. A finding
+  disputed and then confirmed a second time stops the run for a human rather
+  than spending the last iteration on the same argument.
+- **All confirmed findings block** — there is no severity threshold; the loop
+  runs until the review reports zero blocking findings. When an `e2e` layer
+  is configured ([configuration.md](configuration.md)), a **green e2e run**
+  is part of that bar.
 - PRD **G13**'s e2e-integrity metric is validated **read-only** from artifacts this loop already produces: sub-metric (a) — 0 merges with a red e2e suite while the gate is enabled — reads each ticket's `merge-pr` `result.json` `states.readiness.ci` cross-checked against `"E2E suite"` being a required branch-protection status check; sub-metric (b) — 100% of user-facing-surface specs declare e2e impact — is enforced by this loop's own e2e-impact dimension above (no new mechanism). Until a repo wires the gate as a required check, sub-metric (a) holds vacuously (no gate-enabled window to violate); see `docs/product/prd.md`'s G13 line for the latest recorded result.
 - The loop runs at most **3 iterations** (execute+verify rounds); if findings
   remain, `/code` stops and records the findings and stop reason in
@@ -339,13 +382,13 @@ off.
 
 Resume works at three levels, all from workspace state alone:
 
-1. **Between steps** — `pipeline-state.json` and the per-skill state files
-   record what is complete; `acs.py workflow next` reads that ledger and
-   names the step(s) now ready. Running any skill in any fresh session
-   continues the pipeline — nothing has to be run in order to be allowed.
-2. **Within `/ship`** — re-running `/ship <ticket-id>` re-evaluates
-   `workflow next` against the same ledger and continues from whatever is
-   ready ([Context handoff](#context-handoff-between-steps)).
+1. **Between steps** — `run.json` and `steps/<skill>/state.json` record what
+   is complete; `acs.py run next` derives the cursor from that ledger and
+   names the step now due. Running any skill in any fresh session continues
+   the pipeline — nothing has to be run in order to be allowed.
+2. **Within `/ship`** — re-running `/ship <ticket-id>` re-derives the cursor
+   from the same ledger and continues from it
+   ([Context handoff](#context-handoff-between-steps)).
 3. **Mid-skill** — a run entry is appended with status **`in_progress`** by
    the coordinator at skill start and finalized by the post-hook, and the
    coordinator persists every phase output (plan, executor results, verifier
@@ -369,15 +412,18 @@ handoff is a *planned* resume, so it can do better than crash recovery:
    partition, including soft context that phase boundaries have not captured
    yet: user clarifications and decisions, partial findings of the current
    phase, discovered gotchas.
-2. **Mark** — the current run entry is finalized with status
-   **`handed_off`** plus a **handoff summary**: what is done, what is in
-   flight, next actions, and any decisions not yet reflected in other files.
-3. **Release** — the `.lock` is released, so any session (not only the same
-   checkout) can take over.
+2. **Mark** — the in-flight step is finalized **`interrupted`** with a
+   `stop_reason` from the closed set (`context_pressure` for a handoff,
+   `session_end` for the safety net, `needs_input` when a decision is owed)
+   plus a **handoff summary**: what is done, what is in flight, next actions,
+   and any decisions not yet reflected in other files. `handed_off` is not a
+   status — it was a reason wearing a state's clothes (ADR-0097).
+3. **Release** — the run's lock is released, so any session (not only the
+   same checkout) can take over.
 4. **Take over** — in the new session the user re-runs the same skill (or
    `/ship`); the ticket resolves via argument, pointer file, or branch name.
-   The coordinator sees `runs[-1].status == "handed_off"`, reads the handoff
-   summary, runs a light reconcile (recorded state is trusted but cheaply
+   The coordinator sees the step's last invocation `interrupted`, reads the
+   handoff summary, runs a light reconcile (recorded state is trusted but cheaply
    verified, e.g. by running the tests), and continues.
 
 Triggers: the user invokes the **`/handoff`** utility skill explicitly, and
@@ -408,16 +454,13 @@ would require a shared or synced workspace — out of scope for now.
   primitive per leg, with each leg entering its own worktree at its own
   Branch step, before that leg's Execute phase.
   See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
-- A third mechanism, **step-level fan-out within one ticket**, comes from the
-  declared workflow itself: when `acs.py workflow next` finds more than one
-  READY step, none of them `exclusive`, and `max_parallel` greater than 1, it
-  reports `mode: parallel` and lists up to `max_parallel` steps. `/ship` then
-  runs each as a **leg** — its own subagent, its own git worktree, its own leg
-  branch cut from the ticket branch head — and merges the leg branches back
-  into the ticket branch in file order when every leg has returned. In the
-  default `ship.yaml` this is what makes `create-e2e-tests` and `docs-sync`
-  run side by side: both need only `code`. A step marked `exclusive: true`
-  (`code`) always runs alone.
+- **There is no step-level fan-out within one run.** `ship.yaml` v3 rejects
+  `max_parallel` and `exclusive`, so `acs.py run next` names one step and the
+  pipeline is a straight line. What the parallel mode bought — not paying for
+  a step that had nothing to do — is bought instead by the evidenced no-op,
+  which costs no tokens and no worktree. Parallelism inside a single step
+  (`/acs:create-docs`'s sets, `/acs:review-code`'s five lenses) remains that
+  skill's own business.
 
 ## Product-level architecture
 
@@ -439,9 +482,9 @@ flagging any requested capability that diverges from it.
 - **Output**: `/code` updates the doc set whenever a change alters the
   architecture — both **HLD** (C4 views, data model, deployment) and
   **LLD**, merging the ticket design's new or changed sequence diagrams
-  into `lld/flows/`; the `code-verifier`'s documentation dimension checks
+  into `lld/flows/`; `/acs:review-code`'s documentation lens checks
   that consistency.
-- **Enforcement (docs current by induction)**: the `code-verifier` makes a
+- **Enforcement (docs current by induction)**: `/acs:review-code` makes a
   positive, evidenced architectural-impact determination from each diff —
   impact without matching doc changes in the same changeset is a blocking
   finding, and "no impact" is a conclusion, never a default. Drift from
@@ -467,7 +510,7 @@ markdown file per feature area):
   acceptance criteria and behavior-defining clarifications (answered/assumed
   ledger entries that define behavior) into the area's requirements file —
   same changeset, same induction as the architecture doc set; the
-  `code-verifier`'s documentation dimension blocks a behavioral change whose
+  `/acs:review-code`'s documentation lens blocks a behavioral change whose
   requirements file was not updated.
 - The set grows organically from ticket #1 — OR is bootstrapped in one run
   via `/acs:create-requirements` (brownfield reverse-engineer, greenfield

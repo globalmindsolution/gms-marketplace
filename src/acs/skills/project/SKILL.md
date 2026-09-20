@@ -114,8 +114,8 @@ every step it invokes IS gated by pre/post hooks", `ship/SKILL.md`, Ground
 rules) and `/acs:create-docs` relies on for its own legs. You never bypass,
 simulate, or duplicate that leg's hooks: its own `pre-create-project.py` /
 `pre-standardize-project.py` gate runs for real, its own Start mints its
-delivery ticket, and its own `post-create-project.py` /
-`post-standardize-project.py` finalizes the run for real.
+delivery ticket, and its own `acs step finish` /
+`acs step finish` finalizes the run for real.
 
 Never invoke a leg from inside a spawned subagent (no acs subagent holds both
 the Agent and Skill tools; decomposition stays the coordinator's job), and
@@ -147,7 +147,7 @@ place to re-check, and a new marker row is how a repo like that becomes a
 
 ## After the leg returns
 
-The leg owns its delivery ticket, its branch, its PR, its `pipeline-state.json`
+The leg owns its delivery ticket, its branch, its PR, its `run.json`
 (written under `flow: "product"` with its own step key) and its completion
 report. You add nothing to them. Read only the compact result it hands back,
 and render your own report (below) from the mode decision plus that result —
@@ -156,7 +156,7 @@ never from a re-read of the leg's phase artifacts, plans, or diffs.
 ## Resume
 
 There is **no umbrella ledger of its own**: the leg's own
-`pipeline-state.json` and its delivery ticket are the complete resume record. A
+`run.json` and its delivery ticket are the complete resume record. A
 leg that failed, was interrupted, or was handed off resumes **exactly** like
 any standalone run of that skill — never a re-invocation of this umbrella:
 

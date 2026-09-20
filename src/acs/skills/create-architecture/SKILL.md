@@ -20,7 +20,7 @@ MANDATORY first action — run exactly one of:
 - Fresh run (the normal case; each run gets its own delivery ticket):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-architecture --allocate --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-architecture --allocate --args "$ARGUMENTS"
 ```
 
 - Resume: if `$ARGUMENTS` contains an existing delivery-ticket id (e.g.
@@ -28,10 +28,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-arch
   that partition:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-architecture --ticket SHOP-2
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-architecture --ticket SHOP-2
 ```
 
-If skill-start exits non-zero: stop immediately and surface its stderr to the
+If `acs step start` exits non-zero: stop immediately and surface its stderr to the
 user verbatim. Otherwise parse the printed context JSON; the fields you need:
 `partition`, `ticket_id`, `ticket`, `settings` (`prd_path`,
 `architecture_path`, `formats`, `tracker`), `models`
@@ -39,7 +39,7 @@ user verbatim. Otherwise parse the printed context JSON; the fields you need:
 `post_hook`, `pipeline`, `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled
-`Product architecture doc set` (`PRODUCT_TICKET_TITLES`); skill-start has
+`Product architecture doc set` (`PRODUCT_TICKET_TITLES`); `acs step start` has
 already created the partition, ticket.json, the lock, the session pointer,
 and the `in_progress` run entry. If `settings.tracker.provider` is `github`
 or `jira`, sync the ticket out via `gh`/`acli` per the tracker config.
@@ -49,7 +49,7 @@ or `jira`, sync the ticket out via `gh`/`acli` per the tracker config.
 If `context.reconcile` is true, verify recorded progress against reality
 BEFORE continuing:
 
-- Read `<partition>/phases/create-architecture/` — the persisted
+- Read `steps/create-architecture/` — the persisted
   `iter-<n>-<phase>.xml` files tell you the last completed phase and
   iteration.
 - Re-read the actual artifacts: which files under
@@ -62,10 +62,10 @@ BEFORE continuing:
 - There is no plan artifact to reuse: an execute with no verify → verify
   it; a verify with findings and no later execute → execute with those
   findings as `<context>`. The executor's authoring notes
-  (`iter-<n>-authoring.md`) belong to their iteration.
+  (`iter-<n>/authoring.md`) belong to their iteration.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-architecture/handoff-context.md` (if present),
+`steps/create-architecture/handoff-context.md` (if present),
 do a light reconcile (spot-check the claimed artifacts), and continue from
 where the summary points.
 
@@ -140,7 +140,7 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-Communicate in XML per `schemas/acs-messages.xsd`. Example execute task:
+Communicate in XML per `the SubagentStop hook's message check`. Example execute task:
 
 ```xml
 <task skill="create-architecture" phase="execute" ticket-id="SHOP-2" iteration="1">
@@ -165,19 +165,18 @@ Communicate in XML per `schemas/acs-messages.xsd`. Example execute task:
 Validate EVERY message you send and receive:
 
 ```bash
-echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 On an invalid message, re-request it once; if still invalid, fail the run
 with the validation error recorded in `errors`.
 
 Persist every phase output to
-`<partition>/phases/create-architecture/iter-<n>-<phase>.xml` at the phase
+`steps/create-architecture/iter-<n>/<phase>.json` at the phase
 boundary, BEFORE starting the next phase. The executor's own artifacts are
-`iter-<n>-authoring.md` (Mode; Inventory; Target doc set with the per-file
+`iter-<n>/authoring.md` (Mode; Inventory; Target doc set with the per-file
 outline; Flow selection; Delivery step; Risks & open decisions; Verifier
 checklist — the Upstream inventory cites every PRD and codebase fact
-verbatim) and `iter-<n>-execute.json`; every iteration's verifier `<inputs>`
+verbatim) and `iter-<n>/execute.json`; every iteration's verifier `<inputs>`
 name that iteration's authoring notes.
 
 Phases:
@@ -222,7 +221,7 @@ Phases:
    by dim-1 `doc-set-completeness` and the diagram-lint gate).
 
 Zero verifier findings = pass — proceed to Delivery. On findings, persist
-`iter-<n>-verify.xml`, then feed them verbatim into the next iteration's
+`iter-<n>/verify.md`, then feed them verbatim into the next iteration's
 executor `<task>` `<context>` — with no plan phase in between, and re-run
 execute -> verify. After iteration 3 with findings
 remaining: stop, final status `failed`, findings recorded in the result
@@ -286,7 +285,7 @@ status="needs_input">` with the `<questions>` list instead.
 
 If your context is running low mid-run: flush in-flight work plus soft
 context (mode decision, confirmed flow list, partial verifier findings,
-gotchas) to `<partition>/phases/create-architecture/handoff-context.md`,
+gotchas) to `steps/create-architecture/handoff-context.md`,
 then run:
 
 ```bash
@@ -300,7 +299,7 @@ with the delivery-ticket id resumes via the Start section's resume form).
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/create-architecture/result.json` per the
+1. Write `steps/create-architecture/result.json` per the
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
    names): `architecture` and `pr`. `hld` entries are paths relative to
    `<path>/hld/`, `lld` entries relative to `<path>/lld/`:
@@ -308,7 +307,7 @@ MANDATORY final step — never skipped, also on failure:
 ```json
 {
   "status": "completed",
-  "stop_reason": "doc set verified against PRD and codebase; docs-only PR opened",
+  "summary": "doc set verified against PRD and codebase; docs-only PR opened",
   "states": {
     "architecture": {
       "path": "docs/architecture",
@@ -323,14 +322,14 @@ MANDATORY final step — never skipped, also on failure:
 ```
 
    On failure: `status: "failed"`, the blocking findings in `findings`, the
-   reason in `stop_reason`, keep whatever is true in `states` (e.g. the
+   reason in `summary`, keep whatever is true in `states` (e.g. the
    written `architecture` files without `pr`). On handoff:
    `status: "handed_off"` plus `handoff_summary`.
 
 2. Run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --ticket <id> --result-file <partition>/phases/create-architecture/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --result-file "<the result.json you just wrote>"
 ```
 
 3. Report a compact summary to the user: mode, files written, verifier
@@ -352,7 +351,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-architecture · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: HLD/LLD files written at `architecture_path`; delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

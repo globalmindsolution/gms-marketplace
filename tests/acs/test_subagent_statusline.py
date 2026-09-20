@@ -1,11 +1,11 @@
 """Behavior tests for subagent-statusline.py's never-crash fallback branches:
-ticket_for's cwd/pointer guards, elapsed's and tokens' reject/format
+run_for's cwd/pointer guards, elapsed's and tokens' reject/format
 boundaries, row's column-budget truncation, and main()'s per-task and
 per-row failure isolation.
 
 Originating ticket: MAR-178. Before this module none of these branches were
 exercised in-process -- the existing suite drives subagent-statusline.py only
-through a subprocess and never asserts row()/ticket_for()/elapsed()/tokens()
+through a subprocess and never asserts row()/run_for()/elapsed()/tokens()
 return values directly. Fixtures mint tickets and pointers in-process via
 acs_case.lib (never through new-ticket.py's subprocess) -- this seam needs no
 subprocess at all.
@@ -28,7 +28,7 @@ MODULE_FILENAME = "subagent-statusline.py"
 REPO_ID = "acme-shop"
 
 
-class TestTicketForCwdGuard(unittest.TestCase):
+class TestRunForCwdGuard(unittest.TestCase):
     """60: a task with no usable cwd (absent, non-str, or empty) returns None
     before acs_lib is ever imported.
 
@@ -37,39 +37,43 @@ class TestTicketForCwdGuard(unittest.TestCase):
     swallowed, producing the same None result. This test kills value
     mutations of :60 only; it does not prove the guard's own necessity."""
 
-    def test_ticket_for_returns_none_without_a_usable_cwd(self):
+    def test_run_for_returns_none_without_a_usable_cwd(self):
         mod = acs_case.load_module(MODULE_FILENAME)
-        self.assertIsNone(mod.ticket_for({}))
-        self.assertIsNone(mod.ticket_for({"cwd": ""}))
-        self.assertIsNone(mod.ticket_for({"cwd": 5}))
+        self.assertIsNone(mod.run_for({}))
+        self.assertIsNone(mod.run_for({"cwd": ""}))
+        self.assertIsNone(mod.run_for({"cwd": 5}))
 
 
-class TestTicketForContextErrorSwallowed(unittest.TestCase):
+class TestRunForContextErrorSwallowed(unittest.TestCase):
     """61-68: a cwd outside any git repo makes build_context raise GateError,
     which is swallowed rather than propagated."""
 
-    def test_ticket_for_swallows_a_context_error_from_a_non_repo_cwd(self):
+    def test_run_for_swallows_a_context_error_from_a_non_repo_cwd(self):
         mod = acs_case.load_module(MODULE_FILENAME)
         tmp = tempfile.mkdtemp(prefix="acs-non-repo-")
         self.addCleanup(shutil.rmtree, tmp, True)
-        self.assertIsNone(mod.ticket_for({"cwd": tmp}))
+        self.assertIsNone(mod.run_for({"cwd": tmp}))
 
 
-class TestTicketForPointer(acs_case.AcsWorkspaceCase):
-    """64-69: a resolvable pointer's ticket_id is returned; a pointer that
-    deserializes to something other than a dict returns None instead."""
+class TestRunForPointer(acs_case.AcsWorkspaceCase):
+    """A resolvable pointer's run_id is returned; a pointer that deserializes
+    to something other than a dict returns None instead.
 
-    def test_ticket_for_reads_the_pointer_and_returns_none_when_it_is_not_a_dict(self):
+    `run_id`, not `ticket_id`: the pointer names the RUN this checkout is on
+    (§4.9), which is also what lets the row label a run started from a prompt
+    or a document rather than only a ticket."""
+
+    def test_run_for_reads_the_pointer_and_returns_none_when_it_is_not_a_dict(self):
         ckid = acs_case.lib.checkout_id(self.repo)
         mod = acs_case.load_module(MODULE_FILENAME)
 
         acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-9"})
-        self.assertEqual(mod.ticket_for({"cwd": self.repo}), "SHOP-9")
+            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"run_id": "SHOP-9"})
+        self.assertEqual(mod.run_for({"cwd": self.repo}), "SHOP-9")
 
         acs_case.lib.write_json(
             acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), ["not", "a", "dict"])
-        self.assertIsNone(mod.ticket_for({"cwd": self.repo}))
+        self.assertIsNone(mod.run_for({"cwd": self.repo}))
 
 
 class TestElapsed(unittest.TestCase):
@@ -109,23 +113,25 @@ class TestRowTruncation(unittest.TestCase):
 
     def test_row_truncates_to_the_column_budget_with_an_ellipsis(self):
         mod = acs_case.load_module(MODULE_FILENAME)
-        task = {"id": "t1", "type": "acs:code-verifier", "status": "running"}
+        # `code-verifier` is not an agent any more (§3.5); the review's lens
+        # is, and it is the row a reader sees today.
+        task = {"id": "t1", "type": "acs:review-code-lens", "status": "running"}
+        full = "▶ review · review-code-lens"
 
-        # "▶ verify · code-verifier" is exactly 24 chars: columns == len(content)
-        # must pass through unchanged (24 > 24 is False), distinguishing `>`
-        # from a `>=` mutant that would truncate here instead.
-        at_boundary = mod.row(task, 24)
-        self.assertEqual(at_boundary["content"], "▶ verify · code-verifier")
+        # columns == len(content) must pass through unchanged, distinguishing
+        # `>` from a `>=` mutant that would truncate at the boundary.
+        at_boundary = mod.row(task, len(full))
+        self.assertEqual(at_boundary["content"], full)
 
         truncated = mod.row(task, 12)
-        self.assertEqual(truncated["content"], "▶ verify · …")
+        self.assertEqual(truncated["content"], full[:11] + "…")
         self.assertEqual(len(truncated["content"]), 12)
         self.assertTrue(truncated["content"].endswith("…"))
 
         # columns == 4 fails the `columns > 4` guard, so content must pass
         # through unchanged even though it is far longer than 4.
         narrow = mod.row(task, 4)
-        self.assertEqual(narrow["content"], "▶ verify · code-verifier")
+        self.assertEqual(narrow["content"], full)
 
 
 class TestMainSkipsUnusableTasks(unittest.TestCase):
@@ -173,7 +179,7 @@ class TestMainDropsOnlyTheRaisingRow(unittest.TestCase):
             "columns": 200,
             "tasks": [
                 {"id": "boom", "type": "acs:code-executor", "status": "running"},
-                {"id": "ok", "type": "acs:code-verifier", "status": "completed"},
+                {"id": "ok", "type": "acs:review-code-lens", "status": "completed"},
             ],
         })
         tmp = tempfile.mkdtemp(prefix="acs-substatusline-")

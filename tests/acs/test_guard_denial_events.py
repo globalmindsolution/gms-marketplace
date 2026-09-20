@@ -24,7 +24,7 @@ except ImportError:
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "skill-state.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "step-state.schema.json")
 INTERNALS = os.path.join(REPO_ROOT, "src", "acs", "docs", "INTERNALS.md")
 WORKSPACE_DOC = os.path.join(REPO_ROOT, "docs", "requirements", "functional",
                              "workspace-and-state.md")
@@ -62,28 +62,28 @@ class RecordGuardEventTest(unittest.TestCase):
     def setUp(self):
         import shutil
         import tempfile
-        self.tdir_path = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, self.tdir_path, True)
+        self.rdir_path = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.rdir_path, True)
 
     def _seed_run(self):
-        lib.write_json(lib.state_path(self.tdir_path, "code"), {
-            "skill": "code", "ticket_id": "SHOP-1", "states": {}, "findings": [],
-            "errors": [], "runs": [{"started_at": lib.now_iso(), "status": "in_progress"}]})
+        lib.write_json(lib.state_path(self.rdir_path, "code"), {
+            "skill": "code", "run_id": "SHOP-1", "states": {}, "findings": [],
+            "errors": [], "invocations": [{"started_at": lib.now_iso(), "status": "in_progress"}]})
 
     def _events(self):
-        state = lib.read_json(lib.state_path(self.tdir_path, "code")) or {}
-        return (state.get("runs") or [{}])[-1].get("guard_events")
+        state = lib.read_json(lib.state_path(self.rdir_path, "code")) or {}
+        return (state.get("invocations") or [{}])[-1].get("guard_events")
 
     def test_the_event_lands_on_the_last_run_entry(self):
         self._seed_run()
-        self.assertIs(lib.record_guard_event(self.tdir_path, "code", {"reason": "outside_map"}),
+        self.assertIs(lib.record_guard_event(self.rdir_path, "code", "SHOP-1", {"reason": "outside_map"}),
                       True)
         self.assertEqual(self._events(), [{"reason": "outside_map"}])
 
     def test_a_second_event_appends_rather_than_replaces(self):
         self._seed_run()
-        lib.record_guard_event(self.tdir_path, "code", {"reason": "outside_map"})
-        lib.record_guard_event(self.tdir_path, "code", {"reason": "control_input"})
+        lib.record_guard_event(self.rdir_path, "code", "SHOP-1", {"reason": "outside_map"})
+        lib.record_guard_event(self.rdir_path, "code", "SHOP-1", {"reason": "control_input"})
         self.assertEqual([e["reason"] for e in self._events()],
                          ["outside_map", "control_input"])
 
@@ -95,7 +95,7 @@ class RecordGuardEventTest(unittest.TestCase):
         deny must stand whatever the recording did. ADR-0095 retired the
         sibling, so what is pinned now is the surviving half's own behaviour —
         plus the absence of the one that could raise."""
-        self.assertIs(lib.record_guard_event(self.tdir_path, "code", {"reason": "outside_map"}),
+        self.assertIs(lib.record_guard_event(self.rdir_path, "code", "SHOP-1", {"reason": "outside_map"}),
                       False)
         self.assertIsNone(self._events())
         self.assertFalse(hasattr(lib, "record_escalation_event"))
@@ -132,8 +132,8 @@ class GuardEventsCase(FileMapGuardCase):
     """The real guard, driven through dispatch.py exactly as the hook does."""
 
     def entry(self, skill="code"):
-        state = lib.read_json(lib.state_path(self.tdir_path, skill)) or {}
-        runs = state.get("runs") or []
+        state = lib.read_json(lib.state_path(self.rdir_path, skill)) or {}
+        runs = state.get("invocations") or []
         return runs[-1] if runs else {}
 
     def events(self, skill="code"):
@@ -184,7 +184,7 @@ class RecordedDenialTest(GuardEventsCase):
         repo-relative form of it, so the path is recorded as it was written."""
         self.declare("src/a.py")
         self.spawn_executor()
-        record = lib.agent_record_path(self.tdir_path, "a-1")
+        record = lib.agent_record_path(self.rdir_path, "a-1")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": record}})
         self.assertEqual(out.returncode, 2, out.stderr)
@@ -213,8 +213,8 @@ class RecordedDenialTest(GuardEventsCase):
         self.spawn_executor()
         self.write_attempt("src/one.py")
         self.write_attempt("src/two.py")
-        state = lib.read_json(lib.state_path(self.tdir_path, "code"))
-        self.assertEqual(len(state["runs"]), 1, "no second run entry is created")
+        state = lib.read_json(lib.state_path(self.rdir_path, "code"))
+        self.assertEqual(len(state["invocations"]), 1, "no second run entry is created")
         self.assertEqual([e["target"] for e in self.events()], ["src/one.py", "src/two.py"])
 
     def test_the_iteration_in_force_is_the_one_recorded(self):
@@ -229,7 +229,7 @@ class FailOpenSilenceTest(GuardEventsCase):
     """AC-2: a write the guard waves through leaves no trace at all."""
 
     def test_no_fail_open_branch_records_anything(self):
-        report = os.path.join(self.tdir_path, "phases", "code", "iter-1-execute.json")
+        report = os.path.join(self.rdir_path, "steps", "code", "iter-1", "execute.json")
         cases = {
             "not a write tool": {"cwd": self.repo, "tool_name": "Read",
                                  "tool_input": {"file_path": "anything.py"}},
@@ -278,9 +278,9 @@ class VerdictInvarianceTest(GuardEventsCase):
     """AC-3: recording is a side effect of the deny, never a condition of it."""
 
     def _clear_runs(self):
-        path = lib.state_path(self.tdir_path, "code")
+        path = lib.state_path(self.rdir_path, "code")
         state = lib.read_json(path)
-        state["runs"] = []
+        state["invocations"] = []
         lib.write_json(path, state)
 
     def test_with_no_run_entry_the_deny_is_unchanged_and_says_so_once(self):
@@ -292,13 +292,13 @@ class VerdictInvarianceTest(GuardEventsCase):
         self.assertIn("is outside this task's file map.", out.stderr)
         notes = [line for line in out.stderr.splitlines() if line.startswith(NOTE_PREFIX)]
         self.assertEqual(len(notes), 1, out.stderr)
-        self.assertEqual(lib.read_json(lib.state_path(self.tdir_path, "code"))["runs"], [])
+        self.assertEqual(lib.read_json(lib.state_path(self.rdir_path, "code"))["invocations"], [])
 
     def test_a_writer_that_raises_leaves_the_verdict_and_notes_once(self):
         self.declare("src/a.py")
         self.spawn_executor()
         stderr = io.StringIO()
-        with mock.patch.object(lib.state, "write_json", side_effect=OSError("read-only")):
+        with mock.patch.object(lib.step, "write_json", side_effect=OSError("read-only")):
             with contextlib.redirect_stderr(stderr):
                 self.assertEqual(lib.file_map_guard(self.payload("src/nope.py")), 2)
         notes = [line for line in stderr.getvalue().splitlines()
@@ -310,8 +310,8 @@ class VerdictInvarianceTest(GuardEventsCase):
         self.declare("src/a.py")
         self.spawn_executor()
         before = sorted(self._partition_files())
-        with mock.patch.object(lib.state, "write_json",
-                               wraps=lib.state.write_json) as writer:
+        with mock.patch.object(lib.step, "write_json",
+                               wraps=lib.step.write_json) as writer:
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(lib.file_map_guard(self.payload("src/nope.py")), 2)
         self.assertEqual(writer.call_count, 1, "no retries on a deny path")
@@ -323,14 +323,14 @@ class VerdictInvarianceTest(GuardEventsCase):
         can absorb it; a recorder that caught it would unbound the guard."""
         self.declare("src/a.py")
         self.spawn_executor()
-        with mock.patch.object(lib.state, "write_json", side_effect=_Boom("timeout")):
+        with mock.patch.object(lib.step, "write_json", side_effect=_Boom("timeout")):
             with contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(_Boom):
                     lib.file_map_guard(self.payload("src/nope.py"))
 
     def _partition_files(self):
         out = []
-        for root, _dirs, names in os.walk(self.tdir_path):
+        for root, _dirs, names in os.walk(self.rdir_path):
             out += [os.path.join(root, name) for name in names]
         return out
 
@@ -345,17 +345,17 @@ class GuardEventsCliTest(GuardEventsCase):
         self.declare("src/a.py")
         self.spawn_executor()
         self.assertEqual(self.write_attempt("src/somewhere_else.py").returncode, 2)
-        out = self.acs("guard", "events", "--ticket", self.ticket)
+        out = self.acs("guard", "events", "--run", self.ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         body = json.loads(out.stdout)
         self.assertIs(body["ok"], True)
-        self.assertEqual(body["ticket_id"], self.ticket)
+        self.assertEqual(body["run_id"], self.ticket)
         self.assertEqual(body["skill"], "code")
         self.assertEqual(body["count"], 1)
         self.assertEqual(body["events"][0]["reason"], "outside_map")
 
     def test_a_run_with_no_denial_prints_an_empty_array(self):
-        out = self.acs("guard", "events", "--ticket", self.ticket)
+        out = self.acs("guard", "events", "--run", self.ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         body = json.loads(out.stdout)
         self.assertEqual(body["events"], [])
@@ -367,15 +367,15 @@ class GuardEventsCliTest(GuardEventsCase):
         self.assertEqual(json.loads(out.stdout)["skill"], "code")
 
     def test_an_unknown_ticket_is_a_refusal(self):
-        out = self.acs("guard", "events", "--ticket", "SHOP-999")
+        out = self.acs("guard", "events", "--run", "SHOP-999")
         self.assertEqual(out.returncode, 2)
         self.assertIn("acs guard events:", out.stderr)
 
     def test_a_skill_that_never_ran_names_the_missing_state_file(self):
-        out = self.acs("guard", "events", "--ticket", self.ticket, "--skill", "docs-sync")
+        out = self.acs("guard", "events", "--run", self.ticket, "--skill", "docs-sync")
         self.assertEqual(out.returncode, 2)
         self.assertIn("acs guard events:", out.stderr)
-        self.assertIn("docs-sync-state.json", out.stderr)
+        self.assertIn("steps/docs-sync/state.json", out.stderr)
 
     def test_the_guard_group_is_registered_as_a_group_of_its_own(self):
         """Asserting the word "guard" in `--help` proves nothing: the untouched
@@ -402,18 +402,18 @@ class DerivedGuardDenialsCase(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
         self.ticket = self.new_ticket("Bulk import", "task")
-        self.tdir_path = self.tdir(self.ticket)
+        self.rdir_path = self.ensure_run(self.ticket)
 
     def seed_run(self, events=None, skill="code"):
-        path = lib.state_path(self.tdir_path, skill)
+        path = lib.state_path(self.rdir_path, skill)
         state = lib.read_json(path)
-        if not isinstance(state, dict) or not state.get("runs"):
+        if not isinstance(state, dict) or not state.get("invocations"):
             state = lib.empty_state(skill, self.ticket)
-            state["runs"] = [{"started_at": lib.now_iso(), "ended_at": None,
+            state["invocations"] = [{"started_at": lib.now_iso(), "ended_at": None,
                               "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0,
                               "status": "in_progress", "stop_reason": None}]
         if events is not None:
-            state["runs"][-1]["guard_events"] = [
+            state["invocations"][-1]["guard_events"] = [
                 {"ts": lib.now_iso(), "skill": skill, "iteration": "1", "tool": "Write",
                  "target": "src/%d.py" % n, "reason": "outside_map", "declared_count": 2}
                 for n in range(events)]
@@ -424,15 +424,15 @@ class GuardDenialsDerivationTest(DerivedGuardDenialsCase):
     """The unit arms of the derivation itself (post-code.py is coverage-omitted)."""
 
     def test_no_state_file_is_zero_rather_than_an_error(self):
-        self.assertEqual(lib.guard_denials(self.tdir_path, "code"), 0)
+        self.assertEqual(lib.guard_denials(self.rdir_path, "code"), 0)
 
     def test_a_run_entry_with_no_events_is_zero(self):
         self.seed_run()
-        self.assertEqual(lib.guard_denials(self.tdir_path, "code"), 0)
+        self.assertEqual(lib.guard_denials(self.rdir_path, "code"), 0)
 
     def test_the_count_is_the_length_of_the_list(self):
         self.seed_run(events=3)
-        self.assertEqual(lib.guard_denials(self.tdir_path, "code"), 3)
+        self.assertEqual(lib.guard_denials(self.rdir_path, "code"), 3)
 
 
 class PostHookGuardDenialsTest(DerivedGuardDenialsCase):
@@ -443,10 +443,10 @@ class PostHookGuardDenialsTest(DerivedGuardDenialsCase):
         self.assertEqual(self.start("code", self.ticket).returncode, 0)
 
     def _states(self):
-        return lib.load_state(self.tdir_path, "code", self.ticket)["states"]
+        return lib.load_state(self.rdir_path, "code", self.ticket)["states"]
 
     def _entry(self):
-        return lib.last_run(lib.load_state(self.tdir_path, "code", self.ticket))
+        return lib.last_invocation(lib.load_state(self.rdir_path, "code", self.ticket))
 
     def test_the_count_is_derived_from_the_state_file(self):
         self.seed_run(events=2)
@@ -492,7 +492,8 @@ class SchemaTest(unittest.TestCase):
     def setUp(self):
         with open(SCHEMA_PATH, encoding="utf-8") as fh:
             self.schema = json.load(fh)
-        self.entry = (self.schema["properties"]["runs"]["items"])
+        # `invocations.items` is a $ref now; the shape lives in $defs.
+        self.entry = self.schema["$defs"]["invocation"]
 
     def test_guard_events_is_declared_on_the_run_entry(self):
         events = self.entry["properties"]["guard_events"]
@@ -516,8 +517,8 @@ class SchemaTest(unittest.TestCase):
                  "declared_count": 2}
 
         def state(entry):
-            return {"skill": "code", "ticket_id": "SHOP-1", "states": {},
-                    "findings": [], "errors": [], "runs": [entry]}
+            return {"skill": "code", "run_id": "SHOP-1", "states": {},
+                    "findings": [], "errors": [], "invocations": [entry]}
 
         jsonschema.validate(state(legacy), self.schema)
         recorded = dict(legacy, guard_events=[event])
@@ -547,11 +548,19 @@ class ProseTest(unittest.TestCase):
         self.assertIn("review.guard_denials", self._body(INTERNALS))
 
     def test_the_requirements_doc_names_the_guard_audit_trail(self):
+        """The array is `invocations`, not `runs` (ADR-0097): a RUN is the
+        whole pass over the workflow, and a step is invoked within it. The
+        audit trail itself is unchanged."""
         body = self._body(WORKSPACE_DOC)
-        self.assertIn("runs[-1].guard_events", body)
+        self.assertIn("invocations[-1].guard_events", body)
+        self.assertNotIn("runs[-1].guard_events", body)
 
-    def test_the_code_skill_names_guard_denials_as_derived(self):
-        self.assertIn("guard_denials", self._body(CODE_SKILL))
+    def test_the_code_skill_names_the_derived_keys(self):
+        """`guard_denials` is derived, so the skill's Finish section says so
+        rather than telling a coordinator to count denials itself."""
+        body = self._body(CODE_SKILL)
+        self.assertIn("DERIVED", body)
+        self.assertIn("computed by the post-hook", body)
 
 
 if __name__ == "__main__":

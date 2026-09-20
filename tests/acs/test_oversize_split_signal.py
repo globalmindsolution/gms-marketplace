@@ -49,7 +49,9 @@ REQ_NON_FUNCTIONAL = os.path.join(REPO_ROOT, "docs", "requirements", "non-functi
 # that MUST survive verbatim somewhere under docs/requirements/{functional,non-functional}/.
 PINNED_CLAUSES = (
     "- MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,",
-    "- MUST escalate an **oversized ticket** instead of producing a monster spec",
+    # "monster spec" became "monster plan" when the spec fold finished: the
+    # plan IS the spec content, so there is no second artifact to oversize.
+    "- MUST escalate an **oversized ticket** instead of producing a monster plan",
     "`/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept",
 )
 
@@ -147,7 +149,7 @@ class SplitEvidenceContractIdentityTest(unittest.TestCase):
         cls.split_section = create_ticket_split_section()
 
     def test_planner_clause_names_plan_artifact_path_token(self):
-        self.assertIn("phases/create-impl-plan/plan.md", self.item2)
+        self.assertIn("steps/create-impl-plan/plan.md", self.item2)
 
     def test_split_section_names_same_artifact(self):
         """Both sites name the ticket's plan artifact as the evidence source.
@@ -192,13 +194,18 @@ class CreateTicketSplitPathRewriteTest(unittest.TestCase):
 
 
 class PlanSkillFoldPointerTest(unittest.TestCase):
-    """Assertion 10: the fold section gains a pointer to the new oversize
-    signal, without disturbing the test-pinned provenance clauses."""
+    """Assertion 10: the skill points at the oversize signal, and still says
+    where the spec content went.
+
+    The `**Spec authoring fold**` subsection is gone with the template: 3.2's
+    plan has no separate spec section set to activate, so there is no fold to
+    describe -- the plan simply IS the spec content. The slice is the section
+    that replaced it."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(IMPL_PLAN_SKILL)
-        start = cls.body.index("**Spec authoring fold")
+        start = cls.body.index("**The plan IS the spec content.**")
         end = cls.body.index("### Verify (per iteration)")
         cls.fold = cls.body[start:end]
 
@@ -207,10 +214,12 @@ class PlanSkillFoldPointerTest(unittest.TestCase):
         self.assertIn("create-impl-plan-executor.md", self.fold)
         self.assertIn("survey item 2", self.fold)
 
-    def test_provenance_clauses_survive_verbatim_in_slice(self):
+    def test_provenance_survives_verbatim_in_slice(self):
+        collapsed = re.sub(r"\s+", " ", self.fold)
         self.assertIn(
-            "create-spec planner would once have produced", self.fold)
-        self.assertIn(
+            "what a standalone create-spec planner would once have written",
+            collapsed)
+        self.assertNotIn(
             "no separate /acs:create-spec invocation and no separate "
             "create-spec planner", self.fold)
 
@@ -391,14 +400,15 @@ class NegativeGuardsTest(unittest.TestCase):
     provenance lines; no create-spec-triad token; no new settings key;
     ship/SKILL.md untouched."""
 
-    def test_plan_skill_create_spec_lines_unchanged(self):
-        """The two provenance lines moved with the fold; code/SKILL.md keeps
-        none, since the fold prose left it entirely."""
+    def test_plan_skill_keeps_one_provenance_line(self):
+        """One line, not two: the second was a MANDATORY CLAUSE the plan had
+        to recite verbatim to be approved, which went with the template (3.2).
+        code/SKILL.md keeps none, since the fold prose left it entirely."""
         body = read(IMPL_PLAN_SKILL)
         lines = [ln for ln in body.splitlines() if "create-spec" in ln]
-        self.assertEqual(len(lines), 2,
-                         "create-impl-plan/SKILL.md must carry exactly the two "
-                         "pre-existing create-spec provenance lines: %r" % lines)
+        self.assertEqual(len(lines), 1,
+                         "create-impl-plan/SKILL.md must carry exactly the one "
+                         "surviving create-spec provenance line: %r" % lines)
         self.assertNotIn("create-spec", read(CODE_SKILL))
 
     def test_no_create_spec_triad_token(self):

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "acs state fragment for /acs:review-code",
+  "description": "What THIS skill records: the `states` keys it owns and, when it completes in more than one way, its closed `outcome` vocabulary. The envelope is validated centrally by step-state.schema.json; this fragment is why adding a skill is a directory rather than an edit to a central schema (\u00a74.4).",
+  "type": "object",
+  "properties": {
+    "states": {
+      "type": "object",
+      "properties": {
+        "verifier_passed": {
+          "type": "boolean"
+        },
+        "reviewed_sha": {
+          "type": "string"
+        },
+        "review": {
+          "type": "object"
+        },
+        "tests": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outcome": {
+      "description": "blocking_findings re-enters the loop at `code`; exhausted means the cap was reached and the run fails. A review NEVER passes with findings.",
+      "enum": [
+        "passed",
+        "blocking_findings",
+        "exhausted"
+      ]
+    }
+  }
+}

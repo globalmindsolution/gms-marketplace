@@ -1,9 +1,9 @@
 """Fixture-repo tests for /acs:create-docs's per-set primitives.
 
-Drives the REAL hook CLIs (dispatch.py pre, skill-start.py --allocate
+Drives the REAL hook CLIs (dispatch.py pre, acs.py step start --allocate
 --doc-set, post-create-docs.py) against a throwaway consumer repo
 (AcsWorkspaceCase): one gate for every set (AC-2), failure isolation between
-two sets' delivery tickets (AC-3), and each set's own pipeline-state.json as
+two sets' delivery tickets (AC-3), and each set's own run.json as
 its resume record (AC-4). The skill's own prose is not directly executable by
 a unit test -- this proves the primitives it describes behave as claimed.
 
@@ -53,18 +53,18 @@ class AllocationTest(AcsWorkspaceCase):
         _write_architecture_doc_set(self.repo)
 
     def test_allocation_needs_a_doc_set(self):
-        out = self.run_script("skill-start.py", "--skill", "create-docs", "--allocate")
+        out = self.run_script("acs.py", "step", "start", "--step", "create-docs", "--allocate")
         self.assertEqual(out.returncode, 2)
         self.assertIn("--doc-set", out.stderr)
 
     def test_doc_set_is_only_for_create_docs(self):
-        out = self.run_script("skill-start.py", "--skill", "create-prd", "--allocate",
+        out = self.run_script("acs.py", "step", "start", "--step", "create-prd", "--allocate",
                               "--doc-set", "quality")
         self.assertEqual(out.returncode, 2)
-        self.assertIn("--doc-set is only valid with --skill create-docs", out.stderr)
+        self.assertIn("--doc-set is only valid with --step create-docs", out.stderr)
 
     def test_the_ticket_names_its_set_and_title(self):
-        out = self.run_script("skill-start.py", "--skill", "create-docs",
+        out = self.run_script("acs.py", "step", "start", "--step", "create-docs",
                               "--doc-set", "operations", "--allocate")
         self.assertEqual(out.returncode, 0, out.stderr)
         ctx = json.loads(out.stdout)
@@ -75,11 +75,11 @@ class AllocationTest(AcsWorkspaceCase):
         self.assertEqual(index["tickets"][ctx["ticket_id"]]["doc_set"], "operations")
 
     def test_resume_by_ticket_reads_the_set_back(self):
-        out = self.run_script("skill-start.py", "--skill", "create-docs",
+        out = self.run_script("acs.py", "step", "start", "--step", "create-docs",
                               "--doc-set", "quality", "--allocate")
         ticket_id = json.loads(out.stdout)["ticket_id"]
-        lib.release_lock(self.tdir(ticket_id))
-        again = self.run_script("skill-start.py", "--skill", "create-docs", "--ticket", ticket_id)
+        lib.release_lock(self.rdir(ticket_id))
+        again = self.run_script("acs.py", "step", "start", "--step", "create-docs", "--ticket", ticket_id)
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertEqual(json.loads(again.stdout)["ticket"]["doc_set"], "quality")
 
@@ -96,7 +96,7 @@ class SetIsolationTest(AcsWorkspaceCase):
         self.operations_ticket = self._allocate("operations")
 
     def _allocate(self, doc_set):
-        out = self.run_script("skill-start.py", "--skill", "create-docs",
+        out = self.run_script("acs.py", "step", "start", "--step", "create-docs",
                               "--doc-set", doc_set, "--allocate")
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout)["ticket_id"]
@@ -107,8 +107,12 @@ class SetIsolationTest(AcsWorkspaceCase):
 
         q_ticket = lib.load_ticket(self.tdir(self.quality_ticket))
         self.assertEqual(q_ticket["status"], "in_progress")
-        q_pipeline = lib.load_pipeline(self.tdir(self.quality_ticket), self.quality_ticket)
-        self.assertEqual(q_pipeline["steps"]["create-docs"]["status"], "in_progress")
+        # `create-docs` is not a step of `ship.yaml`, so it records its
+        # INVOCATION and takes no position in the run (I5 refuses one). Its
+        # state file is what says the other set is still in flight.
+        q_state = lib.load_step_state(self.rdir(self.quality_ticket), "create-docs",
+                                      self.quality_ticket)
+        self.assertEqual(q_state["invocations"][-1]["status"], "in_progress")
 
         self.post("create-docs", self.quality_ticket,
                   {"status": "completed",
@@ -117,16 +121,16 @@ class SetIsolationTest(AcsWorkspaceCase):
         self.assertEqual(lib.load_ticket(self.tdir(self.operations_ticket))["status"], "in_progress")
 
     def test_failed_set_leaves_the_other_sets_partition_and_lock_untouched(self):
-        before_lock = lib.read_lock(self.tdir(self.quality_ticket))
+        before_lock = lib.read_lock(self.rdir(self.quality_ticket))
         self.assertIsInstance(before_lock, dict)
         self.post("create-docs", self.operations_ticket, {"status": "failed"})
-        self.assertEqual(before_lock, lib.read_lock(self.tdir(self.quality_ticket)))
+        self.assertEqual(before_lock, lib.read_lock(self.rdir(self.quality_ticket)))
         self.assertTrue(os.path.isdir(self.tdir(self.quality_ticket)))
-        self.assertIsNone(lib.read_lock(self.tdir(self.operations_ticket)))
+        self.assertIsNone(lib.read_lock(self.rdir(self.operations_ticket)))
 
 
 class LedgerTest(AcsWorkspaceCase):
-    """AC-4: each set's own pipeline-state.json records flow: "product" under
+    """AC-4: each set's own run.json records flow: "product" under
     the create-docs step, the ticket names the set, and re-running the
     eligibility predicate is the whole resume mechanism."""
 
@@ -135,7 +139,7 @@ class LedgerTest(AcsWorkspaceCase):
         _write_architecture_doc_set(self.repo)
 
     def _allocate(self, doc_set):
-        out = self.run_script("skill-start.py", "--skill", "create-docs",
+        out = self.run_script("acs.py", "step", "start", "--step", "create-docs",
                               "--doc-set", doc_set, "--allocate")
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout)["ticket_id"]
@@ -144,9 +148,16 @@ class LedgerTest(AcsWorkspaceCase):
         q = self._allocate("quality")
         o = self._allocate("operations")
         for ticket, doc_set in ((q, "quality"), (o, "operations")):
-            pipeline = lib.load_pipeline(self.tdir(ticket), ticket)
-            self.assertEqual(pipeline["flow"], "product")
-            self.assertEqual(list(pipeline["steps"]), ["create-docs"])
+            run = lib.load_run(self.rdir(ticket))
+            self.assertEqual(run["subject"], {"kind": "ticket", "ticket_id": ticket})
+            self.assertEqual(run["workflow"], "ship")
+            # `flow: ticket|product` is gone: the run names its WORKFLOW and
+            # version, which says the same thing without a second vocabulary.
+            self.assertNotIn("flow", run)
+            self.assertEqual(run["steps"], {},
+                             "a skill the workflow does not name takes no position")
+            state = lib.load_step_state(self.rdir(ticket), "create-docs", ticket)
+            self.assertEqual(len(state["invocations"]), 1)
             self.assertEqual(lib.load_ticket(self.tdir(ticket))["doc_set"], doc_set)
 
     def test_an_in_flight_set_is_not_re_offered(self):
@@ -184,9 +195,8 @@ class LedgerTest(AcsWorkspaceCase):
                            "states": {"pr": {"number": 2, "url": "https://example.invalid/pull/2"}}}
                           ).returncode, 0)
         for ticket in (q, o):
-            pipeline = lib.load_pipeline(self.tdir(ticket), ticket)
-            self.assertEqual(pipeline["flow"], "product")
-            self.assertEqual(pipeline["steps"]["create-docs"]["status"], "completed")
+            state = lib.load_step_state(self.rdir(ticket), "create-docs", ticket)
+            self.assertEqual(state["invocations"][-1]["status"], "completed")
         tickets_index = lib.read_json(lib.index_path(self.ws, "acme-shop"))
         self.assertEqual(tickets_index["tickets"][q]["status"], "in_review")
         self.assertEqual(tickets_index["tickets"][o]["status"], "in_review")

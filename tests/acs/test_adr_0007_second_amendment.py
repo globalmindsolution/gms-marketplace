@@ -175,18 +175,26 @@ class DocsSyncMechanismEvidenceTest(unittest.TestCase):
         self.assertIsNotNone(match, "acs_lib/_common.py must define WORKFLOW_SKILLS")
         self.assertIn('"docs-sync"', match.group(1))
 
-    def test_gate_create_pr_no_longer_requires_docs_sync(self):
+    def test_create_pr_is_not_gated_on_docs_sync(self):
         """The docs-sync-before-create-pr ORDER this amendment introduced as a
-        gate now lives in workflows/ship.yaml (create-pr `needs: [docs-sync,
-        run-e2e-tests]`); the gate keeps only the verifier_passed brake."""
+        gate lives in workflows/ship.yaml. v0.5.0 removed `needs:` with every
+        other per-step key -- the declared order IS the dependency order -- so
+        the order is the LIST's position, and create-pr's own brake keeps only
+        the review's derived verdict."""
         body = acs_lib_source()
-        gate = body[body.index("def gate_create_pr("):]
-        gate = gate[:gate.index("\ndef ")]
-        self.assertNotIn('"docs-sync"', gate,
-                         "gate_create_pr must not read the docs-sync ledger; the order is ship.yaml's")
-        self.assertIn("verifier_passed", gate)
-        workflow = read(os.path.join(REPO_ROOT, "src", "acs", "workflows", "ship.yaml"))
-        self.assertRegex(workflow, r"id: create-pr\n\s+skill: create-pr\n\s+needs: \[docs-sync, run-e2e-tests\]")
+        brake = body[body.index("def _brake_create_pr("):]
+        brake = brake[:brake.index("\ndef ")]
+        self.assertNotIn('"docs-sync"', brake,
+                         "the create-pr brake must not read the docs-sync "
+                         "ledger; the order is ship.yaml's")
+        self.assertIn("verifier_passed", brake)
+        import sys
+        sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
+        import acs_lib as lib
+        steps = lib.steps_of(lib.validate_workflow_file(lib.default_workflow_path()))
+        for earlier in ("docs-sync", "run-e2e-tests"):
+            with self.subTest(step=earlier):
+                self.assertLess(steps.index(earlier), steps.index("create-pr"))
 
 
 class PluginInternalDocReconciliationTest(unittest.TestCase):

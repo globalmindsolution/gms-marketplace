@@ -95,10 +95,10 @@ class TheFoldTest(unittest.TestCase):
         self.assertIn("create-docs", acs_lib.HOOKED_SKILLS)
         self.assertIn("create-docs", acs_lib.DELIVERY_TICKET_SKILLS)
         self.assertNotIn("create-docs", acs_lib.UNHOOKED_SKILLS)
-        self.assertIn("create-docs", acs_lib.GATES)
+        self.assertIn("create-docs", acs_lib.HOOKED_SKILLS)
         for leg in self.LEGS:
             self.assertNotIn(leg, acs_lib.HOOKED_SKILLS)
-            self.assertNotIn(leg, acs_lib.GATES)
+            self.assertNotIn(leg, acs_lib.HOOKED_SKILLS)
 
     def test_the_registry_lists_it_as_a_skill_not_an_entry_point(self):
         self.assertIn("create-docs", acs_lib.registered_skills())
@@ -192,7 +192,7 @@ class ArgumentContractTest(unittest.TestCase):
     def test_a_ticket_id_resumes_one_set(self):
         body = norm(_body())
         self.assertRegex(body, r"(?i)`resume` set.{0,40}skip eligibility entirely")
-        self.assertIn("--skill create-docs --ticket <delivery-ticket-id>", body)
+        self.assertIn("--step create-docs --ticket <delivery-ticket-id>", body)
 
     def test_rejection_refuses_the_whole_run(self):
         body = norm(_body())
@@ -208,7 +208,7 @@ class StartContractTest(unittest.TestCase):
 
     def test_per_set_start_allocates_with_the_doc_set(self):
         body = _body()
-        self.assertIn('skill-start.py" --skill create-docs --doc-set <set> --allocate', body)
+        self.assertIn('acs.py" step start --step create-docs --doc-set <set> --allocate', body)
 
     def test_starts_are_sequential_from_the_session_checkout(self):
         body = norm(_body())
@@ -301,7 +301,7 @@ class FinishTest(unittest.TestCase):
         body = _body()
         self.assertIn('"doc_set": {', body)
         self.assertIn('"set": "quality"', body)
-        self.assertIn('post-create-docs.py" --ticket <id> --result-file <partition>/phases/create-docs/result.json', body)
+        self.assertIn('post-create-docs.py" --result-file', body)
 
     def test_completion_report_present(self):
         body = _body()

@@ -124,11 +124,50 @@ class AcsWorkspaceCase(unittest.TestCase):
         return self.run_script("dispatch.py", "pre", stdin=payload, cwd=cwd)
 
     def post(self, skill, ticket, result):
-        return self.run_script("post-%s.py" % skill, "--ticket", ticket,
+        result = dict(result)
+        result.setdefault("skill", skill)
+        result.setdefault("run_id", ticket)
+        return self.run_script("post-%s.py" % skill, "--run", ticket,
                                stdin=json.dumps(result))
 
     def start(self, skill, ticket):
-        return self.run_script("skill-start.py", "--skill", skill, "--ticket", ticket)
+        """`acs step start` replaced skill-start.py (§4.8), and --step
+        validates against the resolved workflow rather than an argparse enum.
+        A run over this ticket is created first when there is none, which is
+        what the pre-hook does for a real invocation."""
+        rdir = self.ensure_run(ticket)
+        # I1 allows one in_progress step per run. A fixture that moves to a
+        # different skill is standing in for a session that moved on, so it
+        # interrupts the one in flight exactly as a real session's Stop hook
+        # would -- rather than the harness quietly relaxing the invariant.
+        doc = lib.load_run(rdir) or {}
+        running = lib.in_progress_step(doc)
+        if running and running != skill:
+            self.run_script("acs.py", "step", "finish", "--step", running,
+                            "--run", ticket, "--status", "interrupted",
+                            "--stop-reason", "session_end")
+        return self.run_script("acs.py", "step", "start", "--step", skill,
+                               "--run", ticket)
+
+    def ensure_run(self, ticket):
+        """A run whose SUBJECT is this ticket, created if absent. Its id is the
+        ticket id (§4.2), which is what lets every helper here keep taking one."""
+        rdir = self.rdir(ticket)
+        if lib.load_run(rdir) is not None:
+            return rdir
+        wf_path = lib.default_workflow_path()
+        wf = lib.validate_workflow_file(wf_path)
+        lib.create_run(lib.repo_dir(self.ws, "acme-shop"),
+                       {"kind": "ticket", "ticket_id": ticket}, wf, wf_path,
+                       run_id=ticket)
+        lib.save_pointer(lib.repo_dir(self.ws, "acme-shop"),
+                         lib.checkout_id(self.repo), run_id=ticket,
+                         checkout_path=self.repo)
+        return rdir
+
+    def rdir(self, ticket):
+        """The RUN partition for this ticket's run."""
+        return lib.run_dir(lib.repo_dir(self.ws, "acme-shop"), ticket)
 
     def new_ticket(self, title, ttype, *extra):
         out = self.run_script("new-ticket.py", "--title", title, "--type", ttype, *extra)
@@ -138,30 +177,58 @@ class AcsWorkspaceCase(unittest.TestCase):
     def tdir(self, ticket):
         return lib.ticket_dir(self.ws, "acme-shop", ticket)
 
-    def seed_verdict(self, ticket, passed=True, skill="code", iteration=1, lens=None):
-        """Write the verifier verdict MAR-523 derives `states.verifier_passed`
-        from, so a fixture can reach /acs:create-pr the way a real run does.
+    def walk_to(self, ticket, last, outcomes=None):
+        """Complete every workflow step up to and including `last`, so a
+        fixture's run carries the history the step under test would really
+        find. The outcome is the first of each step's own vocabulary — a step
+        that completes in more than one way must say which (§4.5) — and
+        `outcomes` overrides one where a test needs the other branch."""
+        overrides = dict(outcomes or {})
+        steps = lib.steps_of(self.workflow())
+        for step in steps[:steps.index(last) + 1]:
+            out = self.start(step, ticket)
+            assert out.returncode == 0, out.stderr
+            if step in lib.VERDICT_STEPS:
+                self.seed_verdict(ticket, skill=step)
+            vocabulary = lib.outcome_vocabulary(step)
+            result = {"status": "completed"}
+            outcome = overrides.get(step, vocabulary[0] if vocabulary else None)
+            if outcome:
+                result["outcome"] = outcome
+            out = self.post(step, ticket, result)
+            assert out.returncode == 0, "%s: %s" % (step, out.stderr)
+        return self.rdir(ticket)
 
-        Since MAR-523 the coordinator's `verifier_passed` is IGNORED: the
-        post-hook computes it from this file, and its absence means the gate
-        stays shut. A fixture that only posts `{"verifier_passed": true}` is
-        therefore asserting something the pipeline no longer believes."""
-        finding = [] if passed else [{"severity": "blocking", "dimension": "tests",
-                                      "detail": "seeded failing verdict"}]
-        # EVERY owed dimension, not one: a verdict must now cover its whole
-        # owed set (MAR-527 review), because a one-dimension document made an
-        # unfinished review indistinguishable from a clean one -- and this
-        # helper was writing exactly that shape.
-        dimensions = [{"id": ident, "name": lib.VERDICT_DIMENSIONS[ident],
-                       "result": "pass", "evidence": "seeded"}
-                      for ident in lib.owed_dimensions(lens)]
-        if not passed:
-            dimensions[1]["result"] = "fail"
-        return lib.write_verdict(self.tdir(ticket), skill, iteration, {
-            "skill": skill, "ticket_id": ticket, "iteration": iteration, "lens": lens,
+    def workflow(self):
+        """The resolved ship workflow this checkout runs."""
+        resolved = lib.resolve_workflow(self.repo)
+        return lib.validate_workflow_file(resolved["path"])
+
+    def seed_verdict(self, ticket, passed=True, skill="review-code", iteration=1,
+                     lens=None, findings=None):
+        """Write the review verdict `states.verifier_passed` is derived from,
+        so a fixture can reach /acs:create-pr the way a real run does.
+
+        The coordinator's `verifier_passed` is IGNORED (MAR-523): the post-hook
+        computes it from this file, and its absence means the gate stays shut.
+        A fixture that only posts `{"verifier_passed": true}` is therefore
+        asserting something the pipeline no longer believes."""
+        if findings is None:
+            findings = [] if passed else [{
+                "id": "F-%d-1" % iteration,
+                "status": "confirmed",
+                "severity": "blocking",
+                "kind": "gate",
+                "claim": "seeded failing verdict",
+                "evidence": ["seeded"],
+                "resolved_when": "the seeded failure is cleared",
+            }]
+        self.ensure_run(ticket)
+        return lib.write_verdict(self.rdir(ticket), skill, iteration, {
+            "skill": skill, "run_id": ticket, "iteration": iteration, "lens": lens,
+            "reviewed_sha": "0" * 7,
             "passed": passed,
-            "dimensions": dimensions,
-            "findings": finding,
+            "findings": findings,
         }, lens)
 
 

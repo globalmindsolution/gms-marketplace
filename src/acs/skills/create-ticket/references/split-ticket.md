@@ -20,7 +20,7 @@ an existing local ticket (e.g. `split SHOP-123 per <plan path>` — a
 user-invoked restructure, optionally informed by `/code`'s plan-time oversize
 signal, ADR 0069), this run restructures instead of creating:
 
-- Start with `skill-start.py --skill create-ticket --ticket <id>` (no
+- Start with `acs step start --skill create-ticket --ticket <id>` (no
   `--allocate` — the partition exists). Read the existing `ticket.json` and the
   referenced oversize analysis (the `/code` plan artifact lists the
   evidence and split seams).

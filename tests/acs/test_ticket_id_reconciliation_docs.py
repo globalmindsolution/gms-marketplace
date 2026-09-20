@@ -55,9 +55,11 @@ class CreateTicketSkillDocsTest(unittest.TestCase):
     def test_create_ticket_skill_documents_the_refusal_and_seed_next(self):
         self.assertIn("--seed-next", self.body)
         self.assertIsNotNone(
-            re.search(r"(?i)skill-start exits non-zero.{0,500}--seed-next", self.norm),
+            re.search(r"(?i)step start.{0,20}exits non-zero.{0,500}--seed-next", self.norm),
             "the refusal must be named as a case of the existing "
-            "'skill-start exits non-zero' STOP rule, near the --seed-next recovery",
+            "'step start exits non-zero' STOP rule, near the --seed-next "
+            "recovery (the rule outlived the script that carried it: "
+            "skill-start.py is now `acs.py step start`)",
         )
         self.assertIsNotNone(
             re.search(r"(?i)never invent", self.norm),
@@ -66,7 +68,12 @@ class CreateTicketSkillDocsTest(unittest.TestCase):
 
 
 class ContractsDocsTest(unittest.TestCase):
-    """AC-8: both amended contracts.md rows (skill-start.py, new-ticket.py)."""
+    """AC-8: both amended contracts.md rows (the step-start row, new-ticket.py).
+
+    The step-start row was `skill-start.py --skill S` and is now
+    `acs.py step start --step S`; what this class pins is the row's CONTENT --
+    the exit-2 refusal and the --seed-next recovery -- which the rename did
+    not touch."""
 
     @classmethod
     def setUpClass(cls):
@@ -75,12 +82,12 @@ class ContractsDocsTest(unittest.TestCase):
 
     def test_contracts_rows_document_the_exit_2_refusal_and_seed_next(self):
         skill_start_row = re.search(
-            r"skill-start\.py --skill S.*\|", self.body
+            r"acs\.py step start --step S.*\|", self.body
         )
         new_ticket_row = re.search(
             r"new-ticket\.py --title --type.*\|", self.body
         )
-        self.assertIsNotNone(skill_start_row, "skill-start.py contract row must exist")
+        self.assertIsNotNone(skill_start_row, "the step-start contract row must exist")
         self.assertIsNotNone(new_ticket_row, "new-ticket.py contract row must exist")
         self.assertIn("--seed-next", skill_start_row.group(0))
         self.assertIn("--seed-next", new_ticket_row.group(0))

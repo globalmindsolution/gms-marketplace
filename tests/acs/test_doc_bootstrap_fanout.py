@@ -24,7 +24,7 @@ try:
 except ImportError:
     HAS_JSONSCHEMA = False
 
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "pipeline-state.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
 
 # v1 scope only: principles/standards deliberately unconfigured so the
 # eligible set is exactly the pair (D7-A).
@@ -560,9 +560,17 @@ class FanoutBatchesTest(unittest.TestCase):
         self.assertNotIn("operations", flat)
 
 
-class PipelineStateSchemaProductStepsTest(unittest.TestCase):
-    """BS-1 (AC-4 area): the steps enum must accept the product-level step
-    names acs_lib.update_pipeline already writes for flow: "product" runs."""
+class RunSchemaProductStepsTest(unittest.TestCase):
+    """BS-1 (AC-4 area): a run whose steps are the product-level skills must
+    validate.
+
+    It used to be asserted against a closed `steps.propertyNames.enum`.
+    v0.5.0 opened `steps` (4.3): the schema validates SHAPE, step names
+    validate against the resolved workflow and skill names against the skill
+    directories, so a product-level name reaching the ledger is admitted by
+    being a skill rather than by being in a schema. `flow: product` went with
+    the enum -- a run has a SUBJECT now -- so the document below is a real
+    one."""
 
     PRODUCT_STEP_NAMES = ["create-docs", "create-requirements"]
 
@@ -570,21 +578,31 @@ class PipelineStateSchemaProductStepsTest(unittest.TestCase):
         with open(SCHEMA_PATH, encoding="utf-8") as fh:
             self.schema = json.load(fh)
 
-    def test_enum_includes_every_product_level_step_name(self):
-        enum = self.schema["properties"]["steps"]["propertyNames"]["enum"]
+    def test_steps_is_open_rather_than_enumerated(self):
+        steps = self.schema["properties"]["steps"]
+        self.assertNotIn("propertyNames", steps)
+        self.assertIn("additionalProperties", steps)
+
+    def test_every_product_level_step_name_is_a_real_skill(self):
         for name in self.PRODUCT_STEP_NAMES:
             with self.subTest(name=name):
-                self.assertIn(name, enum)
+                self.assertIn(name, lib.HOOKED_SKILLS)
 
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema not installed in this env")
-    def test_schema_accepts_a_product_flow_document_with_these_steps(self):
+    def test_schema_accepts_a_run_with_these_steps(self):
         document = {
-            "ticket_id": "MAR-101",
-            "flow": "product",
+            "run_id": "MAR-101",
+            "workflow": "ship",
+            "workflow_version": 3,
+            "subject": {"kind": "ticket", "ticket_id": "MAR-101"},
+            "status": "in_progress",
+            "cursor": None,
             "steps": {
                 name: {"status": "completed"} for name in self.PRODUCT_STEP_NAMES
             },
+            "loops": {},
+            "totals": {},
         }
         validator = jsonschema.Draft202012Validator(self.schema)
         errors = list(validator.iter_errors(document))
-        self.assertEqual(errors, [], "pipeline-state schema errors: %r" % (errors,))
+        self.assertEqual(errors, [], "run schema errors: %r" % (errors,))

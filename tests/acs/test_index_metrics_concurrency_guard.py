@@ -153,7 +153,11 @@ class _GuardedWriterCaseMixin:
 
 
 class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
-    MODULE = lib.state
+    # `update_index` lives in acs_lib.tickets since the state module split
+    # (§4.7: one module per machine). Patching any other sibling's write_json
+    # binds nothing the writer calls, and the shim below would never fire --
+    # which reads as "the guard was not held" rather than as a miswired test.
+    MODULE = lib.tickets
     guard_name = "tickets-index.json.lock"
 
     def _call(self, n=1):
@@ -207,7 +211,7 @@ class ConcurrentWritersTest(unittest.TestCase):
         def _write(n):
             lib.update_index(self.workspace, "acme-shop", _ticket("SHOP-%d" % n))
 
-        with mock.patch.object(lib.state, "read_json", side_effect=slow_read):
+        with mock.patch.object(lib.step, "read_json", side_effect=slow_read):
             t1 = threading.Thread(target=_write, args=(1,))
             t2 = threading.Thread(target=_write, args=(2,))
             t1.start()

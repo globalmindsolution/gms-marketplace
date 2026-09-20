@@ -19,7 +19,7 @@ If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
 1. Read `<partition>/create-impl-plan-state.json` (`runs[-1]` and `states`) and
-   the phase artifacts under `<partition>/phases/create-impl-plan/` to see
+   the phase artifacts under `steps/create-impl-plan/` to see
    where the prior run stopped.
 2. Re-resolve the plan artifact (above) and read it if it exists. Trust
    nothing you cannot see in a file: a plan recorded published that is not on
@@ -28,31 +28,32 @@ continuing:
    verify it; a verify with findings and no later execute → execute with
    those findings as `<context>`).
 4. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
    never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-impl-plan/handoff-context.md` (when present), do a
+`steps/create-impl-plan/handoff-context.md` (when present), do a
 light reconcile, and continue from where it points.
 
 ### Plan revocation
 
 The escape hatch reached when a plan already exists and is wrong — a re-run of
 this skill on a planned ticket, including the one `/acs:ship` drives when
-`/acs:code` ends with `stop_reason: plan_superseded`.
+`/acs:code` ends `failed` with a `summary` naming the plan as superseded.
 
 **Never automatic for a plan nobody challenged.** Revocation is reached only
 at an iteration or run boundary — never mid-iteration — and only on a recorded
 trigger: an explicit user answer recorded via `clarify.py add`, or a
-`/acs:code` run whose result document records `stop_reason: plan_superseded`.
+`/acs:code` run whose result document records `failed` with a `summary`
+naming the plan as superseded.
 Letting the loop dissolve its own contract without that record is precisely
 the rubber-stamp failure ADR 0004 exists to prevent.
 
 1. **Copy before revise, never move.**
-   `cp plan.md plan-superseded-<k>.md` inside `<partition>/phases/code/`,
+   `cp plan.md plan-superseded-<k>.md` inside `steps/code/`,
    `<k>` the smallest positive integer with no existing file. The copy is
    byte-identical, so every `plan.md:<line>` citation already written into an
-   earlier `/acs:code` `iter-<n>-verify.md` resolves unchanged against
+   earlier `/acs:code` `iter-<n>/verify.md` resolves unchanged against
    `plan-superseded-<k>.md` — the operation is a copy, never a rename or
    move, and the superseded bytes are never deleted.
 2. **Revise the draft and re-publish** it over the same `plan_path` (Publish
@@ -65,4 +66,4 @@ the rubber-stamp failure ADR 0004 exists to prevent.
    — a run that revised a plan must not also bless it.
 4. **`plan-superseded-<k>.md` is never an approval input and never a
    conformance contract** — guaranteed by `/acs:code`'s dimension 15
-   activation condition that `plan_path` must equal `phases/code/plan.md`.
+   activation condition that `plan_path` must equal `steps/code/plan.md`.

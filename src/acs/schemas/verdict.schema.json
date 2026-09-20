@@ -1,16 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/verdict.schema.json",
-  "title": "acs verifier verdict",
-  "description": "The verifier's verdict for one iteration (MAR-527), written by the verifier and validated by the SubagentStop hook. NOTE: the invariant that makes this a verdict rather than a self-report -- `passed` must equal \"no blocking finding\" -- is NOT expressible here and is enforced by acs_lib.verdict.validate_verdict, which is what the hook actually runs. This schema pins the shape; that function pins the meaning.",
+  "title": "acs review verdict",
+  "description": "The verdict /acs:review-code writes for one iteration, and the one document that crosses the review loop to /acs:code. NOTE: the invariant that makes this a verdict rather than a self-report -- `passed` must equal \"no blocking finding still standing\" -- is NOT expressible here and is enforced by acs_lib.verdict.validate_verdict, which is what the hooks actually run. This schema pins the shape; that function pins the meaning. Refuted findings never appear here: they stay in iter-<n>/adjudication.json as an audit trail.",
   "type": "object",
   "additionalProperties": true,
   "required": [
     "skill",
-    "ticket_id",
+    "run_id",
     "iteration",
+    "reviewed_sha",
     "passed",
-    "dimensions",
     "findings"
   ],
   "properties": {
@@ -18,16 +18,22 @@
       "type": "string",
       "minLength": 1
     },
-    "ticket_id": {
+    "run_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "The run this verdict belongs to."
     },
     "iteration": {
       "type": "integer",
       "minimum": 1
     },
+    "reviewed_sha": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The commit the review judged. /acs:code copies it into result.json as `since_sha` and diffs from it; the next review prioritises the hunks changed since."
+    },
     "lens": {
-      "description": "The full-depth review lens this verdict covers, or null for a single-pass (light-depth) verdict and for the merged one.",
+      "description": "Set only on a single lens's own report; the verdict the coordinator writes carries null.",
       "type": [
         "string",
         "null"
@@ -37,61 +43,13 @@
         "B",
         "C",
         "D",
+        "E",
         null
       ]
     },
     "passed": {
-      "description": "DERIVED, never asserted: true exactly when `findings` carries no entry with severity `blocking`.",
+      "description": "DERIVED, never asserted: true exactly when no `blocking` finding is still standing.",
       "type": "boolean"
-    },
-    "merged_from": {
-      "description": "Present only on a merged verdict: the lenses it was built from.",
-      "type": "array",
-      "items": {
-        "type": "string",
-        "enum": [
-          "A",
-          "B",
-          "C",
-          "D"
-        ]
-      }
-    },
-    "dimensions": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": [
-          "id",
-          "result"
-        ],
-        "properties": {
-          "id": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 16,
-            "description": "The dimension number in src/acs/agents/code-verifier.md."
-          },
-          "name": {
-            "type": "string"
-          },
-          "result": {
-            "type": "string",
-            "enum": [
-              "pass",
-              "fail",
-              "n/a"
-            ],
-            "description": "`n/a` is a real answer: dimension 14 is full-depth only, 15 is inactive without an approved plan, 2 and 3 are n/a under docs_only."
-          },
-          "evidence": {
-            "type": "string",
-            "description": "The command run and its relevant output, or the file:line the judgement rests on."
-          }
-        }
-      }
     },
     "findings": {
       "type": "array",
@@ -99,30 +57,105 @@
         "type": "object",
         "additionalProperties": true,
         "required": [
+          "id",
+          "status",
           "severity",
-          "detail"
+          "kind",
+          "claim",
+          "evidence"
         ],
         "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "`F-<iteration>-<n>`, stable across iterations: a re-raised finding keeps its id so the next review can close it and /acs:code can answer it."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "advisory",
+              "resolved"
+            ],
+            "description": "`confirmed` blocks and must be answered by id. `advisory` is carried, never gating -- a `needs-context` adjudication lands here rather than being dropped. `resolved` closes a previous iteration's finding, so the trail shows closure."
+          },
           "severity": {
             "type": "string",
             "enum": [
               "blocking",
-              "info"
+              "advisory"
             ],
-            "description": "Only `blocking` decides the verdict; `info` is reported and carried, never gating."
+            "description": "Only `blocking` decides the verdict."
           },
-          "dimension": {
-            "type": "string"
-          },
-          "detail": {
+          "kind": {
             "type": "string",
-            "minLength": 1
+            "enum": [
+              "defect",
+              "acceptance",
+              "contract",
+              "regression",
+              "craft",
+              "gate"
+            ],
+            "description": "`gate` is stage 3's channel: a build, lint, suite or coverage failure is a finding with the failing command as its evidence, which is why the gate needs no separate report to the loop."
+          },
+          "lens": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E"
+            ],
+            "description": "Which lens raised it. Lens B fans out across the diff, so several findings may carry B; the letter names the lens, not the instance."
           },
           "file": {
             "type": "string"
           },
           "line": {
             "type": "integer"
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One sentence: what is wrong and why it matters."
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "What the review established -- file:line ranges, commands and their output, an absent test named. So /acs:code does not re-derive it."
+          },
+          "resolved_when": {
+            "type": "string",
+            "description": "The refutation criterion the adjudicator could not satisfy, restated as what a fix must make true. Required on a confirmed finding: it is what /acs:code works to."
+          },
+          "traces_to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`TC-n` / `AC-n` when a lens can name them; empty otherwise."
+          },
+          "adjudication": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "refuted",
+                  "needs-context"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
           }
         }
       }
@@ -132,22 +165,42 @@
     },
     "tests": {
       "type": "object",
-      "description": "The verifier's own run of the full unit suite (dimension 2), as numbers rather than prose. /acs:code runs that suite once, in verify; the executor iterates against the tests its change touches. states.tests is derived from here, so the recorded result is the review's independent finding rather than the executor's self-report. Optional: a docs-only ticket has no coverage to record, and a run can end before any verifier writes a verdict -- acs_lib.derive_tests falls back to the execute reports then.",
+      "description": "The final gate's run of the full unit suite (§3.6 stage 3), as numbers rather than prose. It is the only place the full suite runs in the pipeline: /acs:code iterates against the tests its change touches. states.tests is derived from here, so the recorded result is the review's independent finding rather than the implementer's self-report. Optional: a docs-only subject has no coverage to record, and a run can end before any review writes a verdict.",
       "properties": {
-        "passed": {"type": "integer", "minimum": 0},
-        "failed": {"type": "integer", "minimum": 0},
-        "command": {"type": "string"},
-        "skipped": {"type": "string", "description": "Why no run was taken on this iteration. The verifier judges the reading dimensions first and defers the suite when one of them already blocks -- the changeset is going back to the executor, so a run against this tree answers a question nobody will ask. A deferral is never a pass: a zero-findings verdict requires a green run on the iteration being passed."}
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "command": {
+          "type": "string"
+        },
+        "skipped": {
+          "type": "string",
+          "description": "Why no run was taken on this iteration. The gate runs only when stage 2 leaves nothing blocking -- the changeset is going back to /acs:code, so a run against this tree answers a question nobody will ask. A deferral is never a pass: a zero-findings verdict requires a green run on the iteration being passed."
+        }
       },
       "additionalProperties": true
     },
     "coverage": {
       "type": "object",
-      "description": "Coverage read off the SAME run recorded in `tests` (dimension 3), not a second one: on most repos the test command reports coverage because it is the command the coverage gate runs. `percent` is the measured figure; the target it is judged against comes from settings.test_coverage_percent, never from here.",
+      "description": "Coverage read off the SAME run recorded in `tests`, not a second one: on most repos the test command reports coverage because it is the command the coverage gate runs. `percent` is the measured figure; the target it is judged against comes from settings.test_coverage_percent, never from here.",
       "properties": {
-        "percent": {"type": "number", "minimum": 0, "maximum": 100},
-        "command": {"type": "string"},
-        "skipped": {"type": "string", "description": "Deferred with the dimension-2 run it is read from; same rule."}
+        "percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "command": {
+          "type": "string"
+        },
+        "skipped": {
+          "type": "string",
+          "description": "Deferred with the run it is read from; same rule."
+        }
       },
       "additionalProperties": true
     }

@@ -45,7 +45,8 @@ from datetime import datetime, timezone
 from ._common import (GateError, HOOKED_SKILLS, _note, _warn, now_iso,
     read_json, write_json, write_text)
 from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessions_dir
-from .state import last_run, last_run_status, load_pipeline, load_state, load_ticket
+from .tickets import load_ticket
+from .step import last_invocation, last_status, load_state
 from . import verdict
 
 #: agent_type suffix -> the phase name its artifact is filed under. Two roles
@@ -75,12 +76,12 @@ BLOCK_LIMIT = 2
 #: an entry loses that agent's `stop_attempts` too, which is the cap standing
 #: between a malformed message and an unbounded refuse-retry loop. Per-agent
 #: files remove the interleaving entirely -- each file has exactly one writer.
-ACTIVE_AGENTS_DIRNAME = "active-agents"
+ACTIVE_AGENTS_DIRNAME = "agents"
 
 #: What PreCompact writes, in the partition, for whoever picks the ticket up.
 HANDOFF_CONTEXT_FILENAME = "handoff-context.md"
 
-#: The root elements a subagent may return (acs-messages.xsd). `task` is the
+#: The root elements a subagent may return. `task` is the
 #: coordinator's direction, never a subagent's answer, so it is not here.
 RESULT_ROOTS = ("result", "handoff")
 
@@ -248,46 +249,80 @@ def extract_message(text):
     return matches[-1].group(0) if matches else None
 
 
-def phase_artifact_path(tdir, skill, iteration, phase):
-    return os.path.join(tdir, "phases", skill, "iter-%s-%s.xml" % (iteration, phase))
+def phase_artifact_path(rdir, skill, iteration, phase):
+    """The raw-message snapshot, in the iteration directory.
+
+    `<phase>-message.xml`, and both halves of that name are load-bearing.
+
+    **`-message`**, because `<phase>.json` COLLIDED with the step's own
+    report: `ROLE_PHASES["executor"] == "execute"`, and the executor is told
+    (skills/code/references/execute.md) to write its JSON report to
+    `iter-<n>/execute.json`. SubagentStop fires after the executor returns, so
+    the snapshot landed on top of it — and `derive.execute_reports`, which
+    reads `execute*.json`, then found a file that does not parse. The snapshot
+    and the report are two different artifacts and need two names.
+
+    **`.xml`**, because that is what is in it. The message contract is JSON
+    (§6) and the XSD is gone, but `write_phase_snapshot` still receives and
+    persists a raw XML message; naming the file `.json` did not make its bytes
+    JSON, it only made every JSON reader downstream fail on it."""
+    from .run import iteration_dir
+    return os.path.join(iteration_dir(rdir, skill, int(iteration)),
+                        "%s-message.xml" % phase)
 
 
-def in_flight_skill(tdir, ctx, ticket_id=None):
-    """The skill whose run is `in_progress` in this partition, or None.
+def in_flight_step(rdir, ctx=None, run_id=None):
+    """The step whose invocation is `in_progress` in this run, or None.
 
-    Pointer first (the checkout says what it is working on), then a scan of the
-    hooked skills. handoff.py, the Stop hook and PreCompact all need exactly
-    this resolution; a second copy is how two of them start disagreeing."""
-    candidates = []
-    pointer = read_json(pointer_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-    if isinstance(pointer, dict) and pointer.get("skill"):
-        candidates.append(pointer["skill"])
-    candidates += [s for s in HOOKED_SKILLS if s not in candidates]
-    for skill in candidates:
-        if last_run_status(tdir, skill) == "in_progress":
-            return skill
-    return None
+    Two places, in this order, because there are two state machines:
+
+      1. the checkout POINTER, which names the step this session started. It
+         is the only one that can name a step the workflow does not (I5 keeps
+         those out of the run ledger), so a standalone /acs:create-design is
+         resumable at all. Confirmed against that step's own state -- a stale
+         pointer must not report an invocation that already ended.
+      2. the RUN ledger, which names the one workflow step in flight (I1).
+
+    handoff.py, the Stop hook and PreCompact all read it from here; a second
+    copy is how two of them start disagreeing."""
+    from .run import in_progress_step, load_run
+    from .repo import repo_dir
+    from .sessions import current_step
+    if ctx:
+        pointed = current_step(repo_dir(ctx["workspace"], ctx["repo_id"]),
+                               ctx["checkout_id"])
+        if pointed and last_status(rdir, pointed) == "in_progress":
+            return pointed
+    return in_progress_step(load_run(rdir) or {})
 
 
 def resolve_partition(cwd, ctx=None):
-    """(ticket_id, tdir, ctx) for this checkout, or (None, None, ctx/None).
+    """(run_id, rdir, ctx) for this checkout, or (None, None, ctx/None).
+
+    The partition is a RUN now (§4.2), and the checkout's pointer names it --
+    which is also what lets a lifecycle hook work for a run with no ticket at
+    all.
 
     Total by design: a lifecycle hook fires in every session, most of which are
-    not working an acs ticket, and "not ours" must be indistinguishable from
+    not working an acs run, and "not ours" must be indistinguishable from
     "nothing to do"."""
     from .gates import build_context  # gates imports this module's siblings, not it
+    from .repo import repo_dir
+    from .run import load_run, run_dir
+    from .sessions import current_run_id
     if ctx is None:
         try:
             ctx = build_context(cwd)
         except GateError:
             return None, None, None
-    ticket_id, _src = resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"])
-    if not ticket_id:
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    run_id = current_run_id(repo, ctx["checkout_id"])
+    if not run_id:
         return None, None, ctx
-    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
+    rdir = run_dir(repo, run_id)
+    if load_run(rdir) is None:
         return None, None, ctx
-    return ticket_id, tdir, ctx
+    return run_id, rdir, ctx
 
 
 def stop_block_path(ctx):
@@ -315,13 +350,14 @@ def clear_stop_blocks(ctx):
         write_json(path, {})
 
 
-def result_document(tdir, skill):
-    """The phase result document post-<skill>.py consumes, or None."""
-    doc = read_json(os.path.join(tdir, "phases", skill, "result.json"))
+def result_document(rdir, skill):
+    """The step result document post-<skill>.py consumes, or None."""
+    from .step import result_path
+    doc = read_json(result_path(rdir, skill))
     return doc if isinstance(doc, dict) else None
 
 
-def render_handoff_context(tdir, ticket_id, skill):
+def render_handoff_context(rdir, run_id, step):
     """The markdown PreCompact leaves behind: what state says, not what the
     window happens to still hold.
 
@@ -329,76 +365,96 @@ def render_handoff_context(tdir, ticket_id, skill):
     conversation stops being the record, so this points at the artifacts rather
     than trying to summarize them -- a summary written from a half-compacted
     window is exactly the unreliable thing it is replacing."""
-    ticket = load_ticket(tdir) or {}
-    pipeline = load_pipeline(tdir, ticket_id) or {}
+    from .run import load_run, step_dir as _step_dir
+    run = load_run(rdir) or {}
+    # The run's subject, not a ticket.json in the partition: a run may have no
+    # ticket at all (3.11), and when it has one the subject is where it lives.
+    subject = run.get("subject") or {}
+    ticket = {}
+    if subject.get("ticket_id"):
+        from .repo import find_ticket_partition
+        from .gates import build_context
+        try:
+            ctx = build_context(os.getcwd())
+            tpath, _archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"],
+                                                     subject["ticket_id"])
+            ticket = load_ticket(tpath) or {}
+        except Exception:  # noqa: BLE001 -- a handoff render never raises
+            ticket = {}
+
     lines = [
-        "# Handoff context — %s" % ticket_id,
+        "# Handoff context \u2014 %s" % run_id,
         "",
-        "_Written by the acs PreCompact hook at %s from the ticket ledger, not "
+        "_Written by the acs PreCompact hook at %s from the run ledger, not "
         "from the conversation. Re-read the files it names before continuing._" % now_iso(),
         "",
-        "## Ticket",
+        "## Run",
         "",
-        "- **%s** — %s" % (ticket_id, ticket.get("title") or "(no title recorded)"),
-        "- type `%s` · status `%s`" % (ticket.get("type"), ticket.get("status")),
-        "- partition: `%s`" % tdir,
+        "- **%s** \u2014 subject `%s`" % (run_id, subject.get("kind") or "unknown"),
+        "- run directory: `%s`" % rdir,
     ]
-    if ticket.get("parent"):
-        lines.append("- parent epic: `%s`" % ticket["parent"])
+    if subject.get("ticket_id"):
+        lines.append(
+            "- ticket: **%s** \u2014 %s (type `%s` \u00b7 status `%s`)"
+            % (subject["ticket_id"], ticket.get("title") or "(no title recorded)",
+               ticket.get("type"), ticket.get("status")))
+        if ticket.get("parent"):
+            lines.append("- parent epic: `%s`" % ticket["parent"])
 
-    lines += ["", "## Pipeline", ""]
-    steps = pipeline.get("steps") if isinstance(pipeline.get("steps"), dict) else {}
+    lines += ["", "## Workflow", ""]
+    steps = run.get("steps") if isinstance(run.get("steps"), dict) else {}
     if steps:
         for name in sorted(steps):
-            step = steps[name] if isinstance(steps[name], dict) else {}
-            lines.append("- `%s` — %s" % (name, step.get("status") or "unknown"))
+            entry = steps[name] if isinstance(steps[name], dict) else {}
+            lines.append("- `%s` \u2014 %s" % (name, entry.get("status") or "unknown"))
     else:
-        lines.append("- no pipeline steps recorded yet")
+        lines.append("- no workflow steps recorded yet")
 
     lines += ["", "## In flight", ""]
-    if skill:
-        state = load_state(tdir, skill, ticket_id)
-        entry = last_run(state) or {}
-        lines.append("- `/acs:%s` run started %s is **%s**"
-                     % (skill, entry.get("started_at"), entry.get("status")))
-        lines.append("- phase artifacts: `%s`" % os.path.join(tdir, "phases", skill))
-        result = result_document(tdir, skill)
+    if step:
+        state = load_state(rdir, step, run_id)
+        entry = last_invocation(state) or {}
+        lines.append("- `/acs:%s` invocation started %s is **%s**"
+                     % (step, entry.get("started_at"), entry.get("status")))
+        lines.append("- step artifacts: `%s`" % _step_dir(rdir, step))
+        result = result_document(rdir, step)
         lines.append("- result document: %s"
                      % ("written (status `%s`)" % result.get("status") if result
-                        else "**not written yet** — the run cannot be finalized without it"))
+                        else "**not written yet** \u2014 the invocation cannot be "
+                             "finalized without it"))
         findings = [f for f in (state.get("findings") or []) if isinstance(f, dict)]
         if findings:
-            lines += ["", "### Findings carried into this run", ""]
+            lines += ["", "### Findings carried into this step", ""]
             for finding in findings:
-                lines.append("- `%s`/`%s` — %s" % (finding.get("severity"),
-                                                   finding.get("dimension"),
-                                                   finding.get("detail")))
+                lines.append("- `%s`/`%s` \u2014 %s"
+                             % (finding.get("severity"), finding.get("kind"),
+                                finding.get("claim") or finding.get("detail")))
         lines += ["", "### Next", "",
                   "- finish it: write the result document, then "
-                  "`acs.py finish --ticket %s --skill %s --status <completed|failed|...>`"
-                  % (ticket_id, skill),
+                  "`acs.py step finish --run %s --step %s "
+                  "--status <completed|failed|interrupted>`" % (run_id, step),
                   "- or hand it off: `handoff.py --summary \"...\"`"]
     else:
-        lines.append("- no run is in progress; the next step is whichever pipeline "
+        lines.append("- no step is in progress; the next step is whichever workflow "
                      "step above is not yet `completed`")
 
-    open_items = open_clarifications(tdir)
+    open_items = open_clarifications(rdir)
     if open_items:
         lines += ["", "## Open clarifications", ""]
         for item in open_items:
-            lines.append("- `%s` (%s) — %s" % (item.get("id"), item.get("status"),
+            lines.append("- `%s` (%s) \u2014 %s" % (item.get("id"), item.get("status"),
                                                 item.get("question")))
     return "\n".join(lines) + "\n"
 
 
-def write_handoff_context(tdir, ticket_id, skill):
+def write_handoff_context(rdir, run_id, step):
     # Render BEFORE writing, and write atomically. Both halves guard the same
     # thing from different directions: rendering first means a renderer that
     # raises cannot destroy the previous handoff-context.md, and write_text
     # means a crash or a hook timeout MID-WRITE cannot either. PreCompact is
     # exactly the moment there is nothing left to rebuild this file from.
-    body = render_handoff_context(tdir, ticket_id, skill)
-    path = os.path.join(tdir, HANDOFF_CONTEXT_FILENAME)
+    body = render_handoff_context(rdir, run_id, step)
+    path = os.path.join(rdir, HANDOFF_CONTEXT_FILENAME)
     write_text(path, body)
     return path
 
@@ -437,13 +493,48 @@ def subagent_start(payload):
     return 0
 
 
+def validate_message(message):
+    """[error, ...] for a subagent's returned message; empty means usable.
+
+    The XSD and `validate_xml.py` are gone (§6). What a subagent returns is
+    still a `<result>` or `<handoff>` element -- that is the wire format Claude
+    Code gives us -- but the CONTRACT it has to satisfy is now the small set of
+    attributes the snapshot path is derived from, checked here rather than by
+    a schema in a second language.
+    """
+    errors = []
+    try:
+        root = ET.fromstring(message)
+    except ET.ParseError as exc:
+        return ["not well-formed: %s" % exc]
+    if root.tag not in RESULT_ROOTS:
+        errors.append("root element is <%s>; expected one of %s"
+                      % (root.tag, " or ".join("<%s>" % r for r in RESULT_ROOTS)))
+        return errors
+    if not (root.get("skill") or "").strip():
+        errors.append("skill= is required and must be non-empty")
+    if root.tag != "result":
+        # A <handoff> is a step coordinator's return to /acs:ship, not a
+        # phase's output: it has no phase and no iteration, and there is no
+        # snapshot path to derive from it. Requiring them here would refuse
+        # every correct handoff -- which is exactly what a subagent sends when
+        # it stops for input.
+        return errors
+    if not (root.get("phase") or "").strip():
+        errors.append("phase= is required and must be non-empty")
+    iteration = (root.get("iteration") or "").strip()
+    if iteration and (not iteration.isdigit() or int(iteration) < 1):
+        errors.append("iteration= must be a positive integer")
+    return errors
+
+
 def subagent_stop(payload, validator=None):
-    """SubagentStop: validate the returned XML and write the phase snapshot.
+    """SubagentStop: validate the returned message and write the phase snapshot.
 
     The snapshot was the coordinator's job, which made it the coordinator's job
     to get right on every iteration of every skill. The message carries `skill`,
-    `phase`, `ticket-id` and `iteration` (acs-messages.xsd), so the path is
-    fully determined by the message and nothing has to be remembered.
+    `phase` and `iteration`, so the path is fully determined by the message and
+    nothing has to be remembered.
 
     Blocks (exit 2) on a message that does not validate, so the subagent gets
     the errors and can answer again — but only BLOCK_LIMIT times: a hook that
@@ -466,12 +557,13 @@ def subagent_stop(payload, validator=None):
                   "the coordinator must record the failure in its own result document"
                   % (cc.hook_agent_type(payload), attempts))
             return 0  # record kept: it carries the refusal count that got us here
-        _warn("%s returned no <result> or <handoff> element. Return one, validated "
-              "against acs-messages.xsd, as your final message." % payload.get("agent_type"))
+        _warn("%s returned no <result> or <handoff> element. Return one, carrying "
+              "skill=, phase= and iteration=, as your final message."
+              % payload.get("agent_type"))
         return 2
 
     if validator is None:
-        from validate_xml import validate_structurally as validator  # noqa: N813
+        validator = validate_message
     errors = validator(message)  # a LIST of error strings; empty means valid
     if errors:
         if attempts > BLOCK_LIMIT:
@@ -479,7 +571,7 @@ def subagent_stop(payload, validator=None):
                   "subagent stop — the coordinator must record the failure"
                   % (cc.hook_agent_type(payload), attempts, "; ".join(errors)))
             return 0  # record kept: it carries the refusal count that got us here
-        _warn("%s's message does not validate against acs-messages.xsd:\n  %s\n"
+        _warn("%s's message does not validate:\n  %s\n"
               "Return a corrected message." % (cc.hook_agent_type(payload), "\n  ".join(errors)))
         return 2
 
@@ -496,68 +588,20 @@ def subagent_stop(payload, validator=None):
         _release_agent(tdir, payload)
         raise
 
-    verdict_errors = check_verifier_verdict(tdir, skill, role, message)
-    if verdict_errors:
-        if attempts > BLOCK_LIMIT:
-            _warn("%s's verdict is still unusable after %d attempts (%s); letting the "
-                  "subagent stop -- the coordinator must record the failure"
-                  % (cc.hook_agent_type(payload), attempts, "; ".join(verdict_errors)))
-            return 0  # record kept: it carries the refusal count that got us here
-        _warn("%s must write a valid verdict.json alongside its report:\n  %s\n"
-              "Write it and answer again." % (cc.hook_agent_type(payload),
-                                              "\n  ".join(verdict_errors)))
-        return 2
-
     _release_agent(tdir, payload)
     return 0
 
 
-#: Skills whose verifier owes a verdict.json. ONLY /acs:code: MAR-527's
-#: contract is written in agents/code-verifier.md, and the other fourteen
-#: agents/*-verifier.md files were never given it. Gating on the ROLE alone
-#: held every one of them to a contract they had never been told about, so a
-#: docs-sync or create-pr run burnt BLOCK_LIMIT extra verifier turns and ended
-#: with a "verdict is still unusable" warning.
-VERDICT_SKILLS = ("code",)
-
-
-def check_verifier_verdict(tdir, skill, role, message,
-                           ticket_id=None, expect_iteration=None):
-    """Errors in the verdict a VERIFIER must have written, or [] for anyone else.
-
-    The verdict is the one thing only the verifier knows, and the coordinator
-    used to transcribe it. Validating it here is what makes it a finding rather
-    than a claim -- in particular `passed` must agree with the findings
-    (acs_lib.verdict), so a verdict that says it passed while carrying a
-    blocking finding is rejected instead of believed.
-    """
-    if role != "verifier" or skill not in VERDICT_SKILLS:
-        return []
-    try:
-        root = ET.fromstring(message)
-    except ET.ParseError:
-        return []
-    if root.tag != "result":
-        return []  # a handoff/needs_input answer reports no verdict
-    if root.get("status") != "completed":
-        return []  # verification did not finish; there is nothing to have judged
-    iteration = root.get("iteration") or "1"
-    lens = root.get("lens")
-    for constraint in root.iter("constraint"):
-        if constraint.get("name") == "verify_lens":
-            lens = (constraint.text or "").strip() or None
-    doc_skill = root.get("skill") or skill
-    path = verdict.verdict_path(tdir, doc_skill, iteration, lens)
-    doc = read_json(path)
-    if doc is None:
-        return ["no verdict at %s" % path]
-    # The document's own identity is checked against the message's, not just
-    # its shape: a verdict found at the right PATH can still be about another
-    # ticket, skill or iteration, and only the path was ever checked before.
-    return verdict.validate_verdict(
-        doc, lens=lens, skill=doc_skill,
-        ticket_id=ticket_id or root.get("ticket-id"),
-        iteration=expect_iteration or iteration)
+#: The verdict is no longer a SUBAGENT's document. `/acs:review-code` spawns
+#: lenses (prose reports plus candidate findings) and one adjudicator per
+#: finding; the coordinator writes the one verdict from what survives
+#: adjudication (§3.6). So the "derived, never asserted" check moved to where
+#: the review ENDS -- `acs_lib.run._require_verdict`, on `acs step finish` --
+#: and no subagent is held to a contract it was never given. Gating on the
+#: `verifier` role alone used to hold all fifteen `*-verifier.md` agents to
+#: MAR-527's contract, which only `code-verifier.md` carried, so a docs-sync
+#: or create-pr run burnt BLOCK_LIMIT extra turns and ended with a "verdict is
+#: still unusable" warning.
 
 
 def write_phase_snapshot(tdir, skill, role, message):
@@ -591,62 +635,62 @@ def write_phase_snapshot(tdir, skill, role, message):
 
 
 def stop(payload):
-    """Stop: refuse to end a turn that abandoned an in_progress run.
+    """Stop: refuse to end a turn that abandoned an in_progress step.
 
-    A run left `in_progress` with no result document is the failure mode the
-    whole ledger is built to avoid: the next skill's gate reads "not completed"
+    A step left `in_progress` with no result document is the failure mode the
+    whole ledger is built to avoid: the next step's gate reads "not completed"
     and blocks, and nobody finds out until the next invocation. SessionEnd
     finalizes it as `interrupted`, which is a safety net, not an outcome.
 
     Refuses at most BLOCK_LIMIT times per checkout and run — after that it says
     so and lets the turn end, because a session that cannot stop is worse than
-    a run the safety net will mark interrupted.
+    a step the safety net will mark interrupted.
     """
+    from .step import result_path
     cwd = payload.get("cwd") or os.getcwd()
-    ticket_id, tdir, ctx = resolve_partition(cwd)
-    if not tdir:
+    run_id, rdir, ctx = resolve_partition(cwd)
+    if not rdir:
         return 0
-    skill = in_flight_skill(tdir, ctx, ticket_id)
-    if not skill:
+    step = in_flight_step(rdir, ctx, run_id)
+    if not step:
         clear_stop_blocks(ctx)
         return 0
-    key = "%s/%s" % (ticket_id, skill)
-    result = result_document(tdir, skill)
-    if result and result.get("status") in ("completed", "failed", "interrupted", "handed_off"):
+    key = "%s/%s" % (run_id, step)
+    result = result_document(rdir, step)
+    if result and result.get("status") in ("completed", "failed", "interrupted"):
         # The document exists; only the post hook is outstanding, and its own
         # absence is what the next gate reports. Not this hook's call to make.
         return 0
 
-    waiting = open_clarifications(tdir)
+    waiting = open_clarifications(rdir)
     if waiting:
-        # A run stopped on an OPEN QUESTION is not an abandoned run. The skill
-        # contract requires the coordinator to ask before executing on an
-        # ambiguous spec (skills/code/SKILL.md), and a turn has to end for the
+        # A step stopped on an OPEN QUESTION is not an abandoned step. The
+        # skill contract requires the coordinator to ask before executing on an
+        # ambiguous plan (skills/code/SKILL.md), and a turn has to end for the
         # user to answer. Refusing here would push the model to invent a
         # terminal status at exactly the boundary the contract says not to
-        # guess at -- and because the counter is keyed per ticket/skill and is
+        # guess at -- and because the counter is keyed per run/step and is
         # only cleared when nothing is in flight, two legitimate pauses would
-        # also burn the whole budget, letting a genuinely abandoned run later
+        # also burn the whole budget, letting a genuinely abandoned step later
         # in the same run stop unchallenged.
         _note("/acs:%s for %s is in_progress with %d open clarification(s); "
               "ending the turn so they can be answered."
-              % (skill, ticket_id, len(waiting)))
+              % (step, run_id, len(waiting)))
         return 0
 
     blocks = count_stop_block(ctx, key)
     if blocks > BLOCK_LIMIT:
         _warn("/acs:%s for %s is still in_progress after %d reminders; ending the turn. "
-              "SessionEnd will finalize it as `interrupted`." % (skill, ticket_id, BLOCK_LIMIT))
+              "SessionEnd will finalize it as `interrupted`." % (step, run_id, BLOCK_LIMIT))
         return 0
     _warn(
         "/acs:%s for %s is still `in_progress` and has no result document.\n"
-        "Write %s and finish the run before stopping:\n"
-        "  python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py\" finish "
-        "--ticket %s --skill %s --status <completed|failed|interrupted>\n"
+        "Write %s and finish the step before stopping:\n"
+        "  python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py\" step finish "
+        "--run %s --step %s --status <completed|failed|interrupted>\n"
         "If the work genuinely cannot continue, hand it off instead:\n"
         "  python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py\" --summary \"...\""
-        % (skill, ticket_id, os.path.join(tdir, "phases", skill, "result.json"),
-           ticket_id, skill))
+        % (step, run_id, result_path(rdir, step), run_id, step))
     return 2
 
 
@@ -654,15 +698,15 @@ def pre_compact(payload):
     """PreCompact: write handoff-context.md from state before the window shrinks.
 
     Compaction is the moment the conversation stops being the record. What
-    survives should therefore be the ledger — the ticket, the pipeline, the
-    in-flight run, the open clarifications, and the exact command that finishes
-    it — not a summary of a window that is already half gone.
+    survives should therefore be the ledger — the run, its workflow, the
+    in-flight step, the open clarifications, and the exact command that
+    finishes it — not a summary of a window that is already half gone.
     """
     cwd = payload.get("cwd") or os.getcwd()
-    ticket_id, tdir, ctx = resolve_partition(cwd)
-    if not tdir:
+    run_id, rdir, ctx = resolve_partition(cwd)
+    if not rdir:
         return 0
-    skill = in_flight_skill(tdir, ctx, ticket_id)
-    path = write_handoff_context(tdir, ticket_id, skill)
+    step = in_flight_step(rdir, ctx, run_id)
+    path = write_handoff_context(rdir, run_id, step)
     _note("wrote %s before compaction" % path)
     return 0

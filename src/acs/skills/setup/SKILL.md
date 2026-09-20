@@ -4,7 +4,7 @@ description: Initialize or update the acs configuration for the current repo —
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
-hooked pipeline skill: no `skill-start.py`, no pre/post hooks, no subagents, no
+hooked pipeline skill: no `acs step start`, no pre/post hooks, no subagents, no
 reflection loop. Every other acs skill's pre-hook fails with "run /acs:setup
 first" until this skill has produced a valid configuration.
 
@@ -220,7 +220,7 @@ succeeded. Same labels, same order, `none` where empty; replace the Ticket line 
 ## /acs:setup · <status>
 
 - **Scope**: <user|project> settings for <repo> (<greenfield|brownfield>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: toolchain preflight outcome (tools present / installed / still missing with the install hint); settings written, per key: value and which file (user/project `settings.json`, gitignored `settings.local.json`); workspace created/verified; tracker CLI check outcome; status line + subagent status line opt-in outcomes (configured at which scope / declined / already set); CI convention enforcement outcome (checks enabled, files written, labels, pre-push choice, branch-protection: configured / printed-for-admin / declined); e2e gate CI convention outcome (skipped — e2e not configured / files written / branch-protection: configured / printed-for-admin / declined); `CLAUDE.md` pipeline-default guidance block (written / refreshed / declined)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

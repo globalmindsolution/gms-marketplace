@@ -3,18 +3,18 @@
 The core runtime flow: every hooked skill, direct invocation. (Under `/ship`
 the coordinator invokes the same flow directly — see `ship-pipeline.md`.)
 
-This flow is **also** exactly what an `internal` leg of `/acs:create-docs` or
-`/acs:project` runs (`workflows/phases.yaml`). The design-phase entry-point
-fold changed only who may invoke those two skills, never how they run: the
-entry point invokes each leg as a genuine Skill-tool call, so the
-`PreToolUse(Skill)` gate, `skill-start.py`, the reflection loop and the `post-` hook all
-fire for real, precisely as drawn below. Read every `/acs:create-project`-style
+This flow is **also** exactly what a leg of `/acs:project` or `/acs:code`
+runs (a leg declares itself with `disable-model-invocation: true`; there is no
+registry). The entry-point fold changed only who may invoke those skills,
+never how they run: the entry point invokes each leg as a genuine Skill-tool
+call, so the `PreToolUse(Skill)` gate, `acs.py step start`, the reflection
+loop and the `post-` hook all fire for real, precisely as drawn below. Read every `/acs:create-project`-style
 name in this file as the skill, not as a command a user types.
 
 The diagram below shows the **reflection loop** (execute → verify), which is
 how the twelve authoring skills run (`create-prd`, `create-architecture`,
 `create-project`, `create-design`, `docs-sync`, `standardize-project`,
-`create-requirements`, `analyze-ticket`, `create-impl-plan`,
+`create-requirements`, `analyze-requirements`, `create-impl-plan`,
 `create-api-contract`, `create-test-docs`, `create-e2e-tests`), and how
 `code` and `create-docs` run it too. No skill has a plan phase (ADR 0092):
 for an authoring skill, iteration 1's executor surveys first, records the
@@ -45,11 +45,11 @@ schema plus the user-confirmation gate (`create-ticket`). Immediately after
 the plan is authored and before the reflection loop, on STANDARD/COMPLEX
 only, `/acs:create-impl-plan` also runs `plan-approval.py`, which records a
 deterministic plan-approval verdict and gates nothing this release (MAR-73,
-slice 3 of MAR-69). The `code-verifier` reads that record itself
-for dimension 15 (plan conformance) — never a coordinator-relayed value — and
-when dimension 15 blocks because the *plan* is wrong rather than the
-changeset, the boundary-gated revocation path copies `plan.md` to
-`plan-superseded-<k>.md`, revises it, and re-runs `plan-approval.py` for a
+slice 3 of MAR-69). `/acs:review-code`'s plan-conformance lens reads that
+record itself — never a coordinator-relayed value — and when it blocks because
+the *plan* is wrong rather than the changeset, the revocation path preserves
+the revoked plan under `steps/create-impl-plan/iter-<n>/plan.md`, revises the
+one plan at the step root, and re-runs `plan-approval.py` for a
 fresh record; the record still gates nothing (MAR-74, slice 4 of MAR-69, ADR
 0073).
 
@@ -60,7 +60,7 @@ sequenceDiagram
     participant D as dispatch.py (PreToolUse)
     participant PRE as acs_lib.GATES[skill] (in-process)
     participant CO as Coordinator (SKILL.md)
-    participant SS as skill-start.py
+    participant SS as acs.py step start
     participant EX as <skill>-executor(s)
     participant VF as <skill>-verifier
     participant POST as post-<skill>.py
@@ -158,20 +158,24 @@ describes, so no gate, exit code or warning in the flow above moves.
 The iteration ceiling for the reflection loop is **path-driven**, and the path
 is **judged once, from the plan, and recorded** — never derived per run.
 
-After `create-impl-plan` completes, `/acs:ship` reads `plan.md` and judges the
-ticket onto one of four delivery paths, writing `delivery_path` and
-`delivery_path_reason` to `pipeline-state.json`. Every later read takes the
-recorded value, which is what keeps a resumed run on the path its first session
-chose. `/acs:code` dispatches to that path's leg:
+`/acs:create-impl-plan` judges the change onto one of four delivery paths
+from the plan's own scope and writes it into the plan's `## Contract` block —
+its only home (ADR-0098). Every later read takes that recorded value, which is
+what keeps a resumed run on the path its first session chose. `/acs:code`
+reads it with `acs.py plan path` and dispatches to that path's leg:
 
-| Path | Leg | Executors | Verifier | Ceiling | Plan approval |
-|---|---|---|---|---|---|
-| `trivial` | `code-trivial` | one | one pass | 2 | not required |
-| `small` | `code-small` | one | one pass | 2 | not required |
-| `standard` | `code-standard` | parallel, per file map | one pass, 16 dimensions | 3 | enforced |
-| `complex` | `code-complex` | parallel, per file map | four merged lenses | 3 | enforced |
+| Path | Leg | Executors | Plan approval |
+|---|---|---|---|
+| `trivial` | `code-trivial` | one | not required |
+| `small` | `code-small` | one, rarely two | not required |
+| `standard` | `code-standard` | one per disjoint file-map partition | enforced |
+| `complex` | `code-complex` | one per partition **+ an integration executor** | enforced |
 
-Each leg states its own ceiling in its SKILL.md. There is no depth function, no
+**The verifier column and the ceiling column are gone from this table, and
+that is the point.** Both were review properties, so both left with the
+review (ADR-0099): the review's shape is `/acs:review-code`'s on every path,
+and the ceiling is the workflow's single `loops[].max_iterations` (3),
+counting `code` → `review-code` rounds. There is no depth function, no
 `VERIFY_ITERATION_CAP` table and no lane to derive: `derive_lane`,
 `verify_depth`, `escalate_lane`, `guard_axes` and `recommend_stakes` were all
 retired with the `size`/`stakes` axes they read.
@@ -179,10 +183,10 @@ retired with the `size`/`stakes` axes they read.
 **The ceiling does not move mid-run.** ADR-0042's upward escalation check and
 ADR-0034's boundary-only de-escalation are both gone, and deliberately: they
 were a correction loop for a classification made before anyone had looked at
-the work. The remedy for a path that turns out wrong is `on_replan` — the
-verifier's **Path audit** dimension raises it, the run fails with
-`stop_reason: plan_superseded`, `/acs:ship` re-runs `/acs:create-impl-plan`,
-and the corrected plan is judged fresh. That fixes the artifact everything
+the work. The remedy for a path that turns out wrong is a **replan** —
+`/acs:review-code`'s path-audit lens raises it, the step ends `failed` with a
+summary naming the plan as superseded, the run re-enters
+`/acs:create-impl-plan`, and the corrected plan is judged fresh. That fixes the artifact everything
 downstream reads instead of compensating for it.
 
 **The verifier subagent runs on every path as the in-loop gate (C-5).** A
@@ -207,11 +211,12 @@ is still the block. What it evaluates is now only:
 
 No gate reads another skill's run status: `_require_completed` is deleted.
 When the skill IS a step of the resolved `workflows/ship.yaml` and that step's
-`needs` are unsatisfied for this ticket, the gate passes and prints one stderr
-line — `acs: docs-sync normally follows code in ship.yaml; code has not
-completed for SHOP-123` — suppressed by `settings.workflow.advisories: false`
-and by any read it cannot complete. The order itself is enforced one layer up,
-by `/acs:ship`'s walk over `acs.py workflow next` (`ship-pipeline.md`).
+a step that precedes it in `ship.yaml` has not completed, the gate passes and
+prints one stderr line — `acs: docs-sync normally follows code in ship.yaml;
+code has not completed for SHOP-123` — suppressed by
+`settings.workflow.advisories: false` and by any read it cannot complete. The
+order itself is enforced one layer up, by `/acs:ship`'s loop over
+`acs.py run next` (`ship-pipeline.md`).
 
 Two other participants in the diagram moved with the refactor. The
 plan-authoring `EX` leg and the `PA` leg belong to `/acs:create-impl-plan`

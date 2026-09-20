@@ -80,8 +80,10 @@ class TestGate(AcsCliCase):
         self.refusal(self.acs("gate", "--skill", "not-a-skill"), "unknown skill")
 
     def test_a_blocked_gate_reports_ok_false_and_exit_two(self):
-        # gate_create_architecture requires a PRD; the fixture repo has none.
-        res = self.acs("gate", "--skill", "create-architecture")
+        """code requires a plan, and the fixture repo has none. (The old
+        example, create-architecture needing a PRD, is now satisfied by the
+        fixture.)"""
+        res = self.acs("gate", "--skill", "code")
         self.assertEqual(res.returncode, 2)
         self.assertEqual(json.loads(res.stdout)["ok"], False)
 class TestTicket(AcsCliCase):
@@ -130,28 +132,28 @@ class TestTicket(AcsCliCase):
     def test_save_refuses_a_json_document_that_is_not_an_object(self):
         self.refusal(self.acs("ticket", "save", "--ticket", self.ticket, stdin="[1, 2]"),
                      "got list")
-class TestPhaseValidate(AcsCliCase):
+class TestResultValidate(AcsCliCase):
 
     def test_a_complete_result_document_validates(self):
-        out = self.ok_json(self.acs("phase", "validate", "--skill", "code",
+        out = self.ok_json(self.acs("result", "validate", "--skill", "code",
                                     stdin=json.dumps({"status": "completed"})))
         self.assertTrue(out["ok"])
         self.assertEqual(out["errors"], [])
 
     def test_a_document_without_a_status_is_reported_not_defaulted(self):
-        out = self.ok_json(self.acs("phase", "validate", "--skill", "code",
+        out = self.ok_json(self.acs("result", "validate", "--skill", "code",
                                     stdin=json.dumps({"summary": "done"})))
         self.assertFalse(out["ok"])
         self.assertIn("status is absent", out["errors"][0])
 
     def test_an_unknown_status_is_reported(self):
-        out = self.ok_json(self.acs("phase", "validate", "--skill", "code",
+        out = self.ok_json(self.acs("result", "validate", "--skill", "code",
                                     stdin=json.dumps({"status": "finished"})))
         self.assertFalse(out["ok"])
         self.assertIn("not one of", out["errors"][0])
 
     def test_in_progress_does_not_finalize_a_run(self):
-        out = self.ok_json(self.acs("phase", "validate", "--skill", "code",
+        out = self.ok_json(self.acs("result", "validate", "--skill", "code",
                                     stdin=json.dumps({"status": "in_progress"})))
         self.assertFalse(out["ok"])
 
@@ -159,14 +161,14 @@ class TestPhaseValidate(AcsCliCase):
         path = os.path.join(self.tmp, "result.json")
         with open(path, "w", encoding="utf-8") as fh:
             json.dump({"status": "failed"}, fh)
-        out = self.ok_json(self.acs("phase", "validate", "--skill", "code",
-                                    "--result-file", path))
+        out = self.ok_json(self.acs("result", "validate", "--skill", "code",
+                                    path))
         self.assertTrue(out["ok"])
         self.assertEqual(out["status"], "failed")
 
     def test_a_missing_result_file_is_refused(self):
-        self.refusal(self.acs("phase", "validate", "--skill", "code",
-                              "--result-file", "/nope/result.json"),
+        self.refusal(self.acs("result", "validate", "--skill", "code",
+                              "/nope/result.json"),
                      "missing or not a JSON object")
 
 
@@ -210,21 +212,6 @@ class TestDelegation(AcsCliCase):
         return re.sub(r'"(started_at|ended_at|updated_at|created_at|checked_at|ts)": "[^"]*"',
                       r'"\1": "<ts>"', text)
 
-    def test_finish_matches_pipeline_step(self):
-        """Each invocation gets its OWN ticket: pipeline-step is a writer, so
-        running both against one partition compares a first write with a second
-        and can pass or fail for reasons unrelated to delegation."""
-        other = self.new_ticket("Add a widget", "task")
-        common = ("--skill", "test", "--status", "completed")
-        through_front_door = self.acs("finish", "--ticket", self.ticket, *common)
-        direct = self.run_script("pipeline-step.py", "--ticket", other, *common)
-        self.assertEqual(through_front_door.returncode, direct.returncode)
-        self.assertEqual(
-            self._volatile(through_front_door.stdout).replace(self.ticket, "<t>"),
-            self._volatile(direct.stdout).replace(other, "<t>"),
-            "the front door must print exactly what the delegate prints")
-        self.assertTrue(json.loads(through_front_door.stdout)["written"])
-
     def test_start_matches_skill_start(self):
         other = self.new_ticket("Add a widget", "task")
         through_front_door = self.acs("start", "--skill", "code", "--ticket", self.ticket)
@@ -262,35 +249,45 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
         self.ticket = self.new_ticket("Add a widget", "task")
 
     COVERAGE = {
-        "recorded_delivery_path": ("path", "show", "--ticket", "@ticket"),
         "slugify": ("slug", "--text", "a title"),
         "check_toolchain": ("doctor",),
         "build_context": ("context",),
         "fanout_batches": ("fanout", "batches"),
-        "lock_staleness": ("lock", "status", "--ticket", "@ticket"),
+        "lock_staleness": ("lock", "status", "--run", "@ticket"),
+        "cursor": ("run", "next", "--run", "@ticket"),
+        "check_run": ("run", "check", "--run", "@ticket"),
+        "outcome_vocabulary": ("result", "validate", "--skill", "code", "@result"),
     }
 
     def test_each_named_function_has_a_working_subcommand(self):
+        self.ensure_run(self.ticket)
+        result = os.path.join(self.repo, "result.json")
+        with open(result, "w", encoding="utf-8") as handle:
+            json.dump({"skill": "code", "run_id": self.ticket,
+                       "status": "completed", "outcome": "implemented"}, handle)
         for function, argv in sorted(self.COVERAGE.items()):
             with self.subTest(function=function):
-                res = self.acs(*[self.ticket if a == "@ticket" else a for a in argv])
+                argv = [self.ticket if a == "@ticket" else a for a in argv]
+                argv = [result if a == "@result" else a for a in argv]
+                res = self.acs(*argv)
                 self.assertEqual(res.returncode, 0,
                                  "%s: %s\n%s" % (function, res.stdout, res.stderr))
                 json.loads(res.stdout)  # the stdout contract: one JSON object
 
     def test_the_writers_are_reachable_only_through_their_audited_commands(self):
-        """save_ticket, update_pipeline and update_index are named by SKILL.md
-        as ONE persistence sequence, so they are exposed as the commands that
-        perform it whole — `ticket save`, and `path set` for the delivery path
-        — never as separate writes a caller could half-perform.
+        """save_ticket and update_index are named by SKILL.md as ONE
+        persistence sequence, so they are exposed as the command that performs
+        it whole — `ticket save` — never as separate writes a caller could
+        half-perform.
 
-        ADR-0095 removed `lane apply` and `lane deescalate` from this list by
-        removing what they wrote. `path set` replaces them, and carries the one
-        refusal that matters now: a ticket already on a path cannot be moved."""
-        path_help = self.acs("path", "--help")
-        self.assertEqual(path_help.returncode, 0)
-        for command in ("show", "set"):
-            self.assertIn(command, path_help.stdout)
+        `acs path set` is gone with the rest of the delivery-path machinery:
+        the path is judged once, by the plan, and recorded in its `## Contract`
+        block (§3.2), so there is no command that could move a run onto a
+        different one."""
+        step_help = self.acs("step", "--help")
+        self.assertEqual(step_help.returncode, 0)
+        for command in ("start", "finish", "show"):
+            self.assertIn(command, step_help.stdout)
         self.assertIn("save", self.acs("ticket", "--help").stdout)
         for orphan in ("save-ticket", "update-index", "update-pipeline",
                        "record-delivery-path", "lane", "stakes"):
@@ -298,9 +295,9 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
                              msg="%s must not be a standalone write" % orphan)
 
     def test_a_group_without_a_subcommand_prints_usage_and_exits_two(self):
-        """`acs.py path` names a group, not a command. It must say so rather
+        """`acs.py run` names a group, not a command. It must say so rather
         than exiting 0 having done nothing."""
-        res = self.acs("path")
+        res = self.acs("run")
         self.assertEqual(res.returncode, 2)
         self.assertIn("usage", res.stderr.lower())
         self.assertEqual(res.stdout, "")
@@ -308,10 +305,10 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
     def test_help_lists_every_group(self):
         res = self.acs("--help")
         self.assertEqual(res.returncode, 0)
-        for group in ("context", "gate", "path", "ticket", "pr",
+        for group in ("context", "gate", "run", "step", "result", "ticket", "pr",
                       "tracker", "readiness",
                       "lock", "filemap", "verdict",
-                      "phase", "slug", "fanout", "doctor", "start", "finish", "plan"):
+                      "slug", "fanout", "doctor", "workflow", "plan"):
             self.assertIn(group, res.stdout)
 
 
@@ -398,12 +395,12 @@ class TestReviewFixes(AcsCliCase):
                 self.assertIn(row["name"], out["missing_required"])
 
     def test_a_group_prints_its_own_subcommands_not_the_root_help(self):
-        res = self.acs("path")
+        res = self.acs("run")
         self.assertEqual(res.returncode, 2)
-        self.assertIn("acs.py path", res.stderr)
-        for sub in ("show", "set"):
+        self.assertIn("acs.py run", res.stderr)
+        for sub in ("show", "next", "check", "abandon"):
             self.assertIn(sub, res.stderr)
-        self.assertNotIn("doctor", res.stderr, "that is the ROOT help, not path's")
+        self.assertNotIn("doctor", res.stderr, "that is the ROOT help, not run's")
 
 
 class TestReviewFixesRoundTwo(AcsCliCase):

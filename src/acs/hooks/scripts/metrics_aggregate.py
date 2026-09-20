@@ -23,7 +23,7 @@ includes a `coordinator` bucket, resolving the former ledger C-5 exclusion; pane
 iterations from code-state states.review.iterations authoritative with the max
 verify-XML-iteration fallback), D1 (bounded single pass: enumerate tickets from
 tickets-index.json, resolve each partition active-then-archive, read the four state files once
-each, plus each HOOKED_SKILLS `<skill>-state.json` for role_usage; xml.etree is a documented
+each, plus each HOOKED_SKILLS `steps/<skill>/state.json` for role_usage; xml.etree is a documented
 reserved fallback, not used by default).
 
 New panel keys (MAR-14 spec 01):
@@ -100,6 +100,36 @@ from metrics_aggregate_rows import (_accumulate_burn, _accumulate_funnel,
 
 
 
+def _ticket_document(workspace, repo_id, ticket_id):
+    """The ticket's own document, from the TICKET partition (or the docs tree
+    when the repo keeps it there) -- never from `runs/<run-id>/`, which holds
+    the ledger and no ticket.json at all."""
+    tdir, _archived = acs_lib.find_ticket_partition(workspace, repo_id, ticket_id)
+    try:
+        return acs_lib.load_ticket(tdir)
+    except Exception:  # a metrics read degrades, it never raises
+        return None
+
+
+def _recorded_delivery_path(rdir):
+    """The delivery path DECLARED in the PLAN's `## Contract` block (ADR-0098),
+    the one place it is written. None when the plan is absent or unjudged.
+
+    The raw declared value, not `plan_contract.delivery_path`'s validated one:
+    that returns None for a name outside the four, which would drop a plan
+    carrying a hand-edited path out of the tally altogether. The panel has an
+    `other_paths` bucket precisely so `classified + unclassified` still equals
+    the ticket count, and it can only fill it if it sees the name."""
+    plan = os.path.join(rdir, "steps", "create-impl-plan", "plan.md")
+    try:
+        from acs_lib import plan_contract
+        contract = plan_contract.read(plan)
+        declared = (contract or {}).get("delivery_path")
+        return declared if isinstance(declared, str) and declared else None
+    except Exception:
+        return None
+
+
 def aggregate(workspace, repo_id, now=None):
     """Pure aggregator: read the workspace partition for `repo_id`, return the dashboard payload.
 
@@ -163,7 +193,7 @@ def aggregate(workspace, repo_id, now=None):
     _ticket_skill_rows = []  # [(ticket_id, {skill -> raw duration accumulator}), ...] (MAR-7)
 
     # Per-ticket extra data collected for the new panels (no additional file reads — reuses
-    # the ticket.json and pipeline-state.json already opened below; spec 01:44-49).
+    # the ticket.json and run.json already opened below; spec 01:44-49).
     # _ticket_updated_at: {ticket_id -> updated_at str or None} for burn_up fallback (spec 01:198-202)
     _ticket_updated_at = {}
     # _merge_ended_at: {ticket_id -> ended_at str or None} for burn_up primary date (spec 01:193-197)
@@ -171,18 +201,22 @@ def aggregate(workspace, repo_id, now=None):
     # _tickets_due_data: [{id, due_date, status}] for deadline panel (spec 02)
     _tickets_due_data = []
     # _paths_by_ticket: {ticket_id -> delivery_path or None}, read off the same
-    # pipeline-state.json the funnel already loads — no extra file read (ADR-0095).
+    # run.json the funnel already loads — no extra file read (ADR-0095).
     _paths_by_ticket = {}
 
     for ticket_id in tickets:
-        tdir, _archived = acs_lib.find_ticket_partition(workspace, repo_id, ticket_id)
+        # The RUN directory. Everything the pipeline RECORDS is under it; the
+        # ticket's own document is not, and neither is the judged delivery
+        # path -- both are resolved by the two helpers below.
+        tdir, _archived = acs_lib.partition_for_ticket(
+            acs_lib.repo_dir(workspace, repo_id), ticket_id)
 
-        pipeline = acs_lib.read_json(os.path.join(tdir, "pipeline-state.json"))
+        pipeline = acs_lib.read_json(os.path.join(tdir, "run.json"))
         if isinstance(pipeline, dict):
             _accumulate_funnel(funnel, pipeline)
         else:
-            degrade(ticket_id, 2, "pipeline-state.json absent — ticket omitted from the funnel")
-            degrade(ticket_id, 3, "pipeline-state.json absent — no cost/time row")
+            degrade(ticket_id, 2, "run.json absent — ticket omitted from the funnel")
+            degrade(ticket_id, 3, "run.json absent — no cost/time row")
 
         # Collect merge-pr.ended_at for burn_up (primary date source; spec 01:193-197).
         steps = pipeline.get("steps") if isinstance(pipeline, dict) else None
@@ -190,15 +224,22 @@ def aggregate(workspace, repo_id, now=None):
         merge_step = steps.get("merge-pr")
         _merge_ended_at[ticket_id] = merge_step.get("ended_at") if isinstance(merge_step, dict) else None
 
+        # ONE read of the ticket's own document per ticket, hoisted above
+        # every row that needs it (panel 7, burn_up's fallback date, the
+        # deadline panel) so the loop keeps its one-read-per-artifact budget.
+        ticket_json = _ticket_document(workspace, repo_id, ticket_id)
+
         code_state = acs_lib.read_json(acs_lib.state_path(tdir, "code"))
         p4_rows.append(_panel4_row(ticket_id, code_state, degrade))
         p5_rows.append(_panel5_row(ticket_id, tdir, code_state, degrade))
 
-        # The delivery path this ticket was judged onto, or None (ADR-0095).
-        _paths_by_ticket[ticket_id] = (pipeline.get("delivery_path")
-                                       if isinstance(pipeline, dict) else None)
+        # The delivery path this ticket was judged onto, or None. It lives in
+        # the PLAN's `## Contract` block and nowhere else (ADR-0098): reading
+        # `run.json.delivery_path` tallied None for every ticket, because no
+        # writer has put that key on a run since `acs path set` was removed.
+        _paths_by_ticket[ticket_id] = _recorded_delivery_path(tdir)
 
-        p7_rows.append(_panel7_row(ticket_id, tdir, pipeline, degrade))
+        p7_rows.append(_panel7_row(ticket_id, tdir, pipeline, degrade, ticket_json))
 
         ticket_models, ticket_roles, ticket_skills = _accumulate_burn(burn, tdir)
         if isinstance(pipeline, dict):
@@ -210,9 +251,7 @@ def aggregate(workspace, repo_id, now=None):
         _ticket_role_rows.append((ticket_id, ticket_roles))
         _ticket_skill_rows.append((ticket_id, ticket_skills))
 
-        # Collect ticket.json.updated_at for burn_up fallback (spec 01:198-202).
-        # ticket.json is already opened in _panel7_row (read-only, no extra I/O cost).
-        ticket_json = acs_lib.read_json(os.path.join(tdir, "ticket.json"))
+        # burn_up's fallback date, off the document read above.
         _ticket_updated_at[ticket_id] = (
             ticket_json.get("updated_at") if isinstance(ticket_json, dict) else None
         )

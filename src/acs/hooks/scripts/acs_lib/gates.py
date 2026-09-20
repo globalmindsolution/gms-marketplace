@@ -21,19 +21,36 @@ from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
 from ._common import (DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS,
-                      RUN_STATUSES, now_iso, plugin_root, read_json, write_json)
+                      now_iso, plugin_root, read_json, write_json)
 from .settings import load_settings, validate_settings
-from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
+from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir
 from .hostgates import record_gate_evidence
-from .state import check_lock, finalize_run, last_run, last_run_status, load_pipeline, load_state, load_ticket, read_lock, release_lock, save_ticket, update_index, update_pipeline
+from .lock import acquire_lock, check_lock, read_lock, release_lock
+from .tickets import load_ticket, save_ticket, update_index
 from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
 from .derive import derive_states, disagreements
 from . import workflow
-from .gate_inputs import (LEGACY_ARTIFACT_PATHS, _refuse_epic, _require_artifact,  # noqa: F401
-                          _ticket_wctx, e2e_case_count)
+from ._common import WorkflowError
+from .repo import repo_dir
+from . import run as run_machine
+from . import sessions
+from . import skills as skills_registry
+from . import step as step_machine
+from . import stepgate
+from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
 from .advisory import workflow_advisory
 
+
+
+def _workflow_for(ctx, with_path=False):
+    """The resolved workflow for this checkout, and optionally where it came
+    from. One spelling, because five copies of `resolve_workflow` +
+    `validate_workflow_file` is five places for an override to be honoured in
+    four."""
+    resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
+    wf = workflow.validate_workflow_file(resolved["path"])
+    return (wf, resolved["path"]) if with_path else wf
 
 
 def run_post_exempt_pr(cwd):
@@ -96,304 +113,205 @@ def design_requirement(ctx, tdir, ticket):
 
 
 # ---------------------------------------------------------------------------
-# Pre-hook gates
+# The pre-hook gate
 #
-# A gate checks INPUTS (the ticket resolves and is active, a required artifact
-# or doc set exists) and SAFETY BRAKES (the partition lock, a verifier that did
-# not pass, a PR reference to merge) -- never ORDER. Until the
-# skills-independence refactor a gate also refused a skill until its
-# predecessor had completed (`_require_completed`); that order now lives in
-# workflows/ship.yaml and is walked by `acs.py workflow next`. A hooked skill
-# run out of the declared order gets ONE stderr advisory line
-# (acs_lib.advisory.workflow_advisory, printed by run_pre_payload) and runs.
+# A gate answers exactly two questions: does the artifact this skill READS
+# exist, and would running now do damage that re-running cannot undo? It never
+# answers a third -- is this skill next? Order is /acs:ship's business, via
+# `acs run next`; a skill invoked by hand is never asked whether it is next,
+# which is what makes every skill independently invocable (§3.11). Out of
+# order costs one advisory line on stderr, exit 0.
+#
+# The seventeen per-skill gate functions and the four-family GATE_INPUTS
+# partition that classified them are gone. The INPUT half is generic now: it
+# reads skills/<name>/acs.yaml's reads.required, which is the same declaration
+# `acs workflow validate` checks a step list's order against. One declaration,
+# two enforcers, and they cannot disagree.
+#
+# What stayed per-skill is only what is genuinely a SAFETY BRAKE.
 # ---------------------------------------------------------------------------
 
-def gate_create_prd(ctx, payload):
-    return None
+# The brakes themselves live in `acs_lib.brakes` (one layer down: they read
+# the run and the repo, and resolve nothing). Re-exported here because every
+# caller reaches them through `gates`.
+from .brakes import (ARCHITECTURE_GATED, BRAKES, PRD_GATED,  # noqa: E402,F401
+                     _brake_code, _brake_create_pr, _brake_no_epics,
+                     _EPIC_VERBS, _merge_pr_arg_text, _require_prd,
+                     _require_architecture_doc_set, _sha256_file)
 
 
-def gate_create_requirements(ctx, payload):
-    return None
+def gate_step(ctx, skill, payload, standalone=True, mutate=True):
+    """The whole pre-hook gate for one skill. Returns the run id it gated, or
+    None for a skill that is not a step (setup, metrics, handoff...).
 
+    Order of business, and each line is load-bearing:
+      1. a skill that is not a step has nothing here to check
+      2. the run: this checkout's current one, or a new one over the subject
+      3. the invariants, BEFORE any write (§4.3) -- a drifted ledger is
+         refused here rather than discovered three steps later
+      4. the inputs, from the skill's own declaration
+      5. the safety brakes
+      6. the no-op: nothing owed means the step is completed here and the
+         coordinator is never spawned
 
-def gate_create_architecture(ctx, payload):
-    root = ctx["checkout_root"]
-    prd = os.path.join(root, ctx["settings"].get("prd_path", "docs/product"), "prd.md")
-    if not os.path.isfile(prd):
-        raise GateError("no PRD found at %s — run /acs:create-prd first (it also baselines existing products)." % prd)
-    return None
+    `mutate=False` answers the question WITHOUT the answer's consequences, for
+    `acs.py gate` -- which is documented as "run one skill's pre-gate without
+    running the skill" and was creating a run, taking the lock, opening the
+    step and settling no-ops as a side effect of being asked.
+    """
+    manifests = skills_registry.load_manifests()
+    if skill in ARCHITECTURE_GATED:
+        _require_architecture_doc_set(ctx)
+    if skill in PRD_GATED:
+        _require_prd(ctx)
 
-
-def gate_create_project(ctx, payload):
-    _require_architecture_doc_set(ctx)
-    return None
-
-
-def gate_create_ticket(ctx, payload):
-    return None
-
-
-def _resolve_ticket_for_gate(ctx, payload, skill):
-    args_text = ""
-    tool_input = payload.get("tool_input") or {}
-    for key in ("args", "arguments", "argument"):
-        if isinstance(tool_input.get(key), str):
-            args_text = tool_input[key]
-            break
-    ticket_id, source = resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"], ctx["repo_id"], args_text=args_text)
-    if not ticket_id:
-        raise GateError(
-            "could not resolve a ticket id for /%s (no argument, no session pointer, no ticket in the branch name). "
-            "Pass it explicitly, e.g. /acs:%s %s-123." % (skill, skill, ctx["settings"].get("ticket_prefix", "SHOP"))
-        )
-    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived:
-        raise GateError("ticket %s is done and archived (%s); nothing left to run." % (ticket_id, tdir))
-    if not os.path.isdir(tdir):
-        raise GateError("no workspace partition for %s (expected %s) — run /acs:create-ticket first." % (ticket_id, tdir))
-    ticket = load_ticket(tdir)
-    if not ticket:
-        raise GateError("ticket file missing or corrupt at %s/ticket.json — treat as not created; run /acs:create-ticket." % tdir)
-    ok, msg = check_lock(tdir, ctx["checkout_id"])
-    if not ok:
-        raise GateError(msg)
-    return ticket_id, tdir, ticket
-
-
-def gate_create_design(ctx, payload):
-    """Input: the ticket resolves and is flagged needs_design. Whether the
-    create-ticket run is recorded completed is no longer checked -- the
-    partition existing IS the ticket having been created."""
-    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-design")
-    if not ticket.get("needs_design"):
-        raise GateError(
-            "ticket %s is not flagged needs_design — /create-design only runs for design-significant tickets; "
-            "go straight to /acs:code %s." % (ticket_id, ticket_id)
-        )
-    return ticket_id
-
-
-def gate_analyze_ticket(ctx, payload):
-    """Input: the ticket resolves; epics are refused."""
-    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "analyze-ticket")
-    if ticket.get("type") == "epic":
-        _refuse_epic(ticket_id, "analyze-ticket", "analyzed for implementation")
-    return ticket_id
-
-
-def gate_create_impl_plan(ctx, payload):
-    """Input: the ticket resolves; epics are refused. No analysis is required
-    (the executor's survey reads analysis.md and design.md when present)."""
-    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-impl-plan")
-    if ticket.get("type") == "epic":
-        _refuse_epic(ticket_id, "create-impl-plan", "planned")
-    return ticket_id
-
-
-def gate_create_api_contract(ctx, payload):
-    """Input: plan.md exists (the plan names the API surface the contract
-    covers) AND analysis.md declares `api_surface: true`; each miss points at
-    the skill that produces the missing input."""
-    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-api-contract")
-    _require_artifact(ctx, ticket_id, tdir, ticket, "plan.md", "create-impl-plan")
-    _require_artifact(ctx, ticket_id, tdir, ticket, "analysis.md", "analyze-ticket")
-    # The same reader ship.yaml's `when: api_surface_changed` uses; a corrupt
-    # front matter surfaces as a WorkflowError (a GateError) naming the line.
-    if not workflow.api_surface_changed(_ticket_wctx(ctx, ticket_id, tdir, ticket)):
-        raise GateError(
-            "analysis.md for %s does not declare api_surface: true — /acs:create-api-contract only "
-            "runs for a ticket whose analysis found an API surface change; re-run /acs:analyze-ticket %s "
-            "if the analysis is stale." % (ticket_id, ticket_id))
-    return ticket_id
-
-
-def gate_create_test_docs(ctx, payload):
-    """Input: the ticket resolves (partition, active, unlocked) -- nothing else;
-    the plan and the API contract are read when present."""
-    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "create-test-docs")
-    return ticket_id
-
-
-def gate_code(ctx, payload):
-    # Inputs: the ticket resolves and is not an epic, and an implementation plan
-    # exists -- /acs:create-impl-plan carved the plan phase out of /acs:code, so
-    # code now REQUIRES the artifact it used to author. No path branch, no
-    # create-spec precondition (the fold is create-impl-plan's concern), and no
-    # predecessor-completed check: the order lives in ship.yaml. Epics are
-    # refused before the plan is looked for, because an epic never has one.
-    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "code")
-    if ticket.get("type") == "epic":
-        raise GateError(
-            "ticket %s is an epic — epics are never implemented directly; run "
-            "/acs:create-design %s first if the epic has no design yet, then break it down "
-            "into child tickets with /acs:create-ticket %s (epic fan-out), then run /acs:code "
-            "on a child." % (ticket_id, ticket_id, ticket_id)
-        )
-    _require_artifact(ctx, ticket_id, tdir, ticket, "plan.md", "create-impl-plan")
-    return ticket_id
-
-
-def gate_docs_sync(ctx, payload):
-    """Input: the partition; brake: the lock. Whether /acs:code (and the
-    post-code test step) completed is ship.yaml's concern -- run out of that
-    order, the pre-hook advisory says so and docs-sync runs anyway."""
-    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "docs-sync")
-    return ticket_id
-
-
-def gate_create_e2e_tests(ctx, payload):
-    """Input: an e2e suite is configured AND test-cases.md lists at least one
-    e2e case; else refuse (ship.yaml only reaches the step when e2e is
-    configured, so a hand run without either has nothing to write)."""
-    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-e2e-tests")
-    if not workflow.e2e_configured(_ticket_wctx(ctx, ticket_id, tdir, ticket)):
-        raise GateError(
-            "no e2e suite is configured (settings.e2e or settings.suites.e2e) — configure one with "
-            "/acs:setup before /acs:create-e2e-tests %s; ship.yaml skips the step until then." % ticket_id)
-    path = _require_artifact(ctx, ticket_id, tdir, ticket, "test-cases.md", "create-test-docs")
-    if e2e_case_count(path) < 1:
-        raise GateError(
-            "test-cases.md for %s lists no e2e case (no TC-n row typed e2e) — nothing to write; "
-            "re-run /acs:create-test-docs %s if the ticket needs end-to-end coverage." % (ticket_id, ticket_id))
-    return ticket_id
-
-
-def gate_create_pr(ctx, payload):
-    """Brake only: a ticket that HAS a /acs:code run whose verifier did not
-    pass may not open a PR. A ticket with no code run at all passes -- whether
-    code and docs-sync ran first is ship.yaml's concern, not the gate's."""
-    ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "create-pr")
-    state = load_state(tdir, "code", ticket_id)
-    if state.get("runs") and state["states"].get("verifier_passed") is not True:
-        raise GateError(
-            "/code ran for %s but its verifier did not pass (verifier_passed != true in code-state.json); "
-            "re-run /acs:code %s until the review loop reports zero findings." % (ticket_id, ticket_id)
-        )
-    return ticket_id
-
-
-def _merge_pr_arg_text(payload):
-    """Raw arg string the same way _resolve_ticket_for_gate reads it."""
-    tool_input = payload.get("tool_input") or {}
-    for key in ("args", "arguments", "argument"):
-        if isinstance(tool_input.get(key), str):
-            return tool_input[key]
-    return ""
-
-
-def gate_merge_pr(ctx, payload):
-    # MAR-9 (C-3): the exempt non-ticket PR forms (--pr N / #N / PR URL / a bare
-    # integer that is not a ticket id and no ticket resolves) short-circuit to
-    # pass-through BEFORE the ticket gate runs. Every other input falls through to
-    # the existing ticket gate verbatim (AC-8). The pre-hook dispatcher treats a
-    # plain return (no GateError) as "allow", so returning None here = allow.
-    # The readiness brake below is unchanged by the skills-independence
-    # refactor: a merge needs a PR reference recorded by a completed run --
-    # the one fact a merge cannot proceed without, not an ordering rule.
-    args_text = _merge_pr_arg_text(payload)
-    _resolved, _src = resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"],
-                                        ctx["repo_id"], args_text=args_text)
-    ticket_resolves = _src in ("pointer", "branch")
-    kind, _pr_ref = classify_merge_pr_arg(
-        args_text, ctx["settings"].get("ticket_prefix"), ticket_resolves=ticket_resolves)
-    if kind == "exempt-pr":
+    # Only the skills the RESOLVED WORKFLOW runs go through a run. A skill
+    # that declares reads/writes but is not a step of this workflow is a
+    # skill someone invoked on its own -- and the design and product skills
+    # (create-prd, create-architecture, create-ticket) are never steps of
+    # `ship` at all. `create-ticket` in particular MAKES a subject; requiring
+    # it to name one first would be circular.
+    try:
+        wf = _workflow_for(ctx)
+    except WorkflowError as exc:
+        raise GateError("the workflow does not validate: %s" % exc)
+    if not workflow.has_step(wf, skill):
         return None
-    ticket_id, tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "merge-pr")
-    pipeline = load_pipeline(tdir, ticket_id)
-    candidates = ["create-pr"] + DELIVERY_TICKET_SKILLS if pipeline.get("flow") != "product" else DELIVERY_TICKET_SKILLS + ["create-pr"]
-    for skill in candidates:
-        state = read_json(state_path(tdir, skill))
-        if isinstance(state, dict):
-            pr = (state.get("states") or {}).get("pr") or {}
-            if pr.get("url") or pr.get("number"):
-                if last_run_status(tdir, skill) == "completed":
-                    return ticket_id
-    raise GateError(
-        "no PR reference recorded for %s — /acs:create-pr (or the product-level skill) must complete first." % ticket_id
-    )
+
+    rdir, doc, wf = resolve_run_for(ctx, skill, payload, mutate=mutate)
+    if rdir is None:
+        return None
+    # The LOCK, before the invariants and before any write. One run, one
+    # session: a second checkout that picked this run up would interleave two
+    # sessions' writes into one ledger, and the invariants that keep it honest
+    # are checked per process. `acquire_lock` is a no-op when this checkout
+    # already holds it, so a multi-step session takes it once.
+    ok, message = check_lock(rdir, ctx["checkout_id"])
+    if not ok:
+        raise GateError(message)
+    if mutate:
+        acquire_lock(rdir, ctx.get("checkout_root") or ctx["workspace"])
+    stepgate.check_invariants(rdir, wf, manifests)
+
+    fell_back = stepgate.check_inputs(rdir, skill, manifests, wf, standalone=standalone)
+    for artifact in fell_back:
+        sys.stderr.write(
+            "acs: no %s for this run; /acs:%s will work from the run's subject instead.\n"
+            % (artifact, skill))
+
+    # The epic brake runs for EVERY implementation step, not just the ones
+    # that happened to have a gate function before. `code` refusing an epic
+    # while `create-impl-plan` planned one is the same mistake caught a step
+    # too late, with a plan on disk that should never have been written.
+    if skill in _EPIC_VERBS:
+        _brake_no_epics(ctx, rdir, dict(doc, __step__=skill), wf)
+    brake = BRAKES.get(skill)
+    if brake:
+        brake(ctx, rdir, doc, wf)
+
+    settled = (stepgate.settle_no_op(rdir, skill, doc["run_id"], wf, manifests)
+               if mutate else stepgate.noop_decision(rdir, skill, manifests, wf))
+    if settled:
+        outcome, reason = settled
+        raise NothingOwed(skill, outcome, reason)
+    return doc["run_id"]
 
 
-def gate_standardize_project(ctx, payload):
-    """Pre-hook gate for /acs:standardize-project — requires an architecture doc set
-    to audit against (mirrors gate_create_project); principles_path/standards_path
-    being unset or absent does NOT hard-block (graceful degradation)."""
-    _require_architecture_doc_set(ctx)
-    return None
+class NothingOwed(Exception):
+    """Not an error: the pre-hook settled this step because the plan said
+    nothing was owed, so the coordinator must not run. Carried as an exception
+    because it has to unwind the gate, but reported as a success."""
+
+    def __init__(self, skill, outcome, reason):
+        self.skill, self.outcome, self.reason = skill, outcome, reason
+        super().__init__("%s: %s (%s)" % (skill, outcome, reason))
 
 
-def _require_architecture_doc_set(ctx):
-    """Shared precondition for the doc-set producer gates: the architecture
-    set (hld/tech-stack.md) must exist before a downstream doc set is built."""
-    root = ctx["checkout_root"]
-    arch = os.path.join(root, ctx["settings"].get("architecture_path", "docs/architecture"))
-    tech_stack = os.path.join(arch, "hld", "tech-stack.md")
-    if not os.path.isfile(tech_stack):
+def resolve_run_for(ctx, skill, payload, mutate=True):
+    """(rdir, doc, wf) for the run this invocation belongs to.
+
+    The checkout's current run when it has one, else a new run over whatever
+    subject the invocation named -- a ticket id, a prompt or a document. Every
+    skill accepts all three (§3.11), so this is the same resolution for all of
+    them.
+    """
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    try:
+        wf, wf_path = _workflow_for(ctx, with_path=True)
+    except WorkflowError as exc:
+        raise GateError("the workflow does not validate: %s" % exc)
+
+    run_id = sessions.current_run_id(repo, ctx["checkout_id"])
+    if run_id:
+        rdir = run_machine.run_dir(repo, run_id)
+        doc = run_machine.load_run(rdir)
+        if doc is not None and doc.get("status") not in run_machine.TERMINAL_RUN_STATUSES:
+            return rdir, doc, wf
+
+    subject = subject_from_payload(ctx, payload)
+    if subject is None:
         raise GateError(
-            "no architecture doc set found at %s (expected hld/tech-stack.md) — run /acs:create-architecture first." % arch
-        )
+            "no current run for this checkout and no subject in the invocation. "
+            "Give /acs:%s a ticket id, a prompt or a path to a document." % skill)
+
+    if subject["kind"] == "ticket":
+        row = run_machine.latest_open_run(repo, "ticket", subject["ticket_id"])
+        if row:
+            rdir = run_machine.run_dir(repo, row["run_id"])
+            if mutate:
+                sessions.save_pointer(repo, ctx["checkout_id"], run_id=row["run_id"],
+                                      checkout_path=ctx.get("checkout_root"))
+            return rdir, run_machine.require_run(rdir), wf
+        # A ticket SUBJECT must be a ticket that exists. A prompt or a document
+        # carries its own content, so a run over one is self-describing; a
+        # ticket id is a REFERENCE, and minting a run over a reference to
+        # nothing produces a run whose subject cannot be read -- discovered
+        # several steps later, by whichever step first needs `ticket.json`.
+        # Refuse here, where the message can still name the skill that makes
+        # one. (A token that is not a ticket id is a prompt, so this never
+        # catches `/acs:code "fix the login timeout"`.)
+        tdir, _archived = find_ticket_partition(
+            ctx["workspace"], ctx["repo_id"], subject["ticket_id"])
+        if not os.path.isdir(tdir):
+            raise GateError(
+                "no ticket %s in this repo's workspace — run /acs:create-ticket "
+                "to make one, or give /acs:%s a prompt or a document instead."
+                % (subject["ticket_id"], skill))
+
+    if not mutate:
+        # Asked, not told: report the gate against a run that does not exist
+        # yet rather than creating one to answer with.
+        return None, None, wf
+    run_id, rdir, doc = run_machine.create_run(repo, subject, wf, wf_path)
+    sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id,
+                          checkout_path=ctx.get("checkout_root"))
+    return rdir, doc, wf
 
 
-#: Doc-set producers whose ONLY precondition is the architecture doc set.
-#: The CHECK is one function (_require_architecture_doc_set, above) -- what was
-#: duplicated before MAR-522 was its three-line body, inlined in
-#: gate_create_project and gate_standardize_project. This tuple is the declared
-#: set, asserted against GATES by tests/acs/test_acs_lib_gates.py, so adding a
-#: producer with this precondition is a row plus a two-line gate, and the two
-#: cannot drift apart.
-ARCHITECTURE_DEPENDENT_SKILLS = ("create-docs",)
+def subject_from_payload(ctx, payload):
+    """A ticket id, a prompt or a document, from the skill's own arguments.
 
-
-def gate_create_docs(ctx, payload):
-    """Pre-hook gate for /acs:create-docs -- requires the architecture doc set.
-
-    One gate for every doc set (ADR-0094): each set's only precondition is
-    the architecture set, so the check runs once, at the Skill call, and a
-    missing architecture set refuses the whole request before any delivery
-    ticket is minted."""
-    return _require_architecture_doc_set(ctx)
-
-
-#: skill -> gate. A gate returns the resolved ticket id when it is ticket-scoped
-#: (run_pre_payload then hands that id to the order advisory) and None otherwise.
-GATES = {
-    "create-prd": gate_create_prd,
-    "create-requirements": gate_create_requirements,
-    "create-architecture": gate_create_architecture,
-    "create-project": gate_create_project,
-    "create-docs": gate_create_docs,
-    "create-ticket": gate_create_ticket,
-    "create-design": gate_create_design,
-    "analyze-ticket": gate_analyze_ticket,
-    "create-impl-plan": gate_create_impl_plan,
-    "create-api-contract": gate_create_api_contract,
-    "create-test-docs": gate_create_test_docs,
-    "code": gate_code,
-    "docs-sync": gate_docs_sync,
-    "create-e2e-tests": gate_create_e2e_tests,
-    "create-pr": gate_create_pr,
-    "merge-pr": gate_merge_pr,
-    "standardize-project": gate_standardize_project,
-}
-
-#: What each gate checks, by skill -- the declared classification
-#: tests/acs/test_acs_lib_gates.py asserts against GATES, so the table and the
-#: dispatch cannot drift. None of these is an ORDER check.
-#:   none          no precondition at all
-#:   prd           the PRD file exists (gate_create_architecture)
-#:   architecture  the architecture doc set exists (_require_architecture_doc_set)
-#:   ticket        the ticket resolves, is active and unlocked
-#:                 (_resolve_ticket_for_gate), plus that skill's own input or
-#:                 brake: needs_design, not-an-epic, plan.md, analysis.md's
-#:                 api_surface, e2e configured + e2e cases, verifier_passed,
-#:                 a recorded PR reference.
-GATE_INPUTS = {
-    "none": ("create-prd", "create-requirements", "create-ticket"),
-    "prd": ("create-architecture",),
-    "architecture": ("create-project", "standardize-project") + ARCHITECTURE_DEPENDENT_SKILLS,
-    "ticket": ("create-design", "analyze-ticket", "create-impl-plan", "create-api-contract",
-               "create-test-docs", "code", "docs-sync", "create-e2e-tests", "create-pr",
-               "merge-pr"),
-}
+    The three are told apart by shape rather than by a flag: a bare token that
+    looks like <PREFIX>-<n> is a ticket, an existing path is a document, and
+    anything else is a prompt. A developer typing
+    `/acs:code "fix the login timeout"` should not have to learn a flag.
+    """
+    tool_input = payload.get("tool_input") or {}
+    text = ""
+    for key in ("args", "arguments", "argument"):
+        if isinstance(tool_input.get(key), str):
+            text = tool_input[key].strip()
+            break
+    if not text:
+        return None
+    prefix = (ctx.get("settings") or {}).get("ticket_prefix") or "[A-Z]+"
+    token = text.split()[0]
+    if re.match(r"^%s-\d+$" % prefix, token):
+        return {"kind": "ticket", "ticket_id": token}
+    candidate = os.path.join(ctx.get("checkout_root") or ctx["cwd"], token)
+    if os.path.isfile(candidate):
+        return {"kind": "document", "path": token, "sha256": _sha256_file(candidate)}
+    return {"kind": "prompt", "text": text}
 
 
 def run_pre(skill):
@@ -405,7 +323,7 @@ def run_pre(skill):
     sys.exit(run_pre_payload(skill, payload))
 
 
-def run_pre_payload(skill, payload, record_marker=True):
+def run_pre_payload(skill, payload, record_marker=True, mutate=True):
     """Gate one skill from an already-parsed hook payload; return the exit code.
 
     Separate from run_pre so the dispatcher can gate in-process rather than
@@ -460,11 +378,23 @@ def run_pre_payload(skill, payload, record_marker=True):
         warn = tracker_cli_warning(ctx["settings"])
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)
-        ticket_id = GATES[skill](ctx, payload)
-        if ticket_id:
-            advisory = workflow_advisory(ctx, skill, ticket_id)
+        try:
+            run_id = gate_step(ctx, skill, payload, mutate=mutate)
+        except NothingOwed as owed:
+            # Not a refusal to report as one: the step is COMPLETE. Exit 2
+            # stops the Skill from running, which is the point -- no
+            # coordinator, no tokens -- and the message says what was
+            # recorded rather than what was wrong.
+            sys.stderr.write(
+                "acs: /acs:%s has nothing to do on this run — recorded %s (%s). "
+                "The step is complete.\n" % (owed.skill, owed.outcome, owed.reason))
+            return 2
+        if run_id:
+            advisory = workflow_advisory(ctx, skill, run_id)
             if advisory:
                 sys.stderr.write(advisory + "\n")
+            if mutate:
+                _mark_step_started(ctx, skill, run_id)
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
         return 2
@@ -483,297 +413,76 @@ def run_pre_payload(skill, payload, record_marker=True):
     return 0
 
 
-# ---------------------------------------------------------------------------
-# Post-hook persistence
-# ---------------------------------------------------------------------------
-
-def _read_result_from_argv():
-    """post-<skill>.py CLI: --result-file <path> | JSON on stdin, plus convenience flags."""
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--result-file", help="path to a JSON result document")
-    parser.add_argument("--ticket", help="ticket id (overrides pointer/branch resolution)")
-    parser.add_argument("--status", choices=[s for s in RUN_STATUSES if s != "in_progress"])
-    parser.add_argument("--stop-reason")
-    args = parser.parse_args()
-    result = {}
-    if args.result_file:
-        data = read_json(args.result_file)
-        if not isinstance(data, dict):
-            sys.stderr.write("acs: result file %s is missing or not a JSON object\n" % args.result_file)
-            sys.exit(1)
-        result = data
-    elif not sys.stdin.isatty():
-        raw = sys.stdin.read().strip()
-        if raw:
-            try:
-                result = json.loads(raw)
-            except json.JSONDecodeError as exc:
-                sys.stderr.write("acs: invalid JSON result on stdin: %s\n" % exc)
-                sys.exit(1)
-    if args.status:
-        result["status"] = args.status
-    if args.stop_reason:
-        result["stop_reason"] = args.stop_reason
-    if not result:
-        # Defaulting an absent result to "completed" would finalize the run and
-        # open the next gate on nothing at all. The status must be stated.
-        if args.result_file:
-            # Naming the path matters: told only "no result document", an
-            # operator who did pass one would reissue the same command.
-            sys.stderr.write(
-                "acs: result file %s is empty — it must carry at least a status\n"
-                % args.result_file)
-        else:
-            sys.stderr.write(
-                "acs: no result document — pass --result-file <path>, JSON on stdin, "
-                "or --status explicitly\n")
-        sys.exit(1)
-    if not result.get("status"):
-        sys.stderr.write(
-            "acs: result document has no 'status' — one of %s is required\n"
-            % ", ".join(s for s in RUN_STATUSES if s != "in_progress"))
-        sys.exit(1)
-    return result, args.ticket
-
-
-def _epic_auto_done(ctx, ticket):
-    """When the merged ticket is the last open child of an epic, mark the epic done."""
-    parent_id, pdir = parent_epic_dir(ctx, ticket)
-    if not parent_id or not pdir:
-        return None
-    index = read_json(index_path(ctx["workspace"], ctx["repo_id"])) or {"tickets": {}}
-    parent_ticket = load_ticket(pdir)
-    children = (parent_ticket or {}).get("children") or (index["tickets"].get(parent_id, {}).get("children")) or []
-    if not children:
-        return None
-    for child in children:
-        if child == ticket["id"]:
-            continue
-        entry = index["tickets"].get(child)
-        if not entry or entry.get("status") != "done":
-            return None
-    if parent_ticket:
-        parent_ticket["status"] = "done"
-        save_ticket(pdir, parent_ticket)
-        update_index(ctx["workspace"], ctx["repo_id"], parent_ticket)
-        return parent_id
-    return None
-
-
-def _archive_partition(ctx, tdir, ticket_id):
-    dest_root = archive_dir(ctx["workspace"], ctx["repo_id"])
-    os.makedirs(dest_root, exist_ok=True)
-    dest = os.path.join(dest_root, ticket_id)
-    if os.path.isdir(dest):
-        dest = os.path.join(dest_root, "%s-%s" % (ticket_id, now_iso().replace(":", "")))
-    shutil.move(tdir, dest)
-    return dest
-
-
-def _clear_pointers_for_ticket(ctx, ticket_id):
-    sdir = sessions_dir(ctx["workspace"], ctx["repo_id"])
-    if not os.path.isdir(sdir):
-        return
-    for name in os.listdir(sdir):
-        if not name.endswith(".json"):
-            continue
-        pointer = read_json(os.path.join(sdir, name))
-        if isinstance(pointer, dict) and pointer.get("ticket_id") == ticket_id:
-            try:
-                os.unlink(os.path.join(sdir, name))
-            except OSError:
-                pass
-
-
-def run_post(skill):
-    """Entry point for post-<skill>.py."""
-    result, explicit_ticket = _read_result_from_argv()
-    cwd = os.getcwd()
+def _mark_step_started(ctx, skill, run_id):
+    """step -> in_progress, and the pointer follows it. The pre-hook is the
+    one writer of this transition (§4.3)."""
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    rdir = run_machine.run_dir(repo, run_id)
     try:
-        ctx = build_context(cwd)
-    except GateError as exc:
-        sys.stderr.write("acs post-%s: %s\n" % (skill, exc))
-        sys.exit(1)
-
-    ticket_id, _src = resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"], explicit=explicit_ticket)
-    if not ticket_id:
-        sys.stderr.write("acs post-%s: could not resolve the ticket id (pass --ticket).\n" % skill)
-        sys.exit(1)
-    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
-        sys.stderr.write("acs post-%s: no active partition for %s.\n" % (skill, ticket_id))
-        sys.exit(1)
-
-    status = result["status"]  # guaranteed by _read_result_from_argv
-
-    # MAR-523: the gate-bearing states keys are COMPUTED from the artifacts,
-    # not read from the document. Done before finalize_run so what is persisted
-    # is the derived view; the disagreements ride on the run entry, which is
-    # append-only and audited.
-    # Wrapped: derivation runs BEFORE finalize_run, so anything it raises used
-    # to leave runs[-1].status == "in_progress" with the lock still held (the
-    # release is far below) -- the next gate then refuses with "crashed or
-    # still running elsewhere" and the coordinator's result document is lost.
-    # A derivation that cannot run must degrade to "not derived", never to a
-    # stranded run.
-    try:
-        derived, notes = derive_states(
-            tdir, skill, result, settings=ctx["settings"],
-            ticket_id=ticket_id,
-            since=(last_run(load_state(tdir, skill)) or {}).get("started_at"),
-            branch=(result.get("states") or {}).get("branch") or current_branch(cwd))
-    except Exception as exc:  # noqa: BLE001 - see above
-        derived, notes = {}, {"__error__": "derivation failed (%r); no key was "
-                                           "computed from artifacts" % exc}
-    conflicts = disagreements(result.get("states") or {}, derived)
-    if derived:
-        result.setdefault("states", {}).update(derived)
-
-    state, entry = finalize_run(tdir, skill, ticket_id, result)
-    entry["derived_states"] = {"values": derived, "provenance": notes,
-                               "overrode": [{"key": key, "supplied": was, "derived": now}
-                                            for key, was, now in conflicts]}
-    write_json(state_path(tdir, skill), state)
-    for key, was, now in conflicts:
-        sys.stderr.write(
-            "acs post-%s: states.%s was %r in the result document; the artifacts say "
-            "%r (%s). The derived value is what was written.\n"
-            % (skill, key, was, now, notes.get(key, "derived")))
-    flow = "product" if skill in PRODUCT_SKILLS else "ticket"
-    summary = result.get("handoff_summary") or result.get("stop_reason")
-    update_pipeline(tdir, ticket_id, skill, status, summary=summary, flow=flow)
-
-    ticket = load_ticket(tdir)
-    epic_done = None
-    archived_to = None
-    try:
-        if ticket:
-            if status == "completed":
-                if skill == "create-pr" and ticket.get("status") != "done":
-                    ticket["status"] = "in_review"
-                    save_ticket(tdir, ticket)
-                if skill in DELIVERY_TICKET_SKILLS and (result.get("states") or {}).get("pr") and ticket.get("status") != "done":
-                    ticket["status"] = "in_review"
-                    save_ticket(tdir, ticket)
-                if skill == "merge-pr":
-                    ticket["status"] = "done"
-                    save_ticket(tdir, ticket)
-            update_index(ctx["workspace"], ctx["repo_id"], ticket)
-
-        pr_number = ((result.get("states") or {}).get("pr") or {}).get("number")
-        update_metrics(
-            ctx["workspace"], ctx["repo_id"], run_entry=entry,
-            pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
-                        and skill in (["create-pr"] + DELIVERY_TICKET_SKILLS)),
-            pr_merged=(skill == "merge-pr" and status == "completed"),
-            pr_number=pr_number,
-        )
-        release_lock(tdir, cwd)
-
-        if skill == "merge-pr" and status == "completed" and ticket:
-            epic_done = _epic_auto_done(ctx, ticket)
-            update_index(ctx["workspace"], ctx["repo_id"], ticket, archived=True)
-            _clear_pointers_for_ticket(ctx, ticket_id)
-            archived_to = _archive_partition(ctx, tdir, ticket_id)
-    except GuardTimeout as exc:
-        # MAR-530: the repo-level writers refuse rather than write unguarded, and
-        # they sit AFTER the per-ticket writes, so this is a partial phase. Say
-        # exactly which half is durable -- the operator is repairing a
-        # repo-level gap, not re-running the phase. What "repair" means differs
-        # by hook, which is what _POST_GUARD_REPAIR carries.
-        release_lock(tdir, cwd)
-        sys.stderr.write(
-            "acs post-%s: %s\n"
-            "%s's run, ticket.json and pipeline-state.json ARE written and the lock "
-            "is released; the repo-level writes (tickets-index.json, metrics.json%s) "
-            "are not. %s This run's tokens and cost are lost from metrics.json. "
-            "Do NOT re-run this hook to repair it -- the run is already "
-            "finalized, so a second call appends a second run entry.\n"
-            % (skill, exc, ticket_id,
-               ", and the partition archive" if skill == "merge-pr" else "",
-               _POST_GUARD_REPAIR[skill == "merge-pr"]))
-        sys.exit(1)
-
-    out = {"ok": True, "skill": skill, "ticket_id": ticket_id, "status": status}
-    if archived_to:
-        out["archived_to"] = archived_to
-    if epic_done:
-        out["epic_marked_done"] = epic_done
-    print(json.dumps(out, indent=2))
-    sys.exit(0)
+        wf = _workflow_for(ctx)
+        run_machine.start_step(rdir, skill, wf)
+        step_machine.append_invocation(rdir, skill, run_id)
+        sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id, step=skill,
+                              checkout_path=ctx.get("checkout_root"))
+    except (GateError, WorkflowError) as exc:
+        raise GateError(str(exc))
 
 
 # ---------------------------------------------------------------------------
 # SessionEnd safety net
 # ---------------------------------------------------------------------------
 
-#: How the operator repairs the repo-level half of a post hook that hit a guard
-#: timeout, keyed by "is this merge-pr". EVERY other hook has a next post hook
-#: that rebuilds the index entry from ticket.json -- merge-pr is the terminal
-#: one, so nothing runs after it and the gap it leaves is durable until someone
-#: closes it. Telling a merge-pr operator "it self-heals" was worse than saying
-#: nothing: it named a mechanism that does not exist for the one hook where the
-#: consequences (partition never archived, pointer never cleared, parent epic
-#: never completed) are permanent.
-_POST_GUARD_REPAIR = {
-    False: ("The index entry is rebuilt from ticket.json by the next post hook, "
-            "so it self-heals."),
-    True: ("merge-pr is the TERMINAL post hook: nothing runs after it, so this "
-           "does NOT self-heal -- the index still reads in_review, the partition "
-           "is not archived, the session pointer is not cleared, and a parent "
-           "epic is not auto-completed. ticket.json already reads done, so the "
-           "merge itself IS recorded and no work is lost; what is missing is "
-           "repo-level bookkeeping. Surface this gap rather than repairing it "
-           "blind."),
-}
-
-
 def session_end(payload):
-    """Finalize any run this checkout left in_progress as `interrupted` and release
-    its lock — abnormal endings must still write state (docs/requirements/functional/hooks.md)."""
+    """Finalize whatever step this checkout left `in_progress` as `interrupted`
+    and release its lock — an abnormal ending must still write state
+    (docs/requirements/functional/hooks.md).
+
+    `interrupted` is the one resumable step state, and `session_end` is the
+    stop_reason that says which kind of ending it was (§4.3). A step left
+    `in_progress` by a session that no longer exists is the case resume exists
+    for, and leaving it that way is what makes the next invocation refuse
+    under I1.
+    """
     cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
     except GateError:
         return  # uninitialized repo: nothing to clean up
-    pointer = read_json(pointer_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-    if not isinstance(pointer, dict) or not pointer.get("ticket_id"):
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    run_id = sessions.current_run_id(repo, ctx["checkout_id"])
+    if not run_id:
         return
-    ticket_id = pointer["ticket_id"]
-    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
+    rdir = run_machine.run_dir(repo, run_id)
+    doc = run_machine.load_run(rdir)
+    if doc is None:
         return
-    lock = read_lock(tdir)
+    lock = read_lock(rdir)
     if not (isinstance(lock, dict) and lock.get("checkout_id") == ctx["checkout_id"]):
-        return  # not our session's ticket anymore
+        return  # not our session's run any more
     # The release is the POINT of this safety net, so it happens whatever the
-    # repo-level writes do. update_metrics is guarded and now refuses rather
-    # than writing unguarded; before this the raise skipped the release and
-    # dispatch.py swallowed it, so the net exited 0 having left the ticket
-    # locked by a process that no longer exists -- and a cross-host lock
-    # stranded that way does not read as stale for 24 hours.
+    # repo-level writes do. Before this, a raise skipped the release and
+    # dispatch.py swallowed it, so the net exited 0 having left the run locked
+    # by a process that no longer exists -- and a cross-host lock stranded that
+    # way does not read as stale for 24 hours.
     try:
-        for skill in HOOKED_SKILLS:
-            state = read_json(state_path(tdir, skill))
-            if not isinstance(state, dict):
-                continue
-            runs = state.get("runs") or []
-            if runs and isinstance(runs[-1], dict) and runs[-1].get("status") == "in_progress":
-                _state, entry = finalize_run(tdir, skill, ticket_id, {
-                    "status": "interrupted",
-                    "stop_reason": "session ended while the skill was in progress",
-                })
-                update_pipeline(tdir, ticket_id, skill, "interrupted",
-                                summary="session ended mid-skill",
-                                flow="product" if skill in PRODUCT_SKILLS else "ticket")
-                # keep repo-level metrics consistent with the ticket ledger:
-                # an interrupted run still spent time/tokens
-                update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
+        step = run_machine.in_progress_step(doc)
+        if step:
+            wf = _workflow_for(ctx)
+            _state, entry = step_machine.finalize_invocation(rdir, step, run_id, {
+                "status": "interrupted",
+                "stop_reason": "session_end",
+            })
+            run_machine.finish_step(rdir, step, wf, status="interrupted",
+                                    stop_reason="session_end",
+                                    summary="session ended mid-step")
+            # keep repo-level metrics consistent with the run ledger: an
+            # interrupted invocation still spent time and tokens.
+            update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
     except GuardTimeout as exc:
         sys.stderr.write(
-            "acs session-end: %s\n%s's run is finalized as interrupted and the "
-            "lock is released; metrics.json was not updated, so this run's tokens "
-            "and cost are lost from it.\n" % (exc, ticket_id))
+            "acs session-end: %s\n%s's step is finalized as interrupted and the "
+            "lock is released; metrics.json was not updated, so this step's tokens "
+            "and cost are lost from it.\n" % (exc, run_id))
     finally:
-        release_lock(tdir, cwd)
+        sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id, step=None)
+        release_lock(rdir, cwd)

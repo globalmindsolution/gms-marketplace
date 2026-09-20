@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "acs state fragment for /acs:code",
+  "description": "What THIS skill records: the `states` keys it owns and, when it completes in more than one way, its closed `outcome` vocabulary. The envelope is validated centrally by step-state.schema.json; this fragment is why adding a skill is a directory rather than an edit to a central schema (\u00a74.4).",
+  "type": "object",
+  "properties": {
+    "states": {
+      "type": "object",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "plan_approved": {
+          "type": "boolean"
+        },
+        "plan_path": {
+          "type": "string"
+        },
+        "file_map": {
+          "type": "array"
+        },
+        "specs_implemented": {
+          "type": "array"
+        },
+        "commits": {
+          "type": "array"
+        },
+        "delivery_path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outcome": {
+      "description": "One way to complete; the leg that did it is recorded on the run's step entry.",
+      "enum": [
+        "implemented"
+      ]
+    }
+  }
+}

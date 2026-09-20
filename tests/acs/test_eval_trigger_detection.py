@@ -254,12 +254,10 @@ class S04ProbeSetTest(unittest.TestCase):
     NEW_CASES = {"create-docs", "create-requirements", "docs-sync"}
 
     # Shipped skill directories with no probe, each for a stated reason.
-    # `test` is the alias DIRECTORY that phases.yaml forwards to run-e2e-tests;
-    # a probe of its own would measure the same routing decision twice under a
-    # name the registry only keeps for one release, and run-e2e-tests carries
-    # the real probe. It is the only entry that can never earn one.
-    # Anything else missing a probe is a defect this test catches.
-    UNPROBED = {"test"}
+    # v0.5.0 retired the `test` alias directory, which was the only entry
+    # here: every shipped skill now has a probe, so a missing one is a defect
+    # this test catches with no exclusions at all.
+    UNPROBED = set()
 
     def test_every_shipped_skill_has_a_probe_or_a_recorded_reason(self):
         probed = {expected for _, _, _, expected in s04.CASES}

@@ -141,14 +141,20 @@ class WorkflowSplitTest(unittest.TestCase):
     were: into neighbours that own a layer, with the entry point re-exporting
     their whole surface so no caller had to move.
 
-    The split is by LAYER, not by line count. `phases` answers "which skills
-    exist and where do the plugin's files live" and `schemasubset` answers
-    "does this document satisfy this schema" — both without loading, resolving
-    or validating a pipeline document, which is what let `workflow` shed them
-    in the first place. Anything that needs a workflow stays in `workflow`."""
+    The split is by LAYER, not by line count. `schemasubset` answers "does
+    this document satisfy this schema" without loading, resolving or
+    validating a pipeline document, which is what let `workflow` shed it in
+    the first place. Anything that needs a workflow stays in `workflow`.
+
+    `phases` was the second neighbour, answering "which skills exist and where
+    do the plugin's files live" for `workflows/phases.yaml`. v0.5.0 retired
+    that document -- a skill is a DIRECTORY, and a registry file naming the
+    same skills was a second place for the set to drift -- so the neighbour
+    went with it and `acs_lib.skills` answers the surviving half from the
+    directories themselves."""
 
     #: What `workflow` was split into, and what each neighbour owns.
-    NEIGHBOURS = ("phases", "schemasubset")
+    NEIGHBOURS = ("schemasubset",)
 
     def _modules(self):
         import importlib
@@ -165,7 +171,12 @@ class WorkflowSplitTest(unittest.TestCase):
                 if name.startswith("_"):
                     continue
                 # Only what the neighbour DEFINES; modules it imported for its
-                # own use are not part of the surface it owes the facade.
+                # own use are not part of the surface it owes the facade. A
+                # MODULE object has no `__module__` at all, so the None arm
+                # below would have adopted `re` and `json` as surface.
+                import types
+                if isinstance(value, types.ModuleType):
+                    continue
                 if getattr(value, "__module__", None) not in (neighbour.__name__, None):
                     continue
                 with self.subTest(neighbour=neighbour.__name__, name=name):
@@ -187,13 +198,21 @@ class WorkflowSplitTest(unittest.TestCase):
             self.assertNotIn("from .workflow import", body)
             self.assertNotIn("from . import workflow", body)
 
-    def test_one_error_class_spans_both_documents(self):
-        """`phases.yaml` and `ship.yaml` are two documents of one contract, so
-        a caller catching a bad registry and a caller catching a bad pipeline
+    def test_one_error_class_spans_the_split(self):
+        """A caller catching a bad schema and a caller catching a bad pipeline
         catch the same class — the split must not have forked it."""
-        workflow, (phases_mod, _) = self._modules()[0], self._modules()[1]
-        self.assertIs(workflow.WorkflowError, phases_mod.WorkflowError)
-        self.assertIs(phases_mod.PhasesError, phases_mod.WorkflowError)
+        workflow, (schemasubset,) = self._modules()
+        self.assertIs(workflow.WorkflowError, schemasubset.WorkflowError)
+
+    def test_the_retired_neighbour_is_gone_rather_than_stubbed(self):
+        """`workflows/phases.yaml` and its module are retired together. A stub
+        left behind would be a second answer to "which skills exist" that
+        nothing keeps in step with the directories."""
+        self.assertFalse(
+            os.path.isfile(os.path.join(PLUGIN, "hooks", "scripts", "acs_lib",
+                                        "phases.py")))
+        self.assertFalse(
+            os.path.isfile(os.path.join(PLUGIN, "workflows", "phases.yaml")))
 
 
 if __name__ == "__main__":

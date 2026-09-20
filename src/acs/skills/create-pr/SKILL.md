@@ -20,7 +20,7 @@ subagent for this skill.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-pr --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-pr
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -41,7 +41,7 @@ Parse the printed context JSON. Fields you will use:
 - `ticket_id`, `ticket` — id, title, type, and `external` (the
   `{provider, key}` remote-tracker mapping, when synced).
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/create-pr/`.
+  artifacts go in `steps/create-pr/`.
 - `settings.formats` — `pr_title` (default `[{ticket_id}] {title}`; vocabulary
   `{ticket_id}` `{type}` `{title}` `{summary}` `{external_key}`) and
   `pr_description_template` (default `pr-default`).
@@ -57,7 +57,6 @@ Parse the printed context JSON. Fields you will use:
   `acs.py artifacts show --ticket <that id>`, i.e. its docs folder, or
   `<design.dir>/design.md` when the tree is opted out — feeds the
   Summary/Changes content. Call it `<design_doc>`.
-- `post_hook` — absolute path to `post-create-pr.py`.
 
 State inputs (read these; conversation history is NOT an input):
 
@@ -104,7 +103,6 @@ upstream code/spec lanes, not in apply-work.
 The coordinator performs the following numbered steps directly, or delegates
 the entire numbered flow to at most one `acs:create-pr-executor` subagent when
 run complexity warrants it. When delegating, send one `<task>` message
-(validated with validate_xml.py against schemas/acs-messages.xsd); the
 executor returns one `<result>` with the phase artifact reference. The
 coordinator never delegates to a planner or verifier. If the runtime rejects a
 model or effort setting from `context.models.executor`, FAIL the run with that
@@ -122,7 +120,7 @@ exact error — no silent fallback.
    `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
    `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path.
    Unresolvable template = blocking problem, surface it. Fill the resolved
-   template into `<partition>/phases/create-pr/pr-body.md`: replace every
+   template into `steps/create-pr/pr-body.md`: replace every
    placeholder (`{ticket_id}`, `{type}`, `{title}`, `{summary}`,
    `{external_key}`; `{external_key_line}` renders as
    ` — tracker: <provider> <key>` when `ticket.external` is set, empty
@@ -176,7 +174,7 @@ exact error — no silent fallback.
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-     --title "<rendered title>" --body-file <partition>/phases/create-pr/pr-body.md \
+     --title "<rendered title>" --body-file steps/create-pr/pr-body.md \
      --require-label ACS --pr-title-format "<settings.formats.pr_title>" \
      --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
      --ticket-prefix <settings.ticket_prefix>
@@ -215,7 +213,7 @@ exact error — no silent fallback.
    If no open PR exists for the branch:
 
    ```bash
-   gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file <partition>/phases/create-pr/pr-body.md --label ACS
+   gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file steps/create-pr/pr-body.md --label ACS
    ```
 
    No `--draft` — PRs are created ready-for-review. If an open PR already
@@ -280,14 +278,13 @@ exact error — no silent fallback.
    PR discoverable from the issue and vice versa — the bidirectional
    cross-reference (AC-3) holds from both directions.
 
-Write a phase artifact `<partition>/phases/create-pr/iter-1-execute.json`
+Write a phase artifact `steps/create-pr/iter-1/execute.json`
 (commands run with outcomes, pushed SHA, PR number/url/base, sync result,
 problems hit, the pre-open self-check's pass/fail result and, on retry, how
 many attempts were used, plus the tracker-metadata-fill result — assignee/
 label/Project outcomes and any findings — additive, alongside the existing
 fields, plus the additive `reviewers{requested, skipped_reason, findings}`
 and `project_fields{priority, story_points, parent, findings}` keys).
-Validate any `<task>`/`<result>` XML with validate_xml.py.
 
 ### GitHub call failure policy (gh is acs's only transport)
 
@@ -359,7 +356,7 @@ with a conflicting base. Do not guess.
 
 If you genuinely cannot reach the user (e.g. a non-interactive run): do not
 guess. Write the result document with status `"failed"` and
-`stop_reason` "needs user input", run the Finish steps, and return as your
+`summary` "needs user input", run the Finish steps, and return as your
 final message a handoff like:
 
 ```xml
@@ -372,7 +369,6 @@ final message a handoff like:
 </handoff>
 ```
 
-Validate it with validate_xml.py like every other message. On invalid:
 re-request the message once with the validation error; still invalid → fail the
 run and record the error in the result document's `errors`.
 
@@ -381,7 +377,7 @@ run and record the error in the result document's `errors`.
 If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Flush in-flight work plus soft context (rendered
 title, body status, push/PR/sync progress, decisions, gotchas) to
-`<partition>/phases/create-pr/handoff-context.md`, then run:
+`steps/create-pr/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
@@ -393,13 +389,13 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/create-pr/result.json` per the result-document
+1. Write `steps/create-pr/result.json` per the result-document
    contract in INTERNALS.md:
 
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed on iteration 1 with 0 findings; PR #42 ready for review",
+     "summary": "verifier passed on iteration 1 with 0 findings; PR #42 ready for review",
      "states": {
        "pr": {
          "number": 42,
@@ -419,12 +415,12 @@ MANDATORY final step — never skipped, also on failure:
    updated but verification failed, still record the real `pr` object; if no
    PR exists, omit `pr` entirely (never a stub) — the /acs:merge-pr gate stays
    closed. Put verifier findings in `findings`, errors in `errors`, the reason
-   in `stop_reason`.
+   in `summary`.
 
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-pr.py" --ticket <ticket-id> --result-file <partition>/phases/create-pr/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-pr.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim — the pipeline gate stays
@@ -437,7 +433,7 @@ MANDATORY final step — never skipped, also on failure:
    `/acs:merge-pr <ticket-id>` (a user action; the pipeline never triggers
    it). Under /acs:ship, instead return ONLY the `<handoff>` XML as your final
    message — status, summary (<=1KB) naming the PR number/URL, `<artifacts>`
-   referencing `phases/create-pr/result.json`, and `<next-step>` pointing at
+   referencing `steps/create-pr/result.json`, and `<next-step>` pointing at
    /acs:merge-pr as the user's review-and-merge action.
 
 ## Completion report (normative)
@@ -451,7 +447,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-pr · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: PR number and URL; base branch; head branch; `ACS` label applied
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

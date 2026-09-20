@@ -103,29 +103,54 @@ class TestReadResultFromArgv(AcsWorkspaceCase):
         self.assertIn("invalid JSON", result.stderr)
 
     def test_status_and_stop_reason_flags_persisted(self):
-        """1904: --status overrides result['status']; 1906: --stop-reason
-        sets result['stop_reason'] -- both persisted into code-state.json."""
+        """--status overrides result['status']; --stop-reason sets
+        result['stop_reason'] -- both persisted onto the step's invocation.
+
+        Both flags are now CONSTRAINED: `--status` to a step's terminal
+        statuses (the run-level `abandoned` was never one a post-hook could
+        write) and `--stop-reason` to the three-value vocabulary. A free-text
+        reason is what the `summary` field is for."""
+        ticket = self.new_ticket("Flag-driven post", "task")
+        self.ensure_run(ticket)
+        result = self.run_script(
+            "post-code.py", "--run", ticket, "--status", "interrupted",
+            "--stop-reason", "needs_input", stdin="")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        entry = lib.last_invocation(lib.load_state(self.rdir(ticket), "code"))
+        self.assertEqual(entry["status"], "interrupted")
+        self.assertEqual(entry["stop_reason"], "needs_input")
+
+    def test_a_free_text_stop_reason_is_refused(self):
         ticket = self.new_ticket("Flag-driven post", "task")
         result = self.run_script(
-            "post-code.py", "--ticket", ticket, "--status", "failed",
+            "post-code.py", "--run", ticket, "--status", "failed",
             "--stop-reason", "boom", stdin="")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("--stop-reason", result.stderr)
+
+    def test_the_ticket_flag_still_names_the_run(self):
+        """A ticket-subject run's id IS the ticket id (4.2), so the old
+        spelling keeps working rather than failing on muscle memory."""
+        ticket = self.new_ticket("Flag-driven post", "task")
+        self.ensure_run(ticket)
+        result = self.run_script(
+            "post-code.py", "--ticket", ticket, "--status", "completed",
+            stdin="")
         self.assertEqual(result.returncode, 0, result.stderr)
-        state = lib.load_state(self.tdir(ticket), "code")
-        self.assertEqual(state["runs"][-1]["status"], "failed")
-        self.assertEqual(state["runs"][-1]["stop_reason"], "boom")
+        self.assertEqual(lib.last_status(self.rdir(ticket), "code"), "completed")
 
     def test_valid_result_file_used_when_partition_is_absent(self):
         """1894: a valid --result-file's JSON object becomes the result dict
         (no error, parsing falls through to it). Doubles as run_post's
-        1976-1977 absent-partition exit: --ticket resolves the id directly,
-        but that ticket was never created, so no partition exists for it."""
+        Doubles as run_post's absent-run exit: `--run` names an id directly,
+        but no run was ever created over it."""
         result_file = os.path.join(self.tmp, "result.json")
         with open(result_file, "w") as fh:
             json.dump({"status": "completed"}, fh)
         result = self.run_script(
-            "post-code.py", "--ticket", "SHOP-999", "--result-file", result_file)
+            "post-code.py", "--run", "SHOP-999", "--result-file", result_file)
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("no active partition", result.stderr)
+        self.assertIn("no run SHOP-999", result.stderr)
 
 
 class TestRunPostExits(AcsWorkspaceCase):
@@ -146,13 +171,12 @@ class TestRunPostExits(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("no .acs/settings.json", result.stderr)
 
-    def test_exits_when_ticket_cannot_be_resolved(self):
-        """1972-1973: run_post exits 1 when no ticket id can be resolved (no
-        --ticket, no session pointer, and the fixture's branch is not a
-        <PREFIX>-N form)."""
+    def test_exits_when_the_run_cannot_be_resolved(self):
+        """run_post exits 1 when no run can be resolved (no --run, no session
+        pointer, and the fixture's branch is not a <PREFIX>-N form)."""
         result = self.run_script("post-code.py", stdin=json.dumps({"status": "completed"}))
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("could not resolve the ticket id", result.stderr)
+        self.assertIn("could not resolve the run", result.stderr)
 
     def test_exits_when_no_result_document_is_given(self):
         """An absent result must not read as a completed run: without a result

@@ -27,7 +27,7 @@ a child carries `needs_design: false`, so the flag check blocks it automatically
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-design --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-design
 ```
 
 - If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -65,7 +65,7 @@ This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
 `design_approved` predicate and `/acs:code` look for, so the path this run
 chooses is the path that opens the next gate. Call it `<design_path>` below.
 
-The working draft lives at `<partition>/phases/create-design/design.md`; the
+The working draft lives at `steps/create-design/design.md`; the
 published file is a copy of those exact bytes (see Publish). The draft is
 workspace state — the executor writes it and the verifier judges it, and the
 file-map guard denies any subagent a write under the ticket docs tree.
@@ -74,7 +74,7 @@ file-map guard denies any subagent a write under the ticket docs tree.
 
 - If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
   `handed_off`): verify recorded progress against reality BEFORE continuing —
-  list `<partition>/phases/create-design/iter-*-*.xml`, re-resolve the design
+  list `steps/create-design/iter-*-*.xml`, re-resolve the design
   artifact (above) and re-read the draft and `<design_path>` if they exist, and
   check whether their content actually
   matches the last persisted phase output. Trust nothing you cannot see in a
@@ -83,12 +83,12 @@ file-map guard denies any subagent a write under the ticket docs tree.
   phase/iteration; never redo work that demonstrably holds, never trust work
   you cannot see in an artifact.
 - If `context.handoff_summary` exists: read it plus
-  `<partition>/phases/create-design/handoff-context.md` (when present), do a light
+  `steps/create-design/handoff-context.md` (when present), do a light
   reconcile (spot-check the named artifacts), and continue from where it points.
 - There is no plan artifact to reuse: continue from the first unfinished
   phase — an execute with no verify → verify it; a verify with findings and
   no later execute → execute with those findings as `<context>`. The
-  executor's authoring notes (`iter-<n>-authoring.md`) belong to their
+  executor's authoring notes (`iter-<n>/authoring.md`) belong to their
   iteration.
 - Fresh run (`reconcile` false): start at iteration 1, execute phase.
 
@@ -128,7 +128,7 @@ a fixed 3 on every run.
 
 For every phase:
 
-1. Compose a `<task>` per `schemas/acs-messages.xsd`:
+1. Compose a `<task>` per `the SubagentStop hook's message check`:
 
    ```xml
    <task skill="create-design" phase="execute" ticket-id="SHOP-123" iteration="1">
@@ -148,10 +148,8 @@ For every phase:
 2. Validate EVERY message you send and receive:
 
    ```bash
-   echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
    ```
 
-   (or `validate_xml.py <file>` after persisting). On an invalid message from a
    subagent: re-request once with the validation error quoted; still invalid →
    fail the run, recording the error in `errors`.
 
@@ -170,11 +168,11 @@ sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 4. Persist the phase's `<task>` and `<result>` to
-   `<partition>/phases/create-design/iter-<n>-<phase>.xml` at the phase boundary,
+   `steps/create-design/iter-<n>/<phase>.json` at the phase boundary,
    BEFORE starting the next phase. The executor's own artifacts are
-   `iter-<n>-authoring.md` (its survey: Analysis; Decisions & candidate
+   `iter-<n>/authoring.md` (its survey: Analysis; Decisions & candidate
    options with trade-offs; NFR checklist; Architecture conformance call;
-   Open questions; Risks; Verifier checklist) and `iter-<n>-execute.json`;
+   Open questions; Risks; Verifier checklist) and `iter-<n>/execute.json`;
    every iteration's verifier `<inputs>` name that iteration's authoring
    notes.
 
@@ -194,7 +192,7 @@ If the executor returns `needs_input` with `<questions>`, resolve them in
 "User interaction" below and re-run execute for the same iteration with the
 answers in `<context>`.
 
-Then the draft: write it at `<partition>/phases/create-design/design.md`
+Then the draft: write it at `steps/create-design/design.md`
 (the executor mutates ONLY the workspace partition — never the consumer repo, and
 never the ticket docs tree, which the file-map guard denies it; the coordinator
 publishes the verified draft to `<design_path>` in Publish below). Required
@@ -266,7 +264,7 @@ partition).
 
 You MAY run multiple executors in parallel ONLY when their outputs cannot
 conflict (e.g. one drafting the design draft, one writing a research note to
-`<partition>/phases/create-design/research-<topic>.md`). Two executors never
+`steps/create-design/research-<topic>.md`). Two executors never
 touch the draft in the same iteration. The verifier runs after ALL executors
 finish and judges the combined result. On iterations 2-3 the verifier's
 findings go verbatim into the executor `<task>`'s `<context>`, with no
@@ -280,7 +278,7 @@ when set (see below).
 
 Spawn fresh — it sees artifacts (the design draft, ticket, architecture docs,
 code), never the executor's reasoning. Its `<inputs>` name the draft at
-`<partition>/phases/create-design/design.md`: the verifier judges the bytes
+`steps/create-design/design.md`: the verifier judges the bytes
 Publish then copies, so nothing unverified reaches `<design_path>`. It checks,
 each a finding `dimension`:
 
@@ -321,13 +319,13 @@ executor is checked against. Copy, never re-author — the published bytes must
 equal the verified bytes:
 
 ```bash
-cp "<partition>/phases/create-design/design.md" "<design_path>"
+cp "<partition>/steps/create-design/design.md" "<design_path>"
 ```
 
 Committing it: `/acs:create-design` is Design-phase work and normally runs
 BEFORE any ticket branch exists, so it never commits to the repo's default
 branch. Leave the published file in the working tree — the first Build step
-(`/acs:analyze-ticket`) creates the ticket branch and commits the ticket's
+(`/acs:analyze-requirements`) creates the ticket branch and commits the ticket's
 docs folder, which carries this design into the branch and into the PR. If a
 ticket branch for `<id>` is ALREADY the checked-out branch (a re-design
 mid-ticket), commit `<design_path>` on it yourself with
@@ -368,7 +366,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
   ```xml
   <handoff skill="create-design" ticket-id="SHOP-123" status="needs_input">
     <summary>Design blocked on user decision: sync vs. async export pipeline. Options and trade-offs drafted in design.md (Options considered).</summary>
-    <artifacts><file>/abs/workspace/repo/SHOP-123/phases/create-design/design.md</file></artifacts>
+    <artifacts><file>/abs/workspace/repo/SHOP-123/steps/create-design/design.md</file></artifacts>
     <questions><question>Should export run synchronously in-request (simpler, blocks UX >2s) or via a queued worker (new component, resilient)?</question></questions>
     <next-step>Answer, then re-run /acs:create-design SHOP-123</next-step>
   </handoff>
@@ -378,7 +376,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 
 If your context is running low mid-run: flush in-flight work and soft context
 (user answers, decisions, partial findings, gotchas) to
-`<partition>/phases/create-design/handoff-context.md`, then run:
+`steps/create-design/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -391,13 +389,13 @@ last of your context on work that would be lost.
 
 MANDATORY final step — never skipped, including on failure or handoff:
 
-1. Write `<partition>/phases/create-design/result.json` per the result-document
+1. Write `steps/create-design/result.json` per the result-document
    contract in INTERNALS.md. Canonical `states` keys (EXACT names) on success:
 
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 2",
+     "summary": "verifier passed with zero findings on iteration 2",
      "states": {
        "design_path": "docs/tickets/SHOP-123/design.md",
        "decision": "Queue-backed export worker behind the existing API gateway (Option B)"
@@ -412,12 +410,12 @@ MANDATORY final step — never skipped, including on failure or handoff:
    out); `decision` is the one-line decision statement from "Decision &
    rationale". On `failed`: keep whatever is true (e.g. `design_path` when a
    draft exists but was never published, naming the draft), put the verifier's
-   blocking findings in `findings`, and the reason in `stop_reason`.
+   blocking findings in `findings`, and the reason in `summary`.
 
 2. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-design.py" --ticket <id> --result-file <partition>/phases/create-design/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-design.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim — the /acs:code gate
@@ -435,7 +433,6 @@ MANDATORY final step — never skipped, including on failure or handoff:
      `<design_path>`, and exactly one `<next-step>`: `/acs:code <id>`
      for a non-epic ticket; for an epic, `/acs:create-ticket <id>` (epic
      fan-out), then `/acs:code` on a child.
-     Validate it with validate_xml.py like every other message.
 
 ## Completion report (normative)
 
@@ -448,7 +445,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 ## /acs:create-design · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: `design.md` (the published `<design_path>`); the decision in one line; architecture changes required (or "conforms")
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>

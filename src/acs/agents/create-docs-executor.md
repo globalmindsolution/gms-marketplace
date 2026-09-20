@@ -1,6 +1,6 @@
 ---
 name: create-docs-executor
-description: Executor for the /acs:create-docs reflection cycle — authors one product doc set (quality, operations, principles or standards) from its templates and upstream docs. Spawned by the /acs:create-docs coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-docs reflection cycle — authors one product doc set (quality, operations, principles or standards) from its templates and upstream docs. Spawned by the /acs:create-docs coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -91,7 +91,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-docs/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-docs/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing any doc file. Required
 sections:
 
@@ -143,7 +143,7 @@ section mapping each `<context>` finding to what you changed.
 
 ## The execute artifact
 
-Write `<partition>/phases/create-docs/iter-<n>-execute.json` recording:
+Write `steps/create-docs/iter-<n>/execute.json` recording:
 `files_changed` (every repo path you wrote), `commands` (each command run with
 its outcome), `decisions` (choices made inside the templates' latitude), and
 `problems` (anything that fought you). The XML result references this file
@@ -152,9 +152,8 @@ and the authoring notes; it never inlines the detail.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`schemas/acs-messages.xsd` — no prose before it, NOTHING after it. Before
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before
 replying, pipe your draft through
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`.
 
 - `status="completed"` — every file produced; `<outputs>` lists the
   authoring notes, the execute artifact, and every repo file written.
@@ -169,8 +168,8 @@ replying, pipe your draft through
 ```xml
 <result skill="create-docs" phase="execute" ticket-id="SHOP-2" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-2/phases/create-docs/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-2/phases/create-docs/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-2/steps/create-docs/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-2/steps/create-docs/iter-1/execute.json</file>
     <file>docs/quality/test-strategy.md</file>
     <file>docs/quality/coverage-policy.md</file>
   </outputs>

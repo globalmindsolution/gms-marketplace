@@ -37,7 +37,9 @@ from datetime import datetime, timedelta, timezone
 GH_TIMEOUT_SECONDS = 10
 
 from ._common import read_json
-from .repo import gh_failure_hint, state_path
+from .repo import gh_failure_hint
+from .run import iteration_dir, step_dir
+from .step import load_state, state_path
 from . import verdict as verdict_mod
 
 #: The keys this module owns. A coordinator may still write them -- SKILL.md
@@ -46,14 +48,37 @@ DERIVED_KEYS = ("verifier_passed", "tests", "pr", "review")
 
 #: Only /acs:code has the verifier whose verdict gates /acs:create-pr, so only
 #: its result document has a `verifier_passed` to derive.
-VERDICT_SKILLS = ("code",)
+#: The skills whose `verifier_passed` is DERIVED from a verdict document.
+#: `/acs:code` is not one of them any more -- it has no verifier, and the
+#: review is `/acs:review-code` (§3.5). Deriving code's pass from a verdict
+#: code never writes would have left the key absent, which reads as "did not
+#: pass" and would have shut the create-pr gate on every run.
+VERDICT_SKILLS = ("review-code",)
 
-_EXECUTE_RE = re.compile(r"^iter-(\d+)-execute(?:-\d+)?\.json$")
-_VERIFY_RE = re.compile(r"^iter-(\d+)-(?:verify|verdict)")
+#: The audit trail is `steps/<skill>/iter-<n>/`, one DIRECTORY per iteration
+#: (§4.2). Under the prefix scheme it replaced, the artifacts of an iteration
+#: were files sharing a name prefix and "the current one" was whichever sorted
+#: last -- which is how `iter-1-execute-superseded-1.json` came about. A
+#: directory per iteration makes the trail something you list rather than
+#: something you parse.
+_EXECUTE_RE = re.compile(r"^execute(?:-\d+)?\.json$")
+_ITER_RE = re.compile(r"^iter-(\d+)$")
 
 
-def _phase_dir(tdir, skill):
-    return os.path.join(tdir, "phases", skill)
+def _phase_dir(rdir, skill):
+    """Kept under its old name because every caller here reads it the same
+    way; it is the STEP directory now."""
+    return step_dir(rdir, skill)
+
+
+def _iterations(rdir, skill):
+    """[(n, path)] for every iteration directory, ascending."""
+    out = []
+    for name in _listdir(step_dir(rdir, skill)):
+        match = _ITER_RE.match(name)
+        if match and os.path.isdir(os.path.join(step_dir(rdir, skill), name)):
+            out.append((int(match.group(1)), os.path.join(step_dir(rdir, skill), name)))
+    return sorted(out)
 
 
 def _listdir(path):
@@ -65,28 +90,33 @@ def _listdir(path):
 
 def execute_reports(tdir, skill):
     """[(iteration, path, doc)] for every readable execute report, ascending."""
-    directory = _phase_dir(tdir, skill)
     out = []
-    for name in _listdir(directory):
-        match = _EXECUTE_RE.match(name)
-        if not match:
-            continue
-        doc = read_json(os.path.join(directory, name))
-        if isinstance(doc, dict):
-            out.append((int(match.group(1)), os.path.join(directory, name), doc))
+    for number, directory in _iterations(tdir, skill):
+        for name in _listdir(directory):
+            if not _EXECUTE_RE.match(name):
+                continue
+            doc = read_json(os.path.join(directory, name))
+            if isinstance(doc, dict):
+                out.append((number, os.path.join(directory, name), doc))
     return sorted(out, key=lambda item: item[0])
 
 
-def review_iterations(tdir, skill):
-    """How many iterations actually produced a verify artifact.
+def review_iterations(rdir, skill=None):
+    """How many iterations actually produced a review artifact.
 
     Counted from the files on disk rather than from a number the coordinator
-    kept in its head across a loop it may have re-entered."""
+    kept in its head across a loop it may have re-entered. It counts
+    `review-code`'s directories whatever step is being posted: a run has one
+    review, and `code`'s own iteration directories hold implementation, not
+    judgement. `skill` is accepted and ignored so every caller can pass the
+    step it is finishing.
+    """
     seen = set()
-    for name in _listdir(_phase_dir(tdir, skill)):
-        match = _VERIFY_RE.match(name)
-        if match:
-            seen.add(int(match.group(1)))
+    for step in VERDICT_SKILLS:
+        for number, directory in _iterations(rdir, step):
+            if any(name.startswith(("verdict", "lens-", "adjudication", "gate"))
+                   for name in _listdir(directory)):
+                seen.add((step, number))
     return len(seen)
 
 
@@ -97,8 +127,8 @@ def guard_denials(tdir, skill):
     when there is no state file to read -- absence is not a reason to fail a
     derivation that only ever reports a count."""
     state = read_json(state_path(tdir, skill))
-    runs = state.get("runs") if isinstance(state, dict) else None
-    entry = runs[-1] if isinstance(runs, list) and runs else None
+    invocations = state.get("invocations") if isinstance(state, dict) else None
+    entry = invocations[-1] if isinstance(invocations, list) and invocations else None
     events = entry.get("guard_events") if isinstance(entry, dict) else None
     return len(events) if isinstance(events, list) else 0
 
@@ -112,12 +142,15 @@ def latest_verdict(tdir, skill, since=None):
     flow, so without this a stale pass at a higher iteration number silently
     beat this run's fail."""
     best = None
-    for name in _listdir(_phase_dir(tdir, skill)):
-        match = re.match(r"^iter-(\d+)-verdict\.json$", name)
+    for number, directory in _iterations(tdir, skill):
+        name = "verdict.json"
+        if name not in _listdir(directory):
+            continue
+        match = re.match(r"^(\d+)$", str(number))
         if not match:
             continue
         iteration = int(match.group(1))
-        if since and not _written_since(_phase_dir(tdir, skill), name, since):
+        if since and not _written_since(directory, name, since):
             continue
         if best is None or iteration > best:
             best = iteration
@@ -146,7 +179,7 @@ def _written_since(directory, name, since):
     return mtime >= floor - timedelta(seconds=5)  # filesystem granularity
 
 
-def derive_verifier_passed(tdir, skill, ticket_id=None, since=None):
+def derive_verifier_passed(tdir, skill, run_id=None, since=None):
     """(value, why). Absence is an answer here: no passing verdict, no gate.
 
     This is the one derivation that refuses to fall back on the coordinator.
@@ -156,7 +189,7 @@ def derive_verifier_passed(tdir, skill, ticket_id=None, since=None):
     Three things have to hold, and each was a way in before:
       * the verdict belongs to THIS run (`since`), not one left behind by a
         previous /acs:code on the same ticket;
-      * it is ABOUT this ticket and skill (`ticket_id`) -- only its path was
+      * it is ABOUT this ticket and skill (`run_id`) -- only its path was
         ever checked, so a document naming another ticket was accepted;
       * it is COMPLETE -- validate_verdict now requires every owed dimension,
         so a one-dimension document no longer reads as a clean review.
@@ -166,7 +199,7 @@ def derive_verifier_passed(tdir, skill, ticket_id=None, since=None):
         return False, ("no verdict.json for this run in %s -- the verifier writes one "
                        "per iteration (MAR-527); re-run /acs:%s"
                        % (_phase_dir(tdir, skill), skill))
-    errors = verdict_mod.validate_verdict(doc, skill=skill, ticket_id=ticket_id,
+    errors = verdict_mod.validate_verdict(doc, skill=skill, run_id=run_id,
                                           iteration=iteration)
     if errors:
         return False, ("the iteration-%s verdict is not usable (%s)"
@@ -250,7 +283,7 @@ def _tests_from_execute_reports(tdir, skill):
     """
     reports = execute_reports(tdir, skill)
     if not reports:
-        return None, "no iter-<n>-execute*.json report to read"
+        return None, "no execute*.json report to read in any iteration directory"
     last = max(iteration for iteration, _path, _doc in reports)
     current = [(path, doc) for iteration, path, doc in reports if iteration == last]
 
@@ -360,7 +393,7 @@ def gh_pr_for_branch(branch, runner=None):
 
 
 def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=None,
-                  ticket_id=None, since=None):
+                  run_id=None, since=None):
     """(derived, notes) for the four keys this module owns.
 
     `derived` holds only the keys that could actually be computed; `notes` maps
@@ -373,7 +406,7 @@ def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=Non
     derived, notes = {}, {}
 
     if skill in VERDICT_SKILLS:
-        value, why = derive_verifier_passed(tdir, skill, ticket_id=ticket_id, since=since)
+        value, why = derive_verifier_passed(tdir, skill, run_id=run_id, since=since)
         derived["verifier_passed"] = value
         notes["verifier_passed"] = why
 
@@ -402,11 +435,12 @@ def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=Non
             review["guard_denials"] = denials
         derived["review"] = review
     if iterations:
-        notes["review"] = "%d iteration(s) with a verify artifact on disk" % iterations
+        notes["review"] = "%d review iteration(s) with a verdict on disk" % iterations
     else:
-        notes["review"] = "no verify artifact on disk"
+        notes["review"] = "no review artifact on disk"
     if denials:
-        notes["review"] += "; %d guard denial(s) on runs[-1].guard_events" % denials
+        notes["review"] += ("; %d guard denial(s) on invocations[-1].guard_events"
+                            % denials)
 
     pr, why = gh_pr_for_branch(branch, runner=pr_runner)
     notes["pr"] = why

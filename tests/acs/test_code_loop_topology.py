@@ -18,7 +18,14 @@ import glob
 import io
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "src", "acs", "hooks", "scripts"))
+
+from acs_lib import workflow  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
@@ -95,8 +102,13 @@ class NoPlanPhaseInCodeTest(unittest.TestCase):
 
 
 class FindingsRouteStraightToExecutorTest(unittest.TestCase):
-    """AC-2: verifier findings on iteration 2+ go straight to the executor's
-    <context>, with no intervening planner spawn."""
+    """AC-2: review findings on iteration 2+ go straight to the executor's
+    <context>, with no intervening planner spawn.
+
+    v0.5.0 moved the review itself out of /acs:code into /acs:review-code,
+    so the findings now arrive as that step's verdict rather than from a
+    verifier inside this skill. The routing property the AC pinned is
+    unchanged and is what is asserted here."""
 
     def test_findings_feed_the_executor_context_with_no_planner_in_between(self):
         body_norm = norm(_code_contract())
@@ -113,7 +125,8 @@ class FindingsRouteStraightToExecutorTest(unittest.TestCase):
     def test_executor_input_contract_still_carries_iteration_2plus_findings(self):
         body_norm = norm(read(CODE_EXECUTOR))
         self.assertIn(
-            "on iteration 2+ the verifier findings assigned to you", body_norm)
+            "on iteration 2+ the review's confirmed findings assigned to you",
+            body_norm)
         self.assertIn("<context>", body_norm)
 
     def test_planner_is_no_longer_promised_verifier_findings(self):
@@ -128,20 +141,43 @@ class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):
     triad, and each delivery path states its own cap.
 
     ADR-0095 replaced the verify-depth section this used to slice: there is no
-    depth to compute and no table to look a ceiling up in. Each leg declares
-    its own, which is both the cheaper read and the harder thing to get wrong."""
+    depth to compute and no table to look a ceiling up in.
 
-    CEILINGS = {"code-trivial": 2, "code-small": 2,
-                "code-standard": 3, "code-complex": 3}
+    v0.5.0 finished the move. The review left /acs:code for /acs:review-code,
+    so a leg has no verify phase of its own to cap, and the one ceiling that
+    remains is the workflow loop's: ship.yaml's `loops[].max_iterations`,
+    counting code -> review-code rounds. Each leg must SAY that rather than
+    restate a number, because a per-leg number is a second copy of a cap the
+    workflow already owns -- exactly the drift the per-path ceilings were
+    introduced to avoid and then became."""
 
-    def test_each_path_states_its_own_ceiling_in_execute_verify_rounds(self):
-        for leg, ceiling in self.CEILINGS.items():
+    LEGS = ("code-trivial", "code-small", "code-standard", "code-complex")
+
+    def test_no_path_states_a_ceiling_of_its_own(self):
+        for leg in self.LEGS:
             with self.subTest(leg=leg):
                 body = read(os.path.join(PLUGIN, "skills", leg, "SKILL.md"))
-                self.assertIn("**%d** execute -> verify rounds" % ceiling, body)
+                self.assertNotRegex(
+                    norm(body), r"(?i)\*\*\d+\*\* execute -> verify rounds",
+                    "%s must not restate a per-path iteration ceiling" % leg)
+
+    def test_every_path_defers_the_ceiling_to_the_workflow_loop(self):
+        for leg in self.LEGS:
+            with self.subTest(leg=leg):
+                body_norm = norm(read(os.path.join(PLUGIN, "skills", leg, "SKILL.md")))
+                self.assertRegex(
+                    body_norm,
+                    r"(?i)iteration ceiling.{0,80}ship\.yaml.{0,40}max_iterations")
+                self.assertRegex(body_norm, r"(?i)same cap on every path")
+
+    def test_the_workflow_owns_exactly_one_such_ceiling(self):
+        wf = workflow.validate_workflow_file(workflow.default_workflow_path())
+        loops = [l for l in workflow.loops_of(wf) if l["back_to"] == "code"]
+        self.assertEqual(len(loops), 1, loops)
+        self.assertIsInstance(loops[0]["max_iterations"], int)
 
     def test_no_path_reintroduces_a_computed_depth(self):
-        for leg in self.CEILINGS:
+        for leg in self.LEGS:
             body = read(os.path.join(PLUGIN, "skills", leg, "SKILL.md"))
             for token in ("verify_depth", "VERIFY_ITERATION_CAP", "derive_lane"):
                 with self.subTest(leg=leg, symbol=token):
@@ -149,7 +185,9 @@ class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):
 
     def test_there_is_no_plan_phase_inside_an_iteration(self):
         contract_norm = norm(_code_contract())
-        self.assertRegex(contract_norm, r"(?i)no plan\s+phase and no planner subagent")
+        self.assertRegex(
+            contract_norm,
+            r"(?i)no planner runs between the review and the fix")
 class ExecutorScopeEscapeHatchTest(unittest.TestCase):
     """AC-2 corollary: the executor's out-of-map escape hatch no longer
     promises a coordinator re-plan."""

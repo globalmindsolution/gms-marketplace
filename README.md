@@ -136,13 +136,14 @@ The marketplace currently ships two plugins:
 
 - **`acs` (Autonomous Coding Skills)** — full-shape plugin targeting Claude Code.
   Provides a complete agentic software-delivery workflow: from a raw request
-  through product definition (PRD), architecture, ticketing, design, ticket
-  analysis, an implementation plan, an API contract and test cases, TDD
-  implementation with an automatic review loop, end-to-end tests, doc sync,
-  pull request, and merge. Thirty-two skills (`/acs:setup`, `/acs:ship`,
-  `/acs:code`, …), grouped into five phases — Design, Build, Test, Ship and
-  Utility — by `src/acs/workflows/phases.yaml`; each runs a
-  plan → execute → verify reflection cycle with dedicated subagents.
+  through product definition (PRD), architecture, ticketing, design,
+  requirements analysis, an implementation plan, an API contract and test
+  cases, TDD implementation, a five-lens code review, end-to-end tests, doc
+  sync, pull request, and merge. Thirty-two skills (`/acs:setup`,
+  `/acs:ship`, `/acs:code`, …), each declaring its own phase — Design, Build,
+  Test, Ship or Utility — and the artifacts it reads and writes in its
+  `skills/<name>/acs.yaml`; each runs an execute → verify reflection cycle
+  with dedicated subagents.
 
   The human-facing ticket documents (`ticket.md`, `design.md`, `plan.md`,
   `test-cases.md`, …) live in the consumer repo under
@@ -153,14 +154,20 @@ The marketplace currently ships two plugins:
   across git worktrees.
 
   The delivery **order** is declared in
-  [`src/acs/workflows/ship.yaml`](src/acs/workflows/ship.yaml) (a
-  consumer can replace it wholesale with its own `.acs/workflows/ship.yaml`),
-  and `/acs:ship <ticket-id>` is a thin loop over it that runs independent
-  steps in parallel, one git worktree per leg. **`/acs:ship` takes a ticket
-  id** — a new request starts in the Design phase with `/acs:create-ticket`.
-  Each skill's pre/post hooks check only the *inputs* that skill reads plus a
-  couple of *safety brakes*, so every skill is runnable on its own: running
-  one out of the declared order prints a one-line advisory, never a refusal.
+  [`src/acs/workflows/ship.yaml`](src/acs/workflows/ship.yaml) — a version, a
+  flat list of skill names and one `loops:` entry, and deliberately nothing
+  more: no conditions, no `needs:`, no per-step keys. A consumer can replace
+  it wholesale with its own `.acs/workflows/ship.yaml`. Every step runs on
+  every run; a step that owes nothing records an evidenced no-op from the
+  plan's `## Contract` block rather than being skipped by a predicate, which
+  is what keeps each skill runnable on its own — a skill whose applicability
+  a workflow decided for it could not be trusted when invoked by hand.
+  `/acs:ship <ticket-id>` is a thin loop over `acs.py run next`, the run's
+  derived cursor. **`/acs:ship` takes a ticket id** — a new request starts in
+  the Design phase with `/acs:create-ticket`. Each skill's pre/post hooks
+  check only the *inputs* that skill reads plus a couple of *safety brakes*,
+  so running one out of the declared order prints a one-line advisory, never
+  a refusal.
 
 ## Repository layout
 

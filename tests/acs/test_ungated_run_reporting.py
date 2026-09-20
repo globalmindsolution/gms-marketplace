@@ -37,7 +37,10 @@ import acs_case  # noqa: E402
 
 lib = acs_case.lib
 
-MODULE_FILENAME = "skill-start.py"
+#: `acs step start` replaced skill-start.py (§4.8); the degraded-enforcement
+#: report moved with it, because it is the first thing a run says about
+#: whether it is gated at all.
+MODULE_FILENAME = "acs_commands.py"
 SKILL_START_PATH = os.path.join(acs_case.SCRIPTS, MODULE_FILENAME)
 REPO_ID = "acme-shop"
 
@@ -45,20 +48,23 @@ REPO_ID = "acme-shop"
 ENFORCEMENTS = ["precondition gate", "file-map guard",
                 "phase-artifact validation", "session bookkeeping"]
 
-#: The payload skill-start.py printed BEFORE this ticket (skill-start.py:361-383
-#: at the merge base). AC-6's "otherwise unchanged" is this set, verbatim.
-PRE_CHANGE_PAYLOAD_KEYS = {
-    "skill", "flow", "ticket_id", "ticket", "partition", "repo_id", "workspace",
-    "checkout_id", "checkout_root", "plugin_root", "settings", "settings_sources",
-    "models", "prior_run_status", "reconcile", "handoff_summary", "design",
-    "pipeline", "epic_marked_in_progress", "post_hook",
+#: The Start context, minus `gate_enforcement`. "Otherwise unchanged" is this
+#: set, verbatim: one document for every skill (§3.11), where skill-start.py
+#: assembled a per-skill one. `flow` went with `workflow` + `workflow_version`,
+#: `pipeline` with `run.json`, and `post_hook` with the per-skill post hooks --
+#: `acs step finish` is the one verb now.
+START_CONTEXT_KEYS = {
+    "ok", "step", "status", "in_workflow", "iteration", "run_id", "subject",
+    "ticket_id", "ticket", "partition", "workflow", "cursor", "repo_id",
+    "workspace", "checkout_id", "checkout_root", "plugin_root", "settings",
+    "settings_sources", "models", "prior_status", "reconcile", "handoff_summary",
+    "design",
 }
 
 #: The same, for the exempt-pr document (skill-start.py:95-114 at the merge base).
-PRE_CHANGE_EXEMPT_PR_KEYS = {
-    "skill", "mode", "repo_id", "workspace", "checkout_id", "checkout_root",
+EXEMPT_PR_KEYS = {
+    "ok", "step", "mode", "repo_id", "workspace", "checkout_id", "checkout_root",
     "plugin_root", "settings", "settings_sources", "exempt_reason", "pr",
-    "post_hook",
 }
 
 EXEMPT_PR_DOC = {
@@ -105,16 +111,30 @@ class SkillStartCase(acs_case.AcsWorkspaceCase):
         self.assertEqual(evidence["gate_skill"], skill)
 
     def start(self, ticket_id, skill="code", extra_argv=()):
-        """Run skill-start.py in-process; returns (code, payload_or_None, stderr)."""
-        mod = acs_case.load_module(MODULE_FILENAME)
-        argv = ["--skill", skill, "--ticket", ticket_id] + list(extra_argv)
-        with acs_case.pushd(self.repo):
-            code, out, err = acs_case.run_main(mod, argv)
-        return code, (json.loads(out) if out.strip() else None), err
+        """Run `acs step start` as a subprocess; (code, payload_or_None, stderr).
+
+        A subprocess rather than in-process: acs.py owns the parser, and the
+        gate verdict is what the coordinator READS off stdout, so the thing
+        worth pinning is what the command actually prints."""
+        self.ensure_run(ticket_id)
+        argv = ["acs.py", "step", "start", "--step", skill, "--run", ticket_id]
+        out = self.run_script(*(argv + list(extra_argv)))
+        return (out.returncode,
+                json.loads(out.stdout) if out.stdout.strip() else None,
+                out.stderr)
+
+    def run_start_without_a_run(self, ticket_id, skill="code"):
+        """`acs step start` with NO run created first -- the shape a refusal
+        has to survive, since a refused start must create nothing."""
+        out = self.run_script("acs.py", "step", "start", "--step", skill,
+                              "--run", ticket_id)
+        return (out.returncode,
+                json.loads(out.stdout) if out.stdout.strip() else None,
+                out.stderr)
 
     def entry(self, ticket_id, skill="code"):
-        tdir = lib.ticket_dir(self.ws, REPO_ID, ticket_id)
-        return lib.load_state(tdir, skill, ticket_id)["runs"][-1]
+        return lib.load_step_state(self.rdir(ticket_id), skill,
+                                   ticket_id)["invocations"][-1]
 
 
 class ContextFieldTest(SkillStartCase):
@@ -162,7 +182,7 @@ class ContextFieldTest(SkillStartCase):
     def test_exempt_pr_payload_carries_the_verdict(self):
         bindir = tempfile.mkdtemp(prefix="acs-fakebin-", dir=self.tmp)
         env = acs_case.fake_gh(bindir, "echo '%s'" % json.dumps(EXEMPT_PR_DOC))
-        out = self.run_script("skill-start.py", "--skill", "merge-pr",
+        out = self.run_script("acs.py", "step", "start", "--step", "merge-pr",
                               "--pr", "87", env=env)
         self.assertEqual(out.returncode, 0, out.stderr)
         payload = json.loads(out.stdout)
@@ -175,13 +195,13 @@ class ContextFieldTest(SkillStartCase):
     def test_exempt_pr_payload_is_otherwise_unchanged(self):
         bindir = tempfile.mkdtemp(prefix="acs-fakebin-", dir=self.tmp)
         env = acs_case.fake_gh(bindir, "echo '%s'" % json.dumps(EXEMPT_PR_DOC))
-        out = self.run_script("skill-start.py", "--skill", "merge-pr",
+        out = self.run_script("acs.py", "step", "start", "--step", "merge-pr",
                               "--pr", "87", env=env)
         self.assertEqual(out.returncode, 0, out.stderr)
         payload = json.loads(out.stdout)
         self.assertIn("gate_enforcement", payload)
         self.assertEqual(set(payload) - {"gate_enforcement"},
-                         PRE_CHANGE_EXEMPT_PR_KEYS)
+                         EXEMPT_PR_KEYS)
 
 
 class LedgerTest(SkillStartCase):
@@ -229,9 +249,9 @@ class LedgerTest(SkillStartCase):
         """Forward-only: an entry written before this shipped simply has no
         field, and reading the ledger must not depend on one being there."""
         tdir = self.mint("SHOP-1")
-        lib.append_in_progress_run(tdir, "code", "SHOP-1")
+        lib.append_invocation(tdir, "code", "SHOP-1")
         self.assertNotIn("gate_enforcement",
-                         lib.load_state(tdir, "code", "SHOP-1")["runs"][-1])
+                         lib.load_state(tdir, "code", "SHOP-1")["invocations"][-1])
 
 
 class DefaultResponseTest(SkillStartCase):
@@ -282,7 +302,7 @@ class GatedRunIsSilentTest(SkillStartCase):
         self.assertEqual(code, 0, err)
         self.assertIn("gate_enforcement", payload)
         self.assertEqual(set(payload) - {"gate_enforcement"},
-                         PRE_CHANGE_PAYLOAD_KEYS)
+                         START_CONTEXT_KEYS)
 
 
 class RefuseResponseTest(SkillStartCase):
@@ -300,23 +320,29 @@ class RefuseResponseTest(SkillStartCase):
         self.assertIn("precondition gate", err)
         self.assertNotIn("Traceback", err)
 
-    def test_no_partition_lock_pointer_or_state_is_written(self):
+    def test_no_run_lock_pointer_or_state_is_written(self):
+        """A refused start leaves NOTHING to unwind. The refusal is weighed
+        before the run is even resolved, so no run directory is created, no
+        lock taken and no pointer written."""
         self.settings(when_absent="refuse")
-        tdir = self.mint("SHOP-1")
-        code, _payload, _err = self.start("SHOP-1")
+        self.mint("SHOP-1")
+        code, _payload, _err = self.run_start_without_a_run("SHOP-1")
         self.assertEqual(code, 2)
-        # The partition the fixture minted is untouched: no .lock, no
-        # <skill>-state.json run entry, no pipeline-state.json row.
-        self.assertEqual(os.listdir(tdir), ["ticket.json"])
-        self.assertFalse(os.path.exists(lib.lock_path(tdir)))
-        ckid = lib.checkout_id(self.repo)
-        self.assertFalse(os.path.exists(lib.pointer_path(self.ws, REPO_ID, ckid)))
+        rdir = lib.run_dir(lib.repo_dir(self.ws, REPO_ID), "SHOP-1")
+        self.assertFalse(os.path.isdir(rdir), "no run directory may be created")
+        self.assertFalse(os.path.exists(lib.lock_path(rdir)))
+        # The POINTER's answer, not the file's existence: "this checkout was
+        # not pointed at a run" is the claim, and reading it back states that
+        # whether or not the pointer file happens to exist for other reasons.
+        repo = lib.repo_dir(self.ws, REPO_ID)
+        self.assertIsNone(
+            lib.sessions.current_run_id(repo, lib.checkout_id(self.repo)))
 
     def test_refused_exempt_pr_mode_prints_no_payload(self):
         self.settings(when_absent="refuse")
         bindir = tempfile.mkdtemp(prefix="acs-fakebin-", dir=self.tmp)
         env = acs_case.fake_gh(bindir, "echo '%s'" % json.dumps(EXEMPT_PR_DOC))
-        out = self.run_script("skill-start.py", "--skill", "merge-pr",
+        out = self.run_script("acs.py", "step", "start", "--step", "merge-pr",
                               "--pr", "87", env=env)
         self.assertEqual(out.returncode, 2)
         self.assertEqual(out.stdout, "")
@@ -325,10 +351,9 @@ class RefuseResponseTest(SkillStartCase):
     def test_acs_py_start_refuses_identically(self):
         self.settings(when_absent="refuse")
         self.mint("SHOP-1")
-        direct = self.run_script("skill-start.py", "--skill", "code",
-                                 "--ticket", "SHOP-1")
-        delegated = self.run_script("acs.py", "start", "--skill", "code",
-                                    "--ticket", "SHOP-1")
+        direct = self.run_script("acs.py", "step", "start", "--step", "code", "--run", "SHOP-1")
+        delegated = self.run_script("acs.py", "step", "start", "--step", "code",
+                                    "--run", "SHOP-1")
         self.assertEqual(direct.returncode, 2, direct.stderr)
         self.assertEqual(delegated.returncode, direct.returncode)
         self.assertEqual(delegated.stderr, direct.stderr)
@@ -340,17 +365,20 @@ class NoticePlacementTest(SkillStartCase):
     run that is going ahead -- never ahead of a refusal that says the opposite."""
 
     def test_an_unrelated_refusal_is_not_prefixed_by_the_notice(self):
-        code, _payload, err = self.start("SHOP-999")
+        code, _payload, err = self.run_start_without_a_run("SHOP-999")
         self.assertEqual(code, 2)
         self.assertNotIn("DEGRADED ENFORCEMENT", err)
-        self.assertIn("no partition for SHOP-999", err)
+        self.assertIn("no run 'SHOP-999'", err)
 
     def test_the_refusal_the_gate_itself_raises_still_carries_it(self):
+        """...and it comes FIRST: the gate is weighed before the run is
+        resolved, so a refused host says so rather than reporting a missing
+        run the operator was never going to be allowed to start."""
         self.settings(when_absent="refuse")
-        code, _payload, err = self.start("SHOP-999")
+        code, _payload, err = self.run_start_without_a_run("SHOP-999")
         self.assertEqual(code, 2)
         self.assertIn("DEGRADED ENFORCEMENT", err)
-        self.assertNotIn("no partition for SHOP-999", err)
+        self.assertNotIn("no run 'SHOP-999'", err)
 
 
 class EvidenceConsumptionTest(SkillStartCase):

@@ -28,7 +28,7 @@ A scenario counts as behavioural evidence for a skill when all four hold.
 ### 1. It reads the workspace, not the transcript
 
 The assertion target is a file the skill wrote: `ticket.json`,
-`pipeline-state.json`, a `<skill>-state.json` run entry, a result document, a
+`run.json`, a `steps/<skill>/state.json` invocation, a result document, a
 doc under the consumer's `docs/` tree, a branch, a commit, a PR. If the
 scenario would still pass with the model's prose replaced by lorem ipsum, it is
 asserting the right thing.
@@ -120,7 +120,7 @@ Not alphabetically, and not cheapest-first. Order by what a wrong artifact
 would cost:
 
 1. **Skills whose output another skill consumes.** `create-impl-plan` (the
-   plan `/acs:code` executes), `analyze-ticket`, `create-api-contract`,
+   plan `/acs:code` executes), `analyze-requirements`, `create-api-contract`,
    `create-test-docs`. A wrong artifact here is not noticed until a later step
    has already acted on it — the `critical` failure mode above, exactly.
 2. **Skills that write to the consumer's repo.** The doc-bootstrap legs,

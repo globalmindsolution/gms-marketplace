@@ -1,8 +1,10 @@
-"""s04 — routing evals for 31 of the 32 skills (paid, E1.2).
+"""s04 — routing evals for all 32 skills (paid, E1.2).
 
-Three kinds of probe, 37 in all, covering 31 of the 32 skill directories:
+Three kinds of probe, 38 in all, covering all 32 skill directories. v0.5.0
+retired the `test` alias directory, which was the one skill with no probe of
+its own, so there are no exclusions left:
 
-1. Description-trigger (25 skills): a natural-language request that describes
+1. Description-trigger (26 skills): a natural-language request that describes
    the intent *without naming the skill* must route to that skill. A miss is a
    real finding — the skill's `description` frontmatter isn't discriminating
    that request from its neighbors.
@@ -35,18 +37,18 @@ soon as a probe is decided, so no skill body runs.
 
 The suite-runner probe targets `run-e2e-tests`: the skills-independence
 refactor renamed `test` to `run-e2e-tests` and left `test` behind as a
-deprecated alias directory whose description points at the new name, so the
-intent that used to route to `test` must now route to `run-e2e-tests`.
+deprecated alias directory. v0.5.0 deleted the alias, so the intent routes to
+`run-e2e-tests` and nothing else.
 
-The 31 probed skills are every skill directory on disk but one: the `test`
-alias is deliberately unprobed (see above), because a probe of its own would
-measure the same routing decision twice under a name the registry keeps for
-one release only.
+The 32 probed skills are every skill directory on disk. There is no exclusion
+list: a skill with no probe is a defect, which
+tests/acs/test_eval_trigger_detection.py catches.
 
 Adding a probe moves the measured "all N green" routing-coverage claim the PRD
 and roadmap carry, so a newly added probe is UNMEASURED until the next paid
-run — it is not a green one. The eight delivery-path probes below (four
-explicit, four negative) are new with ADR-0095 and are in exactly that state.
+run — it is not a green one. The eight delivery-path probes (four explicit,
+four negative) are new with ADR-0095, and the `analyze-requirements` and
+`review-code` probes are new with v0.5.0; all ten are in exactly that state.
 """
 
 from harness import Sandbox, Check
@@ -55,12 +57,12 @@ META = {
     "name": "skill_triggers",
     "tier": "paid",
     "goal": "route",
-    "summary": "right skill routes for 31 of 32 (25 by description, 6 internal legs by explicit cmd + a description that must reach their entry point; `test` is an alias of run-e2e-tests)",
+    "summary": "right skill routes for all 32 (26 by description, 6 internal legs by explicit cmd + a description that must reach their entry point)",
 }
 
 # Description-trigger + explicit-invocation cases.
 # (label, init?, request, expected skill).
-#   - 25 skills are probed by description, with a request that avoids naming
+#   - 26 skills are probed by description, with a request that avoids naming
 #     the skill. Every shipped skill is model-invocable, so that is the
 #     default; no skill sets disable-model-invocation.
 #   - The 6 internal legs — /acs:project's two, /acs:code's four delivery-path
@@ -148,8 +150,6 @@ CASES = [
      "time per ticket for this repo — not delivery throughput, just the tool "
      "usage and cost side.",
      "usage"),
-    # `test` is the deprecated alias directory; the intent routes to the
-    # skill that carries the prose.
     ("run-e2e-tests", True,
      "Run the configured test suites for this repo and give me a results "
      "report, opening a regression ticket for anything that broke.",
@@ -159,10 +159,14 @@ CASES = [
      "since the last tag, bump the version in both manifests, and open the "
      "release PR for me to review and merge.",
      "release"),
-    ("analyze-ticket", True,
+    ("analyze-requirements", True,
      "Before we plan anything for EVAL-1, work out what it really asks for: "
      "what breaks, what is unclear, and what we are assuming.",
-     "analyze-ticket"),
+     "analyze-requirements"),
+    ("review-code", True,
+     "The branch for EVAL-1 is implemented and committed. Review the whole "
+     "changeset against what it was supposed to deliver before we open a PR.",
+     "review-code"),
     ("create-impl-plan", True,
      "EVAL-1 has been analysed and the questions are answered. Work out the "
      "file-by-file approach the implementation should follow.",

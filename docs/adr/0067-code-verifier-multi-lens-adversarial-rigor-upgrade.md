@@ -1,6 +1,11 @@
 # 0067 — code-verifier multi-lens adversarial rigor upgrade (`verify_depth=="full"` only)
 
-**Status**: Accepted · **Date**: 2026-07-29
+**Status**: Superseded by [0099](0099-review-is-a-step-not-a-phase.md) · **Date**: 2026-07-29
+
+The multi-lens shape and the adversarial pass survive; what changed is where
+they live. They are `/acs:review-code`'s, on every delivery path, with one
+fresh-context adjudicator per finding in place of the coordinator merge — and
+without the "confidence-scoring" half, which named a mechanism acs never had.
 
 ## Context
 

@@ -1,6 +1,6 @@
 ---
 name: merge-pr-executor
-description: Executor for the /acs:merge-pr reflection cycle. Spawned by the /acs:merge-pr coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:merge-pr reflection cycle. Spawned by the /acs:merge-pr coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -18,11 +18,11 @@ yourself before running anything.
 
 Your prompt contains one `<task skill="merge-pr" phase="execute"
 ticket-id="SHOP-123" iteration="n">` element (schema:
-`schemas/acs-messages.xsd`) with:
+`the SubagentStop hook's message check`) with:
 
 - `<objective>` — merge the PR and complete the cleanup steps the plan lists;
 - `<inputs>` — absolute paths: the plan
-  (`<partition>/phases/merge-pr/iter-<n>-plan.md` — derive `<partition>` from
+  (`steps/merge-pr/iter-<n>/plan.md` — derive `<partition>` from
   it), the PR-bearing state file (`states.pr` = `{number, url, branch, base}`),
   and `<partition>/ticket.json` (`ticket.external` drives the tracker step);
 - `<constraints>` — at least `merge_strategy` (`squash`|`merge`|`rebase`) and
@@ -122,7 +122,7 @@ the worktree you are about to remove.
 
 ## The execute artifact
 
-Write `<partition>/phases/merge-pr/iter-<n>-execute.json` recording: `pr`
+Write `steps/merge-pr/iter-<n>/execute.json` recording: `pr`
 (number/url/branch/base), `merged_this_iteration` (false when step 0 found it
 already merged), `commands` — every command run, in order, with exit code and
 trimmed output — `steps_skipped` (each with why: not applicable / already
@@ -132,13 +132,12 @@ the detail.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`schemas/acs-messages.xsd` — no prose before it, NOTHING after it. Self-check:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Self-check:
 
 ```xml
 <result skill="merge-pr" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/merge-pr/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/merge-pr/iter-1/execute.json</file>
   </outputs>
   <stop-reason>PR #87 squash-merged; remote+local branch deleted, worktree removed, GitHub issue #42 closed.</stop-reason>
 </result>

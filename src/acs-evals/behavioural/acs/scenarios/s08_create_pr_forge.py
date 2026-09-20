@@ -72,12 +72,11 @@ def _seed_ticket(sb):
 
 
 def _code_result(branch):
-    """The minimal code-state.json result that opens gate_create_pr's code half."""
+    """The minimal /acs:code result the create-pr brake needs upstream of it."""
     return {
         "status": "completed",
         "states": {
             "branch": branch,
-            "verifier_passed": True,
             "tests": {"passed": 1, "failed": 0, "coverage_percent": 100, "coverage_target": 90},
             "specs_implemented": [SEED_FILE],
             "docs_updated": [],
@@ -89,14 +88,22 @@ def _code_result(branch):
 def _seed_code_and_docs_sync(sb, tid, branch):
     """Fast-forward the ship.yaml steps ahead of create-pr without spending
     claude. Only the passing code verifier is a gate concern now (R-6:
-    gate_create_pr is a brake, not an order check); docs-sync is seeded so the
+    the create-pr gate is a brake, not an order check); docs-sync is seeded so the
     ticket reaches create-pr in the order ship.yaml declares and the pre-hook
     advisory stays silent."""
-    _run_script_ok(sb, "skill-start.py", "--skill", "code", "--ticket", tid)
-    _run_script_ok(sb, "post-code.py", "--ticket", tid,
+    sb.start_run("code", tid)
+    _run_script_ok(sb, "post-code.py", "--run", tid,
                    stdin=json.dumps(_code_result(branch)))
-    _run_script_ok(sb, "skill-start.py", "--skill", "docs-sync", "--ticket", tid)
-    _run_script_ok(sb, "post-docs-sync.py", "--ticket", tid,
+    # The create-pr brake reads /acs:review-code's step, not /acs:code's
+    # (ADR-0099), and `verifier_passed` is DERIVED by the post-hook from the
+    # verdict rather than asserted in the result -- so the review is seeded
+    # with a passing verdict document.
+    sb.start_run("review-code", tid)
+    sb.write_verdict(tid, passed=True)
+    _run_script_ok(sb, "post-review-code.py", "--run", tid,
+                   stdin=json.dumps({"status": "completed", "outcome": "passed"}))
+    sb.start_run("docs-sync", tid)
+    _run_script_ok(sb, "post-docs-sync.py", "--run", tid,
                    stdin=json.dumps({"status": "completed",
                                      "states": {"docs_updated": [SEED_FILE]}}))
 

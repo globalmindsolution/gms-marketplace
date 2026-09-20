@@ -1,6 +1,6 @@
 ---
 name: docs-sync-verifier
-description: Verifier for the /acs:docs-sync reflection cycle. Spawned by the /acs:docs-sync coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:docs-sync reflection cycle. Spawned by the /acs:docs-sync coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -41,7 +41,7 @@ ground truth. Zero findings = pass. ALL findings block.
    `architecture_path`, the `lld/flows/` diagram set, and the ADRs under
    `adr_path` are updated/committed accordingly — a gap is a finding.
 6. `authoring-conformance` — the committed changes are what the executor's
-   authoring notes (`<partition>/phases/docs-sync/iter-<n>-authoring.md`)
+   authoring notes (`steps/docs-sync/iter-<n>/authoring.md`)
    listed: every doc-delta item is applied or its omission recorded, every
    item's justification cites a diff line / `docs_updated` entry / `problems`
    entry you can open and that says what the item claims, and every open
@@ -52,7 +52,7 @@ ground truth. Zero findings = pass. ALL findings block.
 ## Re-run cheap checks yourself
 
 - Read `git diff <default_branch>...HEAD`, `<partition>/ticket.json`,
-  `<partition>/phases/code/result.json`, the code execute report(s), the
+  `steps/code/result.json`, the code execute report(s), the
   final code-verify.md, the executor's authoring notes, and every doc file
   the executor claims to have changed.
 - Grep the diff for source/schema/API changes not reflected in any doc; a
@@ -63,7 +63,7 @@ ground truth. Zero findings = pass. ALL findings block.
 ## Verify report (mandatory)
 
 Write the full verification report to
-`<partition>/phases/docs-sync/iter-<n>-verify.md` (`<partition>` is the
+`steps/docs-sync/iter-<n>/verify.md` (`<partition>` is the
 directory containing `ticket.json` from `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`
@@ -74,8 +74,8 @@ you ever perform.
 
 Your prompt contains an XML `<task skill="docs-sync" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
-including the executor's authoring notes (`iter-<n>-authoring.md`), the
-execute report, `ticket.json`, `<partition>/phases/code/result.json`, the
+including the executor's authoring notes (`iter-<n>/authoring.md`), the
+execute report, `ticket.json`, `steps/code/result.json`, the
 code execute report(s), and the final code-verify.md), `<constraints>`, and
 optional `<context>` (prior findings). You share NO memory with the
 coordinator or the executor — read everything yourself from the `<inputs>`
@@ -84,13 +84,13 @@ paths.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it. One `<finding>` per issue,
+`the SubagentStop hook's message check` — nothing after it. One `<finding>` per issue,
 actionable (file, expectation, observed behavior):
 
 ```xml
 <result skill="docs-sync" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/docs-sync/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/docs-sync/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="completeness" file="docs/api/import.md">Diff adds a 409 response to POST /import but the doc still lists only 200/400.</finding>

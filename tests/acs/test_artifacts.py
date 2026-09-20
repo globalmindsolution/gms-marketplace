@@ -281,8 +281,25 @@ class TestRenderParse(unittest.TestCase):
 
 class TestDeriveStatus(ArtifactsCase):
 
+    def rdir(self, ticket_id=TICKET):
+        """The RUN over this ticket. A ticket is a run SUBJECT, not the
+        partition a run writes into (§4.2): the ledger lives under
+        `<repo>/runs/<run-id>/`, and a ticket-subject run's id is the ticket
+        id."""
+        return lib.run_dir(lib.repo_dir(self.ws, REPO_ID), ticket_id)
+
     def step(self, step_id, status, ticket_id=TICKET):
-        lib.update_pipeline(self.tdir(ticket_id), ticket_id, step_id, status)
+        """A ticket's status is derived from its RUN's ledger now, so seeding
+        a step means writing run.json's `steps` entry."""
+        rdir = self.rdir(ticket_id)
+        os.makedirs(rdir, exist_ok=True)
+        doc = lib.read_json(os.path.join(rdir, "run.json"))
+        if not isinstance(doc, dict):
+            doc = {"run_id": ticket_id, "workflow": "ship", "workflow_version": 3,
+                   "subject": {"kind": "ticket", "ticket_id": ticket_id},
+                   "status": "in_progress", "steps": {}}
+        doc.setdefault("steps", {})[step_id] = {"status": status}
+        lib.write_json(os.path.join(rdir, "run.json"), doc)
 
     def test_table(self):
         cases = [
@@ -308,8 +325,9 @@ class TestDeriveStatus(ArtifactsCase):
         tdir = self.partition()
         self.step("create-prd", "completed")
         self.assertEqual(artifacts.derive_status(tdir), "in_progress")
-        lib.append_in_progress_run(tdir, "create-prd", TICKET)
-        lib.finalize_run(tdir, "create-prd", TICKET,
+        rdir = self.rdir()
+        lib.append_invocation(rdir, "create-prd", TICKET)
+        lib.finalize_invocation(rdir, "create-prd", TICKET,
                          {"status": "completed", "states": {"pr": {"number": 7}}})
         self.assertEqual(artifacts.derive_status(tdir), "in_review")
 
@@ -407,7 +425,16 @@ class TestLoadSaveRouting(ArtifactsCase):
             ticket["status"] = "open"  # what a caller would flip; never stored
             ticket["title"] = "Renamed"
             lib.save_ticket(tdir, ticket)
-            lib.update_pipeline(tdir, TICKET, "code", "in_progress")
+            # The derived status comes from the RUN's ledger, never from a
+            # field in the document: a status written into ticket.md would be
+            # a second answer nothing keeps in step with the run.
+            rdir = lib.run_dir(lib.repo_dir(self.ws, REPO_ID), TICKET)
+            os.makedirs(rdir, exist_ok=True)
+            lib.write_json(os.path.join(rdir, "run.json"), {
+                "run_id": TICKET, "workflow": "ship", "workflow_version": 3,
+                "subject": {"kind": "ticket", "ticket_id": TICKET},
+                "status": "in_progress",
+                "steps": {"code": {"status": "in_progress"}}})
             reloaded = lib.load_ticket(tdir)
         self.assertEqual(reloaded["title"], "Renamed")
         self.assertEqual(reloaded["status"], "in_progress")
@@ -566,18 +593,18 @@ class TestCommitOwnership(unittest.TestCase):
         return " ".join(raw.split())
 
     def test_analyze_ticket_commits_the_whole_docs_folder(self):
-        body = self.skill("analyze-ticket")
+        body = self.skill("analyze-requirements")
         self.assertIn('git add "<docs_dir>"', body,
-                      "analyze-ticket's publish step must stage the ticket's docs folder")
+                      "analyze-requirements's publish step must stage the ticket's docs folder")
         self.assertIn("ticket.md", body)
 
     def test_create_design_publishes_and_does_not_commit_on_the_default_branch(self):
         body = self.skill("create-design")
-        self.assertIn('cp "<partition>/phases/create-design/design.md" "<design_path>"', body)
+        self.assertIn('cp "<partition>/steps/create-design/design.md" "<design_path>"', body)
         self.assertIn("never commits to the repo's default branch", body)
 
     def test_the_build_skills_commit_what_they_publish(self):
-        for name, artifact in (("analyze-ticket", "analysis.md"), ("create-impl-plan", "plan.md"),
+        for name, artifact in (("analyze-requirements", "analysis.md"), ("create-impl-plan", "plan.md"),
                                ("create-api-contract", "api-contract.md"),
                                ("create-test-docs", "test-cases.md")):
             with self.subTest(skill=name):

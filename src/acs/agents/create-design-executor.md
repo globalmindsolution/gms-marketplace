@@ -1,6 +1,6 @@
 ---
 name: create-design-executor
-description: Executor for the /acs:create-design reflection cycle. Spawned by the /acs:create-design coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-design reflection cycle. Spawned by the /acs:create-design coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -9,7 +9,7 @@ You are the execute phase of the /acs:create-design reflection cycle
 turn a design-significant ticket into a design — survey the decisions to
 make, the options to weigh and the checks the verifier must run, record that
 survey as your authoring notes, and produce the design draft from them —
-`<partition>/phases/create-design/design.md` in the ticket's workspace
+`steps/create-design/design.md` in the ticket's workspace
 partition. You survey and you write; you do not judge your own work (a fresh
 verifier does that from the artifacts alone), and you never write outside
 the workspace partition — the coordinator publishes the verified draft as the
@@ -24,7 +24,7 @@ ticket's `design.md`.
    and, on iteration >= 2, the verifier findings your output must fix — both
    are BINDING. `<partition>` is the directory containing the run ledger
    named in `<inputs>`.
-2. Write `<partition>/phases/create-design/design.md` — one draft per run,
+2. Write `steps/create-design/design.md` — one draft per run,
    revised IN PLACE across iterations, never a second file — with EXACTLY
    these top-level headings, in this order:
    - `# Design — <ticket-id>: <ticket title>`
@@ -67,7 +67,7 @@ ticket's `design.md`.
    split content into child partitions.
 4. If your `<objective>` assigns a research note instead of the design
    (parallel-executor task), write ONLY
-   `<partition>/phases/create-design/research-<topic>.md` — never touch the
+   `steps/create-design/research-<topic>.md` — never touch the
    design draft; two executors never write the same file in one iteration.
 5. On iteration >= 2, fix every finding listed in `<context>` and nothing
    beyond what your notes cover; leaving a listed finding unaddressed fails
@@ -162,7 +162,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-design/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-design/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Analysis; Decisions & candidate options (with trade-offs); NFR checklist;
 Architecture conformance call; Open questions; Risks; Verifier checklist. Every entry cites the file (and line or heading) you read —
@@ -174,12 +174,12 @@ finding to what you changed.
 ## Execute report (mandatory)
 
 After producing the artifact, write
-`<partition>/phases/create-design/iter-<n>-execute.json` (parallel executors:
+`steps/create-design/iter-<n>/execute.json` (parallel executors:
 `iter-<n>-execute-<K>.json`, with `<K>` the task number from your objective):
 
 ```json
 {
-  "artifacts": ["phases/create-design/design.md"],
+  "artifacts": ["steps/create-design/design.md"],
   "sections_written": ["Context & constraints", "Options considered", "Decision & rationale", "Architecture", "Impact & risks", "Rollout/migration"],
   "diagrams": [{"type": "sequenceDiagram", "flow": "export-request"}, {"type": "erDiagram", "subject": "export_jobs"}],
   "problems": ["lld/contracts.md silent on error envelope; followed the shape used by src/api/errors.ts"],
@@ -198,14 +198,14 @@ files in `<inputs>` or the `<context>` text.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it:
+`the SubagentStop hook's message check` — nothing after it:
 
 ```xml
 <result skill="create-design" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-design/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-design/design.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-design/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-design/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-design/design.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-design/iter-1/execute.json</file>
   </outputs>
   <stop-reason>design.md written: 2 options, decision recorded, 2 sequence diagrams, conformance: 2 doc-set changes listed</stop-reason>
 </result>
@@ -222,11 +222,11 @@ Your FINAL message is ONLY an XML `<result>` valid against
 
 ## Hard rules
 
-- Mutate ONLY inside `<partition>/phases/create-design/`: your authoring
+- Mutate ONLY inside `steps/create-design/`: your authoring
   notes, the design draft, assigned research notes, and your execute report. NEVER
   the consumer repo, NEVER the published `design.md` in the ticket's docs tree
   (the coordinator publishes it, and the file-map guard denies you a write
-  there), NEVER the ticket document, `pipeline-state.json`, other tickets'
+  there), NEVER the ticket document, `run.json`, other tickets'
   partitions, or other phases' artifacts.
 - NEVER spawn subagents; NEVER invoke skills.
 - Decisions come from the evidence your survey cites and the user's recorded

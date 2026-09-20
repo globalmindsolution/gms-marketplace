@@ -424,13 +424,80 @@ class Sandbox:
         return json.loads(out.stdout)["ticket_id"]
 
     def start_run(self, skill, ticket):
-        out = self.run_script("skill-start.py", "--skill", skill, "--ticket", ticket)
+        """Record `skill` in_progress on `ticket`'s run.
+
+        `skill-start.py` is gone (v0.5.0): the command is
+        `acs.py step start --step <skill>`, and `--step` validates against the
+        resolved workflow rather than a closed enum. The run id for a ticket
+        subject IS the ticket id, which is why `--ticket` still names it."""
+        out = self.run_script("acs.py", "step", "start", "--step", skill,
+                              "--ticket", ticket)
         if out.returncode != 0:
-            raise AssertionError("skill-start %s failed: %s" % (skill, out.stderr))
+            raise AssertionError("acs step start %s failed: %s" % (skill, out.stderr))
+        return out
+
+    def write_step_artifact(self, run_id, step, name, content):
+        """Write an artifact where the RUN reads it: `runs/<run-id>/steps/
+        <producer>/<name>`. Artifacts are resolved from each skill's own
+        `acs.yaml` `writes` declaration now, not from the ticket partition —
+        a plan dropped in the partition is a plan no step will find."""
+        path = self.run_path(run_id, "steps", step, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        return path
+
+    def write_verdict(self, run_id, passed, iteration=1, reviewed_sha="0" * 40):
+        """Write `/acs:review-code`'s verdict for the run.
+
+        The review's conclusion is a DOCUMENT the kernel reads, not a status a
+        skill asserts (MAR-523/527): `acs step finish` refuses a completed
+        review with no verdict, and `verifier_passed` is derived from it. A
+        scenario seeding a review therefore has to write one, exactly as the
+        real reviewer does. `passed` is itself derived — true only when no
+        finding is `confirmed`/`blocking` — so a failing verdict carries one.
+        """
+        findings = [] if passed else [{
+            "id": "F-%d-1" % iteration,
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "claim": "seeded blocking finding",
+            # `evidence` is a LIST of what the review established, so
+            # /acs:code does not re-derive it, and a confirmed finding needs a
+            # `resolved_when` because that is what /acs:code works to (§2.3).
+            "evidence": ["written by the eval harness, not by a reviewer"],
+            "resolved_when": "never — this finding exists to keep the "
+                             "create-pr brake engaged for the probe below",
+        }]
+        path = self.run_path(run_id, "steps", "review-code",
+                             "iter-%d" % iteration, "verdict.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({
+                "skill": "review-code", "run_id": run_id, "iteration": iteration,
+                "reviewed_sha": reviewed_sha, "passed": bool(passed),
+                "findings": findings,
+            }, fh)
+        return path
+
+    def finish_step(self, skill, run_id, status="interrupted",
+                    stop_reason="needs_input"):
+        """Close a step the PreToolUse gate opened.
+
+        The gate is the writer of the `in_progress` transition (§4.3), so a
+        gate that PASSES leaves its step open — and I1 allows at most one open
+        step per run. A scenario that probes several gates in one run has to
+        close each one, exactly as a real session does."""
+        extra = ["--stop-reason", stop_reason] if status == "interrupted" else []
+        out = self.run_script("acs.py", "step", "finish", "--step", skill,
+                              "--run", run_id, "--status", status, *extra)
+        if out.returncode != 0:
+            raise AssertionError("acs step finish %s failed: %s" % (skill, out.stderr))
         return out
 
     def complete_run(self, skill, ticket, result=None):
-        out = self.run_script("post-%s.py" % skill, "--ticket", ticket,
+        out = self.run_script("post-%s.py" % skill, "--run", ticket,
                               stdin=json.dumps(result or {"status": "completed"}))
         if out.returncode != 0:
             raise AssertionError("post-%s failed: %s" % (skill, out.stderr))
@@ -594,11 +661,40 @@ class Sandbox:
         return self._load(os.path.join(self.partition_root(), name))
 
     def ticket_json(self, ticket, name):
-        """Load a ticket-partition JSON (ticket.json/pipeline-state.json/…)."""
+        """Load a ticket-partition JSON (ticket.json, and the artifacts the
+        gates read from the partition)."""
         return self._load(os.path.join(self.partition_root(), ticket, name))
 
     def ticket_path(self, ticket, *rel):
         return os.path.join(self.partition_root(), ticket, *rel)
+
+    # -- the RUN, which is where the ledger lives since v0.5.0 ------------- #
+    #
+    # State is keyed by run, not by ticket (ADR-0097), and a run over a ticket
+    # takes that ticket's id. The ticket partition still holds `ticket.json`
+    # and the documents a gate reads; everything the pipeline RECORDS is under
+    # `runs/<run-id>/`.
+
+    def run_path(self, run_id, *rel):
+        return os.path.join(self.partition_root(), "runs", run_id, *rel)
+
+    def run_json(self, run_id):
+        """THE RUN MACHINE: `runs/<run-id>/run.json`."""
+        return self._load(self.run_path(run_id, "run.json"))
+
+    def step_json(self, run_id, step):
+        """THE STEP MACHINE: `runs/<run-id>/steps/<step>/state.json`."""
+        return self._load(self.run_path(run_id, "steps", step, "state.json"))
+
+    def last_status(self, run_id, step):
+        """The step's current status — the last entry of `invocations`, which
+        is the array's name because a RUN is the whole pass over the workflow
+        and a step is invoked within it."""
+        return (self.step_json(run_id, step)["invocations"][-1] or {})["status"]
+
+    def lock_path(self, run_id):
+        """`runs/<run-id>/lock.json`, not the old partition `.lock`."""
+        return self.run_path(run_id, "lock.json")
 
     def _load(self, path):
         if not os.path.isfile(path):

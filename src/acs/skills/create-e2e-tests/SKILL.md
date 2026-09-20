@@ -20,12 +20,28 @@ You also never RUN the ticket's e2e suites as the pipeline's verdict —
 failure back to `/acs:code`. A suite that is correct and currently red is a
 correct deliverable from this skill; a suite weakened until it is green is not.
 
+## When nothing is owed
+
+`/acs:create-e2e-tests` is **not invoked at all** on a run that owes no e2e
+coverage. The plan's `## Contract` block records `owes.e2e`, and the pre-hook
+completes this step from it with `outcome: no_e2e_owed` — no coordinator, no
+subagents, zero tokens (§2.2). `/acs:run-e2e-tests` then has nothing to run
+and records `nothing_to_run`.
+
+That is an ANSWER on the ledger, not a step that silently did not run. The
+workflow has no `when:` predicates (§2.1): a step that had nothing to do is
+`completed` with an outcome saying so, which is a thing a reader can audit.
+
+Silence is not permission to skip. A plan that states nothing about `owes.e2e`
+does NOT settle the step — you run, and decide from `test-cases.md` whether
+any case is typed e2e.
+
 ## Start
 
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-e2e-tests --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-e2e-tests --args "$ARGUMENTS"
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -56,7 +72,7 @@ Parse the printed context JSON. Fields you will use:
 
 - `ticket_id`, `ticket` — the resolved ticket; its title names the suites.
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/create-e2e-tests/`.
+  artifacts go in `steps/create-e2e-tests/`.
 - `checkout_root` — the consumer repo root; every suite path is repo-relative
   to it.
 - `settings` — you need `suites` (the reserved `e2e` entry: its `command`,
@@ -66,7 +82,6 @@ Parse the printed context JSON. Fields you will use:
   `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
-- `post_hook` — absolute path to `post-create-e2e-tests.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -159,7 +174,7 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
 `handed_off`), verify recorded progress against reality BEFORE continuing:
 
 1. Read `<partition>/create-e2e-tests-state.json` (`runs[-1]` and `states`) and
-   the phase artifacts under `<partition>/phases/create-e2e-tests/`.
+   the phase artifacts under `steps/create-e2e-tests/`.
 2. Look at the repo: `git status` and `git log --oneline <branch>` show which
    suite files exist and which are already committed. A suite recorded written
    that is not on disk is not written; a suite on disk that is uncommitted is
@@ -170,11 +185,11 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    verify it; a verify with findings and no later execute → execute with
    those findings as `<context>`; nothing on disk → iteration 1 execute.
 5. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
    never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-e2e-tests/handoff-context.md` (when present), do a
+`steps/create-e2e-tests/handoff-context.md` (when present), do a
 light reconcile, and continue from where it points.
 
 ## Inputs — gather before the loop
@@ -211,7 +226,7 @@ and the executor authors the remediation.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
-Messaging rules (`schemas/acs-messages.xsd`):
+Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-e2e-tests"
   phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
@@ -223,13 +238,12 @@ Messaging rules (`schemas/acs-messages.xsd`):
 - Validate EVERY message you send and receive:
 
   ```bash
-  echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
   ```
 
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Persist every phase's `<task>` and `<result>` to
-  `<partition>/phases/create-e2e-tests/iter-<n>-<phase>.xml` at the phase
+  `steps/create-e2e-tests/iter-<n>/<phase>.json` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:create-e2e-tests-executor`,
   `acs:create-e2e-tests-verifier` — fall back
@@ -270,7 +284,7 @@ product surface, decide the suite layout — which file(s), which test per
 `TC-<n>`, which fixtures and setup each needs, what the assertion for each
 expected result actually is, and what each case needs that the harness does
 not yet provide — record that decision in the authoring notes
-(`<partition>/phases/create-e2e-tests/iter-<n>-authoring.md`), then write the
+(`steps/create-e2e-tests/iter-<n>/authoring.md`), then write the
 suites from those notes, in the repo's harness and style, each test carrying
 its `TC-<n>` id, each assertion checking the case's stated expected result.
 One suite per run, revised in place across iterations. The notes are what
@@ -286,10 +300,10 @@ else — no plan phase in between.
 ### Phase: verify — `acs:create-e2e-tests-verifier`
 
 Spawn `acs:create-e2e-tests-verifier` AFTER the suites are written, with
-`<inputs>` of the suite files, the authoring notes (`iter-<n>-authoring.md`), `test-cases.md`, the API
+`<inputs>` of the suite files, the authoring notes (`iter-<n>/authoring.md`), `test-cases.md`, the API
 contract when it exists, and the existing suites it must match. It judges
 fresh — never forward the executor's reasoning — and writes
-`<partition>/phases/create-e2e-tests/iter-<n>-verify.md`.
+`steps/create-e2e-tests/iter-<n>/verify.md`.
 
 The verifier RUNS the configured e2e command once (with `setup` and, always,
 `teardown`) to prove the suites execute and are picked up by the harness, and
@@ -363,7 +377,7 @@ question. Do not "cover" it with a test that asserts something weaker.
 If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Commit whatever suites already verified, flush
 in-flight state plus soft context (user answers, harness gotchas, fixtures
-added) to `<partition>/phases/create-e2e-tests/handoff-context.md`, then run:
+added) to `steps/create-e2e-tests/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -375,13 +389,13 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure or handoff:
 
-1. Write `<partition>/phases/create-e2e-tests/result.json` per the
+1. Write `steps/create-e2e-tests/result.json` per the
    result-document contract in INTERNALS.md:
 
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 2; 2 e2e cases covered by 1 suite, committed",
+     "summary": "verifier passed with zero findings on iteration 2; 2 e2e cases covered by 1 suite, committed",
      "states": {
        "suites_written": ["e2e/shop-123-csv-import.spec.ts"],
        "cases_covered": ["TC-5", "TC-6"]
@@ -391,7 +405,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `post-create-e2e-tests.py` documents
+   Canonical `states` keys — EXACT names; `acs step finish` documents
    them and the next step reads them:
    - `suites_written` (list): the repo-relative suite (and fixture) files this
      run wrote, as committed on the ticket branch. Files only — a suite you
@@ -407,12 +421,12 @@ MANDATORY final step — never skipped, also on failure or handoff:
 
    On failure keep whatever is true: the suites actually written, the cases
    actually covered, the open findings, and the reason (iteration cap, needs
-   input) in `stop_reason`.
+   input) in `summary`.
 
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-e2e-tests.py" --ticket <id> --result-file <partition>/phases/create-e2e-tests/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-e2e-tests.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed
@@ -427,7 +441,6 @@ MANDATORY final step — never skipped, also on failure or handoff:
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      suite files, `<questions>` when `needs_input`, and
      `<next-step>/acs:run-e2e-tests --for-ticket <id></next-step>`. Validate it
-     with `validate_xml.py` like every other message.
 
 ## Completion report (normative)
 
@@ -441,7 +454,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 ## /acs:create-e2e-tests · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: <n> suite file(s) under <e2e root>; cases covered TC-…; suite run: <passing / red on TC-… because …>
 - **Findings**: <product failures, uncovered cases, open clarifications, or "none">
 - **Artifacts**: <suite paths, partition phase artifacts, branch, commit>

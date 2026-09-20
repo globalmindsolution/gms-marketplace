@@ -15,7 +15,8 @@ from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
 from ._common import HOOKED_SKILLS, now_iso, parse_iso, read_json, write_json
-from .repo import _guarded_repo_write, find_ticket_partition, index_path, repo_dir, state_path
+from .repo import _guarded_repo_write, find_ticket_partition, index_path, repo_dir
+from .step import state_path
 
 
 
@@ -168,7 +169,10 @@ def compute_ticket_totals(tdir):
     or absent -- a legacy pre-cutover run, C-11) counts in
     runs_cost_unavailable and contributes nothing to the cost_usd sum."""
     totals = {
-        "runs": 0, "working_seconds": 0,
+        # `invocations`, not `runs`: a "run" is the whole workflow over a
+        # subject now, and what this counts is a SESSION's attempt at one step.
+        # Two different things under one name is how a metric starts lying.
+        "invocations": 0, "working_seconds": 0,
         "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
         "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
         "api_duration_ms": 0.0, "runs_api_duration_measured": 0, "runs_api_duration_unavailable": 0,
@@ -177,10 +181,12 @@ def compute_ticket_totals(tdir):
         state = read_json(state_path(tdir, skill))
         if not isinstance(state, dict):
             continue
-        for entry in state.get("runs") or []:
+        # `invocations`, not `runs`: the partition is a run now, so a `runs`
+        # array inside a step would mean the wrong thing (§4.4).
+        for entry in state.get("invocations") or []:
             if not isinstance(entry, dict):
                 continue
-            totals["runs"] += 1
+            totals["invocations"] += 1
             seconds = run_seconds(entry)
             if seconds is None:
                 totals["runs_untimed"] += 1
@@ -301,7 +307,10 @@ def backfill_distinct_pr_count(workspace, repo_id):
 
     distinct_numbers = set()
     for tid in ticket_ids:
-        tdir, _archived = find_ticket_partition(workspace, repo_id, tid)
+        # A ticket's PRs are its RUNS' PRs: the run whose subject is this
+        # ticket is where create-pr wrote.
+        from .run import partition_for_ticket
+        tdir, _archived = partition_for_ticket(repo_dir(workspace, repo_id), tid)
         sp = state_path(tdir, "create-pr")
         state = read_json(sp)
         if not isinstance(state, dict):

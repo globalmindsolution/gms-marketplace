@@ -15,7 +15,7 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: execute → verify
 
-The twelve **authoring skills** (analyze-ticket, create-impl-plan,
+The twelve **authoring skills** (analyze-requirements, create-impl-plan,
 create-api-contract, create-test-docs, create-e2e-tests, docs-sync, create-prd,
 create-design, create-architecture, create-project, standardize-project,
 create-requirements), `code` and `create-docs` MUST apply the Reflection
@@ -24,7 +24,7 @@ phase**. No skill has a plan phase (ADR-0092): for an authoring skill the
 deliverable IS the document, and a plan for it is a second copy of the
 writing — so iteration 1's executor **surveys first** (mode, inputs,
 evidence, open questions), records the survey in its authoring notes
-(`iter-<n>-authoring.md`), and authors the deliverable from them; an open
+(`iter-<n>/authoring.md`), and authors the deliverable from them; an open
 decision comes back as `needs_input` BEFORE any file is written; the
 verifier judges the deliverable fresh, against those notes among its other
 dimensions (`authoring-conformance`). `create-docs` was the first to take
@@ -41,10 +41,14 @@ Each phase runs in a separate context window so the verify phase judges the work
 fresh rather than rubber-stamping its own output. The table below shows the
 two phases and their responsibilities for a representative skill:
 
-| Phase | Subagent (example for `/code`) | Responsibility |
-|-------|--------------------------------|----------------|
-| Execute | `code-executor` | Carry out the approved plan; produce the skill's artifacts (code, tests, docs). For an authoring skill the executor first surveys and records `iter-<n>-authoring.md`, then authors the document from it. |
-| Verify | `code-verifier` | Independently check the executor's output against the gated upstream contracts and the skill's quality bar — for an authoring skill also against its authoring notes — and report pass/fail with findings. |
+| Phase | Subagent (example for `/acs:create-impl-plan`) | Responsibility |
+|-------|------------------------------------------------|----------------|
+| Execute | `create-impl-plan-executor` | Carry out the skill's work; produce its artifacts. For an authoring skill the executor first surveys and records `iter-<n>/authoring.md`, then authors the document from it. |
+| Verify | `create-impl-plan-verifier` | Independently check the executor's output against the gated upstream contracts and the skill's quality bar — for an authoring skill also against its authoring notes — and report pass/fail with findings. |
+
+`/acs:code` is the exception the table cannot show: it is executor-only. Its
+review is a STEP of its own (`/acs:review-code`), not a phase inside it —
+see "The changeset review" below.
 
 ### Apply-work skills: inline shape (MAR-55 invariant (b))
 
@@ -54,7 +58,7 @@ are inline and deterministic: the coordinator handles the work directly,
 optionally delegating to at most one executor subagent. No plan-phase subagent
 and no verify-phase subagent are spawned — this holds on every delivery path.
 Upstream
-quality is gated by the code-verifier (before the PR is opened or merged) or by
+quality is gated by `/acs:review-code` (before the PR is opened or merged) or by
 the user-confirmation gate (at ticket creation); there is no in-skill verify
 phase for these three skills.
 
@@ -64,8 +68,11 @@ Requirements:
   the verifier judges the work fresh rather than rubber-stamping its own
   output.
 - On verification failure, the cycle reflects: the coordinator feeds the
-  verifier's findings back into another iteration. For every skill that
-  runs the cycle, findings feed the **executor's** `<context>` on the next
+  verifier's findings back into another iteration. For `/acs:code` the same
+  motion is a WORKFLOW loop rather than an in-skill one — `/acs:review-code`
+  records blocking findings and `ship.yaml`'s `loops[]` sends the cursor back
+  to `code` — and the routing is identical at both scales. For every skill
+  that runs the cycle, findings feed the **executor's** `<context>` on the next
   iteration — execute → verify only, with no plan phase in between. The
   per-iteration re-plan went first (MAR-71, slice 1b of MAR-69, for
   `/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for
@@ -75,86 +82,76 @@ Requirements:
   `/acs:create-design`, and `/acs:create-requirements`); ADR-0092 then
   retired the plan phase itself. On iteration 2+ the executor's authoring
   notes carry a **Findings addressed** section mapping each finding to what
-  changed. Every skill but `/acs:code` runs a fixed iteration cap of 3; only
-  `/acs:code` varies, and it varies by the ticket's recorded DELIVERY PATH
-  rather than by a lane derived from the ticket's axes (ADR-0095).
-  - `/acs:code`'s cycle runs at most **path-driven iterations**, and each leg
-    states its own ceiling in its own SKILL.md rather than looking one up:
-    - **`trivial` and `small`**: at most **2 iterations** — the single
-      verifier pass plus at most one round on blocking findings (ADR-0034 as
-      amended 2026-09-14: a cap of 1 left no round to fix what the verifier
-      found).
-    - **`standard` and `complex`**: at most **3 iterations** — execute →
-      verify against the plan `/acs:create-impl-plan` published before the run
-      started, never a per-iteration re-plan, plus the review and e2e when
-      configured. An iteration is one execute+verify round. Both deep paths
-      run all 16 dimensions; `complex` is the one that runs the
-      16-dimension, multi-lens review + e2e, splitting them across 4 parallel
-      independent lenses (each reading a distinct evidence source) followed by a
-      coordinator-performed adversarial merge pass before
-      findings count. `standard` runs the same 16 in a single subagent pass.
+  changed. Every skill runs a fixed iteration cap of 3. `/acs:code` used to
+  vary by the recorded DELIVERY PATH; it no longer does, because the cap
+  governs the REVIEW and the review left (§3.5). What the delivery path still
+  decides is how many executors run:
+  - `/acs:code`'s legs each state their own executor shape in their own
+    SKILL.md rather than looking one up:
+    - **`trivial` and `small`**: one executor, rarely two on `small`, and only
+      when the plan's file map splits cleanly in two.
+    - **`standard` and `complex`**: executors partition the plan's file map,
+      and `complex` adds a final **integration executor** over the seams
+      between the partitions. Both work against the plan
+      `/acs:create-impl-plan` published before the run started, never a
+      per-iteration re-plan.
 
-      Dimension 14 (Regression-risk, git-history) is what separates 16 from
-      15: it is scoped to the two DEEP paths, and on `complex` it is lens D's.
-      It reads the recorded `delivery_path` itself to decide — not the
-      presence of a `verify_lens`, which was the same question while deep
-      always meant multi-lens and stopped being it when `standard` became
-      deep AND single-pass. With no path recorded it EVALUATES: the
-      dispatcher runs `standard` on a missing answer, and a missing answer
-      must never buy a cheaper review.
-    - When `pipeline-state.json` carries no `delivery_path`, `/acs:code`'s
-      dispatcher runs the `standard` leg — the conservative default, never a
-      cheap path on a missing answer.
-    - On hitting the ceiling with findings remaining, the skill stops and
-      records its findings and stop reason in its state file.
+    The iteration ceiling is **not** a property of the path. It is
+    `ship.yaml`'s `loops[].max_iterations` — one cap, the same on every path —
+    because it governs the review, and `/acs:code` has no review. So is the
+    reviewer's depth: `/acs:review-code` measures the changeset in front of it
+    and fans lens B out when the diff warrants it, and neither `/acs:code` nor
+    `ship.yaml` passes it a lens count.
 
-  **Absolute invariants — they hold on every delivery path:**
+    **The path is judged once.** `/acs:create-impl-plan` records
+    `delivery_path` in the plan's `## Contract` block, from the work itself,
+    before any delivery path exists. Nothing re-judges it: `/acs:code`
+    dispatches to the leg the plan names, a leg that believes the path is
+    wrong says so with `stop_reason: needs_input` rather than behaving like
+    another leg, and there is no mid-run escalation, de-escalation or
+    recompute to reach for. The ceiling never moves mid-run because nothing
+    it depends on does.
 
-  - The **verifier subagent is the in-loop quality gate on every path** (C-5).
-    The cheap paths differ from the deep ones in iteration ceiling and review
-    shape; the verifier always runs. There is no inline human-approval gate;
-    the human-in-the-loop checkpoint is the PR review before merge.
-  - The **TDD/coverage gate runs in full on every path and is never trimmed
-    by the path** (invariant a, MAR-55). The path is not a review dimension a
-    cheap run drops.
+    **Absolute invariants.** Two things the delivery path never scales, and
+    they are the reason scaling everything else is safe:
 
-  **The ceiling never moves mid-run (ADR-0095).** MAR-57 made the ceiling
-  above an *initial* value: an in-flight trigger — a verifier finding of
-  higher stakes or size, a `high_stakes_paths` glob match on a touched file,
-  or an explicit user or agent request — recomputed it through
-  `VERIFY_ITERATION_CAP[verify_depth(new_lane, new_stakes)]` and raised it
-  monotonically, recording a 13-field escalation event so that no lane change
-  was silent, with a user-confirmed de-escalation path (MAR-108) as the one
-  sanctioned way down.
+    1. **The review always runs, on every delivery path.** `/acs:review-code`
+       is a step of `ship.yaml`, not an option a cheap path may decline: the
+       five lenses, the per-finding adjudication and the final gate are the
+       same on `trivial` as on `complex`. A path chooses how much work the
+       implementation is divided into, never whether the work is judged.
+    2. **The TDD discipline and the coverage gate are never trimmed.** The
+       final gate runs the build, the lint, the full unit suite and coverage
+       in full, once, on the iteration that survives review — the one place
+       the full suite runs. A path may not lower the coverage threshold,
+       narrow the suite, or substitute the tests a leg happened to run for
+       the gate's own run.
 
-  None of that exists now. The path is judged once, from `plan.md`, before
-  `/acs:code` starts, and is read from `pipeline-state.json` thereafter; there
-  is no trigger, no recompute, no escalation ledger and no de-escalation
-  writer, because there is no decision left to move. What replaces the
-  triggers is the verifier's **path audit** dimension: it reads the recorded
-  path and its reason, judges the diff against them, and blocks when they
-  contradict. Its remedy is a REPLAN — the run ends `failed` with
-  `stop_reason: plan_superseded` and `ship.yaml`'s `on_replan` edge returns to
-  `/acs:create-impl-plan` — never a mid-run re-route, because a run split
-  across two rigors is exactly what this replaces. The cost is that rigor can
-  no longer rise within a run; the gain is that every run has one rigor, and
-  a recorded sentence saying why.
+- Subagent naming convention: `<skill>-<role>.md`, where the roles are
+  `executor`, `verifier`, `lens` and `adjudicator`; no skill ships a
+  `<skill>-planner` (ADR-0092).
+  32 agent files exist on disk in total — exactly the roles
+  `skills/<name>/acs.yaml` declares, so none is orphaned, and a skill is a
+  DIRECTORY rather than an entry in a registry file.
 
-- Subagent naming convention: `<skill>-executor`, `<skill>-verifier`; no
-  skill ships a `<skill>-planner` (ADR-0092).
-  31 agent files exist on disk in total — exactly the roles
-  `workflows/phases.yaml` declares (ADR-0092), so none is orphaned — an
-  executor and a verifier for each hooked skill prefix
-  that runs the cycle, and an executor only for the three apply-work skills;
-  before the skills-independence refactor there were fifteen skill prefixes
-  with agent files, and there are seventeen now. **Fourteen** skills run the
-  execute→verify cycle: the **twelve** authoring skills listed in the heading
-  above — which include the five Build/Test skills the refactor added
-  (`analyze-ticket`, `create-impl-plan`, `create-api-contract`,
-  `create-test-docs`, `create-e2e-tests`) — plus `code`, which runs it
-  against a plan another skill approved, and `create-docs`. Three prefixes
-  belong to the **apply-work** skills, which run inline and never spawn a
-  verify-phase subagent (see the "Apply-work skills" subsection above).
+  **Thirteen** skills run the execute→verify cycle: the **twelve** authoring
+  skills listed in the heading above — which include the five Build/Test
+  skills the skills-independence refactor added (`analyze-requirements`,
+  `create-impl-plan`, `create-api-contract`, `create-test-docs`,
+  `create-e2e-tests`) — plus `create-docs`.
+
+  **Four** prefixes are executor-only. Three are the **apply-work** skills,
+  which run inline and never spawn a verify-phase subagent (see the
+  "Apply-work skills" subsection above). The fourth is `code`: its verifier
+  left for `/acs:review-code`, because an implementer that grades its own
+  output gave per-finding adjudication to one delivery path out of four and
+  ran the full unit suite inside an iteration that might be discarded.
+
+  **One** prefix is neither: `review-code` owns a `lens` and an
+  `adjudicator`. That is not a pair and is not meant to be — five lenses
+  raise candidate findings in parallel and one fresh-context adjudicator per
+  finding tries to refute it, so the two roles fan out independently of each
+  other.
 - For the **apply-work** group, only the executor-suffix agent file may be
   delegated to at most once per invocation; their former plan-phase and
   verify-phase agent files were deleted by ADR-0092 (the skills already
@@ -166,47 +163,48 @@ Requirements:
   one); unset values inherit the parent context's model and effort
   ([configuration.md](configuration.md#subagent-models)).
 
-> **Note:** the `code-verifier` carries the broadest verification scope: in
-> addition to spec conformance, tests, and coverage, it reviews the whole
-> changeset (business logic, features, quality, technical standards
-> (conformant with the `standards/` doc set at `standards_path` when
-> configured; falls back to documented architecture when unset),
-> architecture, system design, security, documentation, and
-> **Simplicity & scope** — overcomplication and out-of-scope edits are
-> blocking). There is no separate review skill — see [skills.md](skills.md).
+> **Note:** the **changeset review** carries the broadest scope, and it is a
+> step of its own rather than a phase inside `/acs:code`. `/acs:review-code`
+> runs five lenses in parallel — acceptance conformance, defects, contracts
+> and regressions, security and operability, and craft (which includes
+> **Simplicity & scope**: overcomplication and out-of-scope edits are
+> blocking) — over the whole changeset, against the `standards/` doc set at
+> `standards_path` when configured and the documented architecture when
+> unset. Every candidate finding then goes to a **fresh-context adjudicator**
+> prompted to refute it, and only what survives refutation is recorded.
+> Findings carry a `kind`, not a dimension number: the numbered dimension
+> list is retired, because a finding's identity is its claim and its
+> evidence, not its position in a table.
 >
-> **Verifier anchoring**: a verifier judges the work against the **gated
-> upstream contracts** (specs, ticket, design), never against the
+> **Reviewer anchoring**: the review judges the work against the **gated
+> upstream contracts** (the plan, the ticket, the design), never against the
 > same-iteration author's own claims — an unverified survey must not be able
-> to certify the work it shaped. The authoring notes' contribution to
-> verification is a floor, never a ceiling: the `authoring-conformance`
-> dimension checks that the deliverable is what the notes surveyed and
-> re-opens every citation the notes make, and a draft with no notes behind
-> it is a blocking finding on its own; verifiers never read executor
-> reasoning — only artifacts.
+> to certify the work it shaped. For an authoring skill, its verifier applies
+> the same rule to the authoring notes: the notes' contribution is a floor,
+> never a ceiling — the check is that the deliverable is what the notes
+> surveyed, every citation the notes make is re-opened, and a draft with no
+> notes behind it is a blocking finding on its own. Neither a verifier nor a
+> lens reads executor reasoning — only artifacts.
 >
-> **Bounded exception — `/acs:code` plan conformance (MAR-74, slice 4 of
-> MAR-69, ADR 0073)**: for `/acs:code` alone, and for the `code-verifier`'s
-> plan-conformance dimension (15) alone, the approved plan's `## Executor
-> tasks & file map` and its folded `Approach`/`API/data changes` content are
-> additionally a bounded conformance contract. The dimension is active only
-> while the verifier itself computes — never from a coordinator-relayed
-> value — that `<partition>/phases/code/plan-approval.json` exists and
-> parses, carries `eligible: true` and `plan_path == phases/code/plan.md`,
-> and pins a `plan_sha256` equal to the current `plan.md` bytes; when any
-> condition fails the dimension reports an evidenced **N/A**, never a block.
-> The hazards ADR-0004 named are structurally absent in exactly this case:
-> the approval is a deterministic non-LLM predicate over the plan's own
-> bytes (MAR-73), and since MAR-71 the plan is not a same-iteration artifact
-> at all — it is authored once, before the loop. The dimension is strictly
-> **subordinate to acceptance-criteria conformance** (dimension 1): an
+> **Bounded exception — plan conformance**: for the review of a `/acs:code`
+> changeset alone, the approved plan's `## Executor tasks & file map` and its
+> folded `Approach`/`API/data changes` content are additionally a bounded
+> conformance contract. It applies only while the reviewer itself computes —
+> never from a coordinator-relayed value — that the run's
+> `plan-approval.json` exists and parses, carries `eligible: true`, names the
+> run's `plan.md`, and pins a `plan_sha256` equal to that file's current
+> bytes; when any condition fails, the check reports an evidenced **N/A**,
+> never a block. The hazards ADR-0004 named are structurally absent in
+> exactly this case: the approval is a deterministic non-LLM predicate over
+> the plan's own bytes (MAR-73), and the plan is not a same-iteration
+> artifact at all — it is authored once, by an earlier step, before the loop.
+> Plan conformance is strictly **subordinate to acceptance conformance**: an
 > approved plan is never evidence that an acceptance criterion is satisfied.
-> Everywhere else — every other dimension, every other skill, and every case
-> where the record is absent or does not hold — the rule above stands
+> Everywhere else — every other finding kind, every other skill, and every
+> case where the record is absent or does not hold — the rule above stands
 > unchanged, the plan a floor and never a ceiling. When the plan itself is
-> wrong, the boundary-gated, `clarify.py`-recorded revocation path
-> (`plan-superseded-<k>.md`) revises and re-approves it instead of bending
-> the rule.
+> wrong, `stop_reason: plan_superseded` re-runs `/acs:create-impl-plan` and
+> re-judges from the corrected plan instead of bending the rule.
 >
 > **Spec-time vs. code-time simplicity (MAR-88)**: the plan's author
 > (`create-impl-plan-executor`'s survey — the former `code-planner` charter;
@@ -214,22 +212,22 @@ Requirements:
 > now runs on every plan)
 > evaluates each decomposition for a **materially** simpler alternative
 > meeting the **same acceptance criteria**, and **surfaces** (never blocks) a
-> finding to the user/spec owner for a **decision** — a spec-time check on
-> the chosen **approach**, before any code exists. `code-verifier` dimension
-> 12 ("Simplicity & scope") is a code-time, **blocking** check on the
-> **code** the executor wrote against the already-accepted spec. The two
-> never double-count: they inspect different artifacts (approach vs. diff) at
-> different times, so a decomposition accepted at spec time is never
-> re-litigated by dimension 12 — it only judges conformance and internal
-> simplicity of the code against that accepted spec.
+> finding to the user/plan owner for a **decision** — a plan-time check on
+> the chosen **approach**, before any code exists. The review's craft lens
+> ("Simplicity & scope") is a code-time, **blocking** check on the **code**
+> the executor wrote against the already-accepted plan. The two never
+> double-count: they inspect different artifacts (approach vs. diff) at
+> different times, so a decomposition accepted at plan time is never
+> re-litigated by the craft lens — it only judges conformance and internal
+> simplicity of the code against that accepted plan.
 
 ```mermaid
 flowchart TD
-    CO[Coordinator] -->|XML task: survey, then author| EX[executor]
-    EX -->|iter-n-authoring.md + deliverable| WS[(partition)]
-    EX -->|XML result, or needs_input before any file| CO
-    CO -->|XML task + artifact refs| VF[verifier]
-    VF -->|XML verdict| CO
+    CO[Coordinator] -->|task: survey, then author| EX[executor]
+    EX -->|iter-n/authoring.md + deliverable| WS[(run directory)]
+    EX -->|result JSON, or needs_input before any file| CO
+    CO -->|task + artifact refs| VF[verifier]
+    VF -->|verdict| CO
     CO -->|verdict = fail, iterations left: findings in context| EX
     CO -->|verdict = pass| ST[(write state JSON via post-hook)]
 ```
@@ -238,72 +236,63 @@ A failing verdict with iterations left routes straight back to the
 **executor** (`EX`) with the findings in its `<context>` — there is no plan
 phase to route to (ADR-0092); the survey was made once, by iteration 1's
 executor, and the notes it left are what the verifier judged against. **The
-`CO -->|XML task| EX` edge fires for every skill on every run.** It was
+`CO -->|task| EX` edge fires for every skill on every run.** It was
 lane-conditional for `/acs:create-impl-plan` (MAR-72, ADR-0074), which took a
 coordinator self-loop on TRIVIAL/SMALL and spawned no executor; ADR-0095
 removed both the lanes and that self-loop, so the diagram above has one
 execute edge and no exception to it.
 
-## Coordinator ↔ subagent communication: XML
+## Coordinator ↔ subagent communication
 
 - All communication between the coordinator and subagents MUST use a defined
-  **XML format** — both task assignments (coordinator → subagent) and results
+  **JSON format** — both task assignments (coordinator → subagent) and results
   (subagent → coordinator).
-- Messages MUST be **validated against a formal schema (XSD)** shipped with
-  the plugin, so malformed messages fail fast instead of silently degrading
-  the pipeline.
-- The format SHOULD carry, at minimum: ticket id, skill, phase, task
-  description, references to workspace input files, and (on the way back)
-  status, findings, error details, and output file references.
-- The XSD is the contract's only declaration (ADR 0093): the validator
-  derives its model from it at load time, `<constraint name>` is typed to
-  the XSD's `constraintName` vocabulary so a misspelled delegation key
-  fails at the coordinator, and the state-file schema declares the
-  load-bearing `states` members, the `escalations` audit event and each
-  finding's `severity`.
+- Results MUST be **validated against the JSON Schema** shipped with the
+  plugin (`schemas/result.schema.json`, `schemas/verdict.schema.json`), in the
+  hook, so a malformed result fails fast instead of silently degrading the
+  pipeline.
+- The format carries, at minimum: the run id, the step, the phase, the
+  iteration, the task description, references to run-directory input files,
+  and (on the way back) status, findings, error details, and output file
+  references.
+- The schemas are the contract's only declaration: the XSD and its validator
+  are retired, because a second schema language for the same documents was a
+  second place for the vocabulary to drift. A result is JSON, the hook
+  validates it, and the step's `state.json` declares the load-bearing
+  `states` members and each finding's `severity`.
 
-**[ASSUMPTION]** Illustrative shape — the concrete schema is to be defined
-during design:
+Illustrative shape:
 
-```xml
-<task skill="code" phase="execute" ticket-id="SHOP-123">
-  <objective>Implement spec 02-api-endpoints</objective>
-  <inputs>
-    <file>specs/02-api-endpoints.md</file>
-    <file>plan.json</file>
-  </inputs>
-  <constraints>
-    <tdd>true</tdd>
-    <coverage-target>90</coverage-target>
-  </constraints>
-</task>
+```jsonc
+// the task the coordinator hands an executor
+{ "skill": "code", "phase": "execute", "run_id": "SHOP-123", "iteration": 1,
+  "objective": "Implement plan task 2 — the cart API handler",
+  "inputs": ["steps/create-impl-plan/plan.md", "steps/code/iter-1/filemap.json"],
+  "constraints": { "tdd": true, "coverage_target": 90 } }
 
-<result skill="code" phase="execute" ticket-id="SHOP-123" status="completed">
-  <outputs>
-    <file>code-progress.json</file>
-  </outputs>
-  <findings>…</findings>
-  <errors>…</errors>
-  <stop-reason>…</stop-reason>
-</result>
+// what it returns
+{ "skill": "code", "phase": "execute", "run_id": "SHOP-123", "iteration": 1,
+  "status": "completed",
+  "outputs": ["src/cart/api.py", "tests/cart/test_api.py"],
+  "findings": [], "errors": [], "stop_reason": null }
 ```
 
 ## File-based state instead of conversation memory
 
 - Subagents MUST write their **states, findings, error details, and stop
   reasons** into JSON files in the workspace folder. Concretely, every phase
-  writes its own artifact into `<partition>/phases/<skill>/`: an authoring
-  executor its `iter-<n>-authoring.md` (the survey the deliverable was
-  authored from, then the findings addressed; `/acs:create-impl-plan`'s
-  deliverable is itself the single per-ticket `plan.md` — MAR-70 — written
-  once per run), each executor `iter-<n>-execute[-<k>].json` (artifacts
-  produced, repo files changed, commands run with outcomes), the verifier
-  `iter-<n>-verify.md` (every check with evidence, every finding in detail).
-  No skill writes `iter-<n>-plan.md` any more (ADR-0092).
-  `/acs:code` additionally persists `phases/code/plan-approval.json` on the
-  `standard` and `complex` delivery paths — written by `plan-approval.py`,
-  **not** by a subagent (MAR-73, slice 3 of MAR-69). XML results reference these files, never
-  inline their bodies.
+  writes its own artifact into `<run>/steps/<skill>/iter-<n>/`: an authoring
+  executor its `authoring.md` (the survey the deliverable was authored from,
+  then the findings addressed; `/acs:create-impl-plan`'s deliverable is itself
+  the single per-run `plan.md` — MAR-70 — written once per run, beside the
+  iteration directories rather than inside one), each executor
+  `execute[-<k>].json` (artifacts produced, repo files changed, commands run
+  with outcomes), a verifier `verify.md` (every check with evidence, every
+  finding in detail). No skill writes a `plan.md` phase artifact any more
+  (ADR-0092). `/acs:code` additionally persists
+  `steps/code/plan-approval.json` on the `standard` and `complex` delivery
+  paths — written by `plan-approval.py`, **not** by a subagent (MAR-73, slice
+  3 of MAR-69). Results reference these files, never inline their bodies.
 - **Grounding**: every subagent decision, claim, and finding MUST be traceable
   to a source read or run in that task — cited file/section next to the
   statement, or the quoted command and output. A missing input is an error,

@@ -21,17 +21,17 @@ MANDATORY first action — run exactly one of:
 - Fresh run (the normal case; each run gets its own delivery ticket):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill standardize-project --allocate --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardize-project --allocate --args "$ARGUMENTS"
 ```
 
 - Resume: if `$ARGUMENTS` contains an existing delivery-ticket id (e.g. `SHOP-9` from a
   handoff `continue_with` command), do NOT allocate — rejoin that partition:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill standardize-project --ticket SHOP-9
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardize-project --ticket SHOP-9
 ```
 
-If skill-start exits non-zero: stop immediately and surface its stderr to the user
+If `acs step start` exits non-zero: stop immediately and surface its stderr to the user
 verbatim — do not improvise. Otherwise parse the printed context JSON; the fields you
 need: `partition`, `ticket_id`, `ticket`, `settings` (`principles_path`,
 `standards_path`, `architecture_path`, `test_coverage_percent`, `e2e`, `formats`,
@@ -39,7 +39,7 @@ need: `partition`, `ticket_id`, `ticket`, `settings` (`principles_path`,
 `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled **"Brownfield project standardization"**
-(`DELIVERY_TICKET_TITLES`); skill-start has already created the
+(`DELIVERY_TICKET_TITLES`); `acs step start` has already created the
 partition, ticket.json, the lock, the session pointer, and the `in_progress` run entry.
 If `settings.tracker.provider` is `github` or `jira`, sync the ticket out via `gh`/`acli`
 per the tracker config.
@@ -56,7 +56,7 @@ a grounding-input condition handled in Inputs & mode, not a Start-time concern.
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-- Read `<partition>/phases/standardize-project/` — the persisted `iter-<n>-<phase>.xml`
+- Read `steps/standardize-project/` — the persisted `iter-<n>-<phase>.xml`
   files tell you the last completed phase and iteration.
 - Re-read the actual artifacts: which files under `<checkout_root>` were scaffolded per
   the last recorded plan; whether the ticket branch exists (`git branch --list`), is
@@ -69,7 +69,7 @@ continuing:
   frozen allowlist every later iteration reads.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/standardize-project/handoff-context.md` (if present), do a light
+`steps/standardize-project/handoff-context.md` (if present), do a light
 reconcile, and continue from where it points.
 
 ## Brownfield orientation
@@ -211,9 +211,8 @@ tool: `subagent_type` `acs:standardize-project-executor` /
 un-namespaced name if the runtime rejects the namespaced one). Apply
 `context.models.<role>.model`/`.effort` at spawn when not `"inherit"`; fail the run (no
 silent fallback) if the runtime rejects the model/effort. Communicate in XML per
-`schemas/acs-messages.xsd`; validate every message via `validate_xml.py`; on an invalid
 message, re-request once, then fail with the validation error recorded in `errors`.
-Persist every phase output to `<partition>/phases/standardize-project/iter-<n>-<phase>.xml`
+Persist every phase output to `steps/standardize-project/iter-<n>/<phase>.json`
 before starting the next phase.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
@@ -253,7 +252,7 @@ Phases:
 
 1. **Execute** — iteration 1's executor first AUDITS (read-only): it reads the
    doc-set/target/readiness-tooling inputs above and writes its authoring notes
-   (`<partition>/phases/standardize-project/iter-1-authoring.md`): a gap list
+   (`steps/standardize-project/iter-1/authoring.md`): a gap list
    classified into scaffold-able (CI/tooling config) vs recommended-follow-up-only
    (missing doc sets, missing `hld/project-structure.md`, structural gaps against it),
    the additive-surface allowlist the verifier will enforce, and the
@@ -373,7 +372,7 @@ about anything the repo's own config already answers. If genuinely unreachable, 
 ## Context pressure
 
 If your context is running low mid-run: flush in-flight work plus soft context to
-`<partition>/phases/standardize-project/handoff-context.md`, then run:
+`steps/standardize-project/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
@@ -385,7 +384,7 @@ Tell the user the printed `continue_with` command.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `<partition>/phases/standardize-project/result.json` per the result-document
+1. Write `steps/standardize-project/result.json` per the result-document
    contract in INTERNALS.md (`docs/architecture/lld/contracts.md:27`). Canonical
    `states` keys: `audit`, `scaffold`, `pr` — plus the top-level `recommended_follow_ups`
    array (ALWAYS present, empty when there is nothing to recommend):
@@ -393,7 +392,7 @@ MANDATORY final step — never skipped, also on failure:
 ```json
 {
   "status": "completed",
-  "stop_reason": "audit complete; additive scaffold verified additive-only; PR opened with recommended follow-ups listed",
+  "summary": "audit complete; additive scaffold verified additive-only; PR opened with recommended follow-ups listed",
   "states": {
     "audit": {
       "principles": "absent",
@@ -416,13 +415,13 @@ MANDATORY final step — never skipped, also on failure:
    `"present" | "absent" | "n/a"` (`"n/a"` when the corresponding `<set>_path` setting is
    unset); `readiness_tooling.e2e` is boolean OR the literal string `"n/a"` when
    `settings.e2e` is unset. On failure: `status: "failed"`, blocking findings in
-   `findings`, reason in `stop_reason`, keep whatever is true in `states`,
+   `findings`, reason in `summary`, keep whatever is true in `states`,
    `recommended_follow_ups` still reflects whatever the last passing plan found. On
    handoff: `status: "handed_off"` plus `handoff_summary`.
 2. Run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-standardize-project.py" --ticket <id> --result-file <partition>/phases/standardize-project/result.json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-standardize-project.py" --result-file "<the result.json you just wrote>"
 ```
 
 3. Report a compact summary to the user: audit findings, files scaffolded, verifier
@@ -440,7 +439,7 @@ same labels/order, `none` where empty; under `/acs:ship` the final message is th
 ## /acs:standardize-project · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: audit summary (doc sets / project-structure / readiness tooling); files additively scaffolded; delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Recommended follow-ups**: <recommended_follow_ups titles, or "none">

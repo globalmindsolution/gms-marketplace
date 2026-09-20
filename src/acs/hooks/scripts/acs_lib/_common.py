@@ -33,8 +33,9 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create
 # and HOOKED_SKILLS keeps its three-way shape. Their ORDER lives in
 # workflows/ship.yaml, never in this list -- what a list position buys is the
 # metrics funnel's column order, nothing else.
-WORKFLOW_SKILLS = ["create-ticket", "analyze-ticket", "create-impl-plan", "create-api-contract",
-                   "create-test-docs", "code", "docs-sync", "create-e2e-tests", "create-pr",
+WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
+                   "create-api-contract", "create-test-docs", "code", "review-code",
+                   "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
                    "merge-pr", "standardize-project"]
 PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
@@ -46,9 +47,10 @@ HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 # is an implementation of the `code` step, not a step of its own.
 #
 # Everything a leg writes on disk is `code`'s: it starts with
-# `skill-start.py --skill code`, so `phases/code/`, `code-state.json`, the
-# `code` ledger key and `post-code.py` are shared by all four. The leg name
-# exists in exactly two places -- the Skill invocation, and this mapping.
+# `acs step start --step code`, so `steps/code/`, its state.json, the `code`
+# ledger key and `post-code.py` are shared by all four. The leg name exists in
+# exactly three places -- the Skill invocation, this mapping, and the `leg`
+# field the run records so the trail says which one ran.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 #: {leg: the skill whose gate, hooks and state it runs under}.
 LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
@@ -67,18 +69,28 @@ LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
 # `create-docs` is NOT like it any more (ADR-0094): it absorbed its four doc
 # legs, so it is the hooked product skill that bootstraps a doc set itself,
 # one delivery ticket per set.
-UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage",
-                   "test", "run-e2e-tests", "release", "project"]
+# `run-e2e-tests` moved to HOOKED_SKILLS: it is a step of `ship.yaml` with its
+# own pre/post pair, and the "not really a pipeline skill in its default mode"
+# framing it used to carry is gone -- there is one mode (§3.11). The `test`
+# alias went with it (§6): the directory is deleted, and a name in a list with
+# no directory behind it is a name nothing can resolve.
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
+                   "usage", "release", "project"]
 
-# Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
-# order. A schema-mirror equality test is what stops this list from drifting.
-# `test` is kept beside `run-e2e-tests` so a ledger written before the rename
-# still validates and still orders sensibly.
+# A DISPLAY order for the metrics funnel's columns, and nothing else. It is
+# not the pipeline's order, which lives in workflows/ship.yaml and is that
+# file's to change, and it no longer mirrors a schema enum: run.schema.json's
+# `steps` is OPEN (§4.3), because a new workflow is a YAML file and a new
+# skill is a directory -- neither should touch a schema. What binds this list
+# is only that every name in it is a real skill and every hooked skill is in
+# it, so no funnel column goes missing; a step it does not name still renders,
+# sorted after the ones it does. Nothing branches on it.
 PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-docs",
-                        "create-requirements", "create-ticket", "create-design", "analyze-ticket",
-                        "create-impl-plan", "create-api-contract", "create-test-docs", "code",
-                        "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr",
-                        "merge-pr"]
+                        "create-requirements", "create-ticket", "create-design",
+                        "analyze-requirements", "create-impl-plan", "create-api-contract",
+                        "create-test-docs", "code", "review-code", "docs-sync",
+                        "create-e2e-tests", "run-e2e-tests", "create-pr", "merge-pr",
+                        "standardize-project"]
 
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the
@@ -89,7 +101,9 @@ PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "c
 # are observed as attributionSkill values even though they write no run entry.
 ATTRIBUTION_SKILL_MAP = {"init": "setup", "initialize": "setup"}
 
-RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
+#: A step's states (§4.3). `skipped` never existed here; `handed_off` did, and
+#: it is gone -- it named a REASON rather than a state, and the reason is now
+#: `stop_reason` on the single resumable state, `interrupted`.
 TICKET_TYPES = ["epic", "story", "task"]
 TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]
 PRIORITIES = ["critical", "high", "medium", "low"]

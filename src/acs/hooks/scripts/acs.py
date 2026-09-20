@@ -12,10 +12,9 @@ JSON object.
 Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
-    context, gate, path, ticket, pr, tracker, readiness, lock, filemap,
-    guard, verdict, phase, slug, fanout, doctor, workflow, artifacts.
-  * Delegated — the verbs an existing script already implements: `start`
-    (skill-start.py), `finish` (pipeline-step.py), `plan check`
+    context, gate, run, step, result, ticket, pr, tracker, readiness, lock,
+    filemap, guard, verdict, slug, fanout, doctor, workflow, artifacts.
+  * Delegated — the verbs an existing script already implements: `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
     when called directly; acs.py forwards argv to them and returns their exit
     code unchanged. Nothing was reimplemented, so no behaviour could drift.
@@ -27,37 +26,40 @@ Conventions, uniform across every subcommand:
   * A usage or precondition failure writes `acs <command>: <reason>` to stderr
     and exits 2 — the same shape and code the existing scripts use.
   * Exit 0 means the command ran; it does NOT mean the answer was yes. Read
-    the JSON (`delivery_path`, `eligible`, `ok`) for the verdict.
+    the JSON (`ok`, `next`, `eligible`, `passed`) for the verdict.
 
 Usage:
   acs.py context
-  acs.py gate --skill code [--ticket MAR-1]
-  acs.py start --skill code --args MAR-1
-  acs.py finish --ticket MAR-1 --skill test --status completed
-  acs.py path show --ticket MAR-1
-  acs.py path set --ticket MAR-1 --path standard --reason "adds a public endpoint and migrates orders"
+  acs.py gate --skill code [--run MAR-1]
+  acs.py run new --ticket MAR-1 | --prompt "..." | --document path.md
+  acs.py run show [--run MAR-1]
+  acs.py run next [--run MAR-1]
+  acs.py run check [--run MAR-1]
+  acs.py run abandon --run MAR-1 --reason "superseded by MAR-2"
+  acs.py step start --step code [--run MAR-1]
+  acs.py step finish --step code [--run MAR-1] [--status completed]
+  acs.py step show --step code [--run MAR-1]
+  acs.py result validate --skill code result.json
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py pr metadata fill --ticket MAR-1 --pr 42
   acs.py tracker sync --ticket MAR-1 --ticket MAR-2
   acs.py readiness --pr 42
   acs.py readiness --from recorded-pr.json
-  acs.py lock status --ticket MAR-1
-  acs.py lock force-unlock --ticket MAR-1 --reason "the holding container died"
+  acs.py lock status [--run MAR-1]
+  acs.py lock force-unlock --run MAR-1 --reason "the holding container died"
   acs.py filemap set --task 1 --file src/a.py --file tests/test_a.py
   acs.py filemap show
-  acs.py guard events --ticket MAR-1
+  acs.py guard events [--run MAR-1]
   acs.py verdict show --iteration 2
-  acs.py verdict merge --iteration 2
   acs.py plan check --ticket MAR-1
   acs.py setup detect
   acs.py setup apply --answers answers.json
-  acs.py phase validate --skill code --result-file result.json
   acs.py slug --text "Introduce the acs CLI"
+  acs.py fanout ...
   acs.py doctor
   acs.py workflow show
   acs.py workflow validate [--file PATH]
-  acs.py workflow next --ticket MAR-1 [--dry-run]
   acs.py artifacts migrate [--dry-run]
   acs.py artifacts show --ticket MAR-1
 """
@@ -78,14 +80,15 @@ import acs_lib as lib  # noqa: E402
 # change that.
 from acs_cli import (context_or_die, die, emit, load_ticket_or_die,  # noqa: E402,F401
     partition_or_die, read_json_arg)
-from acs_commands import (CONTEXT_KEYS, cmd_context, cmd_doctor,  # noqa: E402,F401
-    cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show, cmd_gate,
-    cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status, cmd_path_set,
-    cmd_path_show, cmd_phase_validate,
-    cmd_pr_metadata_fill, cmd_readiness, cmd_slug,
-    cmd_ticket_save, cmd_ticket_show, cmd_tracker_sync,
-    cmd_verdict_merge, cmd_verdict_show, cmd_workflow_next, cmd_workflow_show,
-    cmd_workflow_validate, cmd_artifacts_migrate, cmd_artifacts_show)
+from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_show,  # noqa: E402,F401
+    cmd_context,
+    cmd_doctor, cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show,
+    cmd_gate, cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status,
+    cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
+    cmd_run_check, cmd_run_new, cmd_run_next, cmd_run_show, cmd_slug,
+    cmd_step_finish, cmd_step_show, cmd_step_start, cmd_ticket_save,
+    cmd_ticket_show, cmd_tracker_sync, cmd_verdict_show,
+    cmd_workflow_show, cmd_workflow_validate)
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -93,8 +96,6 @@ SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 #: The script remains the implementation and stays callable on its own; acs.py
 #: is the documented front door. Values are argv[0] under SCRIPTS.
 DELEGATED = {
-    "start": "skill-start.py",
-    "finish": "pipeline-step.py",
     "plan": "plan-approval.py",
     "setup": "setup_wizard.py",
 }
@@ -139,20 +140,84 @@ def build_parser():
     gate.add_argument("--ticket")
     gate.set_defaults(func=cmd_gate)
 
-    path = group("path", help="the ticket's delivery path (ADR-0095)")
-    path_sub = path.add_subparsers(dest="cmd")
+    run = group("run", help="the RUN machine: runs/<run-id>/run.json")
+    run_sub = run.add_subparsers(dest="cmd")
 
-    path_show = path_sub.add_parser("show", help="the recorded path and why")
-    path_show.add_argument("--ticket")
-    path_show.set_defaults(func=cmd_path_show)
+    rnew = run_sub.add_parser("new", help="record a new run over a subject")
+    rnew.add_argument("--ticket", help="subject: a ticket id")
+    rnew.add_argument("--prompt", help="subject: free text")
+    rnew.add_argument("--document", help="subject: a path to a document")
+    rnew.set_defaults(func=cmd_run_new)
 
-    path_set = path_sub.add_parser("set", help="record the judged path, once")
-    path_set.add_argument("--ticket")
-    path_set.add_argument("--path", dest="delivery_path", required=True,
-                          help="one of the paths workflows/ship.yaml declares")
-    path_set.add_argument("--reason", required=True,
-                          help="one sentence naming what in the plan decided it")
-    path_set.set_defaults(func=cmd_path_set)
+    rshow = run_sub.add_parser("show", help="the run ledger")
+    rshow.add_argument("--run", help="a run other than this checkout's current one")
+    rshow.set_defaults(func=cmd_run_show)
+
+    rnext = run_sub.add_parser("next", help="the cursor: the first step not completed")
+    rnext.add_argument("--run")
+    rnext.set_defaults(func=cmd_run_next)
+
+    rcheck = run_sub.add_parser("check", help="invariants I1-I5")
+    rcheck.add_argument("--run")
+    rcheck.set_defaults(func=cmd_run_check)
+
+    rabandon = run_sub.add_parser("abandon", help="give up on a run (a human's call)")
+    rabandon.add_argument("--run")
+    rabandon.add_argument("--reason", help="why; required")
+    rabandon.set_defaults(func=cmd_run_abandon)
+
+    step = group("step", help="the STEP machine: steps/<skill>/state.json")
+    step_sub = step.add_subparsers(dest="cmd")
+
+    sstart = step_sub.add_parser("start", help="step -> in_progress")
+    sstart.add_argument("--step", required=True,
+                        help="validated against the resolved workflow, not an enum")
+    sstart.add_argument("--run")
+    sstart.add_argument("--pr", help="/acs:merge-pr's exempt-pr mode: N, #N or a PR "
+                                     "URL. Resolves no run and writes nothing.")
+    sstart.add_argument("--ticket", help="name the subject explicitly")
+    sstart.add_argument("--args", help="the invocation's raw argument text")
+    sstart.add_argument("--allocate", action="store_true",
+                        help="mint the delivery ticket a product-level skill works "
+                             "under, unless --ticket (or an --args value that IS an "
+                             "id) names a live partition to resume")
+    sstart.add_argument("--doc-set", dest="doc_set", choices=sorted(lib.DOC_SETS),
+                        help="the doc set a /acs:create-docs run delivers (required "
+                             "with --step create-docs --allocate)")
+    sstart.add_argument("--title", help="the minted ticket's title")
+    sstart.add_argument("--type", dest="ttype", default="task",
+                        help="the minted ticket's type (create-ticket only)")
+    sstart.add_argument("--seed-next", dest="seed_next", type=int,
+                        help="repair the id counter for a newly minted ticket "
+                             "(only valid together with --allocate)")
+    sstart.set_defaults(func=cmd_step_start)
+
+    sfinish = step_sub.add_parser("finish", help="step -> completed / failed / interrupted")
+    sfinish.add_argument("--step", required=True)
+    sfinish.add_argument("--run")
+    sfinish.add_argument("--status", choices=["completed", "failed", "interrupted"],
+                         help="override; normally read from result.json")
+    sfinish.add_argument("--outcome", help="override; normally read from result.json")
+    sfinish.add_argument("--summary")
+    sfinish.add_argument("--stop-reason", dest="stop_reason",
+                         choices=["session_end", "needs_input", "context_pressure"])
+    sfinish.add_argument("--no-op", dest="no_op", action="store_true",
+                         help="the pre-hook found nothing owed; no coordinator ran")
+    sfinish.set_defaults(func=cmd_step_finish)
+
+    sshow = step_sub.add_parser("show", help="one step's own state")
+    sshow.add_argument("--step", required=True)
+    sshow.add_argument("--run")
+    sshow.set_defaults(func=cmd_step_show)
+
+    result = group("result", help="the step result document")
+    result_sub = result.add_subparsers(dest="cmd")
+    rvalidate = result_sub.add_parser("validate",
+                                      help="check a result before the post-hook consumes it")
+    rvalidate.add_argument("--skill", required=True)
+    rvalidate.add_argument("result_file", nargs="?", default="-",
+                           help="a path, or '-'/omitted for stdin")
+    rvalidate.set_defaults(func=cmd_result_validate)
 
     ticket = group("ticket", help="read and write ticket.json")
     ticket_sub = ticket.add_subparsers(dest="cmd")
@@ -199,11 +264,11 @@ def build_parser():
     lock_sub = lock.add_subparsers(dest="cmd")
 
     lstatus = lock_sub.add_parser("status", help="who holds the lock, and on what evidence")
-    lstatus.add_argument("--ticket")
+    lstatus.add_argument("--run")
     lstatus.set_defaults(func=cmd_lock_status)
 
     lforce = lock_sub.add_parser("force-unlock", help="break a lock, recording who and why")
-    lforce.add_argument("--ticket")
+    lforce.add_argument("--run")
     lforce.add_argument("--reason", required=True,
                         help="why the lock is being broken; recorded in the audit ledger")
     lforce.add_argument("--actor", help="who decided, when it was not the running checkout")
@@ -214,7 +279,7 @@ def build_parser():
     filemap_sub = filemap.add_subparsers(dest="cmd")
 
     fmset = filemap_sub.add_parser("set", help="declare one executor task's file map")
-    fmset.add_argument("--ticket")
+    fmset.add_argument("--run")
     fmset.add_argument("--skill", default="code")
     fmset.add_argument("--iteration", type=int, default=1)
     fmset.add_argument("--task", type=int, required=True, help="the executor task index")
@@ -225,7 +290,7 @@ def build_parser():
     fmset.set_defaults(func=cmd_filemap_set)
 
     fmshow = filemap_sub.add_parser("show", help="the declared map and the enforced union")
-    fmshow.add_argument("--ticket")
+    fmshow.add_argument("--run")
     fmshow.add_argument("--skill", default="code")
     fmshow.add_argument("--iteration", type=int, default=1)
     fmshow.set_defaults(func=cmd_filemap_show)
@@ -234,33 +299,22 @@ def build_parser():
     guard_sub = guard.add_subparsers(dest="cmd")
 
     gevents = guard_sub.add_parser("events", help="the denials the latest run recorded")
-    gevents.add_argument("--ticket")
+    gevents.add_argument("--run")
     gevents.add_argument("--skill", default="code")
     gevents.set_defaults(func=cmd_guard_events)
-    verdict = group("verdict", help="the verifier's verdict document")
+    verdict = group("verdict", help="the review's verdict document")
     verdict_sub = verdict.add_subparsers(dest="cmd")
 
+    # `verdict merge` went with the per-lens verdict documents it merged. The
+    # lenses write prose reports and return candidate findings; adjudication is
+    # per finding, and the coordinator writes one verdict (§3.6). There is no
+    # arithmetic left to invoke.
     vshow = verdict_sub.add_parser("show", help="read and validate one verdict")
-    vshow.add_argument("--ticket")
-    vshow.add_argument("--skill", default="code")
+    vshow.add_argument("--run")
+    vshow.add_argument("--skill", default="review-code")
     vshow.add_argument("--iteration", type=int, default=1)
     vshow.add_argument("--lens", choices=list(lib.LENSES))
     vshow.set_defaults(func=cmd_verdict_show)
-
-    vmerge = verdict_sub.add_parser("merge", help="merge the full-depth lens verdicts")
-    vmerge.add_argument("--ticket")
-    vmerge.add_argument("--skill", default="code")
-    vmerge.add_argument("--iteration", type=int, default=1)
-    vmerge.add_argument("--lens", action="append", choices=list(lib.LENSES),
-                        help="restrict the merge to these lenses (default: all four)")
-    vmerge.set_defaults(func=cmd_verdict_merge)
-
-    phase = group("phase", help="phase artifacts")
-    phase_sub = phase.add_subparsers(dest="cmd")
-    pval = phase_sub.add_parser("validate", help="check a result document before the post-hook")
-    pval.add_argument("--skill", required=True)
-    pval.add_argument("--result-file", dest="result_file", metavar="FILE")
-    pval.set_defaults(func=cmd_phase_validate)
 
     slug = group("slug", help="slugify (branch and file naming)")
     slug.add_argument("--text", required=True)
@@ -286,24 +340,19 @@ def build_parser():
                            help="validate this file instead of the resolved workflow")
     wvalidate.set_defaults(func=cmd_workflow_validate)
 
-    wnext = workflow_sub.add_parser("next", help="the READY steps for a ticket, per pipeline-state.json")
-    wnext.add_argument("--ticket")
-    wnext.add_argument("--dry-run", dest="dry_run", action="store_true",
-                       help="evaluate without recording skipped steps in the ledger")
-    wnext.set_defaults(func=cmd_workflow_next)
 
     artifacts = group("artifacts", help="the ticket documents in the repo docs tree")
     artifacts_sub = artifacts.add_subparsers(dest="cmd")
 
-    amigrate = artifacts_sub.add_parser(
-        "migrate", help="move ticket.json, design.md and the legacy plan into <tickets_path>/<ID>/ once")
-    amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
-                          help="list the moves and write nothing")
-    amigrate.set_defaults(func=cmd_artifacts_migrate)
-
     ashow = artifacts_sub.add_parser("show", help="where one ticket's documents live, and its derived status")
     ashow.add_argument("--ticket")
     ashow.set_defaults(func=cmd_artifacts_show)
+
+    amigrate = artifacts_sub.add_parser(
+        "migrate", help="move live partitions' ticket documents into the repo docs tree")
+    amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
+                          help="list the moves without making them")
+    amigrate.set_defaults(func=cmd_artifacts_migrate)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

@@ -37,7 +37,6 @@ AGENTS = os.path.join(PLUGIN, "agents")
 sys.path.insert(0, HOOKS)
 
 import acs_lib as lib  # noqa: E402
-import validate_xml  # noqa: E402
 
 ROLES = ("executor", "verifier")
 
@@ -94,17 +93,18 @@ class TestLifecycleWiring(unittest.TestCase):
         cls.body = read(SKILL_PATH)
 
     def test_start_hook_is_the_mandatory_first_action(self):
-        self.assertIn("skill-start.py", self.body)
-        self.assertRegex(self.body, r"--skill create-e2e-tests\b")
+        self.assertIn('acs.py" step start', self.body)
+        self.assertRegex(self.body, r"--step create-e2e-tests\b")
         self.assertIn("MANDATORY first action", self.body)
 
     def test_post_hook_closes_the_run_with_the_result_document(self):
-        self.assertIn("post-create-e2e-tests.py", self.body)
-        self.assertIn("--result-file", self.body)
+        self.assertIn('post-create-e2e-tests.py" --result-file', self.body)
+        self.assertIn("result.json", self.body)
 
     def test_every_message_is_schema_validated(self):
-        self.assertIn("validate_xml.py", self.body)
-        self.assertIn("schemas/acs-messages.xsd", self.body)
+        self.assertNotIn("validate_xml.py", self.body)
+        self.assertNotIn("acs-messages.xsd", self.body)
+        self.assertIn("the SubagentStop hook's message check", self.body)
 
     def test_clarification_ledger_rule_and_completion_report(self):
         self.assertIn("Clarification ledger first.", self.body)
@@ -143,45 +143,37 @@ class TestIndependence(unittest.TestCase):
 
 
 class TestGateAgreement(unittest.TestCase):
-    """The three refusals the skill describes are the three gate_create_e2e_tests
-    raises — and they are raised in that order."""
+    """What the Start section promises is what the kernel checks.
+
+    There is no `gate_create_e2e_tests` any more: one `gate_step` serves every
+    step and reads the skill's OWN declaration (§2.4). So the pins are on the
+    declaration and the outcome vocabulary rather than on a function body,
+    which is what makes them impossible to satisfy with prose alone.
+    """
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
-        source = read(os.path.join(HOOKS, "acs_lib", "gates.py"))
-        cls.gate = re.search(r"(?s)def gate_create_e2e_tests\(.*?\n\n\ndef ", source).group(0)
 
-    def test_the_registered_gate_is_the_ticket_scoped_one(self):
-        self.assertIs(lib.GATES["create-e2e-tests"], lib.gate_create_e2e_tests)
-        self.assertIn("create-e2e-tests", lib.GATE_INPUTS["ticket"])
+    def test_the_declaration_names_the_document_the_prose_names(self):
+        required, optional = lib.reads_of("create-e2e-tests")
+        self.assertIn("test-cases", required + optional)
+        self.assertIn("test-cases.md", self.body)
 
-    def test_the_gate_checks_e2e_configuration(self):
-        self.assertIn("workflow.e2e_configured", self.gate)
+    def test_the_skill_still_describes_the_e2e_configuration_it_needs(self):
         self.assertIn("settings.e2e", self.body)
-        self.assertIn("settings.suites.e2e", self.body)
         self.assertIn("/acs:setup", self.body)
 
-    def test_the_gate_requires_the_case_document_and_names_its_producer(self):
-        self.assertIn('_require_artifact(ctx, ticket_id, tdir, ticket, "test-cases.md", '
-                      '"create-test-docs")', self.gate)
-        self.assertIn("test-cases.md", self.body)
-        self.assertIn("/acs:create-test-docs\n  <id> first", self.body)
-
-    def test_the_gate_counts_the_e2e_cases(self):
-        self.assertIn("e2e_case_count(path) < 1", self.gate)
-        self.assertRegex(self.body, r"at least one e2e case")
+    def test_nothing_owed_completes_the_step_without_spawning_it(self):
+        """`when: e2e_configured` is gone -- the workflow has no predicates
+        (§2.1). The step decides for itself and RECORDS why: a run with no
+        e2e case owed is completed by the pre-hook from the plan's Contract
+        block, for zero tokens, and says `no_e2e_owed`."""
+        self.assertIn("no_e2e_owed", lib.outcome_vocabulary("create-e2e-tests"))
+        self.assertIn("no_e2e_owed", self.body)
 
     def test_the_skill_forbids_editing_the_case_document_to_get_past_the_gate(self):
         self.assertRegex(self.body, r"Do NOT work around this by editing `test-cases.md`")
-
-    def test_the_workflow_skips_the_step_when_e2e_is_not_configured(self):
-        """The skill claims ship.yaml skips it; the default workflow must say so."""
-        doc, _lines = lib.load_workflow(lib.default_workflow_path())
-        step = [s for s in doc["steps"] if s["id"] == "create-e2e-tests"][0]
-        self.assertEqual(step["when"], "e2e_configured")
-        self.assertIn("e2e_configured", lib.PREDICATES)
-        self.assertRegex(self.body, r"ship\.yaml` skips this\s+step")
 
 
 class TestNeverWritesProductCode(unittest.TestCase):
@@ -328,9 +320,9 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/create-e2e-tests/iter-<n>-authoring.md", agent("executor"))
-        self.assertIn("phases/create-e2e-tests/iter-<n>-execute.json", agent("executor"))
-        self.assertIn("phases/create-e2e-tests/iter-<n>-verify.md", agent("verifier"))
+        self.assertIn("steps/create-e2e-tests/iter-<n>/authoring.md", agent("executor"))
+        self.assertIn("steps/create-e2e-tests/iter-<n>/execute.json", agent("executor"))
+        self.assertIn("steps/create-e2e-tests/iter-<n>/verify.md", agent("verifier"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:
@@ -346,7 +338,7 @@ class TestTriadShape(unittest.TestCase):
             self.assertTrue(examples, role)
             for example in examples:
                 with self.subTest(role=role):
-                    self.assertEqual(validate_xml.validate_structurally(example), [])
+                    self.assertEqual(lib.validate_message(example), [])
 
     def test_grounding_everywhere_and_policing_in_the_verifier(self):
         for role in ROLES:

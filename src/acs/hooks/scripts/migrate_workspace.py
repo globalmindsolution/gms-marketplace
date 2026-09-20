@@ -36,19 +36,55 @@ def _iter_files(root):
             yield os.path.relpath(os.path.join(dirpath, fname), root)
 
 
+def _last_status(path):
+    """The last recorded status in a step-state document, or None.
+
+    Read HERE rather than through a library helper, and from both list names,
+    because this script moves a tree it does not otherwise understand: the
+    source workspace may predate the re-key (a flat `<skill>-state.json` whose
+    entries are `runs`) or follow it (`steps/<skill>/state.json`, entries
+    `invocations`). A migrator that knows only the current layout would walk
+    straight past an in-flight run in the older one -- which is precisely the
+    workspace most likely to be migrated."""
+    doc = lib.read_json(path)
+    if not isinstance(doc, dict):
+        return None
+    for key in ("invocations", "runs"):
+        entries = doc.get(key)
+        if isinstance(entries, list) and entries:
+            last = entries[-1]
+            return last.get("status") if isinstance(last, dict) else None
+    return None
+
+
+def _state_subject(dirpath, fname):
+    """(owner, step) a state file belongs to, for the refusal message."""
+    if fname == "state.json":
+        # steps/<step>/state.json -- the owner is the RUN two levels up.
+        step = os.path.basename(dirpath)
+        return os.path.basename(os.path.dirname(os.path.dirname(dirpath))), step
+    return os.path.basename(dirpath), fname[: -len("-state.json")]
+
+
 def preflight(old_root):
-    """Abort (exit 2, no writes) on any live .lock file, or any in_progress last
-    run, found anywhere under old_root -- ticket partitions and archive/ alike."""
+    """Abort (exit 2, no writes) on any live .lock file, or any in_progress
+    last invocation, found anywhere under old_root -- run partitions, ticket
+    partitions and archive/ alike."""
     for dirpath, _dirnames, filenames in os.walk(old_root):
         for fname in filenames:
-            if fname == ".lock":
+            # `lock.json` in a run partition, `.lock` in a pre-v0.5.0 ticket
+            # partition. The migrator walks both layouts, so it checks for
+            # both: matching only the old name let it move a tree out from
+            # under a live session holding the new one.
+            if fname in (".lock", "lock.json"):
                 _fail("refusing to migrate -- a lock is present at %s"
                       % os.path.join(dirpath, fname))
-            if fname.endswith("-state.json"):
-                skill = fname[: -len("-state.json")]
-                if lib.last_run_status(dirpath, skill) == "in_progress":
-                    _fail("refusing to migrate -- %s's %s run is in_progress (%s)"
-                          % (os.path.basename(dirpath), skill, os.path.join(dirpath, fname)))
+            if fname == "state.json" or fname.endswith("-state.json"):
+                path = os.path.join(dirpath, fname)
+                if _last_status(path) == "in_progress":
+                    owner, step = _state_subject(dirpath, fname)
+                    _fail("refusing to migrate -- %s's %s step is in_progress (%s)"
+                          % (owner, step, path))
 
 
 def _copy_ticket_partition(old_path, new_path, rel, dry_run, actions):

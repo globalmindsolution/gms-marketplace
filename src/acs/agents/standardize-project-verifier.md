@@ -1,6 +1,6 @@
 ---
 name: standardize-project-verifier
-description: Verifier for the /acs:standardize-project reflection cycle. Spawned by the /acs:standardize-project coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:standardize-project reflection cycle. Spawned by the /acs:standardize-project coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -112,7 +112,7 @@ surface, and the executor never sees it again in a future `<context>`.
 
 ## The verification report
 
-Write the full report to `<partition>/phases/standardize-project/iter-<n>-verify.md`
+Write the full report to `steps/standardize-project/iter-<n>/verify.md`
 with the Write tool — your ONLY permitted write. For each dimension: the exact
 commands/inspections run, the evidence observed, and the verdict. Every XML `<finding>`
 summarizes a detailed entry in this file. Advisory observations that need no fix belong
@@ -121,8 +121,7 @@ in this report only — never as findings.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`schemas/acs-messages.xsd` — no prose before it, NOTHING after it. Before replying, pipe
-your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`.
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before replying, pipe
 
 - `status="completed"` — verification ran to completion. The verdict lives in
   `<findings>`: zero blocking findings = pass; any blocking finding = the coordinator
@@ -138,7 +137,7 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 ```xml
 <result skill="standardize-project" phase="verify" ticket-id="SHOP-9" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-9/phases/standardize-project/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-9/steps/standardize-project/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="additive-only" file=".pre-commit-config.yaml">M status outside the allowlisted append target — the notes only allowlisted an appended hook, not a full rewrite.</finding>
@@ -150,7 +149,7 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 ## Hard rules
 
 - NEVER spawn subagents.
-- Never modify the consumer repo or workspace state except your own `iter-<n>-verify.md`;
+- Never modify the consumer repo or workspace state except your own `iter-<n>/verify.md`;
   Bash is for read-only inspection and re-running checks (`ls`, `grep`, `git diff`,
   `git status`) plus that single artifact write.
 - Never fix issues yourself — report them; fixing is the next iteration's executor job.

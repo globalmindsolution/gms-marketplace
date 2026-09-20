@@ -7,10 +7,10 @@ took its exit code with it.
 
 Patching note. `acs_case.load_module` pops "acs_lib" from sys.modules before
 loading a script, so a freshly loaded `dispatch` holds its OWN acs_lib object
-with its own GATES dict. Patching the GATES imported at the top of this file
+with its own module object. Patching the gate imported at the top of this file
 therefore patches a dictionary the dispatcher never reads, and the gate under
 test never runs -- which is exactly how the first version of these tests passed
-while asserting nothing. Always patch `dispatch.acs_lib.GATES`, and assert on
+while asserting nothing. Always patch `dispatch.acs_lib.gate_step`, and assert on
 the distinguishing stderr rather than on the exit code alone, since the real
 gate_code also exits 2 (for a completely unrelated reason).
 """
@@ -55,11 +55,16 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
     def _dispatch_with_gate(self, gate, alias, timeout=None):
         """Load dispatch and install `gate` on the acs_lib object IT holds."""
         dispatch = load_module("dispatch.py", alias)
-        self.assertIsNot(dispatch.acs_lib.GATES, lib.GATES,
+        self.assertIsNot(dispatch.acs_lib.gates, None,
                          "load_module's re-import behaviour changed; re-check this helper")
-        original = dispatch.acs_lib.GATES["code"]
-        dispatch.acs_lib.GATES["code"] = gate
-        self.addCleanup(dispatch.acs_lib.GATES.__setitem__, "code", original)
+        # Patch where run_pre_payload LOOKS IT UP -- acs_lib.gates' own
+        # module global -- not the facade re-export. The old GATES dict was
+        # shared by identity, so patching the facade reached the dispatcher;
+        # a function re-export does not, and a patch that reaches nothing
+        # makes a fail-closed test pass while asserting nothing.
+        original = dispatch.acs_lib.gates.gate_step
+        dispatch.acs_lib.gates.gate_step = gate
+        self.addCleanup(setattr, dispatch.acs_lib.gates, "gate_step", original)
         if timeout is not None:
             self.addCleanup(setattr, dispatch, "GATE_TIMEOUT_SECONDS",
                             dispatch.GATE_TIMEOUT_SECONDS)
@@ -79,7 +84,7 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
 
     def test_gate_that_raises_exits_2(self):
         """An unexpected exception inside a gate blocks rather than passing."""
-        def boom(_ctx, _payload):
+        def boom(_ctx, _skill, _payload, standalone=True, **_kw):
             raise RuntimeError("gate is broken")
 
         dispatch = self._dispatch_with_gate(boom, "dispatch_raise_test")
@@ -90,7 +95,7 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
     def test_gate_that_hangs_exits_2(self):
         """The bound is the point: without it the hook's own timeout kills the
         process with no exit code of 2, which reads as 'not blocked'."""
-        def hang(_ctx, _payload):
+        def hang(_ctx, _skill, _payload, standalone=True, **_kw):
             time.sleep(30)
 
         dispatch = self._dispatch_with_gate(hang, "dispatch_hang_test", timeout=1)
@@ -109,7 +114,7 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
         swallowed there -- the gate then ran on unbounded, on silently-wrong
         git data, and returned 0. Only a BaseException survives that handler.
         """
-        def hang_inside_git(ctx, _payload):
+        def hang_inside_git(ctx, _skill, _payload, standalone=True, **_kw):
             try:
                 time.sleep(30)
             except OSError:

@@ -91,12 +91,13 @@ in the Design phase:
 /acs:ship SHOP-5           # drives the Build/Test/Ship steps to the PR
 ```
 
-`/acs:ship` is a thin loop over `acs.py workflow next`: it reads the resolved
-`workflows/ship.yaml` (your `.acs/workflows/ship.yaml` when you ship one, else
-the plugin default), invokes whatever step is ready, fans independent steps out
-in parallel across worktrees, and repeats until `stop_after` — always stopping
-before merge. Print the file with `acs.py workflow show` rather than assuming an
-order. After reviewing each PR yourself:
+`/acs:ship` is a thin loop over `acs.py run next`: that command prints the
+run's **derived** cursor — the first step in the resolved `workflows/ship.yaml`
+(your `.acs/workflows/ship.yaml` when you ship one, else the plugin default)
+that is not `completed`. Ship invokes that step, asks again, and repeats until
+the list is done — always stopping before merge. The cursor is never stored, so
+it cannot disagree with the ledger it is read from. Print the file with
+`acs.py workflow show` rather than assuming an order. After reviewing each PR yourself:
 
 ```text
 /acs:merge-pr SHOP-5       # readiness check → squash merge → delete branch →
@@ -104,7 +105,7 @@ order. After reviewing each PR yourself:
 ```
 
 Every step is also invocable on its own (`/acs:create-ticket Fix flaky
-checkout rounding`, then `/acs:analyze-ticket SHOP-7`, `/acs:code SHOP-7`, …).
+checkout rounding`, then `/acs:analyze-requirements SHOP-7`, `/acs:code SHOP-7`, …).
 A hand-run step is never refused for being out of order — its hook checks only
 that the inputs it reads exist — so you can re-run one step, skip one you do
 not need, or drive the whole thing yourself. The ticket id argument is optional
@@ -113,14 +114,17 @@ name.
 
 ## The 32 skills
 
-Skills are grouped into five phases by `workflows/phases.yaml` — the registry
-every other surface derives from (this table, the ship-workflow schema's
-allowed-skill list, `/acs:metrics` grouping). Within a phase the rows follow
-the registry's own order; the order steps actually RUN in is declared
-separately, in `workflows/ship.yaml`.
+Each skill declares its own phase — Design, Build, Test, Ship or Utility — in
+`skills/<name>/acs.yaml`, beside the artifacts it reads and writes. There is no
+registry file: the surfaces that used to derive from one (this table,
+`/acs:metrics` grouping, the set of nameable steps) read the skill directories
+instead, so adding a skill is adding a directory. The order steps actually RUN
+in is declared separately, in `workflows/ship.yaml`, and `acs.py workflow
+validate` checks that order against each skill's declared reads and writes.
 
-Not every skill is a command you run. The registry's `internal` map names two
-**legs** — the project-scaffold skills behind `/acs:project` — that keep their
+Not every skill is a command you run. Six **legs** — the project-scaffold
+skills behind `/acs:project` and the four delivery paths behind `/acs:code` —
+carry `disable-model-invocation: true` and keep their
 own SKILL.md, agent trio, `pre-`/`post-` hooks and gate, and stay
 Skill-invocable, but whose only user-facing command is the entry point they
 serve. That is an entry-point fold, not a collapse: nothing about a leg's own
@@ -143,14 +147,15 @@ the pre-hook prints a one-line advisory on stderr and the skill runs anyway.
 | `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set at `prd_path`; docs PR via its own delivery ticket. |
 | `/acs:create-requirements` | Settings exist | Bootstraps or amends the requirements/ doc set (functional + non-functional, one file per feature/item) at `requirements_path` — brownfield reverse-engineers it code-cited, greenfield elicits it interactively, amend augments only absent/ungrounded areas; docs PR via its own delivery ticket. |
 | `/acs:create-architecture` | PRD doc set exists | HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) at `architecture_path`, all Mermaid; docs PR. |
-| `/acs:create-docs` | Architecture doc set exists | Bootstraps or maintains the four product doc sets — `quality` (test strategy, coverage policy), `operations` (release process, runbooks, observability, incident response, test scheduling), `principles` (engineering principles + rationale), `standards` (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set. Takes `all`, a comma-separated list of sets, or a delivery-ticket id to resume one; runs the eligible sets in capped parallel (at most 2 at a time, the ship workflow's `max_parallel`), each as its own docs-only PR on its own delivery ticket. One executor and one verifier serve every set (the set rides in the task constraints); `standards` reads the `principles` set when present and never blocks on its absence. |
+| `/acs:create-docs` | Architecture doc set exists | Bootstraps or maintains the four product doc sets — `quality` (test strategy, coverage policy), `operations` (release process, runbooks, observability, incident response, test scheduling), `principles` (engineering principles + rationale), `standards` (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set. Takes `all`, a comma-separated list of sets, or a delivery-ticket id to resume one; runs the eligible sets in capped parallel (at most 2 at a time, a limit the skill sets for itself — `ship.yaml` carries no `max_parallel`), each as its own docs-only PR on its own delivery ticket. One executor and one verifier serve every set (the set rides in the task constraints); `standards` reads the `principles` set when present and never blocks on its absence. |
 | `/acs:project` | — (unhooked umbrella; each leg keeps its own gate) | The only user-facing command for repository structure and tooling. Decides its own mode from declared on-disk evidence (`acs_lib.PROJECT_MODE_SENTINEL` — ten packaging/build/tooling files): no evidence at all ⇒ `bootstrap`, any evidence ⇒ `standardize`. States the mode and the evidence it rests on, then dispatches to that leg as a real Skill-tool call. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
 
 #### Internal legs — not commands you run
 
-These two are the `internal` map of `workflows/phases.yaml`. Each keeps its
+A leg is marked by `disable-model-invocation: true` in its own SKILL.md front
+matter — there is no registry listing them. Each project leg keeps its
 SKILL.md, its executor/verifier pair, its `pre-`/`post-` hook scripts,
 its registered gate and its sentinel, and its entry point invokes it as a
 genuine Skill-tool call so all of that fires exactly as it would standalone.
@@ -165,17 +170,18 @@ scaffold ticket in `tickets-index.json`).
 |-----|-------------|----------------------|--------------|
 | `create-project` | `/acs:project` | Architecture doc set exists | Greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. The `bootstrap` mode's leg. |
 | `standardize-project` | `/acs:project` | Architecture doc set exists | Audits an EXISTING repo against `principles_path`/`standards_path`, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. The `standardize` mode's leg. |
-| `code-trivial` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `trivial` delivery path: one executor, one verifier pass, a two-iteration ceiling, no plan approval. |
-| `code-small` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `small` delivery path: one executor, one verifier pass, a two-iteration ceiling, `test-cases.md` as the test contract. |
-| `code-standard` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `standard` delivery path: parallel executors per the plan's file map, one verifier pass over all sixteen dimensions, a three-iteration ceiling, plan approval enforced. |
-| `code-complex` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `complex` delivery path: parallel executors, four merged verifier lenses, a three-iteration ceiling, plan approval enforced. |
+| `code-trivial` | `/acs:code` | Subject resolves; not an epic; a plan exists | The `trivial` delivery path: one executor, the plan's own test strategy as the test contract, no plan approval. |
+| `code-small` | `/acs:code` | Subject resolves; not an epic; a plan exists | The `small` delivery path: one executor (rarely two), `test-cases.md` as the test contract, no plan approval. |
+| `code-standard` | `/acs:code` | Subject resolves; not an epic; an approved plan exists | The `standard` delivery path: one executor per disjoint file-map partition, `test-cases.md` as the test contract, plan approval enforced. |
+| `code-complex` | `/acs:code` | Subject resolves; not an epic; an approved plan exists | The `complex` delivery path: one executor per partition **plus an integration executor** over the seams between them, plan approval enforced. |
 
 **The four `code` legs are delivery paths (ADR-0095), not modes a user picks.**
-`/acs:ship` judges the path once from `plan.md` after `/acs:create-impl-plan`
-and records it on `pipeline-state.json`; `/acs:code` dispatches to the recorded
-one. They differ from the project legs in owning no agents and no hook scripts:
-each starts `skill-start.py --skill code`, passes `code`'s gate, spawns
-`acs:code-executor` / `acs:code-verifier` and finishes through `post-code.py`,
+`/acs:create-impl-plan` judges the path ONCE, from the plan's own scope, and
+records it in the plan's `## Contract` block; `/acs:code` reads it with
+`acs.py plan path` and dispatches to the recorded leg. They differ from the
+project legs in owning no agents and no hook scripts: each starts
+`acs.py step start --step code`, passes `code`'s gate, spawns
+`acs:code-executor` and finishes through `post-code.py`,
 so everything they write on disk is `code`'s. The protocol they share lives in
 `skills/code/references/`; each leg's SKILL.md carries only what makes its path
 different.
@@ -184,26 +190,26 @@ different.
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
-| `/acs:analyze-ticket` | Ticket resolves; not an epic | Reads the ticket, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on. |
+| `/acs:analyze-requirements` | Ticket resolves; not an epic | Reads the ticket, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on. |
 | `/acs:create-api-contract` | `plan.md` exists **and** `analysis.md` declares `api_surface: true` | Writes `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples — each traced to an AC and a plan item, plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
 | `/acs:create-impl-plan` | Ticket resolves; not an epic | The plan phase carved out of `/acs:code`: the executor's survey (the former planner charter), the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. Reads `analysis.md` and `design.md` when present. |
 | `/acs:create-test-docs` | Ticket resolves | Writes `test-cases.md` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
-| `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | Dispatches to the delivery-path leg the ticket was judged onto (ADR-0095). TDD implementation on a ticket branch against the coverage target, writing tests from `test-cases.md` when present; reconciles factual product-doc claims; verifier review loop, the path's ceiling. |
-| `/acs:docs-sync` | Ticket resolves (partition + free lock) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and the final code-verify artifact; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
+| `/acs:code` | Subject resolves; not an epic; a plan exists | Dispatches to the delivery-path leg the plan recorded (ADR-0095). TDD implementation on the run's branch, writing tests from `test-cases.md` when present. **Targeted tests only** — it has no verifier and never runs the full suite. |
+| `/acs:review-code` | Subject resolves; a changeset exists | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. Writes `verdict.json`; on blocking findings `/acs:code` reads it and fixes them. |
+| `/acs:docs-sync` | Ticket resolves (partition + free lock) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and `/acs:review-code`'s verdict; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
 
 ### Test — end-to-end coverage
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
 | `/acs:create-e2e-tests` | An e2e suite is configured **and** `test-cases.md` lists ≥ 1 e2e case | Writes the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, committed on the ticket branch. |
-| `/acs:run-e2e-tests` | — (unhooked) | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable workspace artifact, and on failure triages/drives a closed regression-ticket loop; `--for-ticket` mode runs as one step inside `/acs:ship`'s walk. |
-| `/acs:test` | — (unhooked alias) | Deprecated alias kept for one release: forwards to `/acs:run-e2e-tests`. `workflows/phases.yaml` lists it under `aliases`, never in a phase. |
+| `/acs:run-e2e-tests` | A suite is configured and there are e2e cases to run | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable run artifact, and on failure triages/drives a closed regression-ticket loop. It is a step of `ship.yaml` and a standing command, on one protocol. |
 
 ### Ship — review and land
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
-| `/acs:create-pr` | Brake: refuses a ticket whose recorded `/acs:code` run left `verifier_passed != true` | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. A ticket with no recorded code run is allowed through. |
+| `/acs:create-pr` | Brake: refuses a run whose `/acs:review-code` step left `verifier_passed != true` | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. A ticket with no recorded code run is allowed through. |
 | `/acs:merge-pr` | Brake: a completed run recorded a PR reference | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 
@@ -214,10 +220,10 @@ different.
 | `/acs:setup` | — (bootstrap) | Generates `.acs/settings.json` (user or project scope): workspace path, ticket prefix, coverage target, formats, tracker, artifact paths, advisories. Opt-in (default-on) writes a pipeline-default `CLAUDE.md` managed block so sessions ship via `/acs:ship`, not raw `gh pr create`. Re-runs update in place. |
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, status-line paths). Reloading stays your action. |
-| `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the ticket partition, marks the run `handed_off`, releases the lock, prints the command to continue in a fresh session. |
+| `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:metrics` | — (utility) | Read-only in-session dashboard: renders the PM delivery view: delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS, DEADLINE, coverage, review iterations, lead/cycle time — from workspace state. Writes nothing. |
 | `/acs:usage` | — (utility) | Read-only in-session usage dashboard: renders the usage view — usage summary, cost and time per ticket by step, the four per-ticket/per-PR averages, token burn by role — from workspace state. Writes nothing. |
-| `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py workflow next`: reads the resolved `ship.yaml`, invokes the ready step (or fans several ready steps out in parallel, one worktree per leg), and repeats until `stop_after`. Never merges. |
+| `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step, then asks again, until the list is done. Never merges. |
 
 ## How gating works
 
@@ -229,21 +235,23 @@ different.
   first"). What a gate never does any more is refuse because a *predecessor*
   has not completed — every skill is runnable on its own.
 - **Out-of-order runs get one advisory line, not a refusal.** When a hooked
-  skill's `needs` in the resolved workflow are not satisfied for the ticket,
-  the pre-hook prints exactly one line on stderr —
+  skill runs before a step that precedes it in the resolved workflow has
+  completed, the pre-hook prints exactly one line on stderr —
   `acs: docs-sync normally follows code in ship.yaml; code has not completed
   for SHOP-12` — and exits 0. Set `workflow.advisories: false` to silence it.
 - **Two brakes survive, because they are facts, not order.** `/acs:create-pr`
-  refuses a ticket whose recorded `/acs:code` run left the verifier failing,
+  refuses a run whose recorded `/acs:review-code` step left the verifier
+  failing,
   and `/acs:merge-pr` refuses without a PR reference recorded by a completed
   run. Every hooked skill also refuses while another session holds the
   ticket's `.lock`.
 - **Post-hooks close the loop without trusting the model.** Each skill's
   coordinator must call `post-<skill>.py --result-file …` as its mandatory
   final step; that is the only thing that flips the run to `completed`. Skill
-  start has already recorded an `in_progress` run entry, and the ledger is what
-  `acs.py workflow next` walks — so a skipped post-hook leaves the step
-  un-satisfied and the pipeline re-offers it, never skips past it.
+  start has already recorded the step `in_progress`, and the cursor `acs.py run
+  next` derives is the first step that is not `completed` — so a skipped
+  post-hook leaves the step un-completed and the pipeline re-offers it, never
+  skips past it.
 - **A `SessionEnd` safety net** (`dispatch.py session-end`) finalizes any
   run this checkout left `in_progress` as `interrupted` and releases its
   lock, so abnormal endings still write state.
@@ -260,16 +268,28 @@ workspace.
   design.md  analysis.md  api-contract.md  plan.md  test-cases.md
 
 <workspace>/<repo-id>/                  # repo-id from git remote: owner-name
-  tickets-index.json  counters.json  metrics.json
-  sessions/<checkout-id>.json           # per-worktree current-ticket pointer
-  archive/<ticket-id>/                  # moved here by post-merge-pr
-  <ticket-id>/
-    .lock  pipeline-state.json  clarifications.json
-    ticket.json.moved                   # pointer left where ticket.json was
-    specs/NN-slug.md
-    phases/<skill>/iter-<n>-<phase>.xml  phases/<skill>/result.json
-    <skill>-state.json ...
+  tickets-index.json  runs-index.json  counters.json  metrics.json
+  sessions/<checkout-id>/               # one directory per worktree
+    pointer.json                        # the run and step this checkout is on
+    session.json  cost.jsonl  runtime.json
+  archive/<run-id>/                     # moved here by post-merge-pr
+  runs/<run-id>/                        # the run id is derived from the subject
+    run.json                            # THE RUN MACHINE
+    subject/                            # ticket.json | prompt.md | the document
+    requirements.md  clarifications.json
+    lock.json  lock-events.jsonl  agents/  handoff-context.md
+    steps/<skill>/
+      state.json                        # THE STEP MACHINE
+      result.json                       # the post-hook's input
+      plan.md  api-contract.md  test-cases.md  …   # the CURRENT artifacts
+      iter-<n>/                         # the audit trail: one dir per iteration
 ```
+
+Two machines, not one. `run.json` records the run — its workflow, its subject,
+its position in the loop; `steps/<skill>/state.json` records that step's own
+invocations. Keeping them apart is what lets a skill the workflow never names
+(`/acs:create-design`, say) hold step state without taking a position in any
+run.
 
 `ticket.md` carries no `status` field — status is DERIVED from the ledger
 (`open` → `in_progress` → `in_review` → `done`), so the committed document and
@@ -284,9 +304,9 @@ Executors may not write inside the ticket docs tree — it is a control input th
 file-map guard denies, like the guard's own records.
 
 Inspect progress and spend anytime: `tickets-index.json` for status across
-tickets, `metrics.json` for per-repo totals, a ticket's
-`pipeline-state.json` for where it stands in the pipeline, and
-`acs.py workflow next --ticket <id>` for what runs next.
+tickets, `runs-index.json` for every run, `metrics.json` for per-repo totals,
+`acs.py run show` for where a run stands, and `acs.py run next` for what runs
+next.
 
 ## Configuration
 
@@ -365,22 +385,23 @@ runs resolve the new in-repo default instead of the old override.
   again. Re-run the same skill (or `/acs:ship <ticket-id>`) — the
   coordinator sees the unfinished run and *reconciles* recorded state
   against reality (e.g. re-runs tests for specs marked implemented) before
-  continuing. Phase artifacts under `phases/<skill>/` mean at most the
-  in-flight phase is lost.
-- **Corrupt or missing state files.** Treated as *not completed* — the step
-  stays un-satisfied, so `acs.py workflow next` re-offers it rather than
-  letting a half-recorded step count as done. Re-run that skill for the ticket
-  to regenerate its state.
+  continuing. The per-iteration artifacts under `steps/<skill>/iter-<n>/` mean
+  at most the in-flight iteration is lost.
+- **Corrupt or missing state files.** Treated as *not completed* — and since
+  the cursor is derived as the first step that is not `completed`, `acs.py run
+  next` re-offers it rather than letting a half-recorded step count as done.
+  Re-run that skill for the ticket to regenerate its state.
 - **Long session running out of context.** Run `/acs:handoff`: it flushes
-  in-flight work and decisions to the ticket partition, releases the lock,
+  in-flight work and decisions to the run, marks the in-flight step
+  `interrupted` with a `stop_reason` of `context_pressure`, releases the lock,
   and prints the exact command (e.g. `/acs:code SHOP-123`) to continue in a
   fresh session.
 
 ## For contributors
 
-The binding implementation contract — skill lifecycle, helper CLIs
-(`skill-start.py`, `new-ticket.py`, `handoff.py`, `validate_xml.py`),
-result-document shape, canonical `states` keys, XML messaging rules, and
-subagent conventions — lives in [docs/INTERNALS.md](docs/INTERNALS.md). The
+The binding implementation contract — skill lifecycle, helper CLIs (`acs.py`,
+`new-ticket.py`, `handoff.py`, `plan-approval.py`), result-document shape,
+canonical `states` keys, the JSON Schemas, and subagent conventions — lives in
+[docs/INTERNALS.md](docs/INTERNALS.md). The
 business requirements live in the repo's
 [docs/](../../docs/README.md) folder.

@@ -146,25 +146,15 @@ def main():
             "re-run -- a second call mints a second id.\n" % (exc, ticket_id))
         sys.exit(2)
 
-    # Children of an epic (and remote imports finalized here) do not run
-    # /create-ticket themselves — their pipeline starts at /acs:code, which
-    # reads the parent epic's design.md directly. Record a completed
-    # create-ticket run so the downstream gates hold uniformly:
-    # "create-ticket completed" == "the ticket was properly created".
-    lib.append_in_progress_run(tdir, "create-ticket", ticket_id)
-    lib.finalize_run(tdir, "create-ticket", ticket_id, {
-        "status": "completed",
-        "stop_reason": "ticket created via /create-ticket"
-                       + (" (child of %s)" % args.parent if args.parent else ""),
-        "states": {
-            "ticket_id": ticket_id,
-            "type": args.ttype,
-            "needs_design": needs_design,
-            "parent": args.parent,
-        },
-    })
-    lib.update_pipeline(tdir, ticket_id, "create-ticket", "completed",
-                        summary="created" + (" as child of %s" % args.parent if args.parent else ""))
+    # No run ledger is written here. Under the re-key a ticket is a SUBJECT a
+    # run may later be started over (§4.2), not a run of its own, so
+    # "create-ticket completed" is no longer a thing downstream gates read --
+    # the ticket partition existing IS the ticket having been created, which
+    # is what the gates checked all along.
+    #
+    # A child minted here therefore never re-runs /acs:create-ticket: its
+    # pipeline starts at /acs:code (via /acs:ship <child-id>), inheriting the
+    # EPIC's design rather than settling one of its own.
 
     if parent_ticket is not None:
         children = parent_ticket.setdefault("children", [])

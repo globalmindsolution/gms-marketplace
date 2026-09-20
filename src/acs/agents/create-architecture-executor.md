@@ -1,6 +1,6 @@
 ---
 name: create-architecture-executor
-description: Executor for the /acs:create-architecture reflection cycle. Spawned by the /acs:create-architecture coordinator with an XML task; not for direct invocation.
+description: Executor for the /acs:create-architecture reflection cycle. Spawned by the /acs:create-architecture coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -88,7 +88,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `<partition>/phases/create-architecture/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-architecture/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Required sections:
 
@@ -183,7 +183,7 @@ finding to what you changed.
 
 ## The execute artifact
 
-Write `<partition>/phases/create-architecture/iter-<n>-execute.json` (parallel
+Write `steps/create-architecture/iter-<n>/execute.json` (parallel
 executors: `iter-<n>-execute-<k>.json`) recording: `files_changed` (every repo path you
 wrote), `commands` (each command run with its outcome), `decisions` (choices made inside
 your notes' latitude), and `problems` (anything that fought you). The XML result
@@ -192,8 +192,7 @@ references this file; it never inlines the detail.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`schemas/acs-messages.xsd` — no prose before it, NOTHING after it. Before replying, pipe
-your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`.
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before replying, pipe
 
 - `status="completed"` — every assigned output produced; `<outputs>` lists the execute
   artifact plus every repo file written or changed.
@@ -207,8 +206,8 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 ```xml
 <result skill="create-architecture" phase="execute" ticket-id="SHOP-42" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-2/phases/create-architecture/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-42/phases/create-architecture/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-2/steps/create-architecture/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-42/steps/create-architecture/iter-1/execute.json</file>
     <file>docs/architecture/hld/overview.md</file>
     <file>docs/architecture/hld/c4-container.md</file>
     <file>docs/architecture/lld/flows/checkout.md</file>

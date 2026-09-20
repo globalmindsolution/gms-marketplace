@@ -87,9 +87,10 @@ erDiagram
         enum api_duration_basis "measured|apportioned|unavailable (MAR-6)"
         enum api_duration_scope "session_total|main_session_only|no_unconsumed_sample_in_window|cost_total_reset|duration_unavailable_on_cursor -- the last value has no cost_scope analogue (MAR-6)"
         array guard_events "file-map guard denials appended by acs_lib/filemap.py on a deny only -- reasons outside_map/control_input/unreadable_payload, optional and forward-only (MAR-578)"
-        enum status "in_progress|completed|failed|interrupted|handed_off"
-        string stop_reason
-        string handoff_summary "when handed_off"
+        enum status "in_progress|completed|failed|interrupted"
+        enum stop_reason "session_end|needs_input|context_pressure -- an INTERRUPTED step only; a completed or failed step's narrative goes in summary (ADR-0097)"
+        string summary "the step's own narrative, on any terminal status"
+        string handoff_summary "when interrupted"
     }
     ROLE_USAGE {
         string role "coordinator|planner|executor|verifier|other|unattributed (MAR-1)"

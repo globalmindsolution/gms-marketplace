@@ -1,41 +1,50 @@
 ---
 name: handoff
-description: Deliberately hand the current ticket off to a fresh session — flush in-flight soft context to the ticket partition, finalize the run as handed_off, release the lock, and print the exact command to continue. Use when the session has grown long, the user wants to stop and resume later, or the user says "hand off" / "continue this in a new session".
-argument-hint: "[ticket-id]"
+description: Deliberately hand the current run off to a fresh session — flush in-flight soft context to the run directory, finalize the in-flight step as interrupted with a stop_reason, release the run's lock, and print the exact command to continue. Use when the session has grown long, the user wants to stop and resume later, or the user says "hand off" / "continue this in a new session".
+argument-hint: "[run-id]"
 ---
 
 You are the coordinator of `/acs:handoff` — the session-handoff utility skill.
 
-This skill is NOT part of the gated pipeline: no pre/post hooks fire for it, you
-spawn NO subagents, and you do NOT run `skill-start.py` (it would acquire the
-lock and append a new run — the opposite of what a handoff does). You touch the
-consumer repo read-only; the only file you write is `handoff-context.md` inside
-the ticket partition. All state mutation (run finalization, pipeline ledger,
-lock release) is done by `handoff.py` — never edit `<skill>-state.json`,
-`pipeline-state.json`, or `.lock` by hand.
+This skill is NOT part of the gated workflow: no pre/post hooks fire for it,
+you spawn NO subagents, and you do NOT run `acs step start` (it would acquire
+the run's lock and open a new invocation — the opposite of what a handoff
+does). You touch the consumer repo read-only; the only file you write is
+`steps/<step>/handoff-context.md` inside the run directory. All state mutation
+(invocation finalization, step transition, run ledger, lock release) is done by
+`handoff.py` — never edit `state.json`, `run.json`, or `.lock` by hand.
 
-A handoff is a *planned* resume, so it beats crash recovery: it captures the
-soft context that phase boundaries have not persisted yet, then releases the
-partition lock so ANY session — not only this checkout — can take over.
+A handoff is a *planned* interruption, so it beats crash recovery: it captures
+the soft context that phase boundaries have not persisted yet, then releases
+the run's lock so ANY session — not only this checkout — can take over.
+`handed_off` is not a status. It named a REASON wearing a status: a handoff is
+an interruption, `interrupted` is the one resumable state, and `stop_reason`
+carries why. A handoff records `status: interrupted` with
+`stop_reason: context_pressure`.
 
-## Step 1 — Resolve the ticket
+## Step 1 — Resolve the run
 
-Resolve `<ticket-id>` in this order; first hit wins:
+Resolve `<run-id>` in this order; first hit wins:
 
-1. **Explicit argument** — `$ARGUMENTS` contains a ticket id (e.g. `SHOP-123`).
-2. **Session context** — the ticket id appears in this conversation (a skill
-   you were coordinating, a ticket just created or discussed).
-3. **Pointer file** — `<workspace>/<repo-id>/sessions/<checkout-id>.json`,
-   field `ticket_id` (see "Locating the workspace" below).
+1. **Explicit argument** — `$ARGUMENTS` contains a run id (for a ticket-backed
+   run that is the ticket id, e.g. `SHOP-123`).
+2. **Pointer file** — `<workspace>/<repo-id>/sessions/<checkout-id>.json`,
+   field `run_id` (see "Locating the workspace" below). This is the
+   authoritative answer: the pointer is what `acs step start` wrote.
+3. **Session context** — the run or ticket id appears in this conversation (a
+   skill you were coordinating, a ticket just created or discussed).
 4. **Branch name** — `git rev-parse --abbrev-ref HEAD`, match
    `<ticket_prefix>-<number>` (e.g. `SHOP-123` in `feature/SHOP-123-cart`).
 
-If none resolves, STOP and ask the user which ticket to hand off (suggest
-`/acs:handoff SHOP-123` with an explicit id). Never guess.
+If none resolves, STOP and ask the user which run to hand off (suggest
+`/acs:handoff SHOP-123` with an explicit id). Never guess. You do not have to
+resolve it yourself in the common case: `handoff.py` reads the same pointer and
+refuses with `no current run for this checkout (nothing to hand off)` when
+there is nothing to resolve.
 
 ### Locating the workspace
 
-You need the partition path before flushing. Resolve it like the hooks do:
+You need the run directory before flushing. Resolve it like the hooks do:
 
 - **Settings** (per-key merge, most specific wins): read
   `<main-checkout>/.acs/settings.local.json`, then
@@ -59,39 +68,32 @@ You need the partition path before flushing. Resolve it like the hooks do:
 python3 -c 'import hashlib,os,re,subprocess;r=subprocess.check_output(["git","rev-parse","--show-toplevel"],text=True).strip();print(re.sub(r"[^A-Za-z0-9._-]+","-",os.path.basename(r))+"-"+hashlib.sha1(os.path.abspath(r).encode()).hexdigest()[:8])'
 ```
 
-The partition is `<workspace>/<repo-id>/<ticket-id>/`. If it does not exist
-but `<workspace>/<repo-id>/archive/<ticket-id>/` does, the ticket is already
-merged and archived — report that there is nothing to hand off and stop.
+The run directory is `<workspace>/<repo-id>/runs/<run-id>/`. If it holds no
+`run.json`, there is no run to hand off — report that and stop.
 
-## Step 2 — Identify the in-flight skill
+## Step 2 — Identify the in-flight step
 
-Find which hooked skill (if any) has a run in progress:
+Read `run.json`'s `steps` map and take the one step whose `status` is
+`in_progress`. Invariant I1 says there is at most one, so there is nothing to
+scan and nothing to guess: the ledger either names it or nothing is in flight.
+That is the same resolution `handoff.py` performs
+(`acs_lib.in_flight_step` → `acs_lib.in_progress_step`), so your flush lands
+where its finalization points. Do not re-derive it from the step directories
+or from your memory of the conversation: the run ledger is the authority.
 
-1. **Session context** — you usually know which skill this session was
-   coordinating.
-2. **Pointer file** — the `skill` field of
-   `<workspace>/<repo-id>/sessions/<checkout-id>.json`.
-3. **Scan** — check `<partition>/<skill>-state.json` for
-   `runs[-1].status == "in_progress"`, in `acs_lib.HOOKED_SKILLS` order
-   (`src/acs/hooks/scripts/acs_lib/_common.py` — 5 product skills
-   followed by 11 workflow skills and 1 planning skill, 17 in total). That is the order
-   `handoff.py:64` itself scans, so your flush lands where its
-   finalization points. Do not restate the list here: the constant is
-   the authority, and a copy of it is what drifted.
-
-If no skill is in flight, skip Step 3 (there is no in-flight phase to flush —
-completed steps are already fully recorded in the workspace) and go straight
-to Step 4.
+If no step is in flight, skip Step 3 (there is no in-flight phase to flush —
+completed steps are already fully recorded in the run directory) and go
+straight to Step 4.
 
 ## Step 3 — Flush soft context
 
-Write `<partition>/phases/<current-skill>/handoff-context.md` (create the
-directory if needed). Capture ONLY what the phase XMLs and state files have
-NOT already persisted — the soft context that dies with this session:
+Write `steps/<in-flight-step>/handoff-context.md` (create the directory if
+needed). Capture ONLY what the phase artifacts and state files have NOT
+already persisted — the soft context that dies with this session:
 
 - **user clarifications & decisions** made in conversation (and their why);
 - **partial findings** of the in-flight phase (what the current
-  plan/execute/verify pass has learned but not yet written out);
+  plan/execute pass has learned but not yet written out);
 - **discovered gotchas** (flaky tests, surprising couplings, env quirks,
   approaches already tried and rejected);
 - **next actions**, concrete and ordered.
@@ -105,14 +107,14 @@ instead of duplicating them):
 Written by /acs:handoff on 2026-06-12T09:30:00Z.
 
 ## Done (verified)
-- specs/01-cart-model.md implemented; tests green (phases/code/iter-1-verify.xml)
+- task 1 of the plan implemented; unit tests green (steps/code/iter-1/execute.md)
 
 ## In flight
-- specs/02-cart-api.md: tests written, handler half-implemented (src/cart/api.py)
+- task 2 (cart API): tests written, handler half-implemented (src/cart/api.py)
 
 ## Next actions
 1. Finish the PATCH handler in src/cart/api.py; re-run pytest tests/cart/
-2. Coverage check against test_coverage_percent (90)
+2. Hand back to /acs:review-code for the gate (build, lint, full suite, coverage)
 
 ## User clarifications & decisions
 - User chose cursor-based pagination over offset (perf on large carts)
@@ -124,15 +126,25 @@ Written by /acs:handoff on 2026-06-12T09:30:00Z.
 - tests/cart/test_api.py::test_empty is flaky under -n auto; run serially
 ```
 
+`handoff.py` separately writes a derived `handoff-context.md` at the RUN root
+from the ledger alone (run, workflow, in-flight step, open clarifications).
+That one is a snapshot of state; yours is the soft context state cannot know.
+They do not overwrite each other.
+
 ## Step 4 — Record the handoff
 
-Run the helper (this finalizes `runs[-1]` as `handed_off` with your summary,
-updates `pipeline-state.json`, and releases the `.lock`):
+Run the helper (this finalizes the open invocation and the step as
+`interrupted` with your summary and `stop_reason`, updates `run.json`, and
+releases the run's `.lock`):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket SHOP-123 \
-  --summary "done: spec 01 implemented, tests green; in flight: spec 02 executor, handler partial; next: finish PATCH handler, coverage check; decisions: cursor pagination — detail in phases/code/handoff-context.md"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --run SHOP-123 \
+  --summary "done: plan task 1 implemented, tests green; in flight: task 2 executor, handler partial; next: finish PATCH handler, then review-code; decisions: cursor pagination — detail in steps/code/handoff-context.md"
 ```
+
+`--run` defaults to this checkout's pointer, so it can be omitted in the
+common case. `--stop-reason` defaults to `context_pressure`; pass another of
+`acs_lib.STOP_REASONS` when the session is stopping for a different reason.
 
 Summary rules: one compact line, well under 1 KB, covering the four parts —
 **done / in flight / next / decisions** — and pointing at
@@ -146,8 +158,9 @@ On success it prints JSON:
 ```json
 {
   "ok": true,
-  "ticket_id": "SHOP-123",
-  "skill": "code",
+  "run_id": "SHOP-123",
+  "step": "code",
+  "stop_reason": "context_pressure",
   "lock_released": true,
   "continue_with": "/acs:code SHOP-123"
 }
@@ -155,15 +168,22 @@ On success it prints JSON:
 
 If it exits non-zero, surface its stderr verbatim and stop. Known cases:
 
-- `no .acs/settings.json found (user or project scope)` — tell the user to
-  run `/acs:setup`.
+- `a handoff summary is required (--summary or --summary-file)` — write the
+  summary first; it is the whole point of a planned handoff.
+- `acs requires a git repository` / `no .acs/settings.json found (user or
+  project scope)` — tell the user to run `/acs:setup`.
 - `... acs cannot derive an in-repo state root here` (bare repo or
   submodule) — tell the user to set an explicit `workspace_path` override in
   `.acs/settings.local.json`, or run `/acs:setup` to do it interactively.
-- `no current ticket for this checkout (nothing to hand off)` — ask the user
-  for the ticket id and re-run `/acs:handoff SHOP-123`.
-- `no active partition for <id>` — the ticket never started or is archived
-  (done); nothing to hand off.
+- `no current run for this checkout (nothing to hand off)` — ask the user
+  for the run id and re-run `/acs:handoff SHOP-123`.
+- `no run recorded at <path>` — the run never started, or the id is wrong;
+  nothing to hand off.
+
+A metrics failure is the one non-zero exit that still handed off: it prints
+the JSON first and says explicitly that the step IS finalized and the lock IS
+released, and that only `metrics.json` went unwritten. Report it that way —
+the run is resumable.
 
 ## Step 5 — Report
 
@@ -171,42 +191,43 @@ Tell the user, compactly:
 
 1. **How to continue** — print the `continue_with` value VERBATIM as the
    command to run in the fresh session (e.g. `/acs:code SHOP-123`). The next
-   coordinator will see `runs[-1].status == "handed_off"`, read the summary
-   and `handoff-context.md`, run a light reconcile (recorded state trusted
-   but cheaply verified, e.g. by re-running tests), and continue.
+   coordinator will see the step `interrupted` with its `stop_reason`, read
+   the summary and `handoff-context.md`, run a light reconcile (recorded state
+   trusted but cheaply verified, e.g. by re-running tests), and continue.
 2. **What was flushed** — the path
-   `<partition>/phases/<skill>/handoff-context.md` plus a one-line bullet per
+   `steps/<step>/handoff-context.md` plus a one-line bullet per
    section actually captured (decisions, partial findings, gotchas, next
    actions).
 3. **Lock released** — any session or worktree on this machine can now take
-   the ticket over, not just this checkout.
+   the run over, not just this checkout.
 4. **Scope** — the handoff targets a new session on the **same machine and
    checkout**: the state machine lives in the repo's main checkout at
    `.acs/state-machine/` by default, or at an explicit `workspace_path`
    override when one is set; either way it is local to this machine, so
    cross-machine handoff is out of scope.
 
-If `handoff.py` reported `"skill": null`, say explicitly that **nothing was
-in progress — there is nothing to hand off**: every completed step is already
-recorded in the workspace, no flush file was written, and the lock (if any)
-was released. Still print the `continue_with` command verbatim (it will be
-`/acs:ship SHOP-123`) so the user knows exactly how to pick the ticket up.
+If `handoff.py` reported `"step": null`, say explicitly that **nothing was
+in flight — there is nothing to hand off**: every completed step is already
+recorded in the run directory, no flush file was written, and the lock (if
+any) was released. Still print the `continue_with` command verbatim (it will
+be `/acs:ship SHOP-123`) so the user knows exactly how to pick the run up —
+`/acs:ship` resumes from the run's own cursor.
 
 ## Completion report (normative)
 
-Every terminal outcome of a direct invocation — completed, failed,
-interrupted, or handed off — ends your final message with the standard block
-(INTERNALS.md "Completion report"), rendered only AFTER the post-hook
-succeeded. Same labels, same order, `none` where empty:
+Every terminal outcome of a direct invocation — completed, failed, or
+interrupted — ends your final message with the standard block (INTERNALS.md
+"Completion report"), rendered only AFTER the helper succeeded. Same labels,
+same order, `none` where empty:
 
 ```markdown
-## /acs:handoff · <ticket-id> · <status>
+## /acs:handoff · <run-id> · <status>
 
-- **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
-- **Results**: what was flushed to the partition (soft context, decisions, partial findings); run entry finalized `handed_off`; lock released
+- **Run**: <run-id> — <subject>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
+- **Results**: what was flushed to the run directory (soft context, decisions, partial findings); the in-flight invocation and step finalized `interrupted`; lock released
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <partition files, repo paths, branch, PR URL>
+- **Artifacts**: <run-directory files, repo paths, branch, PR URL>
 - **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
 - **Next**: the exact `continue_with` command printed by `handoff.py`, e.g. `/acs:code SHOP-123` in a fresh session
 ```

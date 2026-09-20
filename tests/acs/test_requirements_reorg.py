@@ -216,7 +216,7 @@ RETIRED_BY_TABP_REMOVAL = {
 
 #: Retired by ADR-0095 (static delivery-path routing). The `size`/`stakes`
 #: axes and the lane derived from them are gone: rigor is one judgement, made
-#: once from `plan.md` by /ship and recorded on pipeline-state.json, so there
+#: once from `plan.md` by /ship and recorded on run.json, so there
 #: is no axis for /create-ticket to capture, nothing for an in-flight trigger
 #: to raise, and nothing a user has to confirm before it can be lowered. The
 #: guarantees these clauses carried did not lapse — they became unnecessary,
@@ -229,6 +229,53 @@ RETIRED_BY_DELIVERY_PATH_ROUTING = {
     ),
 }
 
+#: The v0.5.0 implementation-pipeline redesign REWORDED two clauses rather
+#: than retiring them: the guarantee each carried is still in the tree, under
+#: the name its carrier now has. That is a different fact from the four
+#: tables above, and it earns a different check -- an allowlist that only said
+#: "gone" would let a genuine loss hide behind a rename. Each entry maps the
+#: pre-reorg wording to the successor text that MUST be present, and
+#: `test_reworded_clauses_have_a_live_successor` asserts it.
+REWORDED_BY_V050_REDESIGN = {
+    'hooks.md': {
+        # `skill-start.py` is `acs.py step start` and a ticket partition is a
+        # run (ADR-0097). The permission -- a coordinator MAY read the parent
+        # epic's state to resolve design -- is unchanged.
+        "the coordinator's `skill-start.py` MAY read the parent epic's partition to":
+            "`acs step start` MAY read the parent epic's run to",
+    },
+    'workflow.md': {
+        # The review left `/acs:code` for `/acs:review-code` (ADR-0099), so
+        # the actor in the sentence changed. The obligation -- blocking
+        # findings MUST drive another remediation round, with no intervening
+        # plan phase -- is unchanged, and is now carried by the workflow's
+        # single `loops:` entry.
+        '- When the verifier produces blocking findings, the coordinator MUST':
+            "- When the review records blocking findings, the workflow's single `loops:`",
+    },
+    'configuration.md': {
+        # Same actor change inside the `e2e` settings row: the agent that
+        # runs the configured suite is `/acs:review-code`'s final gate, not a
+        # verifier inside `/acs:code`. The REQUIREMENT -- a green run is
+        # required for a passing verdict -- is unchanged, and the successor
+        # is matched on that half.
+        '| `e2e` | object | unset | No | **Deprecated compatibility alias** for `suites.e2e`: `{ "command", "setup"?, "teardown"?, "per_iteration"? }`. Still accepted and validated exactly as before, but normalized at load time into `suites["e2e"]` — new configuration should prefer `suites.e2e` directly; `/acs:setup` offers a one-time migration on re-run. Unset = no e2e suite. When configured: spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and the `code-verifier` runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict; `per_iteration: false` (default) defers the run past iterations that already have other blocking findings. `/create-project` scaffolds the harness and proposes this block for greenfield repos with a user-facing surface. This same `e2e`/`suites.e2e` configuration is also the **single opt-in signal** for the CI required merge gate — no dedicated `e2e.ci`/`suites.e2e.ci` enable key exists, or is ever introduced (see the `/acs:setup` Step 3 note below). |':
+            "and `/acs:review-code`'s final gate runs the full suite "
+            "(`setup` \u2192 `command` \u2192 `teardown` always) \u2014 a green run is "
+            "required for a passing verdict",
+    },
+    'overview.md(scoped:Packaging+Distribution+CorePrinciples)': {
+        # The governance principle is untouched: blocking findings loop back
+        # automatically, bounded at 3 iterations. What changed is who reviews
+        # (ADR-0099) and that the loop re-enters `code`, so the round is
+        # code -> review rather than plan -> execute.
+        '| Automatic review loop | The `code-verifier` reviews the whole changeset (business logic, quality, architecture, security, …); blocking findings loop back through plan → execute automatically, max 3 iterations. |':
+            "| Automatic review loop | `/acs:review-code` reviews the whole "
+            "changeset",
+    },
+}
+
+
 def _retired():
     """Every allowlist, merged: a clause is exempt when any fold retired it."""
     merged = {}
@@ -236,6 +283,8 @@ def _retired():
                   RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
+    for source, mapping in REWORDED_BY_V050_REDESIGN.items():
+        merged[source] = merged.get(source, ()) + tuple(mapping)
     return merged
 
 class ContentPreservationTest(unittest.TestCase):
@@ -295,6 +344,32 @@ class ContentPreservationTest(unittest.TestCase):
             "allowlisted-as-retired clauses that are still in the tree "
             "(drop them from RETIRED_BY_SKILLS_INDEPENDENCE): %r"
             % (still_present[:5],))
+
+    def test_reworded_clauses_have_a_live_successor(self):
+        """A reworded clause is exempt from the exact-one-place check only
+        because its successor is in the tree. Assert that, or the rewording
+        table becomes the escape hatch the retirement tables are guarded
+        against being."""
+        missing = []
+        for source, mapping in REWORDED_BY_V050_REDESIGN.items():
+            for old, successor in mapping.items():
+                if not self._homes(successor):
+                    missing.append((source, old, successor))
+        self.assertEqual(
+            missing, [],
+            "reworded clauses whose successor is in no functional/"
+            "non-functional file: %r" % (missing[:5],))
+
+    def test_reworded_table_only_names_inventoried_clauses(self):
+        unknown = []
+        for source, mapping in REWORDED_BY_V050_REDESIGN.items():
+            known = set(self.fixture.get(source, ()))
+            for clause in mapping:
+                if clause not in known:
+                    unknown.append((source, clause))
+        self.assertEqual(
+            unknown, [],
+            "rewording entries not in the fixture: %r" % (unknown[:5],))
 
     def test_retired_allowlist_only_names_inventoried_clauses(self):
         """The allowlist may only exempt clauses the fixture actually
@@ -383,16 +458,28 @@ class NoMarketplacePathHardcodingTest(unittest.TestCase):
     settings.requirements_layout (placeholder syntax), never a literal
     marketplace-specific 'docs/requirements/functional/...' path. MAR-162
     moved the requirements-merge routing prose from /acs:code's producer
-    files to /acs:docs-sync's executor (C-1); code-verifier.md retains it in
-    the demoted advisory sub-check (b)."""
+    files to /acs:docs-sync's executor (C-1).
+
+    The second scoped file was code-verifier.md, which retained the prose in a
+    demoted advisory sub-check. v0.5.0 retired the verifier with the review,
+    and the sub-check went with it rather than moving, so the routing prose
+    now lives in exactly one file. The scope is that one file, and the
+    assertion below proves the set has not silently emptied."""
 
     SCOPED_FILES = (
         os.path.join(REPO_ROOT, "src", "acs", "agents", "docs-sync-executor.md"),
-        os.path.join(REPO_ROOT, "src", "acs", "agents", "code-verifier.md"),
     )
 
     LITERAL_PATH_RE = re.compile(
         r"docs/requirements/(functional|non-functional)/\S")
+
+    def test_the_scope_is_not_empty(self):
+        """An exclusion list that empties itself passes every loop below
+        vacuously -- the retirement of one scoped file must not read as the
+        rule no longer applying anywhere."""
+        self.assertTrue(self.SCOPED_FILES)
+        for path in self.SCOPED_FILES:
+            self.assertTrue(os.path.isfile(path), path)
 
     def test_no_literal_resolved_subfolder_path_in_merge_routing_prose(self):
         for path in self.SCOPED_FILES:

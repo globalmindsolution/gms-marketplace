@@ -1,6 +1,6 @@
 ---
 name: create-e2e-tests-verifier
-description: Verifier for the /acs:create-e2e-tests reflection cycle. Spawned by the /acs:create-e2e-tests coordinator with an XML task; not for direct invocation.
+description: Verifier for the /acs:create-e2e-tests reflection cycle. Spawned by the /acs:create-e2e-tests coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -47,7 +47,7 @@ The distinction this phase turns on, and the one thing you must never blur:
    product's source tree is a blocking finding, because this skill writes tests
    and never product code.
 7. `authoring-conformance` — the suites are what the executor's authoring
-   notes (`<partition>/phases/create-e2e-tests/iter-<n>-authoring.md`) laid
+   notes (`steps/create-e2e-tests/iter-<n>/authoring.md`) laid
    out: every path in the notes' file list exists and no file outside it was
    written, each test drives the notes' per-case plan (entry point → actions
    → assertion) and asserts what the notes say it asserts, the fixtures and
@@ -85,7 +85,7 @@ from the path in `<inputs>`.
 ## Verify report (mandatory)
 
 Write the full verification report to
-`<partition>/phases/create-e2e-tests/iter-<n>-verify.md` (`<partition>` is the
+`steps/create-e2e-tests/iter-<n>/verify.md` (`<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files read,
 what you observed), the suite run's invocation and output, the wiring/product
@@ -98,7 +98,7 @@ write you ever perform.
 Your prompt contains an XML `<task skill="create-e2e-tests" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the written suite files, the executor's authoring notes
-(`iter-<n>-authoring.md`), the execute report, `test-cases.md`,
+(`iter-<n>/authoring.md`), the execute report, `test-cases.md`,
 `api-contract.md` when it exists, and the repo's existing e2e suites),
 `<constraints>` (at least `e2e_command`, `e2e_root`, `tc_ids` — the `TC-<n>`
 ids in scope — and `audience_style_profile`), and optional `<context>` (prior findings). You
@@ -108,13 +108,13 @@ yourself from the `<inputs>` paths.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it. One `<finding>` per issue,
+`the SubagentStop hook's message check` — nothing after it. One `<finding>` per issue,
 actionable (file, expectation, observed behavior):
 
 ```xml
 <result skill="create-e2e-tests" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-e2e-tests/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-e2e-tests/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="fidelity" file="e2e/shop-123-csv-import.spec.ts">TC-5 asserts only that the response is 2xx; the case's expected result is status `done` and 10 visible rows — the test would pass on an import that silently dropped every row.</finding>

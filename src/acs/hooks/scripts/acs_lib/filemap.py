@@ -7,6 +7,7 @@ module reads the active-agent records lifecycle writes, and lifecycle reads
 nothing back — so the seam is the section boundary, not a new abstraction.
 """
 
+import re
 import os
 import posixpath
 from datetime import datetime, timezone
@@ -17,7 +18,7 @@ from ._common import GateError, _note, _warn, now_iso, read_json, write_json
 from .artifacts import ticket_docs_root, tickets_path
 from .lifecycle import (BLOCK_LIMIT, active_agents, active_agents_dir,
     resolve_partition)
-from .state import record_guard_event
+from .step import record_guard_event
 
 
 # ---------------------------------------------------------------------------
@@ -39,8 +40,10 @@ from .state import record_guard_event
 # Disjointness BETWEEN tasks stays the coordinator's job, which is what its
 # parallel-vs-sequential decision already exists to decide.
 
-#: The declared file map for one iteration, under phases/<skill>/.
-FILEMAP_FILENAME_FMT = "iter-%s-filemap.json"
+#: The declared file map for one iteration, in its iteration directory.
+#: The file map's own name, now that the iteration is the DIRECTORY rather
+#: than a filename prefix (§4.2): `steps/<skill>/iter-<n>/filemap.json`.
+FILEMAP_FILENAME = "filemap.json"
 
 #: Tool -> the tool_input key naming the path it would write.
 WRITE_TOOL_PATH_KEYS = {
@@ -51,8 +54,9 @@ WRITE_TOOL_PATH_KEYS = {
 }
 
 
-def filemap_path(tdir, skill, iteration):
-    return os.path.join(tdir, "phases", skill, FILEMAP_FILENAME_FMT % iteration)
+def filemap_path(rdir, skill, iteration):
+    from .run import iteration_dir
+    return os.path.join(iteration_dir(rdir, skill, int(iteration)), FILEMAP_FILENAME)
 
 
 def load_filemap(tdir, skill, iteration):
@@ -237,7 +241,8 @@ def file_map_guard(payload):
         return 2
 
     # What IS exempt: this executor's own phase artifacts, and only those.
-    phase_dir = os.path.join(tdir, "phases", executor.get("skill") or "")
+    from .run import step_dir as _step_dir
+    phase_dir = _step_dir(tdir, executor.get("skill") or "")
     if _under(target, phase_dir):
         return 0
 
@@ -270,7 +275,7 @@ def _record_guard_denial(payload, tdir, ctx, skill, reason, target=None,
     handler is `Exception`, never `BaseException`, so dispatch.GateTimeout
     still reaches run_file_map_guard instead of being swallowed at a deny."""
     try:
-        landed = record_guard_event(tdir, skill, {
+        landed = record_guard_event(tdir, skill, os.path.basename(tdir), {
             "ts": now_iso(),
             "skill": skill,
             "iteration": (iteration if iteration is not None
@@ -281,8 +286,8 @@ def _record_guard_denial(payload, tdir, ctx, skill, reason, target=None,
             "declared_count": declared_count,
         })
         if not landed:
-            _warn("file-map guard denial not recorded: no run entry on "
-                  "%s-state.json" % skill)
+            _warn("file-map guard denial not recorded: no open invocation on "
+                  "steps/%s/state.json" % skill)
     except Exception as exc:  # noqa: BLE001 - recording never changes the verdict
         _warn("file-map guard denial not recorded: %r" % exc)
 
@@ -323,9 +328,11 @@ def _guard_control_input(target, tdir, ctx):
     if _under(target, active_agents_dir(tdir)):
         return own
     normalized = normalize_repo_path(target)
-    prefix, suffix = FILEMAP_FILENAME_FMT.split("%s")
-    base = os.path.basename(normalized)
-    if base.startswith(prefix) and base.endswith(suffix):
+    # Any iteration's map, not just the one in force: an executor that could
+    # write iteration 3's map while iteration 2 is running has still answered
+    # the guard's own question, one round early.
+    if (os.path.basename(normalized) == FILEMAP_FILENAME
+            and _under(target, _step_dir_of(tdir, None))):
         return own
     settings = (ctx or {}).get("settings")
     docs_root = ticket_docs_root(settings, (ctx or {}).get("checkout_root"))
@@ -359,16 +366,31 @@ def _current_iteration(tdir, skill):
 
     The coordinator declares a fresh map before each iteration's executors, so
     the newest declaration is the one in force."""
-    directory = os.path.join(tdir, "phases", skill or "")
+    from .run import step_dir as _step_dir
+    directory = _step_dir(tdir, skill or "")
     best = "1"
-    prefix, suffix = FILEMAP_FILENAME_FMT.split("%s")
     try:
         names = os.listdir(directory)
     except OSError:
         return best
     for name in names:
-        if name.startswith(prefix) and name.endswith(suffix):
-            token = name[len(prefix):-len(suffix)]
-            if token.isdigit() and int(token) >= int(best):
-                best = token
+        match = _ITER_DIRNAME.match(name)
+        if not match:
+            continue
+        if not os.path.isfile(os.path.join(directory, name, FILEMAP_FILENAME)):
+            continue  # an iteration that declared no map is not in force
+        if int(match.group(1)) >= int(best):
+            best = match.group(1)
     return best
+
+
+#: `iter-<n>/`, the iteration DIRECTORY the prefix scheme became.
+_ITER_DIRNAME = re.compile(r"^iter-(\d+)$")
+
+
+def _step_dir_of(rdir, skill):
+    """`steps/<skill>/`, or `steps/` when the skill is not known. The control-
+    input check uses the second form: an executor may not write ANY skill's
+    file map, not merely its own."""
+    from .run import step_dir, steps_dir
+    return step_dir(rdir, skill) if skill else steps_dir(rdir)

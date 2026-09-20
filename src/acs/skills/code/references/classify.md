@@ -6,7 +6,7 @@
 
 The four paths are `trivial`, `small`, `standard` and `complex`. Exactly one is
 chosen, once, from `plan.md`, and recorded with the reason on
-`pipeline-state.json`. Everything downstream reads that record; nothing
+`run.json`. Everything downstream reads that record; nothing
 re-judges (ADR-0095).
 
 ## Why this is a judgement and not a score
@@ -116,5 +116,6 @@ leaves the Path audit dimension nothing to check against.
 refuses to move a ticket that is already on a path. That last refusal is the
 important one: it is what makes a resumed run read rather than re-judge. When
 the plan itself was wrong, the way to move a ticket is
-`stop_reason: plan_superseded` — `/acs:ship` re-runs `/acs:create-impl-plan`,
+`failed`, with `summary` naming the plan as superseded — the remedy is to
+re-run `/acs:create-impl-plan`,
 and the corrected plan is classified fresh.

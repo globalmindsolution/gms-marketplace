@@ -17,12 +17,27 @@ You specify; you never implement. No production code, no tests: `/acs:code`
 implements this contract, `/acs:create-test-docs` derives contract cases from
 it, and `/acs:code`'s verifier checks the changeset against it.
 
+## When nothing is owed
+
+`/acs:create-api-contract` is **not invoked at all** on a run that owes no
+public surface. The plan's `## Contract` block records `owes.api_contract`,
+and the pre-hook completes this step from it with
+`outcome: no_surface_owed` — no coordinator, no subagents, zero tokens (§2.2).
+
+That is an ANSWER on the ledger, not a step that silently did not run: a
+reader sees `completed` with a reason, and `/acs:review-code`'s lens C reads
+the same outcome and records that it had no contract to judge against.
+
+Silence is not permission to skip. A plan that states nothing about
+`owes.api_contract` does NOT settle the step — you run, and decide from the
+plan and the subject whether a surface is owed.
+
 ## Start
 
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-api-contract --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-api-contract
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -32,12 +47,12 @@ inputs, and its refusals are the map of what must already be true:
 - the ticket resolves to a live, unlocked partition;
 - `plan.md` exists for the ticket — the plan is what names the surface this
   contract covers. Missing → "run /acs:create-impl-plan <id> first";
-- `analysis.md` exists. Missing → "run /acs:analyze-ticket <id> first";
+- `analysis.md` exists. Missing → "run /acs:analyze-requirements <id> first";
 - `analysis.md` declares `api_surface: true`. Otherwise the gate refuses:
   `/acs:create-api-contract` only runs for a ticket whose analysis found an API
-  surface change, and the pointer is to re-run `/acs:analyze-ticket <id>` if
+  surface change, and the pointer is to re-run `/acs:analyze-requirements <id>` if
   the analysis is stale. Do not work around it by editing `analysis.md`
-  yourself — the analysis is `/acs:analyze-ticket`'s artifact, and
+  yourself — the analysis is `/acs:analyze-requirements`'s artifact, and
   `workflows/ship.yaml` skips this step for a ticket whose analysis says there
   is no surface to specify.
 
@@ -49,7 +64,7 @@ Parse the printed context JSON. Fields you will use:
 - `ticket_id`, `ticket` — the resolved ticket; its `acceptance_criteria` are
   what every contract item traces to.
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `<partition>/phases/create-api-contract/`.
+  artifacts go in `steps/create-api-contract/`.
 - `checkout_root` — the consumer repo root.
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
   ticket whose design applies and its basename is that ticket's id. When
@@ -63,7 +78,6 @@ Parse the printed context JSON. Fields you will use:
   narrative), `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
-- `post_hook` — absolute path to `post-create-api-contract.py`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -81,7 +95,7 @@ reuse it:
 git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
 ```
 
-The branch normally already exists — `/acs:analyze-ticket` and
+The branch normally already exists — `/acs:analyze-requirements` and
 `/acs:create-impl-plan` ran before this step. Reuse it; never recreate or reset
 it. Commit with `settings.formats.commit_message` (default
 `"{ticket_id} {summary}"`). Do NOT push — `/acs:create-pr` pushes.
@@ -104,7 +118,7 @@ the gate resolved. Pass THOSE paths to every subagent `<inputs>`; do not
 re-derive them.
 
 The working draft lives at
-`<partition>/phases/create-api-contract/api-contract.md`; the published file is
+`steps/create-api-contract/api-contract.md`; the published file is
 a copy of those exact bytes (see Publish).
 
 ### Machine-readable contract files
@@ -136,7 +150,7 @@ If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
 1. Read `<partition>/create-api-contract-state.json` (`runs[-1]`, `states`) and
-   the artifacts under `<partition>/phases/create-api-contract/`.
+   the artifacts under `steps/create-api-contract/`.
 2. Re-resolve `<contract_path>` and read it if it exists; check `git status` /
    `git log` for contract-file changes a prior run committed. Trust nothing you
    cannot see in a file or a commit.
@@ -144,11 +158,11 @@ continuing:
    verify it; a verify with findings and no later execute → execute with
    those findings as `<context>`; nothing on disk → iteration 1 execute.
 4. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
    never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
-`<partition>/phases/create-api-contract/handoff-context.md` (when present), do
+`steps/create-api-contract/handoff-context.md` (when present), do
 a light reconcile, and continue from where it points.
 
 ## Inputs — gather before the loop
@@ -187,7 +201,7 @@ and the executor authors the remediation.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
-Messaging rules (`schemas/acs-messages.xsd`):
+Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-api-contract"
   phase="execute|verify" ticket-id="<id>" iteration="n">` with
@@ -198,13 +212,12 @@ Messaging rules (`schemas/acs-messages.xsd`):
 - Validate EVERY message you send and receive:
 
   ```bash
-  echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
   ```
 
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Persist every phase's `<task>` and `<result>` to
-  `<partition>/phases/create-api-contract/iter-<n>-<phase>.xml` at the phase
+  `steps/create-api-contract/iter-<n>/<phase>.json` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:create-api-contract-executor`,
   `acs:create-api-contract-verifier` — fall
@@ -225,7 +238,7 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 Objective, iteration 1: enumerate the surface. From the plan, the analysis,
 the design and the code, record in the authoring notes
-(`<partition>/phases/create-api-contract/iter-<n>-authoring.md`) one entry per
+(`steps/create-api-contract/iter-<n>/authoring.md`) one entry per
 endpoint/command/message/schema/signature the plan adds or changes — each
 with its kind, its current shape (or "new"), the plan item and acceptance
 criterion it traces to, the compatibility question it raises, and which
@@ -241,7 +254,7 @@ interaction and re-run execute for the same iteration with the answers in
 ### Phase: execute — `acs:create-api-contract-executor`
 
 Objective: write the contract draft to
-`<partition>/phases/create-api-contract/api-contract.md` — one draft per run,
+`steps/create-api-contract/api-contract.md` — one draft per run,
 revised in place across iterations — and, when the mode says the repo keeps
 machine-readable contracts, update those files in the consumer repo and commit
 them on the ticket branch.
@@ -277,11 +290,11 @@ else — no plan phase in between.
 ### Phase: verify — `acs:create-api-contract-verifier`
 
 Spawn `acs:create-api-contract-verifier` AFTER the draft is written, with
-`<inputs>` of the draft, the authoring notes (`iter-<n>-authoring.md`), `plan.md`, `analysis.md`, the
+`<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`), `plan.md`, `analysis.md`, the
 ticket document, `design.md` when it binds, and every contract file the
 executor touched. It judges fresh, re-derives the surface from the plan and the
 code itself, and writes
-`<partition>/phases/create-api-contract/iter-<n>-verify.md`.
+`steps/create-api-contract/iter-<n>/verify.md`.
 
 ALL blocking findings block — zero blocking findings = pass.
 `status="completed"` means verification RAN; the empty `<findings>` is the
@@ -289,18 +302,18 @@ pass. On findings: persist, then AUTOMATICALLY re-execute with every finding in
 the next executor's `<context>`. After iteration 3 with findings remaining:
 stop with final status `"failed"`, findings recorded, and no published
 contract — `/acs:code` then implements against the plan alone, which is exactly
-the ambiguity this step exists to remove, so say so in `stop_reason`.
+the ambiguity this step exists to remove, so say so in `summary`.
 
 ### Deterministic checks the coordinator runs before publishing
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
   --require "ticket: str; items: int; contract_files: list" \
-  --ticket <id> "<partition>/phases/create-api-contract/api-contract.md"
+  --ticket <id> "steps/create-api-contract/api-contract.md"
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Scope & sources; Surface; Error model; Compatibility & versioning; Examples; Traceability; Contract files" \
-  --ordered "<partition>/phases/create-api-contract/api-contract.md"
+  --ordered "steps/create-api-contract/api-contract.md"
 ```
 
 A finding from either is remediated in the next execute iteration (or, at
@@ -315,7 +328,7 @@ ticket docs tree, because the contract is a control input the executors of
 `/acs:code` are later checked against. Copy, never re-author:
 
 ```bash
-cp "<partition>/phases/create-api-contract/api-contract.md" "<contract_path>"
+cp "<partition>/steps/create-api-contract/api-contract.md" "<contract_path>"
 ```
 
 Then commit `<contract_path>` on the ticket branch when it is inside the repo,
@@ -357,7 +370,7 @@ whose `<questions>` carry them.
 If your context window is running low mid-run: do NOT burn the remainder on
 work that would be lost. Commit any published contract and contract files on
 the branch, flush in-flight state plus soft context (decisions, settled items,
-gotchas) to `<partition>/phases/create-api-contract/handoff-context.md`, then
+gotchas) to `steps/create-api-contract/handoff-context.md`, then
 run:
 
 ```bash
@@ -370,13 +383,13 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure or handoff:
 
-1. Write `<partition>/phases/create-api-contract/result.json` per the
+1. Write `steps/create-api-contract/result.json` per the
    result-document contract in INTERNALS.md:
 
    ```json
    {
      "status": "completed",
-     "stop_reason": "verifier passed with zero findings on iteration 2; contract published and committed",
+     "summary": "verifier passed with zero findings on iteration 2; contract published and committed",
      "states": {
        "contract_path": "docs/tickets/SHOP-123/api-contract.md",
        "items": 3,
@@ -387,7 +400,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `post-create-api-contract.py`
+   Canonical `states` keys — EXACT names; `acs step finish`
    documents them and the next steps read them:
    - `contract_path`: where `api-contract.md` was published (the ticket docs
      folder, or the partition when `artifacts.tickets_path` is null).
@@ -401,12 +414,12 @@ MANDATORY final step — never skipped, also on failure or handoff:
    recorded in `states`; name them in the completion report instead. On failure
    keep whatever is true: `contract_path` only when a contract was actually
    published, the open findings in `findings`, and the reason (iteration cap,
-   needs input) in `stop_reason`.
+   needs input) in `summary`.
 
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-api-contract.py" --ticket <id> --result-file <partition>/phases/create-api-contract/result.json
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-api-contract.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed
@@ -422,7 +435,6 @@ MANDATORY final step — never skipped, also on failure or handoff:
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published contract and the contract files, `<questions>` when
      `needs_input`, and `<next-step>/acs:create-test-docs <id></next-step>`.
-     Validate it with `validate_xml.py` like every other message.
 
 ## Completion report (normative)
 
@@ -436,7 +448,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 ## /acs:create-api-contract · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
-- **Status**: <status> — <stop_reason>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: contract path; items specified; acceptance criteria traced; compatibility verdict; machine-readable contract files changed
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <contract path, contract files, partition phase artifacts, branch>
