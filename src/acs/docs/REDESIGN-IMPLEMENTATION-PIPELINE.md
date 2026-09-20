@@ -414,16 +414,19 @@ evidence — the adjudicator judges evidence, not persuasion.
 
 ## 3. The skills
 
-Every skill below is **independently invocable**. `/acs:ship` gives a skill
-nothing it could not resolve itself from state and arguments; running
-`/acs:review-code` by hand on a dirty working tree is a supported first-class
-use, not a debugging affordance.
+Every skill below is **independently invocable, from the same three inputs**:
+a ticket id, a prompt, or a document (§3.11). `/acs:ship` gives a skill
+nothing it could not resolve itself from the subject and the artifacts on
+disk; running `/acs:review-code` by hand on a dirty working tree, or
+`/acs:code` from a one-line prompt, is a supported first-class use, not a
+debugging affordance.
 
 ### 3.1 `/acs:analyze-requirements` *(renamed from `analyze-ticket`)*
 
 Accepts **any one of**: a ticket id, a free-text prompt, or a path to a
-document. None is required by the pipeline; supplying none is an error only at
-this step, not at the gate.
+document — the run's subject, which every skill accepts (§3.11). This is the
+step whose whole job is the subject: it produces the artifact the others fall
+back *from*.
 
 Produces `requirements.md`: the requirement restated, its acceptance criteria
 made concrete and testable, the open questions resolved through the
@@ -719,30 +722,70 @@ does not run.
 > The hook enforcement in §5 exists partly for this: a pre-push guard refuses a
 > push of the base branch itself.
 
-### 3.11 Standalone invocation
+### 3.11 Standalone invocation: the subject is every skill's input
 
-The rule that makes every skill independently invocable is one `INTERNALS.md`
-already states and this redesign keeps: **order lives in the workflow; a
-skill's gate checks inputs and safety brakes, never position.** `/acs:ship`
-asks `acs run next` which step is due and invokes it; a skill invoked by hand
-is never asked whether it is "next". The one order-related thing a gate does
-is print the advisory line it prints today (*"review-code normally follows
-code; code has not completed for this run"*), on stderr, exit 0.
+Every one of the ten skills takes **the same argument**: a ticket id, a
+prompt, or a path to a document — the run's *subject* (§4.2). Not only
+`analyze-requirements`. `/acs:code "fix the login timeout on slow networks"`
+and `/acs:review-code MAR-590` and `/acs:create-test-docs docs/rfcs/0042.md`
+are all first-class, and each does its job from what it is given.
 
-Every invocation, by hand or under `/acs:ship`, writes into a run: the
-checkout's current run when there is one, else a new run for the subject
-given (a ticket id, a prompt) or — for a review with no subject at all — the
-branch. A run advanced by hand is the same run `/acs:ship` continues later:
-the cursor is the first step not completed, and a step completed by hand is
-not run again.
+Two rules make that true, and `INTERNALS.md` already states the first:
 
-For the pair the loop joins:
+**1. Order lives in the workflow; a gate checks inputs and safety brakes,
+never position.** `/acs:ship` asks `acs run next` which step is due and
+invokes it; a skill invoked by hand is never asked whether it is "next". The
+one order-related thing a gate does is print today's advisory line (*"review-
+code normally follows code; code has not completed for this run"*) on stderr,
+exit 0.
+
+**2. Every upstream artifact has a fallback chain that ends at the subject.**
+A skill invoked under `/acs:ship` finds its inputs where the earlier steps
+wrote them. Invoked by hand, it walks the chain and works from the first
+thing it finds; it refuses only when the chain bottoms out with no subject at
+all.
+
+| A skill needs… | Under `/acs:ship` | Standalone — falls back to |
+|---|---|---|
+| the requirement | `requirements.md` | the plan's restated requirement → **the subject**: a ticket's acceptance criteria, the prompt's text, the document |
+| the plan | `plan.md`, approved on `standard` / `complex` | an **implicit plan** `/acs:code` derives from its own read-only survey — *cheap paths only*; a survey that judges the work `standard` or `complex` stops with `needs_input`: "this needs a plan and approval — run `/acs:create-impl-plan`" |
+| the API contract | `api-contract.md` | whatever exists; lens C and `create-test-docs` use it or record that there is none |
+| the test cases | `test-cases.md` | the plan's test strategy → the subject's acceptance criteria |
+| the changeset | the run's commits since base | `--base <ref>` (default: the repo's default branch) against HEAD **and the working tree** — uncommitted changes count |
+| the e2e tests | what `create-e2e-tests` wrote | the repo's configured e2e suite as it stands |
+| the prior verdict / result | the loop's artifacts | none — it is iteration 1, nothing is owed |
+
+The `reads.required` declaration in `acs.yaml` (§2.4) is therefore a statement
+about the **workflow**: under `/acs:ship` a required read not written by an
+earlier step is a validation error, because the author wrote a list that
+makes a step run on its fallback when it did not have to. Standalone, the
+same missing read is the fallback doing its job.
+
+What each skill does from a bare subject:
+
+| Skill | From a ticket / prompt / document, with nothing else on disk |
+|---|---|
+| `analyze-requirements` | its natural input; writes `requirements.md` |
+| `create-impl-plan` | restates the subject as the requirement in the plan's opening, records every assumption in the clarification ledger (`--source assumption`), then plans |
+| `create-api-contract` | reads the subject for an API surface (a ticket's AC, the prompt, the document); writes the contract or records `no_surface_owed` |
+| `create-test-docs` | derives `TC-n` from the subject's acceptance criteria |
+| `code` | the implicit plan above, then TDD; `--plan <file>` to supply one instead |
+| `review-code` | the subject **is** the requirement lens A judges against; the diff comes from git; B, D and E run on any diff |
+| `create-e2e-tests` | from the subject's acceptance criteria and the diff |
+| `run-e2e-tests` | runs the configured suite; the subject only names the run |
+| `docs-sync` | from the diff; the subject only names the run |
+| `create-pr` | from the commits on the current branch; the subject supplies the title, the body and the ticket link |
+
+Every invocation writes into a run: the checkout's current run when there is
+one, else a new run named from the subject (§4.2). A run advanced by hand is
+the same run `/acs:ship` continues later — the cursor is the first step not
+completed, and a step completed by hand is not run again.
+
+For the pair the loop joins, the specifics:
 
 | | `/acs:code` | `/acs:review-code` |
 |---|---|---|
-| **Input it refuses without** | a plan with a `## Contract` block — the run's, or `--plan <file>`. `code` implements a plan; a prompt with no plan is `/acs:ship "…"` | a changeset: `--base <ref>` (default: the repo's default branch) against HEAD **and the working tree** — uncommitted changes are reviewed |
-| **Safety brakes** | on `standard` / `complex`: an approval whose `plan_sha256` matches; another session's lock | another session's lock |
-| **Optional inputs, and what happens without them** | a prior verdict → iteration 1, no resolutions owed | `requirements.md` → lens A records "no requirement to judge against"; `api-contract.md` / `design.md` → lens C likewise; `test-cases.md` → lens A's `TC-n` matrix is empty. **B, D and E run on any diff.** |
+| **Safety brakes** | on `standard` / `complex`: an approval whose `plan_sha256` matches — which is why the implicit plan is cheap-paths-only; another session's lock | another session's lock |
 | **Writes** | `steps/code/state.json`, `result.json`, the commits | `steps/review-code/verdict.json`, the lens reports, the adjudication record; and the gate runs — it is part of what a review is |
 | **After** | done; a review is the user's choice | done; on blocking findings the verdict is on disk and `/acs:code` will read it — so `/acs:review-code` → `/acs:code` → `/acs:review-code` by hand **is the loop**, on the same artifacts, with the same ids |
 
@@ -750,14 +793,6 @@ The loop's iteration counter increments whichever way the loop is driven. The
 **cap** is `/acs:ship`'s rule — it refuses to loop past `max_iterations` —
 and by hand the skills warn past it and continue, because by hand the user is
 the loop controller.
-
-The other eight are simpler and follow the same pattern: `analyze-requirements`
-needs a ticket, prompt or document; `create-impl-plan` needs
-`requirements.md`; the four always-run steps need the plan and decide from it;
-`docs-sync` needs a changeset; `create-pr` needs commits on the current
-branch. None needs `/acs:ship`, and none needs a step before it to have been
-recorded — only that step's *artifact* to exist, which the user may have
-produced any way they like.
 
 ---
 
