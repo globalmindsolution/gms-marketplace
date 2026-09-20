@@ -223,7 +223,7 @@ def cmd_step_start(args):
         sys.stderr.write(notice + "\n")
     entry = lib.step_entry(doc, args.step)
     emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
-          "status": entry.get("status"), "gate": verdict,
+          "status": entry.get("status"), "gate_enforcement": verdict,
           "iteration": lib.iteration_of(doc, args.step, wf)})
 
 

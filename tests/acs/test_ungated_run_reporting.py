@@ -37,7 +37,10 @@ import acs_case  # noqa: E402
 
 lib = acs_case.lib
 
-MODULE_FILENAME = "skill-start.py"
+#: `acs step start` replaced skill-start.py (§4.8); the degraded-enforcement
+#: report moved with it, because it is the first thing a run says about
+#: whether it is gated at all.
+MODULE_FILENAME = "acs_commands.py"
 SKILL_START_PATH = os.path.join(acs_case.SCRIPTS, MODULE_FILENAME)
 REPO_ID = "acme-shop"
 
@@ -105,16 +108,21 @@ class SkillStartCase(acs_case.AcsWorkspaceCase):
         self.assertEqual(evidence["gate_skill"], skill)
 
     def start(self, ticket_id, skill="code", extra_argv=()):
-        """Run skill-start.py in-process; returns (code, payload_or_None, stderr)."""
-        mod = acs_case.load_module(MODULE_FILENAME)
-        argv = ["--skill", skill, "--ticket", ticket_id] + list(extra_argv)
-        with acs_case.pushd(self.repo):
-            code, out, err = acs_case.run_main(mod, argv)
-        return code, (json.loads(out) if out.strip() else None), err
+        """Run `acs step start` as a subprocess; (code, payload_or_None, stderr).
+
+        A subprocess rather than in-process: acs.py owns the parser, and the
+        gate verdict is what the coordinator READS off stdout, so the thing
+        worth pinning is what the command actually prints."""
+        self.ensure_run(ticket_id)
+        argv = ["acs.py", "step", "start", "--step", skill, "--run", ticket_id]
+        out = self.run_script(*(argv + list(extra_argv)))
+        return (out.returncode,
+                json.loads(out.stdout) if out.stdout.strip() else None,
+                out.stderr)
 
     def entry(self, ticket_id, skill="code"):
-        tdir = lib.ticket_dir(self.ws, REPO_ID, ticket_id)
-        return lib.load_state(tdir, skill, ticket_id)["invocations"][-1]
+        return lib.load_step_state(self.rdir(ticket_id), skill,
+                                   ticket_id)["invocations"][-1]
 
 
 class ContextFieldTest(SkillStartCase):
@@ -162,7 +170,7 @@ class ContextFieldTest(SkillStartCase):
     def test_exempt_pr_payload_carries_the_verdict(self):
         bindir = tempfile.mkdtemp(prefix="acs-fakebin-", dir=self.tmp)
         env = acs_case.fake_gh(bindir, "echo '%s'" % json.dumps(EXEMPT_PR_DOC))
-        out = self.run_script("skill-start.py", "--skill", "merge-pr",
+        out = self.run_script("acs.py", "step", "start", "--step", "merge-pr",
                               "--pr", "87", env=env)
         self.assertEqual(out.returncode, 0, out.stderr)
         payload = json.loads(out.stdout)
@@ -175,7 +183,7 @@ class ContextFieldTest(SkillStartCase):
     def test_exempt_pr_payload_is_otherwise_unchanged(self):
         bindir = tempfile.mkdtemp(prefix="acs-fakebin-", dir=self.tmp)
         env = acs_case.fake_gh(bindir, "echo '%s'" % json.dumps(EXEMPT_PR_DOC))
-        out = self.run_script("skill-start.py", "--skill", "merge-pr",
+        out = self.run_script("acs.py", "step", "start", "--step", "merge-pr",
                               "--pr", "87", env=env)
         self.assertEqual(out.returncode, 0, out.stderr)
         payload = json.loads(out.stdout)
@@ -316,7 +324,7 @@ class RefuseResponseTest(SkillStartCase):
         self.settings(when_absent="refuse")
         bindir = tempfile.mkdtemp(prefix="acs-fakebin-", dir=self.tmp)
         env = acs_case.fake_gh(bindir, "echo '%s'" % json.dumps(EXEMPT_PR_DOC))
-        out = self.run_script("skill-start.py", "--skill", "merge-pr",
+        out = self.run_script("acs.py", "step", "start", "--step", "merge-pr",
                               "--pr", "87", env=env)
         self.assertEqual(out.returncode, 2)
         self.assertEqual(out.stdout, "")
@@ -325,10 +333,9 @@ class RefuseResponseTest(SkillStartCase):
     def test_acs_py_start_refuses_identically(self):
         self.settings(when_absent="refuse")
         self.mint("SHOP-1")
-        direct = self.run_script("skill-start.py", "--skill", "code",
-                                 "--ticket", "SHOP-1")
-        delegated = self.run_script("acs.py", "start", "--skill", "code",
-                                    "--ticket", "SHOP-1")
+        direct = self.run_script("acs.py", "step", "start", "--step", "code", "--run", "SHOP-1")
+        delegated = self.run_script("acs.py", "step", "start", "--step", "code",
+                                    "--run", "SHOP-1")
         self.assertEqual(direct.returncode, 2, direct.stderr)
         self.assertEqual(delegated.returncode, direct.returncode)
         self.assertEqual(delegated.stderr, direct.stderr)
