@@ -1,172 +1,132 @@
 ---
 name: code-complex
-description: Implement a ticket's plan on the COMPLEX delivery path — parallel executors, a four-lens verifier whose findings are merged and adversarially re-scrutinised, a three-iteration ceiling, with plan approval enforced. Dispatched by /acs:ship (or /acs:code) after the plan is judged complex; never chosen by hand.
-argument-hint: "[ticket-id]"
+description: Implement a subject's plan on the COMPLEX delivery path — one executor per disjoint file-map partition plus a final integration executor for the seams between them, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path complex; never chosen by hand.
+argument-hint: "[ticket-id | prompt | document]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of the **complex** delivery path of /acs:code — the deepest path.
-Your job: implement one ticket's existing plan in the consumer repo, tests
-first, committed on the ticket branch, and pass the built-in changeset review.
+Your job: implement this run's existing plan in the consumer repo, tests first,
+committed on the run's branch.
 
-You are a leg, not a command. `/acs:ship` names you in its `ship.yaml` per-path
-`skill` mapping, and `/acs:code` dispatches to you when the ticket's recorded
-`delivery_path` is `complex`. Nobody picks a path by hand — it is judged once
-from `plan.md` (ADR-0095). If you believe the path is wrong for the work in
-front of you, the remedy is never to behave like another path: the review's
-**Path audit** dimension exists to say so, and `stop_reason: plan_superseded`
-is how a run asks for a corrected plan.
+You are a leg, not a command. `/acs:code` dispatches to you when the plan's
+`## Contract` block records `delivery_path: complex`. Nobody picks a path by
+hand — it is judged once, by `/acs:create-impl-plan`, from the work itself
+(ADR-0095). If you believe the path is wrong for the work in front of you, the
+remedy is never to behave like another path: say so, and
+`stop_reason: needs_input` is how a run asks for a corrected plan.
 
 ## What to read, and when
 
-Three references hold everything the four delivery paths share. Read all three
-— they are not conditional branches, they are this run's protocol, split out so
-that a path only carries what makes it different:
+Two references hold everything the four delivery paths share. Read both — they
+are not conditional branches, they are this run's protocol, split out so that a
+path only carries what makes it different:
 
 | Read | For |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only tickets, user interaction, context pressure, Finish and the completion report |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
 | `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the execute phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/verify.md` | the review's dimensions, the verdict rules, the coverage hard fail |
 
 Everything below is what THIS path does differently. Where this file and a
-reference disagree about executors, verifier shape or the iteration ceiling,
-this file wins — that is the whole reason it exists.
+reference disagree about executors, this file wins — that is the whole reason
+it exists.
 
 ## The machinery of this path
 
 | | this path |
 |---|---|
-| Executors | parallel, per the file map |
-| Verifier | **four lenses**, merged |
-| Iteration ceiling | **3** execute -> verify rounds |
+| Executors | one per disjoint file-map partition **+ an integration executor** |
+| Test contract | `test-cases.md` |
 | Plan approval | **enforced** |
 
 ### Executors
 
-**Parallel executors, per the plan's file map.** Spawn one per disjoint file
-group, in a single message so they run concurrently; any overlap — source,
-tests, or docs — means those groups run sequentially instead.
+**Partition the plan's file map and spawn one executor per partition**, exactly
+as `standard` does: disjoint partitions, one file map each, the guard enforcing
+it at the tool boundary.
 
-### Verifier
+### The integration executor
 
-**The multi-lens spawn.** After all executors finish,
-the coordinator spawns 4 parallel `acs:code-verifier` subagents via the
-Agent tool — the same agent file, four times, reusing the "several
-executors in parallel... per the plan's file map" spawn mechanism already
-used for executors above — each `<task phase="verify">` carrying one
-additional `<constraint name="verify_lens">A|B|C|D</constraint>` (lens
-table: `code-verifier.md`'s Multi-lens review section). Each lens spawn
-writes its own `steps/code/iter-<n>-verify-lens-<A|B|C|D>.md`
-artifact (never the shared `iter-<n>/verify.md` name) and returns its
-`<result>` with `lens="<A|B|C|D>"` set to the lens it was given — that
-attribute is how you tell the four results apart and how the SubagentStop
-hook finds each lens's verdict file; a lens result without it fails
-validation of its verdict. After all 4 lenses
-return, the coordinator itself performs the merge pass — never a subagent:
+**This is what separates `complex` from `standard`.** After every partition
+executor finishes, spawn one more that owns what no partition owns — the seams
+between them:
 
-1. Collect every `<finding>` across the 4 lens results.
-2. A finding raised, in substance, by **2 or more** lenses is corroborated
-   — kept blocking without further check.
-3. A finding raised by exactly **one** lens is adversarially re-scrutinized
-   by the coordinator itself: re-read the finding's cited evidence
-   directly. If the evidence supports the claim, keep it blocking; if the
-   coordinator cannot independently confirm it, downgrade it to
-   `severity="info"` with the downgrade rationale recorded — never silently
-   dropped (the cross-lens application of "if it is not worth blocking, it
-   is not a finding — note it in the report only").
-4. **The downgrade is recorded in the LENS VERDICT, before the merge.** A
-   finding the coordinator re-scrutinized and could not confirm is rewritten
-   to `severity="info"` in that lens's own `iter-<n>-verdict-<lens>.json`,
-   which the coordinator may edit for exactly this purpose and no other.
-   It must NOT be downgraded afterwards in the merged document:
-   `acs.py verdict merge` is a pure union with no downgrade step, so a
-   downgrade applied after it would make the report say "pass" while the
-   verdict says `passed: false` — and `verifier_passed` is read from the
-   VERDICT (MAR-523), not from the report. Order matters: re-scrutinize,
-   amend the lens verdict, then merge.
-5. The coordinator writes the single merged
-   `steps/code/iter-<n>/verify.md` itself: one section per
-   corroborated/confirmed finding (blocking), one per downgraded finding
-   (info-level, with rationale), and a short per-lens evidence summary.
-   `acs.py verdict merge` writes the merged verdict from the four lens
-   verdicts; it refuses a subset of lenses, and refuses to replace a verdict
-   that carries blocking findings with a passing one.
-6. Zero surviving blocking findings after the merge = pass, identical to
-   the zero-findings rule in `${CLAUDE_PLUGIN_ROOT}/skills/code/references/verify.md` — the merge pass changes
-   WHICH findings count, never the pass/fail rule itself.
-   **`iter-<n>/verdict.json` governs `verifier_passed`**; the report explains
-   it. The merged list is also what the next iteration's executors are given
-   as `<context>`, so the merge write always happens before the next iteration
-   starts.
+- the call sites that cross a partition boundary
+- the shared type two partitions changed from different ends
+- the migration that has to land in one commit with the code that reads it
 
-### Dimensions
+Give it the **union of the partitions' diffs** as context and a file map that
+is the **intersection of their boundaries**.
 
-Every dimension in `${CLAUDE_PLUGIN_ROOT}/skills/code/references/verify.md`, **Regression-risk (git-history)**
-(dimension 14) included — it is lens D's.
+This is the concern the four-lens verifier was implicitly covering: a changeset
+too large for any one agent to hold is also a changeset whose seams no single
+executor saw. Moving the review out leaves that gap on the implementation side,
+and an integration pass is the direct answer to it — cheaper than a second
+review, and applied before the review rather than after.
+
+> **A note on the word "lane."** This fan-out is deliberately *not* called a
+> lane. In this repo `lane` names the retired `size` × `stakes` grid that
+> ADR-0095 replaced with delivery paths. They are executors, spawned per
+> partition.
 
 ### Inputs
 
-`test-cases.md` and, when the analysis found an API surface change,
-`api-contract.md` are required verifier inputs, as is `design.md` (own or
-parent) whenever the ticket has one.
+`test-cases.md` is the test contract, and `api-contract.md` when the subject
+owes public surface. The review's lens C judges conformance to both.
 
 ### Plan approval
 
-**Plan approval is enforced**, exactly as on `standard`:
-`steps/code/plan-approval.json` must record an eligible approval
-whose `plan_sha256` matches the current `plan.md` bytes, the plan-conformance
-dimension is ACTIVE, and a missing or stale approval fails the run with
-`stop_reason: plan_superseded` rather than being written here.
+**Enforced.** `/acs:code`'s pre-hook refuses this path when
+`steps/create-impl-plan/plan-approval.json` is absent or its `plan_sha256` does
+not match the plan on disk. An edited plan is an unapproved plan.
 
-## Plan approval — run it at Start, before the first executor
+## You do not review your own work
 
-This path requires an approved plan, and this leg is where approval is
-established: `/acs:create-impl-plan` runs before any delivery path exists, so
-it cannot know whether approval is owed. Immediately after Start, run:
+**This path has no verifier.** The changeset review is `/acs:review-code`, the
+next step in `ship.yaml`, and every delivery path gets the same one: five
+lenses, one fresh-context adjudicator per finding, and a final gate running
+build, lint, the full unit suite and coverage. The review scales itself from
+the changeset in front of it; you neither size it nor spawn it.
 
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-approval.py" --ticket <ticket-id>
+Two things left with the verifier, and both were review properties rather than
+implementation properties:
+
+- **verifier shape** — one pass or four lenses — is now the reviewer's own
+  call, measured from the diff
+- **the iteration ceiling** is now `ship.yaml`'s `loop.max_iterations`, the
+  same cap on every path
+
+Run the tests your change touches, not the full suite: the gate runs it once,
+last, on the iteration that survives review. That discipline is safe precisely
+because the guarantee is unconditional and terminal rather than buried inside
+an iteration that may be discarded.
+
+## On iteration 2+
+
+`acs step start` tells you the iteration and whether a verdict exists. On
+iteration 2 and later, read `steps/review-code/verdict.json` and nothing else
+from the review — not the lens reports, not the adjudication transcripts.
+
+Answer **every** confirmed finding by id in your `result.json`, `fixed` or
+`disputed`; there is no third option:
+
+```jsonc
+{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha>",
+  "resolutions": [
+    { "id": "F-1-3", "status": "fixed", "commits": ["b7a2…"],
+      "tests": ["tests/auth/test_session.py::test_refresh_keeps_tenant"] },
+    { "id": "F-1-5", "status": "disputed",
+      "reason": "the lookback flagged a revert of a different function with the same name; evidence: …" }
+  ] }
 ```
 
-This script is the ONLY writer of `steps/code/plan-approval.json`
-— never a subagent's `Write` tool, and never your own. An LLM-asserted approval
-is not an approval: eligibility is computed by `acs_lib.plan_approval_eligible`
-from the plan artifact's own content plus `settings.test_coverage_percent`,
-never from any agent's self-report. It hashes the approval mirror
-(`steps/code/plan.md`), which is why `/acs:create-impl-plan`
-publishes that copy from the same bytes as the plan; an explicit `--plan` must
-resolve within `steps/code/` and the script refuses (clean stderr,
-exit 2, no record written) any path whose realpath escapes it.
+Work to the finding's `resolved_when`, not to its wording: that field is the
+refutation criterion the adjudicator could not satisfy, restated as what your
+fix must make true. TDD still applies inside the loop — a behavioural finding
+gets its failing test first.
 
-It is idempotent per digest: a second invocation over the same plan bytes
-re-asserts the existing verdict, and a revised plan writes a fresh record. So a
-resumed run simply runs it again.
+`disputed` is not a way out. The next review's adjudicator receives the dispute
+as additional evidence and rules again, and a finding disputed then confirmed a
+second time stops the run with `stop_reason: needs_input` so a human breaks the
+tie.
 
-**An ineligible plan does not block this release.** The script exits 0 and
-prints the failing checks; record `states.plan_approved: false` and continue.
-The plan-conformance review dimension reads `plan-approval.json` itself and
-computes its own activation, so an ineligible plan means that dimension reports
-N/A — not that the run proceeds unreviewed.
-
-## The reflection loop
-
-Run execute -> verify for at most **3** iterations. There is no plan
-phase and no planner subagent: `/acs:create-impl-plan` authored the plan before
-this skill started, and this run reads it (Plan input resolution, in
-`${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md`).
-
-Spawn the executors and the verifier as `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md`'s
-**Subagents and messaging** section describes — the agent names, the
-model/effort resolution, the foreground-wait rule, the XML task and
-result contract, and the phase-artifact persistence are identical on
-every path.
-
-## After this path completes, /acs:ship stops
-
-`ship.yaml` gives this path `boundary: full_verify_stop`. The stop is
-/acs:ship's, not yours — this section is here so a reader of this leg knows
-what happens after it, not because the leg does anything about it. Four lens spawns per
-iteration, up to three iterations, all inside the ship coordinator's context: this
-is the path that boundary was written for. /acs:ship stops after you complete and
-runs the pipeline's tail in a fresh session. You simply finish normally.

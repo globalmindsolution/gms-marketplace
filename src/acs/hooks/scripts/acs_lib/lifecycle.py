@@ -562,68 +562,20 @@ def subagent_stop(payload, validator=None):
         _release_agent(tdir, payload)
         raise
 
-    verdict_errors = check_verifier_verdict(tdir, skill, role, message)
-    if verdict_errors:
-        if attempts > BLOCK_LIMIT:
-            _warn("%s's verdict is still unusable after %d attempts (%s); letting the "
-                  "subagent stop -- the coordinator must record the failure"
-                  % (cc.hook_agent_type(payload), attempts, "; ".join(verdict_errors)))
-            return 0  # record kept: it carries the refusal count that got us here
-        _warn("%s must write a valid verdict.json alongside its report:\n  %s\n"
-              "Write it and answer again." % (cc.hook_agent_type(payload),
-                                              "\n  ".join(verdict_errors)))
-        return 2
-
     _release_agent(tdir, payload)
     return 0
 
 
-#: Skills whose verifier owes a verdict.json. ONLY /acs:code: MAR-527's
-#: contract is written in agents/code-verifier.md, and the other fourteen
-#: agents/*-verifier.md files were never given it. Gating on the ROLE alone
-#: held every one of them to a contract they had never been told about, so a
-#: docs-sync or create-pr run burnt BLOCK_LIMIT extra verifier turns and ended
-#: with a "verdict is still unusable" warning.
-VERDICT_SKILLS = ("code",)
-
-
-def check_verifier_verdict(tdir, skill, role, message,
-                           ticket_id=None, expect_iteration=None):
-    """Errors in the verdict a VERIFIER must have written, or [] for anyone else.
-
-    The verdict is the one thing only the verifier knows, and the coordinator
-    used to transcribe it. Validating it here is what makes it a finding rather
-    than a claim -- in particular `passed` must agree with the findings
-    (acs_lib.verdict), so a verdict that says it passed while carrying a
-    blocking finding is rejected instead of believed.
-    """
-    if role != "verifier" or skill not in VERDICT_SKILLS:
-        return []
-    try:
-        root = ET.fromstring(message)
-    except ET.ParseError:
-        return []
-    if root.tag != "result":
-        return []  # a handoff/needs_input answer reports no verdict
-    if root.get("status") != "completed":
-        return []  # verification did not finish; there is nothing to have judged
-    iteration = root.get("iteration") or "1"
-    lens = root.get("lens")
-    for constraint in root.iter("constraint"):
-        if constraint.get("name") == "verify_lens":
-            lens = (constraint.text or "").strip() or None
-    doc_skill = root.get("skill") or skill
-    path = verdict.verdict_path(tdir, doc_skill, iteration, lens)
-    doc = read_json(path)
-    if doc is None:
-        return ["no verdict at %s" % path]
-    # The document's own identity is checked against the message's, not just
-    # its shape: a verdict found at the right PATH can still be about another
-    # ticket, skill or iteration, and only the path was ever checked before.
-    return verdict.validate_verdict(
-        doc, lens=lens, skill=doc_skill,
-        ticket_id=ticket_id or root.get("ticket-id"),
-        iteration=expect_iteration or iteration)
+#: The verdict is no longer a SUBAGENT's document. `/acs:review-code` spawns
+#: lenses (prose reports plus candidate findings) and one adjudicator per
+#: finding; the coordinator writes the one verdict from what survives
+#: adjudication (§3.6). So the "derived, never asserted" check moved to where
+#: the review ENDS -- `acs_lib.run._require_verdict`, on `acs step finish` --
+#: and no subagent is held to a contract it was never given. Gating on the
+#: `verifier` role alone used to hold all fifteen `*-verifier.md` agents to
+#: MAR-527's contract, which only `code-verifier.md` carried, so a docs-sync
+#: or create-pr run burnt BLOCK_LIMIT extra turns and ended with a "verdict is
+#: still unusable" warning.
 
 
 def write_phase_snapshot(tdir, skill, role, message):

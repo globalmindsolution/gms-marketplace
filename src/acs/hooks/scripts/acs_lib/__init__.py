@@ -138,9 +138,10 @@ from .filemap import (FILEMAP_FILENAME_FMT, WRITE_TOOL_PATH_KEYS, active_executo
     file_map_guard, filemap_path, load_filemap, normalize_repo_path, path_in_filemap,
     save_filemap_task)  # noqa: F401
 
-from .verdict import (BASE_DIMENSIONS, DIMENSION_RESULTS, LENS_DIMENSIONS, owed_dimensions, LENSES, SEVERITIES, VERDICT_DIMENSIONS,
-    blocking_findings, derived_passed, load_verdict, merge_lens_verdicts,
-    validate_verdict, verdict_filename, verdict_path, write_verdict)  # noqa: F401
+from .verdict import (ADJUDICATIONS, FINDING_KINDS, FINDING_STATUSES, LENSES,
+    SEVERITIES, blocking_findings, derived_passed, findings_of, load_verdict,
+    next_finding_id, open_findings, unanswered, validate_verdict,
+    verdict_filename, verdict_path, write_verdict)  # noqa: F401
 
 from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
     derive_verifier_passed, disagreements, execute_reports,
@@ -163,7 +164,7 @@ from .skills import (AGENT_ROLES, SKILL_SCHEMA_FILENAME, SkillsError,  # noqa: F
     workflows_dir, writes_of)
 
 from . import run as run_machine  # noqa: F401,E402
-from .run import (RUN_STATUSES, STEP_STATUSES, STOP_REASONS,  # noqa: F401
+from .run import (RUN_STATUSES, STEP_STATUSES, STOP_REASONS, VERDICT_STEPS,  # noqa: F401
     SUBJECT_KINDS, TERMINAL_RUN_STATUSES, abandon_run, create_run, cursor,
     derive_run_id, existing_run_ids, finish_step, in_progress_step,
     iteration_dir, iteration_of, latest_open_run, load_run, require_run,

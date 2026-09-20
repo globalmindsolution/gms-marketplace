@@ -177,31 +177,58 @@ class AcsWorkspaceCase(unittest.TestCase):
     def tdir(self, ticket):
         return lib.ticket_dir(self.ws, "acme-shop", ticket)
 
-    def seed_verdict(self, ticket, passed=True, skill="code", iteration=1, lens=None):
-        """Write the verifier verdict MAR-523 derives `states.verifier_passed`
-        from, so a fixture can reach /acs:create-pr the way a real run does.
+    def walk_to(self, ticket, last, outcomes=None):
+        """Complete every workflow step up to and including `last`, so a
+        fixture's run carries the history the step under test would really
+        find. The outcome is the first of each step's own vocabulary — a step
+        that completes in more than one way must say which (§4.5) — and
+        `outcomes` overrides one where a test needs the other branch."""
+        overrides = dict(outcomes or {})
+        steps = lib.steps_of(self.workflow())
+        for step in steps[:steps.index(last) + 1]:
+            out = self.start(step, ticket)
+            assert out.returncode == 0, out.stderr
+            if step in lib.VERDICT_STEPS:
+                self.seed_verdict(ticket, skill=step)
+            vocabulary = lib.outcome_vocabulary(step)
+            result = {"status": "completed"}
+            outcome = overrides.get(step, vocabulary[0] if vocabulary else None)
+            if outcome:
+                result["outcome"] = outcome
+            out = self.post(step, ticket, result)
+            assert out.returncode == 0, "%s: %s" % (step, out.stderr)
+        return self.rdir(ticket)
 
-        Since MAR-523 the coordinator's `verifier_passed` is IGNORED: the
-        post-hook computes it from this file, and its absence means the gate
-        stays shut. A fixture that only posts `{"verifier_passed": true}` is
-        therefore asserting something the pipeline no longer believes."""
-        finding = [] if passed else [{"severity": "blocking", "dimension": "tests",
-                                      "detail": "seeded failing verdict"}]
-        # EVERY owed dimension, not one: a verdict must now cover its whole
-        # owed set (MAR-527 review), because a one-dimension document made an
-        # unfinished review indistinguishable from a clean one -- and this
-        # helper was writing exactly that shape.
-        dimensions = [{"id": ident, "name": lib.VERDICT_DIMENSIONS[ident],
-                       "result": "pass", "evidence": "seeded"}
-                      for ident in lib.owed_dimensions(lens)]
-        if not passed:
-            dimensions[1]["result"] = "fail"
+    def workflow(self):
+        """The resolved ship workflow this checkout runs."""
+        resolved = lib.resolve_workflow(self.repo)
+        return lib.validate_workflow_file(resolved["path"])
+
+    def seed_verdict(self, ticket, passed=True, skill="review-code", iteration=1,
+                     lens=None, findings=None):
+        """Write the review verdict `states.verifier_passed` is derived from,
+        so a fixture can reach /acs:create-pr the way a real run does.
+
+        The coordinator's `verifier_passed` is IGNORED (MAR-523): the post-hook
+        computes it from this file, and its absence means the gate stays shut.
+        A fixture that only posts `{"verifier_passed": true}` is therefore
+        asserting something the pipeline no longer believes."""
+        if findings is None:
+            findings = [] if passed else [{
+                "id": "F-%d-1" % iteration,
+                "status": "confirmed",
+                "severity": "blocking",
+                "kind": "gate",
+                "claim": "seeded failing verdict",
+                "evidence": ["seeded"],
+                "resolved_when": "the seeded failure is cleared",
+            }]
         self.ensure_run(ticket)
         return lib.write_verdict(self.rdir(ticket), skill, iteration, {
             "skill": skill, "run_id": ticket, "iteration": iteration, "lens": lens,
+            "reviewed_sha": "0" * 7,
             "passed": passed,
-            "dimensions": dimensions,
-            "findings": finding,
+            "findings": findings,
         }, lens)
 
 

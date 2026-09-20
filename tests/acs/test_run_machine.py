@@ -82,7 +82,19 @@ class RunLifecycleTest(unittest.TestCase):
     def _complete(self, rdir, rid, step, **kw):
         R.start_step(rdir, step, self.wf)
         S.write_noop_result(rdir, step, rid, kw.get("outcome"), "x")
+        if step in R.VERDICT_STEPS:
+            self._verdict(rdir, rid, step, R.iteration_of(
+                R.require_run(rdir), step, self.wf))
         return R.finish_step(rdir, step, self.wf, status="completed", **kw)
+
+    def _verdict(self, rdir, rid, step, iteration, findings=()):
+        """A review cannot complete without one; every fixture that walks the
+        workflow past `review-code` has to write the document it owes."""
+        from acs_lib import verdict as V
+        V.write_verdict(rdir, step, iteration, {
+            "skill": step, "run_id": rid, "iteration": iteration,
+            "reviewed_sha": "0" * 7, "lens": None,
+            "passed": not findings, "findings": list(findings)})
 
     def test_a_run_needs_no_ticket(self):
         """The re-key's whole point: a developer with a prompt and a repo."""
@@ -168,8 +180,19 @@ class LoopTest(unittest.TestCase):
             R.finish_step(self.rdir, step, self.wf, status="completed")
 
     def _review(self, outcome):
+        from acs_lib import verdict as V
         R.start_step(self.rdir, "review-code", self.wf)
         S.write_noop_result(self.rdir, "review-code", self.rid, outcome, "x")
+        iteration = R.iteration_of(R.require_run(self.rdir), "review-code", self.wf)
+        blocking = outcome == "blocking_findings"
+        V.write_verdict(self.rdir, "review-code", iteration, {
+            "skill": "review-code", "run_id": self.rid, "iteration": iteration,
+            "reviewed_sha": "0" * 7, "lens": None, "passed": not blocking,
+            "findings": [{"id": "F-%d-1" % iteration, "status": "confirmed",
+                          "severity": "blocking", "kind": "defect",
+                          "claim": "seeded", "evidence": ["seeded"],
+                          "resolved_when": "the seeded finding is cleared"}]
+                        if blocking else []})
         return R.finish_step(self.rdir, "review-code", self.wf,
                              status="completed", outcome=outcome)
 

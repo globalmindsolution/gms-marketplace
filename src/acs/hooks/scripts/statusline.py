@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """statusline.py — optional Claude Code status line for acs.
 
-Renders the current ticket's pipeline at a glance, straight from workspace
-state (the same files the hooks gate on — no model involvement):
+Renders the current RUN's workflow at a glance, straight from the run ledger
+(the same file the hooks gate on — no model involvement):
 
-    Opus 4.8 · SHOP-123 story · ✓ticket ✓design ✓spec ▶code ○pr ○merge · ~$4.21
+    Opus 4.8 · MAR-590 · ✓requirements ✓plan ▶code ○review ○docs ○pr · ~$4.21
+
+The steps come from the resolved `ship.yaml`, in its order: a workflow is a
+list, so the status line is that list with a glyph each. Nothing here knows
+which steps exist.
 
 Wire-up (offered by /acs:setup, or manually) — statusLine is a USER setting,
 never forced by the plugin. In ~/.claude/settings.json or
@@ -36,10 +40,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import claude_code_adapter as cc  # noqa: E402
 
 GLYPHS = {"completed": "✓", "in_progress": "▶", "failed": "✗",
-          "interrupted": "⏸", "handed_off": "⏸"}
-SHORT_STEPS = [("create-ticket", "ticket"), ("create-design", "design"),
-               ("create-spec", "spec"), ("code", "code"),
-               ("create-pr", "pr"), ("merge-pr", "merge")]
+          "interrupted": "⏸"}
+
+#: A step name shortened for a one-line display. Anything not named here keeps
+#: its own name minus a leading `create-`; the table is a nicety, never the
+#: source of truth for which steps exist.
+SHORT = {"analyze-requirements": "requirements", "create-impl-plan": "plan",
+         "create-api-contract": "contract", "create-test-docs": "cases",
+         "review-code": "review", "create-e2e-tests": "e2e",
+         "run-e2e-tests": "e2e-run", "docs-sync": "docs"}
+
+
+def short(step):
+    return SHORT.get(step) or (step[len("create-"):] if step.startswith("create-") else step)
 
 
 def fallback(payload):
@@ -69,43 +82,38 @@ def render(payload):
     cwd = cc.payload_cwd(payload)
     ctx = lib.build_context(cwd)  # raises GateError when not initialized
 
-    pointer = lib.read_json(lib.pointer_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-    ticket_id = (pointer or {}).get("ticket_id")
-    if not ticket_id:
-        ticket_id, _src = lib.resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"])
-    if not ticket_id:
-        return "%s · acs: no active ticket" % fallback(payload)
+    run_id = lib.current_run_id(ctx)
+    if not run_id:
+        return "%s · acs: no active run" % fallback(payload)
 
-    rdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if not os.path.isdir(rdir):
-        return "%s · acs: %s (no partition)" % (fallback(payload), ticket_id)
+    rdir = lib.run_dir(lib.repo_dir(ctx["workspace"], ctx["repo_id"]), run_id)
+    doc = lib.load_run(rdir)
+    if doc is None:
+        return "%s · acs: %s (no run on disk)" % (fallback(payload), run_id)
+    steps = doc.get("steps") or {}
 
-    ticket = lib.load_ticket(rdir) or {}
-    pipeline = lib.load_run(rdir) or {}
-    steps = pipeline.get("steps", {})
+    # The ORDER is the workflow's, and so is the membership: no list here.
+    try:
+        wf = lib.validate_workflow_file(
+            lib.resolve_workflow(ctx["checkout_root"])["path"])
+        order = lib.steps_of(wf)
+    except Exception:  # noqa: BLE001 -- a status line never crashes
+        order = sorted(steps)
 
     parts = []
-    if pipeline.get("flow") == "product":
-        for skill in lib.PRODUCT_SKILLS + ["merge-pr"]:
-            if skill in steps:
-                glyph = GLYPHS.get(steps[skill].get("status"), "○")
-                parts.append("%s%s" % (glyph, skill.replace("create-", "")))
-    else:
-        needs_design = bool(ticket.get("needs_design"))
-        for skill, label in SHORT_STEPS:
-            if skill == "create-design" and not needs_design:
-                continue
-            glyph = GLYPHS.get((steps.get(skill) or {}).get("status"), "○")
-            parts.append("%s%s" % (glyph, label))
+    for step in order:
+        glyph = GLYPHS.get((steps.get(step) or {}).get("status"), "○")
+        parts.append("%s%s" % (glyph, short(step)))
 
-    cost = _display_cost(ctx, pipeline)
+    loop = (doc.get("loops") or {}).get("review-code") or {}
+    cost = _display_cost(ctx, doc)
     bits = [
         cc.status_model_display_name(payload),
-        "%s%s%s" % (ticket_id,
-                    " %s" % ticket.get("type") if ticket.get("type") else "",
-                    " (archived)" if archived else ""),
-        " ".join(parts) if parts else "pipeline not started",
+        run_id,
+        " ".join(parts) if parts else "run not started",
     ]
+    if int(loop.get("iteration") or 1) > 1:
+        bits.append("review %s/%s" % (loop.get("iteration"), loop.get("max")))
     if cost:
         bits.append("~$%.2f" % cost)
     lock = lib.read_lock(rdir)

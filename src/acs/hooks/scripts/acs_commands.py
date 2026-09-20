@@ -610,52 +610,6 @@ def cmd_verdict_show(args):
           "verdict": doc})
 
 
-def cmd_verdict_merge(args):
-    """Merge the four full-depth lens verdicts into the iteration's verdict.
-
-    Mechanical — passed is the conjunction, findings the union, each dimension
-    the worst result any lens reported — so the coordinator INVOKES the merge
-    rather than authoring a verdict it did not reach."""
-    run_id, rdir, _ctx = run_or_die("verdict merge", args.run)
-    lenses = args.lens or list(lib.LENSES)
-    # All four, always. --lens was an append flag with no completeness rule, so
-    # `--lens A --lens C` merged a SUBSET and dropped lens B's blocking
-    # findings while reporting ok/passed -- a coordinator-run command that
-    # silently discards a verifier's verdict, which is what AC-3 forbids.
-    if sorted(set(lenses)) != sorted(lib.LENSES):
-        die("verdict merge",
-            "a merge covers all four lenses (%s); got %s. A subset drops the "
-            "findings of the lenses left out."
-            % (", ".join(lib.LENSES), ", ".join(sorted(set(lenses)))))
-    docs, missing = [], []
-    for lens in lenses:
-        doc = lib.load_verdict(rdir, args.skill, args.iteration, lens)
-        if doc is None:
-            missing.append(lens)
-        else:
-            docs.append(doc)
-    if missing:
-        die("verdict merge", "no verdict for lens %s (iteration %s)"
-            % (", ".join(missing), args.iteration))
-    merged = lib.merge_lens_verdicts(docs)
-    merged["written_at"] = lib.now_iso()
-    errors = lib.validate_verdict(merged)
-    if errors:
-        die("verdict merge", "the merged verdict is not well formed: %s" % "; ".join(errors))
-    existing = lib.load_verdict(rdir, args.skill, args.iteration)
-    if existing is not None and lib.blocking_findings(existing) and merged["passed"]:
-        die("verdict merge",
-            "%s already holds a verdict with %d blocking finding(s); refusing to "
-            "replace it with a passing one. Fix the findings and re-run the "
-            "verifier rather than overwriting its verdict."
-            % (lib.verdict_path(rdir, args.skill, args.iteration),
-               len(lib.blocking_findings(existing))))
-    path = lib.write_verdict(rdir, args.skill, args.iteration, merged)
-    emit({"ok": True, "run_id": run_id, "path": path, "passed": merged["passed"],
-          "merged_from": merged["merged_from"], "blocking": len(lib.blocking_findings(merged)),
-          "verdict": merged})
-
-
 def cmd_phase_validate(args):
     """Check a phase result document BEFORE the post-hook consumes it. The
     post-hook refuses a document with no status (it would otherwise finalize a

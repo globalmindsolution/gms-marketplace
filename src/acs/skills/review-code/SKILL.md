@@ -27,9 +27,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step review-co
 ```
 
 This records the step `in_progress` and tells you the run, the iteration and
-whether a previous verdict exists. Read `references/protocol.md` for Start,
-resume-and-reconcile, context pressure and the completion report — the parts
-every acs skill shares.
+whether a previous verdict exists. `${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`
+carries Start, resume-and-reconcile, context pressure and the completion
+report — the parts every acs skill shares.
 
 ## Stage 1 — the lenses
 

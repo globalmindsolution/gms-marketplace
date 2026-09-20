@@ -291,7 +291,13 @@ def start_step(rdir, step, wf, iteration=None):
     elif step in (doc.get("loops") or {}):
         entry["iteration"] = loop_iteration(doc, step)
     doc.setdefault("steps", {})[step] = entry
-    doc["cursor"] = step
+    # The cursor is DERIVED, never pointed at whatever just started. A skill
+    # invoked on its own is a first-class case (§3.11): running `code` before
+    # `analyze-requirements` is out of order, not inconsistent, and the gate
+    # answers it with one advisory line rather than a refusal. Setting the
+    # cursor to the started step made the run's own ledger contradict the
+    # definition of a cursor, and I2 then refused every standalone run.
+    doc["cursor"] = cursor(doc, wf)
     doc["status"] = "in_progress"
     return save_run(rdir, doc)
 
@@ -328,6 +334,7 @@ def finish_step(rdir, step, wf, status="completed", outcome=None, summary=None,
 
     exhausted = False
     if status == "completed":
+        _require_verdict(rdir, step, doc, wf)
         exhausted = _settle_loop(doc, step, wf, outcome)
 
     doc["cursor"] = cursor(doc, wf)
@@ -342,6 +349,40 @@ def finish_step(rdir, step, wf, status="completed", outcome=None, summary=None,
     save_run(rdir, doc)
     _reindex(rdir, doc)
     return doc
+
+
+#: Steps whose conclusion is a DOCUMENT, not a status. `review-code` writes the
+#: verdict `/acs:code` answers and `/acs:create-pr`'s brake reads; completing
+#: the step without one would leave the brake to report "did not pass" a step
+#: later, with nothing to say why.
+VERDICT_STEPS = ("review-code",)
+
+
+def _require_verdict(rdir, step, doc, wf):
+    """Refuse to complete a verdict step whose verdict is missing or unusable.
+
+    This is the `Stop` half of "derived, never asserted" (§5). The reviewer
+    does not assert that it passed -- it writes findings, and the post-hook
+    concludes. A completed review with no verdict on disk concluded nothing,
+    and the loop has nothing to carry.
+    """
+    if step not in VERDICT_STEPS:
+        return
+    from . import verdict as verdict_mod
+    iteration = iteration_of(doc, step, wf)
+    path = verdict_mod.verdict_path(rdir, step, iteration)
+    vdoc = read_json(path)
+    if not isinstance(vdoc, dict):
+        raise GateError(
+            "/acs:%s completed without a verdict at %s. The review's conclusion is a "
+            "document the kernel reads, not a status the skill asserts: write it and "
+            "finish again." % (step, path))
+    errors = verdict_mod.validate_verdict(
+        vdoc, skill=step, run_id=doc["run_id"], iteration=iteration)
+    if errors:
+        raise GateError(
+            "the iteration-%s verdict at %s is not usable: %s"
+            % (iteration, path, "; ".join(errors)))
 
 
 def _settle_loop(doc, step, wf, outcome):
@@ -477,9 +518,10 @@ def check(rdir, wf, manifests=None):
     if doc.get("cursor") != expected:
         errors.append("I2: cursor is %r but the first step not completed is %r"
                       % (doc.get("cursor"), expected))
-    if running and doc.get("cursor") != running[0]:
-        errors.append("I2: %s is in_progress but the cursor is %r"
-                      % (running[0], doc.get("cursor")))
+    if running and running[0] != expected:
+        warnings.append("I2: %s is in_progress but the workflow's next step is %r — "
+                        "a skill run on its own is out of order, not inconsistent"
+                        % (running[0], expected))
 
     for step, entry in (doc.get("steps") or {}).items():
         if (entry or {}).get("status") != "completed":

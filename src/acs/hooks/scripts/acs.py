@@ -83,7 +83,7 @@ from acs_commands import (CONTEXT_KEYS, cmd_artifacts_show, cmd_context,  # noqa
     cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
     cmd_run_check, cmd_run_new, cmd_run_next, cmd_run_show, cmd_slug,
     cmd_step_finish, cmd_step_show, cmd_step_start, cmd_ticket_save,
-    cmd_ticket_show, cmd_tracker_sync, cmd_verdict_merge, cmd_verdict_show,
+    cmd_ticket_show, cmd_tracker_sync, cmd_verdict_show,
     cmd_workflow_show, cmd_workflow_validate)
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
@@ -281,23 +281,19 @@ def build_parser():
     gevents.add_argument("--run")
     gevents.add_argument("--skill", default="code")
     gevents.set_defaults(func=cmd_guard_events)
-    verdict = group("verdict", help="the verifier's verdict document")
+    verdict = group("verdict", help="the review's verdict document")
     verdict_sub = verdict.add_subparsers(dest="cmd")
 
+    # `verdict merge` went with the per-lens verdict documents it merged. The
+    # lenses write prose reports and return candidate findings; adjudication is
+    # per finding, and the coordinator writes one verdict (§3.6). There is no
+    # arithmetic left to invoke.
     vshow = verdict_sub.add_parser("show", help="read and validate one verdict")
     vshow.add_argument("--run")
-    vshow.add_argument("--skill", default="code")
+    vshow.add_argument("--skill", default="review-code")
     vshow.add_argument("--iteration", type=int, default=1)
     vshow.add_argument("--lens", choices=list(lib.LENSES))
     vshow.set_defaults(func=cmd_verdict_show)
-
-    vmerge = verdict_sub.add_parser("merge", help="merge the full-depth lens verdicts")
-    vmerge.add_argument("--run")
-    vmerge.add_argument("--skill", default="code")
-    vmerge.add_argument("--iteration", type=int, default=1)
-    vmerge.add_argument("--lens", action="append", choices=list(lib.LENSES),
-                        help="restrict the merge to these lenses (default: all four)")
-    vmerge.set_defaults(func=cmd_verdict_merge)
 
     slug = group("slug", help="slugify (branch and file naming)")
     slug.add_argument("--text", required=True)

@@ -152,12 +152,18 @@ def _brake_code(ctx, rdir, doc, wf):
 
 
 def _brake_create_pr(ctx, rdir, doc, wf):
-    """A review that did not pass never becomes a PR. verifier_passed is
+    """A review that did not pass never becomes a PR. `verifier_passed` is
     DERIVED from review-code's verdict by the post-hook (MAR-523/527), so this
-    reads the ledger rather than trusting any skill's self-report."""
-    entry = run_machine.step_entry(doc, "review-code")
-    if not entry:
-        return None
+    reads what the kernel computed rather than any skill's self-report.
+
+    It reads the STEP's state, not the run's ledger entry. A loop-back forgets
+    the cycle's entries on purpose — a step absent from `steps` is pending —
+    and that is exactly the moment a PR must be refused: the review ran, found
+    something, and sent the changeset back. Reading the ledger let every
+    blocking review through the instant it re-entered the loop.
+    """
+    if not os.path.isfile(step_machine.state_path(rdir, "review-code")):
+        return None  # no review has run at all; the order advisory says so
     state = step_machine.load_state(rdir, "review-code", doc["run_id"])
     if state.get("states", {}).get("verifier_passed") is not True:
         raise GateError(

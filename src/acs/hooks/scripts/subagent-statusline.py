@@ -6,14 +6,14 @@ Claude Code invokes this once per refresh tick with ONE JSON object on stdin:
     {"columns": <usable row width>, "tasks": [{"id", "name", "type", "status",
      "description", "label", "startTime", "tokenCount", "cwd", ...}, ...]}
 
-For every task we recognize as an acs reflection subagent
-(<skill>-planner/-executor/-verifier), we emit one JSON line:
+For every task we recognize as an acs subagent (`<skill>-<role>`, where the
+roles are the ones `acs_lib.skills` knows), we emit one JSON line:
 
     {"id": "<task id>", "content": "<row body>"}
 
 restyling the row as, e.g.:
 
-    ▶ verify · code-verifier · SHOP-123 · 45k tok · 1m32s
+    ▶ review · review-code-lens · MAR-590 · 45k tok · 1m32s
 
 Tasks we do not recognize get NO line — they keep Claude Code's default
 rendering. We never crash and never write garbage: on any problem we emit
@@ -33,44 +33,55 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import claude_code_adapter as cc  # noqa: E402
+import claude_code_adapter as cc  # noqa: E402,F401
+from acs_lib import skills as skills_registry  # noqa: E402
 
-# Role vocabulary comes from the adapter (MAR-520) -- the same observed
-# agent-name suffixes usage_reader attributes tokens by.
-ROLE_RE = re.compile(
-    r"\b(create-prd|create-architecture|create-project|create-ticket|"
-    r"create-design|create-spec|code|create-pr|merge-pr)-(%s)\b"
-    % "|".join(role for _, role in cc.ROLE_SUFFIXES)
-)
-PHASE = {"executor": "execute", "verifier": "verify"}
+# Skill and role vocabulary come from the TREE, not from a list kept here.
+# The hard-coded nine skills went stale twice over -- `create-spec` outlived
+# its skill by two releases, and `code-verifier` outlived its agent -- while
+# every real agent file is `agents/<skill>-<role>.md` and says so by its name.
+ROLE_RE = re.compile(r"\b([a-z0-9]+(?:-[a-z0-9]+)*?)-(%s)\b"
+                     % "|".join(skills_registry.AGENT_ROLES))
+PHASE = {"planner": "plan", "executor": "execute", "verifier": "verify",
+         "lens": "review", "adjudicator": "adjudicate"}
 STATUS_GLYPH = {"running": "▶", "in_progress": "▶", "pending": "○",
                 "completed": "✓", "done": "✓", "failed": "✗", "error": "✗"}
 
 
 def detect_role(task):
+    """(skill, role), or (None, None). The skill must be a real skill
+    directory: `<anything>-executor` in a description is not an acs subagent."""
+    try:
+        known = skills_registry.skill_agents()
+    except Exception:  # noqa: BLE001 -- a status line never crashes
+        known = {}
+    if not known:
+        return None, None
     for key in ("type", "name", "label", "description"):
         value = task.get(key)
-        if isinstance(value, str):
-            match = ROLE_RE.search(value)
-            if match:
+        if not isinstance(value, str):
+            continue
+        for match in ROLE_RE.finditer(value):
+            if match.group(2) in known.get(match.group(1), ()):
                 return match.group(1), match.group(2)
     return None, None
 
 
-def ticket_for(task):
-    """Best effort: the per-checkout pointer of the task's cwd names the ticket."""
+def run_for(task):
+    """Best effort: the per-checkout pointer of the task's cwd names the run.
+
+    A run id reads like its subject (§4.2) -- `MAR-590`,
+    `fix-the-login-timeout-3f2a` -- so it is as useful here as a ticket id
+    was, and it is defined for the runs that have no ticket at all."""
     cwd = task.get("cwd")
     if not isinstance(cwd, str) or not cwd:
         return None
     try:
         import acs_lib as lib
         ctx = lib.build_context(cwd)
-        pointer = lib.read_json(lib.pointer_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-        if isinstance(pointer, dict):
-            return pointer.get("ticket_id")
-    except Exception:
-        pass
-    return None
+        return lib.current_run_id(ctx)
+    except Exception:  # noqa: BLE001 -- a status line never crashes
+        return None
 
 
 def elapsed(start):
@@ -99,10 +110,10 @@ def row(task, columns):
     if not skill:
         return None
     glyph = STATUS_GLYPH.get(str(task.get("status") or "").lower(), "▶")
-    bits = ["%s %s" % (glyph, PHASE[role]), "%s-%s" % (skill, role)]
-    ticket = ticket_for(task)
-    if ticket:
-        bits.insert(2, ticket)
+    bits = ["%s %s" % (glyph, PHASE.get(role, role)), "%s-%s" % (skill, role)]
+    run_id = run_for(task)
+    if run_id:
+        bits.insert(2, run_id)
     tok = tokens(task.get("tokenCount"))
     if tok:
         bits.append(tok)

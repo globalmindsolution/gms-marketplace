@@ -110,7 +110,9 @@ class AgentConventionTest(unittest.TestCase):
         self.assertEqual(K.unreachable_agents(), [])
 
     def test_agents_are_read_from_the_tree(self):
-        self.assertEqual(K.agent_roles_of("code"), ["executor", "verifier"])
+        """`code` has an executor and nothing else: its verifier moved out to
+        /acs:review-code, and the agent file left with it (§3.5)."""
+        self.assertEqual(K.agent_roles_of("code"), ["executor"])
 
     def test_review_code_owns_a_lens_and_an_adjudicator(self):
         self.assertEqual(K.agent_roles_of("review-code"), ["lens", "adjudicator"])

@@ -345,7 +345,7 @@ class GuardEventsCliTest(GuardEventsCase):
         self.declare("src/a.py")
         self.spawn_executor()
         self.assertEqual(self.write_attempt("src/somewhere_else.py").returncode, 2)
-        out = self.acs("guard", "events", "--ticket", self.ticket)
+        out = self.acs("guard", "events", "--run", self.ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         body = json.loads(out.stdout)
         self.assertIs(body["ok"], True)
@@ -355,7 +355,7 @@ class GuardEventsCliTest(GuardEventsCase):
         self.assertEqual(body["events"][0]["reason"], "outside_map")
 
     def test_a_run_with_no_denial_prints_an_empty_array(self):
-        out = self.acs("guard", "events", "--ticket", self.ticket)
+        out = self.acs("guard", "events", "--run", self.ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         body = json.loads(out.stdout)
         self.assertEqual(body["events"], [])
@@ -367,12 +367,12 @@ class GuardEventsCliTest(GuardEventsCase):
         self.assertEqual(json.loads(out.stdout)["skill"], "code")
 
     def test_an_unknown_ticket_is_a_refusal(self):
-        out = self.acs("guard", "events", "--ticket", "SHOP-999")
+        out = self.acs("guard", "events", "--run", "SHOP-999")
         self.assertEqual(out.returncode, 2)
         self.assertIn("acs guard events:", out.stderr)
 
     def test_a_skill_that_never_ran_names_the_missing_state_file(self):
-        out = self.acs("guard", "events", "--ticket", self.ticket, "--skill", "docs-sync")
+        out = self.acs("guard", "events", "--run", self.ticket, "--skill", "docs-sync")
         self.assertEqual(out.returncode, 2)
         self.assertIn("acs guard events:", out.stderr)
         self.assertIn("docs-sync-state.json", out.stderr)

@@ -264,95 +264,102 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
                 self.assertNotIn("unexpected error in gate", result.stderr)
 
 
-class TestDocsSyncGates(AcsWorkspaceCase):
-    """MAR-160 spec 02's gate_docs_sync (a)-(d) and gate_create_pr cases, as
-    they read after the skills-independence refactor: the ORDER checks (code
-    before docs-sync, the post-code test step, docs-sync before create-pr)
-    are ship.yaml's and surface as one stderr advisory with exit 0; the
-    verifier_passed BRAKE survives unchanged."""
+class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
+    """Order is `ship.yaml`'s, not a gate's: running a step before its
+    neighbours prints ONE stderr advisory and exits 0 (§2.1, §5). The one thing
+    that still REFUSES is the /acs:create-pr brake, and it reads the review's
+    DERIVED verdict rather than any skill's self-report."""
 
-    def setUp(self):
-        super().setUp()
-        self.ticket = self.new_ticket("Bulk import", "task")
-        self.start("code", self.ticket)
-        # MAR-523: verifier_passed is DERIVED from the verifier's verdict, so
-        # the fixture seeds the verdict instead of asserting the conclusion.
-        self.seed_verdict(self.ticket)
-        self.post("code", self.ticket, {"status": "completed"})
+    def _advisories(self, stderr):
+        return [line for line in stderr.splitlines() if lib.ADVISORY_MARK in line]
 
-    # ---------------------------------------------------------------- gate_docs_sync
+    # ------------------------------------------------------------ the advisory
 
-    def test_docs_sync_gate_passes_when_no_test_step_entry(self):
-        # (a) code completed, no "test" step entry in run.json -> 0
-        result = self.pre("docs-sync", self.ticket)
+    def test_a_step_at_the_cursor_is_advised_of_nothing(self):
+        ticket = self.new_ticket("Bulk import", "task")
+        self.ensure_run(ticket)
+        result = self.pre("analyze-requirements", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self._advisories(result.stderr), [])
 
-    def test_docs_sync_gate_passes_when_test_step_present_not_completed(self):
-        # (b) code completed, "test" step present but not completed -> 0: the
-        # post-code test step is not a docs-sync need in ship.yaml (docs-sync
-        # needs only code), so nothing is refused and nothing is advised.
-        lib.update_pipeline(self.tdir(self.ticket), self.ticket, "test", "in_progress")
-        result = self.pre("docs-sync", self.ticket)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertNotIn("normally follows", result.stderr)
-
-    def test_docs_sync_gate_passes_when_test_step_completed(self):
-        # (c) code completed, "test" step present and completed -> 0
-        lib.update_pipeline(self.tdir(self.ticket), self.ticket, "test", "completed")
-        result = self.pre("docs-sync", self.ticket)
-        self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_docs_sync_gate_passes_with_an_advisory_when_code_not_completed(self):
-        # (d) code not completed -> 0 with ONE advisory line naming code
-        other = self.new_ticket("No code yet", "task")
-        result = self.pre("docs-sync", other)
+    def test_a_step_run_early_is_advised_once_and_still_runs(self):
+        ticket = self.new_ticket("No code yet", "task")
+        self.ensure_run(ticket)
+        result = self.pre("docs-sync", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
-            [line for line in result.stderr.splitlines() if "normally follows" in line],
-            ["acs: docs-sync normally follows code in ship.yaml; code has not completed for %s"
-             % other])
+            self._advisories(result.stderr),
+            ["acs: docs-sync normally follows run-e2e-tests in ship.yaml; "
+             "the cursor for %s is analyze-requirements" % ticket])
 
-    # ---------------------------------------------------------------- gate_create_pr
-
-    def test_create_pr_gate_passes_with_an_advisory_when_docs_sync_not_completed(self):
-        # (a) code verifier_passed true but docs-sync never run -> 0; the
-        # advisory names docs-sync as the pending need
-        result = self.pre("create-pr", self.ticket)
+    def test_the_advisory_names_the_cursor_not_a_needs_list(self):
+        """v2 named the step's unsatisfied `needs`. There are none now — the
+        list IS the order — so the line names the one step the run waits on."""
+        ticket = self.new_ticket("Half done", "task")
+        self.walk_to(ticket, "create-impl-plan")
+        result = self.pre("create-pr", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("docs-sync has not completed for %s" % self.ticket, result.stderr)
+        self.assertIn("the cursor for %s is create-api-contract" % ticket,
+                      result.stderr)
 
-    def test_create_pr_gate_keeps_verifier_passed_check(self):
-        # (b) docs-sync completed but the underlying code run's verifier_passed is
-        # false -> 2, still names verifier_passed (the existing check survives)
-        t = self.new_ticket("Needs fixups", "task")
-        self.start("code", t)
-        self.post("code", t, {"status": "completed", "states": {"verifier_passed": False}})
-        self.start("docs-sync", t)
-        self.post("docs-sync", t, {"status": "completed"})
-        result = self.pre("create-pr", t)
+    def test_the_advisory_can_be_switched_off(self):
+        ticket = self.new_ticket("Quiet please", "task")
+        self.ensure_run(ticket)
+        self.write_settings(workflow={"advisories": False})
+        result = self.pre("docs-sync", ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self._advisories(result.stderr), [])
+
+    # ------------------------------------------------------------ the pr brake
+
+    def test_create_pr_is_refused_when_the_review_did_not_pass(self):
+        """The one order-independent BRAKE: a review that found something
+        never becomes a PR. `verifier_passed` is DERIVED from review-code's
+        verdict, so writing `true` in a result document opens nothing."""
+        ticket = self.new_ticket("Needs fixups", "task")
+        self.walk_to(ticket, "create-test-docs")
+        self.start("code", ticket)
+        self.post("code", ticket, {"status": "completed",
+                                   "states": {"verifier_passed": True}})
+        self.start("review-code", ticket)
+        self.seed_verdict(ticket, passed=False)
+        self.post("review-code", ticket, {"status": "completed",
+                                          "outcome": "blocking_findings"})
+        result = self.pre("create-pr", ticket)
         self.assertEqual(result.returncode, 2)
         self.assertIn("verifier_passed", result.stderr)
 
-    def test_create_pr_gate_passes_quietly_in_order(self):
-        self.start("docs-sync", self.ticket)
-        self.post("docs-sync", self.ticket, {"status": "completed"})
-        result = self.pre("create-pr", self.ticket)
+    def test_create_pr_passes_quietly_after_a_passing_review(self):
+        ticket = self.new_ticket("Bulk import", "task")
+        self.walk_to(ticket, "docs-sync")
+        result = self.pre("create-pr", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertNotIn("normally follows", result.stderr)
+        self.assertEqual(self._advisories(result.stderr), [])
+
+    def test_create_pr_is_not_braked_by_a_review_that_never_ran(self):
+        """The brake reads the review STEP: a run that has not reviewed yet is
+        out of order, which the advisory says — it is not a failed review."""
+        ticket = self.new_ticket("No review yet", "task")
+        self.walk_to(ticket, "code")
+        result = self.pre("create-pr", ticket)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self._advisories(result.stderr)), 1)
 
     # ---------------------------------------------------------------- registry
 
-    def test_docs_sync_registered_in_workflow_skills_and_gates(self):
-        self.assertIn("docs-sync", lib.WORKFLOW_SKILLS)
-        self.assertIn("docs-sync", lib.HOOKED_SKILLS)
+    def test_the_workflow_steps_are_hooked_skills(self):
+        for step in ("code", "review-code", "docs-sync", "create-pr"):
+            with self.subTest(step=step):
+                self.assertIn(step, lib.HOOKED_SKILLS)
 
-    def test_pipeline_state_schema_includes_docs_sync(self):
+    def test_the_run_schema_constrains_shape_not_step_names(self):
+        """The 18-name enum is gone: step names validate against the RESOLVED
+        WORKFLOW, so a new workflow is a YAML file and touches no schema."""
         schema_path = os.path.join(
             REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        enum = schema["properties"]["steps"]["propertyNames"]["enum"]
-        self.assertIn("docs-sync", enum)
+        self.assertNotIn("enum", schema["properties"]["steps"].get("propertyNames", {}))
 
 
 class TestConcurrencyAndRecovery(AcsWorkspaceCase):
@@ -445,19 +452,18 @@ class TestStatusLines(AcsWorkspaceCase):
 
         ticket = self.new_ticket("Fix rounding", "task")
         self.start("code", ticket)
-        # Simulate a legacy/in-flight ticket (minted before create-spec was
-        # deleted) that already recorded a create-spec pipeline step.
-        lib.update_pipeline(self.tdir(ticket), ticket, "create-spec", "in_progress")
         out = self.run_script("statusline.py", stdin=self.payload(self.repo))
         self.assertEqual(out.returncode, 0, out.stderr)
-        for expected in (ticket, "spec", "ticket"):
+        for expected in (ticket, "code"):
             self.assertIn(expected, out.stdout)
 
     def test_subagent_statusline_rows(self):
+        """The row names the RUN, and the skill/role vocabulary is read from
+        the tree — a hard-coded list outlived two of its own entries."""
         ticket = self.new_ticket("X", "task")
-        self.start("code", ticket)
+        self.start("review-code", ticket)
         payload = json.dumps({"columns": 80, "tasks": [
-            {"id": "a1", "type": "acs:code-verifier", "status": "running",
+            {"id": "a1", "type": "acs:review-code-lens", "status": "running",
              "startTime": (time.time() - 95) * 1000, "tokenCount": 45200, "cwd": self.repo},
             {"id": "a2", "type": "Explore", "description": "unrelated", "cwd": self.repo},
         ]})
@@ -466,6 +472,17 @@ class TestStatusLines(AcsWorkspaceCase):
         rows = [json.loads(line) for line in out.stdout.splitlines()]
         self.assertEqual([row["id"] for row in rows], ["a1"])  # non-acs row untouched
         self.assertIn(ticket, rows[0]["content"])
+        self.assertIn("review-code-lens", rows[0]["content"])
+
+    def test_a_retired_agent_name_no_longer_matches(self):
+        """`code-verifier` left with the verifier (§3.5); a row for it is not
+        an acs subagent row any more."""
+        payload = json.dumps({"columns": 80, "tasks": [
+            {"id": "a1", "type": "acs:code-verifier", "status": "running",
+             "cwd": self.repo}]})
+        out = self.run_script("subagent-statusline.py", stdin=payload)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.stdout.strip(), "")
 
     def test_statusline_never_crashes(self):
         for bad in ("", "not json", '{"tasks": [{"id": "x", "type": 5}]}'):
