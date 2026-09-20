@@ -162,7 +162,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-design/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-design/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Analysis; Decisions & candidate options (with trade-offs); NFR checklist;
 Architecture conformance call; Open questions; Risks; Verifier checklist. Every entry cites the file (and line or heading) you read —
@@ -174,7 +174,7 @@ finding to what you changed.
 ## Execute report (mandatory)
 
 After producing the artifact, write
-`steps/create-design/iter-<n>-execute.json` (parallel executors:
+`steps/create-design/iter-<n>/execute.json` (parallel executors:
 `iter-<n>-execute-<K>.json`, with `<K>` the task number from your objective):
 
 ```json
@@ -198,7 +198,7 @@ files in `<inputs>` or the `<context>` text.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it:
+`the SubagentStop hook's message check` — nothing after it:
 
 ```xml
 <result skill="create-design" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">

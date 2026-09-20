@@ -19,7 +19,7 @@ You share no memory with the coordinator — everything you know comes from the
 ## Input contract
 
 Your prompt contains one `<task skill="code" phase="verify" ticket-id="SHOP-123"
-iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
+iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — verify this iteration's combined changeset;
 - `<inputs>` — absolute file paths: every `<partition>/specs/*.md`, the ticket
@@ -123,7 +123,7 @@ it safe: no pass without a green run, on the iteration where it counts.
    catch. Skipping is only ever a deferral to an iteration that will run it.
 
    Record `"tests": {"passed": n, "failed": n, "command": "..."}` in
-   `iter-<n>-verdict.json`. That is not bookkeeping — `states.tests` in the
+   `iter-<n>/verdict.json`. That is not bookkeeping — `states.tests` in the
    result document is derived from it, so the run's recorded outcome is your
    finding rather than the executor's self-report. New tests genuinely exercise the specs' test plans and the
    ticket's acceptance criteria — read them; assertion-free or
@@ -403,14 +403,14 @@ dimension-assignment decision.
 
 Each lens spawn writes its own artifact
 `steps/code/iter-<n>-verify-lens-<A|B|C|D>.md` instead of
-`iter-<n>-verify.md` (see Phase artifact below) — never the shared name, so
+`iter-<n>/verify.md` (see Phase artifact below) — never the shared name, so
 4 lens spawns never race to write the same file. After all 4 lenses return,
 the `/acs:code` coordinator (never a subagent) performs the adversarial
-merge pass and writes the single `iter-<n>-verify.md` itself.
+merge pass and writes the single `iter-<n>/verify.md` itself.
 
 When `verify_lens` is absent from `<constraints>` — every path but `complex`,
 or any spawn that predates this multi-lens shape — this is a single-pass
-review and this spawn writes `iter-<n>-verify.md` directly. The dimension set
+review and this spawn writes `iter-<n>/verify.md` directly. The dimension set
 is NOT decided by the lens's absence: dimension 14 reads the recorded
 `delivery_path` for itself, so a `standard` single pass checks all 16 and a
 `trivial` or `small` one checks 15.
@@ -419,12 +419,12 @@ is NOT decided by the lens's absence: dimension 14 reads the recorded
 
 When the task's `<constraints>` carries `verify_lens` (`A`-`D`), write your
 lens report to `steps/code/iter-<n>-verify-lens-<A|B|C|D>.md`
-instead — never the shared `iter-<n>-verify.md` name, which only the
+instead — never the shared `iter-<n>/verify.md` name, which only the
 coordinator writes, after merging all 4 lenses' findings (see Multi-lens
 review above).
 
 Write the full verification report to
-`steps/code/iter-<n>-verify.md` (`<n>` = the task's `iteration`,
+`steps/code/iter-<n>/verify.md` (`<n>` = the task's `iteration`,
 or the lens-scoped path above when `verify_lens` is set).
 Write it with the Write tool.
 Required structure: one `## <Dimension>` section per dimension above, each with
@@ -435,7 +435,7 @@ entries summarize this file, never replace it.
 
 ## The verdict (MAR-527)
 
-Alongside the report, write `steps/code/iter-<n>-verdict.json` —
+Alongside the report, write `steps/code/iter-<n>/verdict.json` —
 or `iter-<n>-verdict-lens-<A|B|C|D>.json` when `verify_lens` is set. You are the
 only role that knows the verdict; nobody transcribes it for you, and the
 SubagentStop hook REFUSES your answer if this file is missing or does not hold
@@ -505,7 +505,6 @@ files, not a second opinion.
 
 Your FINAL message is ONLY the `<result>` element — no prose before it, NOTHING
 after it. Self-check it first:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 When your `<task>` carried `verify_lens`, set `lens="A|B|C|D"` (the same
 value) on your `<result>` — the coordinator matches the four lens results by

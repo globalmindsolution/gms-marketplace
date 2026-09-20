@@ -22,7 +22,7 @@ ticket document, `<design_doc>` when it applies, the resolved
 (implementation-contract prose)</constraint>` — the register the folded plan
 content (or the plan's own analysis/decomposition prose) is judged against. The
 verifier judges fresh — never forward executor reasoning — and RE-RUNS the
-tests and coverage itself (artifact `steps/code/iter-<n>-verify.md`).
+tests and coverage itself (artifact `steps/code/iter-<n>/verify.md`).
 Dimensions, each producing blocking findings on failure:
 
 - **Acceptance-criteria conformance** — the ticket's `acceptance_criteria`/
@@ -109,7 +109,7 @@ Dimensions, each producing blocking findings on failure:
 ## The verdict
 
 **The verdict is the verifier's, not yours (MAR-527).** Each verifier writes
-`steps/code/iter-<n>-verdict.json` (lens-scoped on `complex`) with
+`steps/code/iter-<n>/verdict.json` (lens-scoped on `complex`) with
 its per-dimension results and findings, and the SubagentStop hook refuses an
 answer whose verdict is missing or does not hold together — in particular
 `passed` must agree with the findings. Read it; never conclude it:
@@ -126,7 +126,7 @@ none, and refuses to replace a verdict carrying blocking findings with a
 passing one.
 
 **`states.verifier_passed` is not yours to write.** Since MAR-523 the post
-hook DERIVES it from `iter-<n>-verdict.json` and ignores whatever the result
+hook DERIVES it from `iter-<n>/verdict.json` and ignores whatever the result
 document says, so `show` is for YOUR reading — to know whether to iterate —
 not a value to transcribe. The derivation refuses a verdict that belongs to a
 previous run, names another ticket or skill, or does not report every

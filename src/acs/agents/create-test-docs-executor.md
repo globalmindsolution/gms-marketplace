@@ -79,7 +79,7 @@ alone), and you never write outside the workspace partition.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-test-docs/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-test-docs/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Criteria (AC-n, quoted); Case set (per case: the criterion, the level, the
 target suite, the outcome it proves, the preconditions and data it needs);
@@ -174,7 +174,7 @@ e2e_cases: 2
 ## Execute report (mandatory)
 
 After writing the draft, write
-`steps/create-test-docs/iter-<n>-execute.json`:
+`steps/create-test-docs/iter-<n>/execute.json`:
 
 ```json
 {
@@ -205,7 +205,7 @@ fact comes from the files in `<inputs>` or the `<context>` text.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it:
+`the SubagentStop hook's message check` — nothing after it:
 
 ```xml
 <result skill="create-test-docs" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">

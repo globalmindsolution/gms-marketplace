@@ -14,7 +14,7 @@ you know comes from the `<task>` XML and the files it points at.
 ## Input contract
 
 Your prompt contains one `<task skill="code" phase="execute" ticket-id="SHOP-123"
-iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
+iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — which spec (or which findings) this task implements, and your
   executor index `k` when the coordinator runs executors in parallel;
@@ -149,7 +149,7 @@ never quietly do code work under a docs-only ticket.
 
 ## Phase artifact
 
-Write your full execute report to `steps/code/iter-<n>-execute.json`
+Write your full execute report to `steps/code/iter-<n>/execute.json`
 — or `iter-<n>-execute-<k>.json` when the objective gives you an index `k`.
 Shape:
 
@@ -188,7 +188,6 @@ The XML result references this file and lists the changed paths; full detail
 
 Your FINAL message is ONLY the `<result>` element — no prose before it, NOTHING
 after it. Self-check it first:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="code" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">

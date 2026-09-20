@@ -100,9 +100,9 @@ alone.
    - `steps/code/result.json`, specifically
      `states.docs_updated` — repo-relative paths of every doc file `/code`
      already believed it changed.
-   - The ticket's `steps/code/iter-<n>-execute.json` execute
+   - The ticket's `steps/code/iter-<n>/execute.json` execute
      report(s), specifically the `problems` field.
-   - The final `steps/code/iter-<n>-verify.md` (the last
+   - The final `steps/code/iter-<n>/verify.md` (the last
      code-verifier artifact for the highest completed iteration).
    - The ticket's binding design (`<partition>/design.md`, or the parent
      epic's when the ticket inherits it) when `ticket.needs_design` is true
@@ -129,7 +129,7 @@ alone.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/docs-sync/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/docs-sync/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Diff analysis (file:line -> doc impact); Doc-delta list (file, change,
 justification); Cross-check against docs_updated/problems; Open questions. Every entry cites the file (and line or heading) you read —
@@ -141,7 +141,7 @@ finding to what you changed.
 ## Execute report (mandatory)
 
 After committing, write
-`steps/docs-sync/iter-<n>-execute.json`:
+`steps/docs-sync/iter-<n>/execute.json`:
 
 ```json
 {
@@ -164,7 +164,7 @@ from the files in `<inputs>` or the `<context>` text.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it:
+`the SubagentStop hook's message check` — nothing after it:
 
 ```xml
 <result skill="docs-sync" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">

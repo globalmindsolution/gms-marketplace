@@ -15,12 +15,12 @@ memory with the coordinator — read everything from the `<task>` and its file p
 ## Input contract
 
 Your prompt contains one `<task skill="create-pr" phase="execute"
-ticket-id="SHOP-123" iteration="n">` element (schema: `schemas/acs-messages.xsd`)
+ticket-id="SHOP-123" iteration="n">` element (schema: `the SubagentStop hook's message check`)
 with:
 
 - `<objective>` — what to produce this round;
 - `<inputs>` — absolute paths: the approved plan
-  (`steps/create-pr/iter-<n>-plan.md`), `ticket.json` (derive
+  (`steps/create-pr/iter-<n>/plan.md`), `ticket.json` (derive
   `<partition>` from its directory), `code-state.json`, `specs/*.md`, `design.md`
   when the ticket has one, and the resolved body template file. READ EVERY ONE
   before acting;
@@ -111,7 +111,7 @@ nothing else beyond what fixing them requires.
 
 ## Phase artifact
 
-Write `steps/create-pr/iter-<n>-execute.json` (`<n>` = the task's
+Write `steps/create-pr/iter-<n>/execute.json` (`<n>` = the task's
 `iteration`):
 
 ```json
@@ -148,7 +148,6 @@ Write `steps/create-pr/iter-<n>-execute.json` (`<n>` = the task's
 
 Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING after.
 Self-check it:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="create-pr" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">

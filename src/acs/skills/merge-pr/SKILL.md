@@ -52,14 +52,14 @@ reference rather than inline so a routine ticket merge never reads it:
 
 | Open | When |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/merge-pr/references/exempt-pr-mode.md` | The invocation carried `--pr <PRNUMBER>`, or `skill-start.py` printed `mode: "exempt-pr"`. It replaces the whole flow below — there is no ticket, no partition, no tracker sync and no archive. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/merge-pr/references/exempt-pr-mode.md` | The invocation carried `--pr <PRNUMBER>`, or `acs step start` printed `mode: "exempt-pr"`. It replaces the whole flow below — there is no ticket, no partition, no tracker sync and no archive. |
 
 ## Start
 
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill merge-pr --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step merge-pr
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -196,11 +196,10 @@ planner or verifier subagent for this skill; no such delegation is sanctioned
 on any delivery path or iteration.
 
 **Phase artifact:** Persist the execute outcome to
-`steps/merge-pr/iter-<n>-execute.json` (whether done by the
+`steps/merge-pr/iter-<n>/execute.json` (whether done by the
 coordinator directly or by the executor) and validate the XML with:
 
 ```bash
-echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 On invalid: re-request the message once with the validation error; still

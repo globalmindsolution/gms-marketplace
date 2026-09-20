@@ -10,7 +10,8 @@ import fnmatch
 import os
 import re
 
-from ._common import GateError, now_iso, read_json, write_json
+from ._common import (GateError, ReconciliationRequired, TICKET_ID_RE,
+    now_iso, read_json, write_json)
 from .repo import (_guarded_repo_write, index_path, repo_dir, repo_guard,
     scan_local_ticket_evidence, ticket_dir)
 from . import artifacts

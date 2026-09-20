@@ -85,7 +85,7 @@ the artifacts alone), and you never write outside the workspace partition.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/analyze-requirements/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/analyze-requirements/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing the draft. Sections:
 Problem and disagreements; Impact surface (path → change → evidence);
 API-surface assessment; Design significance; Acceptance-criteria review;
@@ -168,7 +168,7 @@ needs_design_recommendation: false
 ## Execute report (mandatory)
 
 After writing the draft, write
-`steps/analyze-requirements/iter-<n>-execute.json`:
+`steps/analyze-requirements/iter-<n>/execute.json`:
 
 ```json
 {
@@ -197,7 +197,7 @@ the files in `<inputs>` or the `<context>` text.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it:
+`the SubagentStop hook's message check` — nothing after it:
 
 ```xml
 <result skill="analyze-requirements" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">

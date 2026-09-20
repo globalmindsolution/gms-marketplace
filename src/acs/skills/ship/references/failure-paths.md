@@ -25,7 +25,7 @@ key; the walk reads it for you). Resolve `relay_to`'s skill from
 `acs.py workflow show` (`workflow.steps[].id` → `.skill`) — never assume the
 id and the skill are spelled the same.
 
-Every write below goes through the `pipeline-step.py` CLI — never embedded
+Every write below goes through the `acs step finish` CLI — never embedded
 Python (ADR 0001). `--set fix_loops=<n>` merges the counter onto the step
 entry and `--unset fix_loops` removes it; the step's own `status` and
 timestamps stay owned by the step's own run. Read the current value from
@@ -38,7 +38,7 @@ internal iteration cap — the two counters never interact.
    counter first and treat `fix_loops` as `0` below:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step finish" \
      --ticket <ticket-id> --skill <step id> --status in_progress --unset fix_loops
    ```
 
@@ -48,7 +48,7 @@ internal iteration cap — the two counters never interact.
    counter and go back to the walk:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step finish" \
      --ticket <ticket-id> --skill <step id> --status completed --unset fix_loops
    ```
 3. **The step failed and `fix_loops < max_loops`** → increment the counter,
@@ -60,7 +60,7 @@ internal iteration cap — the two counters never interact.
    is the fix-and-re-try loop.
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step finish" \
      --ticket <ticket-id> --skill <step id> --status in_progress \
      --set fix_loops=<fix_loops + 1>
    ```
@@ -69,7 +69,7 @@ internal iteration cap — the two counters never interact.
    run clears the counter via the re-entry reset in case 1:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step finish" \
      --ticket <ticket-id> --skill <step id> --status failed \
      --set fix_loops=<max_loops> --summary "fix_loops cap reached"
    ```

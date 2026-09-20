@@ -27,7 +27,7 @@ a child carries `needs_design: false`, so the flag check blocks it automatically
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-design --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-design
 ```
 
 - If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -88,7 +88,7 @@ file-map guard denies any subagent a write under the ticket docs tree.
 - There is no plan artifact to reuse: continue from the first unfinished
   phase — an execute with no verify → verify it; a verify with findings and
   no later execute → execute with those findings as `<context>`. The
-  executor's authoring notes (`iter-<n>-authoring.md`) belong to their
+  executor's authoring notes (`iter-<n>/authoring.md`) belong to their
   iteration.
 - Fresh run (`reconcile` false): start at iteration 1, execute phase.
 
@@ -128,7 +128,7 @@ a fixed 3 on every run.
 
 For every phase:
 
-1. Compose a `<task>` per `schemas/acs-messages.xsd`:
+1. Compose a `<task>` per `the SubagentStop hook's message check`:
 
    ```xml
    <task skill="create-design" phase="execute" ticket-id="SHOP-123" iteration="1">
@@ -148,10 +148,8 @@ For every phase:
 2. Validate EVERY message you send and receive:
 
    ```bash
-   echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
    ```
 
-   (or `validate_xml.py <file>` after persisting). On an invalid message from a
    subagent: re-request once with the validation error quoted; still invalid →
    fail the run, recording the error in `errors`.
 
@@ -172,9 +170,9 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 4. Persist the phase's `<task>` and `<result>` to
    `steps/create-design/iter-<n>-<phase>.xml` at the phase boundary,
    BEFORE starting the next phase. The executor's own artifacts are
-   `iter-<n>-authoring.md` (its survey: Analysis; Decisions & candidate
+   `iter-<n>/authoring.md` (its survey: Analysis; Decisions & candidate
    options with trade-offs; NFR checklist; Architecture conformance call;
-   Open questions; Risks; Verifier checklist) and `iter-<n>-execute.json`;
+   Open questions; Risks; Verifier checklist) and `iter-<n>/execute.json`;
    every iteration's verifier `<inputs>` name that iteration's authoring
    notes.
 
@@ -435,7 +433,6 @@ MANDATORY final step — never skipped, including on failure or handoff:
      `<design_path>`, and exactly one `<next-step>`: `/acs:code <id>`
      for a non-epic ticket; for an epic, `/acs:create-ticket <id>` (epic
      fan-out), then `/acs:code` on a child.
-     Validate it with validate_xml.py like every other message.
 
 ## Completion report (normative)
 

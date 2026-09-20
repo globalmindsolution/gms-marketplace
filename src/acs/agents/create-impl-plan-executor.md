@@ -31,7 +31,7 @@ that would excuse you: if you were spawned, the plan is yours to author.
 
 Your prompt contains one `<task skill="create-impl-plan" phase="execute"
 ticket-id="SHOP-123" iteration="n">` element (schema:
-`schemas/acs-messages.xsd`) with:
+`the SubagentStop hook's message check`) with:
 
 - `<objective>` — survey and render the plan draft (iteration 1) or fix the
   findings (iteration 2+);
@@ -188,7 +188,7 @@ plan and covers the API surface the plan declares.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-impl-plan/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-impl-plan/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing the draft. Required
 headings: `## Spec analysis`, `## Executor tasks & file map`, `## Test strategy`,
 `## Documentation map`, `## Risks`, `## Verifier checklist` — the same six the
@@ -260,7 +260,7 @@ addressed** section mapping each `<context>` finding to what you changed.
 ## Phase artifact
 
 Write your execute report to
-`steps/create-impl-plan/iter-<n>-execute.json`. Shape:
+`steps/create-impl-plan/iter-<n>/execute.json`. Shape:
 
 ```json
 {
@@ -302,7 +302,6 @@ outcomes, problems, clarifications) lives only in the report.
 
 Your FINAL message is ONLY the `<result>` element — no prose before it, NOTHING
 after it. Self-check it first:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="create-impl-plan" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">

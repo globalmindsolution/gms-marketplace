@@ -29,7 +29,7 @@ deliverable, not decoration.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill analyze-requirements --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step analyze-requirements
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -165,7 +165,7 @@ iterations 2-3 the verifier's findings go verbatim into the next executor
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
-Messaging rules (`schemas/acs-messages.xsd`):
+Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="analyze-requirements"
   phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
@@ -177,7 +177,6 @@ Messaging rules (`schemas/acs-messages.xsd`):
 - Validate EVERY message you send and receive:
 
   ```bash
-  echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
   ```
 
   On invalid: re-request once with the validation error quoted; still invalid →
@@ -205,7 +204,7 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 Objective, iteration 1: from the ticket, the design when one binds, the
 product docs and the codebase, survey what this ticket actually touches and
 record that survey as the authoring notes,
-`steps/analyze-requirements/iter-<n>-authoring.md` — the candidate
+`steps/analyze-requirements/iter-<n>/authoring.md` — the candidate
 impact surface (components, files, tests, configuration) with the evidence
 for each entry, the API-surface assessment and its evidence, the design
 significance, which acceptance criteria are ambiguous or untestable as
@@ -253,11 +252,11 @@ else — no plan phase in between.
 ### Phase: verify — `acs:analyze-requirements-verifier`
 
 Spawn `acs:analyze-requirements-verifier` AFTER the draft is written, with `<inputs>`
-of the draft, the authoring notes (`iter-<n>-authoring.md`), the ticket file,
+of the draft, the authoring notes (`iter-<n>/authoring.md`), the ticket file,
 `design.md` when it binds,
 and the repo paths the impact map names. It judges fresh — never forward the
 executor's reasoning — re-derives the impact map from the codebase itself, and
-writes `steps/analyze-requirements/iter-<n>-verify.md`.
+writes `steps/analyze-requirements/iter-<n>/verify.md`.
 
 ALL blocking findings block — zero blocking findings = pass. `status="completed"`
 means verification RAN; the empty `<findings>` is the pass. Never conclude a
@@ -468,7 +467,6 @@ MANDATORY final step — never skipped, also on failure or handoff:
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published analysis, `<questions>` when `needs_input`, and
      `<next-step>/acs:create-impl-plan <id></next-step>`. Validate it with
-     `validate_xml.py` like every other message.
 
 ## Completion report (normative)
 

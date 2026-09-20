@@ -14,11 +14,11 @@ you is what lets the coordinator open the docs-only PR.
 ## Input contract
 
 Your prompt contains one `<task skill="create-requirements" phase="verify"
-ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
+ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — verify this iteration's produced requirements area files;
 - `<inputs>` — absolute paths: the produced area files, the executor's authoring
-  notes (`steps/create-requirements/iter-<n>-authoring.md`), the delivery
+  notes (`steps/create-requirements/iter-<n>/authoring.md`), the delivery
   `ticket.json` (derive `<partition>` from its directory), and the execute report.
   READ EVERY ONE — you share no memory with anyone;
 - `<constraints>` — at least `requirements_path`, `functional_subdir`,
@@ -126,7 +126,7 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) 
 ## Phase artifact
 
 Write the full verification report to
-`steps/create-requirements/iter-<n>-verify.md` (`<n>` = the task's
+`steps/create-requirements/iter-<n>/verify.md` (`<n>` = the task's
 `iteration`). Write it with the Write tool.
 Structure: one section per dimension above, each with the exact evidence examined
 (commands run, line references) and verdict; then a `## Findings` section detailing
@@ -149,7 +149,6 @@ every finding. The XML `<finding>` entries are one-line summaries of this file.
 
 Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING after.
 Self-check it:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="create-requirements" phase="verify" ticket-id="SHOP-1" iteration="1" status="completed">

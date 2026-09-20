@@ -28,7 +28,7 @@ continuing:
    verify it; a verify with findings and no later execute → execute with
    those findings as `<context>`).
 4. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
    never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
@@ -52,7 +52,7 @@ the rubber-stamp failure ADR 0004 exists to prevent.
    `cp plan.md plan-superseded-<k>.md` inside `steps/code/`,
    `<k>` the smallest positive integer with no existing file. The copy is
    byte-identical, so every `plan.md:<line>` citation already written into an
-   earlier `/acs:code` `iter-<n>-verify.md` resolves unchanged against
+   earlier `/acs:code` `iter-<n>/verify.md` resolves unchanged against
    `plan-superseded-<k>.md` — the operation is a copy, never a rename or
    move, and the superseded bytes are never deleted.
 2. **Revise the draft and re-publish** it over the same `plan_path` (Publish

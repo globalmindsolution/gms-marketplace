@@ -47,7 +47,7 @@ The distinction this phase turns on, and the one thing you must never blur:
    product's source tree is a blocking finding, because this skill writes tests
    and never product code.
 7. `authoring-conformance` — the suites are what the executor's authoring
-   notes (`<partition>/phases/create-e2e-tests/iter-<n>-authoring.md`) laid
+   notes (`steps/create-e2e-tests/iter-<n>/authoring.md`) laid
    out: every path in the notes' file list exists and no file outside it was
    written, each test drives the notes' per-case plan (entry point → actions
    → assertion) and asserts what the notes say it asserts, the fixtures and
@@ -85,7 +85,7 @@ from the path in `<inputs>`.
 ## Verify report (mandatory)
 
 Write the full verification report to
-`<partition>/phases/create-e2e-tests/iter-<n>-verify.md` (`<partition>` is the
+`steps/create-e2e-tests/iter-<n>/verify.md` (`<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files read,
 what you observed), the suite run's invocation and output, the wiring/product
@@ -98,7 +98,7 @@ write you ever perform.
 Your prompt contains an XML `<task skill="create-e2e-tests" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the written suite files, the executor's authoring notes
-(`iter-<n>-authoring.md`), the execute report, `test-cases.md`,
+(`iter-<n>/authoring.md`), the execute report, `test-cases.md`,
 `api-contract.md` when it exists, and the repo's existing e2e suites),
 `<constraints>` (at least `e2e_command`, `e2e_root`, `tc_ids` — the `TC-<n>`
 ids in scope — and `audience_style_profile`), and optional `<context>` (prior findings). You
@@ -108,7 +108,7 @@ yourself from the `<inputs>` paths.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it. One `<finding>` per issue,
+`the SubagentStop hook's message check` — nothing after it. One `<finding>` per issue,
 actionable (file, expectation, observed behavior):
 
 ```xml

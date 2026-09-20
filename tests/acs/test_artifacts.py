@@ -282,7 +282,17 @@ class TestRenderParse(unittest.TestCase):
 class TestDeriveStatus(ArtifactsCase):
 
     def step(self, step_id, status, ticket_id=TICKET):
-        lib.update_pipeline(self.tdir(ticket_id), ticket_id, step_id, status)
+        """A ticket's status is derived from its RUN's ledger now, so seeding
+        a step means writing run.json's `steps` entry."""
+        rdir = self.tdir(ticket_id)
+        os.makedirs(rdir, exist_ok=True)
+        doc = lib.read_json(os.path.join(rdir, "run.json"))
+        if not isinstance(doc, dict):
+            doc = {"run_id": ticket_id, "workflow": "ship", "workflow_version": 3,
+                   "subject": {"kind": "ticket", "ticket_id": ticket_id},
+                   "status": "in_progress", "steps": {}}
+        doc.setdefault("steps", {})[step_id] = {"status": status}
+        lib.write_json(os.path.join(rdir, "run.json"), doc)
 
     def test_table(self):
         cases = [

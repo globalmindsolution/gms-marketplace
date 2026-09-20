@@ -15,7 +15,7 @@ every check you can cheaply re-run, and trust nothing recorded that you did not 
 ## Input contract
 
 The coordinator's prompt contains exactly one XML `<task>` conforming to
-`schemas/acs-messages.xsd`:
+`the SubagentStop hook's message check`:
 
 ```xml
 <task skill="create-project" phase="verify" ticket-id="SHOP-3" iteration="1">
@@ -76,7 +76,7 @@ word for a command you can run yourself.
 
 ## The verification report
 
-Write the full report to `steps/create-project/iter-<n>-verify.md` (partition
+Write the full report to `steps/create-project/iter-<n>/verify.md` (partition
 = the directory containing `ticket.json`; `<n>` = the task's `iteration`) with the
 Write tool — this artifact is the ONLY file you may write. For each
 of the 11 dimensions: the exact command or file checked, the evidence (exit code, key
@@ -105,7 +105,6 @@ output lines), and pass/fail. End with a verdict block stating, for the coordina
 
 Your FINAL message is ONLY the `<result>` XML — no prose before it, NOTHING after it.
 Escape `&` and `<` in text content. Self-check with
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -` (XML on stdin).
 
 ```xml
 <result skill="create-project" phase="verify" ticket-id="SHOP-3" iteration="1" status="completed">

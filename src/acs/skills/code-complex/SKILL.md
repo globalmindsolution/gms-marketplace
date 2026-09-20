@@ -58,7 +58,7 @@ used for executors above — each `<task phase="verify">` carrying one
 additional `<constraint name="verify_lens">A|B|C|D</constraint>` (lens
 table: `code-verifier.md`'s Multi-lens review section). Each lens spawn
 writes its own `steps/code/iter-<n>-verify-lens-<A|B|C|D>.md`
-artifact (never the shared `iter-<n>-verify.md` name) and returns its
+artifact (never the shared `iter-<n>/verify.md` name) and returns its
 `<result>` with `lens="<A|B|C|D>"` set to the lens it was given — that
 attribute is how you tell the four results apart and how the SubagentStop
 hook finds each lens's verdict file; a lens result without it fails
@@ -86,7 +86,7 @@ return, the coordinator itself performs the merge pass — never a subagent:
    VERDICT (MAR-523), not from the report. Order matters: re-scrutinize,
    amend the lens verdict, then merge.
 5. The coordinator writes the single merged
-   `steps/code/iter-<n>-verify.md` itself: one section per
+   `steps/code/iter-<n>/verify.md` itself: one section per
    corroborated/confirmed finding (blocking), one per downgraded finding
    (info-level, with rationale), and a short per-lens evidence summary.
    `acs.py verdict merge` writes the merged verdict from the four lens
@@ -95,7 +95,7 @@ return, the coordinator itself performs the merge pass — never a subagent:
 6. Zero surviving blocking findings after the merge = pass, identical to
    the zero-findings rule in `${CLAUDE_PLUGIN_ROOT}/skills/code/references/verify.md` — the merge pass changes
    WHICH findings count, never the pass/fail rule itself.
-   **`iter-<n>-verdict.json` governs `verifier_passed`**; the report explains
+   **`iter-<n>/verdict.json` governs `verifier_passed`**; the report explains
    it. The merged list is also what the next iteration's executors are given
    as `<context>`, so the merge write always happens before the next iteration
    starts.

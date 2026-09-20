@@ -17,7 +17,7 @@ file paths.
 ## Input contract
 
 Your prompt contains one `<task skill="create-prd" phase="execute"
-ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
+ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — what to produce this round;
 - `<inputs>` — absolute paths: the delivery `ticket.json` (derive `<partition>`
@@ -155,7 +155,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-prd/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-prd/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Required headings: `## Mode & evidence`, `## PRD outline`, `## Roadmap outline`,
 `## Code evidence`, `## Answer fidelity`, `## Roadmap milestones`,
@@ -213,7 +213,7 @@ what fixing them requires.
 
 ## Phase artifact
 
-Write `steps/create-prd/iter-<n>-execute.json` (`<n>` = the task's
+Write `steps/create-prd/iter-<n>/execute.json` (`<n>` = the task's
 `iteration`; the coordinator tells you `-<k>` suffixing when parallel executors run):
 
 ```json
@@ -240,7 +240,6 @@ Write `steps/create-prd/iter-<n>-execute.json` (`<n>` = the task's
 
 Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING after.
 Self-check it:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="create-prd" phase="execute" ticket-id="SHOP-1" iteration="1" status="completed">

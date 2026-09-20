@@ -218,7 +218,7 @@ properties of every step skill you must understand as its coordinator:
 - It CAN reach the user under direct invocation, so it asks you/the user
   directly when it needs input; it only returns `status="needs_input"` if the
   run is genuinely non-interactive.
-- Its terminal output is the `<handoff>` XML (per acs-messages.xsd): a
+- Its terminal output is the `<handoff>` XML (per the SubagentStop hook's message check): a
   `<summary>` under 1 KB, `<artifacts>` referencing workspace files (never
   inlined content), `<questions>` when status is `needs_input`, and a
   `<next-step>` when known.
@@ -243,7 +243,6 @@ Step-specific adjustments:
 If you compose any XML context to hand into a step, validate it first:
 
 ```bash
-echo '<task ...>...</task>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 Exit 1 means your XML is malformed — fix it and re-validate; never pass
@@ -281,7 +280,7 @@ fan-out shape `/acs:create-docs` already uses (`skills/create-docs/SKILL.md`,
    may hold both the Agent and Skill tools; decomposition stays exclusively
    the coordinator's job). Each is a genuine Skill call, so each leg's own
    pre-hook gates it for real and its own post-hook finalizes it for real.
-   Every `skill-start.py` invocation runs from the **session checkout**, not
+   Every `acs step start` invocation runs from the **session checkout**, not
    from a leg worktree — the same rule `/acs:create-docs` states, for the same
    session-marker reason.
 3. **Reflection loops, in parallel batches, from this coordinator.** Once
@@ -383,7 +382,7 @@ Branch strictly on `status`:
   and the counter is under its cap — both in
   `references/failure-paths.md`.
   Otherwise: surface the handoff `<summary>` verbatim, say where the state
-  lives (`<partition>` and `<partition>/phases/<step>/`), and tell the user
+  lives (`<partition>` and `steps/<step>/`), and tell the user
   how to resume: `/acs:ship <ticket-id>` to retry the pipeline from this
   step, or `/acs:<skill> <ticket-id>` to run just the step interactively
   (useful when it needs back-and-forth). Do not retry a failed step yourself.
@@ -394,7 +393,7 @@ Branch strictly on `status`:
   STOP the
   pipeline the same way as failed/interrupted: surface a "persistent failure"
   report, say where the state lives (`<partition>` and
-  `<partition>/phases/<step>/`), and tell the user how to resume:
+  `steps/<step>/`), and tell the user how to resume:
   `/acs:ship <ticket-id>` to retry from this step, or `/acs:<skill> <args>`
   to re-run just that step interactively. Do not continue the walk.
 

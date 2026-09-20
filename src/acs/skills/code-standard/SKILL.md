@@ -51,7 +51,7 @@ tests, or docs — means those groups run sequentially instead.
 ### Verifier
 
 **One `acs:code-verifier` spawn**, no lens constraint and no `-lens-` suffix,
-writing `steps/code/iter-<n>-verify.md` directly.
+writing `steps/code/iter-<n>/verify.md` directly.
 
 ### Dimensions
 

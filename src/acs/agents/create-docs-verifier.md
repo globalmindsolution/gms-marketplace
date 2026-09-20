@@ -16,7 +16,7 @@ thing standing between a wrong or untailored doc set and a merged docs PR.
 
 Your prompt contains an XML `<task skill="create-docs" phase="verify"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths:
-the authoring notes `iter-<n>-authoring.md`, the execute report(s)
+the authoring notes `iter-<n>/authoring.md`, the execute report(s)
 `iter-<n>-execute*.json`, the PRD, the architecture set, the principles set
 when applicable, the produced `doc_set_path` files), `<constraints>` —
 `partition` (the absolute ticket-partition path), `doc_set`, `doc_set_path`,
@@ -40,14 +40,14 @@ the coordinator: read every input yourself.
 3. **required-sections** — each file carries every section its
    `required_sections:<file>` constraint lists, with substantive content under
    each, not the template's placeholder.
-4. **authoring-conformance** — everything `iter-<n>-authoring.md` promised
+4. **authoring-conformance** — everything `iter-<n>/authoring.md` promised
    exists: the recorded mode matches the disk, every file it names is
    written, no unplanned extra file.
    - Independently re-open and check every upstream-fact citation the
      executor recorded in the current iteration's `Upstream inventory`
      section — never just diff the output against the notes. Run `Bash
      python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py --plan
-     steps/create-docs/iter-<n>-authoring.md --root prd=<prd_path>
+     steps/create-docs/iter-<n>/authoring.md --root prd=<prd_path>
      --root architecture=<architecture_path>` — and, for the `standards` set
      only, additionally `--root principles=<principles_path>`, but ONLY when
      the `principles_path` constraint is present and the `principles/` set
@@ -113,7 +113,7 @@ dimensions.
 
 ## The verification report
 
-Write the full report to `steps/create-docs/iter-<n>-verify.md`
+Write the full report to `steps/create-docs/iter-<n>/verify.md`
 with the Write tool — your ONLY permitted write. For each dimension: the exact
 commands/inspections run, the evidence observed, and the verdict. Every XML
 `<finding>` summarizes a detailed entry in this file. Advisory observations
@@ -122,9 +122,8 @@ that need no fix belong in this report only — never as findings.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`schemas/acs-messages.xsd` — no prose before it, NOTHING after it. Before
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before
 replying, pipe your draft through
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`.
 
 - `status="completed"` — verification ran to completion. The verdict lives in
   `<findings>`: zero findings = pass; any finding = the coordinator iterates.
@@ -154,7 +153,7 @@ replying, pipe your draft through
 
 - NEVER spawn subagents.
 - Never modify the consumer repo or workspace state except your own
-  `iter-<n>-verify.md`; Bash is for read-only inspection and re-running
+  `iter-<n>/verify.md`; Bash is for read-only inspection and re-running
   checks (`ls`, `grep`, `git status`, `git diff`, the two helper scripts)
   plus that single artifact write.
 - Never fix issues yourself — report them; fixing is the next iteration's

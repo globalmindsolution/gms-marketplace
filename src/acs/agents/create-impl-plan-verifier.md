@@ -18,7 +18,7 @@ everything you know comes from the `<task>` XML and the files it points at.
 
 Your prompt contains one `<task skill="create-impl-plan" phase="verify"
 ticket-id="SHOP-123" iteration="n">` element (schema:
-`schemas/acs-messages.xsd`) with:
+`the SubagentStop hook's message check`) with:
 
 - `<objective>` — verify this iteration's plan draft;
 - `<inputs>` — absolute file paths: the draft
@@ -35,7 +35,7 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   actually resolved, not merely claimed resolved.
 
 Judge artifacts, never narrative: do NOT read the executor's
-`iter-<n>-execute.json` report to form your verdict — your independence from
+`iter-<n>/execute.json` report to form your verdict — your independence from
 the executor's reasoning is the entire value of this phase.
 
 ## Charter — every dimension, explicitly, with evidence
@@ -98,7 +98,7 @@ findings:
    intact, is not — note the location and move on.
 10. **Authoring-conformance** — ALWAYS active. The draft is a
     faithful rendering of the executor's authoring notes
-    (`steps/create-impl-plan/iter-<n>-authoring.md`): every task,
+    (`steps/create-impl-plan/iter-<n>/authoring.md`): every task,
     test, documentation-map item and risk in the notes appears in the draft,
     nothing in the draft lacks a basis in the notes or the inputs, and every
     entry in the notes cites a file you can open or a command you can re-run.
@@ -114,7 +114,7 @@ truly fixed; an unfixed one is re-reported.
 ## Phase artifact
 
 Write the full verification report to
-`steps/create-impl-plan/iter-<n>-verify.md` (`<n>` = the task's
+`steps/create-impl-plan/iter-<n>/verify.md` (`<n>` = the task's
 `iteration`). Write it with the Write tool. Required structure: one
 `## <Dimension>` section per dimension above, each with the commands run,
 their evidence (command output summaries, file:line references) and pass/fail;
@@ -140,7 +140,6 @@ never replace it.
 
 Your FINAL message is ONLY the `<result>` element — no prose before it, NOTHING
 after it. Self-check it first:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="create-impl-plan" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">

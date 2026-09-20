@@ -115,7 +115,7 @@ gets its own numbered check-dimension entry.)
    dimension="audience-style">`, which does not block.
 
 8. `authoring-conformance` — verify against the executor's authoring notes
-   (`steps/create-design/iter-<n>-authoring.md` from `<inputs>`):
+   (`steps/create-design/iter-<n>/authoring.md` from `<inputs>`):
    every decision the notes listed is decided; the options, the NFR checklist
    and the architecture-conformance call agree between notes and draft; every
    open question in the notes reached the ledger; any extra verifier checks
@@ -130,7 +130,7 @@ yourself — an unfixed prior finding is reported again as a new finding.
 ## Re-run cheap checks yourself
 
 - Read `design.md`, the authoring notes, the ticket document, and the architecture docs
-  in full; never trust `iter-<n>-execute.json` — use it only to know what was
+  in full; never trust `iter-<n>/execute.json` — use it only to know what was
   claimed, then check the claim.
 - Grep the consumer repo for every component, interface, and file path the
   design asserts exists.
@@ -142,7 +142,7 @@ yourself — an unfixed prior finding is reported again as a new finding.
 ## Verify report (mandatory)
 
 Write the full verification report to
-`steps/create-design/iter-<n>-verify.md` (`<partition>` is the
+`steps/create-design/iter-<n>/verify.md` (`<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<N>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`
@@ -154,7 +154,7 @@ you ever perform.
 Your prompt contains an XML `<task skill="create-design" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the design draft, the iteration's authoring notes
-(`iter-<n>-authoring.md`), the ticket document, and the architecture docs),
+(`iter-<n>/authoring.md`), the ticket document, and the architecture docs),
 `<constraints>` (always including `required_sections` and
 `audience_style_profile`, plus `standards_path` when
 `settings.standards_path` is configured — see dimensions 2/4 above), and
@@ -165,7 +165,7 @@ paths.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it. One `<finding>` per issue,
+`the SubagentStop hook's message check` — nothing after it. One `<finding>` per issue,
 actionable (file, expectation, observed behavior):
 
 ```xml

@@ -20,7 +20,7 @@ MANDATORY first action — run exactly one of:
 - Fresh run (the normal case; each run gets its own delivery ticket):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-architecture --allocate --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-architecture --allocate --args "$ARGUMENTS"
 ```
 
 - Resume: if `$ARGUMENTS` contains an existing delivery-ticket id (e.g.
@@ -28,7 +28,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-arch
   that partition:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-architecture --ticket SHOP-2
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-architecture --ticket SHOP-2
 ```
 
 If skill-start exits non-zero: stop immediately and surface its stderr to the
@@ -62,7 +62,7 @@ BEFORE continuing:
 - There is no plan artifact to reuse: an execute with no verify → verify
   it; a verify with findings and no later execute → execute with those
   findings as `<context>`. The executor's authoring notes
-  (`iter-<n>-authoring.md`) belong to their iteration.
+  (`iter-<n>/authoring.md`) belong to their iteration.
 
 If `context.handoff_summary` exists, read it plus
 `steps/create-architecture/handoff-context.md` (if present),
@@ -140,7 +140,7 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-Communicate in XML per `schemas/acs-messages.xsd`. Example execute task:
+Communicate in XML per `the SubagentStop hook's message check`. Example execute task:
 
 ```xml
 <task skill="create-architecture" phase="execute" ticket-id="SHOP-2" iteration="1">
@@ -165,7 +165,6 @@ Communicate in XML per `schemas/acs-messages.xsd`. Example execute task:
 Validate EVERY message you send and receive:
 
 ```bash
-echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 On an invalid message, re-request it once; if still invalid, fail the run
@@ -174,10 +173,10 @@ with the validation error recorded in `errors`.
 Persist every phase output to
 `steps/create-architecture/iter-<n>-<phase>.xml` at the phase
 boundary, BEFORE starting the next phase. The executor's own artifacts are
-`iter-<n>-authoring.md` (Mode; Inventory; Target doc set with the per-file
+`iter-<n>/authoring.md` (Mode; Inventory; Target doc set with the per-file
 outline; Flow selection; Delivery step; Risks & open decisions; Verifier
 checklist — the Upstream inventory cites every PRD and codebase fact
-verbatim) and `iter-<n>-execute.json`; every iteration's verifier `<inputs>`
+verbatim) and `iter-<n>/execute.json`; every iteration's verifier `<inputs>`
 name that iteration's authoring notes.
 
 Phases:
@@ -222,7 +221,7 @@ Phases:
    by dim-1 `doc-set-completeness` and the diagram-lint gate).
 
 Zero verifier findings = pass — proceed to Delivery. On findings, persist
-`iter-<n>-verify.xml`, then feed them verbatim into the next iteration's
+`iter-<n>/verify.xml`, then feed them verbatim into the next iteration's
 executor `<task>` `<context>` — with no plan phase in between, and re-run
 execute -> verify. After iteration 3 with findings
 remaining: stop, final status `failed`, findings recorded in the result

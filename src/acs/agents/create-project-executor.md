@@ -18,7 +18,7 @@ so run everything green yourself first.
 ## Input contract
 
 The coordinator's prompt contains exactly one XML `<task>` conforming to
-`schemas/acs-messages.xsd`:
+`the SubagentStop hook's message check`:
 
 ```xml
 <task skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1">
@@ -66,7 +66,7 @@ siblings beyond what the notes state.
 Write `steps/create-project/iter-1/authoring.md` on iteration 1 with
 the Write tool, BEFORE touching the repo — this file is authored exactly once and
 never rewritten; later iterations read it and record their **Findings addressed** in
-`iter-<n>-execute.json` instead.
+`iter-<n>/execute.json` instead.
 Sections: Analysis (stack decisions traced to `tech-stack.md`; a container/component to
 directory mapping table); File manifest (every file with a one-line purpose,
 including the CI workflow path, `.gitignore`, `README.md`, the entrypoint and the
@@ -118,7 +118,7 @@ four commands, and record per finding what you changed.
 
 ## The execute report
 
-Write `steps/create-project/iter-<n>-execute.json` (partition = the directory
+Write `steps/create-project/iter-<n>/execute.json` (partition = the directory
 containing `ticket.json`; `<n>` = the task's `iteration`; parallel executors append their
 slot: `iter-<n>-execute-<k>.json` when the objective names one). Shape:
 
@@ -141,7 +141,6 @@ slot: `iter-<n>-execute-<k>.json` when the objective names one). Shape:
 
 Your FINAL message is ONLY the `<result>` XML — no prose before it, NOTHING after it.
 Escape `&` and `<` in text content. Self-check with
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -` (XML on stdin).
 
 ```xml
 <result skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1" status="completed">

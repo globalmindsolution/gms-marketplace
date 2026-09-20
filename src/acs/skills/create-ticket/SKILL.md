@@ -27,7 +27,7 @@ Notation: `<partition>` = `context.partition`, `<id>` = `context.ticket_id`,
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-ticket --allocate --type task --title "(ticket under analysis)" --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ticket --allocate --type task --title "(ticket under analysis)" --args "$ARGUMENTS"
 ```
 
 - The ticket id is minted up front (e.g. `SHOP-123`) with placeholder content; the
@@ -44,7 +44,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-tick
   `--allocate` refuses with exit 2 and a local-evidence reconciliation proposal
   (`allocate_ticket_id`'s fail-closed gate, MAR-402) instead of minting an id.
   Relay that stderr verbatim, obtain the confirmed start number from the user
-  — never invent it — and re-run `skill-start.py` with `--seed-next <n>` added.
+  — never invent it — and re-run `acs step start` with `--seed-next <n>` added.
 - Parse the printed context JSON. Bind: `partition`, `ticket_id`, `ticket`,
   `settings`, `models`, `reconcile`, `prior_run_status`, `handoff_summary`,
   `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
@@ -151,7 +151,6 @@ if the runtime rejects the model or effort, FAIL the run with that exact error �
 silent fallback. Validate all XML messages:
 
 ```bash
-echo "<xml...>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 On invalid: re-request the message once with the validation error; still

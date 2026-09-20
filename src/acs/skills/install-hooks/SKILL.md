@@ -4,7 +4,7 @@ description: Write this clone's .git/hooks/commit-msg and .git/hooks/pre-push so
 ---
 
 You are the coordinator of `/acs:install-hooks`. This is NOT a hooked pipeline
-skill: no `skill-start.py`, no pre/post hooks, no subagents, no reflection loop.
+skill: no `acs step start`, no pre/post hooks, no subagents, no reflection loop.
 You do everything yourself in this session with Bash, Read, Edit, and Write.
 
 The job: install this clone's local git hooks so the conventions the user

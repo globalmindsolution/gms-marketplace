@@ -20,7 +20,7 @@ subagent for this skill.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-pr --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-pr
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -104,7 +104,6 @@ upstream code/spec lanes, not in apply-work.
 The coordinator performs the following numbered steps directly, or delegates
 the entire numbered flow to at most one `acs:create-pr-executor` subagent when
 run complexity warrants it. When delegating, send one `<task>` message
-(validated with validate_xml.py against schemas/acs-messages.xsd); the
 executor returns one `<result>` with the phase artifact reference. The
 coordinator never delegates to a planner or verifier. If the runtime rejects a
 model or effort setting from `context.models.executor`, FAIL the run with that
@@ -287,7 +286,6 @@ many attempts were used, plus the tracker-metadata-fill result — assignee/
 label/Project outcomes and any findings — additive, alongside the existing
 fields, plus the additive `reviewers{requested, skipped_reason, findings}`
 and `project_fields{priority, story_points, parent, findings}` keys).
-Validate any `<task>`/`<result>` XML with validate_xml.py.
 
 ### GitHub call failure policy (gh is acs's only transport)
 
@@ -372,7 +370,6 @@ final message a handoff like:
 </handoff>
 ```
 
-Validate it with validate_xml.py like every other message. On invalid:
 re-request the message once with the validation error; still invalid → fail the
 run and record the error in the result document's `errors`.
 

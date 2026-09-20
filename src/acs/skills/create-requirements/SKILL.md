@@ -25,12 +25,12 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
   resuming an interrupted or handed-off delivery ticket):
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-requirements --ticket <ticket-id>
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-requirements --ticket <ticket-id>
   ```
 
 - Otherwise (fresh bootstrap or amendment — every run gets a NEW delivery ticket):
 
-  Before calling `skill-start.py --allocate`, detect whether this is an **amend**
+  Before calling `acs step start --allocate`, detect whether this is an **amend**
   run by checking if the resolved `<requirements_path>/<functional_subdir>/` or
   `<non_functional_subdir>/` already holds files (a substantially-populated set).
   This mirrors the executor's amend definition (see Execute below).
@@ -38,7 +38,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
   - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
 
     ```bash
-    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" \
+    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step start" \
       --skill create-requirements --allocate \
       --title "Amend requirements: <≤~10-word summary of what changed>"
     ```
@@ -54,7 +54,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
     no `--title`:
 
     ```bash
-    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-requirements --allocate
+    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-requirements --allocate
     ```
 
   `--allocate` creates the delivery ticket (type `task`, built-in title
@@ -87,7 +87,7 @@ continuing:
    is open, skip straight to Finish with the recorded references.
 5. There is no plan artifact to reuse: an execute with no verify → verify it;
    a verify with findings and no later execute → execute with those findings
-   as `<context>`. The executor's authoring notes (`iter-<n>-authoring.md`)
+   as `<context>`. The executor's authoring notes (`iter-<n>/authoring.md`)
    belong to their iteration.
 
 If `context.handoff_summary` exists, read it (and
@@ -121,19 +121,18 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 `/acs:create-requirements` has no path-driven verify-depth selection: the
 cap is a fixed 3 on every run.
 
-All messages follow `schemas/acs-messages.xsd`. Validate EVERY message you send and
+All messages follow `the SubagentStop hook's message check`. Validate EVERY message you send and
 receive:
 
 ```bash
-echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
 `steps/create-requirements/iter-<n>-<phase>.xml` at the phase boundary
 BEFORE starting the next phase. The executor's own artifacts are
-`iter-<n>-authoring.md` (Mode & evidence; Requirement outline; Open
-questions; Risks; Verifier checklist) and `iter-<n>-execute.json`; every
+`iter-<n>/authoring.md` (Mode & evidence; Requirement outline; Open
+questions; Risks; Verifier checklist) and `iter-<n>/execute.json`; every
 iteration's verifier `<inputs>` name that iteration's authoring notes.
 Decomposition is YOURS alone — subagents never spawn subagents.
 

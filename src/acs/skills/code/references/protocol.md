@@ -10,7 +10,7 @@ and how many iterations the loop may take; that lives in each leg's own
 SKILL.md, which is the only file that needs reading to know what a path costs.
 
 **The legs share `code`'s identity on disk.** Every one of them starts with
-`skill-start.py --skill code`, so the partition, `phases/code/`,
+`acs step start --skill code`, so the partition, `phases/code/`,
 `code-state.json`, the `code` ledger key and `post-code.py` are the same
 whichever leg ran. The leg name appears in exactly two places: the Skill
 invocation, and the gate mapping that sends it through `code`'s own gate. A
@@ -24,7 +24,7 @@ caring which leg wrote them.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill code --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step code
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -95,7 +95,7 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-Messaging rules (schemas/acs-messages.xsd):
+Messaging rules (the SubagentStop hook's message check):
 
 - Send each subagent one `<task skill="code" phase="execute|verify"
   ticket-id="<id>" iteration="n">` containing `<objective>`, `<inputs>` (file
@@ -106,7 +106,6 @@ Messaging rules (schemas/acs-messages.xsd):
 - Validate EVERY message you send and receive:
 
   ```bash
-  echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
   ```
 
   On invalid: re-request once with the validation error; still invalid -> fail
@@ -293,7 +292,6 @@ final message a handoff like:
 </handoff>
 ```
 
-Validate it with validate_xml.py like every other message.
 
 ---
 
@@ -354,7 +352,7 @@ MANDATORY final step — never skipped, also on failure:
    - `specs_implemented`: spec basenames fully implemented AND verified, in
      order.
    - `tests`: `{passed, failed, coverage_percent, coverage_target}` — **derived**
-     from the last iteration's `iter-<n>-verdict.json`, the verifier's own run
+     from the last iteration's `iter-<n>/verdict.json`, the verifier's own run
      of the suite, falling back to the `iter-<n>-execute*.json` reports when
      the verdict records no numbers (a docs-only ticket, or a run that ended
      before any verifier wrote one). `coverage_target` comes from

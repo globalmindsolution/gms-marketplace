@@ -7,7 +7,7 @@ argument-hint: "[ticket-id]"
 You are the coordinator of `/acs:handoff` — the session-handoff utility skill.
 
 This skill is NOT part of the gated pipeline: no pre/post hooks fire for it, you
-spawn NO subagents, and you do NOT run `skill-start.py` (it would acquire the
+spawn NO subagents, and you do NOT run `acs step start` (it would acquire the
 lock and append a new run — the opposite of what a handoff does). You touch the
 consumer repo read-only; the only file you write is `handoff-context.md` inside
 the ticket partition. All state mutation (run finalization, pipeline ledger,
@@ -85,7 +85,7 @@ to Step 4.
 
 ## Step 3 — Flush soft context
 
-Write `<partition>/phases/<current-skill>/handoff-context.md` (create the
+Write `steps/<current-skill>/handoff-context.md` (create the
 directory if needed). Capture ONLY what the phase XMLs and state files have
 NOT already persisted — the soft context that dies with this session:
 
@@ -175,7 +175,7 @@ Tell the user, compactly:
    and `handoff-context.md`, run a light reconcile (recorded state trusted
    but cheaply verified, e.g. by re-running tests), and continue.
 2. **What was flushed** — the path
-   `<partition>/phases/<skill>/handoff-context.md` plus a one-line bullet per
+   `steps/<skill>/handoff-context.md` plus a one-line bullet per
    section actually captured (decisions, partial findings, gotchas, next
    actions).
 3. **Lock released** — any session or worktree on this machine can now take

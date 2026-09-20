@@ -18,7 +18,7 @@ everything from the `<task>` and its file paths.
 ## Input contract
 
 Your prompt contains one `<task skill="create-requirements" phase="execute"
-ticket-id="SHOP-1" iteration="n">` element (schema: `schemas/acs-messages.xsd`)
+ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's message check`)
 with:
 
 - `<objective>` — what to produce this round;
@@ -144,7 +144,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-requirements/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-requirements/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: `## Mode & evidence`, `## Requirement outline`, `## Open questions`,
 `## Risks`, `## Verifier checklist`. Every entry cites the file (and line or heading) you read —
@@ -238,7 +238,7 @@ what fixing them requires.
 
 ## Phase artifact
 
-Write `steps/create-requirements/iter-<n>-execute.json` (`<n>` = the
+Write `steps/create-requirements/iter-<n>/execute.json` (`<n>` = the
 task's `iteration`; the coordinator tells you `-<k>` suffixing when parallel
 executors run):
 
@@ -266,7 +266,6 @@ executors run):
 
 Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING after.
 Self-check it:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="create-requirements" phase="execute" ticket-id="SHOP-1" iteration="1" status="completed">

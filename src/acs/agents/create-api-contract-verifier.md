@@ -46,7 +46,7 @@ A shape that is wrong here is built wrong and tested wrong.
    implementation detail masquerading as contract (internal function names,
    storage layout, and private helpers are not surface).
 8. `authoring-conformance` — the draft is what the executor's authoring notes
-   (`steps/create-api-contract/iter-<n>-authoring.md`) surveyed:
+   (`steps/create-api-contract/iter-<n>/authoring.md`) surveyed:
    every item in the notes' item list is specified in the draft (or its
    exclusion is recorded), the compatibility and error-model entries agree
    between notes and draft, every open question in the notes reached the
@@ -75,7 +75,7 @@ draft claims to have updated. Bash is read-only inspection (`grep`, `ls`,
 ## Verify report (mandatory)
 
 Write the full verification report to
-`steps/create-api-contract/iter-<n>-verify.md` (`<partition>` is
+`steps/create-api-contract/iter-<n>/verify.md` (`<partition>` is
 the directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`
@@ -87,7 +87,7 @@ ever perform.
 Your prompt contains an XML `<task skill="create-api-contract" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the contract draft, the executor's authoring notes
-(`iter-<n>-authoring.md`), the execute report, `plan.md`, `analysis.md`, the
+(`iter-<n>/authoring.md`), the execute report, `plan.md`, `analysis.md`, the
 ticket document, `design.md` when it binds, and every contract file the
 executor touched), `<constraints>` (at least `required_sections`,
 `audience_style_profile`, `contracts_mode`), and optional `<context>` (prior
@@ -97,7 +97,7 @@ everything yourself from the `<inputs>` paths.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it. One `<finding>` per issue,
+`the SubagentStop hook's message check` — nothing after it. One `<finding>` per issue,
 actionable (file, expectation, observed behavior):
 
 ```xml

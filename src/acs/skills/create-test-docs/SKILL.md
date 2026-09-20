@@ -29,7 +29,7 @@ the deliverable, not decoration.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-test-docs --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-test-docs
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -138,7 +138,7 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    verify it; a verify with findings and no later execute → execute with
    those findings as `<context>`; nothing on disk → iteration 1 execute.
 5. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
    never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus
@@ -188,7 +188,7 @@ and the executor authors the remediation.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
-Messaging rules (`schemas/acs-messages.xsd`):
+Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-test-docs"
   phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
@@ -200,7 +200,6 @@ Messaging rules (`schemas/acs-messages.xsd`):
 - Validate EVERY message you send and receive:
 
   ```bash
-  echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
   ```
 
   On invalid: re-request once with the validation error quoted; still invalid →
@@ -229,7 +228,7 @@ Objective, iteration 1: from the criteria, the plan, the contract and the
 repo's existing tests, decide the CASE SET — for every acceptance criterion
 and every contract item, which cases prove it, at which level, and against
 which suite — and record that decision in the authoring notes
-(`steps/create-test-docs/iter-<n>-authoring.md`), naming too the
+(`steps/create-test-docs/iter-<n>/authoring.md`), naming too the
 criteria that cannot be made testable and the questions that blocks. Then
 render `test-cases.md` from those notes. The notes are what the verifier
 checks the draft against.
@@ -288,11 +287,11 @@ else — no plan phase in between.
 ### Phase: verify — `acs:create-test-docs-verifier`
 
 Spawn `acs:create-test-docs-verifier` AFTER the draft is written, with
-`<inputs>` of the draft, the authoring notes (`iter-<n>-authoring.md`), the ticket document, the plan and
+`<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`), the ticket document, the plan and
 contract when they exist, and the repo's test directories. It judges fresh —
 never forward the executor's reasoning — re-derives the traceability from the
 ticket's criteria itself, and writes
-`steps/create-test-docs/iter-<n>-verify.md`.
+`steps/create-test-docs/iter-<n>/verify.md`.
 
 ALL blocking findings block — zero blocking findings = pass.
 `status="completed"` means verification RAN; the empty `<findings>` is the
@@ -458,7 +457,6 @@ MANDATORY final step — never skipped, also on failure or handoff:
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published document, `<questions>` when `needs_input`, and
      `<next-step>/acs:code <id></next-step>`. Validate it with
-     `validate_xml.py` like every other message.
 
 ## Completion report (normative)
 

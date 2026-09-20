@@ -35,7 +35,7 @@ re-derive, and step 1 below is where you find that out and stop.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill docs-sync --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step docs-sync
 ```
 
 - If it exits non-zero: STOP and surface its stderr verbatim to the user. Do
@@ -71,7 +71,7 @@ silently switch branches.
 - Fresh run (`reconcile` false): start at iteration 1, execute phase.
 - There is no plan artifact to reuse: an execute with no verify → verify it;
   a verify with findings and no later execute → execute with those findings
-  as `<context>`. The executor's authoring notes (`iter-<n>-authoring.md`)
+  as `<context>`. The executor's authoring notes (`iter-<n>/authoring.md`)
   belong to their iteration.
 
 ## Inputs — gather before the loop
@@ -84,9 +84,9 @@ MUST read, exactly these artifacts — never a bare hand-off summary:
 2. `<partition>/ticket.json` (title, description, acceptance criteria).
 3. `steps/code/result.json`, specifically `states.docs_updated`
    (repo-relative paths of every doc file `/code` already changed).
-4. The ticket's `steps/code/iter-<n>-execute.json` execute
+4. The ticket's `steps/code/iter-<n>/execute.json` execute
    report(s), specifically the `problems` field.
-5. The final `steps/code/iter-<n>-verify.md` (the last
+5. The final `steps/code/iter-<n>/verify.md` (the last
    code-verifier artifact for the highest completed iteration).
 6. The ticket's binding design (`<partition>/design.md`, or the parent
    epic's when the ticket inherits it) when `ticket.needs_design` is true or
@@ -102,7 +102,7 @@ every phase (executor and verifier alike) reads all six, independently.
 
 **Constraints the task carries.** Every placeholder the executor's and the
 verifier's charters read comes from the `<task>`'s `<constraints>`, and only
-names in the `constraintName` vocabulary of `schemas/acs-messages.xsd`
+names in the `constraintName` vocabulary of `the SubagentStop hook's message check`
 validate — never invent a variant such as `commit_message_format` or
 `contracts_root`. Pass, on every phase:
 
@@ -144,12 +144,11 @@ this ticket does not introduce one.
 
 For every phase:
 
-1. Compose a `<task>` per `schemas/acs-messages.xsd`, with `<inputs>` listing
+1. Compose a `<task>` per `the SubagentStop hook's message check`, with `<inputs>` listing
    the six artifacts above by path.
 2. Validate EVERY message you send and receive:
 
    ```bash
-   echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
    ```
 
    On an invalid message from a subagent: re-request once with the
@@ -163,9 +162,9 @@ For every phase:
 4. Persist the phase's `<task>` and `<result>` to
    `steps/docs-sync/iter-<n>-<phase>.xml` at the phase
    boundary, BEFORE starting the next phase. The executor's own artifacts
-   are `iter-<n>-authoring.md` (Diff analysis; Doc-delta list; Cross-check
+   are `iter-<n>/authoring.md` (Diff analysis; Doc-delta list; Cross-check
    against docs_updated/problems; Open questions) and
-   `iter-<n>-execute.json`; every iteration's verifier `<inputs>` name that
+   `iter-<n>/execute.json`; every iteration's verifier `<inputs>` name that
    iteration's authoring notes.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
@@ -185,11 +184,11 @@ and why, each cross-referenced to the diff lines / `docs_updated` entries /
 additional commits on the SAME
 ticket branch (never a new branch, never a new PR), rendered with the same
 `commit_message` format `/code` already uses. Author the doc-delta report
-using the FIXED v1 structure — the existing `iter-<n>-execute.json` /
-`iter-<n>-verify.md` artifact shape every hooked skill already writes
+using the FIXED v1 structure — the existing `iter-<n>/execute.json` /
+`iter-<n>/verify.md` artifact shape every hooked skill already writes
 (`/acs:create-impl-plan`, which carved the plan phase out of `/acs:code`,
 publishes `plan.md`; every other authoring skill's executor writes its
-`iter-<n>-authoring.md`). No new artifact type, no settings-driven template,
+`iter-<n>/authoring.md`). No new artifact type, no settings-driven template,
 no new `settings.schema.json` keys.
 
 If the executor returns `needs_input` with `<questions>` (which of two
@@ -292,7 +291,6 @@ MANDATORY final step — never skipped, including on failure or handoff:
    - Under /acs:ship: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` <=1KB, `<artifacts>`
      referencing the committed doc paths, `<next-step>/acs:create-pr
-     <id></next-step>`. Validate it with validate_xml.py like every other
      message.
 
 ## Completion report (normative)

@@ -54,7 +54,7 @@ front matter. A case set that misses a criterion ships a ticket nobody proved.
    silently amend the ticket — a criterion rewrite belongs to
    `/acs:analyze-requirements` and the clarification ledger, not to this table.
 8. `authoring-conformance` — the draft is what the executor's authoring notes
-   (`steps/create-test-docs/iter-<n>-authoring.md`) decided:
+   (`steps/create-test-docs/iter-<n>/authoring.md`) decided:
    every case in the notes' case set is a row of the draft (or its removal is
    recorded), the level and target suite agree between notes and draft, every
    untestable criterion in the notes reached the ledger, and every entry in
@@ -86,7 +86,7 @@ you change nothing — NEVER run the repo's test suites here.
 ## Verify report (mandatory)
 
 Write the full verification report to
-`steps/create-test-docs/iter-<n>-verify.md` (`<partition>` is the
+`steps/create-test-docs/iter-<n>/verify.md` (`<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), the criterion-by-criterion traceability you
@@ -97,7 +97,7 @@ this file. Write it with the Write tool — the only write you ever perform.
 
 Your prompt contains an XML `<task skill="create-test-docs" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
-the draft, the executor's authoring notes (`iter-<n>-authoring.md`), the
+the draft, the executor's authoring notes (`iter-<n>/authoring.md`), the
 execute report, the ticket document, the plan and the API contract when they
 exist, and the repo test paths the cases name), `<constraints>` (at least
 `required_sections` and `audience_style_profile`), and optional `<context>`
@@ -107,7 +107,7 @@ read everything yourself from the `<inputs>` paths.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it. One `<finding>` per issue,
+`the SubagentStop hook's message check` — nothing after it. One `<finding>` per issue,
 actionable (file, expectation, observed behavior):
 
 ```xml

@@ -15,11 +15,11 @@ downstream skill (/acs:create-architecture, /acs:create-ticket) verifies against
 ## Input contract
 
 Your prompt contains one `<task skill="create-prd" phase="verify" ticket-id="SHOP-1"
-iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
+iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — verify this iteration's PRD doc set;
 - `<inputs>` — absolute paths: `<prd_path>/prd.md`, `<prd_path>/roadmap.md`, the
-  executor's authoring notes (`steps/create-prd/iter-<n>-authoring.md`),
+  executor's authoring notes (`steps/create-prd/iter-<n>/authoring.md`),
   the delivery
   `ticket.json` (derive `<partition>` from its directory), `<partition>/clarifications.json`,
   and the execute report. READ EVERY ONE — you share no memory with anyone;
@@ -61,7 +61,7 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
      `+###`/`+####` heading line added to `roadmap.md` and pass each as its
      own `--added-heading` flag; omit the flag entirely outside amend mode.
    - Run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py
-     --plan steps/create-prd/iter-<n>-authoring.md --mode
+     --plan steps/create-prd/iter-<n>/authoring.md --mode
      <greenfield|brownfield|amend> --repo-root <repo_root> --clarifications
      <partition>/clarifications.json --prd <prd_path>/prd.md --roadmap
      <prd_path>/roadmap.md [--added-heading "<heading>" ...]`. It
@@ -120,7 +120,7 @@ iteration="n">` element (schema: `schemas/acs-messages.xsd`) with:
 ## Phase artifact
 
 Write the full verification report to
-`steps/create-prd/iter-<n>-verify.md` (`<n>` = the task's `iteration`).
+`steps/create-prd/iter-<n>/verify.md` (`<n>` = the task's `iteration`).
 Write it with the Write tool.
 Structure: one section per dimension above, each with the exact evidence examined
 (commands run, line references) and verdict; then a `## Findings` section detailing
@@ -143,7 +143,6 @@ every finding. The XML `<finding>` entries are one-line summaries of this file.
 
 Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING after.
 Self-check it:
-`echo '<result ...>...</result>' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`
 
 ```xml
 <result skill="create-prd" phase="verify" ticket-id="SHOP-1" iteration="1" status="completed">

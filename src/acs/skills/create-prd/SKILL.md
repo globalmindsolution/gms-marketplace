@@ -20,19 +20,19 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
   resuming an interrupted or handed-off delivery ticket):
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-prd --ticket <ticket-id>
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-prd --ticket <ticket-id>
   ```
 
 - Otherwise (fresh PRD or amendment — every run gets a NEW delivery ticket):
 
-  Before calling `skill-start.py --allocate`, detect whether this is an **amend** run
+  Before calling `acs step start --allocate`, detect whether this is an **amend** run
   by checking if `prd.md` already exists at the resolved `settings.prd_path` (default
   `docs/product/`). This mirrors the executor's amend definition (see Execute below).
 
   - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
 
     ```bash
-    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" \
+    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step start" \
       --skill create-prd --allocate \
       --title "Amend PRD: <≤~10-word summary of what changed>"
     ```
@@ -54,7 +54,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
     amendment where `$ARGUMENTS` carries no usable request): pass no `--title`:
 
     ```bash
-    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-prd --allocate
+    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-prd --allocate
     ```
 
   `--allocate` creates the delivery ticket (type `task`, built-in title
@@ -86,7 +86,7 @@ continuing:
    is open, skip straight to Finish with the recorded references.
 5. There is no plan artifact to reuse: an execute with no verify -> verify it;
    a verify with findings and no later execute -> execute with those findings
-   as `<context>`. The executor's authoring notes (`iter-<n>-authoring.md`)
+   as `<context>`. The executor's authoring notes (`iter-<n>/authoring.md`)
    belong to their iteration.
 
 If `context.handoff_summary` exists, read it (and
@@ -123,20 +123,19 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-All messages follow `schemas/acs-messages.xsd`. Validate EVERY message you send and
+All messages follow `the SubagentStop hook's message check`. Validate EVERY message you send and
 receive:
 
 ```bash
-echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
 `steps/create-prd/iter-<n>-<phase>.xml` at the phase boundary BEFORE
-starting the next phase. The executor's own artifacts are `iter-<n>-authoring.md`
+starting the next phase. The executor's own artifacts are `iter-<n>/authoring.md`
 (Mode & evidence; PRD outline; Roadmap outline; Code evidence; Answer fidelity;
 Roadmap milestones; Open questions; Risks; Verifier checklist) and
-`iter-<n>-execute.json`; every iteration's verifier `<inputs>` name that
+`iter-<n>/execute.json`; every iteration's verifier `<inputs>` name that
 iteration's authoring notes. Decomposition is YOURS alone — subagents never
 spawn subagents.
 

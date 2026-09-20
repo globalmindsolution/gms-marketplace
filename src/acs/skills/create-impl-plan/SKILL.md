@@ -23,7 +23,7 @@ other than the plan artifact itself: `/acs:code` builds what this plan says.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-impl-plan --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-impl-plan
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
@@ -177,7 +177,7 @@ guess ADR-0095 removed.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
-Messaging rules (`schemas/acs-messages.xsd`):
+Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-impl-plan"
   phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
@@ -186,7 +186,6 @@ Messaging rules (`schemas/acs-messages.xsd`):
 - Validate EVERY message you send and receive:
 
   ```bash
-  echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
   ```
 
   On invalid: re-request once with the validation error; still invalid → fail
@@ -215,7 +214,7 @@ Iteration 1's executor surveys and decides before it
 writes the deliverable. Task it with `<inputs>` of the ticket file,
 `analysis.md` and `design.md` when they exist, every `<partition>/specs/*.md`,
 and the consumer-repo source/docs the ticket touches. Its authoring notes are
-`steps/create-impl-plan/iter-<n>-authoring.md`, and they cover,
+`steps/create-impl-plan/iter-<n>/authoring.md`, and they cover,
 in the order `create-impl-plan-executor.md`'s survey defines:
 
 - Analysis of the ticket and of every spec: implementation order (follow the
@@ -328,7 +327,7 @@ Spawn `acs:create-impl-plan-verifier` AFTER the draft is written, with
 `<inputs>` of the draft, the ticket file, `analysis.md` and `design.md` when
 they exist, every `<partition>/specs/*.md`, and the repo paths the file map
 names. The verifier judges fresh — never forward the executor's reasoning —
-and writes `steps/create-impl-plan/iter-<n>-verify.md`. Its
+and writes `steps/create-impl-plan/iter-<n>/verify.md`. Its
 `<result>`'s `<findings>` is the verdict: `status="completed"` means
 verification RAN, and an empty `<findings>` is the pass. Never conclude a pass
 the verifier did not report.
@@ -354,7 +353,7 @@ verified bytes:
 ```bash
 draft="steps/create-impl-plan/plan.md"
 mkdir -p "$(dirname "<plan_path>")" && cp "$draft" "<plan_path>"
-mkdir -p "<partition>/phases/code" && cp "$draft" "steps/code/plan.md"
+mkdir -p "steps/code" && cp "$draft" "steps/code/plan.md"
 ```
 
 Then commit `<plan_path>` on the ticket branch when it is inside the repo
@@ -440,14 +439,13 @@ The `<summary>` (≤1 KB) must also restate the split instruction in prose, not
 only `<next-step>`: under `/acs:ship` the failed branch surfaces `<summary>`
 verbatim and prints only generic resume commands, without promising to
 surface `<next-step>`. No new XML element and no new status value —
-`acs-messages.xsd` already admits `failed` and `<next-step>`.
+the SubagentStop hook's message check already admits `failed` and `<next-step>`.
 
 If you genuinely cannot reach the user (a non-interactive run): do not guess.
 Record the outgoing questions as `open` (`clarify.py add` without `--answer`),
 write the result document with status `"needs_input"` and `stop_reason`
 "needs user input", run the Finish steps, and return a `<handoff
 status="needs_input">` whose `<questions>` carry them. Validate it with
-`validate_xml.py` like every other message.
 
 ## Context pressure
 

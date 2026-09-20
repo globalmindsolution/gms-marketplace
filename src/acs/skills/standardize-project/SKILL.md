@@ -21,14 +21,14 @@ MANDATORY first action — run exactly one of:
 - Fresh run (the normal case; each run gets its own delivery ticket):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill standardize-project --allocate --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardize-project --allocate --args "$ARGUMENTS"
 ```
 
 - Resume: if `$ARGUMENTS` contains an existing delivery-ticket id (e.g. `SHOP-9` from a
   handoff `continue_with` command), do NOT allocate — rejoin that partition:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill standardize-project --ticket SHOP-9
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardize-project --ticket SHOP-9
 ```
 
 If skill-start exits non-zero: stop immediately and surface its stderr to the user
@@ -211,7 +211,6 @@ tool: `subagent_type` `acs:standardize-project-executor` /
 un-namespaced name if the runtime rejects the namespaced one). Apply
 `context.models.<role>.model`/`.effort` at spawn when not `"inherit"`; fail the run (no
 silent fallback) if the runtime rejects the model/effort. Communicate in XML per
-`schemas/acs-messages.xsd`; validate every message via `validate_xml.py`; on an invalid
 message, re-request once, then fail with the validation error recorded in `errors`.
 Persist every phase output to `steps/standardize-project/iter-<n>-<phase>.xml`
 before starting the next phase.

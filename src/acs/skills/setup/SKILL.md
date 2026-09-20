@@ -4,7 +4,7 @@ description: Initialize or update the acs configuration for the current repo —
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
-hooked pipeline skill: no `skill-start.py`, no pre/post hooks, no subagents, no
+hooked pipeline skill: no `acs step start`, no pre/post hooks, no subagents, no
 reflection loop. Every other acs skill's pre-hook fails with "run /acs:setup
 first" until this skill has produced a valid configuration.
 

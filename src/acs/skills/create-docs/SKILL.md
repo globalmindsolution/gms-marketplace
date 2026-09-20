@@ -26,7 +26,7 @@ Ground rules, non-negotiable:
 
 - This is a hooked skill: `pre-create-docs.py` gates the Skill call on the
   architecture doc set, once, for every set you go on to run; each set's own
-  `skill-start.py --skill create-docs --doc-set <set> --allocate` mints its
+  `acs step start --skill create-docs --doc-set <set> --allocate` mints its
   delivery ticket, and each set's own `post-create-docs.py` finalizes it.
   You never bypass, simulate, or duplicate a hook.
 - You spawn `acs:create-docs-executor` and `acs:create-docs-verifier` — the
@@ -169,14 +169,14 @@ inside a spawned subagent:
 - Fresh run (the normal case; each set gets its own delivery ticket):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-docs --doc-set <set> --allocate
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-docs --doc-set <set> --allocate
 ```
 
 - Resume (`resume` from Start, or a `continue_with` command from a handoff):
   do NOT allocate — rejoin that partition; the set is `ticket.doc_set`:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-docs --ticket <delivery-ticket-id>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-docs --ticket <delivery-ticket-id>
 ```
 
 If skill-start exits non-zero: STOP and surface its stderr verbatim to the
@@ -200,7 +200,7 @@ partition, ticket.json, the lock, the session pointer, and the `in_progress`
 run entry. If `settings.tracker.provider` is `github` or `jira`, sync the
 ticket out via `gh`/`acli` per the tracker config.
 
-**Where `skill-start.py` runs.** Every step through a set's Start runs from
+**Where `acs step start` runs.** Every step through a set's Start runs from
 the **session checkout** (`cwd` unchanged), never from its worktree: running
 it from the worktree would resolve a different `checkout_id` than the one the
 pre-hook's `PreToolUse(Skill)` envelope used for its session marker, and
@@ -316,7 +316,7 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-Communicate in XML per `schemas/acs-messages.xsd`. The set rides in the
+Communicate in XML per `the SubagentStop hook's message check`. The set rides in the
 constraints; compose them from `doc_sets[<set>]` and the resolved settings,
 never from memory. Example execute task for `quality`:
 
@@ -354,7 +354,6 @@ authoring notes and execute report(s) of the iteration under review.
 Validate EVERY message you send and receive, for every set:
 
 ```bash
-echo "<xml>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 On an invalid message, re-request it once; if still invalid, fail **that
@@ -363,9 +362,9 @@ another set's.
 
 Persist every phase output to `steps/create-docs/iter-<n>-<phase>.xml`
 at the phase boundary, BEFORE starting the next phase. The executor's own
-artifacts are `iter-<n>-authoring.md` (Mode; Upstream inventory with cited,
+artifacts are `iter-<n>/authoring.md` (Mode; Upstream inventory with cited,
 verbatim-excerpted facts; Consistency findings; Decisions) and
-`iter-<n>-execute.json`; the verifier's is `iter-<n>-verify.md`. Every
+`iter-<n>/execute.json`; the verifier's is `iter-<n>/verify.md`. Every
 iteration's verifier `<inputs>` name that iteration's authoring notes.
 
 ## User interaction

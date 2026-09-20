@@ -190,14 +190,14 @@ order lives in `workflows/ship.yaml`, not in a gate.
 Every suite in the run-set green:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step finish" \
   --ticket <ticket-id> --skill run-e2e-tests --status completed --summary "<suites> green"
 ```
 
 A suite failed — update an active step entry, never open a new one:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-step.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step finish" \
   --ticket <ticket-id> --skill run-e2e-tests --status failed --only-if-present \
   --summary "<suite> failed"
 ```
@@ -222,7 +222,7 @@ nothing that can fail, and `/acs:ship` may already have activated the step,
 which would otherwise leave the ship walk parked forever on a step no command
 could satisfy.
 
-**A non-zero `pipeline-step.py` exit** is a real error, not a warning: report
+**A non-zero `acs step finish` exit** is a real error, not a warning: report
 it and stop rather than continuing as though the step were recorded. The
 common case is an archived partition (exit 2, `no active partition`), which
 `--for-ticket` resolution deliberately accepts for the run itself — an

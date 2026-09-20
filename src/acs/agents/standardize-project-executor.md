@@ -88,7 +88,7 @@ coordinator re-runs you with the answer in `<context>`.
 Write `steps/standardize-project/iter-1/authoring.md` on iteration 1
 with the Write tool, BEFORE writing anything else — this file is authored exactly
 once and never rewritten; later iterations read it and record their **Findings
-addressed** in `iter-<n>-execute.json` instead.
+addressed** in `iter-<n>/execute.json` instead.
 Sections: Repo-readiness inventory (the four audit dimensions, each cited, with an
 explicit "N/A: <why>" for every unset/absent input); Additive-surface allowlist
 (frozen the moment you write it — CI workflow files and named tooling-config
@@ -142,7 +142,7 @@ finding to what you changed.
 
 ## The execute artifact
 
-Write `steps/standardize-project/iter-<n>-execute.json` (parallel
+Write `steps/standardize-project/iter-<n>/execute.json` (parallel
 executors: `iter-<n>-execute-<k>.json`) recording: `files_changed` (every repo path you
 wrote), `commands` (each command run with its outcome), `decisions` (choices made inside
 the notes' latitude), and `problems` (anything that fought you). The XML result
@@ -151,8 +151,7 @@ references this file; it never inlines the detail.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`schemas/acs-messages.xsd` — no prose before it, NOTHING after it. Before replying, pipe
-your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`.
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before replying, pipe
 
 - `status="completed"` — every assigned output produced; `<outputs>` lists the execute
   artifact plus every repo file written or changed.

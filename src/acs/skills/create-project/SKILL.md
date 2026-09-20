@@ -19,7 +19,7 @@ never need this skill.
 MANDATORY first action — run before anything else:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/skill-start.py" --skill create-project --allocate
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-project --allocate
 ```
 
 `--allocate` creates the delivery ticket (type `task`, title "Project scaffold",
@@ -101,7 +101,7 @@ and then builds it; the verifier re-runs the commands and judges the result
 fresh. On iterations 2-3 the verifier's findings go verbatim into the next
 executor `<task>` `<context>` and the executor authors the remediation.
 Decomposition is YOURS alone — subagents never spawn subagents. Before the
-loop: `mkdir -p <partition>/phases/create-project`.
+loop: `mkdir -p steps/create-project`.
 
 **What an iteration counts:** one execute -> verify round. create-project
 has no path-driven verify-depth selection: the cap is a fixed 3 in every
@@ -109,12 +109,11 @@ lane, and this ticket introduces none.
 
 Messaging rules for every phase:
 
-- Communicate per `schemas/acs-messages.xsd`: you send a `<task>`, the subagent
+- Communicate per `the SubagentStop hook's message check`: you send a `<task>`, the subagent
   returns a `<result>` as the final content of its reply.
 - Validate EVERY message, sent and received:
 
 ```bash
-echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -
 ```
 
 - Invalid message from a subagent: re-request once; still invalid -> fail the run,
@@ -124,7 +123,7 @@ echo "<task ...>...</task>" | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/valid
   `iter-<n>-execute-a.xml`, `-b.xml`, ...). The executor's own artifacts are
   `iter-1-authoring.md` (authored once, on iteration 1: Analysis; File manifest;
   Commands; Vertical slice; Delivery; Risks; Verifier checklist) and
-  `iter-<n>-execute.json`; every iteration's verifier `<inputs>` name the
+  `iter-<n>/execute.json`; every iteration's verifier `<inputs>` name the
   iteration-1 notes.
 - Spawn with the Agent tool, `subagent_type`
   `acs:create-project-executor` / `acs:create-project-verifier`; fall back to the
@@ -230,7 +229,7 @@ installs and its hooks pass on the tree.
 
 A scaffold that does not run green FAILS verification — every failing command is a
 blocking finding. ALL findings block: zero findings = pass. On findings, persist
-`iter-<n>-verify.xml`, then AUTOMATICALLY re-execute, passing every finding to the
+`iter-<n>/verify.xml`, then AUTOMATICALLY re-execute, passing every finding to the
 next iteration's executor `<task>` as `<context>`, with no plan phase in between
 — the executor authors the remediation. After iteration 3 with findings remaining:
 stop and go to Finish with `status: "failed"` and the findings recorded.

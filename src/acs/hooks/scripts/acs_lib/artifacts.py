@@ -402,13 +402,14 @@ def parse_ticket_md(text):
 # ---------------------------------------------------------------------------
 
 def _ledger_steps(tdir):
-    ledger = read_json(os.path.join(tdir, "pipeline-state.json"))
+    ledger = read_json(os.path.join(tdir, "run.json"))
     steps = ledger.get("steps") if isinstance(ledger, dict) else None
     return steps if isinstance(steps, dict) else {}
 
 
 def _recorded_pr(tdir, skill):
-    state = read_json(_repo.state_path(tdir, skill))
+    from .step import state_path as _step_state_path
+    state = read_json(_step_state_path(tdir, skill))
     states = state.get("states") if isinstance(state, dict) else None
     return bool(isinstance(states, dict) and states.get("pr"))
 

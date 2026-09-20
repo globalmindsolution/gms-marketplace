@@ -95,7 +95,7 @@ win — change them first, then the implementation.
 2. **Spell out the I/O contract.** Input: an XML `<task>` (objective, file
    `<inputs>`, constraints, prior-iteration findings in `<context>`). Output:
    the **final message is only** an XML `<result>` per
-   `schemas/acs-messages.xsd` — nothing after it. Malformed XML gets
+   `the SubagentStop hook's message check` — nothing after it. Malformed XML gets
    re-requested once, then the run fails; don't make the coordinator parse
    prose. Every constraint the agent reads must be a name in the XSD's
    `constraintName` vocabulary (ADR-0093): name it there before naming it in
@@ -104,12 +104,12 @@ win — change them first, then the implementation.
    vocabulary, and `tests/acs/test_message_schema_derivation.py` refuses a
    vocabulary entry no prose consumes.
 3. **Mandate the phase artifact.** An authoring executor writes
-   `iter-<n>-authoring.md` (its survey, then the findings it addressed) before
+   `iter-<n>/authoring.md` (its survey, then the findings it addressed) before
    the deliverable, and every executor `iter-<n>-execute[-<k>].json`; the
-   verifier writes `iter-<n>-verify.md` (see INTERNALS.md "Phase artifacts")
+   verifier writes `iter-<n>/verify.md` (see INTERNALS.md "Phase artifacts")
    and references it in `<outputs>`. Resumption depends on these files
    existing even when the run dies right after the phase. There is no
-   `iter-<n>-plan.md` any more (ADR-0092). Exception: `/acs:create-impl-plan`'s
+   `iter-<n>/plan.md` any more (ADR-0092). Exception: `/acs:create-impl-plan`'s
    deliverable is itself a plan — its executor's draft is the single
    per-ticket `plan.md` (MAR-70), and `plan.md` is the only name ever read or
    written for it, in every case, including on resume. Since MAR-72, on
@@ -210,9 +210,9 @@ registry is `skills/<name>/acs.yaml`. In order:
    `WORKFLOW_SKILLS` / `PLANNING_SKILLS` — never a sixth list), a gate in
    `acs_lib/gates.py`'s `GATES` and the matching `GATE_INPUTS` family, thin
    `hooks/scripts/pre-<name>.py` and `post-<name>.py` wrappers, an entry in
-   `run.schema.json`'s `steps` enum and `pipeline-step.py`'s
+   `run.schema.json`'s `steps` enum and `acs step finish`'s
    mirror, and a line in `.coveragerc`'s forwarder omit list. `HOOKED_SKILLS`
-   is derived from the three lists, so `skill-start.py --skill`,
+   is derived from the three lists, so `acs step start --skill`,
    `dispatch.py`, the SessionEnd net and `models.overrides` all follow for
    free. An UNHOOKED skill (a utility, or an alias directory) needs none of
    this and must appear in `UNHOOKED_SKILLS` instead.

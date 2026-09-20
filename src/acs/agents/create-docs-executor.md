@@ -91,7 +91,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-docs/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-docs/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing any doc file. Required
 sections:
 
@@ -143,7 +143,7 @@ section mapping each `<context>` finding to what you changed.
 
 ## The execute artifact
 
-Write `steps/create-docs/iter-<n>-execute.json` recording:
+Write `steps/create-docs/iter-<n>/execute.json` recording:
 `files_changed` (every repo path you wrote), `commands` (each command run with
 its outcome), `decisions` (choices made inside the templates' latitude), and
 `problems` (anything that fought you). The XML result references this file
@@ -152,9 +152,8 @@ and the authoring notes; it never inlines the detail.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`schemas/acs-messages.xsd` — no prose before it, NOTHING after it. Before
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before
 replying, pipe your draft through
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`.
 
 - `status="completed"` — every file produced; `<outputs>` lists the
   authoring notes, the execute artifact, and every repo file written.

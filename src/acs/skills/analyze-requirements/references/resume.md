@@ -24,7 +24,7 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    verify it; a verify with findings and no later execute → execute with
    those findings as `<context>`; nothing on disk → iteration 1 execute.
 5. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>-authoring.md`) belong to their iteration, and a resumed run
+   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
    never re-runs an iteration whose verify is already on disk.
 
 If `context.handoff_summary` exists, read it plus

@@ -51,7 +51,7 @@ any overlap — source, tests, or docs — means one executor, sequentially.
 ### Verifier
 
 **One `acs:code-verifier` spawn**, no lens constraint and no `-lens-` suffix,
-writing `steps/code/iter-<n>-verify.md` directly.
+writing `steps/code/iter-<n>/verify.md` directly.
 
 ### Dimensions
 

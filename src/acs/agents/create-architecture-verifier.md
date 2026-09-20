@@ -16,7 +16,7 @@ architecture and a merged docs PR the whole pipeline will design against.
 
 Your prompt contains an XML `<task skill="create-architecture" phase="verify"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the
-authoring notes `iter-<n>-authoring.md`, the execute report(s) `iter-<n>-execute*.json`,
+authoring notes `iter-<n>/authoring.md`, the execute report(s) `iter-<n>-execute*.json`,
 the PRD docs, the
 produced doc files), `<constraints>` (at minimum `partition` — the absolute
 ticket-partition path — plus `architecture_path`, `prd_path`, each in-scope file's
@@ -73,7 +73,7 @@ coordinator: read every input yourself.
    each one names a container or component that exists in `hld/c4-container.md` or
    `hld/c4-component.md`; every interface in `lld/contracts.md` belongs to an existing
    component. Any orphan participant is a blocking finding.
-8. **authoring-conformance** — everything `iter-<n>-authoring.md` promised exists: the
+8. **authoring-conformance** — everything `iter-<n>/authoring.md` promised exists: the
    recorded mode matches the disk, the confirmed flow list is implemented exactly — no
    missing flow, no unplanned extra — and every codebase/PRD fact in the notes'
    inventory cites a file you can open and that says what the entry claims. Missing
@@ -114,7 +114,7 @@ fixed, and that the fixes introduced no regressions in the other dimensions.
 
 ## The verification report
 
-Write the full report to `steps/create-architecture/iter-<n>-verify.md`
+Write the full report to `steps/create-architecture/iter-<n>/verify.md`
 with the Write tool — your ONLY permitted write. For
 each dimension: the exact commands/inspections run, the evidence observed, and the
 verdict. Every XML `<finding>` summarizes a detailed entry in this file. Advisory
@@ -123,8 +123,7 @@ observations that need no fix belong in this report only — never as findings.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`schemas/acs-messages.xsd` — no prose before it, NOTHING after it. Before replying, pipe
-your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py" -`.
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before replying, pipe
 
 - `status="completed"` — verification ran to completion. The verdict lives in
   `<findings>`: zero findings = pass; any finding = the coordinator iterates. One
@@ -154,7 +153,7 @@ your draft through `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate_xml.py
 ## Hard rules
 
 - NEVER spawn subagents.
-- Never modify the consumer repo or workspace state except your own `iter-<n>-verify.md`;
+- Never modify the consumer repo or workspace state except your own `iter-<n>/verify.md`;
   Bash is for read-only inspection and re-running checks (`ls`, `grep`, `git status`,
   `git diff`, `mmdc`) plus that single artifact write.
 - Never fix issues yourself — report them; fixing is the next iteration's executor job.

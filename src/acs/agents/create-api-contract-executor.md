@@ -78,7 +78,7 @@ never design one it does not, and you do not judge your own work.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-api-contract/iter-<n>-authoring.md` (`<n>` = your
+Write `steps/create-api-contract/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`) with the Write tool, BEFORE writing anything else.
 Sections: Item list (kind, identifier, new/changed/removed); Today's shapes with
 citations; Tracing (item → plan item → acceptance criterion, and the gaps in
@@ -153,7 +153,7 @@ contract_files: ["docs/api/openapi.yaml"]
 ## Execute report (mandatory)
 
 After writing the draft, write
-`steps/create-api-contract/iter-<n>-execute.json`:
+`steps/create-api-contract/iter-<n>/execute.json`:
 
 ```json
 {
@@ -180,7 +180,7 @@ the coordinator.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it:
+`the SubagentStop hook's message check` — nothing after it:
 
 ```xml
 <result skill="create-api-contract" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">

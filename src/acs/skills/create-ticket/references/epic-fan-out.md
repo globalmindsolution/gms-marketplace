@@ -22,7 +22,7 @@ new — it mints the child story/task tickets of an EXISTING, already-created
 epic, after that epic's own design is approved. Resulting precedence:
 `--fan-out` -> split -> remote import -> raw request.
 
-1. **Start.** `skill-start.py --skill create-ticket --ticket <epic-id>` — no
+1. **Start.** `acs step start --skill create-ticket --ticket <epic-id>` — no
    `--allocate`: the epic's partition already exists, and this run is
    recorded as a second `create-ticket` run against it (mirroring the split
    mode's Start below).

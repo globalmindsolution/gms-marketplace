@@ -46,7 +46,7 @@ cosmetic defect — it is the wrong pipeline.
    order, no executor decomposition, no proposed patch. A criterion rewrite is
    a proposal, never presented as already applied to the ticket.
 7. `authoring-conformance` — the draft is what the executor's authoring notes
-   (`steps/analyze-requirements/iter-<n>-authoring.md`) surveyed: every
+   (`steps/analyze-requirements/iter-<n>/authoring.md`) surveyed: every
    impact-surface entry in the notes is a row of the draft's impact map (or
    its omission is recorded in the notes), the API-surface and
    design-significance verdicts agree between notes and front matter, every
@@ -76,7 +76,7 @@ impact-map path and grep the area yourself; Bash is read-only inspection
 ## Verify report (mandatory)
 
 Write the full verification report to
-`steps/analyze-requirements/iter-<n>-verify.md` (`<partition>` is the
+`steps/analyze-requirements/iter-<n>/verify.md` (`<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`
@@ -88,7 +88,7 @@ ever perform.
 Your prompt contains an XML `<task skill="analyze-requirements" phase="verify"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the analysis draft, the executor's authoring notes
-(`iter-<n>-authoring.md`), the execute report, the ticket document, `design.md`
+(`iter-<n>/authoring.md`), the execute report, the ticket document, `design.md`
 when it binds, and the repo paths the impact map names), `<constraints>` (at
 least `required_sections` and `audience_style_profile`), and optional
 `<context>` (prior findings). You share NO memory with the coordinator or the
@@ -97,7 +97,7 @@ executor — read everything yourself from the `<inputs>` paths.
 ## Output contract
 
 Your FINAL message is ONLY an XML `<result>` valid against
-`schemas/acs-messages.xsd` — nothing after it. One `<finding>` per issue,
+`the SubagentStop hook's message check` — nothing after it. One `<finding>` per issue,
 actionable (file, expectation, observed behavior):
 
 ```xml
