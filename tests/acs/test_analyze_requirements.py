@@ -136,11 +136,14 @@ class TestLifecycleWiring(unittest.TestCase):
         self.assertIn("MANDATORY first action", self.body)
 
     def test_the_finish_verb_closes_the_step_from_its_result_document(self):
-        """`acs step finish` reads the status and outcome from result.json --
-        a step's transition is read from its result, not asserted on the
-        command line -- so there is no `--result-file` to pass."""
-        self.assertIn('acs.py" step finish --step analyze-requirements', self.body)
-        self.assertNotIn("--result-file", self.body)
+        """The POST-HOOK closes the step, and it reads the status and
+        outcome from the result document it is handed -- a step's transition
+        is read from its result, never asserted on the command line.
+
+        `acs step finish` closes only the RUN's view of the step; the
+        post-hook does that AND derives the states, writes the index and the
+        metrics, and releases the lock."""
+        self.assertIn('post-analyze-requirements.py" --result-file', self.body)
         self.assertIn("result.json", self.body)
 
     def test_every_message_is_validated_in_the_hook(self):

@@ -441,7 +441,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-test-docs
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-test-docs.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed

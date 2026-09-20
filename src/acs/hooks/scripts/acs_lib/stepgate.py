@@ -56,6 +56,13 @@ NO_OP_STEPS = {
                          "the plan's test strategy owes no test cases"),
     "create-e2e-tests": ("e2e", "no_e2e_owed",
                          "the plan declares no e2e impact"),
+    # The fourth, which the comment above always counted and the table never
+    # held. Without it a plan declaring `e2e: false` no-opped create-e2e-tests
+    # and then spawned a full run-e2e-tests coordinator to run a suite that
+    # was never written -- the exact token cost the evidenced no-op exists to
+    # avoid (§2.2).
+    "run-e2e-tests": ("e2e", "no_e2e_owed",
+                      "the plan declares no e2e impact, so there is no suite to run"),
 }
 
 

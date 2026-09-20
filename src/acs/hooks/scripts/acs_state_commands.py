@@ -464,6 +464,15 @@ def cmd_step_finish(args):
         summary = summary or result.get("summary")
         stop_reason = stop_reason or result.get("stop_reason")
     try:
+        # The STEP's own record first. `finish_step` closes the RUN's view of
+        # the step; without this the step file's last invocation stays
+        # `in_progress` for ever -- so a resumed step could never open a second
+        # attempt (the open one absorbs it), and every per-step roll-up counted
+        # a run that never ended. The post-hook does both too, in this order.
+        lib.finalize_invocation(rdir, args.step, doc["run_id"], {
+            "status": status, "outcome": outcome, "summary": summary,
+            "stop_reason": stop_reason,
+        })
         if in_workflow:
             doc = lib.finish_step(rdir, args.step, wf, status=status, outcome=outcome,
                                   summary=summary, stop_reason=stop_reason)

@@ -301,7 +301,7 @@ class FinishTest(unittest.TestCase):
         body = _body()
         self.assertIn('"doc_set": {', body)
         self.assertIn('"set": "quality"', body)
-        self.assertIn('acs.py" step finish --step create-docs', body)
+        self.assertIn('post-create-docs.py" --result-file', body)
 
     def test_completion_report_present(self):
         body = _body()

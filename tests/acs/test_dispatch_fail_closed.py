@@ -84,7 +84,7 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
 
     def test_gate_that_raises_exits_2(self):
         """An unexpected exception inside a gate blocks rather than passing."""
-        def boom(_ctx, _skill, _payload, standalone=True):
+        def boom(_ctx, _skill, _payload, standalone=True, **_kw):
             raise RuntimeError("gate is broken")
 
         dispatch = self._dispatch_with_gate(boom, "dispatch_raise_test")
@@ -95,7 +95,7 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
     def test_gate_that_hangs_exits_2(self):
         """The bound is the point: without it the hook's own timeout kills the
         process with no exit code of 2, which reads as 'not blocked'."""
-        def hang(_ctx, _skill, _payload, standalone=True):
+        def hang(_ctx, _skill, _payload, standalone=True, **_kw):
             time.sleep(30)
 
         dispatch = self._dispatch_with_gate(hang, "dispatch_hang_test", timeout=1)
@@ -114,7 +114,7 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
         swallowed there -- the gate then ran on unbounded, on silently-wrong
         git data, and returned 0. Only a BaseException survives that handler.
         """
-        def hang_inside_git(ctx, _skill, _payload, standalone=True):
+        def hang_inside_git(ctx, _skill, _payload, standalone=True, **_kw):
             try:
                 time.sleep(30)
             except OSError:

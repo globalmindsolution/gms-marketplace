@@ -116,8 +116,7 @@ class TestLifecycleWiring(unittest.TestCase):
         self.assertIn("MANDATORY first action", self.body)
 
     def test_post_hook_closes_the_run_with_the_result_document(self):
-        self.assertIn('acs.py" step finish --step create-api-contract', self.body)
-        self.assertNotIn("--result-file", self.body)
+        self.assertIn('post-create-api-contract.py" --result-file', self.body)
         self.assertIn("result.json", self.body)
 
     def test_every_message_is_schema_validated(self):

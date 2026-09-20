@@ -355,7 +355,7 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 2. Run the post-hook:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-project
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --result-file "<the result.json you just wrote>"
 ```
 
    It finalizes the run entry, updates pipeline-state/index/metrics, marks the

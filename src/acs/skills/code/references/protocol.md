@@ -233,8 +233,8 @@ what is green, gotchas) to `steps/code/handoff-context.md`, then finish the
 step `interrupted` with `stop_reason: context_pressure`:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step code \
-  --status interrupted --stop-reason context_pressure --summary "<done / in-flight / next>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-code.py" \
+  --status interrupted --stop-reason context_pressure
 ```
 
 Tell the user the command it prints, and stop. `interrupted` is the one
@@ -283,13 +283,21 @@ MANDATORY final step — never skipped, also on failure:
 2. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step code
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-code.py" \
+     --result-file "<the result.json you just wrote>"
    ```
 
    The status, outcome and summary are read from `result.json` — a step's
    transition is read from its result document, not asserted on the command
    line. If it exits non-zero, surface its stderr verbatim: the next step's
    gate stays closed until it succeeds.
+
+   The POST-HOOK, not `acs step finish`. The two are not alternatives:
+   `step finish` closes the run's view of the step and stops there, while the
+   post-hook does that AND derives the states from the artifacts, writes the
+   index and the metrics, and releases the run lock. A step that ends at
+   `step finish` leaves `verifier_passed` underived — which shuts
+   `/acs:create-pr`'s brake permanently — and the lock held.
 
 3. Report a compact summary to the user: branch, what was implemented, the
    targeted tests' result, docs updated, and the next step
@@ -303,7 +311,7 @@ MANDATORY final step — never skipped, also on failure:
 Every terminal outcome of a direct invocation — completed, failed or
 interrupted — ends your final message with the standard block
 (`${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`, "Completion report"), rendered only
-AFTER `step finish` succeeded. Same labels, same order, `none` where empty:
+AFTER the post-hook succeeded. Same labels, same order, `none` where empty:
 
 ```markdown
 

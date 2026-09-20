@@ -72,7 +72,11 @@ def preflight(old_root):
     partitions and archive/ alike."""
     for dirpath, _dirnames, filenames in os.walk(old_root):
         for fname in filenames:
-            if fname == ".lock":
+            # `lock.json` in a run partition, `.lock` in a pre-v0.5.0 ticket
+            # partition. The migrator walks both layouts, so it checks for
+            # both: matching only the old name let it move a tree out from
+            # under a live session holding the new one.
+            if fname in (".lock", "lock.json"):
                 _fail("refusing to migrate -- a lock is present at %s"
                       % os.path.join(dirpath, fname))
             if fname == "state.json" or fname.endswith("-state.json"):

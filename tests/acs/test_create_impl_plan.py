@@ -142,7 +142,7 @@ class SkillSurfaceTest(unittest.TestCase):
     def test_skill_starts_and_finishes_through_its_own_hooks(self):
         body = read(IMPL_PLAN_SKILL)
         self.assertIn('acs.py" step start --step create-impl-plan', body)
-        self.assertIn('acs.py" step finish --step create-impl-plan', body)
+        self.assertIn('post-create-impl-plan.py" --result-file', body)
 
 
 class PlanContractTest(unittest.TestCase):

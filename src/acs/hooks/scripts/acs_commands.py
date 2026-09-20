@@ -70,7 +70,10 @@ def cmd_gate(args):
     # session_id or transcript_path, and record_session_marker persists those
     # faithfully as null -- overwriting the real marker and costing the next run
     # its cost/usage attribution. Asking "would this gate pass?" must not.
-    code = lib.run_pre_payload(args.skill, payload, record_marker=False)
+    # mutate=False: "would this gate pass?" must not answer by creating a run,
+    # taking the lock, opening the step or settling a no-op. It did all four,
+    # so asking about `create-e2e-tests` permanently completed that step.
+    code = lib.run_pre_payload(args.skill, payload, record_marker=False, mutate=False)
     emit({"ok": code == 0, "skill": args.skill, "exit_code": code})
     sys.exit(code)
 
@@ -406,23 +409,6 @@ def cmd_verdict_show(args):
           "passed": lib.derived_passed(doc), "claimed_passed": doc.get("passed"),
           "blocking": len(lib.blocking_findings(doc)), "errors": [],
           "verdict": doc})
-
-
-def cmd_phase_validate(args):
-    """Check a phase result document BEFORE the post-hook consumes it. The
-    post-hook refuses a document with no status (it would otherwise finalize a
-    run and open the next gate on nothing); this reports that verdict without
-    writing anything."""
-    result = read_json_arg("phase validate", args.result_file)
-    errors = []
-    status = result.get("status")
-    if status is None:
-        errors.append("status is absent — the post-hook refuses a result document without one")
-    elif status not in lib.RUN_STATUSES:
-        errors.append("status %r is not one of %s" % (status, ", ".join(lib.RUN_STATUSES)))
-    elif status == "in_progress":
-        errors.append("status 'in_progress' does not finalize a run")
-    emit({"ok": not errors, "skill": args.skill, "status": status, "errors": errors})
 
 
 def cmd_slug(args):

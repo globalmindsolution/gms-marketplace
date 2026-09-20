@@ -336,7 +336,7 @@ MANDATORY final step — never skipped, also on failure. Write
 or `nothing_to_run`, then:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step run-e2e-tests
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-run-e2e-tests.py" --result-file "<the result.json you just wrote>"
 ```
 
 The status and outcome are read from that document — a step's transition is

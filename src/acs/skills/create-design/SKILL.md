@@ -415,7 +415,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
 2. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-design
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-design.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim — the /acs:code gate

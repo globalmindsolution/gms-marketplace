@@ -406,7 +406,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-ticket
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-ticket.py" --result-file "<the result.json you just wrote>"
    ```
 
 3. Report. Direct invocation: a compact summary — ticket id, type, title,

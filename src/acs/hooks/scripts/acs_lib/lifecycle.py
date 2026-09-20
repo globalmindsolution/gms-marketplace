@@ -250,11 +250,25 @@ def extract_message(text):
 
 
 def phase_artifact_path(rdir, skill, iteration, phase):
-    """The phase snapshot, now JSON in the iteration directory. The `.xml`
-    snapshots and the XSD that validated them are removed (§6): a phase result
-    is JSON, validated in the hook against result.schema.json."""
+    """The raw-message snapshot, in the iteration directory.
+
+    `<phase>-message.xml`, and both halves of that name are load-bearing.
+
+    **`-message`**, because `<phase>.json` COLLIDED with the step's own
+    report: `ROLE_PHASES["executor"] == "execute"`, and the executor is told
+    (skills/code/references/execute.md) to write its JSON report to
+    `iter-<n>/execute.json`. SubagentStop fires after the executor returns, so
+    the snapshot landed on top of it — and `derive.execute_reports`, which
+    reads `execute*.json`, then found a file that does not parse. The snapshot
+    and the report are two different artifacts and need two names.
+
+    **`.xml`**, because that is what is in it. The message contract is JSON
+    (§6) and the XSD is gone, but `write_phase_snapshot` still receives and
+    persists a raw XML message; naming the file `.json` did not make its bytes
+    JSON, it only made every JSON reader downstream fail on it."""
     from .run import iteration_dir
-    return os.path.join(iteration_dir(rdir, skill, int(iteration)), "%s.json" % phase)
+    return os.path.join(iteration_dir(rdir, skill, int(iteration)),
+                        "%s-message.xml" % phase)
 
 
 def in_flight_step(rdir, ctx=None, run_id=None):

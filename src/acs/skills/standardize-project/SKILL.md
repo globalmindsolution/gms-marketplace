@@ -421,7 +421,7 @@ MANDATORY final step — never skipped, also on failure:
 2. Run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step standardize-project
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-standardize-project.py" --result-file "<the result.json you just wrote>"
 ```
 
 3. Report a compact summary to the user: audit findings, files scaffolded, verifier

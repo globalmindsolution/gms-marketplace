@@ -407,8 +407,18 @@ def resolve_ticket_id(cwd, settings, workspace, repo_id, explicit=None, args_tex
     pointer = read_json(pointer_path(workspace, repo_id, checkout_id(cwd)))
     if isinstance(pointer, dict):
         from_pointer = pointer.get("run_id") or pointer.get("ticket_id")
-        if from_pointer and (not prefix or ticket_id_from_text(from_pointer, prefix)):
-            return from_pointer, "pointer"
+        if from_pointer:
+            if not prefix:
+                return from_pointer, "pointer"
+            # The run id is not always the ticket id: a SECOND run over one
+            # subject is `<ticket>-r2` (run.derive_run_id). Returning that
+            # verbatim sent every consumer -- find_ticket_partition,
+            # resolve_active_partition, load_ticket -- looking for a partition
+            # named `MAR-590-r2`, which does not exist. Extract the ticket the
+            # run is about.
+            extracted = ticket_id_from_text(from_pointer, prefix)
+            if extracted:
+                return extracted, "pointer"
     from_branch = ticket_id_from_text(current_branch(cwd), prefix)
     if from_branch:
         return from_branch, "branch"

@@ -175,7 +175,7 @@ The gate runs again in full.
 ## Finish
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step review-code
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-review-code.py" --result-file "<the result.json you just wrote>"
 ```
 
 `outcome` is read from your `result.json` and must be one of `passed`,

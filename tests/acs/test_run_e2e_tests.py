@@ -120,7 +120,7 @@ class TestItIsAHookedStep(unittest.TestCase):
 
     def test_it_starts_and_finishes_through_the_one_verb(self):
         self.assertIn('acs.py" step start --step run-e2e-tests', self.body)
-        self.assertIn('acs.py" step finish --step run-e2e-tests', self.body)
+        self.assertIn('post-run-e2e-tests.py" --result-file', self.body)
 
     def test_it_describes_one_mode_not_two(self):
         """`--for-ticket` named a second mode with its own rules. A standing

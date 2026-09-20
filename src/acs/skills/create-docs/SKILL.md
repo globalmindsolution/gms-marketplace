@@ -459,7 +459,7 @@ MANDATORY final step for every set started — never skipped, also on failure:
 2. Run, from the session checkout:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-docs
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-docs.py" --result-file "<the result.json you just wrote>"
 ```
 
    It finalizes that set's run entry, its own `run.json` (`flow:

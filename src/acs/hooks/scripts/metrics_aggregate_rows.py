@@ -219,7 +219,7 @@ def _rework_count(tdir):
     return len(numbers)
 
 
-def _panel7_row(ticket_id, tdir, pipeline, degrade):
+def _panel7_row(ticket_id, tdir, pipeline, degrade, ticket_doc=None):
     """Per-ticket lead/cycle wall-clock seconds (AC-2). Reads ticket.json.created_at (read-only).
 
     lead  = merge-pr.ended_at - ticket.json.created_at
@@ -237,7 +237,9 @@ def _panel7_row(ticket_id, tdir, pipeline, degrade):
     from create-pr's state.json in the resolved partition (tdir). Additive field; always an int
     >= 0; not averaged. Never raises: missing or malformed state files contribute 0.
     """
-    ticket = acs_lib.read_json(os.path.join(tdir, "ticket.json"))
+    # `tdir` is the RUN directory; the ticket's document is not in it. The
+    # caller resolves and passes it, so this row does no second read.
+    ticket = ticket_doc
     created_at = ticket.get("created_at") if isinstance(ticket, dict) else None
 
     steps = pipeline.get("steps") if isinstance(pipeline, dict) else None

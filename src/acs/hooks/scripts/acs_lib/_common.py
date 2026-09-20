@@ -104,7 +104,6 @@ ATTRIBUTION_SKILL_MAP = {"init": "setup", "initialize": "setup"}
 #: A step's states (§4.3). `skipped` never existed here; `handed_off` did, and
 #: it is gone -- it named a REASON rather than a state, and the reason is now
 #: `stop_reason` on the single resumable state, `interrupted`.
-RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted"]
 TICKET_TYPES = ["epic", "story", "task"]
 TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]
 PRIORITIES = ["critical", "high", "medium", "low"]

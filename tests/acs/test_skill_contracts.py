@@ -165,7 +165,15 @@ class TestSkillContracts(unittest.TestCase):
             body = read_skill_contract(name)
             self.assertIn("acs.py\" step start", body, name)
             self.assertRegex(body, r"--step %s\b" % re.escape(name), name)
-            self.assertIn("acs.py\" step finish", body, name)
+            # the post-hook, not `acs step finish`: `run_post` is a SUPERSET -- it calls finish_step AND derives states, writes the index and metrics, and releases the lock. `acs step finish` does only the run half, so a skill that ends there leaves verifier_passed underived (which shuts the create-pr brake for ever), metrics unwritten and the lock held.
+            if name == "code":
+                # `/acs:code` is a DISPATCHER: it invokes a delivery-path leg
+                # and the leg runs the lifecycle, under `code`'s own hooks and
+                # in `code`'s own step directory. Its contract says so rather
+                # than carrying a finish it never performs.
+                self.assertIn("post-code.py", body, name)
+            else:
+                self.assertIn('post-%s.py" --result-file' % name, body, name)
             self.assertNotIn("validate_xml.py", body, name)
 
     def test_every_skill_has_completion_report(self):
@@ -729,7 +737,7 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-pr]: states.pr.branch field must survive")
         self.assertIn('"base"', create_pr_body,
                       "AC-4 [create-pr]: states.pr.base field must survive")
-        self.assertIn("step finish --step create-pr", create_pr_body,
+        self.assertIn('post-create-pr.py" --result-file', create_pr_body,
                       "AC-4 [create-pr]: the finish transition must survive inline rewrite")
 
         # merge-pr: canonical key set plus post-hook
@@ -740,7 +748,7 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [merge-pr]: Finish must name states.merge_strategy key")
         self.assertIn("readiness", merge_pr_body,
                       "AC-4 [merge-pr]: Finish must name states.readiness key")
-        self.assertIn("step finish --step merge-pr", merge_pr_body,
+        self.assertIn('post-merge-pr.py" --result-file', merge_pr_body,
                       "AC-4 [merge-pr]: post-hook reference must survive")
 
         # create-ticket: canonical key set plus confirmation-gate tokens and post-hook
@@ -756,7 +764,7 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-ticket]: Finish must name states.children key")
         self.assertIn("prd_trace", create_ticket_body,
                       "AC-4 [create-ticket]: Finish must name states.prd_trace key")
-        self.assertIn("step finish --step create-ticket", create_ticket_body,
+        self.assertIn('post-create-ticket.py" --result-file', create_ticket_body,
                       "AC-4 [create-ticket]: post-hook reference must survive")
         # ADR-0095 retired the size/stakes/lane axes, so the confirmation gate no
         # longer has them to confirm. What it still owes is the gate itself and
@@ -914,7 +922,7 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         self.assertIn('"url"', body)
         self.assertIn('"branch"', body)
         self.assertIn('"base"', body)
-        self.assertIn("step finish --step create-pr", body,
+        self.assertIn('post-create-pr.py" --result-file', body,
                       "AC-5 [create-pr]: the finish transition must survive")
         self.assertIn("gh issue comment", body,
                       "AC-5 [create-pr]: github tracker-sync invocation must survive")

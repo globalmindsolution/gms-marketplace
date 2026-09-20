@@ -435,7 +435,7 @@ MANDATORY final step — never skipped, also on failure.
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-requirements
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-requirements.py" --result-file "<the result.json you just wrote>"
    ```
 
    It finalizes the run entry, updates `run.json` / `tickets-index.json` /

@@ -419,7 +419,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step create-api-contract
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-api-contract.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim — the run is not closed

@@ -74,24 +74,6 @@ def _plan_dir_contains(rdir, path):
     return target == base or target.startswith(base + os.sep)
 
 
-def _fold_active(rdir):
-    """Mirrors code/SKILL.md's fold trigger: specs/ absent, or present with no
-    non-blank .md content."""
-    specs_dir = os.path.join(rdir, "specs")
-    if not os.path.isdir(specs_dir):
-        return True
-    for name in sorted(os.listdir(specs_dir)):
-        if not name.endswith(".md"):
-            continue
-        try:
-            with open(os.path.join(specs_dir, name), "r", encoding="utf-8") as fh:
-                if fh.read().strip():
-                    return False
-        except OSError:
-            continue
-    return True
-
-
 def _emit_contract(rdir, plan_path):
     """`plan path` — the plan's Contract block, read and printed, nothing written.
 
@@ -162,8 +144,16 @@ def main():
     # the plan's own ## Contract block, never derived here: it was judged once,
     # by the plan, from the plan's own scope (§3.2), and recomputing it would
     # be a second opinion about a decision already made and acted on.
-    plan_for_path = _resolve_plan_path(rdir, args.plan)
-    delivery_path = plan_contract.delivery_path(plan_contract.read(plan_for_path))
+    plan_path = _resolve_plan_path(rdir, args.plan)
+    # The containment guard runs BEFORE the first read, as it does on `path`.
+    # It used to sit after `plan_contract.read`, so an escaping --plan was
+    # opened and parsed and only then refused -- the guard reported a refusal
+    # for bytes it had already read.
+    if not _plan_dir_contains(rdir, plan_path):
+        sys.stderr.write(
+            "acs plan-approval: --plan must resolve within steps/%s/\n" % PLAN_STEP)
+        sys.exit(2)
+    delivery_path = plan_contract.delivery_path(plan_contract.read(plan_path))
     if delivery_path is None:
         # No path yet means the plan has not been judged, which means nothing
         # downstream is waiting on an approval. Not an error -- just not due.
@@ -175,12 +165,6 @@ def main():
                           "delivery_path": delivery_path,
                           "plan_approved": False}, indent=2))
         sys.exit(0)
-
-    plan_path = _resolve_plan_path(rdir, args.plan)
-    if not _plan_dir_contains(rdir, plan_path):
-        sys.stderr.write(
-            "acs plan-approval: --plan must resolve within steps/%s/\n" % PLAN_STEP)
-        sys.exit(2)
 
     try:
         with open(plan_path, "r", encoding="utf-8") as fh:
@@ -194,8 +178,10 @@ def main():
         eligible, evaluation = False, {"inputs": {}, "checks": {},
                                        "failures": ["plan-artifact-missing"]}
     else:
-        eligible, evaluation = lib.plan_approval_eligible(
-            plan_text, ctx["settings"], _fold_active(rdir))
+        # No fold argument: `plan_approval_eligible` accepts and ignores one
+        # (the spec fold has no separate section set any more), and computing
+        # it meant listing and reading every specs/*.md on each check.
+        eligible, evaluation = lib.plan_approval_eligible(plan_text, ctx["settings"])
 
     existing = lib.read_json(record_path(rdir))
     if (plan_text is not None and eligible and isinstance(existing, dict)

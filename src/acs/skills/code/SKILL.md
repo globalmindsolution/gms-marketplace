@@ -127,7 +127,7 @@ planner inside this loop.
 
 ## Finish
 
-The leg ran `acs step start --step code` and `acs step finish`, wrote every
+The leg ran `acs step start --step code` and `post-code.py`, wrote every
 artifact under `steps/code/`, and produced the completion report. Relay its
 handoff unchanged, and add one line naming the path and why:
 

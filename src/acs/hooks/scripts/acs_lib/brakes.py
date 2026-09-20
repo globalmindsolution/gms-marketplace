@@ -37,11 +37,15 @@ def _brake_code(ctx, rdir, doc, wf):
     approval = os.path.join(run_machine.step_dir(rdir, "create-impl-plan"),
                             "plan-approval.json")
     record = read_json(approval)
-    if not isinstance(record, dict) or not record.get("approved"):
+    # `eligible` is the key plan-approval.py writes -- it is the deterministic
+    # predicate's verdict, and that IS the approval. Reading `approved` (which
+    # nothing writes) made this brake refuse every standard and complex run,
+    # with no edit that could satisfy it.
+    if not isinstance(record, dict) or not record.get("eligible"):
         raise GateError(
             "the %s delivery path requires an approved plan, and %s records none. "
             "Run /acs:create-impl-plan and approve its plan first." % (path, approval))
-    digest = _sha256_file(plan)
+    digest = _plan_digest(plan)
     if record.get("plan_sha256") != digest:
         raise GateError(
             "the approval at %s is for a different revision of the plan (approved "
@@ -84,12 +88,29 @@ def _merge_pr_arg_text(payload):
 
 
 def _sha256_file(path):
+    """The raw bytes' digest. Right for a DOCUMENT subject, which may be any
+    file including a binary one; wrong for the plan -- see _plan_digest."""
     import hashlib
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
         for chunk in iter(lambda: handle.read(65536), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _plan_digest(path):
+    """The plan's digest, computed the way the APPROVAL computed it.
+
+    `plan_approval_eligible` hashes `text.encode("utf-8")` where `text` came
+    from an `open(..., "r", encoding="utf-8")` read -- so universal newlines
+    has already folded CRLF to LF. Hashing the raw bytes here instead made a
+    plan authored on Windows approvable and then permanently unapprovable:
+    the brake reported "a different revision of the plan" for bytes nobody
+    had edited. Two hashes of one artifact must be one function.
+    """
+    import hashlib
+    with open(path, "r", encoding="utf-8") as handle:
+        return hashlib.sha256(handle.read().encode("utf-8")).hexdigest()
 
 
 #: What an epic is refused FOR, per step, in that step's own words.

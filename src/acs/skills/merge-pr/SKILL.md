@@ -458,7 +458,7 @@ resolves the workspace from cwd):
 2. Run the post-hook:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step finish --step merge-pr
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-pr.py" --result-file "<the result.json you just wrote>"
    ```
 
    If it exits non-zero, surface its stderr verbatim. On success it prints a

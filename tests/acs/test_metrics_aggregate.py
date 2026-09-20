@@ -98,12 +98,22 @@ def write_create_pr_state(ws, tid, states=None, archived=False):
 
 
 def write_ticket_json(ws, tid, created_at, archived=False, due_date=None):
-    """Write <partition>/ticket.json carrying created_at (lead-time anchor for panel 7).
+    """Write the TICKET partition's ticket.json carrying created_at (the
+    lead-time anchor for panel 7).
+
+    The ticket partition, NOT the run partition. This fixture used to write it
+    into `runs/<id>/` because the aggregator read it from there, so both
+    halves were wrong together and the panel looked healthy on a layout that
+    cannot occur: `runs/<run-id>/` holds the ledger, and a ticket's own
+    document has never lived in it (ADR-0097).
 
     Optional due_date (ISO-8601 date string or None) is included when provided, supporting
     the MAR-15 spec 02 deadline derivation tests.
     """
-    tdir = _ticket_dir(ws, tid, archived)
+    if archived:
+        tdir = os.path.join(_repo_dir(ws), "archive", tid)
+    else:
+        tdir = os.path.join(_repo_dir(ws), tid)
     data = {"id": tid, "created_at": created_at}
     if due_date is not None:
         data["due_date"] = due_date
@@ -1742,8 +1752,11 @@ if __name__ == "__main__":
 
 # Helper: write a ticket.json with both created_at and updated_at
 def write_ticket_json_full(ws, tid, created_at, updated_at=None, archived=False):
-    """Write <partition>/ticket.json carrying created_at and optional updated_at."""
-    tdir = _ticket_dir(ws, tid, archived)
+    """Write the TICKET partition's ticket.json carrying created_at and
+    optional updated_at. The ticket partition, not the run one -- see
+    write_ticket_json."""
+    tdir = (os.path.join(_repo_dir(ws), "archive", tid) if archived
+            else os.path.join(_repo_dir(ws), tid))
     data = {"id": tid, "created_at": created_at}
     if updated_at is not None:
         data["updated_at"] = updated_at
@@ -1895,17 +1908,24 @@ class TestDeliverySummary(unittest.TestCase):
 class TestDeliverySummaryDeliveryPaths(unittest.TestCase):
 
     def _summary(self, ws, paths):
-        """Aggregate with `paths` = {ticket_id: delivery_path or None} written
-        onto each ticket's run.json, as `acs.py path set` does."""
+        """Aggregate with `paths` = {ticket_id: delivery_path or None} declared
+        in each run's PLAN, which is the only place a delivery path lives.
+
+        It used to be written onto run.json "as `acs.py path set` does" -- a
+        command this release removed, and a key no writer has put on a run
+        since. The aggregator read the same absent key, so the panel agreed
+        with the fixture and neither agreed with a real run."""
         for ticket_id, path in paths.items():
             write_pipeline(ws, ticket_id)
             if path is not None:
-                target = os.path.join(_ticket_dir(ws, ticket_id), "run.json")
-                with open(target, encoding="utf-8") as fh:
-                    doc = json.load(fh)
-                doc["delivery_path"] = path
-                doc["delivery_path_reason"] = "fixture"
-                _write_json(target, doc)
+                plan_dir = os.path.join(_ticket_dir(ws, ticket_id),
+                                        "steps", "create-impl-plan")
+                os.makedirs(plan_dir, exist_ok=True)
+                with open(os.path.join(plan_dir, "plan.md"), "w",
+                          encoding="utf-8") as fh:
+                    fh.write("# Plan\n\nProse.\n\n## Contract\n"
+                             "delivery_path: %s\nowes:\n  reason: \"fixture\"\n\n"
+                             "### Executor tasks & file map\n- task 1: a.py\n" % path)
         return metrics_aggregate.aggregate(ws, REPO_ID)["panels"]["delivery_summary"]["delivery_paths"]
 
     def test_the_distribution_counts_each_path(self):
@@ -1929,10 +1949,15 @@ class TestDeliverySummaryDeliveryPaths(unittest.TestCase):
             self.assertEqual(dp["classified"], 1)
             self.assertEqual(dp["unclassified"], 1)
 
-    def test_a_consumer_declared_path_is_counted_not_dropped(self):
-        """A consumer ship.yaml may declare its own vocabulary. Counting an
-        unrecognised name under other_paths is what keeps classified +
-        unclassified equal to the ticket count."""
+    def test_an_unrecognised_path_is_counted_not_dropped(self):
+        """A plan may carry a path outside the four -- hand-edited, or written
+        by an older build. Counting an unrecognised name under other_paths is
+        what keeps classified + unclassified equal to the ticket count.
+
+        (It is no longer a CONSUMER vocabulary: `ship.yaml` has no `delivery:`
+        block and the four paths ship inside the plugin, ADR-0098. What the
+        bucket catches now is a malformed plan, which is worth reporting
+        rather than silently dropping.)"""
         with TemporaryDirectory() as ws:
             write_index(ws, {"T-1": {"id": "T-1", "status": "open"}})
             dp = self._summary(ws, {"T-1": "enormous"})

@@ -111,18 +111,35 @@ def last_status(rdir, step):
 # ---------------------------------------------------------------------------
 
 def append_invocation(rdir, step, run_id, session=None, gate=None):
-    """Open a new invocation. One session's attempt at this step -- a resumed
-    step gets a second entry rather than overwriting the first, so the cost and
-    the session trail of an interrupted attempt survive it."""
+    """Open a new invocation, or enrich the one this attempt already opened.
+
+    One session's attempt at this step -- a resumed step gets a second entry
+    rather than overwriting the first, so the cost and the session trail of an
+    interrupted attempt survive it.
+
+    **An attempt is one invocation, whoever recorded it.** Two writers open a
+    step: the PreToolUse gate (`_mark_step_started`) for a Skill call, and
+    `acs step start` for a hand or CLI run. A hooked run goes through BOTH, and
+    appending unconditionally gave every step two entries -- of which
+    `finalize_invocation` closes only the last, leaving the first
+    `in_progress` for ever, double-counting the step in `compute_ticket_totals`
+    and `_accumulate_burn`, and inflating `totals.runs_untimed` by one per step
+    per run. So an already-open invocation for this step is UPDATED with
+    whatever the second writer knows (the session marker, the gate verdict)
+    rather than duplicated.
+    """
     doc = load_state(rdir, step, run_id)
-    entry = {"started_at": now_iso(), "status": "in_progress"}
+    invocations = doc.setdefault("invocations", [])
+    open_entry = invocations[-1] if invocations else None
+    if not (isinstance(open_entry, dict) and open_entry.get("status") == "in_progress"):
+        open_entry = {"started_at": now_iso(), "status": "in_progress"}
+        invocations.append(open_entry)
     if session:
         for key in ("session_id", "transcript_path", "checkout_id"):
             if session.get(key):
-                entry[key] = session[key]
+                open_entry[key] = session[key]
     if gate:
-        entry["gate_enforcement"] = gate
-    doc.setdefault("invocations", []).append(entry)
+        open_entry["gate_enforcement"] = gate
     return save_state(rdir, step, doc)
 
 
@@ -204,8 +221,12 @@ def record_guard_event(rdir, step, run_id, event):
         invocations[-1].setdefault("guard_events", []).append(event)
         save_state(rdir, step, doc)
         return True
-    except BaseException:  # noqa: BLE001 -- see the docstring; re-raised below
-        raise
+    except Exception:  # noqa: BLE001 -- deliberate: see the docstring above.
+        # The guard has ALREADY refused the write. A failed append is a
+        # bookkeeping loss, and letting it raise would let that loss overturn a
+        # verdict -- which is the one thing this function must never do. The
+        # caller reports False as one extra stderr note.
+        return False
 
 
 # ---------------------------------------------------------------------------
