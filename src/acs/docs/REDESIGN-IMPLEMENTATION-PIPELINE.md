@@ -168,6 +168,52 @@ is what lets `/acs:review-code` be standalone, and it is the crux of this
 redesign. It is a top-level list rather than a key on a step for the same
 reason: it belongs to the pair, not to either member.
 
+**Order is validated, not declared.** A list with no `needs:` can still be
+written in an order that cannot work — `create-api-contract` before
+`create-impl-plan` has no plan to read. Under the current gates that fails
+*loudly* (the step's input gate refuses: "no plan for this run"), but only at
+runtime, after the steps before it have already spent their cost. So
+`acs workflow validate` catches it first, and it does so **without any edge
+in `ship.yaml`**: every skill declares in the registry what artifacts it
+`reads` and `writes` — a fact about the skill, true in every workflow — and
+the validator checks that each step's required reads are written by some
+earlier step or are a run-level input. Swap two steps whose order does not
+matter (`docs-sync` and the e2e pair) and it passes; swap two whose order does
+and it names the pair:
+
+```
+ship.yaml: create-api-contract (step 2) reads `plan`, which no earlier step
+writes — create-impl-plan writes it at step 3
+```
+
+An *optional* read out of order is a warning, not an error:
+`create-test-docs` reads `api-contract` when one exists, so placing it before
+`create-api-contract` is legal and pointless, and the validator says so. The
+loop rule (`back_to` earlier than `from`) is checked the same way.
+
+The declarations for the ten steps of `ship`:
+
+| Step | reads (required) | reads (optional) | writes |
+|---|---|---|---|
+| `analyze-requirements` | *subject* | — | `requirements` |
+| `create-impl-plan` | `requirements` | — | `plan` |
+| `create-api-contract` | `plan` | — | `api-contract` |
+| `create-test-docs` | `plan` | `api-contract` | `test-cases` |
+| `code` | `plan` | `test-cases`, `verdict` | `changeset` |
+| `review-code` | `changeset` | `requirements`, `plan`, `api-contract`, `test-cases`, `result` | `verdict` |
+| `create-e2e-tests` | `plan` | `test-cases`, `changeset` | `e2e-tests` |
+| `run-e2e-tests` | `e2e-tests` | — | `e2e-results` |
+| `docs-sync` | `changeset` | — | `docs` |
+| `create-pr` | `changeset` | `verdict`, `docs` | `pr` |
+
+This is one declaration with two enforcers. The **same** `reads` list drives
+the runtime input gate (§3.11) — today's `GATE_INPUTS` in `gates.py`, a
+four-family partition, becomes this per-artifact table — so the validator and
+the gate cannot disagree about what a skill needs. It is not `needs:` by
+another name: `needs:` was a per-workflow edge list an author maintained and
+that duplicated what the skills already knew; this is the skills saying it
+once, and every workflow being checked against it.
+
 **Where the removed predicates went.** Nothing is lost; each moves to the party
 that can evaluate it from its own inputs:
 
@@ -921,7 +967,8 @@ Fifteen JSON schemas and one XSD today; the table is every one of them.
 | `clarifications.schema.json` | same | `ticket_id` → `run_id` |
 | `verdict.schema.json` | same | owned by `review-code`; gains `reviewed_sha`, and per finding `id`, `status`, `kind`, `lens`, `claim`, `evidence`, `resolved_when`, `traces_to`, `adjudication` (§2.3) — today a finding is `severity`, `dimension`, `detail`, `file`, `line` |
 | — | `result.schema.json` | **new** — the step result document, today validated ad hoc by `acs phase validate`; for `code` it carries `since_sha` and `resolutions[]` (§2.3) |
-| `ticket.schema.json`, `tickets-index.schema.json`, `counters.schema.json`, `lock.schema.json`, `lock-events.schema.json`, `metrics.schema.json`, `phases.schema.json`, `settings.schema.json` | same | unchanged (settings loses the removed keys) |
+| `phases.schema.json` | same | each skill gains `reads` (required + optional) and `writes` — the artifact declarations `acs workflow validate` and the input gates share (§2.1) |
+| `ticket.schema.json`, `tickets-index.schema.json`, `counters.schema.json`, `lock.schema.json`, `lock-events.schema.json`, `metrics.schema.json`, `settings.schema.json` | same | unchanged (settings loses the removed keys) |
 | `acs-messages.xsd` | — | removed (§6) |
 
 ### 4.7 The kernel — `acs_lib`
@@ -953,7 +1000,7 @@ the run gets a verb of its own:
 | `acs run new \| show \| next \| check \| abandon` | `acs workflow next`; nothing for the rest | `next` is the cursor; `check` is I1–I5; every verb defaults to **this checkout's current run** and takes `--run` only to name another |
 | `acs step start \| finish \| show --step <name>` | `acs start`, `acs finish` | `--step` validated against the resolved workflow, not an enum; `--run` as above |
 | `acs result validate` | `acs phase validate` | "phase" meant three things; this one is the result document |
-| `acs workflow show \| validate` | same | `next` moved to `acs run` |
+| `acs workflow show \| validate` | same | `next` moved to `acs run`; `validate` now checks the list's order against the registry's `reads` / `writes` and the loop rule (§2.1) |
 | `acs plan path` | `acs path` | the path is read from the plan's `## Contract` block |
 | `acs lock`, `acs ticket`, `acs verdict`, `acs filemap`, `acs guard`, `acs context` | same | unchanged |
 | — | `acs artifacts migrate` | removed: there is no migration |
@@ -1096,7 +1143,9 @@ change the workflow, only what records its progress — so the tree stays green
 between P1 and P2a.
 
 **P2a — workflow engine.** `ship.yaml` version 3: the flat step list, the
-`loop:` construct, `cursor` in `run.json`, and a workflow schema that
+`loops:` construct, order validation from the registry's `reads` / `writes`
+declarations (which also replace `GATE_INPUTS`), `cursor` in `run.json`, and
+a workflow schema that
 **rejects** `needs:` / `when:` / `paths:` / `requires:` / `delivery:` /
 `max_parallel` / `exclusive:` / `on_fail:` / `boundary:` / `id:` / `name:` /
 `stop_after:`. `/acs:ship` becomes a pure orchestrator over `acs run next`. Lands with an ADR — *Workflows
