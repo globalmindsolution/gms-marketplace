@@ -72,7 +72,7 @@ Finish (result document → post-hook → completion report).
 
 The work loop has two shapes. The **twelve authoring skills** (create-prd,
 create-architecture, create-project, create-design, docs-sync,
-standardize-project, create-requirements, analyze-ticket, create-impl-plan,
+standardize-project, create-requirements, analyze-requirements, create-impl-plan,
 create-api-contract, create-test-docs, create-e2e-tests), `code` and
 `create-docs` run the execute→verify reflection loop, spawning a separate
 executor and verifier subagent per phase —

@@ -29,11 +29,17 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
 
-APPLY_WORK = {"create-ticket", "create-pr", "merge-pr"}  # MAR-55/60 inline set
-# Pair-running skills the docs count SEPARATELY from the twelve authoring
-# skills: /acs:code runs against a plan another skill approved (ADR-0089),
-# /acs:create-docs was the first class-D skill (ADR-0094).
-NON_AUTHORING_PAIRS = {"code", "create-docs"}
+#: Skills whose only agent is an executor: the work is DOING something to the
+#: world (a ticket, a PR, a merge, a changeset) rather than authoring a
+#: document a verifier could re-derive. `/acs:code` joined them when the review
+#: left for `/acs:review-code` (§3.5).
+EXECUTOR_ONLY = {"create-ticket", "create-pr", "merge-pr", "code"}
+#: Pair-running skills the docs count SEPARATELY from the authoring ones:
+#: `/acs:create-docs` was the first class-D skill (ADR-0094).
+NON_AUTHORING_PAIRS = {"create-docs"}
+#: The review's own roles. It is not a pair and never was: five lenses raise
+#: candidates and one adjudicator per finding tries to refute them (§3.6).
+REVIEW_ROLES = {"review-code": ["lens", "adjudicator"]}
 
 
 def read(path):
@@ -131,6 +137,9 @@ def derive():
 
 D = derive()
 
+#: Every role an agent file may carry, longest-suffix-safe.
+ROLE_SUFFIXES = ("executor", "verifier", "planner", "adjudicator", "lens")
+
 NEW_TRIAD_SUFFIXES = (
     "standardize-project", "create-requirements", "analyze-requirements",
     "create-impl-plan", "create-api-contract", "create-test-docs",
@@ -142,15 +151,22 @@ class TopologyDerivationTest(unittest.TestCase):
     """Self-consistency checks — no doc read. Pins the structural identities
     the doc assertions below are built on."""
 
-    def test_agent_file_prefixes_equal_hooked_skills(self):
+    def test_every_agent_file_belongs_to_a_hooked_skill(self):
+        """Every agent file is `<skill>-<role>.md` for a skill that is hooked.
+        The converse does not hold and should not: `/acs:run-e2e-tests` runs
+        commands and reads their output, which is what a coordinator is for."""
         prefixes = set()
         for path in D["agent_files"]:
             base = os.path.splitext(os.path.basename(path))[0]
-            for role in ("-executor", "-verifier"):
-                if base.endswith(role):
-                    prefixes.add(base[: -len(role)])
+            for role in ROLE_SUFFIXES:
+                if base.endswith("-" + role):
+                    prefixes.add(base[: -len(role) - 1])
                     break
-        self.assertEqual(prefixes, set(D["hooked"]))
+            else:
+                self.fail("%s does not end in a known role" % path)
+        self.assertTrue(prefixes <= set(D["hooked"]),
+                        sorted(prefixes - set(D["hooked"])))
+        self.assertEqual(set(D["hooked"]) - prefixes, {"run-e2e-tests"})
 
     def test_no_planner_file_and_no_planner_declaration(self):
         """ADR-0092: the planner role is gone from the registry and the disk."""
@@ -187,14 +203,21 @@ class TopologyDerivationTest(unittest.TestCase):
         """
         self.assertEqual(D["orphaned"], 0)
 
-    def test_pairs_are_the_twelve_authoring_skills_plus_code_and_create_docs(self):
+    def test_pairs_are_the_authoring_skills_plus_create_docs(self):
         self.assertEqual(set(D["pairs"]) - set(D["authoring"]), NON_AUTHORING_PAIRS)
         self.assertEqual(D["n_authoring"], 12)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, D["authoring"])
         executors_only = [s for s, roles in D["declared_roles"].items()
                           if roles == ["executor"]]
-        self.assertEqual(set(executors_only), APPLY_WORK)
+        self.assertEqual(set(executors_only), EXECUTOR_ONLY)
+
+    def test_the_review_owns_lenses_and_adjudicators_not_a_pair(self):
+        """`/acs:review-code` is the one skill whose roles are neither a pair
+        nor a lone executor, and the registry is where that is declared."""
+        for skill, roles in REVIEW_ROLES.items():
+            self.assertEqual(D["declared_roles"].get(skill), roles)
+        self.assertNotIn("review-code", D["pairs"])
 
 
 class InternalsTopologyTest(unittest.TestCase):
@@ -304,19 +327,21 @@ class ReflectionTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d agent files exist on disk in total" % D["n_agents"], body)
 
-    def test_fifteen_skill_prefixes(self):
+    def test_the_role_shapes_are_counted_and_add_up(self):
+        """Three shapes, and the doc names each with its count: pairs that
+        author, executor-only skills that DO something to the world, and the
+        review, which is neither."""
         body = self._body()
-        self.assertNotIn("nine skill prefixes", body)
-        self.assertNotIn("fourteen skill prefixes", body)
-        self.assertIn("fifteen skill prefixes", body)
-
-    def test_twelve_authoring_fourteen_pairs(self):
-        body = self._body()
-        self.assertIn("**twelve**", body)
-        self.assertIn("**Fourteen**", body)
-        self.assertNotIn("**eleven**", body)
-        self.assertNotIn("**six**", body)
+        self.assertIn("**Thirteen** skills run the execute\u2192verify cycle", body)
+        self.assertIn("**twelve** authoring", body)
+        self.assertIn("**Four** prefixes are executor-only", body)
+        self.assertIn("**One** prefix is neither", body)
         self.assertNotIn("triad", body)
+        # ...and the words match the registry, not just each other.
+        self.assertEqual(D["n_pairs"], 13)
+        self.assertEqual(D["n_authoring"], 12)
+        self.assertEqual(
+            len([s for s, roles in D["declared_roles"].items() if roles == ["executor"]]), 4)
 
     def test_pattern_heading_is_execute_verify_and_names_new_skills(self):
         body = self._body()
@@ -404,14 +429,14 @@ class SkillsMdUnchangedTest(unittest.TestCase):
     frozen MAR-123 snapshot."""
 
     def test_skill_count_word_present(self):
-        # 25 -> 31 with the skills-independence refactor: five new hooked
-        # Build/Test skills (analyze-requirements, create-impl-plan,
-        # create-api-contract, create-test-docs, create-e2e-tests) plus the
-        # `test` -> `run-e2e-tests` rename, which keeps the old directory as a
-        # forwarding alias for one release.
+        """The count in words, level with the directories on disk. It reached
+        32 by adding `/acs:review-code` and dropping the `test` alias, and the
+        word is pinned here because prose is where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-seven skills", body)
-        self.assertNotIn("Twenty-three skills", body)
+        self.assertIn("Thirty-two skills", body)
+        self.assertEqual(D["n_skills"], 32)
+        for stale in ("Twenty-three skills", "Twenty-seven skills"):
+            self.assertNotIn(stale, body)
         self.assertNotIn("Twenty-five skills", body)
 
     def test_twelve_authoring_list_intact(self):

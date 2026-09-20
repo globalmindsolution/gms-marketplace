@@ -29,7 +29,7 @@ skills only, and never `/merge-pr` or `/release`.
 |-----------------------|-------|------|-------------------|
 | — `/create-ticket` | design | before `/ship` | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. |
 | — `/create-design` | design | before `/ship`, when `needs_design` | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. |
-| `analyze-ticket` | build | always | Read the ticket, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the walk branches on. A not-ready analysis returns `needs_input`. |
+| `analyze-requirements` | build | always | Read the ticket, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the walk branches on. A not-ready analysis returns `needs_input`. |
 | `create-impl-plan` | build | `requires: design_approved` | The plan phase carved out of `/code`: the executor's survey (the former planner charter), spec fold, executor file map, plan approval and the plan-revocation path, ending in an approved `plan.md`. |
 | `create-api-contract` | build | `when: api_surface_changed` | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
 | `create-test-docs` | build | always | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. |
@@ -68,7 +68,7 @@ flowchart LR
     D -->|epic: after design| FO[/create-ticket --fan-out/]
     FO -->|per child| A
     D -->|child inherits the design| A
-    T -->|otherwise| A[/analyze-ticket/]
+    T -->|otherwise| A[/analyze-requirements/]
     A --> PL[/create-impl-plan/]
     PL -->|when api_surface_changed| AC[/create-api-contract/]
     PL --> TD[/create-test-docs/]
@@ -129,7 +129,7 @@ run that would be unsafe.
   is allowed and produces whatever those skills can honestly produce from the
   inputs present.
 - **Safety brakes stay**, because they protect correctness rather than
-  sequence: epics are never implemented (`/code`, `/analyze-ticket` and
+  sequence: epics are never implemented (`/code`, `/analyze-requirements` and
   `/create-impl-plan` refuse an epic with an actionable breakdown message);
   `/create-pr` refuses a ticket whose recorded `/code` run left
   `verifier_passed != true` (a ticket with **no** recorded code run is

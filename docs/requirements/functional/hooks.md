@@ -57,7 +57,7 @@ sequence:
 - another session holds the ticket's `.lock`
   ([workspace-and-state.md](workspace-and-state.md));
 - the ticket is an **epic** and the skill implements work (`/code`,
-  `/analyze-ticket`, `/create-impl-plan`) — epics are never implemented;
+  `/analyze-requirements`, `/create-impl-plan`) — epics are never implemented;
 - `/create-pr` has a recorded `/code` run whose verifier did **not** pass;
 - `/merge-pr` has no recorded PR reference.
 
@@ -100,7 +100,7 @@ measurement with this run (MAR-1,
 
 Example: if no `plan.md` exists for ticket `SHOP-123`, then `pre-code.py`
 exits 2 naming `/acs:create-impl-plan SHOP-123` and `/code` stops before
-doing any work. If a `plan.md` exists but `/acs:analyze-ticket` never ran,
+doing any work. If a `plan.md` exists but `/acs:analyze-requirements` never ran,
 `/code` runs — after one advisory line.
 
 ### Post-hooks — state persistence
@@ -145,7 +145,7 @@ Twenty hooked skills, each with one pre-hook and one post-hook:
 | `/standardize-project` | `pre-standardize-project.py` | `post-standardize-project.py` | `standardize-project-state.json` |
 | `/create-ticket` | `pre-create-ticket.py` | `post-create-ticket.py` | `create-ticket-state.json` |
 | `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |
-| `/analyze-ticket` | `pre-analyze-ticket.py` | `post-analyze-ticket.py` | `analyze-ticket-state.json` |
+| `/analyze-requirements` | `pre-analyze-requirements.py` | `post-analyze-requirements.py` | `analyze-requirements-state.json` |
 | `/create-impl-plan` | `pre-create-impl-plan.py` | `post-create-impl-plan.py` | `create-impl-plan-state.json` |
 | `/create-api-contract` | `pre-create-api-contract.py` | `post-create-api-contract.py` | `create-api-contract-state.json` |
 | `/create-test-docs` | `pre-create-test-docs.py` | `post-create-test-docs.py` | `create-test-docs-state.json` |
@@ -176,7 +176,7 @@ Every row is an **input** (the skill cannot do its work without it) or a
 | `/acs:create-docs` | architecture doc set exists (one gate for every doc set) | — |
 | `/standardize-project` | architecture doc set exists | — |
 | `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
-| `/analyze-ticket` | ticket resolves | not an epic; lock free |
+| `/analyze-requirements` | ticket resolves | not an epic; lock free |
 | `/create-impl-plan` | ticket resolves | not an epic; lock free |
 | `/create-api-contract` | `plan.md` exists **and** `analysis.md` declares `api_surface: true` | lock free |
 | `/create-test-docs` | ticket resolves | lock free |

@@ -104,7 +104,7 @@ order. After reviewing each PR yourself:
 ```
 
 Every step is also invocable on its own (`/acs:create-ticket Fix flaky
-checkout rounding`, then `/acs:analyze-ticket SHOP-7`, `/acs:code SHOP-7`, …).
+checkout rounding`, then `/acs:analyze-requirements SHOP-7`, `/acs:code SHOP-7`, …).
 A hand-run step is never refused for being out of order — its hook checks only
 that the inputs it reads exist — so you can re-run one step, skip one you do
 not need, or drive the whole thing yourself. The ticket id argument is optional
@@ -165,14 +165,14 @@ scaffold ticket in `tickets-index.json`).
 |-----|-------------|----------------------|--------------|
 | `create-project` | `/acs:project` | Architecture doc set exists | Greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. The `bootstrap` mode's leg. |
 | `standardize-project` | `/acs:project` | Architecture doc set exists | Audits an EXISTING repo against `principles_path`/`standards_path`, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. The `standardize` mode's leg. |
-| `code-trivial` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `trivial` delivery path: one executor, one verifier pass, a two-iteration ceiling, no plan approval. |
-| `code-small` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `small` delivery path: one executor, one verifier pass, a two-iteration ceiling, `test-cases.md` as the test contract. |
-| `code-standard` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `standard` delivery path: parallel executors per the plan's file map, one verifier pass over all sixteen dimensions, a three-iteration ceiling, plan approval enforced. |
-| `code-complex` | `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | The `complex` delivery path: parallel executors, four merged verifier lenses, a three-iteration ceiling, plan approval enforced. |
+| `code-trivial` | `/acs:code` | Subject resolves; not an epic; a plan exists | The `trivial` delivery path: one executor, the plan's own test strategy as the test contract, no plan approval. |
+| `code-small` | `/acs:code` | Subject resolves; not an epic; a plan exists | The `small` delivery path: one executor (rarely two), `test-cases.md` as the test contract, no plan approval. |
+| `code-standard` | `/acs:code` | Subject resolves; not an epic; an approved plan exists | The `standard` delivery path: one executor per disjoint file-map partition, `test-cases.md` as the test contract, plan approval enforced. |
+| `code-complex` | `/acs:code` | Subject resolves; not an epic; an approved plan exists | The `complex` delivery path: one executor per partition **plus an integration executor** over the seams between them, plan approval enforced. |
 
 **The four `code` legs are delivery paths (ADR-0095), not modes a user picks.**
 `/acs:ship` judges the path once from `plan.md` after `/acs:create-impl-plan`
-and records it on `pipeline-state.json`; `/acs:code` dispatches to the recorded
+and records it in the plan's `## Contract` block; `/acs:code` dispatches to the recorded
 one. They differ from the project legs in owning no agents and no hook scripts:
 each starts `skill-start.py --skill code`, passes `code`'s gate, spawns
 `acs:code-executor` / `acs:code-verifier` and finishes through `post-code.py`,
@@ -184,26 +184,26 @@ different.
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
-| `/acs:analyze-ticket` | Ticket resolves; not an epic | Reads the ticket, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on. |
+| `/acs:analyze-requirements` | Ticket resolves; not an epic | Reads the ticket, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on. |
 | `/acs:create-api-contract` | `plan.md` exists **and** `analysis.md` declares `api_surface: true` | Writes `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples — each traced to an AC and a plan item, plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
 | `/acs:create-impl-plan` | Ticket resolves; not an epic | The plan phase carved out of `/acs:code`: the executor's survey (the former planner charter), the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. Reads `analysis.md` and `design.md` when present. |
 | `/acs:create-test-docs` | Ticket resolves | Writes `test-cases.md` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
-| `/acs:code` | Ticket resolves; not an epic; `plan.md` exists | Dispatches to the delivery-path leg the ticket was judged onto (ADR-0095). TDD implementation on a ticket branch against the coverage target, writing tests from `test-cases.md` when present; reconciles factual product-doc claims; verifier review loop, the path's ceiling. |
-| `/acs:docs-sync` | Ticket resolves (partition + free lock) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and the final code-verify artifact; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
+| `/acs:code` | Subject resolves; not an epic; a plan exists | Dispatches to the delivery-path leg the plan recorded (ADR-0095). TDD implementation on the run's branch, writing tests from `test-cases.md` when present. **Targeted tests only** — it has no verifier and never runs the full suite. |
+| `/acs:review-code` | Subject resolves; a changeset exists | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. Writes `verdict.json`; on blocking findings `/acs:code` reads it and fixes them. |
+| `/acs:docs-sync` | Ticket resolves (partition + free lock) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and `/acs:review-code`'s verdict; commits doc updates as additional commits on the same ticket branch — not a separate PR. |
 
 ### Test — end-to-end coverage
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
 | `/acs:create-e2e-tests` | An e2e suite is configured **and** `test-cases.md` lists ≥ 1 e2e case | Writes the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, committed on the ticket branch. |
-| `/acs:run-e2e-tests` | — (unhooked) | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable workspace artifact, and on failure triages/drives a closed regression-ticket loop; `--for-ticket` mode runs as one step inside `/acs:ship`'s walk. |
-| `/acs:test` | — (unhooked alias) | Deprecated alias kept for one release: forwards to `/acs:run-e2e-tests`. `workflows/phases.yaml` lists it under `aliases`, never in a phase. |
+| `/acs:run-e2e-tests` | A suite is configured and there are e2e cases to run | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable run artifact, and on failure triages/drives a closed regression-ticket loop. It is a step of `ship.yaml` and a standing command, on one protocol. |
 
 ### Ship — review and land
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
-| `/acs:create-pr` | Brake: refuses a ticket whose recorded `/acs:code` run left `verifier_passed != true` | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. A ticket with no recorded code run is allowed through. |
+| `/acs:create-pr` | Brake: refuses a run whose `/acs:review-code` step left `verifier_passed != true` | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. A ticket with no recorded code run is allowed through. |
 | `/acs:merge-pr` | Brake: a completed run recorded a PR reference | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 

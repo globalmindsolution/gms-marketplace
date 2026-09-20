@@ -43,7 +43,7 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.4.4 | M3 Wave 4 — requirements extraction | brownfield requirements extraction / `/acs:create-requirements` (G37) — {MAR-142} | shipped |
 | v0.4.5 | M3 Wave 4 — readable docs + doc templates | readable audience-aware docs + configurable design/spec templates (G38, G39) — {MAR-149} | shipped |
 | v0.4.6+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics | planned |
-| v0.5.0 | M3 Wave 4 — skills independence | declarative pipeline order (`workflows/ship.yaml` + `workflows/phases.yaml`, `acs.py workflow show/validate/next`); hooks keep input checks and safety brakes only, so every skill is runnable on its own (ADR-0089); ticket documents move to `docs/tickets/<ID>/` with a derived status (ADR-0090); six new Build/Test skills (`analyze-ticket`, `create-impl-plan`, `create-api-contract`, `create-test-docs`, `create-e2e-tests`, `run-e2e-tests`); `/acs:ship` becomes a ticket-id loop that fans independent steps out in parallel | in progress |
+| v0.5.0 | M3 Wave 4 — skills independence | declarative pipeline order (`workflows/ship.yaml` + `workflows/phases.yaml`, `acs.py workflow show/validate/next`); hooks keep input checks and safety brakes only, so every skill is runnable on its own (ADR-0089); ticket documents move to `docs/tickets/<ID>/` with a derived status (ADR-0090); six new Build/Test skills (`analyze-requirements`, `create-impl-plan`, `create-api-contract`, `create-test-docs`, `create-e2e-tests`, `run-e2e-tests`); `/acs:ship` becomes a ticket-id loop that fans independent steps out in parallel | in progress |
 | v0.6.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
 | v0.7.0 | M5 | Notion/remote-docs backend (G6) | tentative |
 | v0.8.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
@@ -58,8 +58,8 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 32 skills + 31 agent files on disk (verified `ls src/acs/skills` = 32,
-  `ls src/acs/agents` = 31; ADR-0095 added `/acs:code`'s four delivery-path
+- 32 skills + 32 agent files on disk (verified `ls src/acs/skills` = 32,
+  `ls src/acs/agents` = 32; ADR-0095 added `/acs:code`'s four delivery-path
   legs, which own no agents of their own and spawn `code`'s pair); the reflection (execute→verify) protocol is
   active on the fourteen skills that run a loop — the twelve authoring
   skills plus `/acs:code` and `/acs:create-docs`; no skill has a plan phase
@@ -657,7 +657,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 31 vs 31 reachable). **(ii) is
+  disk equals reachable-agent count (today 32 vs 32 reachable). **(ii) is
   DONE** — ADR-0092 deleted those six and made each skill declare the roles
   it owns. Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic

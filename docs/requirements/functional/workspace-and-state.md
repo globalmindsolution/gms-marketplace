@@ -94,7 +94,7 @@ The repo docs tree (committed, one folder per ticket):
     │   └── design.md                   # epics always carry the design; children read it from here
     └── SHOP-123/                       # a story/task
         ├── ticket.md
-        ├── analysis.md                 # /analyze-ticket
+        ├── analysis.md                 # /analyze-requirements
         ├── plan.md                     # /create-impl-plan
         ├── api-contract.md             # /create-api-contract (only when the analysis found an API surface change)
         └── test-cases.md               # /create-test-docs

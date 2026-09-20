@@ -154,7 +154,7 @@ is the separate, per-child pipeline diagrammed above.
 > **NOTE (skills-independence refactor — supersedes the step-order clauses of
 > the MAR-159 and MAR-160 notes above; their mechanisms stand):** the steps and
 > their conditions are no longer stated in `ship/SKILL.md` prose at all. They
-> are declared in `src/acs/workflows/ship.yaml` — `analyze-ticket` →
+> are declared in `src/acs/workflows/ship.yaml` — `analyze-requirements` →
 > `create-impl-plan` (`requires: design_approved`) → `create-api-contract`
 > (`when: api_surface_changed`) → `create-test-docs` → `code`
 > (`exclusive: true`, `boundary: full_verify_stop`,

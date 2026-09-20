@@ -144,7 +144,7 @@ once, needs none of them. A ticket from an older build that still carries
 
 `<skill>-state.json` run entries carry an additive, optional `guard_events`
 array (`runs[-1].guard_events: [{...}]`), appended by `record_guard_event(tdir,
-skill, event)` (`acs_lib/state.py`) — creates the list when absent, persists via
+skill, event)` (`acs_lib/step.py`) — creates the list when absent, persists via
 the same pretty-printed `write_json`. The state file is the denied executor's
 own (`code-state.json` is the common case, not the only one): the guard records
 under the active executor's skill, and the derivation below is skill-agnostic.

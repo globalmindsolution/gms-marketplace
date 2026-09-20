@@ -52,13 +52,13 @@ the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
 nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
 [`acs_lib/_common.py:28-54`](../../src/acs/hooks/scripts/acs_lib/_common.py) splits them
-into **17 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
-`pre-*.py`/`post-*.py` pair and the subagent roles `workflows/phases.yaml`
-declares for it) and **11 unhooked** (`UNHOOKED_SKILLS`). Figures anchored
-**as of the doc-set fold** (ADR 0094, which folded the four doc-set legs into
-`/acs:create-docs`); re-derive with `ls -1 src/acs/skills | wc -l` (→ `32`)
-and a Python one-liner importing `acs_lib` and printing `len(HOOKED_SKILLS)`,
-`len(UNHOOKED_SKILLS)` (→ `17 11`).
+into **19 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
+`pre-*.py`/`post-*.py` pair and the subagent roles `skills/<name>/acs.yaml`
+declares for it) and **9 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
+four delivery-path legs, which are gated as their entry point and own neither
+scripts nor agents (ADR-0095). Re-derive with `ls -1 src/acs/skills | wc -l`
+(→ `32`) and a Python one-liner importing `acs_lib` and printing
+`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `19 9`).
 
 Each column below is a **rule**, applied mechanically — a cell is derived,
 never hand-picked:
@@ -67,19 +67,19 @@ never hand-picked:
   `test_skill_contracts.py` (its `ALL_SKILLS` list at `:106`, asserted against
   the skills directory at `:141`) → 32 of 32.
 - **Gate (2)** — the skill has a registered gate function in `acs_lib.GATES`
-  → 17 of 17 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
+  → 19 of 19 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
   (`test_all_hooked_skills_have_a_gate`, a per-hooked-skill
-  `assertIn(skill, acs_lib.GATES)` loop); the 11 unhooked have none by
+  `assertIn(skill, acs_lib.GATES)` loop); the 9 unhooked have none by
   construction, closed by `tests/acs/test_release_skill_registry.py:94`
-  (`assertEqual(len(acs_lib.GATES), 17)` — with the loop above proving
-  `GATES` ⊇ the 17 hooked skills, an equal count pins it to exactly that
+  (`assertEqual(len(acs_lib.GATES), 19)` — with the loop above proving
+  `GATES` ⊇ the 19 hooked skills, an equal count pins it to exactly that
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a case in
   `src/acs-evals/behavioural/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 27 of 32. One skill
   directory carries no probe, recorded with its reason in
   `test_eval_trigger_detection.py`'s `UNPROBED`: `test`, the alias the
-  skills-independence refactor added (`analyze-ticket`, `create-impl-plan`,
+  skills-independence refactor added (`analyze-requirements`, `create-impl-plan`,
   `create-api-contract`, `create-test-docs`, `create-e2e-tests`), the `test`
   alias directory (deliberately unprobed — its probe targets the name it
   forwards to, `run-e2e-tests`), and the design-phase fold's `project`
@@ -177,7 +177,7 @@ are the gap itself.
 on-disk set against the `ALL_SKILLS` literal at
 `test_skill_contracts.py:106`, not against `acs_lib` — and no test pins this
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
-**Gating is complete for what can be gated: 17 of 17 hooked skills**; the other
+**Gating is complete for what can be gated: 19 of 19 hooked skills**; the other
 11 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
 none should. **Routing covers 27 of 32** — 31 probes in all (25 by
 description, 2 by explicit command, 2 negative, plus the two controls); only

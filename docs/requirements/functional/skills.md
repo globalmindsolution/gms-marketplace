@@ -53,7 +53,7 @@ Every **workflow** skill MUST:
   most one executor subagent, performs the apply-work directly — no
   verifier subagent, on every delivery path. The skills-independence refactor moved
   `/code`'s plan phase out into `/create-impl-plan` and added five
-  Build/Test skills (analyze-ticket, create-impl-plan, create-api-contract,
+  Build/Test skills (analyze-requirements, create-impl-plan, create-api-contract,
   create-test-docs, create-e2e-tests); ADR-0092 then retired the planner
   role everywhere: the twelve **authoring skills** (the nine above minus
   `code` and `create-docs`, plus those five) run **execute → verify** with an
@@ -965,7 +965,7 @@ tickets where the change is architecturally significant.
 > are the Build/Test skills added by the skills-independence refactor, which
 > land between the originally-numbered ones.
 
-## 2a. `/analyze-ticket`
+## 2a. `/analyze-requirements`
 
 Purpose: the first Build step — understand the ticket against the product
 docs and the codebase before anything is planned, and say plainly whether it
@@ -994,8 +994,8 @@ is ready to plan.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
 - `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
   apply to this ticket; `api_surface: false` skips it.
-- Subagents: `analyze-ticket-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
-- State file: `analyze-ticket-state.json`; states `ready_for_planning`,
+- Subagents: `analyze-requirements-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
+- State file: `analyze-requirements-state.json`; states `ready_for_planning`,
   `api_surface`, `questions_open`.
 
 ## 2b. `/create-impl-plan`
@@ -1021,7 +1021,7 @@ an approved `plan.md`.
   verify rounds — ADR-0074's 2026-09-14 amendment), so a fixable draft does
   not fail the run on its first verdict.
 - MUST plan against the ticket as written when `analysis.md` says
-  `ready_for_planning: true`: the ledger entries `/analyze-ticket` left open
+  `ready_for_planning: true`: the ledger entries `/analyze-requirements` left open
   alongside that verdict (refined-criteria and missing-criterion proposals)
   are carried in the plan's Risks as `C-<n> open — planned as written`, never
   re-asked and never a `needs_input` — the analysis skill's own contract
@@ -1045,7 +1045,7 @@ it.
   `docs/api`; `null` = the ticket folder only). Pre-hook input checks:
   `plan.md` exists **and** `analysis.md` declares `api_surface: true` —
   otherwise the skill is refused with a pointer at `/create-impl-plan` or
-  `/analyze-ticket`.
+  `/analyze-requirements`.
 - MUST write `api-contract.md`: every endpoint/command/message the plan adds
   or changes, request/response shapes, error codes, compatibility and
   versioning notes, and examples — each traced to an acceptance criterion
@@ -1268,38 +1268,36 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   and `/acs:docs-sync`'s diff-grounded re-derivation.
 - Commit messages MUST follow the commit message format configured in
   `settings.json` ([configuration.md](configuration.md)).
-- The `code-verifier` MUST review the changeset — **business logic**,
-  **features** (does it satisfy the ticket/specs), **quality**, **technical
-  standards** (conformant with the `standards/` doc set at `standards_path`
-  when configured; falls back to documented architecture when unset),
-  **architecture**, **system design**, **security**,
-  **documentation** (affected docs updated and consistent with the code),
-  **Simplicity & scope** (overcomplication and out-of-scope edits are blocking),
-  **plan conformance** (MAR-74, slice 4 of MAR-69 — blocking when active, N/A
-  otherwise; active only when a deterministic approval record exists whose
-  `plan_path` is `phases/code/plan.md` and whose digest matches the current
-  `plan.md` bytes; the verifier computes activation itself; strictly
-  **subordinate to acceptance-criteria conformance**, which an approved plan
-  can never substitute for), and **path audit** (blocking; every path — reads
-  `delivery_path` and `delivery_path_reason` from `pipeline-state.json` and
-  judges whether the changeset is the work that reason describes, weighing
-  what it TOUCHES rather than how much. A contradiction is blocking, and the
-  remedy is a replan, never a re-route: the delivery path is judged once and
-  is never raised mid-run, ADR-0095. This replaces the **approval-audit**
-  dimension, which re-ran `recommend_stakes` over the changed files and
-  blocked on a `"high"` return that no escalation event accounted for — the
-  same job, against evidence that still exists)
-  — in addition to spec conformance, tests, and coverage. The architecture /
-  system-design review judges the changeset against the approved `design.md`
-  when one exists (the ticket's own or its parent epic's). On the `complex`
-  delivery path the review additionally gains a
-  **multi-lens** shape: 4 parallel independent lenses, each reading a
-  different evidence source, plus a coordinator-performed adversarial
-  merge pass before findings count; every other path keeps the
-  single-pass shape. Blocking findings
-  trigger automatic remediation iterations (max 3); findings and stop
-  reasons land in `code-state.json`
-  ([workflow.md](workflow.md#review-feedback-loop)).
+- `/acs:code` MUST NOT review its own changeset. The review is
+  **`/acs:review-code`**, a step of its own, and every delivery path gets the
+  same one. An implementer that grades its own output gave per-finding
+  adjudication to one path out of four and ran the full unit suite inside an
+  iteration that might be discarded.
+- `/acs:review-code` MUST review the changeset in three stages:
+    1. **Five read-only lenses in parallel**, each bounded by what it may
+       read: **A** acceptance (requirements, the plan, `test-cases.md`, the
+       diff), **B** changed-hunk defects and security (**the diff and nothing
+       else**), **C** contracts and architecture (`api-contract.md`,
+       `design.md`, architecture docs, the plan), **D** history and regression
+       (`git log --follow -p`, bounded lookback), **E** craft and scope
+       (`standards/` at `standards_path`, the diff). Lens B fans out across
+       the diff when the diff warrants it, measured from the changeset rather
+       than passed in; lens D runs on **every** run.
+    2. **One fresh-context adjudicator per candidate finding**, prompted to
+       refute it, receiving neither the other findings nor which lens raised
+       it, defaulting to refuted when uncertain. `confirmed` blocks and
+       carries a `resolved_when`; `refuted` is dropped with its reason
+       recorded; `needs-context` downgrades to advisory and is carried.
+       Corroboration is NOT a filter — per-finding re-derivation is.
+    3. **A final gate**, only when stage 2 leaves nothing blocking: build,
+       lint, the full unit suite, and coverage against
+       `settings.test_coverage_percent`. This is the only place the full suite
+       runs in the pipeline. A gate failure is a blocking finding of
+       `kind: gate` with the failing command as its evidence.
+- Blocking findings re-enter the review loop (`ship.yaml`'s
+  `loops[].max_iterations`, the same cap on every path), and `verifier_passed`
+  is DERIVED by the post-hook from `verdict.json` rather than asserted by any
+  skill ([workflow.md](workflow.md#review-feedback-loop)).
 - MUST record progress, findings, errors, and stop reasons so an interrupted
   run can resume; final state lands in `code-state.json` via the post-hook.
 - On start, if the previous run is `in_progress`/`interrupted`/`failed`,
@@ -1316,7 +1314,7 @@ ADR 0066) and now bind the plan phase, wherever it runs:
   directing the user to `/acs:create-design` (if the epic has no design yet)
   then `/acs:create-ticket <id> --fan-out` then `/acs:code` on a child;
   otherwise it exits 2 to stop the skill. It MUST NOT require that
-  `/create-ticket`, `/analyze-ticket` or any other skill has completed.
+  `/create-ticket`, `/analyze-requirements` or any other skill has completed.
   Whether `<partition>/specs/` already has
   content is discovered by `create-impl-plan-executor`, not asserted by the
   gate — when

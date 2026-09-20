@@ -17,7 +17,6 @@ ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 ACS_README = os.path.join(REPO_ROOT, "src", "acs", "README.md")
 SKILLS_DIR = os.path.join(REPO_ROOT, "src", "acs", "skills")
-CODE_VERIFIER_AGENT = os.path.join(REPO_ROOT, "src", "acs", "agents", "code-verifier.md")
 SKILLS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 REFLECTION_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
 sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
@@ -425,34 +424,37 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
         self.assertEqual(stale, [], "\n  " + "\n  ".join(stale))
 
 
-class MergePassIsNotCalledConfidenceScoringTest(unittest.TestCase):
-    """MAR-584 naming pin: the coordinator's lens merge is the ADVERSARIAL
-    merge pass, never a "confidence-scoring" one.
+class AdjudicationIsPerFindingTest(unittest.TestCase):
+    """The mechanism that filters findings, pinned by what it IS.
 
-    No scoring mechanism exists anywhere in acs -- no 0-100 scale, no
-    threshold, no numeric confidence value. Not in code-complex/SKILL.md's
-    merge procedure, not in verdict.py's merge_lens_verdicts (a conjunction of
-    passed, a union of findings, worst-result per dimension), and not in
-    ADR-0067's Decision, which specifies corroboration and adversarial
-    re-scrutiny and never a score. Three live documents named a mechanism that
-    was never built; the `adversarial` half of the name is accurate and stays.
+    Three live documents once named a "confidence-scoring merge pass": a
+    mechanism nobody built. `merge_lens_verdicts` was arithmetic -- a
+    conjunction of `passed`, a union of findings, the worst result per
+    dimension -- and ADR-0067's Decision specified adversarial re-scrutiny and
+    never a score.
 
-    docs/adr/0067-*.md is deliberately NOT pinned here. Its Context quotes epic
-    MAR-155's design D4, whose partition is no longer on disk, so the quotation
-    cannot be re-verified and rewriting it would falsify the record -- the same
-    reason ScriptPathReferencesResolveTest above exempts superseded ADRs.
+    The redesign settles it by construction. There is no merge pass at all:
+    every candidate finding gets ONE fresh-context adjudicator prompted to
+    refute it, which is the adversarial re-scrutiny the ADR asked for, applied
+    per finding rather than to a merged list. So the pin is positive now --
+    the docs must describe per-finding adjudication -- and the invented
+    mechanism cannot come back under either name.
+
+    docs/adr/0067-*.md is deliberately NOT pinned here. Its Context quotes
+    epic MAR-155's design D4, whose partition is no longer on disk, so the
+    quotation cannot be re-verified and rewriting it would falsify the record
+    -- the same reason ScriptPathReferencesResolveTest above exempts
+    superseded ADRs.
     """
 
-    #: Doc -> the phrase by which it says the COORDINATOR, not a subagent,
-    #: performs the pass. Two live spellings, both true, pinned as written.
-    PERFORMER = {
-        CODE_VERIFIER_AGENT: "coordinator (never a subagent)",
-        SKILLS_REQUIREMENTS: "coordinator-performed adversarial merge pass",
-        REFLECTION_REQUIREMENTS: "coordinator-performed adversarial merge pass",
-    }
+    REVIEW_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "review-code", "SKILL.md")
+    ADJUDICATOR = os.path.join(REPO_ROOT, "src", "acs", "agents", "review-code-adjudicator.md")
+    DOCS = (SKILLS_REQUIREMENTS, REVIEW_SKILL, ADJUDICATOR)
 
     #: Any spelling of the mechanism that does not exist.
     SCORING = re.compile(r"confidence[-\s]*scor", re.IGNORECASE)
+    #: ...and of the one it was invented to describe.
+    MERGE_PASS = re.compile(r"merge pass", re.IGNORECASE)
 
     @staticmethod
     def _join_wrapped(text):
@@ -471,26 +473,34 @@ class MergePassIsNotCalledConfidenceScoringTest(unittest.TestCase):
         self.assertEqual(joined, "performs the confidence-scoring merge pass")
         self.assertRegex(joined, self.SCORING)
 
-    def test_no_live_document_calls_the_merge_pass_confidence_scoring(self):
-        for path in sorted(self.PERFORMER):
+    def test_no_live_document_calls_it_confidence_scoring(self):
+        for path in self.DOCS + (REFLECTION_REQUIREMENTS,):
             with self.subTest(doc=os.path.relpath(path, REPO_ROOT)):
                 self.assertNotRegex(self._normalised(path), self.SCORING)
 
-    def test_each_live_document_names_the_adversarial_merge_pass(self):
-        for path, performer in sorted(self.PERFORMER.items()):
+    def test_no_live_document_describes_a_merge_pass_at_all(self):
+        """There is nothing left to merge: the lenses return candidates and
+        adjudication rules on them one at a time."""
+        for path in self.DOCS + (REFLECTION_REQUIREMENTS,):
             with self.subTest(doc=os.path.relpath(path, REPO_ROOT)):
-                body = self._normalised(path)
-                self.assertIn("adversarial merge pass", body)
-                self.assertIn(performer, body)
+                self.assertNotRegex(self._normalised(path), self.MERGE_PASS)
 
-    def test_the_true_surrounding_claims_survive(self):
-        """Only the invented mechanism goes. The lens split around it is
-        accurate and must read the same afterwards."""
-        for path in (SKILLS_REQUIREMENTS, REFLECTION_REQUIREMENTS):
+    def test_each_live_document_describes_per_finding_adjudication(self):
+        for path in self.DOCS:
             with self.subTest(doc=os.path.relpath(path, REPO_ROOT)):
                 body = self._normalised(path)
-                self.assertIn("4 parallel independent lenses", body)
-                # skills.md says "different", reflection.md "distinct"; both are
-                # true, and levelling them is not this pin's business.
-                self.assertRegex(body, r"(?:distinct|different) evidence source")
-                self.assertIn("before findings count", body)
+                self.assertRegex(body, r"(?i)per[- ]finding")
+                self.assertIn("adjudicat", body)
+
+    def test_the_true_surrounding_claim_survives(self):
+        """Only the invented mechanism went. What was accurate around it -- the
+        lens split, and the refusal to count agreement -- moved with the review
+        and must still read the same."""
+        review = self._normalised(self.REVIEW_SKILL)
+        self.assertIn("Corroboration is not a filter", review)
+        self.assertIn("never promote one for being raised by two", review)
+        self.assertIn("lens", self._normalised(SKILLS_REQUIREMENTS))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

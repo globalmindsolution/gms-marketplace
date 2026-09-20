@@ -120,7 +120,7 @@ Not alphabetically, and not cheapest-first. Order by what a wrong artifact
 would cost:
 
 1. **Skills whose output another skill consumes.** `create-impl-plan` (the
-   plan `/acs:code` executes), `analyze-ticket`, `create-api-contract`,
+   plan `/acs:code` executes), `analyze-requirements`, `create-api-contract`,
    `create-test-docs`. A wrong artifact here is not noticed until a later step
    has already acted on it — the `critical` failure mode above, exactly.
 2. **Skills that write to the consumer's repo.** The doc-bootstrap legs,

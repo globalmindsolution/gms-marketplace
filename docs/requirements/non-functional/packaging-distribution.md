@@ -13,7 +13,7 @@ unchanged).
 - acs MUST bundle, per standard Claude Code plugin layout:
   - **Skills** (slash commands): `/setup`, `/ship`, `/handoff`, `/update`,
     `/create-prd`, `/create-architecture`, `/create-project`,
-    `/create-ticket`, `/create-design`, `/analyze-ticket`,
+    `/create-ticket`, `/create-design`, `/analyze-requirements`,
     `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
     `/code`, `/create-e2e-tests`, `/docs-sync`, `/run-e2e-tests`,
     `/create-pr`, `/merge-pr` — grouped into phases by
@@ -22,7 +22,7 @@ unchanged).
   - **Subagents**: the twelve **authoring skills** (`create-prd`,
     `create-design`, `create-architecture`, `create-project`,
     `create-requirements`, `standardize-project`,
-    `analyze-ticket`, `create-impl-plan`, `create-api-contract`,
+    `analyze-requirements`, `create-impl-plan`, `create-api-contract`,
     `create-test-docs`, `create-e2e-tests`, `docs-sync`) each bundle an
     executor and a verifier (e.g. `docs-sync-executor`,
     `docs-sync-verifier`) and no planner (ADR-0092 class D: the executor
@@ -32,7 +32,7 @@ unchanged).
     verifier that serve all four doc sets (ADR-0094); the three **apply-work
     skills** (`create-ticket`, `create-pr`, `merge-pr`) run inline and ship
     only an executor (MAR-60 inlining).
-    31 agent files exist on disk and 31 are reachable (24 for the twelve
+    32 agent files exist on disk and 32 are reachable (24 for the twelve
     authoring skills + 2 for `code` + 2 for `create-docs` + 3 apply-work
     executors): ADR-0092 deleted the six apply-work planner/verifier files
     the skills already forbade spawning and, in its stage 2, the twelve

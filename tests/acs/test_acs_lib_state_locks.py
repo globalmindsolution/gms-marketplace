@@ -285,7 +285,7 @@ class TestFinalizeRun(unittest.TestCase):
     def test_no_checkout_id_branch_keeps_model_usage_tokens_only(self):
         """design.md:718 -- the no-checkout_id branch persists model_usage
         tokens-only (no cost keys), mirroring role_usage's own behavior at
-        this branch (acs_lib/state.py): measured token data is never
+        this branch (acs_lib/step.py): measured token data is never
         discarded just because cost can't be located."""
         lib.append_invocation(self.tdir, "code", "SHOP-1", session={
             "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl",
@@ -308,7 +308,7 @@ class TestFinalizeRun(unittest.TestCase):
     def test_no_session_marker_and_degraded_branches_emit_empty_model_usage(self):
         """No session_id/transcript_path, and a degraded transcript read,
         both persist model_usage=[] -- same rule as role_usage's own
-        empty-list branches (acs_lib/state.py)."""
+        empty-list branches (acs_lib/step.py)."""
         lib.append_invocation(self.tdir, "code", "SHOP-1")
         with mock.patch("usage_reader.read_transcript_usage") as read_usage:
             state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})

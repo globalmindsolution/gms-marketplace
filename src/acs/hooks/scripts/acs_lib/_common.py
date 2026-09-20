@@ -69,8 +69,13 @@ LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
 # `create-docs` is NOT like it any more (ADR-0094): it absorbed its four doc
 # legs, so it is the hooked product skill that bootstraps a doc set itself,
 # one delivery ticket per set.
-UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics", "usage",
-                   "test", "run-e2e-tests", "release", "project"]
+# `run-e2e-tests` moved to HOOKED_SKILLS: it is a step of `ship.yaml` with its
+# own pre/post pair, and the "not really a pipeline skill in its default mode"
+# framing it used to carry is gone -- there is one mode (§3.11). The `test`
+# alias went with it (§6): the directory is deleted, and a name in a list with
+# no directory behind it is a name nothing can resolve.
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
+                   "usage", "release", "project"]
 
 # Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
 # order. This is a DISPLAY order for the metrics funnel's columns -- it is not

@@ -14,7 +14,7 @@ name in this file as the skill, not as a command a user types.
 The diagram below shows the **reflection loop** (execute → verify), which is
 how the twelve authoring skills run (`create-prd`, `create-architecture`,
 `create-project`, `create-design`, `docs-sync`, `standardize-project`,
-`create-requirements`, `analyze-ticket`, `create-impl-plan`,
+`create-requirements`, `analyze-requirements`, `create-impl-plan`,
 `create-api-contract`, `create-test-docs`, `create-e2e-tests`), and how
 `code` and `create-docs` run it too. No skill has a plan phase (ADR 0092):
 for an authoring skill, iteration 1's executor surveys first, records the

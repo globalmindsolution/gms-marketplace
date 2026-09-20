@@ -15,7 +15,7 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: execute → verify
 
-The twelve **authoring skills** (analyze-ticket, create-impl-plan,
+The twelve **authoring skills** (analyze-requirements, create-impl-plan,
 create-api-contract, create-test-docs, create-e2e-tests, docs-sync, create-prd,
 create-design, create-architecture, create-project, standardize-project,
 create-requirements), `code` and `create-docs` MUST apply the Reflection
@@ -75,86 +75,52 @@ Requirements:
   `/acs:create-design`, and `/acs:create-requirements`); ADR-0092 then
   retired the plan phase itself. On iteration 2+ the executor's authoring
   notes carry a **Findings addressed** section mapping each finding to what
-  changed. Every skill but `/acs:code` runs a fixed iteration cap of 3; only
-  `/acs:code` varies, and it varies by the ticket's recorded DELIVERY PATH
-  rather than by a lane derived from the ticket's axes (ADR-0095).
-  - `/acs:code`'s cycle runs at most **path-driven iterations**, and each leg
-    states its own ceiling in its own SKILL.md rather than looking one up:
-    - **`trivial` and `small`**: at most **2 iterations** — the single
-      verifier pass plus at most one round on blocking findings (ADR-0034 as
-      amended 2026-09-14: a cap of 1 left no round to fix what the verifier
-      found).
-    - **`standard` and `complex`**: at most **3 iterations** — execute →
-      verify against the plan `/acs:create-impl-plan` published before the run
-      started, never a per-iteration re-plan, plus the review and e2e when
-      configured. An iteration is one execute+verify round. Both deep paths
-      run all 16 dimensions; `complex` is the one that runs the
-      16-dimension, multi-lens review + e2e, splitting them across 4 parallel
-      independent lenses (each reading a distinct evidence source) followed by a
-      coordinator-performed adversarial merge pass before
-      findings count. `standard` runs the same 16 in a single subagent pass.
+  changed. Every skill runs a fixed iteration cap of 3. `/acs:code` used to
+  vary by the recorded DELIVERY PATH; it no longer does, because the cap
+  governs the REVIEW and the review left (§3.5). What the delivery path still
+  decides is how many executors run:
+  - `/acs:code`'s legs each state their own executor shape in their own
+    SKILL.md rather than looking one up:
+    - **`trivial` and `small`**: one executor, rarely two on `small`, and only
+      when the plan's file map splits cleanly in two.
+    - **`standard` and `complex`**: executors partition the plan's file map,
+      and `complex` adds a final **integration executor** over the seams
+      between the partitions. Both work against the plan
+      `/acs:create-impl-plan` published before the run started, never a
+      per-iteration re-plan.
 
-      Dimension 14 (Regression-risk, git-history) is what separates 16 from
-      15: it is scoped to the two DEEP paths, and on `complex` it is lens D's.
-      It reads the recorded `delivery_path` itself to decide — not the
-      presence of a `verify_lens`, which was the same question while deep
-      always meant multi-lens and stopped being it when `standard` became
-      deep AND single-pass. With no path recorded it EVALUATES: the
-      dispatcher runs `standard` on a missing answer, and a missing answer
-      must never buy a cheaper review.
-    - When `pipeline-state.json` carries no `delivery_path`, `/acs:code`'s
-      dispatcher runs the `standard` leg — the conservative default, never a
-      cheap path on a missing answer.
-    - On hitting the ceiling with findings remaining, the skill stops and
-      records its findings and stop reason in its state file.
+    The iteration ceiling is **not** a property of the path. It is
+    `ship.yaml`'s `loops[].max_iterations` — one cap, the same on every path —
+    because it governs the review, and `/acs:code` has no review. So is the
+    reviewer's depth: `/acs:review-code` measures the changeset in front of it
+    and fans lens B out when the diff warrants it, and neither `/acs:code` nor
+    `ship.yaml` passes it a lens count.
 
-  **Absolute invariants — they hold on every delivery path:**
+- Subagent naming convention: `<skill>-<role>.md`, where the roles are
+  `executor`, `verifier`, `lens` and `adjudicator`; no skill ships a
+  `<skill>-planner` (ADR-0092).
+  32 agent files exist on disk in total — exactly the roles
+  `skills/<name>/acs.yaml` declares, so none is orphaned, and a skill is a
+  DIRECTORY rather than an entry in a registry file.
 
-  - The **verifier subagent is the in-loop quality gate on every path** (C-5).
-    The cheap paths differ from the deep ones in iteration ceiling and review
-    shape; the verifier always runs. There is no inline human-approval gate;
-    the human-in-the-loop checkpoint is the PR review before merge.
-  - The **TDD/coverage gate runs in full on every path and is never trimmed
-    by the path** (invariant a, MAR-55). The path is not a review dimension a
-    cheap run drops.
+  **Thirteen** skills run the execute→verify cycle: the **twelve** authoring
+  skills listed in the heading above — which include the five Build/Test
+  skills the skills-independence refactor added (`analyze-requirements`,
+  `create-impl-plan`, `create-api-contract`, `create-test-docs`,
+  `create-e2e-tests`) — plus `create-docs`.
 
-  **The ceiling never moves mid-run (ADR-0095).** MAR-57 made the ceiling
-  above an *initial* value: an in-flight trigger — a verifier finding of
-  higher stakes or size, a `high_stakes_paths` glob match on a touched file,
-  or an explicit user or agent request — recomputed it through
-  `VERIFY_ITERATION_CAP[verify_depth(new_lane, new_stakes)]` and raised it
-  monotonically, recording a 13-field escalation event so that no lane change
-  was silent, with a user-confirmed de-escalation path (MAR-108) as the one
-  sanctioned way down.
+  **Four** prefixes are executor-only. Three are the **apply-work** skills,
+  which run inline and never spawn a verify-phase subagent (see the
+  "Apply-work skills" subsection above). The fourth is `code`: its verifier
+  left for `/acs:review-code`, because an implementer that grades its own
+  output gave per-finding adjudication to one delivery path out of four and
+  ran the full unit suite inside an iteration that might be discarded.
 
-  None of that exists now. The path is judged once, from `plan.md`, before
-  `/acs:code` starts, and is read from `pipeline-state.json` thereafter; there
-  is no trigger, no recompute, no escalation ledger and no de-escalation
-  writer, because there is no decision left to move. What replaces the
-  triggers is the verifier's **path audit** dimension: it reads the recorded
-  path and its reason, judges the diff against them, and blocks when they
-  contradict. Its remedy is a REPLAN — the run ends `failed` with
-  `stop_reason: plan_superseded` and `ship.yaml`'s `on_replan` edge returns to
-  `/acs:create-impl-plan` — never a mid-run re-route, because a run split
-  across two rigors is exactly what this replaces. The cost is that rigor can
-  no longer rise within a run; the gain is that every run has one rigor, and
-  a recorded sentence saying why.
-
-- Subagent naming convention: `<skill>-executor`, `<skill>-verifier`; no
-  skill ships a `<skill>-planner` (ADR-0092).
-  31 agent files exist on disk in total — exactly the roles
-  `workflows/phases.yaml` declares (ADR-0092), so none is orphaned — an
-  executor and a verifier for each hooked skill prefix
-  that runs the cycle, and an executor only for the three apply-work skills;
-  before the skills-independence refactor there were fifteen skill prefixes
-  with agent files, and there are seventeen now. **Fourteen** skills run the
-  execute→verify cycle: the **twelve** authoring skills listed in the heading
-  above — which include the five Build/Test skills the refactor added
-  (`analyze-ticket`, `create-impl-plan`, `create-api-contract`,
-  `create-test-docs`, `create-e2e-tests`) — plus `code`, which runs it
-  against a plan another skill approved, and `create-docs`. Three prefixes
-  belong to the **apply-work** skills, which run inline and never spawn a
-  verify-phase subagent (see the "Apply-work skills" subsection above).
+  **One** prefix is neither: `review-code` owns a `lens` and an
+  `adjudicator`. That is not a pair and is not meant to be — five lenses
+  raise candidate findings in parallel and one fresh-context adjudicator per
+  finding tries to refute it, so the two roles fan out independently of each
+  other.
 - For the **apply-work** group, only the executor-suffix agent file may be
   delegated to at most once per invocation; their former plan-phase and
   verify-phase agent files were deleted by ADR-0092 (the skills already
