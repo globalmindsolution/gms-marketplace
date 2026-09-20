@@ -416,6 +416,22 @@ def _reindex(rdir, doc):
         pass
 
 
+def partition_for_ticket(repo_dir_path, ticket_id):
+    """(rdir, archived) for the run whose subject is this ticket.
+
+    Metrics and status are asked per TICKET but recorded per RUN, so this is
+    the one place that bridges them. A ticket's run id IS the ticket id
+    (§4.2), which is what keeps the bridge a path join rather than an index
+    lookup; the archive is checked second, exactly as the ticket partition
+    resolver did.
+    """
+    active = run_dir(repo_dir_path, ticket_id)
+    if os.path.isdir(active):
+        return active, False
+    archived = os.path.join(repo_dir_path, "archive", ticket_id)
+    return (archived, True) if os.path.isdir(archived) else (active, False)
+
+
 def find_runs_for_subject(repo_dir_path, kind, key):
     """Every run whose subject matches, newest last. `key` is the ticket id,
     the prompt text or the document path."""

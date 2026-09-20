@@ -306,8 +306,8 @@ def backfill_distinct_pr_count(workspace, repo_id):
     for tid in ticket_ids:
         # A ticket's PRs are its RUNS' PRs: the run whose subject is this
         # ticket is where create-pr wrote.
-        from .run import run_dir
-        tdir = run_dir(repo_dir(workspace, repo_id), tid)
+        from .run import partition_for_ticket
+        tdir, _archived = partition_for_ticket(repo_dir(workspace, repo_id), tid)
         sp = state_path(tdir, "create-pr")
         state = read_json(sp)
         if not isinstance(state, dict):

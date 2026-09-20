@@ -175,7 +175,8 @@ def aggregate(workspace, repo_id, now=None):
     _paths_by_ticket = {}
 
     for ticket_id in tickets:
-        tdir, _archived = acs_lib.find_ticket_partition(workspace, repo_id, ticket_id)
+        tdir, _archived = acs_lib.partition_for_ticket(
+            acs_lib.repo_dir(workspace, repo_id), ticket_id)
 
         pipeline = acs_lib.read_json(os.path.join(tdir, "run.json"))
         if isinstance(pipeline, dict):

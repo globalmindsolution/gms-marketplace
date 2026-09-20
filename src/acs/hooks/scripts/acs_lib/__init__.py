@@ -167,7 +167,8 @@ from .run import (RUN_STATUSES, STEP_STATUSES, STOP_REASONS,  # noqa: F401
     SUBJECT_KINDS, TERMINAL_RUN_STATUSES, abandon_run, create_run, cursor,
     derive_run_id, existing_run_ids, finish_step, in_progress_step,
     iteration_dir, iteration_of, latest_open_run, load_run, require_run,
-    run_dir, run_path, save_run, start_step, step_completed, step_dir,
+    partition_for_ticket, run_dir, run_path, save_run, start_step,
+    step_completed, step_dir,
     step_entry, step_status, steps_dir, subject_dir)
 from .run import check as check_run  # noqa: F401
 from .run import load_index as load_runs_index  # noqa: F401

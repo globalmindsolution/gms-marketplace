@@ -71,23 +71,30 @@ def write_metrics(ws, data):
 
 
 def write_pipeline(ws, tid, steps=None, totals=None, archived=False):
+    """The RUN ledger. `flow` is gone -- the workflow names itself now (§4.3)."""
     tdir = _ticket_dir(ws, tid, archived)
-    payload = {"ticket_id": tid, "flow": "ticket", "steps": steps or {}, "totals": totals or {}}
+    payload = {"run_id": tid, "workflow": "ship", "workflow_version": 3,
+               "subject": {"kind": "ticket", "ticket_id": tid},
+               "status": "in_progress", "steps": steps or {}, "totals": totals or {}}
     _write_json(os.path.join(tdir, "run.json"), payload)
 
 
-def write_code_state(ws, tid, states, archived=False, runs=None):
-    """runs: optional list of run-entry dicts; defaults to [] to preserve every
-    pre-existing caller's shape."""
+def write_step_state(ws, tid, skill, states, archived=False, runs=None):
+    """`steps/<skill>/state.json` with `invocations` (§4.4). `runs` keeps its
+    parameter name because every call site here reads it that way; what it
+    writes is the invocation list."""
     tdir = _ticket_dir(ws, tid, archived)
-    _write_json(os.path.join(tdir, "code-state.json"),
-                {"skill": "code", "ticket_id": tid, "states": states, "runs": runs or []})
+    _write_json(os.path.join(tdir, "steps", skill, "state.json"),
+                {"skill": skill, "run_id": tid, "states": states,
+                 "findings": [], "errors": [], "invocations": runs or []})
+
+
+def write_code_state(ws, tid, states, archived=False, runs=None):
+    write_step_state(ws, tid, "code", states, archived, runs)
 
 
 def write_create_pr_state(ws, tid, states=None, archived=False):
-    tdir = _ticket_dir(ws, tid, archived)
-    _write_json(os.path.join(tdir, "create-pr-state.json"),
-                {"skill": "create-pr", "ticket_id": tid, "states": states or {}, "runs": []})
+    write_step_state(ws, tid, "create-pr", states or {}, archived)
 
 
 def write_ticket_json(ws, tid, created_at, archived=False, due_date=None):
