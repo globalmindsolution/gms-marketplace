@@ -41,7 +41,6 @@ IMPL_PLAN_AGENTS = [IMPL_PLAN_EXECUTOR, IMPL_PLAN_VERIFIER]
 CODE_SKILL = os.path.join(SKILLS_DIR, "code", "SKILL.md")
 CODE_PLANNER = os.path.join(AGENTS_DIR, "code-planner.md")
 CODE_EXECUTOR = os.path.join(AGENTS_DIR, "code-executor.md")
-CODE_VERIFIER = os.path.join(AGENTS_DIR, "code-verifier.md")
 
 GATE_INPUTS = os.path.join(HOOKS_DIR, "acs_lib", "gate_inputs.py")
 POST_HOOK = os.path.join(HOOKS_DIR, "post-create-impl-plan.py")
@@ -139,8 +138,8 @@ class SkillSurfaceTest(unittest.TestCase):
 
     def test_skill_starts_and_finishes_through_its_own_hooks(self):
         body = read(IMPL_PLAN_SKILL)
-        self.assertIn("skill-start.py\" --skill create-impl-plan", body)
-        self.assertIn("post-create-impl-plan.py", body)
+        self.assertIn('acs.py" step start --step create-impl-plan', body)
+        self.assertIn('acs.py" step finish --step create-impl-plan', body)
 
 
 class PlanPhaseContractTest(unittest.TestCase):
@@ -215,12 +214,19 @@ class PublishTest(unittest.TestCase):
         self.assertRegex(section_norm, r"(?i)guard.{0,120}denies.{0,120}executor")
         self.assertRegex(section_norm, r"(?i)cop(y|ies)|\bcp\b")
 
-    def test_approval_mirror_is_named_with_its_reason(self):
-        self.assertIn("<partition>/steps/code/plan.md", self.body)
-        self.assertRegex(
-            self.norm,
-            r"(?i)steps/code/plan\.md.{0,200}(mirror|plan-approval\.py)|"
-            r"(mirror|plan-approval\.py).{0,200}steps/code/plan\.md")
+    def test_there_is_no_approval_mirror_to_keep_in_step(self):
+        """`steps/code/plan.md` was a byte-identical copy of the plan, because
+        plan-approval.py hashed THAT path while the verifier read another.
+        One plan now (§6): the approval hashes the one file, and a mirror that
+        can differ from the original is exactly the drift it was invented to
+        detect."""
+        self.assertIn("There is no approval mirror", self.body)
+        self.assertIn("steps/create-impl-plan/plan.md", self.body)
+        # The one place the retired path may still appear is the paragraph
+        # explaining that it is retired.
+        for match in re.finditer(re.escape("steps/code/plan.md"), self.body):
+            window = self.norm[max(0, match.start() - 200):match.end() + 200]
+            self.assertIn("used to exist", window)
 
     def test_published_deliverable_carries_no_legacy_iteration_literal(self):
         section = slice_between(self.body, "### Publish", "### Plan approval")
@@ -292,7 +298,7 @@ class PlanApprovalContractTest(unittest.TestCase):
     def test_subsection_says_which_paths_bind_and_where_the_call_went(self):
         section_norm = norm(self._section())
         self.assertRegex(section_norm, r"(?i)`standard` and `complex` delivery paths")
-        self.assertRegex(section_norm, r"(?i)code-standard.{0,40}code-complex")
+        self.assertRegex(section_norm, r"(?i)`standard` and `complex`")
         self.assertRegex(section_norm, r"(?i)before any path exists")
 
     def test_the_subsection_does_not_run_the_command_itself(self):
@@ -309,7 +315,7 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     def test_script_is_the_sole_writer_of_the_record(self):
         # The prohibition travelled with the call site, to the deep legs.
-        section_norm = norm(read(os.path.join(SKILLS_DIR, "code-standard", "SKILL.md")))
+        section_norm = norm(read(os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")))
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), section_norm):
             window = section_norm[max(0, m.start() - 250):m.end() + 250]
@@ -542,15 +548,17 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 
     def test_plan_input_resolution_replaces_them(self):
         """It lives in the shared protocol now (ADR-0095) -- every leg reads
-        the plan the same way, so one copy is right."""
+        the plan the same way, so one copy is right. There is no resolver
+        call left to make: the plan is at `steps/create-impl-plan/plan.md`,
+        one path, and there is no approval mirror to reconcile it with."""
         self.assertIn("### Plan input resolution", self.body)
-        self.assertIn("artifacts show --ticket", self.body)
+        self.assertIn("steps/create-impl-plan/plan.md", self.body)
         self.assertRegex(self.norm, r"(?i)never author or revise")
-        self.assertIn("plan_superseded", self.body)
+        self.assertIn("## Contract", self.body)
 
     def test_start_names_the_plan_input_gate_and_its_producer(self):
-        self.assertIn("no plan.md found for", self.norm)
         self.assertIn("/acs:create-impl-plan", self.norm)
+        self.assertRegex(self.norm, r"(?i)the pre-hook resolved it")
 
     def test_the_gate_refusal_wording_matches_the_gate(self):
         gate = read(GATE_INPUTS)
@@ -559,12 +567,16 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 
     def test_no_planner_subagent_on_any_delivery_path(self):
         self.assertNotIn("acs:code-planner", self.body)
-        self.assertRegex(self.norm,
-                         r"(?i)no plan\s+phase and no planner subagent")
+        self.assertRegex(self.norm, r"(?i)`/acs:create-impl-plan` wrote it")
 
-    def test_plan_superseded_is_the_replan_stop_reason(self):
-        self.assertIn("plan_superseded", self.body)
-        self.assertRegex(self.norm, r"(?i)on_replan")
+    def test_a_wrong_plan_stops_rather_than_being_re_planned_here(self):
+        """`on_replan` was a workflow EDGE; `ship.yaml` has no edges (§2.1).
+        A plan that execution proves wrong stops the step with
+        `needs_input` and points at the skill that owns the plan -- which is
+        the same routing, stated by the step rather than by the workflow."""
+        self.assertRegex(self.norm, r"(?i)do NOT re-plan here")
+        self.assertIn("stop_reason: needs_input", self.norm)
+        self.assertIn("/acs:create-impl-plan", self.norm)
 
     def test_result_states_no_longer_carry_plan_approved(self):
         start = self.body.index('"states": {')
@@ -579,17 +591,16 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
                 self.assertIn("test-cases.md", body_norm)
                 self.assertRegex(body_norm, r"(?i)TC-n")
 
-    def test_verifier_checks_contract_conformance_and_cites_tc_ids(self):
-        verifier_norm = norm(read(CODE_VERIFIER))
-        self.assertRegex(
-            verifier_norm,
-            r"(?i)contract-conformance sub-check.{0,200}api-contract\.md")
-        self.assertRegex(
-            verifier_norm,
-            r"(?i)test-case traceability sub-check.{0,300}TC-n")
-        self.assertRegex(
-            verifier_norm,
-            r"(?i)matrix cites the .?TC-n.? ids")
+    def test_the_review_checks_contract_conformance_and_traces_to_tc_ids(self):
+        """`code-verifier.md` is gone: the review is `/acs:review-code`. Lens C
+        judges conformance to the API contract, lens A rebuilds the acceptance
+        matrix from `test-cases.md`, and a finding carries `traces_to` so a
+        `TC-n` reaches `/acs:code` as data rather than as prose."""
+        review = norm(read(os.path.join(SKILLS_DIR, "review-code", "SKILL.md")))
+        self.assertRegex(review, r"(?i)C — Contracts & architecture.{0,200}api-contract\.md")
+        self.assertRegex(review, r"(?i)A — Acceptance.{0,200}test-cases\.md")
+        self.assertIn("traces_to", review)
+        self.assertRegex(review, r"(?i)`TC-n` / `AC-n`")
 
 
 if __name__ == "__main__":

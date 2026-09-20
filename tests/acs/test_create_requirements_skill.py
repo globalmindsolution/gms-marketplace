@@ -60,35 +60,32 @@ class Mar143RegistryCase(unittest.TestCase):
 
 
 class Mar143GateCase(unittest.TestCase):
-    """AC-6: the gate is standalone (`return None`), NOT
-    `_require_architecture_doc_set` — architecture-awareness is a planner
-    BEHAVIOR, not a hard gate (design.md 521-525)."""
+    """AC-6: `/acs:create-requirements` is NOT architecture-gated --
+    architecture-awareness is an authoring BEHAVIOR, not a hard gate
+    (design.md 521-525).
 
-    def test_gate_registered(self):
-        self.assertIn("create-requirements", lib.HOOKED_SKILLS)
+    There is one gate now (`gate_step`), so "the gate is standalone" is no
+    longer a property of a function: it is the absence of this skill from the
+    hard-gated sets, and the absence of a required run artifact from its own
+    declaration. Both are data, which is what makes them checkable.
+    """
 
-    def test_gate_resolves_and_returns_none(self):
-        gate = lib.gate_step
-        ctx = {"checkout_root": "/nonexistent/does-not-matter", "settings": {}}
-        self.assertIsNone(
-            gate(ctx, {}),
-            msg="gate_create_requirements must be standalone: return None "
-                "unconditionally, like gate_create_prd (AC-6)",
-        )
+    def test_it_is_a_hooked_skill(self):
+        self.assertIn("create-requirements", acs_lib.HOOKED_SKILLS)
 
-    def test_gate_is_not_require_architecture_doc_set(self):
-        self.assertIsNot(
-            lib.gate_step,
-            acs_lib._require_architecture_doc_set,
-            msg="gate_create_requirements must NOT be "
-                "_require_architecture_doc_set — that hard-gate is reserved "
-                "for create-quality/-operations/-principles/-standards (AC-6)",
-        )
+    def test_it_is_not_architecture_gated(self):
+        from acs_lib import gates
+        self.assertNotIn("create-requirements", gates.ARCHITECTURE_GATED,
+                         "the architecture hard-gate is reserved for the "
+                         "project and doc-set skills (AC-6)")
+        self.assertNotIn("create-requirements", gates.PRD_GATED)
 
-    def test_gate_function_exists_and_named_conventionally(self):
-        self.assertTrue(hasattr(acs_lib, "gate_create_requirements"))
-        self.assertIs(
-            lib.gate_step, acs_lib.gate_create_requirements)
+    def test_it_requires_no_run_artifact_of_its_own(self):
+        """A product skill is never a step of `ship` (2.4), so it has no run
+        artifact to read -- it reads the repo's documents, and judges their
+        absence itself rather than being refused for it."""
+        required, _optional = acs_lib.reads_of("create-requirements")
+        self.assertEqual([r for r in required if r != "subject"], [])
 
 
 class Mar143FilesExistCase(unittest.TestCase):
@@ -133,11 +130,15 @@ class Mar143CountBumpCase(unittest.TestCase):
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
-    def test_hooked_skills_count_is_seventeen(self):
-        # 15 at MAR-156/MAR-160 time; the skills-independence refactor hooks
-        # the five Build/Test skills (analyze-requirements, create-impl-plan,
-        # create-api-contract, create-test-docs, create-e2e-tests), 15 -> 20.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 17)
+    def test_hooked_skills_count_matches_the_registry(self):
+        # 15 at MAR-156/MAR-160 time; the skills-independence refactor hooked
+        # the five Build/Test skills, and the v0.5.0 redesign added
+        # `review-code` and moved `run-e2e-tests` in -- it is a step of
+        # ship.yaml with its own pre/post pair, and the "not really a pipeline
+        # skill in its default mode" framing is gone (§3.11).
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 19)
+        for added in ("review-code", "run-e2e-tests"):
+            self.assertIn(added, acs_lib.HOOKED_SKILLS)
 
     def test_c4_container_bumped_counts_present(self):
         body = self._c4_container()

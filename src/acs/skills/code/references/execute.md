@@ -34,8 +34,9 @@ declared iteration.
 Send each executor a `<task phase="execute">` naming its spec file, the
 resolved `plan.md`, `test-cases.md` when it exists, and its
 file map (include `<constraint name="docs_only">true</constraint>` when it
-applies). Each executor (artifact `steps/code/iter-<n>/execute.json`,
-or `iter-<n>-execute-<k>.json` when parallel) must, in order:
+applies). Each executor (artifact `steps/code/iter-<n>/execute.json`, or
+`execute-<k>.json` in the same directory when several run in parallel) must,
+in order:
 
 1. **Write failing tests first** for the spec's Test plan, run them, confirm
    they fail for the right reason. **When `test-cases.md` exists** (written by

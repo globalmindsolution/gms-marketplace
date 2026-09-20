@@ -26,7 +26,7 @@ Ground rules, non-negotiable:
 
 - This is a hooked skill: `pre-create-docs.py` gates the Skill call on the
   architecture doc set, once, for every set you go on to run; each set's own
-  `acs step start --skill create-docs --doc-set <set> --allocate` mints its
+  `acs step start --step create-docs --doc-set <set> --allocate` mints its
   delivery ticket, and each set's own `acs step finish` finalizes it.
   You never bypass, simulate, or duplicate a hook.
 - You spawn `acs:create-docs-executor` and `acs:create-docs-verifier` — the

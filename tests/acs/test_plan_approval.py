@@ -610,9 +610,10 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
                             "%r" % (fname, literal))
 
     def test_skill_forbids_subagent_write_of_the_record(self):
-        # The call site moved to the two deep legs (ADR-0095): approval binds
-        # per delivery path, and no path exists while create-impl-plan runs.
-        norm_body = _norm(_read(os.path.join(SKILLS, "code-standard", "SKILL.md")))
+        # The prohibition sits where the record is DESCRIBED: create-impl-plan
+        # publishes the plan the approval hashes, and is the skill a reader
+        # arrives at asking who writes the record.
+        norm_body = _norm(_read(IMPL_PLAN_SKILL))
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), norm_body):
             window = norm_body[max(0, m.start() - 250):m.end() + 250]
@@ -624,6 +625,8 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
             "no bounded window around plan-approval.json co-locates a "
             "Write-tool prohibition and never/only")
 
+    @unittest.skip("code-verifier.md left with the verifier (§3.5); the "
+                   "record's reader is now the pre-hook's brake, pinned above")
     def test_verifier_agent_reads_but_never_writes_the_record(self):
         """D-2 constrains the writer, not the reader: code-verifier.md is
         positively asserted to READ plan-approval.json (dimension 15,
@@ -704,25 +707,29 @@ class PlanApprovalContractTest(unittest.TestCase):
         self.assertRegex(section_norm, r"(?i)artifact the path\s+is judged FROM|"
                                        r"artifact the path is judged FROM")
 
-    def test_each_deep_leg_carries_the_exact_command(self):
-        for leg, body in self.leg_bodies.items():
-            with self.subTest(leg=leg):
-                self.assertIn("hooks/scripts/plan-approval.py", body)
-
-    def test_each_deep_leg_says_approval_is_enforced_and_non_gating(self):
-        for leg, body in self.leg_bodies.items():
-            with self.subTest(leg=leg):
-                norm_leg = _norm(body)
-                self.assertRegex(norm_leg, r"(?i)Plan approval is enforced")
-                self.assertRegex(norm_leg, r"(?i)ineligible plan does not block")
-
-    def test_the_cheap_legs_never_name_the_writer(self):
-        """A leg that runs the script on a path where approval does not bind
-        would write a record the review then activates against."""
-        for leg in ("code-trivial", "code-small"):
+    def test_no_leg_runs_the_writer_itself(self):
+        """The call site left the legs entirely. A brake a coordinator applies
+        to ITSELF is a brake the coordinator can forget: the pre-hook refuses
+        `code` on the deep paths when the approval is absent or its
+        `plan_sha256` is stale (§5), before the leg is ever invoked."""
+        for leg in ("code-trivial", "code-small", "code-standard", "code-complex"):
             with self.subTest(leg=leg):
                 self.assertNotIn("plan-approval.py",
                                  _read(os.path.join(SKILLS, leg, "SKILL.md")))
+
+    def test_each_deep_leg_says_approval_is_enforced_and_what_makes_it_stale(self):
+        for leg, body in self.leg_bodies.items():
+            with self.subTest(leg=leg):
+                norm_leg = _norm(body)
+                self.assertRegex(norm_leg, r"(?i)Plan approval.{0,40}\*\*Enforced\.\*\*")
+                self.assertIn("plan_sha256", norm_leg)
+                self.assertIn("An edited plan is an unapproved plan", norm_leg)
+
+    def test_the_cheap_legs_say_approval_is_not_required(self):
+        for leg in ("code-trivial", "code-small"):
+            with self.subTest(leg=leg):
+                body = _norm(_read(os.path.join(SKILLS, leg, "SKILL.md")))
+                self.assertIn("Plan approval is not required", body)
 
     def test_subsection_avoids_forbidden_literals(self):
         start = self.skill_body.index("### Plan approval")

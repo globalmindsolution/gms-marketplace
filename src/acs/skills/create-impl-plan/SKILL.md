@@ -108,15 +108,16 @@ This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
 `/acs:code` gate looks for, so the path this run chooses is the path that
 opens the next gate. Record it as `states.plan_path`.
 
-Two derived paths follow from it, and both are written from the SAME bytes:
+One derived path follows from it:
 
-- `steps/create-impl-plan/plan.md` — the working draft the
-  executor writes and the verifier judges (see Publish).
-- `steps/code/plan.md` — the approval mirror. `plan-approval.py`
-  is the sole writer of the approval record and resolves the plan it hashes
-  inside `steps/code/`; `/acs:code`'s verifier reads that same
-  path for its plan-conformance dimension. The mirror is a byte-identical copy
-  of the published plan, never an independent edit.
+- `steps/create-impl-plan/plan.md` — the working draft the executor writes,
+  the verifier judges, and every later reader reads.
+
+**There is no approval mirror.** A byte-identical copy at `steps/code/plan.md`
+used to exist because `plan-approval.py` hashed that path while the review
+read another. One plan now (§6): the approval hashes the one file, and a copy
+that can differ from its original is exactly the drift it was invented to
+detect.
 
 ## The re-run reference, and when to open it
 
@@ -352,26 +353,27 @@ verified bytes:
 ```bash
 draft="steps/create-impl-plan/plan.md"
 mkdir -p "$(dirname "<plan_path>")" && cp "$draft" "<plan_path>"
-mkdir -p "steps/code" && cp "$draft" "steps/code/plan.md"
 ```
 
 Then commit `<plan_path>` on the ticket branch when it is inside the repo
-(the docs tree active); the partition copy and the mirror are workspace state
-and are never committed.
+(the docs tree active); the run's own copy is workspace state and is never
+committed.
 
 ### Plan approval happens later, not here
 
 Approval binds on the `standard` and `complex` delivery paths only — and this
 skill runs before any path exists, because `plan.md` is the artifact the path
-is judged FROM. So `plan-approval.py` is not run here. The `code-standard` and
-`code-complex` legs run it at their own Start, over the approval mirror this
-skill publishes at `steps/code/plan.md`, which is exactly why
-Publish writes that copy from the same bytes.
+is judged FROM. So `plan-approval.py` is not run here.
 
-What this skill owes approval is therefore one thing: **publish the mirror from
-the same bytes as the plan.** `plan_approval_eligible` hashes it, and a mirror
-that differs from the published plan makes every later approval a verdict about
-the wrong document.
+A human approves the plan with `plan-approval.py`, which is the **sole writer**
+of `plan-approval.json` — never a coordinator, never an executor, and never a
+Write-tool call, because a record a skill can write itself is not an approval.
+It hashes `steps/create-impl-plan/plan.md` into `plan_sha256`, and `/acs:code`'s
+pre-hook refuses the deep paths when that digest does not match the plan on
+disk. An edited plan is an unapproved plan.
+
+What this skill owes approval is therefore one thing: **publish the plan and
+leave it alone.**
 
 ### Docs-only tickets (`ticket.docs_only: true`)
 
