@@ -71,7 +71,7 @@ def _fold_active(rdir):
     specs_dir = os.path.join(rdir, "specs")
     if not os.path.isdir(specs_dir):
         return True
-    for name in sorted(os.lisrdir(specs_dir)):
+    for name in sorted(os.listdir(specs_dir)):
         if not name.endswith(".md"):
             continue
         try:
