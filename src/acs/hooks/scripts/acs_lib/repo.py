@@ -330,8 +330,11 @@ def record_session_marker(ctx, payload):
     return marker
 
 
-def lock_path(tdir):
-    return os.path.join(tdir, ".lock")
+def lock_path(rdir):
+    """`runs/<run-id>/lock.json`. Named rather than hidden: a lock a reader
+    cannot see is a lock a reader cannot reason about, and `.lock` predates
+    the run partition having a shape worth listing."""
+    return os.path.join(rdir, "lock.json")
 
 
 def find_ticket_partition(workspace, repo_id, ticket_id):

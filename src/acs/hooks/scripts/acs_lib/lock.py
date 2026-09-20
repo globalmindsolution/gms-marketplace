@@ -13,6 +13,7 @@ partitions and two locks; `acs run new` refuses the second unless the first is
 terminal.
 """
 
+import json
 import os
 import socket
 import subprocess
@@ -20,7 +21,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from ._common import GateError, now_iso, parse_iso, read_json, write_json
-from .repo import checkout_id, lock_path
+from .repo import checkout_id, checkout_root, lock_path
 
 def read_lock(tdir):
     return read_json(lock_path(tdir))
