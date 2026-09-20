@@ -160,7 +160,7 @@ For every phase:
    when not `"inherit"`; if the runtime rejects the model or effort, FAIL
    the run with that exact error — no silent fallback.
 4. Persist the phase's `<task>` and `<result>` to
-   `steps/docs-sync/iter-<n>-<phase>.xml` at the phase
+   `steps/docs-sync/iter-<n>/<phase>.json` at the phase
    boundary, BEFORE starting the next phase. The executor's own artifacts
    are `iter-<n>/authoring.md` (Diff analysis; Doc-delta list; Cross-check
    against docs_updated/problems; Open questions) and

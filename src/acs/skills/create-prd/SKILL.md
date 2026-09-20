@@ -131,7 +131,7 @@ receive:
 
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
-`steps/create-prd/iter-<n>-<phase>.xml` at the phase boundary BEFORE
+`steps/create-prd/iter-<n>/<phase>.json` at the phase boundary BEFORE
 starting the next phase. The executor's own artifacts are `iter-<n>/authoring.md`
 (Mode & evidence; PRD outline; Roadmap outline; Code evidence; Answer fidelity;
 Roadmap milestones; Open questions; Risks; Verifier checklist) and

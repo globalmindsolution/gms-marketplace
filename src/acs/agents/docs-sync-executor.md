@@ -169,9 +169,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ```xml
 <result skill="docs-sync" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/docs-sync/iter-1-authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/docs-sync/iter-1/authoring.md</file>
     <file>docs/api/import.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/docs-sync/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/docs-sync/iter-1/execute.json</file>
   </outputs>
   <stop-reason>1 doc file updated and committed on the ticket branch</stop-reason>
 </result>

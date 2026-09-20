@@ -168,7 +168,7 @@ sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 4. Persist the phase's `<task>` and `<result>` to
-   `steps/create-design/iter-<n>-<phase>.xml` at the phase boundary,
+   `steps/create-design/iter-<n>/<phase>.json` at the phase boundary,
    BEFORE starting the next phase. The executor's own artifacts are
    `iter-<n>/authoring.md` (its survey: Analysis; Decisions & candidate
    options with trade-offs; NFR checklist; Architecture conformance call;
@@ -319,7 +319,7 @@ executor is checked against. Copy, never re-author — the published bytes must
 equal the verified bytes:
 
 ```bash
-cp "steps/create-design/design.md" "<design_path>"
+cp "<partition>/steps/create-design/design.md" "<design_path>"
 ```
 
 Committing it: `/acs:create-design` is Design-phase work and normally runs
@@ -366,7 +366,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
   ```xml
   <handoff skill="create-design" ticket-id="SHOP-123" status="needs_input">
     <summary>Design blocked on user decision: sync vs. async export pipeline. Options and trade-offs drafted in design.md (Options considered).</summary>
-    <artifacts><file>/abs/workspace/repo/SHOP-123/phases/create-design/design.md</file></artifacts>
+    <artifacts><file>/abs/workspace/repo/SHOP-123/steps/create-design/design.md</file></artifacts>
     <questions><question>Should export run synchronously in-request (simpler, blocks UX >2s) or via a queued worker (new component, resilient)?</question></questions>
     <next-step>Answer, then re-run /acs:create-design SHOP-123</next-step>
   </handoff>

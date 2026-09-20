@@ -65,4 +65,4 @@ the rubber-stamp failure ADR 0004 exists to prevent.
    — a run that revised a plan must not also bless it.
 4. **`plan-superseded-<k>.md` is never an approval input and never a
    conformance contract** — guaranteed by `/acs:code`'s dimension 15
-   activation condition that `plan_path` must equal `phases/code/plan.md`.
+   activation condition that `plan_path` must equal `steps/code/plan.md`.

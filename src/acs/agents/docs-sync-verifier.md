@@ -90,7 +90,7 @@ actionable (file, expectation, observed behavior):
 ```xml
 <result skill="docs-sync" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/docs-sync/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/docs-sync/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="completeness" file="docs/api/import.md">Diff adds a 409 response to POST /import but the doc still lists only 200/400.</finding>

@@ -140,7 +140,7 @@ replying, pipe your draft through
 ```xml
 <result skill="create-docs" phase="verify" ticket-id="SHOP-2" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-2/phases/create-docs/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-2/steps/create-docs/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="architecture-conformance" file="docs/quality/test-strategy.md">Suite inventory names "pytest" but hld/tech-stack.md documents Go/go test — the file was not tailored to the detected stack.</finding>

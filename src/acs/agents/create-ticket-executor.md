@@ -165,7 +165,7 @@ plain creation run carries no `children` finding — `children` stays `[]`:
 <result skill="create-ticket" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
     <file>/abs/path/to/partition/ticket.json</file>
-    <file>/abs/path/to/partition/phases/create-ticket/iter-1-execute.json</file>
+    <file>/abs/path/to/partition/steps/create-ticket/iter-1/execute.json</file>
   </outputs>
   <findings>
     <finding severity="info" dimension="children">minted SHOP-124, SHOP-125</finding>

@@ -212,7 +212,7 @@ un-namespaced name if the runtime rejects the namespaced one). Apply
 `context.models.<role>.model`/`.effort` at spawn when not `"inherit"`; fail the run (no
 silent fallback) if the runtime rejects the model/effort. Communicate in XML per
 message, re-request once, then fail with the validation error recorded in `errors`.
-Persist every phase output to `steps/standardize-project/iter-<n>-<phase>.xml`
+Persist every phase output to `steps/standardize-project/iter-<n>/<phase>.json`
 before starting the next phase.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass

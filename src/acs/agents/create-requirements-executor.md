@@ -270,9 +270,9 @@ Self-check it:
 ```xml
 <result skill="create-requirements" phase="execute" ticket-id="SHOP-1" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-1/phases/create-requirements/iter-1-authoring.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-requirements/iter-1/authoring.md</file>
     <file>/abs/repo/docs/requirements/functional/checkout.md</file>
-    <file>/abs/workspace/acme-shop/SHOP-1/phases/create-requirements/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-requirements/iter-1/execute.json</file>
   </outputs>
   <stop-reason>Requirements area files written per the iteration-1 authoring notes; all declared sections populated.</stop-reason>
 </result>

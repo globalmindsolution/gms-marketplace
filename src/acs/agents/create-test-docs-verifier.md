@@ -113,7 +113,7 @@ actionable (file, expectation, observed behavior):
 ```xml
 <result skill="create-test-docs" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-test-docs/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-test-docs/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="front-matter" file="test-cases.md">Front matter says e2e_cases: 2, but the Type cell of TC-5 is `e2e` in backticks, so the gate's counter prints 1 — /acs:create-e2e-tests would write one suite short.</finding>

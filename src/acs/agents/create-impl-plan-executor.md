@@ -264,7 +264,7 @@ Write your execute report to
 
 ```json
 {
-  "draft": "/abs/workspace/acme-shop/SHOP-123/phases/create-impl-plan/plan.md",
+  "draft": "/abs/workspace/acme-shop/SHOP-123/steps/create-impl-plan/plan.md",
   "intake_mode": "folded",
   "tasks": {"1": ["src/import/api.py", "tests/test_import_api.py"],
             "2": ["docs/api/import.md"]},
@@ -306,9 +306,9 @@ after it. Self-check it first:
 ```xml
 <result skill="create-impl-plan" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/create-impl-plan/iter-1-authoring.md</file>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/create-impl-plan/plan.md</file>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/create-impl-plan/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/create-impl-plan/iter-1/authoring.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/create-impl-plan/plan.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/create-impl-plan/iter-1/execute.json</file>
   </outputs>
   <stop-reason>Draft rendered: 6 headings + fold, 3 tasks with disjoint file maps, AC-1..AC-4 each mapped to a test.</stop-reason>
 </result>

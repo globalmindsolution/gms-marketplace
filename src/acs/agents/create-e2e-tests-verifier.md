@@ -114,7 +114,7 @@ actionable (file, expectation, observed behavior):
 ```xml
 <result skill="create-e2e-tests" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-e2e-tests/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-e2e-tests/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="fidelity" file="e2e/shop-123-csv-import.spec.ts">TC-5 asserts only that the response is 2xx; the case's expected result is status `done` and 10 visible rows — the test would pass on an import that silently dropped every row.</finding>

@@ -147,7 +147,7 @@ Self-check it:
 ```xml
 <result skill="create-prd" phase="verify" ticket-id="SHOP-1" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-1/phases/create-prd/iter-1-verify.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="measurable-metrics" file="docs/product/prd.md">Goal G2 "delight power users" has no measurable metric (no value/unit/timeframe).</finding>

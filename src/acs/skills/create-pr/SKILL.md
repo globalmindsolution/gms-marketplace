@@ -433,7 +433,7 @@ MANDATORY final step — never skipped, also on failure:
    `/acs:merge-pr <ticket-id>` (a user action; the pipeline never triggers
    it). Under /acs:ship, instead return ONLY the `<handoff>` XML as your final
    message — status, summary (<=1KB) naming the PR number/URL, `<artifacts>`
-   referencing `phases/create-pr/result.json`, and `<next-step>` pointing at
+   referencing `steps/create-pr/result.json`, and `<next-step>` pointing at
    /acs:merge-pr as the user's review-and-merge action.
 
 ## Completion report (normative)

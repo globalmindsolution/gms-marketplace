@@ -103,7 +103,7 @@ actionable (file, expectation, observed behavior):
 ```xml
 <result skill="analyze-requirements" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/analyze-requirements/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/analyze-requirements/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="api-surface" file="analysis.md">Front matter says api_surface false, but src/import/api.py:88 changes the documented 413 response of POST /import — a public surface change.</finding>

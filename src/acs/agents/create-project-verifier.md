@@ -21,8 +21,8 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
 <task skill="create-project" phase="verify" ticket-id="SHOP-3" iteration="1">
   <objective>Verify the scaffold against iter-1-authoring.md and the quality bar</objective>
   <inputs>
-    <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/execute.json</file>
     <file>/abs/repo/docs/architecture/hld/tech-stack.md</file>
     <file>/abs/repo/docs/architecture/hld/c4-container.md</file>
     <file>/abs/repo/docs/architecture/hld/c4-component.md</file>
@@ -109,7 +109,7 @@ Escape `&` and `<` in text content. Self-check with
 ```xml
 <result skill="create-project" phase="verify" ticket-id="SHOP-3" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="coverage-tooling" file="pyproject.toml">fail_under is 80 but test_coverage_percent is 90; coverage run passes at 85% when it must fail</finding>

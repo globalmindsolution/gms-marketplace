@@ -95,12 +95,23 @@ Messaging rules (the SubagentStop hook checks them):
 
 ### Epics are never implemented
 
-An epic subject is refused by the `code` gate before this skill starts. If one
-reaches this step nonetheless (a bypassed pre-gate on some runtimes), STOP
-immediately and surface the same message the gate would have raised. This is
-defence in depth, and it is a rule of every delivery path: a leg that received
-an epic refuses it exactly as the gate would, rather than judging it onto a
-path and implementing it.
+An epic subject is refused by the `code` gate before this skill ever starts —
+the epic brake runs for every implementation step, so an epic is turned away
+at `analyze-requirements` rather than three steps later with a plan on disk.
+Every ticket that reaches this
+step therefore has `ticket.type != "epic"`.
+
+That invariant is true of a gate that fired. If `ticket.type == "epic"`
+nonetheless reaches this step — a bypassed or best-effort pre-gate on some
+runtimes — STOP immediately and surface the same breakdown message the gate
+would have raised: design the epic with `/acs:create-design <id>` if it has
+none, break it down into child tickets with `/acs:create-ticket <id>` (epic
+fan-out), then run `/acs:code` on a child. **Never implement an epic under any
+circumstance**, regardless of what the pre-gate did or did not enforce.
+
+This is defence in depth, and it is a rule of every delivery path: a leg that
+received an epic refuses it exactly as the gate would, rather than judging it
+onto a path and implementing it.
 
 ---
 

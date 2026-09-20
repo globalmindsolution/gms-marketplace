@@ -172,7 +172,7 @@ After writing the draft, write
 
 ```json
 {
-  "analysis_path": "/abs/workspace/owner-repo/SHOP-123/phases/analyze-requirements/analysis.md",
+  "analysis_path": "/abs/workspace/owner-repo/SHOP-123/steps/analyze-requirements/analysis.md",
   "impact_paths": ["src/import/api.py", "tests/test_import_api.py"],
   "api_surface": true,
   "ready_for_planning": true,
@@ -202,9 +202,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ```xml
 <result skill="analyze-requirements" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/analyze-requirements/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/analyze-requirements/analysis.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/analyze-requirements/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/analyze-requirements/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/analyze-requirements/analysis.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/analyze-requirements/iter-1/execute.json</file>
   </outputs>
   <stop-reason>Analysis drafted: 9 impact rows, API surface changes, 6 criteria reviewed, 1 open question</stop-reason>
 </result>

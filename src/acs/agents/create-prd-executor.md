@@ -244,10 +244,10 @@ Self-check it:
 ```xml
 <result skill="create-prd" phase="execute" ticket-id="SHOP-1" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-1/phases/create-prd/iter-1-authoring.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/authoring.md</file>
     <file>/abs/repo/docs/product/prd.md</file>
     <file>/abs/repo/docs/product/roadmap.md</file>
-    <file>/abs/workspace/acme-shop/SHOP-1/phases/create-prd/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/execute.json</file>
   </outputs>
   <stop-reason>PRD and roadmap written per the iteration-1 authoring notes; all 8 sections populated.</stop-reason>
 </result>

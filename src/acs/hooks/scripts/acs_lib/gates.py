@@ -38,7 +38,7 @@ from . import sessions
 from . import skills as skills_registry
 from . import step as step_machine
 from . import stepgate
-from .gate_inputs import e2e_case_count  # noqa: F401
+from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
 from .advisory import workflow_advisory
 
 
@@ -203,6 +203,39 @@ def _sha256_file(path):
     return digest.hexdigest()
 
 
+#: What an epic is refused FOR, per step, in that step's own words.
+_EPIC_VERBS = {
+    "analyze-requirements": "analyzed for implementation",
+    "create-impl-plan": "planned",
+    "create-api-contract": "given an API contract",
+    "create-test-docs": "given test cases",
+    "code": "implemented",
+    "review-code": "reviewed as one changeset",
+    "create-e2e-tests": "given e2e tests",
+    "create-pr": "opened as one pull request",
+}
+
+
+def _brake_no_epics(ctx, rdir, doc, wf):
+    """Epics are designed and fanned out, never worked as one ticket.
+
+    A brake rather than an input check: the ticket resolves, the partition is
+    live, everything the step needs is there -- and doing the work anyway is
+    the damage. An epic implemented as one changeset is not a re-runnable
+    mistake, which is what separates a brake from a missing input.
+    """
+    step = doc.get("__step__")
+    subject = doc.get("subject") or {}
+    ticket_id = subject.get("ticket_id")
+    if not ticket_id or not step:
+        return None
+    tdir, _archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+    ticket = load_ticket(tdir) if os.path.isdir(tdir) else None
+    if isinstance(ticket, dict) and ticket.get("type") == "epic":
+        _refuse_epic(ticket_id, step, _EPIC_VERBS.get(step, "worked directly"))
+    return None
+
+
 BRAKES = {
     "code": _brake_code,
     "create-pr": _brake_create_pr,
@@ -292,6 +325,12 @@ def gate_step(ctx, skill, payload, standalone=True):
             "acs: no %s for this run; /acs:%s will work from the run's subject instead.\n"
             % (artifact, skill))
 
+    # The epic brake runs for EVERY implementation step, not just the ones
+    # that happened to have a gate function before. `code` refusing an epic
+    # while `create-impl-plan` planned one is the same mistake caught a step
+    # too late, with a plan on disk that should never have been written.
+    if skill in _EPIC_VERBS:
+        _brake_no_epics(ctx, rdir, dict(doc, __step__=skill), wf)
     brake = BRAKES.get(skill)
     if brake:
         brake(ctx, rdir, doc, wf)

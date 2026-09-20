@@ -181,7 +181,7 @@ Messaging rules (`the SubagentStop hook's message check`):
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Persist every phase's `<task>` and `<result>` to
-  `steps/analyze-requirements/iter-<n>-<phase>.xml` at the phase
+  `steps/analyze-requirements/iter-<n>/<phase>.json` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:analyze-requirements-executor`,
   `acs:analyze-requirements-verifier` — fall back to
@@ -338,7 +338,7 @@ inputs an executor is checked against. Copy, never re-author — the published
 bytes must equal the verified bytes:
 
 ```bash
-cp "steps/analyze-requirements/analysis.md" "<analysis_path>"
+cp "<partition>/steps/analyze-requirements/analysis.md" "<analysis_path>"
 ```
 
 Then commit on the ticket branch when the analysis is inside the repo (the

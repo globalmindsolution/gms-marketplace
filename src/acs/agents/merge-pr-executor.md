@@ -137,7 +137,7 @@ Your FINAL message is ONLY a `<result>` element valid against
 ```xml
 <result skill="merge-pr" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/merge-pr/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/merge-pr/iter-1/execute.json</file>
   </outputs>
   <stop-reason>PR #87 squash-merged; remote+local branch deleted, worktree removed, GitHub issue #42 closed.</stop-reason>
 </result>

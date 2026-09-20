@@ -157,9 +157,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ```xml
 <result skill="create-e2e-tests" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-e2e-tests/iter-1-authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-e2e-tests/iter-1/authoring.md</file>
     <file>/abs/checkout/e2e/shop-123-csv-import.spec.ts</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-e2e-tests/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-e2e-tests/iter-1/execute.json</file>
   </outputs>
   <stop-reason>1 suite written covering TC-5 and TC-6, 1 fixture added</stop-reason>
 </result>

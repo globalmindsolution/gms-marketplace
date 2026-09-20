@@ -20,6 +20,22 @@ You also never RUN the ticket's e2e suites as the pipeline's verdict —
 failure back to `/acs:code`. A suite that is correct and currently red is a
 correct deliverable from this skill; a suite weakened until it is green is not.
 
+## When nothing is owed
+
+`/acs:create-e2e-tests` is **not invoked at all** on a run that owes no e2e
+coverage. The plan's `## Contract` block records `owes.e2e`, and the pre-hook
+completes this step from it with `outcome: no_e2e_owed` — no coordinator, no
+subagents, zero tokens (§2.2). `/acs:run-e2e-tests` then has nothing to run
+and records `nothing_to_run`.
+
+That is an ANSWER on the ledger, not a step that silently did not run. The
+workflow has no `when:` predicates (§2.1): a step that had nothing to do is
+`completed` with an outcome saying so, which is a thing a reader can audit.
+
+Silence is not permission to skip. A plan that states nothing about `owes.e2e`
+does NOT settle the step — you run, and decide from `test-cases.md` whether
+any case is typed e2e.
+
 ## Start
 
 MANDATORY first action — run exactly:
@@ -227,7 +243,7 @@ Messaging rules (`the SubagentStop hook's message check`):
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Persist every phase's `<task>` and `<result>` to
-  `steps/create-e2e-tests/iter-<n>-<phase>.xml` at the phase
+  `steps/create-e2e-tests/iter-<n>/<phase>.json` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:create-e2e-tests-executor`,
   `acs:create-e2e-tests-verifier` — fall back

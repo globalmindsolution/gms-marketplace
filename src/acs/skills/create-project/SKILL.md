@@ -117,7 +117,7 @@ Messaging rules for every phase:
 
 - Invalid message from a subagent: re-request once; still invalid -> fail the run,
   recording the validation error in result.json `errors`.
-- Persist every phase output to `steps/create-project/iter-<n>-<phase>.xml`
+- Persist every phase output to `steps/create-project/iter-<n>/<phase>.json`
   at the phase boundary, BEFORE starting the next phase (parallel executors: suffix
   `iter-<n>-execute-a.xml`, `-b.xml`, ...). The executor's own artifacts are
   `iter-1-authoring.md` (authored once, on iteration 1: Analysis; File manifest;
@@ -144,7 +144,7 @@ constraints. Example (iteration 1, repo-relative input paths):
 
 ```xml
 <task skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1">
-  <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes phases/create-project/iter-1-authoring.md (list it in outputs), then build it green on the delivery branch.</objective>
+  <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes steps/create-project/iter-1/authoring.md (list it in outputs), then build it green on the delivery branch.</objective>
   <inputs>
     <file>docs/architecture/hld/tech-stack.md</file>
     <file>docs/architecture/hld/c4-container.md</file>
@@ -228,7 +228,7 @@ installs and its hooks pass on the tree.
 
 A scaffold that does not run green FAILS verification — every failing command is a
 blocking finding. ALL findings block: zero findings = pass. On findings, persist
-`iter-<n>/verify.xml`, then AUTOMATICALLY re-execute, passing every finding to the
+`iter-<n>/verify.md`, then AUTOMATICALLY re-execute, passing every finding to the
 next iteration's executor `<task>` as `<context>`, with no plan phase in between
 — the executor authors the remediation. After iteration 3 with findings remaining:
 stop and go to Finish with `status: "failed"` and the findings recorded.

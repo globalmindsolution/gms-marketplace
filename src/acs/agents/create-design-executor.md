@@ -179,7 +179,7 @@ After producing the artifact, write
 
 ```json
 {
-  "artifacts": ["phases/create-design/design.md"],
+  "artifacts": ["steps/create-design/design.md"],
   "sections_written": ["Context & constraints", "Options considered", "Decision & rationale", "Architecture", "Impact & risks", "Rollout/migration"],
   "diagrams": [{"type": "sequenceDiagram", "flow": "export-request"}, {"type": "erDiagram", "subject": "export_jobs"}],
   "problems": ["lld/contracts.md silent on error envelope; followed the shape used by src/api/errors.ts"],
@@ -203,9 +203,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ```xml
 <result skill="create-design" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-design/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-design/design.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-design/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-design/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-design/design.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-design/iter-1/execute.json</file>
   </outputs>
   <stop-reason>design.md written: 2 options, decision recorded, 2 sequence diagrams, conformance: 2 doc-set changes listed</stop-reason>
 </result>

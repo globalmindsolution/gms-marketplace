@@ -206,8 +206,8 @@ Your FINAL message is ONLY a `<result>` element valid against
 ```xml
 <result skill="create-architecture" phase="execute" ticket-id="SHOP-42" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-2/phases/create-architecture/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-42/phases/create-architecture/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-2/steps/create-architecture/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-42/steps/create-architecture/iter-1/execute.json</file>
     <file>docs/architecture/hld/overview.md</file>
     <file>docs/architecture/hld/c4-container.md</file>
     <file>docs/architecture/lld/flows/checkout.md</file>

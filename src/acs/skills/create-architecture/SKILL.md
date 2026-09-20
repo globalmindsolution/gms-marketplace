@@ -171,7 +171,7 @@ On an invalid message, re-request it once; if still invalid, fail the run
 with the validation error recorded in `errors`.
 
 Persist every phase output to
-`steps/create-architecture/iter-<n>-<phase>.xml` at the phase
+`steps/create-architecture/iter-<n>/<phase>.json` at the phase
 boundary, BEFORE starting the next phase. The executor's own artifacts are
 `iter-<n>/authoring.md` (Mode; Inventory; Target doc set with the per-file
 outline; Flow selection; Delivery step; Risks & open decisions; Verifier
@@ -221,7 +221,7 @@ Phases:
    by dim-1 `doc-set-completeness` and the diagram-lint gate).
 
 Zero verifier findings = pass — proceed to Delivery. On findings, persist
-`iter-<n>/verify.xml`, then feed them verbatim into the next iteration's
+`iter-<n>/verify.md`, then feed them verbatim into the next iteration's
 executor `<task>` `<context>` — with no plan phase in between, and re-run
 execute -> verify. After iteration 3 with findings
 remaining: stop, final status `failed`, findings recorded in the result

@@ -105,7 +105,7 @@ instead of duplicating them):
 Written by /acs:handoff on 2026-06-12T09:30:00Z.
 
 ## Done (verified)
-- specs/01-cart-model.md implemented; tests green (phases/code/iter-1-verify.xml)
+- specs/01-cart-model.md implemented; tests green (steps/code/iter-1/verify.md)
 
 ## In flight
 - specs/02-cart-api.md: tests written, handler half-implemented (src/cart/api.py)
@@ -131,7 +131,7 @@ updates `run.json`, and releases the `.lock`):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket SHOP-123 \
-  --summary "done: spec 01 implemented, tests green; in flight: spec 02 executor, handler partial; next: finish PATCH handler, coverage check; decisions: cursor pagination — detail in phases/code/handoff-context.md"
+  --summary "done: spec 01 implemented, tests green; in flight: spec 02 executor, handler partial; next: finish PATCH handler, coverage check; decisions: cursor pagination — detail in steps/code/handoff-context.md"
 ```
 
 Summary rules: one compact line, well under 1 KB, covering the four parts —

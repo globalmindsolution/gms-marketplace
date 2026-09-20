@@ -360,7 +360,7 @@ On an invalid message, re-request it once; if still invalid, fail **that
 set's** run with the validation error recorded in its own `errors` — never
 another set's.
 
-Persist every phase output to `steps/create-docs/iter-<n>-<phase>.xml`
+Persist every phase output to `steps/create-docs/iter-<n>/<phase>.json`
 at the phase boundary, BEFORE starting the next phase. The executor's own
 artifacts are `iter-<n>/authoring.md` (Mode; Upstream inventory with cited,
 verbatim-excerpted facts; Consistency findings; Decisions) and

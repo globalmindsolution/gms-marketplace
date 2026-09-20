@@ -190,7 +190,7 @@ Messaging rules (`the SubagentStop hook's message check`):
   On invalid: re-request once with the validation error; still invalid → fail
   the run and record the error in the result document's `errors`.
 - Persist every phase output to
-  `steps/create-impl-plan/iter-<n>-<phase>.xml` at the phase
+  `steps/create-impl-plan/iter-<n>/<phase>.json` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:create-impl-plan-executor` and
   `acs:create-impl-plan-verifier` —

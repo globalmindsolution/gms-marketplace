@@ -157,7 +157,7 @@ After writing the draft, write
 
 ```json
 {
-  "contract_draft": "/abs/workspace/owner-repo/SHOP-123/phases/create-api-contract/api-contract.md",
+  "contract_draft": "/abs/workspace/owner-repo/SHOP-123/steps/create-api-contract/api-contract.md",
   "items": 3,
   "traced_acs": ["AC-1", "AC-2", "AC-4"],
   "contract_files": ["docs/api/openapi.yaml"],
@@ -185,10 +185,10 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ```xml
 <result skill="create-api-contract" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-api-contract/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-api-contract/api-contract.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-api-contract/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-api-contract/api-contract.md</file>
     <file>docs/api/openapi.yaml</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-api-contract/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-api-contract/iter-1/execute.json</file>
   </outputs>
   <stop-reason>3 items specified, all traced; openapi.yaml updated and committed</stop-reason>
 </result>

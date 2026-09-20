@@ -171,7 +171,7 @@ actionable (file, expectation, observed behavior):
 ```xml
 <result skill="create-design" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-design/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-design/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="nfr" file="design.md">Performance for the export flow is unquantified: ticket says "up to 50k rows" but Context &amp; constraints sets no latency/volume bound and Option B's queue sizing is unstated.</finding>

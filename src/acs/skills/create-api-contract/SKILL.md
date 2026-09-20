@@ -17,6 +17,21 @@ You specify; you never implement. No production code, no tests: `/acs:code`
 implements this contract, `/acs:create-test-docs` derives contract cases from
 it, and `/acs:code`'s verifier checks the changeset against it.
 
+## When nothing is owed
+
+`/acs:create-api-contract` is **not invoked at all** on a run that owes no
+public surface. The plan's `## Contract` block records `owes.api_contract`,
+and the pre-hook completes this step from it with
+`outcome: no_surface_owed` — no coordinator, no subagents, zero tokens (§2.2).
+
+That is an ANSWER on the ledger, not a step that silently did not run: a
+reader sees `completed` with a reason, and `/acs:review-code`'s lens C reads
+the same outcome and records that it had no contract to judge against.
+
+Silence is not permission to skip. A plan that states nothing about
+`owes.api_contract` does NOT settle the step — you run, and decide from the
+plan and the subject whether a surface is owed.
+
 ## Start
 
 MANDATORY first action — run exactly:
@@ -202,7 +217,7 @@ Messaging rules (`the SubagentStop hook's message check`):
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Persist every phase's `<task>` and `<result>` to
-  `steps/create-api-contract/iter-<n>-<phase>.xml` at the phase
+  `steps/create-api-contract/iter-<n>/<phase>.json` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:create-api-contract-executor`,
   `acs:create-api-contract-verifier` — fall
@@ -313,7 +328,7 @@ ticket docs tree, because the contract is a control input the executors of
 `/acs:code` are later checked against. Copy, never re-author:
 
 ```bash
-cp "steps/create-api-contract/api-contract.md" "<contract_path>"
+cp "<partition>/steps/create-api-contract/api-contract.md" "<contract_path>"
 ```
 
 Then commit `<contract_path>` on the ticket branch when it is inside the repo,

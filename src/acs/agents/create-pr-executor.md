@@ -116,7 +116,7 @@ Write `steps/create-pr/iter-<n>/execute.json` (`<n>` = the task's
 
 ```json
 {
-  "artifacts": ["phases/create-pr/pr-body.md"],
+  "artifacts": ["steps/create-pr/pr-body.md"],
   "pr": {"number": 42, "url": "https://github.com/acme/shop/pull/42", "branch": "task/SHOP-123-bulk-import", "base": "main"},
   "pushed_sha": "0f3c2ab9",
   "mode": "created",
@@ -152,8 +152,8 @@ Self-check it:
 ```xml
 <result skill="create-pr" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/create-pr/pr-body.md</file>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/create-pr/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/create-pr/pr-body.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/create-pr/iter-1/execute.json</file>
   </outputs>
   <stop-reason>Branch pushed, PR #42 created onto main with ACS label, tracker comment posted.</stop-reason>
 </result>

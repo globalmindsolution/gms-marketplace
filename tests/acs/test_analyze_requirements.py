@@ -131,17 +131,24 @@ class TestLifecycleWiring(unittest.TestCase):
         cls.body = read(SKILL_PATH)
 
     def test_start_hook_is_the_mandatory_first_action(self):
-        self.assertIn("skill-start.py", self.body)
-        self.assertRegex(self.body, r"--skill analyze-requirements\b")
+        self.assertIn('acs.py" step start', self.body)
+        self.assertRegex(self.body, r"--step analyze-requirements\b")
         self.assertIn("MANDATORY first action", self.body)
 
-    def test_post_hook_closes_the_run_with_the_result_document(self):
-        self.assertIn("post-analyze-requirements.py", self.body)
-        self.assertIn("--result-file", self.body)
+    def test_the_finish_verb_closes_the_step_from_its_result_document(self):
+        """`acs step finish` reads the status and outcome from result.json --
+        a step's transition is read from its result, not asserted on the
+        command line -- so there is no `--result-file` to pass."""
+        self.assertIn('acs.py" step finish --step analyze-requirements', self.body)
+        self.assertNotIn("--result-file", self.body)
+        self.assertIn("result.json", self.body)
 
-    def test_every_message_is_schema_validated(self):
-        self.assertIn("validate_xml.py", self.body)
-        self.assertIn("schemas/acs-messages.xsd", self.body)
+    def test_every_message_is_validated_in_the_hook(self):
+        """The XSD and its second validator are gone (§6): what a subagent
+        returns is checked by the SubagentStop hook, in one language."""
+        self.assertNotIn("validate_xml.py", self.body)
+        self.assertNotIn("acs-messages.xsd", self.body)
+        self.assertIn("the SubagentStop hook's message check", self.body)
 
     def test_clarification_ledger_rule_and_completion_report(self):
         self.assertIn("Clarification ledger first.", self.body)
@@ -174,10 +181,16 @@ class TestIndependence(unittest.TestCase):
                 self.assertNotIn(dead, self.body)
 
     def test_the_gate_it_describes_is_the_gate_that_exists(self):
-        """The skill tells the user the pre-hook checked the ticket resolves —
-        so the registered gate must be the ticket-scoped one."""
-        self.assertIs(lib.GATES["analyze-requirements"], lib.gate_analyze_requirements)
-        self.assertIn("analyze-requirements", lib.GATE_INPUTS["ticket"])
+        """One gate for every step now (`gate_step`), and what it checks is
+        the skill's OWN declaration: `reads` in skills/<name>/acs.yaml drives
+        both the runtime input check and `acs workflow validate`'s order
+        check, so the two cannot disagree."""
+        self.assertTrue(lib.is_step_candidate("analyze-requirements"))
+        required, optional = lib.reads_of("analyze-requirements")
+        self.assertEqual(required, ["subject"],
+                         "the first implementation step reads the run's SUBJECT "
+                         "and nothing another step wrote")
+        self.assertEqual(optional, [])
 
     def test_the_epic_refusal_points_at_design_then_fan_out_then_a_child(self):
         self.assertIn("/acs:create-design <id>", self.body)
@@ -193,15 +206,19 @@ class TestGateAgreement(unittest.TestCase):
         cls.gates_source = read(os.path.join(HOOKS, "acs_lib", "gates.py"))
 
     def test_the_gate_refuses_epics_for_this_skill(self):
-        self.assertIn('_refuse_epic(ticket_id, "analyze-requirements"', self.gates_source)
+        """The epic brake runs for every implementation step, from a table
+        naming what each one refuses an epic FOR -- rather than a per-skill
+        gate function that could be added for one step and forgotten for the
+        next."""
+        self.assertIn("analyze-requirements", lib.gates._EPIC_VERBS)
+        self.assertIn("_refuse_epic(ticket_id, step,", self.gates_source)
 
     def test_the_gate_requires_no_artifact_of_its_own(self):
-        """analyze-requirements is the first Build step: its only inputs are the
-        ticket and the partition, so the gate must not require a document."""
-        body = re.search(r"(?s)def gate_analyze_requirements\(.*?\n\n\ndef ",
-                         self.gates_source).group(0)
-        self.assertNotIn("_require_artifact", body)
-        self.assertNotIn("skill_completed", body)
+        """analyze-requirements is the first implementation step: its only
+        input is the run's subject, so its `reads` list is empty and the input
+        gate asks for nothing."""
+        required, optional = lib.reads_of("analyze-requirements")
+        self.assertEqual((required, optional), (["subject"], []))
 
 
 class TestAnalysisFrontMatterContract(unittest.TestCase):
@@ -241,11 +258,13 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
         self.assertEqual([f.rule for f in findings_of(broken, self.specs[0])],
                          ["missing-key"])
 
-    def test_api_surface_is_the_predicate_the_workflow_reads(self):
-        """The front-matter key is not a local convention: ship.yaml's
-        `when: api_surface_changed` and the create-api-contract gate read it."""
-        self.assertIn("api_surface_changed", lib.PREDICATES)
-        self.assertIn("api_surface_changed", self.body)
+    def test_api_surface_is_read_by_the_step_that_acts_on_it(self):
+        """The front-matter key is not a local convention. `ship.yaml` has no
+        predicates any more -- every step decides for itself and records why
+        (§2.1) -- so what reads this is `/acs:create-api-contract`, which
+        completes with `no_surface_owed` when nothing is owed."""
+        self.assertIn("api_surface", self.body)
+        self.assertIn("no_surface_owed", lib.outcome_vocabulary("create-api-contract"))
 
 
 def findings_of(front_matter_text, spec):
@@ -431,7 +450,7 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("acs_lib.artifacts.artifact_path", self.body)
 
     def test_publishing_copies_the_verified_bytes(self):
-        self.assertRegex(self.body, r"cp \"<partition>/phases/analyze-requirements/analysis.md\"")
+        self.assertRegex(self.body, r"cp \"<partition>/steps/analyze-requirements/analysis.md\"")
         self.assertRegex(self.body, r"Copy, never re-author")
 
     def test_the_coordinator_publishes_and_the_guard_is_named(self):
@@ -462,9 +481,9 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("phases/analyze-requirements/iter-<n>-authoring.md", agent("executor"))
-        self.assertIn("phases/analyze-requirements/iter-<n>-execute.json", agent("executor"))
-        self.assertIn("phases/analyze-requirements/iter-<n>-verify.md", agent("verifier"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/authoring.md", agent("executor"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/execute.json", agent("executor"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/verify.md", agent("verifier"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:

@@ -156,7 +156,7 @@ silent fallback. Validate all XML messages:
 On invalid: re-request the message once with the validation error; still
 invalid → fail the run and record the error in the result document's `errors`.
 
-Persist each phase output to `steps/create-ticket/iter-<n>-<phase>.xml`
+Persist each phase output to `steps/create-ticket/iter-<n>/<phase>.json`
 at the phase boundary, BEFORE starting the next phase.
 
 ### The sizing rubric

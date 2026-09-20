@@ -137,7 +137,7 @@ Your FINAL message is ONLY a `<result>` element valid against
 ```xml
 <result skill="standardize-project" phase="verify" ticket-id="SHOP-9" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-9/phases/standardize-project/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-9/steps/standardize-project/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="additive-only" file=".pre-commit-config.yaml">M status outside the allowlisted append target — the notes only allowlisted an appended hook, not a full rewrite.</finding>

@@ -140,7 +140,7 @@ Your FINAL message is ONLY a `<result>` element valid against
 ```xml
 <result skill="create-architecture" phase="verify" ticket-id="SHOP-42" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-42/phases/create-architecture/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-42/steps/create-architecture/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="hld-lld-consistency" file="docs/architecture/lld/flows/checkout.md">Participant "PaymentGateway" appears in the checkout sequence diagram but no such container or component exists in hld/c4-container.md or hld/c4-component.md.</finding>

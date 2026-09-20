@@ -216,11 +216,11 @@ class PublishTest(unittest.TestCase):
         self.assertRegex(section_norm, r"(?i)cop(y|ies)|\bcp\b")
 
     def test_approval_mirror_is_named_with_its_reason(self):
-        self.assertIn("<partition>/phases/code/plan.md", self.body)
+        self.assertIn("<partition>/steps/code/plan.md", self.body)
         self.assertRegex(
             self.norm,
-            r"(?i)phases/code/plan\.md.{0,200}(mirror|plan-approval\.py)|"
-            r"(mirror|plan-approval\.py).{0,200}phases/code/plan\.md")
+            r"(?i)steps/code/plan\.md.{0,200}(mirror|plan-approval\.py)|"
+            r"(mirror|plan-approval\.py).{0,200}steps/code/plan\.md")
 
     def test_published_deliverable_carries_no_legacy_iteration_literal(self):
         section = slice_between(self.body, "### Publish", "### Plan approval")
@@ -230,7 +230,7 @@ class PublishTest(unittest.TestCase):
 
     def test_executor_writes_a_draft_not_the_docs_tree(self):
         body = read(IMPL_PLAN_EXECUTOR)
-        self.assertIn("phases/create-impl-plan/plan.md", body)
+        self.assertIn("steps/create-impl-plan/plan.md", body)
         self.assertRegex(
             norm(body), r"(?i)never publish|coordinator alone|never.{0,60}docs tree")
 
@@ -423,7 +423,7 @@ class OversizeSplitSignalTest(unittest.TestCase):
     def test_plan_artifact_records_seams(self):
         self.assertIn("split seams", self.item2)
         self.assertIn("plan artifact", self.item2)
-        self.assertIn("phases/create-impl-plan/plan.md", self.item2)
+        self.assertIn("steps/create-impl-plan/plan.md", self.item2)
 
     def test_no_stop_or_halt_branch(self):
         self.assertNotRegex(self.item2, r"(?i)\bstop the run\b")

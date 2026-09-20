@@ -166,8 +166,8 @@ Your FINAL message is ONLY a `<result>` element valid against
 ```xml
 <result skill="standardize-project" phase="execute" ticket-id="SHOP-9" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-9/phases/standardize-project/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-9/phases/standardize-project/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-9/steps/standardize-project/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-9/steps/standardize-project/iter-1/execute.json</file>
     <file>.github/workflows/ci.yml</file>
   </outputs>
   <stop-reason>Audited; scaffolded the CI workflow file the allowlist named; no pre-existing source touched.</stop-reason>

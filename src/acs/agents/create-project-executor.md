@@ -145,8 +145,8 @@ Escape `&` and `<` in text content. Self-check with
 ```xml
 <result skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-name/SHOP-3/phases/create-project/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/execute.json</file>
     <file>/abs/repo/package.json</file>
     <file>/abs/repo/.github/workflows/ci.yml</file>
   </outputs>

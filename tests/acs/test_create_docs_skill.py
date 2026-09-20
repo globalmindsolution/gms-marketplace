@@ -301,7 +301,7 @@ class FinishTest(unittest.TestCase):
         body = _body()
         self.assertIn('"doc_set": {', body)
         self.assertIn('"set": "quality"', body)
-        self.assertIn('post-create-docs.py" --ticket <id> --result-file <partition>/phases/create-docs/result.json', body)
+        self.assertIn('post-create-docs.py" --ticket <id> --result-file <partition>/steps/create-docs/result.json', body)
 
     def test_completion_report_present(self):
         body = _body()

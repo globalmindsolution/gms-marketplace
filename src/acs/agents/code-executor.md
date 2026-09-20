@@ -192,7 +192,7 @@ after it. Self-check it first:
 ```xml
 <result skill="code" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/code/iter-1-execute.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/code/iter-1/execute.json</file>
     <file>src/import/api.py</file>
     <file>tests/test_import_api.py</file>
     <file>docs/api/import.md</file>

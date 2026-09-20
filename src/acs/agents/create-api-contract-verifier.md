@@ -103,7 +103,7 @@ actionable (file, expectation, observed behavior):
 ```xml
 <result skill="create-api-contract" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-api-contract/iter-1-verify.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-api-contract/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="compatibility" file="api-contract.md">`encoding` is specified as required on POST /import but no ledger entry records the decision to break v1 clients; src/import/client.py:22 sends no such field.</finding>

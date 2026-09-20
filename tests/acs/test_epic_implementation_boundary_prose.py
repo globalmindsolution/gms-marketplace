@@ -30,7 +30,7 @@ CODE_LANE_CHANGES = os.path.join(
     SKILLS_DIR, "code", "references", "lane-changes.md")
 CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
 
-# The exact breakdown-command wording landed in acs_lib's gate_code (T1,
+# The exact breakdown-command wording lives in acs_lib's _refuse_epic (T1,
 # committed d7d345d) -- cross-consistency requires the SAME command string.
 GATE_BREAKDOWN_COMMAND = "/acs:create-ticket %s (epic fan-out)"
 
@@ -98,34 +98,34 @@ def section(body, start_heading, end_heading):
 class GateMessageWordingTest(unittest.TestCase):
     """GATE_BREAKDOWN_COMMAND is defined once at module level and reused by
     every assertion site below (not hand-copied per site); this test asserts
-    that constant against acs_lib's actual gate_code source, so a drift in
+    that constant against acs_lib's actual _refuse_epic source, so a drift in
     T1's message fails here loudly instead of silently desyncing the prose."""
 
-    def test_gate_code_message_contains_expected_breakdown_command(self):
+    def test_the_refusal_contains_the_expected_breakdown_command(self):
         import inspect
-        src = inspect.getsource(lib.gate_code)
+        src = inspect.getsource(lib._refuse_epic)
         self.assertIn(
             GATE_BREAKDOWN_COMMAND, src,
-            "acs_lib's gate_code message wording changed -- re-check this "
+            "acs_lib's _refuse_epic wording changed -- re-check this "
             "module's GATE_BREAKDOWN_COMMAND constant for drift")
 
-    def test_gate_code_message_routes_through_create_design_first(self):
+    def test_the_refusal_routes_through_create_design_first(self):
         """F-4 (iteration 3 remediation): design.md:813-818 (D6-B) prescribes
         routing through /acs:create-design BEFORE the fan-out breakdown --
         the ordering clause must be present, and precede the fan-out
         command, not just co-occur with it."""
         import inspect
-        src = inspect.getsource(lib.gate_code)
+        src = inspect.getsource(lib._refuse_epic)
         self.assertIn(
             GATE_DESIGN_FIRST_COMMAND, src,
-            "acs_lib's gate_code message must route the user through "
+            "acs_lib's _refuse_epic must route the user through "
             "/acs:create-design first when the epic has no design yet")
         design_pos = src.index(GATE_DESIGN_FIRST_COMMAND)
         breakdown_pos = src.index(GATE_BREAKDOWN_COMMAND)
         self.assertLess(
             design_pos, breakdown_pos,
             "the create-design step must be ordered BEFORE the fan-out "
-            "breakdown command in gate_code's message, per design.md's "
+            "breakdown command in _refuse_epic's message, per design.md's "
             "prescribed ordering")
 class NonEpicSectionDefenseInDepthTest(unittest.TestCase):
     """F-3: the contract states an absolute invariant ('ticket.type != "epic"')
@@ -136,7 +136,7 @@ class NonEpicSectionDefenseInDepthTest(unittest.TestCase):
     ADR-0095 moved this from the Start step's COMPLEX-breakdown subsection --
     which went with the lane machinery -- into the shared protocol every
     delivery-path leg reads. The invariant itself did not change, and it must
-    not: it is the second brake behind `gate_code`, and a leg that received an
+    not: it is the second brake behind the pre-hook's epic brake, and a leg that received an
     epic anyway has to refuse it rather than judge it onto a path."""
 
     def _section(self):
@@ -156,11 +156,11 @@ class NonEpicSectionDefenseInDepthTest(unittest.TestCase):
             re.search(
                 r'(?i)if `ticket\.type == "epic"`.{0,60}nonetheless reaches '
                 r'this step.{0,200}STOP immediately.{0,200}same breakdown '
-                r'message.{0,60}gate_code.{0,60}would have raised',
+                r'message.{0,60}gate.{0,60}would have raised',
                 body_norm),
             "code/SKILL.md's Non-epic COMPLEX section must instruct the "
             "coordinator to STOP immediately and surface the same "
-            "breakdown message gate_code would have raised, if an epic "
+            "breakdown message the epic brake would have raised, if an epic "
             "nonetheless reaches this step")
 
     def test_defense_in_depth_never_implement_epic_clause_present(self):
@@ -180,33 +180,6 @@ class NonEpicSectionDefenseInDepthTest(unittest.TestCase):
             stop_pos, invariant_pos,
             "the defense-in-depth STOP instruction must be inserted AFTER "
             "the existing invariant sentence, not before or in place of it")
-class CompletionReportSurfacesRecommendationTest(unittest.TestCase):
-    """Ledger C-3: the surfaced escalation must ALSO appear in code/SKILL.md's
-    Completion report template -- an internal-step-only signal is not
-    'surfaced' per design.md's own D7-C rationale."""
-
-    def _completion_report_section(self):
-        body = _code_contract()
-        start = body.index("## Completion report (normative)")
-        return body[start:]
-
-    def test_completion_report_mentions_breakdown_recommendation(self):
-        body = self._completion_report_section()
-        self.assertIsNotNone(
-            re.search(r"(?i)breakdown recommendation", body),
-            "code/SKILL.md's Completion report section must mention the "
-            "breakdown recommendation (ledger C-3)")
-
-    def test_completion_report_ties_recommendation_to_findings_line(self):
-        body = self._completion_report_section()
-        self.assertIsNotNone(
-            re.search(r"(?i)breakdown recommendation.{0,200}\*\*Findings\*\*|"
-                      r"\*\*Findings\*\*.{0,200}breakdown recommendation",
-                      body, re.DOTALL),
-            "code/SKILL.md must tie the surfaced breakdown recommendation to "
-            "the Findings line of the Completion report (ledger C-3)")
-
-
 class CreateDesignEpicConditionalHandoffTest(unittest.TestCase):
     """AC-4: all three unconditional /acs:code <id> routing sites in
     create-design/SKILL.md become epic-conditional (F6 + the third site at
@@ -236,14 +209,13 @@ class CreateDesignEpicConditionalHandoffTest(unittest.TestCase):
             "create-design/SKILL.md's <handoff> next-step instruction "
             "(~:337) must be epic-conditional while staying a single "
             "<next-step> element")
-        # The XSD allows at most one <next-step>; guard against a literal
+        # A handoff carries at most one <next-step>; guard against a literal
         # second element sneaking into the prose as a copy-paste artifact
         # within the /acs:ship handoff bullet specifically (the file has an
-        # unrelated <next-step> example elsewhere, in the needs_input XML).
+        # unrelated <next-step> example elsewhere, in the needs_input block).
         body = self._body()
         ship_bullet_start = body.index("Under /acs:ship")
-        ship_bullet_end = body.index("Validate it with validate_xml.py",
-                                      ship_bullet_start)
+        ship_bullet_end = body.index("## Completion report", ship_bullet_start)
         ship_bullet = body[ship_bullet_start:ship_bullet_end]
         self.assertEqual(
             ship_bullet.count("<next-step>"), 1,
@@ -278,16 +250,16 @@ class CreateDesignEpicConditionalHandoffTest(unittest.TestCase):
 
 class GateAndCreateDesignSameBreakdownCommandTest(unittest.TestCase):
     """Cross-consistency: the literal breakdown command named in acs_lib's
-    gate_code message also appears in create-design/SKILL.md's epic branch
+    _refuse_epic message also appears in create-design/SKILL.md's epic branch
     (T1 + T2 must route the user to the same place)."""
 
     def test_same_breakdown_command_string(self):
         import inspect
-        gate_src = norm(inspect.getsource(lib.gate_code))
+        gate_src = norm(inspect.getsource(lib._refuse_epic))
         design_body = norm(read(CREATE_DESIGN_SKILL))
         self.assertIn(
             GATE_BREAKDOWN_COMMAND, gate_src,
-            "sanity check: gate_code's own message wording")
+            "sanity check: _refuse_epic's own message wording")
         self.assertIsNotNone(
             re.search(r"/acs:create-ticket <(id|ticket-id)>`? \(epic fan-out\)",
                       design_body),
@@ -295,12 +267,12 @@ class GateAndCreateDesignSameBreakdownCommandTest(unittest.TestCase):
             "(/acs:create-ticket <epic-id>, epic fan-out) that gate_code's "
             "GateError message names")
 
-    def test_gate_code_message_orders_create_design_before_fan_out(self):
+    def test_the_refusal_orders_create_design_before_fan_out(self):
         """F-4 (iteration 3 remediation): gate_code's own message must place
         the /acs:create-design step before the fan-out breakdown command,
         per design.md:813-818's (D6-B) prescribed ordering."""
         import inspect
-        gate_src = inspect.getsource(lib.gate_code)
+        gate_src = inspect.getsource(lib._refuse_epic)
         self.assertIn(GATE_DESIGN_FIRST_COMMAND, gate_src)
         self.assertLess(
             gate_src.index(GATE_DESIGN_FIRST_COMMAND),

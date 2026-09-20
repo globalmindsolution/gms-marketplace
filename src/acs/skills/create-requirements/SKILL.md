@@ -129,7 +129,7 @@ receive:
 
 On an invalid message, re-request it once; if still invalid, fail the run with the
 validation error recorded in `errors`. Persist every phase output to
-`steps/create-requirements/iter-<n>-<phase>.xml` at the phase boundary
+`steps/create-requirements/iter-<n>/<phase>.json` at the phase boundary
 BEFORE starting the next phase. The executor's own artifacts are
 `iter-<n>/authoring.md` (Mode & evidence; Requirement outline; Open
 questions; Risks; Verifier checklist) and `iter-<n>/execute.json`; every

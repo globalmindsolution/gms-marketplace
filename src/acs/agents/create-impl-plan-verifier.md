@@ -144,7 +144,7 @@ after it. Self-check it first:
 ```xml
 <result skill="create-impl-plan" phase="verify" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-123/phases/create-impl-plan/iter-1-verify.md</file>
+    <file>/abs/workspace/acme-shop/SHOP-123/steps/create-impl-plan/iter-1/verify.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="acceptance-criteria coverage">AC-3 (rate limiting) maps to no test in ## Test strategy.</finding>

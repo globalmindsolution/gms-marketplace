@@ -204,7 +204,7 @@ Messaging rules (`the SubagentStop hook's message check`):
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Persist every phase's `<task>` and `<result>` to
-  `steps/create-test-docs/iter-<n>-<phase>.xml` at the phase
+  `steps/create-test-docs/iter-<n>/<phase>.json` at the phase
   boundary, BEFORE starting the next phase.
 - Spawn subagents with the Agent tool: `acs:create-test-docs-executor`,
   `acs:create-test-docs-verifier` — fall back
@@ -335,7 +335,7 @@ inputs an executor is checked against. Copy, never re-author — the published
 bytes must equal the verified bytes:
 
 ```bash
-cp "steps/create-test-docs/test-cases.md" "<cases_path>"
+cp "<partition>/steps/create-test-docs/test-cases.md" "<cases_path>"
 ```
 
 Then commit `<cases_path>` on the ticket branch when it is inside the repo (the

@@ -178,7 +178,7 @@ After writing the draft, write
 
 ```json
 {
-  "cases_path": "/abs/workspace/owner-repo/SHOP-123/phases/create-test-docs/test-cases.md",
+  "cases_path": "/abs/workspace/owner-repo/SHOP-123/steps/create-test-docs/test-cases.md",
   "cases": 7,
   "e2e_cases": 2,
   "untraced_acs": [],
@@ -210,9 +210,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ```xml
 <result skill="create-test-docs" phase="execute" ticket-id="SHOP-123" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-test-docs/iter-1-authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-test-docs/test-cases.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-123/phases/create-test-docs/iter-1-execute.json</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-test-docs/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-test-docs/test-cases.md</file>
+    <file>/abs/workspace/owner-repo/SHOP-123/steps/create-test-docs/iter-1/execute.json</file>
   </outputs>
   <stop-reason>7 cases drafted (4 unit, 1 integration, 2 e2e); 5 of 5 criteria traced</stop-reason>
 </result>
