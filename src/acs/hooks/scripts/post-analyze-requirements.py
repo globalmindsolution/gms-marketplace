@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post-hook for /acs:analyze-ticket — finalizes the run entry in analyze-ticket-state.json and
+"""Post-hook for /acs:analyze-requirements — finalizes the run entry in analyze-requirements-state.json and
 updates pipeline-state.json, tickets-index.json, and metrics.json.
 
 Result-document `states` this run records for the steps that follow it:
@@ -14,7 +14,7 @@ The needs_design recommendation the analysis may carry is applied through its
 own CLI (`acs.py ticket save`), so it is a finding here, not a state.
 
 Invoked by the skill's coordinator as its mandatory final step:
-  python3 post-analyze-ticket.py --result-file <result.json>     # or JSON on stdin
+  python3 post-analyze-requirements.py --result-file <result.json>     # or JSON on stdin
 """
 import os
 import sys
@@ -23,4 +23,4 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acs_lib import run_post
 
 if __name__ == "__main__":
-    run_post("analyze-ticket")
+    run_post("analyze-requirements")

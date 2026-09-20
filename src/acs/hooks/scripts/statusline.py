@@ -76,12 +76,12 @@ def render(payload):
     if not ticket_id:
         return "%s · acs: no active ticket" % fallback(payload)
 
-    tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if not os.path.isdir(tdir):
+    rdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+    if not os.path.isdir(rdir):
         return "%s · acs: %s (no partition)" % (fallback(payload), ticket_id)
 
-    ticket = lib.load_ticket(tdir) or {}
-    pipeline = lib.load_pipeline(tdir, ticket_id)
+    ticket = lib.load_ticket(rdir) or {}
+    pipeline = lib.load_run(rdir) or {}
     steps = pipeline.get("steps", {})
 
     parts = []
@@ -108,7 +108,7 @@ def render(payload):
     ]
     if cost:
         bits.append("~$%.2f" % cost)
-    lock = lib.read_lock(tdir)
+    lock = lib.read_lock(rdir)
     if isinstance(lock, dict) and lock.get("checkout_id") not in (None, ctx["checkout_id"]):
         bits.append("🔒other session")
     return " · ".join(bits)

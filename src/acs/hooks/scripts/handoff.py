@@ -46,14 +46,14 @@ def main():
         sys.stderr.write("acs handoff: %s\n" % exc)
         sys.exit(2)
 
-    ticket_id, _ = lib.resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"],
+    run_id, _ = lib.resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"],
                                          explicit=args.ticket)
-    if not ticket_id:
+    if not run_id:
         sys.stderr.write("acs handoff: no current ticket for this checkout (nothing to hand off)\n")
         sys.exit(2)
-    tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
-        sys.stderr.write("acs handoff: no active partition for %s\n" % ticket_id)
+    rdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], run_id)
+    if archived or not os.path.isdir(rdir):
+        sys.stderr.write("acs handoff: no active partition for %s\n" % run_id)
         sys.exit(2)
 
     # Find the skill whose run is in progress (pointer first, then scan).
@@ -73,13 +73,17 @@ def main():
     # makes the handoff undeliverable.
     try:
         for skill in candidates:
-            if lib.last_run_status(tdir, skill) == "in_progress":
-                _state, entry = lib.finalize_run(tdir, skill, ticket_id, {
+            if lib.last_status(rdir, skill) == "in_progress":
+                _state, entry = lib.finalize_run(rdir, skill, run_id, {
                     "status": "handed_off",
                     "stop_reason": "session handoff",
                     "handoff_summary": summary,
                 })
-                lib.update_pipeline(tdir, ticket_id, skill, "handed_off", summary=summary,
+                # `handed_off` named a reason wearing a status. A handoff is an
+                # INTERRUPTION whose stop_reason says why, which is the one
+                # resumable state (§4.3).
+                lib.finish_step(rdir, skill, wf, status="interrupted",
+                                stop_reason="context_pressure", summary=summary,
                                     flow="product" if skill in lib.PRODUCT_SKILLS else "ticket")
                 # a handed-off run still spent time/tokens — keep repo metrics
                 # consistent with the ticket ledger
@@ -90,15 +94,15 @@ def main():
         metrics_error = str(exc)
         handed = handed or skill
     finally:
-        lib.release_lock(tdir, cwd)
+        lib.release_lock(rdir, cwd)
 
     if handed:
-        resume = "/acs:%s %s" % (handed, ticket_id)
+        resume = "/acs:%s %s" % (handed, run_id)
     else:
-        resume = "/acs:ship %s" % ticket_id
+        resume = "/acs:ship %s" % run_id
     out = {
         "ok": True,
-        "ticket_id": ticket_id,
+        "run_id": run_id,
         "skill": handed,
         "lock_released": True,
         "continue_with": resume,
@@ -111,7 +115,7 @@ def main():
             "acs handoff: %s\nThe run is finalized as handed_off and the lock IS "
             "released, so %s can be resumed; only metrics.json was not updated, "
             "so this run's tokens and cost are lost from it.\n"
-            % (metrics_error, ticket_id))
+            % (metrics_error, run_id))
         sys.exit(2)
 
 

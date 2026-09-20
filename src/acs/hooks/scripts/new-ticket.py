@@ -163,8 +163,6 @@ def main():
             "parent": args.parent,
         },
     })
-    lib.update_pipeline(tdir, ticket_id, "create-ticket", "completed",
-                        summary="created" + (" as child of %s" % args.parent if args.parent else ""))
 
     if parent_ticket is not None:
         children = parent_ticket.setdefault("children", [])

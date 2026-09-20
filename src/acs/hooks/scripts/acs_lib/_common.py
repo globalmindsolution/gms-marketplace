@@ -33,8 +33,9 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create
 # and HOOKED_SKILLS keeps its three-way shape. Their ORDER lives in
 # workflows/ship.yaml, never in this list -- what a list position buys is the
 # metrics funnel's column order, nothing else.
-WORKFLOW_SKILLS = ["create-ticket", "analyze-ticket", "create-impl-plan", "create-api-contract",
-                   "create-test-docs", "code", "docs-sync", "create-e2e-tests", "create-pr",
+WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
+                   "create-api-contract", "create-test-docs", "code", "review-code",
+                   "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
                    "merge-pr", "standardize-project"]
 PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
@@ -46,9 +47,10 @@ HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 # is an implementation of the `code` step, not a step of its own.
 #
 # Everything a leg writes on disk is `code`'s: it starts with
-# `skill-start.py --skill code`, so `phases/code/`, `code-state.json`, the
-# `code` ledger key and `post-code.py` are shared by all four. The leg name
-# exists in exactly two places -- the Skill invocation, and this mapping.
+# `acs step start --step code`, so `steps/code/`, its state.json, the `code`
+# ledger key and `post-code.py` are shared by all four. The leg name exists in
+# exactly three places -- the Skill invocation, this mapping, and the `leg`
+# field the run records so the trail says which one ran.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 #: {leg: the skill whose gate, hooks and state it runs under}.
 LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
@@ -89,7 +91,10 @@ PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "c
 # are observed as attributionSkill values even though they write no run entry.
 ATTRIBUTION_SKILL_MAP = {"init": "setup", "initialize": "setup"}
 
-RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted", "handed_off"]
+#: A step's states (§4.3). `skipped` never existed here; `handed_off` did, and
+#: it is gone -- it named a REASON rather than a state, and the reason is now
+#: `stop_reason` on the single resumable state, `interrupted`.
+RUN_STATUSES = ["in_progress", "completed", "failed", "interrupted"]
 TICKET_TYPES = ["epic", "story", "task"]
 TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]
 PRIORITIES = ["critical", "high", "medium", "low"]
