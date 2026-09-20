@@ -28,105 +28,109 @@ MODULE_FILENAME = "statusline.py"
 REPO_ID = "acme-shop"
 
 
-class TestNoPartitionFallback(acs_case.AcsWorkspaceCase):
-    """55: a resolvable pointer ticket whose partition directory does not
-    exist renders the fallback line plus the "(no partition)" suffix."""
+def seed_run(case, run_id, steps=None, cost=None):
+    """A run on disk plus the pointer naming it, the way a real invocation
+    leaves them. The run's id IS its ticket id when the subject is a ticket
+    (§4.2), so one argument names both."""
+    repo = acs_case.lib.repo_dir(case.ws, REPO_ID)
+    rdir = acs_case.lib.run_dir(repo, run_id)
+    wf, wf_path = acs_case.lib.workflow_for(
+        acs_case.lib.build_context(case.repo), with_path=True)
+    acs_case.lib.create_run(repo, {"kind": "ticket", "ticket_id": run_id},
+                            wf, wf_path, run_id=run_id)
+    if steps or cost is not None:
+        doc = acs_case.lib.load_run(rdir)
+        for step, status in (steps or {}).items():
+            doc["steps"][step] = {"status": status}
+        if cost is not None:
+            doc.setdefault("totals", {})["cost_usd"] = cost
+        acs_case.lib.write_json(os.path.join(rdir, "run.json"), doc)
+    acs_case.lib.save_pointer(repo, acs_case.lib.checkout_id(case.repo), run_id=run_id)
+    return rdir
 
-    def test_pointer_ticket_without_a_partition_renders_the_no_partition_line(self):
-        ckid = acs_case.lib.checkout_id(self.repo)
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-404"})
+
+class TestNoRunOnDiskFallback(acs_case.AcsWorkspaceCase):
+    """A pointer naming a run that is not on disk renders the fallback line
+    plus a suffix saying so -- never a crash, and never a blank line that
+    leaves the reader guessing which of the two it was."""
+
+    def test_pointer_without_a_run_renders_the_no_run_line(self):
+        acs_case.lib.save_pointer(
+            acs_case.lib.repo_dir(self.ws, REPO_ID),
+            acs_case.lib.checkout_id(self.repo), run_id="SHOP-404")
         mod = acs_case.load_module(MODULE_FILENAME)
         payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
         self.assertEqual(
-            mod.render(payload), "Opus · shop · acs: SHOP-404 (no partition)")
+            mod.render(payload), "Opus · shop · acs: SHOP-404 (no run on disk)")
 
-
-class TestProductFlowSteps(acs_case.AcsWorkspaceCase):
-    """62-66: the product-flow arm emits a glyph only for skills actually
-    recorded in steps, in PRODUCT_SKILLS + merge-pr order."""
-
-    def test_product_flow_renders_only_the_recorded_product_steps(self):
-        ckid = acs_case.lib.checkout_id(self.repo)
-        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-7")
-        os.makedirs(tdir, exist_ok=True)
-        acs_case.lib.save_ticket(
-            tdir, acs_case.lib.new_ticket_doc("SHOP-7", "SHOP-7", "task"))
-        acs_case.lib.update_pipeline(tdir, "SHOP-7", "create-prd", "completed")
-        acs_case.lib.update_pipeline(tdir, "SHOP-7", "merge-pr", "in_progress")
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-7"})
+    def test_no_pointer_at_all_says_there_is_no_active_run(self):
         mod = acs_case.load_module(MODULE_FILENAME)
         payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
+        self.assertEqual(mod.render(payload), "Opus · shop · acs: no active run")
+
+
+class TestTheWorkflowIsTheStepList(acs_case.AcsWorkspaceCase):
+    """The row is `ship.yaml`'s list with a glyph each. Membership and order
+    are the workflow's, so a new workflow changes the status line by itself
+    -- there is no second list here to keep level with it."""
+
+    def test_every_workflow_step_gets_a_glyph_in_workflow_order(self):
+        seed_run(self, "SHOP-7", steps={"analyze-requirements": "completed",
+                                        "create-impl-plan": "in_progress"})
+        mod = acs_case.load_module(MODULE_FILENAME)
+        rendered = mod.render({"model": {"display_name": "Opus"}, "cwd": self.repo})
         self.assertEqual(
-            mod.render(payload), "Opus · SHOP-7 task · ✓prd ▶merge-pr")
+            rendered,
+            "Opus · SHOP-7 · ✓requirements ▶plan ○contract ○cases ○code ○review "
+            "○e2e ○e2e-run ○docs ○pr")
+
+    def test_the_labels_come_from_the_workflow_not_a_hardcoded_table(self):
+        wf = acs_case.lib.validate_workflow_file(acs_case.lib.default_workflow_path())
+        mod = acs_case.load_module(MODULE_FILENAME)
+        seed_run(self, "SHOP-12")
+        rendered = mod.render({"model": {"display_name": "Opus"}, "cwd": self.repo})
+        for step in acs_case.lib.steps_of(wf):
+            with self.subTest(step=step):
+                self.assertIn(mod.short(step), rendered)
 
 
-class TestDesignStepVisibility(acs_case.AcsWorkspaceCase):
-    """68, 72-73: needs_design=True shows the design step; a child ticket
-    (parent set, needs_design falsey) omits it."""
+class TestReviewIterationSuffix(acs_case.AcsWorkspaceCase):
+    """The one number worth a reader's attention mid-run: which review round
+    this is, and what the cap is."""
 
-    def test_a_child_ticket_omits_the_design_step_while_a_design_ticket_shows_it(self):
-        ckid = acs_case.lib.checkout_id(self.repo)
+    def test_the_suffix_appears_only_past_the_first_iteration(self):
+        rdir = seed_run(self, "SHOP-13")
         mod = acs_case.load_module(MODULE_FILENAME)
         payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
+        self.assertNotIn("review 1/", mod.render(payload))
 
-        designed_tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-8")
-        os.makedirs(designed_tdir, exist_ok=True)
-        designed = acs_case.lib.new_ticket_doc("SHOP-8", "SHOP-8", "story")
-        designed["needs_design"] = True
-        acs_case.lib.save_ticket(designed_tdir, designed)
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-8"})
-        self.assertEqual(
-            mod.render(payload),
-            "Opus · SHOP-8 story · ○ticket ○design ○spec ○code ○pr ○merge")
-
-        child_tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-9")
-        os.makedirs(child_tdir, exist_ok=True)
-        child = acs_case.lib.new_ticket_doc("SHOP-9", "SHOP-9", "story", parent="SHOP-1")
-        acs_case.lib.save_ticket(child_tdir, child)
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-9"})
-        self.assertEqual(
-            mod.render(payload),
-            "Opus · SHOP-9 story · ○ticket ○spec ○code ○pr ○merge")
+        doc = acs_case.lib.load_run(rdir)
+        doc["loops"] = {"review-code": {"iteration": 2, "max": 3}}
+        acs_case.lib.write_json(os.path.join(rdir, "run.json"), doc)
+        self.assertIn("review 2/3", mod.render(payload))
 
 
 class TestCostAndLockSuffixes(acs_case.AcsWorkspaceCase):
-    """86-90: the cost suffix appears only when cost is non-zero, and the
-    lock suffix appears only when the lock is held by a different checkout."""
+    """The cost suffix appears only when cost is non-zero, and the lock suffix
+    only when the lock is held by a different checkout."""
 
     def test_cost_and_foreign_lock_suffixes_appear_only_when_they_apply(self):
-        ckid = acs_case.lib.checkout_id(self.repo)
         mod = acs_case.load_module(MODULE_FILENAME)
         payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
 
-        cost_tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-10")
-        os.makedirs(cost_tdir, exist_ok=True)
-        acs_case.lib.save_ticket(
-            cost_tdir, acs_case.lib.new_ticket_doc("SHOP-10", "SHOP-10", "story"))
-        pipeline = acs_case.lib.load_pipeline(cost_tdir, "SHOP-10")
-        pipeline["totals"]["cost_usd"] = 4.21
-        acs_case.lib.write_json(os.path.join(cost_tdir, "run.json"), pipeline)
+        rdir = seed_run(self, "SHOP-10", cost=4.21)
         acs_case.lib.write_json(
-            acs_case.lib.lock_path(cost_tdir), {"checkout_id": "other-session-ckid"})
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-10"})
-        self.assertEqual(
-            mod.render(payload),
-            "Opus · SHOP-10 story · ○ticket ○spec ○code ○pr ○merge · ~$4.21 · 🔒other session")
+            acs_case.lib.lock_path(rdir), {"checkout_id": "other-session-ckid"})
+        rendered = mod.render(payload)
+        self.assertIn("~$4.21", rendered)
+        self.assertIn("🔒other session", rendered)
 
-        nocost_tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-11")
-        os.makedirs(nocost_tdir, exist_ok=True)
-        acs_case.lib.save_ticket(
-            nocost_tdir, acs_case.lib.new_ticket_doc("SHOP-11", "SHOP-11", "story"))
-        acs_case.lib.acquire_lock(nocost_tdir, self.repo)
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-11"})
-        self.assertEqual(
-            mod.render(payload),
-            "Opus · SHOP-11 story · ○ticket ○spec ○code ○pr ○merge")
+        quiet = seed_run(self, "SHOP-11")
+        acs_case.lib.acquire_lock(quiet, self.repo)
+        rendered = mod.render(payload)
+        self.assertNotIn("~$", rendered)
+        self.assertNotIn("🔒", rendered,
+                         "our own lock is not news; only a foreign one is")
 
 
 class TestMainNeverCrashes(unittest.TestCase):
@@ -161,11 +165,11 @@ class TestMainNeverCrashes(unittest.TestCase):
 
 class TestCostSamplerWiring(acs_case.AcsWorkspaceCase):
     """cost_sampler.record_cost_sample is invoked from main(), independent of
-    render()'s early-return paths (no active ticket, resolvable ticket with
-    no partition) -- and a raising sampler never breaks the printed line
+    render()'s early-return paths (no active run, a pointer naming a run that
+    is not on disk) -- and a raising sampler never breaks the printed line
     (G7 never-crash)."""
 
-    def test_record_cost_sample_called_with_no_active_ticket(self):
+    def test_record_cost_sample_called_with_no_active_run(self):
         mod = acs_case.load_module(MODULE_FILENAME)
         payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
         with mock.patch("cost_sampler.record_cost_sample") as record:
@@ -173,12 +177,12 @@ class TestCostSamplerWiring(acs_case.AcsWorkspaceCase):
                 code, out, err = acs_case.run_main(mod, [], stdin=json.dumps(payload))
         self.assertEqual(code, 0)
         record.assert_called_once_with(payload)
-        self.assertIn("no active ticket", out)
+        self.assertIn("no active run", out)
 
-    def test_record_cost_sample_called_when_pointer_resolves_but_no_partition(self):
-        ckid = acs_case.lib.checkout_id(self.repo)
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-404"})
+    def test_record_cost_sample_called_when_the_pointer_names_no_run_on_disk(self):
+        acs_case.lib.save_pointer(
+            acs_case.lib.repo_dir(self.ws, REPO_ID),
+            acs_case.lib.checkout_id(self.repo), run_id="SHOP-404")
         mod = acs_case.load_module(MODULE_FILENAME)
         payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
         with mock.patch("cost_sampler.record_cost_sample") as record:
@@ -186,15 +190,10 @@ class TestCostSamplerWiring(acs_case.AcsWorkspaceCase):
                 code, out, err = acs_case.run_main(mod, [], stdin=json.dumps(payload))
         self.assertEqual(code, 0)
         record.assert_called_once_with(payload)
-        self.assertIn("no partition", out)
+        self.assertIn("no run on disk", out)
 
     def test_a_raising_sampler_never_breaks_the_status_line(self):
-        ckid = acs_case.lib.checkout_id(self.repo)
-        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-20")
-        os.makedirs(tdir, exist_ok=True)
-        acs_case.lib.save_ticket(tdir, acs_case.lib.new_ticket_doc("SHOP-20", "SHOP-20", "story"))
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-20"})
+        seed_run(self, "SHOP-20")
         mod = acs_case.load_module(MODULE_FILENAME)
         payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
         with mock.patch("cost_sampler.record_cost_sample", side_effect=RuntimeError("boom")):
@@ -205,21 +204,12 @@ class TestCostSamplerWiring(acs_case.AcsWorkspaceCase):
 
 
 class TestDisplayCostPrefersSample(acs_case.AcsWorkspaceCase):
-    """108-111 (the '~$' bit, design conformance item 31): prefers a real,
-    recently recorded cost_sampler sample over pipeline.totals.cost_usd,
-    falling back to the pipeline figure only when no sample exists yet."""
+    """The '~$' figure prefers a real, recently recorded cost_sampler sample
+    over the run's own totals, falling back to the recorded figure only when
+    no sample exists yet: totals lag the just-finalized invocation."""
 
-    def test_prefers_latest_sample_falls_back_to_pipeline_totals_when_none(self):
-        ckid = acs_case.lib.checkout_id(self.repo)
-        tdir = acs_case.lib.ticket_dir(self.ws, REPO_ID, "SHOP-30")
-        os.makedirs(tdir, exist_ok=True)
-        acs_case.lib.save_ticket(
-            tdir, acs_case.lib.new_ticket_doc("SHOP-30", "SHOP-30", "story"))
-        pipeline = acs_case.lib.load_pipeline(tdir, "SHOP-30")
-        pipeline["totals"]["cost_usd"] = 4.21
-        acs_case.lib.write_json(os.path.join(tdir, "run.json"), pipeline)
-        acs_case.lib.write_json(
-            acs_case.lib.pointer_path(self.ws, REPO_ID, ckid), {"ticket_id": "SHOP-30"})
+    def test_prefers_latest_sample_falls_back_to_run_totals_when_none(self):
+        seed_run(self, "SHOP-30", cost=4.21)
         mod = acs_case.load_module(MODULE_FILENAME)
         payload = {"model": {"display_name": "Opus"}, "cwd": self.repo}
 
