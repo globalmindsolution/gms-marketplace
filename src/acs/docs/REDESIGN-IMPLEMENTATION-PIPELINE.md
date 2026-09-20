@@ -578,7 +578,7 @@ Six things are wrong with it, and none is fixable by renaming a directory:
 
 ```
 .acs/state-machine/<repo-id>/
-  counters.json                    id allocation — tickets, and runs when they share the allocator
+  counters.json                    ticket id allocation (run ids derive from the subject; no allocator)
   tickets-index.json               every ticket (unchanged)
   runs-index.json                  every run: id, workflow, subject, status, started/ended
   metrics.json                     repo aggregates (unchanged)
@@ -602,10 +602,21 @@ Six things are wrong with it, and none is fixable by renaming a directory:
         lens-<A..E>.md · adjudication.json · gate.json · verdict.json
 ```
 
-**The run id is the primary key.** A ticket id, when supplied, is the run's
-*subject*, recorded in `run.json` and copied into `subject/` — never the
-partition name. A run started from a prompt records the prompt; from a
-document, the document's path and hash.
+**The run id is the primary key, and it is derived from the subject.** A
+ticket id, when supplied, is the run's *subject*, recorded in `run.json` and
+copied into `subject/`; a run started from a prompt records the prompt; from a
+document, the document's path and hash. The id reads like the thing it names:
+
+| Subject | Run id | A second run on the same subject |
+|---|---|---|
+| ticket `MAR-590` | `MAR-590` | `MAR-590-r2` |
+| prompt "fix the login timeout on slow networks" | `fix-the-login-timeout-3f2a` | `…-3f2a-r2` |
+| document `docs/rfcs/0042-retry-policy.md` | `0042-retry-policy-9c1e` | `…-9c1e-r2` |
+
+The four hex characters exist only so two prompts that slug the same do not
+collide; nobody is expected to remember them, because nobody is expected to
+type a run id (§4.9). The slug is `acs slug` over the first six words, the
+same function that renders branch names.
 
 **Steps are keyed by skill name.** With no `id:` in `ship.yaml` (§2.1) the
 step *is* the skill, and the state layer says so: `steps/review-code/`, not
@@ -630,7 +641,7 @@ ran its cycle*.
 
 ```jsonc
 {
-  "run_id": "20260919-a1b2c3",
+  "run_id": "MAR-590",
   "workflow": "ship",                    // the file name, workflows/ship.yaml
   "workflow_version": 3,
   "subject": { "kind": "ticket", "ticket_id": "MAR-590" },   // or kind: prompt | document
@@ -796,8 +807,8 @@ the run gets a verb of its own:
 
 | v0.5.0 | Replaces | Notes |
 |---|---|---|
-| `acs run new \| show \| next \| check \| abandon` | `acs workflow next`; nothing for the rest | `next` is the cursor; `check` is I1–I5 |
-| `acs step start \| finish \| show --run <id> --step <name>` | `acs start`, `acs finish` | `--step` validated against the resolved workflow, not an enum |
+| `acs run new \| show \| next \| check \| abandon` | `acs workflow next`; nothing for the rest | `next` is the cursor; `check` is I1–I5; every verb defaults to **this checkout's current run** and takes `--run` only to name another |
+| `acs step start \| finish \| show --step <name>` | `acs start`, `acs finish` | `--step` validated against the resolved workflow, not an enum; `--run` as above |
 | `acs result validate` | `acs phase validate` | "phase" meant three things; this one is the result document |
 | `acs workflow show \| validate` | same | `next` moved to `acs run` |
 | `acs plan path` | `acs path` | the path is read from the plan's `## Contract` block |
@@ -806,11 +817,26 @@ the run gets a verb of its own:
 
 ### 4.9 Resumption and concurrency
 
-A run resumes from `run.json` alone. `/acs:ship <run-id>` re-reads it, asks
-`acs run next` for the cursor, and continues. A step recorded `in_progress`
-or `interrupted` is re-run; its skill-start reconciles recorded state against
-reality (the working tree, the branch, the artifacts on disk) rather than
-trusting it, exactly as today.
+A run resumes from `run.json` alone, and **finding** the run never needs its
+id in the common case:
+
+| You type | What resumes |
+|---|---|
+| `/acs:ship` | the run this checkout is on — `sessions/<checkout-id>/pointer.json` names it |
+| `/acs:ship MAR-590` | the latest non-terminal run whose subject is that ticket; a new run if there is none |
+| `/acs:ship "fix the login timeout"` | a new run from that prompt — or, if this checkout's current run has that subject, that run |
+| `/acs:ship --run MAR-590-r2` | exactly that run; the only form that names an id, for the rare second run on one subject |
+
+This is Claude Code's own `--continue` / `--resume` shape: no argument means
+"carry on", a subject means "this one", and an id is for disambiguation. The
+pointer already exists today (it records the current ticket and skill); it
+gains `run_id` and `step` and loses nothing.
+
+Once found, `/acs:ship` re-reads `run.json`, asks `acs run next` for the
+cursor, and continues. A step recorded `in_progress` or `interrupted` is
+re-run; its skill-start reconciles recorded state against reality (the working
+tree, the branch, the artifacts on disk) rather than trusting it, exactly as
+today.
 
 The lock protocol is unchanged — re-entrant for the same checkout, fail-closed
 for any other, force-release audited to the ledger — and moves from the ticket
@@ -1004,17 +1030,15 @@ Two consequences for the eval dataset, both expected:
 2. **Coverage target** — this document takes 80% from the request;
    `.acs/settings.json` currently sets 90. Lowering it is a policy change worth
    stating deliberately rather than inheriting from a redesign.
-3. **Run id format** — `YYYYMMDD-<6 hex>`, or keep the `MAR-N` allocator and let
-   ticketless runs draw from it too.
-4. **The integration executor** — §3.5 gives `code-complex` a post-partition
+3. **The integration executor** — §3.5 gives `code-complex` a post-partition
    integration pass, because removing the four-lens verifier from that leg would
    otherwise leave `standard` and `complex` executing identically. It is the
    one genuinely *new* mechanism in this redesign rather than a relocation, so
    it is the one most worth a second opinion. The alternative is to collapse the
    two legs and let the plan say `standard` for both.
-5. **`runs[]` → `invocations[]`** in step state (§4.4). Forced by naming the
+4. **`runs[]` → `invocations[]`** in step state (§4.4). Forced by naming the
    partition `runs/`; the alternative is to name the partition something else
    (`jobs/`? `executions/`?) and keep `runs[]`. Either way one of them moves.
-6. **Wall-clock cost of the flat list** — `docs-sync` no longer runs beside the
+5. **Wall-clock cost of the flat list** — `docs-sync` no longer runs beside the
    e2e pair. Accepted here as the price of a workflow with no graph; measure it
    at the gate and reconsider only if it shows up.
