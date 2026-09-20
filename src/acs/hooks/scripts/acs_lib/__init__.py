@@ -173,6 +173,14 @@ from .run import (RUN_STATUSES, STEP_STATUSES, STOP_REASONS,  # noqa: F401
 from .run import check as check_run  # noqa: F401
 from .run import load_index as load_runs_index  # noqa: F401
 
+from . import sessions  # noqa: F401,E402
+from .sessions import (checkout_dir, current_step, load_pointer,  # noqa: F401
+    save_pointer, sessions_dir)
+
+from . import plan_contract  # noqa: F401,E402
+from . import stepgate  # noqa: F401,E402
+from .stepgate import check_inputs, check_invariants, noop_decision, settle_no_op  # noqa: F401
+
 from . import step as step_machine  # noqa: F401,E402
 from .step import (append_invocation, finalize_invocation, load_fragment,  # noqa: F401
     load_result, outcome_vocabulary, result_path, validate_result,
@@ -188,3 +196,18 @@ from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENA
     artifact_path, derive_status, parse_ticket_md, render_ticket_md, ticket_docs_dir,
     ticket_docs_root, ticket_source)
 from .artifacts import migrate as migrate_artifacts  # noqa: F401
+
+
+def current_run_id(ctx):
+    """The run this checkout is working on, from its pointer. None when it has
+    none -- which is when `acs run new` is what should happen next."""
+    return sessions.current_run_id(repo_dir(ctx["workspace"], ctx["repo_id"]),
+                                   ctx["checkout_id"])
+
+
+def point_checkout_at(ctx, run_id, step=None):
+    """Record this checkout's current run (and step), so the next invocation
+    resumes it without anyone typing an id."""
+    return sessions.save_pointer(repo_dir(ctx["workspace"], ctx["repo_id"]),
+                                 ctx["checkout_id"], run_id=run_id, step=step,
+                                 checkout_path=ctx.get("checkout_root"))

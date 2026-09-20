@@ -78,14 +78,14 @@ import acs_lib as lib  # noqa: E402
 # change that.
 from acs_cli import (context_or_die, die, emit, load_ticket_or_die,  # noqa: E402,F401
     partition_or_die, read_json_arg)
-from acs_commands import (CONTEXT_KEYS, cmd_context, cmd_doctor,  # noqa: E402,F401
-    cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show, cmd_gate,
-    cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status, cmd_path_set,
-    cmd_path_show, cmd_phase_validate,
-    cmd_pr_metadata_fill, cmd_readiness, cmd_slug,
-    cmd_ticket_save, cmd_ticket_show, cmd_tracker_sync,
-    cmd_verdict_merge, cmd_verdict_show, cmd_workflow_next, cmd_workflow_show,
-    cmd_workflow_validate, cmd_artifacts_migrate, cmd_artifacts_show)
+from acs_commands import (CONTEXT_KEYS, cmd_artifacts_show, cmd_context,  # noqa: E402,F401
+    cmd_doctor, cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show,
+    cmd_gate, cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status,
+    cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
+    cmd_run_check, cmd_run_new, cmd_run_next, cmd_run_show, cmd_slug,
+    cmd_step_finish, cmd_step_show, cmd_step_start, cmd_ticket_save,
+    cmd_ticket_show, cmd_tracker_sync, cmd_verdict_merge, cmd_verdict_show,
+    cmd_workflow_show, cmd_workflow_validate)
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -93,8 +93,6 @@ SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 #: The script remains the implementation and stays callable on its own; acs.py
 #: is the documented front door. Values are argv[0] under SCRIPTS.
 DELEGATED = {
-    "start": "skill-start.py",
-    "finish": "pipeline-step.py",
     "plan": "plan-approval.py",
     "setup": "setup_wizard.py",
 }
@@ -139,20 +137,66 @@ def build_parser():
     gate.add_argument("--ticket")
     gate.set_defaults(func=cmd_gate)
 
-    path = group("path", help="the ticket's delivery path (ADR-0095)")
-    path_sub = path.add_subparsers(dest="cmd")
+    run = group("run", help="the RUN machine: runs/<run-id>/run.json")
+    run_sub = run.add_subparsers(dest="cmd")
 
-    path_show = path_sub.add_parser("show", help="the recorded path and why")
-    path_show.add_argument("--ticket")
-    path_show.set_defaults(func=cmd_path_show)
+    rnew = run_sub.add_parser("new", help="record a new run over a subject")
+    rnew.add_argument("--ticket", help="subject: a ticket id")
+    rnew.add_argument("--prompt", help="subject: free text")
+    rnew.add_argument("--document", help="subject: a path to a document")
+    rnew.set_defaults(func=cmd_run_new)
 
-    path_set = path_sub.add_parser("set", help="record the judged path, once")
-    path_set.add_argument("--ticket")
-    path_set.add_argument("--path", dest="delivery_path", required=True,
-                          help="one of the paths workflows/ship.yaml declares")
-    path_set.add_argument("--reason", required=True,
-                          help="one sentence naming what in the plan decided it")
-    path_set.set_defaults(func=cmd_path_set)
+    rshow = run_sub.add_parser("show", help="the run ledger")
+    rshow.add_argument("--run", help="a run other than this checkout's current one")
+    rshow.set_defaults(func=cmd_run_show)
+
+    rnext = run_sub.add_parser("next", help="the cursor: the first step not completed")
+    rnext.add_argument("--run")
+    rnext.set_defaults(func=cmd_run_next)
+
+    rcheck = run_sub.add_parser("check", help="invariants I1-I5")
+    rcheck.add_argument("--run")
+    rcheck.set_defaults(func=cmd_run_check)
+
+    rabandon = run_sub.add_parser("abandon", help="give up on a run (a human's call)")
+    rabandon.add_argument("--run")
+    rabandon.add_argument("--reason", help="why; required")
+    rabandon.set_defaults(func=cmd_run_abandon)
+
+    step = group("step", help="the STEP machine: steps/<skill>/state.json")
+    step_sub = step.add_subparsers(dest="cmd")
+
+    sstart = step_sub.add_parser("start", help="step -> in_progress")
+    sstart.add_argument("--step", required=True,
+                        help="validated against the resolved workflow, not an enum")
+    sstart.add_argument("--run")
+    sstart.set_defaults(func=cmd_step_start)
+
+    sfinish = step_sub.add_parser("finish", help="step -> completed / failed / interrupted")
+    sfinish.add_argument("--step", required=True)
+    sfinish.add_argument("--run")
+    sfinish.add_argument("--status", choices=["completed", "failed", "interrupted"],
+                         help="override; normally read from result.json")
+    sfinish.add_argument("--outcome", help="override; normally read from result.json")
+    sfinish.add_argument("--summary")
+    sfinish.add_argument("--stop-reason", dest="stop_reason",
+                         choices=["session_end", "needs_input", "context_pressure"])
+    sfinish.add_argument("--no-op", dest="no_op", action="store_true",
+                         help="the pre-hook found nothing owed; no coordinator ran")
+    sfinish.set_defaults(func=cmd_step_finish)
+
+    sshow = step_sub.add_parser("show", help="one step's own state")
+    sshow.add_argument("--step", required=True)
+    sshow.add_argument("--run")
+    sshow.set_defaults(func=cmd_step_show)
+
+    result = group("result", help="the step result document")
+    result_sub = result.add_subparsers(dest="cmd")
+    rvalidate = result_sub.add_parser("validate",
+                                      help="check a result before the post-hook consumes it")
+    rvalidate.add_argument("--skill", required=True)
+    rvalidate.add_argument("result_file")
+    rvalidate.set_defaults(func=cmd_result_validate)
 
     ticket = group("ticket", help="read and write ticket.json")
     ticket_sub = ticket.add_subparsers(dest="cmd")
@@ -255,18 +299,6 @@ def build_parser():
                         help="restrict the merge to these lenses (default: all four)")
     vmerge.set_defaults(func=cmd_verdict_merge)
 
-    phase = group("phase", help="phase artifacts")
-    phase_sub = phase.add_subparsers(dest="cmd")
-    pval = phase_sub.add_parser("validate", help="check a result document before the post-hook")
-    pval.add_argument("--skill", required=True)
-    pval.add_argument("--result-file", dest="result_file", metavar="FILE")
-    pval.set_defaults(func=cmd_phase_validate)
-
-    slug = group("slug", help="slugify (branch and file naming)")
-    slug.add_argument("--text", required=True)
-    slug.add_argument("--max-len", dest="max_len", type=int, default=40)
-    slug.set_defaults(func=cmd_slug)
-
     fanout = group("fanout", help="epic fan-out helpers")
     fanout_sub = fanout.add_subparsers(dest="cmd")
     batches = fanout_sub.add_parser("batches", help="fanout_batches")
@@ -286,20 +318,9 @@ def build_parser():
                            help="validate this file instead of the resolved workflow")
     wvalidate.set_defaults(func=cmd_workflow_validate)
 
-    wnext = workflow_sub.add_parser("next", help="the READY steps for a ticket, per pipeline-state.json")
-    wnext.add_argument("--ticket")
-    wnext.add_argument("--dry-run", dest="dry_run", action="store_true",
-                       help="evaluate without recording skipped steps in the ledger")
-    wnext.set_defaults(func=cmd_workflow_next)
 
     artifacts = group("artifacts", help="the ticket documents in the repo docs tree")
     artifacts_sub = artifacts.add_subparsers(dest="cmd")
-
-    amigrate = artifacts_sub.add_parser(
-        "migrate", help="move ticket.json, design.md and the legacy plan into <tickets_path>/<ID>/ once")
-    amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
-                          help="list the moves and write nothing")
-    amigrate.set_defaults(func=cmd_artifacts_migrate)
 
     ashow = artifacts_sub.add_parser("show", help="where one ticket's documents live, and its derived status")
     ashow.add_argument("--ticket")

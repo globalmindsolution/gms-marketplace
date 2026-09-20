@@ -79,32 +79,191 @@ def cmd_gate(args):
 # delivery path
 # ---------------------------------------------------------------------------
 
-def cmd_path_show(args):
-    """The recorded delivery path and the reason it was chosen, or nulls."""
-    ticket_id, tdir, _ctx = partition_or_die("path show", args.ticket)
-    emit({"ok": True, "ticket_id": ticket_id,
-          "delivery_path": workflow.recorded_delivery_path(tdir, ticket_id),
-          "reason": workflow.recorded_delivery_reason(tdir, ticket_id)})
+def _resolve_run(command, run_id=None):
+    """(rdir, doc, ctx, wf) for the run this command acts on.
 
-
-def cmd_path_set(args):
-    """Record the judged delivery path, once (ADR-0095).
-
-    Refuses an unknown path, an empty reason, and any attempt to move a ticket
-    already on a path -- the last is the one that matters, because it is what
-    makes a resumed run READ the path rather than judge it again and risk
-    splitting one pipeline across two."""
-    ticket_id, tdir, ctx = partition_or_die("path set", args.ticket)
+    Every `acs run` / `acs step` verb defaults to THIS CHECKOUT'S CURRENT RUN
+    and takes --run only to name another, because nobody should have to type a
+    run id (§4.9). The pointer already records it.
+    """
+    ctx = context_or_die(command)
+    repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    if run_id is None:
+        run_id = lib.current_run_id(ctx)
+    if not run_id:
+        die(command, "no current run for this checkout, and no --run given. "
+                     "Start one by invoking a skill with a ticket id, a prompt or a "
+                     "document, or name an existing run with --run.")
+    rdir = lib.run_dir(repo, run_id)
+    doc = lib.load_run(rdir)
+    if doc is None:
+        die(command, "no run %r (expected %s)" % (run_id, rdir))
     try:
-        resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
-        doc = workflow.validate_workflow_file(resolved["path"])
-        workflow.record_delivery_path(tdir, ticket_id, args.delivery_path,
-                                      args.reason, doc=doc)
+        resolved = lib.resolve_workflow(ctx.get("checkout_root"))
+        wf = lib.validate_workflow_file(resolved["path"])
+    except lib.WorkflowError as exc:
+        die(command, str(exc))
+    return rdir, doc, ctx, wf
+
+
+def cmd_run_show(args):
+    """The run ledger: its subject, status, cursor, steps and loops."""
+    _rdir, doc, _ctx, _wf = _resolve_run("run show", args.run)
+    emit({"ok": True, "run": doc})
+
+
+def cmd_run_next(args):
+    """The cursor: the first step in workflow order that is not completed.
+
+    This replaces `workflow next`'s ready-set. With no `needs:` graph there is
+    nothing to traverse and nothing to record as skipped -- one step is next,
+    or the run is done."""
+    _rdir, doc, _ctx, wf = _resolve_run("run next", args.run)
+    cursor = lib.cursor(doc, wf)
+    emit({"ok": True, "run_id": doc["run_id"], "next": cursor,
+          "status": doc.get("status"),
+          "done": cursor is None})
+
+
+def cmd_run_check(args):
+    """Invariants I1-I5 (§4.3). Exit 2 when the ledger has drifted, so a
+    caller can refuse to write to it rather than discovering the drift three
+    steps later."""
+    rdir, doc, _ctx, wf = _resolve_run("run check", args.run)
+    errors, warnings = lib.check_run(rdir, wf)
+    emit({"ok": not errors, "run_id": doc["run_id"],
+          "errors": errors, "warnings": warnings})
+    if errors:
+        die("run check", "; ".join(errors))
+
+
+def cmd_run_abandon(args):
+    """run -> abandoned. The one transition no hook makes: a human decides a
+    run is not worth finishing."""
+    rdir, doc, _ctx, _wf = _resolve_run("run abandon", args.run)
+    if not args.reason:
+        die("run abandon", "--reason is required: an abandoned run that does not say why "
+                           "is a run somebody re-reads in a month and cannot act on.")
+    doc = lib.abandon_run(rdir, args.reason)
+    emit({"ok": True, "run_id": doc["run_id"], "status": doc["status"],
+          "reason": args.reason})
+
+
+def cmd_run_new(args):
+    """Record a new run over a subject: a ticket id, a prompt or a document.
+    The id is DERIVED from the subject (§4.2), never allocated."""
+    ctx = context_or_die("run new")
+    repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    subject = _subject_from_args(args)
+    try:
+        resolved = lib.resolve_workflow(ctx.get("checkout_root"))
+        wf = lib.validate_workflow_file(resolved["path"])
+        run_id, rdir, doc = lib.create_run(repo, subject, wf, resolved["path"])
+    except (lib.WorkflowError, lib.GateError) as exc:
+        die("run new", str(exc))
+    lib.point_checkout_at(ctx, run_id)
+    emit({"ok": True, "run_id": run_id, "path": rdir, "subject": subject,
+          "cursor": doc.get("cursor")})
+
+
+def _subject_from_args(args):
+    if args.ticket:
+        return {"kind": "ticket", "ticket_id": args.ticket}
+    if args.document:
+        import hashlib
+        try:
+            with open(args.document, "rb") as fh:
+                digest = hashlib.sha256(fh.read()).hexdigest()
+        except OSError as exc:
+            die("run new", "cannot read %s: %s" % (args.document, exc))
+        return {"kind": "document", "path": args.document, "sha256": digest}
+    if args.prompt:
+        return {"kind": "prompt", "text": args.prompt}
+    die("run new", "give a subject: --ticket, --prompt or --document.")
+
+
+# ---------------------------------------------------------------------------
+# the step machine
+# ---------------------------------------------------------------------------
+
+def cmd_step_start(args):
+    """step -> in_progress, after the invariants hold. Writer for the
+    PreToolUse(Skill) transition."""
+    rdir, doc, _ctx, wf = _resolve_run("step start", args.run)
+    _require_step(wf, args.step, "step start")
+    try:
+        lib.check_invariants(rdir, wf)
+        doc = lib.start_step(rdir, args.step, wf)
     except lib.GateError as exc:
-        die("path set", str(exc))
-    emit({"ok": True, "ticket_id": ticket_id,
-          "delivery_path": workflow.recorded_delivery_path(tdir, ticket_id),
-          "reason": workflow.recorded_delivery_reason(tdir, ticket_id)})
+        die("step start", str(exc))
+    entry = lib.step_entry(doc, args.step)
+    emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
+          "status": entry.get("status"), "iteration": lib.iteration_of(doc, args.step, wf)})
+
+
+def cmd_step_finish(args):
+    """step -> completed / failed / interrupted, then the cursor, the loop and
+    the run's own status. One writer owns every consequence of a step ending,
+    which is what keeps them consistent."""
+    rdir, doc, _ctx, wf = _resolve_run("step finish", args.run)
+    _require_step(wf, args.step, "step finish")
+    outcome, summary, status, stop_reason = args.outcome, args.summary, args.status, args.stop_reason
+    if args.no_op:
+        status = "completed"
+    elif not args.status:
+        result = lib.load_result(rdir, args.step)
+        if result is None:
+            die("step finish", "no result.json for %s — a step's transition is read from "
+                               "its result document, not asserted on the command line "
+                               "(pass --status to override for a step that cannot write one)."
+                               % args.step)
+        errors = lib.validate_result(result, args.step)
+        if errors:
+            die("step finish", "result.json is not admissible: %s" % "; ".join(errors))
+        status = result.get("status")
+        outcome = outcome or result.get("outcome")
+        summary = summary or result.get("summary")
+        stop_reason = stop_reason or result.get("stop_reason")
+    try:
+        doc = lib.finish_step(rdir, args.step, wf, status=status, outcome=outcome,
+                              summary=summary, stop_reason=stop_reason)
+    except lib.GateError as exc:
+        die("step finish", str(exc))
+    emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
+          "status": lib.step_entry(doc, args.step).get("status"),
+          "outcome": outcome, "cursor": doc.get("cursor"),
+          "run_status": doc.get("status"),
+          "loops": doc.get("loops") or {}})
+
+
+def cmd_step_show(args):
+    """One step's own state: its invocations, states, findings and errors."""
+    rdir, doc, _ctx, _wf = _resolve_run("step show", args.run)
+    emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
+          "entry": lib.step_entry(doc, args.step),
+          "state": lib.load_step_state(rdir, args.step, doc["run_id"])})
+
+
+def _require_step(wf, step, command):
+    """--step validates against the RESOLVED WORKFLOW, not an argparse enum.
+    That enum was the closed skill list in its fourth place."""
+    if not lib.has_step(wf, step):
+        die(command, "%r is not a step of this workflow (%s)"
+            % (step, ", ".join(lib.steps_of(wf))))
+
+
+def cmd_result_validate(args):
+    """Check a step's result document BEFORE the post-hook consumes it: the
+    central envelope, then the skill's OWN outcome vocabulary. Replaces
+    `phase validate` -- "phase" meant three unrelated things, and this one is
+    the result document."""
+    result = read_json_arg("result validate", args.result_file)
+    errors = lib.validate_result(result, args.skill)
+    emit({"ok": not errors, "skill": args.skill, "status": result.get("status"),
+          "outcome": result.get("outcome"),
+          "vocabulary": lib.outcome_vocabulary(args.skill), "errors": errors})
+    if errors:
+        die("result validate", "; ".join(errors))
 
 
 # ---------------------------------------------------------------------------
@@ -562,45 +721,10 @@ def cmd_workflow_validate(args):
         emit({"ok": False, "source": source, "path": path, "line": exc.line,
               "reason": exc.reason})
         die("workflow validate", str(exc))
-    emit({"ok": True, "source": source, "path": path, "name": doc.get("name"),
-          "stop_after": doc.get("stop_after", lib.DEFAULT_STOP_AFTER),
-          "max_parallel": doc.get("max_parallel", lib.DEFAULT_MAX_PARALLEL),
-          "steps": [step["id"] for step in doc["steps"]]})
-
-
-def cmd_workflow_next(args):
-    """The READY steps for a ticket, evaluated against pipeline-state.json
-    (see acs_lib.workflow.next_steps for the walk). Records a step whose
-    `when` is false as `skipped` unless --dry-run. An epic is refused with
-    `{error: "epic", pointer}` on stdout and exit 2; an unknown ticket exits
-    2 the way every partition-taking command does."""
-    ticket_id, tdir, ctx = partition_or_die("workflow next", args.ticket)
-    try:
-        wctx = lib.ticket_context(ctx, ticket_id, tdir=tdir)
-        out = lib.next_steps(wctx, record_skips=not args.dry_run)
-    except lib.WorkflowError as exc:
-        if exc.payload:
-            emit(exc.payload)
-        die("workflow next", str(exc))
-    out["ok"] = True
-    emit(out)
-
-
-# ---------------------------------------------------------------------------
-# artifacts — the ticket documents in the repo docs tree
-# ---------------------------------------------------------------------------
-
-def cmd_artifacts_migrate(args):
-    """Move every live partition's ticket.json (plus design.md and the legacy
-    plan) into <tickets_path>/<ID>/ once -- idempotent, archive untouched, a
-    ticket.json.moved pointer left behind. --dry-run lists the moves only."""
-    ctx = context_or_die("artifacts migrate")
-    try:
-        report = lib.migrate_artifacts(ctx["workspace"], ctx["repo_id"], ctx["settings"],
-                                       ctx["checkout_root"], dry_run=args.dry_run)
-    except lib.GateError as exc:
-        die("artifacts migrate", str(exc))
-    emit(dict(report, ok=True))
+    emit({"ok": True, "source": source, "path": path,
+          "name": lib.workflow_name(path), "version": doc.get("version"),
+          "steps": lib.steps_of(doc), "loops": lib.loops_of(doc),
+          "warnings": lib.order_warnings(doc)})
 
 
 def cmd_artifacts_show(args):
