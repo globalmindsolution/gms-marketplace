@@ -80,7 +80,8 @@ import acs_lib as lib  # noqa: E402
 # change that.
 from acs_cli import (context_or_die, die, emit, load_ticket_or_die,  # noqa: E402,F401
     partition_or_die, read_json_arg)
-from acs_commands import (CONTEXT_KEYS, cmd_artifacts_show, cmd_context,  # noqa: E402,F401
+from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_show,  # noqa: E402,F401
+    cmd_context,
     cmd_doctor, cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show,
     cmd_gate, cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status,
     cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
@@ -346,6 +347,12 @@ def build_parser():
     ashow = artifacts_sub.add_parser("show", help="where one ticket's documents live, and its derived status")
     ashow.add_argument("--ticket")
     ashow.set_defaults(func=cmd_artifacts_show)
+
+    amigrate = artifacts_sub.add_parser(
+        "migrate", help="move live partitions' ticket documents into the repo docs tree")
+    amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
+                          help="list the moves without making them")
+    amigrate.set_defaults(func=cmd_artifacts_migrate)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

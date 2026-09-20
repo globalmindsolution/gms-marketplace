@@ -299,7 +299,12 @@ def start_step(rdir, step, wf, iteration=None):
     # definition of a cursor, and I2 then refused every standalone run.
     doc["cursor"] = cursor(doc, wf)
     doc["status"] = "in_progress"
-    return save_run(rdir, doc)
+    save_run(rdir, doc)
+    # Both indexes, here as at `finish`: a ticket's status is DERIVED from
+    # this ledger, so a start that leaves the index row `open` makes
+    # `acs ticket show` and the index disagree until the step ends.
+    _reindex(rdir, doc)
+    return doc
 
 
 def finish_step(rdir, step, wf, status="completed", outcome=None, summary=None,
@@ -450,10 +455,31 @@ def index_run(repo_dir_path, doc):
 
 
 def _reindex(rdir, doc):
+    """Both indexes, after a run transition.
+
+    `runs-index.json` is the run's own row. `tickets-index.json` is the
+    SUBJECT's, and it has to move too: a ticket's status is DERIVED from the
+    run's ledger, so a ledger write that leaves the index row alone leaves
+    `acs ticket show` and the index disagreeing about the same ticket. Both
+    are best-effort -- an index that could not be written is rebuilt from the
+    documents by the next write, and neither is worth failing a transition
+    over."""
     repo_dir_path = os.path.dirname(os.path.dirname(rdir))
     try:
         index_run(repo_dir_path, doc)
     except OSError:
+        pass
+    ticket_id = (doc.get("subject") or {}).get("ticket_id")
+    if not ticket_id:
+        return
+    from .tickets import load_ticket, update_index
+    workspace = os.path.dirname(repo_dir_path)
+    repo_id = os.path.basename(repo_dir_path)
+    try:
+        ticket = load_ticket(os.path.join(repo_dir_path, ticket_id))
+        if isinstance(ticket, dict) and ticket.get("id"):
+            update_index(workspace, repo_id, ticket)
+    except Exception:  # noqa: BLE001 -- an index write never fails a transition
         pass
 
 

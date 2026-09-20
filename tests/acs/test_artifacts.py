@@ -281,10 +281,17 @@ class TestRenderParse(unittest.TestCase):
 
 class TestDeriveStatus(ArtifactsCase):
 
+    def rdir(self, ticket_id=TICKET):
+        """The RUN over this ticket. A ticket is a run SUBJECT, not the
+        partition a run writes into (§4.2): the ledger lives under
+        `<repo>/runs/<run-id>/`, and a ticket-subject run's id is the ticket
+        id."""
+        return lib.run_dir(lib.repo_dir(self.ws, REPO_ID), ticket_id)
+
     def step(self, step_id, status, ticket_id=TICKET):
         """A ticket's status is derived from its RUN's ledger now, so seeding
         a step means writing run.json's `steps` entry."""
-        rdir = self.tdir(ticket_id)
+        rdir = self.rdir(ticket_id)
         os.makedirs(rdir, exist_ok=True)
         doc = lib.read_json(os.path.join(rdir, "run.json"))
         if not isinstance(doc, dict):
@@ -318,8 +325,9 @@ class TestDeriveStatus(ArtifactsCase):
         tdir = self.partition()
         self.step("create-prd", "completed")
         self.assertEqual(artifacts.derive_status(tdir), "in_progress")
-        lib.append_invocation(tdir, "create-prd", TICKET)
-        lib.finalize_invocation(tdir, "create-prd", TICKET,
+        rdir = self.rdir()
+        lib.append_invocation(rdir, "create-prd", TICKET)
+        lib.finalize_invocation(rdir, "create-prd", TICKET,
                          {"status": "completed", "states": {"pr": {"number": 7}}})
         self.assertEqual(artifacts.derive_status(tdir), "in_review")
 
@@ -417,7 +425,16 @@ class TestLoadSaveRouting(ArtifactsCase):
             ticket["status"] = "open"  # what a caller would flip; never stored
             ticket["title"] = "Renamed"
             lib.save_ticket(tdir, ticket)
-            lib.update_pipeline(tdir, TICKET, "code", "in_progress")
+            # The derived status comes from the RUN's ledger, never from a
+            # field in the document: a status written into ticket.md would be
+            # a second answer nothing keeps in step with the run.
+            rdir = lib.run_dir(lib.repo_dir(self.ws, REPO_ID), TICKET)
+            os.makedirs(rdir, exist_ok=True)
+            lib.write_json(os.path.join(rdir, "run.json"), {
+                "run_id": TICKET, "workflow": "ship", "workflow_version": 3,
+                "subject": {"kind": "ticket", "ticket_id": TICKET},
+                "status": "in_progress",
+                "steps": {"code": {"status": "in_progress"}}})
             reloaded = lib.load_ticket(tdir)
         self.assertEqual(reloaded["title"], "Renamed")
         self.assertEqual(reloaded["status"], "in_progress")
@@ -583,7 +600,7 @@ class TestCommitOwnership(unittest.TestCase):
 
     def test_create_design_publishes_and_does_not_commit_on_the_default_branch(self):
         body = self.skill("create-design")
-        self.assertIn('cp "<partition>/phases/create-design/design.md" "<design_path>"', body)
+        self.assertIn('cp "<partition>/steps/create-design/design.md" "<design_path>"', body)
         self.assertIn("never commits to the repo's default branch", body)
 
     def test_the_build_skills_commit_what_they_publish(self):
