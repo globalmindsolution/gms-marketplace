@@ -1,192 +1,93 @@
 """acs_lib.workflow — the declarative delivery pipeline.
 
-Until the skills-independence refactor, /acs:ship carried the pipeline order in
-prose and acs_lib.gates refused a skill until its predecessor had completed.
-The order now lives in `workflows/ship.yaml` (a consumer may replace it
-wholesale with `<repo>/.acs/workflows/ship.yaml`), skills are grouped into
-phases by `workflows/phases.yaml`, and /acs:ship is a loop over `acs.py
-workflow next`. This module owns all of that:
+A workflow is a **list**: `workflows/ship.yaml` (which a consumer may replace
+wholesale with `<repo>/.acs/workflows/ship.yaml`) names the skills to run, in
+order, plus the loops between them. Version 3 removed everything else — no
+`when:`, `paths:`, `requires:`, `needs:`, `id:`, `name:`, `stop_after:`,
+`max_parallel`, `exclusive:`, `on_fail:`, `boundary:` or `delivery:` — and the
+schema *rejects* those keys rather than ignoring them, so a workflow that
+tries to decide for a skill whether it has work fails validation.
 
-  resolve / load_workflow / validate  override-or-default resolution, schema
-                                      (acs_lib.schemasubset, since hooks may
-                                      not import jsonschema) and the semantic
-                                      checks: ids unique, needs name EARLIER
-                                      steps, stop_after exists, predicates
-                                      known, paths drawn from the declared
-                                      vocabulary, DAG acyclic
-  delivery_of / record_delivery_path  the ADR-0095 delivery paths: the branch
-                                      point a workflow declares, the per-path
-                                      fields a step may carry, and the ONE
-                                      write that records a ticket's path
-  PREDICATES                          the four named, pure predicates the
-                                      `when` / `requires` keys may name
-  next_steps                          the walk: which steps are READY for a
-                                      ticket given pipeline-state.json, in
-                                      `single` or `parallel` mode
-  pending_needs                       what a hand-invoked skill's predecessors
-                                      look like (the pre-hook advisory reads it)
+This module owns:
 
-Two neighbours carry what this module needs but does not own, so a caller can
-use them WITHOUT loading a pipeline document: `acs_lib.phases` holds the plugin
-paths and the skill registry (`load_phases`, `allowed_ship_skills`,
-`skill_legs`), and `acs_lib.schemasubset` holds the JSON Schema subset. Both
-are re-exported here, so `workflow.load_phases` keeps working.
+  resolve / load_workflow / validate  override-or-default resolution, the
+                                      schema (acs_lib.schemasubset, since
+                                      hooks may not import jsonschema) and the
+                                      semantic checks below
+  steps_of / loop_for                 the list and its cycles
+  ORDER VALIDATION                    a list with no `needs:` can still be
+                                      written in an order that cannot work, so
+                                      each step's REQUIRED reads must be
+                                      written by an EARLIER step or be a
+                                      run-level input. The declarations live
+                                      in `skills/<name>/acs.yaml`
+                                      (acs_lib.skills), never here: they are
+                                      facts about the skill, true in every
+                                      workflow, and the same list drives the
+                                      runtime input gate — so the validator
+                                      and the gate cannot disagree.
+
+That is what makes this not `needs:` by another name. `needs:` was a
+per-workflow edge list an author maintained, duplicating what the skills
+already knew; this is the skills saying it once and every workflow being
+checked against it.
+
+The walk itself is NOT here: with no graph there is no ready-set to compute.
+`acs_lib.run` owns the cursor ("the first step not completed"), because that
+is a fact about a run rather than about a workflow.
 
 Gates stay INPUT and SAFETY checks; nothing here refuses a skill for running
-out of order. Every ledger read goes through acs_lib.state; ticket documents
-are read through the acs_lib facade so the docs-tree reader, when it lands,
-is honoured without an import here.
+out of order.
 """
 
-import importlib
 import os
-import re
 
 from ._common import GateError, WorkflowError, plugin_root, read_json, write_json  # noqa: F401
-from .repo import find_ticket_partition
-from .state import load_pipeline, skill_completed, update_pipeline
-from . import phases as phases_registry  # noqa: F401
 from . import schemasubset  # noqa: F401
+from . import skills as skills_registry  # noqa: F401
 from .schemasubset import (branch_fits_type, deref, equal, is_type,  # noqa: F401
     pointer, schema_errors, type_name)
-from .phases import (OVERRIDE_WORKFLOW_RELPATH, PHASES_FILENAME,  # noqa: F401
-    PhasesError,
-    PHASES_SCHEMA_FILENAME, PHASE_GROUPS, SHIP_EXCLUDED_SKILLS, SHIP_FILENAME,
-    SHIP_PHASES, SHIP_SCHEMA_FILENAME, SKILLS_DIRNAME, WORKFLOWS_DIRNAME,
-    agent_roles_of, allowed_ship_skills, allowed_step_skills,
-    default_workflow_path, entry_point_of, load_phases, load_schema,
-    override_workflow_path, phase_of, phases_path, registered_skills,
-    schema_path, skill_agents, skill_aliases, skill_legs, skills_dir,
-    workflows_dir)
+from .skills import (AGENT_ROLES, OVERRIDE_WORKFLOW_RELPATH, PHASE_GROUPS,  # noqa: F401
+    SHIP_FILENAME, SKILLS_DIRNAME, SKILL_SCHEMA_FILENAME, SkillsError,
+    WORKFLOWS_DIRNAME, WORKFLOW_SCHEMA_FILENAME, agent_roles_of, agents_dir,
+    default_workflow_path, entry_point_of, is_skill, is_step_candidate,
+    legs_of, load_manifest, load_manifests, load_schema, manifest_path,
+    override_workflow_path, phase_of, reads_of, registered_skills,
+    schema_path, skill_agents, skill_dir, skill_legs, skills_dir,
+    step_candidates, unreachable_agents, workflows_dir, writes_of)
 from . import yamlsubset
 from .yamlsubset import YamlSubsetError
 
-BOUNDARIES = ("full_verify_stop",)
-DEFAULT_STOP_AFTER = "create-pr"
-DEFAULT_MAX_PARALLEL = 2
-#: The only version this build reads. A v1 file predates delivery paths and
-#: names a `code` skill that no longer exists, so it is refused, not adapted.
-WORKFLOW_VERSION = 2
-#: Where the judged path and its reason live on pipeline-state.json. Written
-#: once by /acs:ship after `delivery.classify_after`; read by every later walk,
-#: which is what keeps a resumed run on the path its first session chose.
-DELIVERY_PATH_KEY = "delivery_path"
-DELIVERY_REASON_KEY = "delivery_path_reason"
-#: Step fields that may be given per delivery path, as a mapping keyed by path
-#: instead of a scalar. One rule, applied to both, so a reader learns it once.
-PER_PATH_FIELDS = ("skill", "boundary")
-#: A step with one of these ledger statuses counts as satisfied for its dependants.
-SATISFIED_STATUSES = ("completed", "skipped")
-SKIPPED_STATUS = "skipped"
-#: A needed step in any of these states is simply READY again (re-run).
-RERUN_STATUSES = ("failed", "interrupted", "in_progress", "handed_off")
+#: The only workflow version this build reads.
+WORKFLOW_VERSION = 3
 
+#: Artifacts no step writes because the RUN carries them: the subject a run was
+#: started from (a ticket, a prompt or a document). A step may require these.
+RUN_LEVEL_ARTIFACTS = frozenset({"subject"})
 
-def _lib():
-    """The acs_lib facade, resolved at call time: load_ticket and
-    design_requirement are looked up through it so a module that later takes
-    them over (the docs-tree artifacts reader) is honoured, and so gates --
-    which will import this module for its advisory -- is never imported here."""
-    return importlib.import_module(__package__ or "acs_lib")
-
-
-# ---------------------------------------------------------------------------
-# Delivery paths (ADR-0095)
-# ---------------------------------------------------------------------------
-
-def delivery_of(doc):
-    """The workflow's `delivery` block, or None when it declares no paths."""
-    delivery = doc.get("delivery")
-    return delivery if isinstance(delivery, dict) else None
-
-
-def declared_paths(doc):
-    """The path vocabulary, `[]` when the workflow has no delivery block."""
-    delivery = delivery_of(doc)
-    return list(delivery["paths"]) if delivery else []
-
-
-def per_path(value, path):
-    """Resolve a step field that may be per-path.
-
-    A scalar applies on every path. A mapping applies only where it names the
-    path -- an omitted path yields None, which is how `boundary` says "no stop
-    on this path" without a second key. An unknown path (None, before the
-    classification) yields None too: a caller must not read a per-path field
-    before the path is decided, and returning None rather than guessing is what
-    makes that a visible bug instead of a silent wrong answer."""
-    if isinstance(value, dict):
-        return value.get(path)
-    return value
-
-
-def is_path_dependent(step):
-    """True when this step filters on, or varies by, the delivery path."""
-    return bool(step.get("paths")) or any(isinstance(step.get(field), dict)
-                                          for field in PER_PATH_FIELDS)
-
-
-def step_skills(step):
-    """Every skill this step could resolve to, in declaration order."""
-    skill = step.get("skill")
-    if isinstance(skill, dict):
-        return list(dict.fromkeys(skill.values()))
-    return [skill] if skill else []
-
-
-def step_matches(step, skill):
-    """True when `skill` names this step: its id, or any skill it can resolve to.
-
-    One matcher, because a per-path step answers to four skill names plus its
-    id, and two callers that disagree about which of those count produce an
-    advisory that names an empty step list."""
-    return skill == step.get("id") or skill in step_skills(step)
-
-
-def recorded_delivery_path(tdir, ticket_id):
-    """The path this ticket was judged onto, or None if it has not been.
-
-    Read, never derived. A resumed run takes the path its first session chose,
-    because re-judging a plan in a fresh session could land somewhere else and
-    leave half a pipeline on each path."""
-    value = load_pipeline(tdir, ticket_id).get(DELIVERY_PATH_KEY)
-    return value if isinstance(value, str) and value else None
-
-
-def recorded_delivery_reason(tdir, ticket_id):
-    """Why that path was chosen, or None. Recorded beside it so a reader can
-    audit a judgement that a scoring function would have made checkable."""
-    value = load_pipeline(tdir, ticket_id).get(DELIVERY_REASON_KEY)
-    return value if isinstance(value, str) and value else None
-
-
-def record_delivery_path(tdir, ticket_id, path, reason, doc=None):
-    """Write the judged path once. Refuses an unknown path, and refuses to
-    move a ticket already on one -- the re-judgement a resume must not make.
-
-    Returns the pipeline document. Raises WorkflowError on either refusal, so
-    a caller that tries cannot quietly half-succeed."""
-    paths = declared_paths(doc) if doc else []
-    if paths and path not in paths:
-        raise WorkflowError("delivery path %r is not one of: %s" % (path, ", ".join(paths)))
-    if not (isinstance(reason, str) and reason.strip()):
-        raise WorkflowError("a delivery path is recorded with the reason it was chosen")
-    current = recorded_delivery_path(tdir, ticket_id)
-    if current and current != path:
-        raise WorkflowError(
-            "ticket %s is already on the %s delivery path; it is judged once, from the plan, "
-            "and a resumed run reads it rather than re-judging. Re-run "
-            "/acs:create-impl-plan to change the plan the judgement was made from."
-            % (ticket_id, current))
-    data = load_pipeline(tdir, ticket_id)
-    data[DELIVERY_PATH_KEY] = path
-    data[DELIVERY_REASON_KEY] = reason.strip()
-    write_json(os.path.join(tdir, "pipeline-state.json"), data)
-    return data
+#: The v2 keys version 3 removed. Named so the error can say where each went
+#: rather than only that it is unknown.
+REMOVED_KEYS = {
+    "name": "the file name is the workflow's name",
+    "stop_after": "the list ends where the run ends",
+    "max_parallel": "steps run in the order they are written",
+    "delivery": "the plan records the delivery path; /acs:code dispatches on it",
+}
+REMOVED_STEP_KEYS = {
+    "id": "a step is a skill; state is keyed by the skill name",
+    "skill": "a step IS the skill name, not an object with a `skill` key",
+    "needs": "the written order is the dependency order",
+    "when": "the skill decides for itself and records why",
+    "paths": "the skill decides for itself and records why",
+    "requires": "the skill's own start check",
+    "exclusive": "steps run one at a time",
+    "on_fail": "the `loops:` entry",
+    "boundary": "removed with the per-path machinery",
+}
 
 
 # ---------------------------------------------------------------------------
-# ship.yaml: resolution and validation
+# Loading
 # ---------------------------------------------------------------------------
 
 def load_workflow(path):
@@ -210,529 +111,187 @@ def resolve_workflow(checkout_root, plugin=None):
     return {"source": source, "path": path, "workflow": doc}
 
 
+def workflow_name(path):
+    """The workflow's name: its file name without the extension. There is no
+    `name:` key -- the file IS the name, and run.json records it as such."""
+    return os.path.splitext(os.path.basename(path))[0]
+
+
 def _fail(reason, path, lines, node):
     raise WorkflowError(reason, path=path, line=yamlsubset.line_for(lines or {}, node))
 
 
-def validate_workflow(doc, phases=None, lines=None, path=None):
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
+def validate_workflow(doc, manifests=None, lines=None, path=None):
     """Schema plus semantic checks; returns `doc`, raises WorkflowError naming
-    the source line when `lines` (from yamlsubset.parse) is given."""
-    phases = phases or load_phases()
+    the source line when `lines` (from yamlsubset.parse) is given.
+
+    Semantic checks, in the order a reader would want them:
+      1. every step names a skill that ships and may be a step
+      2. every step's REQUIRED reads are written by an earlier step
+      3. every loop's endpoints exist and `back_to` precedes `from`
+    """
+    manifests = manifests if manifests is not None else load_manifests()
     if not isinstance(doc, dict):
         _fail("(document): expected object, got %s" % type_name(doc), path, lines, ())
+
+    for key, went in REMOVED_KEYS.items():
+        if key in doc:
+            _fail("%s: removed in version 3 — %s" % (key, went), path, lines, (key,))
+
     if doc.get("version") != WORKFLOW_VERSION:
-        _fail("version: %r is not supported — this build reads version %d. A version-1 "
-              "file predates delivery paths (ADR-0095): add a `delivery` block and "
-              "replace the `code` step's skill with the per-path mapping from the "
-              "plugin default at workflows/ship.yaml."
+        _fail("version: %r is not supported — this build reads version %d. A version-2 "
+              "file carries conditions and constraints (`when`, `needs`, `paths`, "
+              "`delivery`) that version 3 removed; rewrite it as a list of skill names."
               % (doc.get("version"), WORKFLOW_VERSION), path, lines, ("version",))
-    errors = schema_errors(load_schema(SHIP_SCHEMA_FILENAME), doc)
+
+    errors = schema_errors(load_schema(WORKFLOW_SCHEMA_FILENAME), doc)
     if errors:
         node, message = errors[0]
         _fail("%s: %s" % (pointer(node), message), path, lines, node)
-    allowed = allowed_step_skills(phases)
+
     steps = doc["steps"]
-    ids = []
     for index, step in enumerate(steps):
         node = ("steps", index)
-        if step["id"] in ids:
-            _fail("steps[%d].id: duplicate step id %r" % (index, step["id"]), path, lines, node + ("id",))
-        ids.append(step["id"])
-    paths = declared_paths(doc)
-    delivery = delivery_of(doc)
-    if delivery and delivery["classify_after"] not in ids:
-        _fail("delivery.classify_after: %r is not a step id" % delivery["classify_after"],
-              path, lines, ("delivery", "classify_after"))
-    for index, step in enumerate(steps):
-        node = ("steps", index)
-        if not paths and is_path_dependent(step):
-            _fail("steps[%d]: uses delivery paths, but the workflow declares no `delivery` block"
-                  % index, path, lines, node)
-        for field in PER_PATH_FIELDS:
-            value = step.get(field)
-            if not isinstance(value, dict):
-                continue
-            unknown = [name for name in value if name not in paths]
-            if unknown:
-                _fail("steps[%d].%s: unknown delivery path(s) %s (declared: %s)"
-                      % (index, field, ", ".join(repr(u) for u in sorted(unknown)), ", ".join(paths)),
-                      path, lines, node + (field,))
-            # `skill` is required on every path; an omitted path would leave the
-            # step unrunnable there. `boundary` is optional by nature, so a
-            # partial mapping is exactly how it says "no stop on this path".
-            if field == "skill":
-                missing = [name for name in paths if name not in value]
-                if missing:
-                    _fail("steps[%d].skill: no skill for delivery path(s) %s — a per-path "
-                          "skill mapping must name every declared path"
-                          % (index, ", ".join(repr(m) for m in missing)), path, lines, node + ("skill",))
-        for name in step.get("paths") or []:
-            if name not in paths:
-                _fail("steps[%d].paths: unknown delivery path %r (declared: %s)"
-                      % (index, name, ", ".join(paths)), path, lines, node + ("paths",))
-        for skill in step_skills(step):
-            if skill not in allowed:
-                _fail("steps[%d].skill: %r is not a build/test/ship skill or a leg of one (allowed: %s)"
-                      % (index, skill, ", ".join(allowed)), path, lines, node + ("skill",))
-        for need in step.get("needs") or []:
-            if need not in ids[:index]:
-                _fail("steps[%d].needs: %r must name an EARLIER step" % (index, need),
-                      path, lines, node + ("needs",))
-        for key in ("when", "requires"):
-            if key in step and step[key] not in PREDICATES:
-                _fail("steps[%d].%s: unknown predicate %r (known: %s)"
-                      % (index, key, step[key], ", ".join(sorted(PREDICATES))), path, lines, node + (key,))
-        on_fail = step.get("on_fail")
-        if on_fail:
-            if on_fail["relay_to"] not in ids or on_fail["relay_to"] == step["id"]:
-                _fail("steps[%d].on_fail.relay_to: %r is not another step id" % (index, on_fail["relay_to"]),
-                      path, lines, node + ("on_fail", "relay_to"))
-            loops = on_fail.get("max_loops")
-            if isinstance(loops, str) and loops not in MAX_LOOPS_NAMES:
-                _fail("steps[%d].on_fail.max_loops: unknown name %r (known: %s)"
-                      % (index, loops, ", ".join(sorted(MAX_LOOPS_NAMES))), path, lines,
-                      node + ("on_fail", "max_loops"))
-        if "on_replan" in step and (step["on_replan"] not in ids or step["on_replan"] == step["id"]):
-            _fail("steps[%d].on_replan: %r is not another step id" % (index, step["on_replan"]),
-                  path, lines, node + ("on_replan",))
-    stop_after = doc.get("stop_after", DEFAULT_STOP_AFTER)
-    if stop_after not in ids:
-        _fail("stop_after: %r is not a step id" % stop_after, path, lines, ("stop_after",))
-    _check_acyclic(steps, path, lines)
-    if delivery:
-        _check_path_dependants(steps, delivery["classify_after"], path, lines)
+        if isinstance(step, dict):
+            for key, went in REMOVED_STEP_KEYS.items():
+                if key in step:
+                    _fail("steps[%d].%s: removed in version 3 — %s"
+                          % (index, key, went), path, lines, node)
+            _fail("steps[%d]: a step is a skill NAME, not an object" % index, path, lines, node)
+        if not is_skill(step):
+            _fail("steps[%d]: %r is not a skill that ships (no skills/%s/SKILL.md)"
+                  % (index, step, step), path, lines, node)
+        entry = (manifests.get(step) or {}).get("leg_of")
+        if entry:
+            _fail("steps[%d]: %r is a leg of %r, not a step — name %r and let it dispatch"
+                  % (index, step, entry, entry), path, lines, node)
+        if not is_step_candidate(step, manifests):
+            _fail("steps[%d]: %r declares no reads and no writes in skills/%s/acs.yaml, "
+                  "so it is a skill rather than a step" % (index, step, step), path, lines, node)
+
+    _validate_order(steps, manifests, path, lines)
+    _validate_loops(doc.get("loops") or [], steps, path, lines)
     return doc
 
 
-def _check_path_dependants(steps, classify_after, path, lines):
-    """Every path-dependent step must descend from `classify_after`.
-
-    A step that filters on or varies by the path, but could become READY before
-    the classification has happened, has no path to read. The walk would have to
-    either guess one or stall, and both are worse than refusing the file: this is
-    a property of the workflow, knowable when it is written."""
-    needs = {step["id"]: list(step.get("needs") or []) for step in steps}
-    descends = {}
-
-    def reaches(sid):
-        if sid not in descends:
-            descends[sid] = False  # cycles are already refused; this also stops recursion
-            descends[sid] = any(need == classify_after or reaches(need) for need in needs.get(sid, []))
-        return descends[sid]
-
+def _validate_order(steps, manifests, path, lines):
+    """Each step's REQUIRED reads must be written by an EARLIER step, or be a
+    run-level artifact. This is the check that replaces `needs:` -- derived
+    from what the skills declare, not from an edge list in this file."""
+    written = {}
     for index, step in enumerate(steps):
-        if is_path_dependent(step) and not reaches(step["id"]):
-            _fail("steps[%d] (%s): depends on the delivery path but does not descend from "
-                  "%r, so it could be ready before the path is decided — add it to `needs`, "
-                  "directly or transitively" % (index, step["id"], classify_after),
+        required, _optional = reads_of(step, manifests)
+        for artifact in required:
+            if artifact in RUN_LEVEL_ARTIFACTS or artifact in written:
+                continue
+            producer = _producer_of(artifact, steps, manifests)
+            if producer is None:
+                _fail("steps[%d]: %s reads %r, which no step in this workflow writes"
+                      % (index, step, artifact), path, lines, ("steps", index))
+            _fail("steps[%d]: %s reads %r, which no EARLIER step writes — %s writes it "
+                  "at step %d" % (index, step, artifact, producer[1], producer[0] + 1),
                   path, lines, ("steps", index))
+        for artifact in writes_of(step, manifests):
+            written.setdefault(artifact, index)
 
 
-def _check_acyclic(steps, path, lines):
-    """`needs` must name earlier steps, which already rules a cycle out; this
-    is the explicit check so the guarantee does not rest on one loop above."""
-    needs = {step["id"]: list(step.get("needs") or []) for step in steps}
-    state = {}
-    for start in needs:
-        stack = [(start, iter(needs[start]))]
-        state[start] = "open"
-        while stack:
-            node, it = stack[-1]
-            nxt = None
-            for candidate in it:
-                nxt = candidate
-                break
-            if nxt is None:
-                state[node] = "done"
-                stack.pop()
-            elif state.get(nxt) == "open":
-                _fail("steps: dependency cycle through %r" % nxt, path, lines, ("steps",))
-            elif state.get(nxt) is None:
-                state[nxt] = "open"
-                stack.append((nxt, iter(needs.get(nxt, []))))
-
-
-def validate_workflow_file(path, phases=None):
-    """Parse and validate one file, reporting failures at their line."""
-    doc, lines = load_workflow(path)
-    return validate_workflow(doc, phases=phases, lines=lines, path=path)
-
-
-# ---------------------------------------------------------------------------
-# Ticket context and artifact locations
-# ---------------------------------------------------------------------------
-
-def ticket_context(ctx, ticket_id, tdir=None):
-    """A build_context() dict extended with ticket_id, tdir and ticket. Refuses
-    an archived, missing or unreadable ticket with a WorkflowError."""
-    if tdir is None:
-        tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-        if archived:
-            raise WorkflowError("ticket %s is done and archived (%s); nothing left to run"
-                                % (ticket_id, tdir))
-        if not os.path.isdir(tdir):
-            raise WorkflowError("no workspace partition for %s (expected %s) — run /acs:create-ticket first"
-                                % (ticket_id, tdir))
-    ticket = _lib().load_ticket(tdir)
-    if not isinstance(ticket, dict):
-        raise WorkflowError("ticket file missing or corrupt under %s — run /acs:create-ticket first" % tdir)
-    wctx = dict(ctx)
-    wctx.update({"ticket_id": ticket_id, "tdir": tdir, "ticket": ticket})
-    return wctx
-
-
-def _tickets_path(settings):
-    artifacts = (settings or {}).get("artifacts") or {}
-    return artifacts["tickets_path"] if "tickets_path" in artifacts else "docs/tickets"
-
-
-def _ticket_docs_dir(settings, checkout_root, ticket_id):
-    """<checkout_root>/<artifacts.tickets_path>/<ID>, or None when the docs
-    tree is opted out (tickets_path null). Private: acs_lib.artifacts owns the
-    public resolver once it lands."""
-    base = _tickets_path(settings)
-    if not base or not checkout_root:
-        return None
-    return os.path.join(checkout_root, base, ticket_id)
-
-
-def ticket_artifact_path(wctx, name, ticket_id=None, tdir=None):
-    """Where a ticket artifact (analysis.md, plan.md, design.md, ...) lives:
-    the docs-tree folder first, then the workspace partition; None when
-    neither has it."""
-    ticket_id = ticket_id or wctx["ticket_id"]
-    tdir = tdir or wctx["tdir"]
-    candidates = []
-    docs = _ticket_docs_dir(wctx.get("settings"), wctx.get("checkout_root"), ticket_id)
-    if docs:
-        candidates.append(os.path.join(docs, name))
-    candidates.append(os.path.join(tdir, name))
-    for candidate in candidates:
-        if os.path.isfile(candidate):
-            return candidate
+def _producer_of(artifact, steps, manifests):
+    """(index, skill) of the first step that writes `artifact`, else None."""
+    for index, step in enumerate(steps):
+        if artifact in writes_of(step, manifests):
+            return index, step
     return None
 
 
-def _front_matter(path):
-    with open(path, "r", encoding="utf-8") as fh:
-        text = fh.read()
-    try:
-        front, _body = yamlsubset.split_front_matter(text)
-    except YamlSubsetError as exc:
-        raise WorkflowError("front matter: %s" % exc.reason, path=path, line=exc.line)
-    return front or {}
+def _validate_loops(loops, steps, path, lines):
+    order = dict((step, index) for index, step in enumerate(steps))
+    for index, loop in enumerate(loops):
+        node = ("loops", index)
+        for key in ("from", "back_to"):
+            if loop[key] not in order:
+                _fail("loops[%d].%s: %r is not a step of this workflow"
+                      % (index, key, loop[key]), path, lines, node)
+        if order[loop["back_to"]] >= order[loop["from"]]:
+            _fail("loops[%d]: back_to %r is not EARLIER than from %r — a loop that does "
+                  "not go back is not a loop" % (index, loop["back_to"], loop["from"]),
+                  path, lines, node)
+
+
+def validate_workflow_file(path, manifests=None):
+    """Parse and validate one file, reporting failures at their line."""
+    doc, lines = load_workflow(path)
+    return validate_workflow(doc, manifests=manifests, lines=lines, path=path)
+
+
+def order_warnings(doc, manifests=None):
+    """Non-fatal order remarks: an OPTIONAL read placed before its producer.
+    Legal and pointless -- create-test-docs reads api-contract when one exists,
+    so putting it first means it never will. A warning, never an error.
+
+    A read satisfied by a LOOP is not one of these. `code` reads `verdict`
+    when present and `review-code` writes it one step later, but the loop
+    sends the run back to `code`, so on iteration 2+ the verdict is exactly
+    what `code` is there to act on. Warning about that would train a reader to
+    ignore the warnings."""
+    manifests = manifests if manifests is not None else load_manifests()
+    steps = doc.get("steps") or []
+    out = []
+    for index, step in enumerate(steps):
+        _required, optional = reads_of(step, manifests)
+        for artifact in optional:
+            producer = _producer_of(artifact, steps, manifests)
+            if not producer or producer[0] <= index:
+                continue
+            if _reachable_by_loop(doc, steps, index, producer[0]):
+                continue
+            out.append("steps[%d]: %s reads %r when present, but %s does not write it "
+                       "until step %d — it will never be present"
+                       % (index, step, artifact, producer[1], producer[0] + 1))
+    return out
+
+
+def _reachable_by_loop(doc, steps, reader, producer):
+    """True when some loop carries `producer`'s output back round to `reader`:
+    the loop's span covers both, so the reader sees it on the next iteration."""
+    order = dict((s, i) for i, s in enumerate(steps))
+    for loop in loops_of(doc):
+        start, end = order.get(loop["back_to"]), order.get(loop["from"])
+        if start is None or end is None:
+            continue
+        if start <= reader <= end and start <= producer <= end:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
-# Predicates -- pure functions of (ticket, ledger, settings, artifacts)
+# Reading a validated workflow
 # ---------------------------------------------------------------------------
 
-def _design_ticket(wctx):
-    """(required, design_dir, design_ticket_id) per acs_lib.design_requirement."""
-    required, design_dir, source = _lib().design_requirement(wctx, wctx["tdir"], wctx["ticket"])
-    if not required:
-        return False, None, None
-    design_ticket = wctx["ticket_id"] if source == "own" else wctx["ticket"].get("parent")
-    return True, design_dir, design_ticket
+def steps_of(doc):
+    """The step list: skill names, in order."""
+    return list(doc.get("steps") or [])
 
 
-def design_approved(wctx):
-    """True when no design is required (needs_design false, no parent design
-    pending), or when the applicable design.md exists and the ledger records
-    create-design completed for that ticket."""
-    required, design_dir, design_ticket = _design_ticket(wctx)
-    if not required:
-        return True
-    if ticket_artifact_path(wctx, "design.md", ticket_id=design_ticket, tdir=design_dir) is None:
-        return False
-    return skill_completed(design_dir, "create-design")
+def loops_of(doc):
+    return list(doc.get("loops") or [])
 
 
-def design_pointer(wctx):
-    _required, _design_dir, design_ticket = _design_ticket(wctx)
-    design_ticket = design_ticket or wctx["ticket_id"]
-    if design_ticket != wctx["ticket_id"]:
-        return "run /acs:create-design %s (the parent epic) first" % design_ticket
-    return "run /acs:create-design %s first" % design_ticket
+def loop_for(doc, step):
+    """The loop whose `from` is `step`, else None."""
+    for loop in loops_of(doc):
+        if loop["from"] == step:
+            return loop
+    return None
 
 
-def api_surface_changed(wctx):
-    """analysis.md front matter says `api_surface: true`."""
-    path = ticket_artifact_path(wctx, "analysis.md")
-    if path is None:
-        return False
-    return _front_matter(path).get("api_surface") is True
+def has_step(doc, step):
+    return step in steps_of(doc)
 
 
-def e2e_configured(wctx):
-    settings = wctx.get("settings") or {}
-    e2e = settings.get("e2e")
-    suite = (settings.get("suites") or {}).get("e2e")
-    return bool(isinstance(e2e, dict) and e2e) or bool(isinstance(suite, dict) and suite)
-
-
-def post_code_test_active(wctx):
-    """settings.post_code_test.enabled when set; else whether e2e is configured."""
-    enabled = ((wctx.get("settings") or {}).get("post_code_test") or {}).get("enabled")
-    if enabled is not None:
-        return bool(enabled)
-    return e2e_configured(wctx)
-
-
-def post_code_test_fix_loops_cap(wctx):
-    cap = ((wctx.get("settings") or {}).get("post_code_test") or {}).get("fix_loops_cap")
-    if isinstance(cap, int) and not isinstance(cap, bool) and cap >= 0:
-        return cap
-    return 2
-
-
-PREDICATES = {
-    "design_approved": design_approved,
-    "api_surface_changed": api_surface_changed,
-    "e2e_configured": e2e_configured,
-    "post_code_test_active": post_code_test_active,
-}
-#: The human pointer a `requires` predicate offers when false.
-POINTERS = {"design_approved": design_pointer}
-#: Names an `on_fail.max_loops` may carry instead of an integer.
-MAX_LOOPS_NAMES = {"post_code_test_fix_loops_cap": post_code_test_fix_loops_cap}
-
-
-def _pointer_for(predicate, wctx):
-    render = POINTERS.get(predicate)
-    if render:
-        return render(wctx)
-    return "%s is false for %s" % (predicate, wctx["ticket_id"])
-
-
-# ---------------------------------------------------------------------------
-# The walk
-# ---------------------------------------------------------------------------
-
-def _ledger_keys(step, aliases):
-    """Ledger keys that record this step: its id, every skill it could resolve
-    to (post-hooks write the skill name), and any alias directory forwarding to
-    one of them.
-
-    A per-path step contributes all four of its skills. Only one of them ever
-    runs, so at most one can carry a status -- and listing them all is what lets
-    the walk read a step that a previous session ran under a different path's
-    skill name, rather than offering it again."""
-    keys = [step["id"]]
-    for skill in step_skills(step):
-        if skill not in keys:
-            keys.append(skill)
-        keys.extend(alias for alias, target in aliases.items()
-                    if target == skill and alias not in keys)
-    return keys
-
-
-def _walk(wctx, doc, aliases, record_skips, path=None):
-    """(ready_entries, blocked_by, statuses, satisfied) over the steps in file order.
-
-    `path` is the ticket's recorded delivery path, or None when the workflow
-    declares no paths or the classification has not happened yet. A
-    path-dependent step is never offered on None: `next_steps` holds the walk
-    at the classification point instead."""
-    ledger = load_pipeline(wctx["tdir"], wctx["ticket_id"])["steps"]
-    memo = {}
-
-    def holds(predicate):
-        if predicate not in memo:
-            memo[predicate] = bool(PREDICATES[predicate](wctx))
-        return memo[predicate]
-
-    def excluded_by_paths(step):
-        """True when the step declares `paths` and the active one is not among
-        them. Unknown path -> False: undecided is not the same as excluded."""
-        declared = step.get("paths")
-        return bool(declared) and path is not None and path not in declared
-
-    ready, blocked, statuses, satisfied = [], None, {}, {}
-    for step in doc["steps"]:
-        sid = step["id"]
-        status = None
-        for key in _ledger_keys(step, aliases):
-            entry = ledger.get(key)
-            if isinstance(entry, dict) and entry.get("status"):
-                status = entry.get("status")
-                break
-        statuses[sid] = status
-        when = step.get("when")
-        # A recorded skip stands while the reason for it stands -- a false
-        # `when`, or a `paths` list the active path is not in. Either turning
-        # true makes the step ready again, which is what lets a re-classified
-        # ticket pick up a step its first path skipped.
-        skip_stands = (not when or not holds(when)) and not (step.get("paths") and not excluded_by_paths(step))
-        if status == "completed" or (status == SKIPPED_STATUS and skip_stands):
-            satisfied[sid] = True
-            continue
-        satisfied[sid] = False
-        needs = step.get("needs") or []
-        if any(not satisfied.get(need) for need in needs):
-            continue
-        if when and not holds(when):
-            reason = "when: %s is false" % when
-            if record_skips and status != SKIPPED_STATUS:
-                update_pipeline(wctx["tdir"], wctx["ticket_id"], sid, SKIPPED_STATUS,
-                                summary=reason, extra={"reason": reason, "when": when})
-            statuses[sid] = SKIPPED_STATUS
-            satisfied[sid] = True
-            continue
-        if excluded_by_paths(step):
-            reason = "paths: %s does not run on the %s path" % (sid, path)
-            if record_skips and status != SKIPPED_STATUS:
-                update_pipeline(wctx["tdir"], wctx["ticket_id"], sid, SKIPPED_STATUS,
-                                summary=reason, extra={"reason": reason, "paths": list(step["paths"]),
-                                                       DELIVERY_PATH_KEY: path})
-            statuses[sid] = SKIPPED_STATUS
-            satisfied[sid] = True
-            continue
-        requires = step.get("requires")
-        if requires and not holds(requires):
-            if blocked is None:
-                blocked = {"step": sid, "predicate": requires, "pointer": _pointer_for(requires, wctx)}
-            continue
-        ready.append(_entry(wctx, step, status, needs, statuses, path))
-    return ready, blocked, statuses, satisfied
-
-
-def _entry(wctx, step, status, needs, statuses, path=None):
-    reason = ("needs satisfied (%s)" % ", ".join("%s %s" % (n, statuses.get(n)) for n in needs)
-              if needs else "entry step (no needs)")
-    if status in RERUN_STATUSES:
-        reason += "; last run recorded %s — ready again" % status
-    elif status == SKIPPED_STATUS:
-        reason += "; previously skipped, its `when` now holds"
-    on_fail = step.get("on_fail")
-    if on_fail:
-        loops = on_fail.get("max_loops")
-        if isinstance(loops, str):
-            loops = MAX_LOOPS_NAMES[loops](wctx)
-        on_fail = {"relay_to": on_fail["relay_to"], "max_loops": loops}
-    args = step.get("args")
-    return {
-        "step": step["id"],
-        "skill": per_path(step["skill"], path),
-        "args": args.replace("{ticket_id}", wctx["ticket_id"]) if isinstance(args, str) else None,
-        "reason": reason,
-        "boundary": per_path(step.get("boundary"), path),
-        "on_fail": on_fail,
-        "on_replan": step.get("on_replan"),
-        "exclusive": bool(step.get("exclusive")),
-        "delivery_path": path,
-    }
-
-
-def _validated(wctx, resolved):
-    resolved = resolved or resolve_workflow(wctx.get("checkout_root"))
-    doc = validate_workflow_file(resolved["path"])
-    return resolved, doc
-
-
-def next_steps(wctx, resolved=None, record_skips=True):
-    """The READY steps for a ticket, per pipeline-state.json.
-
-    A step is satisfied when its ledger status is `completed`, or `skipped`
-    while its `when` is still false. A step is READY when every `needs` entry
-    is satisfied, it is not itself satisfied, and its `when` holds (a false
-    `when` records the step as skipped, with the reason). A needed step in
-    any other state -- failed, interrupted, in_progress, handed_off -- is
-    simply ready again. `requires` false on a ready step blocks it (reported
-    once, as `blocked_by`, with a human pointer). `mode` is `parallel` when
-    more than one step is ready, none of them is exclusive and max_parallel
-    > 1 (`ready` is then cut to max_parallel entries); otherwise `single` and
-    `ready` holds the first ready step. `done` once stop_after completed.
-    An epic raises WorkflowError carrying the `{error: "epic", pointer}` payload."""
-    ticket = wctx["ticket"]
-    if ticket.get("type") == "epic":
-        pointer = ("ticket %s is an epic — epics are never shipped directly; run "
-                   "/acs:create-design %s first if the epic has no design yet, then "
-                   "/acs:create-ticket %s --fan-out to mint its children, then "
-                   "/acs:ship <child-id> on each child." % ((wctx["ticket_id"],) * 3))
-        raise WorkflowError(pointer, payload={"error": "epic", "ticket": wctx["ticket_id"],
-                                              "pointer": pointer})
-    resolved, doc = _validated(wctx, resolved)
-    aliases = load_phases()["aliases"]
-    delivery = delivery_of(doc)
-    path = recorded_delivery_path(wctx["tdir"], wctx["ticket_id"]) if delivery else None
-    ready, blocked, statuses, satisfied = _walk(wctx, doc, aliases, record_skips, path)
-    stop_after = doc.get("stop_after", DEFAULT_STOP_AFTER)
-    max_parallel = doc.get("max_parallel", DEFAULT_MAX_PARALLEL)
-    done = statuses.get(stop_after) == "completed"
-
-    delivery_report = None
-    if delivery:
-        # The classification is owed once its step is satisfied and no path is
-        # recorded. Hold every path-dependent step back until it is: offering
-        # one with `path=None` would resolve its per-path fields to None.
-        owed = bool(satisfied.get(delivery["classify_after"])) and path is None
-        if owed:
-            ready = [entry for entry in ready
-                     if not is_path_dependent(_step_by_id(doc, entry["step"]))]
-        delivery_report = {
-            "path": path,
-            "reason": recorded_delivery_reason(wctx["tdir"], wctx["ticket_id"]) if path else None,
-            "classify_after": delivery["classify_after"],
-            "paths": list(delivery["paths"]),
-            "awaiting_classification": owed,
-        }
-    if done:
-        ready = []
-    if len(ready) > 1 and max_parallel > 1 and not any(r["exclusive"] for r in ready):
-        mode, ready = "parallel", ready[:max_parallel]
-    else:
-        mode, ready = "single", ready[:1]
-    return {
-        "ticket": wctx["ticket_id"],
-        "mode": mode,
-        "ready": ready,
-        "done": done,
-        "blocked_by": blocked,
-        "statuses": statuses,
-        "delivery": delivery_report,
-        "workflow": {"source": resolved["source"], "path": resolved["path"],
-                     "name": doc.get("name"), "stop_after": stop_after,
-                     "max_parallel": max_parallel},
-    }
-
-
-def _step_by_id(doc, sid):
-    for step in doc["steps"]:
-        if step["id"] == sid:
-            return step
-    return {}
-
-
-def pending_needs(wctx, skill, resolved=None):
-    """For the FIRST step whose skill is `skill` (or an alias of it): the
-    `needs` entries not yet satisfied, as [{step, skill, status}]. Empty when
-    the skill is not in the workflow or its needs are all satisfied. Never
-    writes the ledger -- the pre-hook advisory reads this."""
-    resolved, doc = _validated(wctx, resolved)
-    phases = load_phases()
-    skill = phases["aliases"].get(skill, skill)
-    path = (recorded_delivery_path(wctx["tdir"], wctx["ticket_id"])
-            if delivery_of(doc) else None)
-    _ready, _blocked, statuses, satisfied = _walk(wctx, doc, phases["aliases"], False, path)
-    by_id = {step["id"]: step for step in doc["steps"]}
-
-    for step in doc["steps"]:
-        if not step_matches(step, skill):
-            continue
-        # An unresolved per-path skill reports the STEP ID, not one of its legs:
-        # before the classification there is no fact about which leg will run,
-        # and naming the first one would be an arbitrary answer dressed as a
-        # real one. The step id is the stable name a reader already knows.
-        return [{"step": need,
-                 "skill": per_path(by_id[need]["skill"], path) or by_id[need]["id"],
-                 "status": statuses.get(need)}
-                for need in step.get("needs") or [] if not satisfied.get(need)]
-    return []
-
-
-# The names the brief uses; the facade re-exports the unambiguous spellings.
-resolve = resolve_workflow
-validate = validate_workflow
-validate_file = validate_workflow_file
-next = next_steps  # noqa: A001 -- the brief's name for the walk
+def step_index(doc, step):
+    steps = steps_of(doc)
+    return steps.index(step) if step in steps else None

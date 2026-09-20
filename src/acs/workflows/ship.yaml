@@ -1,71 +1,44 @@
 # workflows/ship.yaml — the delivery pipeline /acs:ship drives.
-# Order and conditions live here; each skill keeps its own input and safety checks.
-# Only Build, Test and Ship skills may appear (workflows/phases.yaml is the registry).
-# Entry is a ticket id: create-ticket and create-design are Design work, run before ship.
-# Steps whose `needs` are all satisfied are READY together and run in parallel (up to
-# max_parallel), each as a leg in its own worktree; `exclusive: true` runs a step alone.
 #
-# Version 2 (ADR-0095) adds delivery paths. After `delivery.classify_after`
-# completes, /acs:ship reads the plan and records ONE path on the ticket; every
-# step may then filter on it (`paths:`) or vary by it (a field given as a
-# mapping keyed by path). A step whose `paths:` excludes the active path is
-# recorded `skipped`, which already satisfies a `needs` edge — so the four
-# paths reconverge on create-pr with no extra wiring.
-version: 2
-name: ship
-stop_after: create-pr
-max_parallel: 2
-
-delivery:
-  # The step after which the path is judged, once, from its artifact.
-  classify_after: create-impl-plan
-  # Cheapest first. A step's per-path mapping must cover every name here.
-  paths: [trivial, small, standard, complex]
+# A LIST, and deliberately nothing more. No `when:`, `paths:`, `requires:`,
+# `needs:`, `id:`, `name:`, `stop_after:`, `max_parallel`, `exclusive:`,
+# `on_fail:`, `boundary:` or `delivery:` — the schema rejects every one of
+# them. The declared order IS the dependency order and every step runs on
+# every run; a step with nothing owed records an evidenced no-op from its own
+# pre-hook, at no token cost, rather than being skipped by a predicate here.
+#
+# That follows from the standalone-skill rule: a skill whose applicability is
+# decided by a workflow predicate cannot be run on its own and be trusted,
+# because invoked by hand it never evaluates the condition the workflow was
+# evaluating for it. Each skill decides for itself and records why.
+#
+# `loops:` is the only construct, and it is not a condition — it tests nothing
+# about the change, it declares that two steps form a cycle and how many
+# times. It cannot live inside a skill because it spans two of them.
+#
+# Order is VALIDATED, not declared: each skill's skills/<name>/acs.yaml says
+# what artifacts it reads and writes, and `acs workflow validate` checks that
+# every step's required reads are written by an earlier step. Swap two steps
+# whose order does not matter and it passes; swap two whose order does and it
+# names the pair.
+#
+# See src/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md §2.
+version: 3
 
 steps:
-  - id: analyze-ticket
-    skill: analyze-ticket
-  - id: create-impl-plan
-    skill: create-impl-plan
-    needs: [analyze-ticket]
-    requires: design_approved
-  - id: create-api-contract
-    skill: create-api-contract
-    needs: [create-impl-plan]
-    when: api_surface_changed
-  - id: create-test-docs             # trivial implements against the plan's own test strategy
-    skill: create-test-docs
-    needs: [create-impl-plan, create-api-contract]
-    paths: [small, standard, complex]
-  - id: code
-    skill:                           # one step, one ledger key, four implementations
-      trivial: code-trivial
-      small: code-small
-      standard: code-standard
-      complex: code-complex
-    needs: [create-test-docs]
-    exclusive: true
-    boundary:                        # only the deep paths exhaust /acs:ship's context
-      standard: full_verify_stop
-      complex: full_verify_stop
-    on_replan: create-impl-plan
-  - id: create-e2e-tests             # runs in parallel with docs-sync (both need only code)
-    skill: create-e2e-tests
-    needs: [code]
-    when: e2e_configured
-    paths: [small, standard, complex]   # trivial has no test-cases.md to read e2e rows from
-  - id: docs-sync
-    skill: docs-sync
-    needs: [code]
-  - id: run-e2e-tests
-    skill: run-e2e-tests
-    args: "--for-ticket {ticket_id}"
-    needs: [create-e2e-tests]
-    when: post_code_test_active
-    paths: [small, standard, complex]
-    on_fail:
-      relay_to: code
-      max_loops: post_code_test_fix_loops_cap
-  - id: create-pr
-    skill: create-pr
-    needs: [docs-sync, run-e2e-tests]
+  - analyze-requirements
+  - create-impl-plan
+  - create-api-contract
+  - create-test-docs
+  - code
+  - review-code
+  - create-e2e-tests
+  - run-e2e-tests
+  - docs-sync
+  - create-pr
+
+loops:
+  - from: review-code
+    back_to: code             # on blocking findings, re-enter at `code`
+    max_iterations: 3         # counts code->review-code rounds
+    on_exhausted: fail        # never "pass with findings"

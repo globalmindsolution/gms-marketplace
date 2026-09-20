@@ -1,0 +1,5 @@
+phase: build
+reads:
+  required: [plan]
+  optional: [api-contract]
+writes: [test-cases]

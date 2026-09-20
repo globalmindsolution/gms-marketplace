@@ -1,0 +1,5 @@
+phase: test
+reads:
+  required: [e2e-tests]
+  optional: []
+writes: [e2e-results]

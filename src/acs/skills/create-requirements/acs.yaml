@@ -1,0 +1,5 @@
+phase: design
+reads:
+  required: []
+  optional: [prd]
+writes: [requirements-docs]

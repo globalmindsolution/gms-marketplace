@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/run.schema.json",
+  "title": "acs run state (runs/<run-id>/run.json)",
+  "description": "The RUN machine (§4.3): one workflow's progress over one subject. Replaces pipeline-state.json. `steps` is OPEN -- the 18-name enum is gone, because step names validate against the RESOLVED WORKFLOW and skill/leg names against the SKILL DIRECTORIES, while this schema validates shape only. That is what makes a new workflow a YAML file and a new skill a directory, neither touching a schema. `skipped` and `handed_off` are absent from the status enums by design: the first recorded a workflow predicate's answer (a step with nothing to do is `completed` with an `outcome`), the second named a reason rather than a state (it is now `interrupted` plus `stop_reason`).",
+  "type": "object",
+  "required": ["run_id", "workflow", "workflow_version", "subject", "status", "steps"],
+  "properties": {
+    "run_id": {"type": "string", "minLength": 1},
+    "workflow": {"description": "The workflow's file name without its extension. There is no `name:` key in a workflow -- the file IS the name.", "type": "string"},
+    "workflow_version": {"type": "integer"},
+    "subject": {"$ref": "#/$defs/subject"},
+    "status": {"enum": ["in_progress", "completed", "failed", "abandoned"]},
+    "cursor": {
+      "description": "The first step in workflow order that is not completed, or null when every step is. With no needs: graph there is no ready-set to compute -- this is the whole of 'what runs next'.",
+      "type": ["string", "null"]
+    },
+    "steps": {
+      "description": "{step-name: entry}. Keyed by SKILL NAME: with no id: in a workflow, a step IS a skill. A step absent from here is pending.",
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/stepEntry"}
+    },
+    "loops": {
+      "description": "{step-name: {iteration, max}} for each loop the workflow declares.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["iteration", "max"],
+        "properties": {
+          "iteration": {"type": "integer", "minimum": 1},
+          "max": {"type": "integer", "minimum": 1}
+        },
+        "additionalProperties": false
+      },
+      "default": {}
+    },
+    "totals": {"type": "object", "default": {}},
+    "started_at": {"type": "string"},
+    "ended_at": {"type": "string"},
+    "abandoned_reason": {"type": "string"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "subject": {
+      "description": "What this run is about. A ticket id, when supplied, is the run's SUBJECT and never its partition name -- which is what lets a run start from a bare prompt.",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["ticket", "prompt", "document", "branch"]},
+        "ticket_id": {"type": ["string", "null"]},
+        "text": {"type": ["string", "null"]},
+        "path": {"type": ["string", "null"]},
+        "sha256": {"type": ["string", "null"]},
+        "branch": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "stepEntry": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["in_progress", "completed", "failed", "interrupted"]},
+        "outcome": {"description": "Why this step completed, when it completes in more than one way. The vocabulary is the skill's own, in skills/<name>/state.schema.json. A FAILURE is never an outcome -- that is `status: failed`.", "type": "string"},
+        "stop_reason": {"enum": ["session_end", "needs_input", "context_pressure"]},
+        "iteration": {"type": "integer", "minimum": 1},
+        "leg": {"description": "The leg an entry point dispatched to, e.g. code-standard for the code step.", "type": "string"},
+        "started_at": {"type": "string"},
+        "ended_at": {"type": "string"},
+        "summary": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
