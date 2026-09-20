@@ -383,16 +383,28 @@ class NoMarketplacePathHardcodingTest(unittest.TestCase):
     settings.requirements_layout (placeholder syntax), never a literal
     marketplace-specific 'docs/requirements/functional/...' path. MAR-162
     moved the requirements-merge routing prose from /acs:code's producer
-    files to /acs:docs-sync's executor (C-1); code-verifier.md retains it in
-    the demoted advisory sub-check (b)."""
+    files to /acs:docs-sync's executor (C-1).
+
+    The second scoped file was code-verifier.md, which retained the prose in a
+    demoted advisory sub-check. v0.5.0 retired the verifier with the review,
+    and the sub-check went with it rather than moving, so the routing prose
+    now lives in exactly one file. The scope is that one file, and the
+    assertion below proves the set has not silently emptied."""
 
     SCOPED_FILES = (
         os.path.join(REPO_ROOT, "src", "acs", "agents", "docs-sync-executor.md"),
-        os.path.join(REPO_ROOT, "src", "acs", "agents", "code-verifier.md"),
     )
 
     LITERAL_PATH_RE = re.compile(
         r"docs/requirements/(functional|non-functional)/\S")
+
+    def test_the_scope_is_not_empty(self):
+        """An exclusion list that empties itself passes every loop below
+        vacuously -- the retirement of one scoped file must not read as the
+        rule no longer applying anywhere."""
+        self.assertTrue(self.SCOPED_FILES)
+        for path in self.SCOPED_FILES:
+            self.assertTrue(os.path.isfile(path), path)
 
     def test_no_literal_resolved_subfolder_path_in_merge_routing_prose(self):
         for path in self.SCOPED_FILES:

@@ -148,8 +148,6 @@ CASES = [
      "time per ticket for this repo — not delivery throughput, just the tool "
      "usage and cost side.",
      "usage"),
-    # `test` is the deprecated alias directory; the intent routes to the
-    # skill that carries the prose.
     ("run-e2e-tests", True,
      "Run the configured test suites for this repo and give me a results "
      "report, opening a regression ticket for anything that broke.",
@@ -159,10 +157,14 @@ CASES = [
      "since the last tag, bump the version in both manifests, and open the "
      "release PR for me to review and merge.",
      "release"),
-    ("analyze-ticket", True,
+    ("analyze-requirements", True,
      "Before we plan anything for EVAL-1, work out what it really asks for: "
      "what breaks, what is unclear, and what we are assuming.",
-     "analyze-ticket"),
+     "analyze-requirements"),
+    ("review-code", True,
+     "The branch for EVAL-1 is implemented and committed. Review the whole "
+     "changeset against what it was supposed to deliver before we open a PR.",
+     "review-code"),
     ("create-impl-plan", True,
      "EVAL-1 has been analysed and the questions are answered. Work out the "
      "file-by-file approach the implementation should follow.",

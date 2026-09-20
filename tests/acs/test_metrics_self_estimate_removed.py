@@ -1,14 +1,20 @@
 """Sweep test proving the self-estimated <metrics> XML element is gone (D5-A).
 
-D5-A removed <metrics> from acs-messages.xsd and the matching validate_xml.py
-content-model tables, and dropped every "fill/estimate tokens and cost_usd
-yourself" instruction from every SKILL.md/agent charter (several distinct
+D5-A removed <metrics> from the message contract and dropped every
+"fill/estimate tokens and cost_usd yourself" instruction from every
+SKILL.md/agent charter (several distinct
 phrasings existed across skills -- "fill ... with your best estimate(s)",
 "Estimate `tokens`/`cost_usd` for this run", "your estimates for this entire
 run" -- all discarded now that finalize_run always overwrites a coordinator's
 self-reported tokens/cost_usd with measured usage_reader/cost_sampler data),
 so token/cost figures come only from that measured data. This module is the
 single place asserting the sweep is complete and stays complete.
+
+v0.5.0 retired the XML messaging surface itself (acs-messages.xsd and
+validate_xml.py), so the two assertions that read it read the JSON schemas
+that replaced it instead. The subject is unchanged: a result document may not
+carry self-reported metrics, and the /acs:metrics SKILL name -- unrelated to
+the retired element -- must survive the sweep.
 """
 
 import os
@@ -43,22 +49,31 @@ def _files_containing(root_dirs, needle):
     return hits
 
 
-class TestMetricsElementRejected(unittest.TestCase):
-    """(i) A <result> bearing <metrics> is now rejected in-process, not merely by the XSD."""
+class TestMetricsAreMeasuredNotAsserted(unittest.TestCase):
+    """(i) A result document does not carry self-reported metrics.
 
-    def test_result_with_metrics_is_rejected_by_validate_structurally(self):
-        mod = acs_case.load_module("validate_xml.py", alias="validate_xml")
-        xml = (
-            '<result skill="code" phase="execute" ticket-id="SHOP-1" status="completed">'
-            '<metrics tokens-input="1000" tokens-output="200" cost-usd="0.05"/>'
-            '</result>'
-        )
-        errors = mod.validate_structurally(xml)
-        self.assertTrue(
-            errors,
-            "Expected <metrics> to be rejected by validate_structurally now that it "
-            "has been removed from the message contract (D5-A), but got []",
-        )
+    The XSD element is gone with the whole XML surface; what replaced the
+    rejection is stronger than a schema refusal. `finalize_invocation`
+    MEASURES tokens, cost and API duration from the invocation's own recorded
+    transcript and writes them itself, so a coordinator's figures are not
+    rejected -- they are simply never read."""
+
+    def test_the_result_schema_does_not_invite_self_reported_metrics(self):
+        import json
+        path = os.path.join(REPO_ROOT, "src", "acs", "schemas", "result.schema.json")
+        with open(path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        self.assertNotIn("metrics", schema["properties"])
+
+    def test_finalize_invocation_measures_rather_than_copying(self):
+        source = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts",
+                              "acs_lib", "step.py")
+        with open(source, encoding="utf-8") as fh:
+            body = fh.read()
+        self.assertIn("_measure_run_usage(entry, rdir, step)", body)
+        self.assertIsNotNone(
+            re.search(r"(?s)never taken from `result`", body),
+            "step.py must state that measurement never reads the result document")
 
 
 class TestCharterSweepClean(unittest.TestCase):
@@ -131,18 +146,14 @@ class TestImmutableSurfacesUntouched(unittest.TestCase):
                 "editing them would be a defect, not a fix" % expected,
             )
 
-    def test_skill_name_enum_value_metrics_still_present(self):
-        """The /acs:metrics skill's skillName enum value is unrelated to the <metrics>
-        element and must survive this sweep -- guards against a self-inflicted regression."""
-        xsd_path = os.path.join(REPO_ROOT, "src", "acs", "schemas", "acs-messages.xsd")
-        with open(xsd_path, "r", encoding="utf-8") as fh:
-            lines = fh.readlines()
-        matches = [line for line in lines if "metrics" in line]
-        self.assertTrue(
-            any('value="metrics"' in line for line in matches),
-            "Expected the skillName enumeration to still list value=\"metrics\" "
-            "(the /acs:metrics skill); found only: %r" % matches,
-        )
+    def test_the_metrics_skill_itself_still_exists(self):
+        """The /acs:metrics SKILL is unrelated to the retired <metrics>
+        element and must survive this sweep -- it used to be guarded through
+        the XSD's skillName enum, which went with the XSD; a skill is a
+        DIRECTORY now, so the directory is the pin."""
+        self.assertTrue(os.path.isfile(os.path.join(
+            REPO_ROOT, "src", "acs", "skills", "metrics", "SKILL.md")))
+        self.assertIn("metrics", acs_case.lib.UNHOOKED_SKILLS)
 
 
 if __name__ == "__main__":

@@ -1188,6 +1188,9 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   ticket-level clarification the plan itself required.
 - MUST implement features, bug fixes, and tasks using the **TDD pattern**:
   write tests first, then implementation, iterating until green.
+- MUST generate unit tests and run them targeting the configured
+  `test_coverage_percent` (default 90) from `settings.json` — measured once,
+  at the review's gate, never inside an iteration that may be discarded.
 - MUST run the tests its change touches, not the full suite: the full suite is
   the review's final gate, run once, last, on the iteration that survives
   review. That discipline is safe precisely because the gate is unconditional
@@ -1345,6 +1348,18 @@ full unit suite runs.
        `settings.test_coverage_percent`. This is the only place the full suite
        runs in the pipeline. A gate failure is a blocking finding of
        `kind: gate` with the failing command as its evidence.
+- `/acs:review-code` MUST review the changeset — **business logic**,
+  **features** (does it satisfy the ticket and the plan), **quality**,
+  **technical standards** (conformant with the `standards/` doc set at
+  `standards_path` when configured; falls back to documented architecture
+  when unset), **architecture**, **system design**, **security**,
+  **documentation** (affected docs updated and consistent with the code),
+  **Simplicity & scope** (overcomplication and out-of-scope edits are
+  blocking), and **plan conformance** (blocking when active, N/A otherwise;
+  active only when a deterministic approval record exists whose plan path is
+  the run's `plan.md` and whose digest matches its current bytes; the
+  reviewer computes activation itself; strictly **subordinate to acceptance
+  conformance**, which an approved plan can never substitute for).
 - The step's conclusion is a **document**, not a status: `verdict.json` under
   `<run>/steps/review-code/`. Completing the step without a usable verdict is
   refused. `verifier_passed` is **derived** by the post-hook from that verdict
