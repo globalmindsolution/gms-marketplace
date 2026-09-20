@@ -65,11 +65,13 @@ def _base_ref():
     return None
 
 
-def range_diff_names(*paths):
+def range_diff_names(*paths, diff_filter=None):
     base = _base_ref()
+    cmd = ["git", "diff", "--name-only", "%s...HEAD" % base]
+    if diff_filter:
+        cmd.append("--diff-filter=%s" % diff_filter)
     out = subprocess.run(
-        ["git", "diff", "--name-only", "%s...HEAD" % base, "--", *paths],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        cmd + ["--", *paths], cwd=REPO_ROOT, capture_output=True, text=True,
     )
     return out.stdout.strip()
 
@@ -121,12 +123,18 @@ class TestNoNewMechanism(unittest.TestCase):
         # rather than errors — in a base-less checkout.
         if _base_ref() is None:
             self.skipTest("no base ref (origin/main or main) to diff against")
-        # This guard is scoped to MAR-127's OWN branch, where ADR 0049 is
-        # part of the diff. On main (0049 already merged) or on any later
-        # branch — e.g. MAR-129, which legitimately touches skills/**  and
-        # docs/architecture/** for unrelated reasons — 0049 is not in the
-        # diff, so the guard is inert rather than a false failure.
-        if range_diff_names(ADR_PATH) == "":
+        # This guard is scoped to MAR-127's OWN branch, the one that ADDS
+        # ADR 0049. On main (0049 already merged) or on any later branch —
+        # e.g. MAR-129, which legitimately touches skills/** and
+        # docs/architecture/** for unrelated reasons — 0049 is not added by
+        # the diff, so the guard is inert rather than a false failure.
+        #
+        # --diff-filter=A is load-bearing: ADRs are append-only and get
+        # AMENDED for years after they land (docs/adr/README.md). Testing
+        # mere presence in the diff woke this guard on every later branch
+        # that amends 0049, and then policed that branch against MAR-127's
+        # scope, which was never its subject.
+        if range_diff_names(ADR_PATH, diff_filter="A") == "":
             self.skipTest(
                 "no-new-mechanism guard is scoped to MAR-127's own branch; "
                 "this branch does not introduce ADR 0049")
