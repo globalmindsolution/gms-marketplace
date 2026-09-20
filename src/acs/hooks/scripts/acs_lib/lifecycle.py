@@ -328,9 +328,10 @@ def clear_stop_blocks(ctx):
         write_json(path, {})
 
 
-def result_document(tdir, skill):
-    """The phase result document post-<skill>.py consumes, or None."""
-    doc = read_json(os.path.join(tdir, "phases", skill, "result.json"))
+def result_document(rdir, skill):
+    """The step result document post-<skill>.py consumes, or None."""
+    from .step import result_path
+    doc = read_json(result_path(rdir, skill))
     return doc if isinstance(doc, dict) else None
 
 
@@ -342,7 +343,21 @@ def render_handoff_context(tdir, ticket_id, skill):
     conversation stops being the record, so this points at the artifacts rather
     than trying to summarize them -- a summary written from a half-compacted
     window is exactly the unreliable thing it is replacing."""
-    ticket = load_ticket(tdir) or {}
+    # The run's subject, not a ticket.json in the partition: a run may have no
+    # ticket at all (§3.11), and when it has one the subject is where it lives.
+    from .run import load_run
+    subject = (load_run(tdir) or {}).get("subject") or {}
+    ticket = {}
+    if subject.get("ticket_id"):
+        from .repo import find_ticket_partition
+        from .gates import build_context
+        try:
+            ctx = build_context(os.getcwd())
+            tpath, _archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"],
+                                                     subject["ticket_id"])
+            ticket = load_ticket(tpath) or {}
+        except Exception:  # noqa: BLE001 -- a handoff render never raises
+            ticket = {}
     from .run import load_run
     pipeline = load_run(tdir) or {}
     lines = [
@@ -482,8 +497,8 @@ def validate_message(message):
     if not (root.get("phase") or "").strip():
         errors.append("phase= is required and must be non-empty")
     iteration = (root.get("iteration") or "").strip()
-    if not iteration.isdigit() or int(iteration) < 1:
-        errors.append("iteration= is required and must be a positive integer")
+    if iteration and (not iteration.isdigit() or int(iteration) < 1):
+        errors.append("iteration= must be a positive integer")
     return errors
 
 

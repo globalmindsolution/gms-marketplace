@@ -103,7 +103,7 @@ class LifecycleCase(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
         self.ticket = self.new_ticket("Ship the thing", "task")
-        self.tdir_path = self.tdir(self.ticket)
+        self.tdir_path = self.ensure_run(self.ticket)
 
     def payload(self, **over):
         doc = {"session_id": "sess-1", "cwd": self.repo,
