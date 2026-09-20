@@ -312,8 +312,9 @@ class Panel3ApiDuration(unittest.TestCase):
                  "api_duration_basis": "apportioned"},
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "create-docs-state.json"), {
-                "skill": "create-docs", "ticket_id": "MAR-6", "states": {}, "runs": [
+            _write_json(os.path.join(tdir, "steps", "create-docs", "state.json"), {
+                "skill": "create-docs", "run_id": "MAR-6", "states": {},
+                "findings": [], "errors": [], "invocations": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
                      "status": "completed", "api_duration_ms": 500.0,
                      "api_duration_basis": "apportioned"},
@@ -331,8 +332,9 @@ class Panel3ApiDuration(unittest.TestCase):
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_pipeline(ws, "MAR-6", steps={}, archived=True)
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "create-docs-state.json"), {
-                "skill": "create-docs", "ticket_id": "MAR-6", "states": {}, "runs": [
+            _write_json(os.path.join(tdir, "steps", "create-docs", "state.json"), {
+                "skill": "create-docs", "run_id": "MAR-6", "states": {},
+                "findings": [], "errors": [], "invocations": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
                      "status": "completed", "api_duration_ms": 750.0,
                      "api_duration_basis": "apportioned"},
@@ -976,8 +978,9 @@ class UsageByTicketSkillWidening(unittest.TestCase):
                  "status": "completed", "api_duration_ms": 100.0, "api_duration_basis": "apportioned"},
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "create-design-state.json"), {
-                "skill": "create-design", "ticket_id": "MAR-6", "states": {}, "runs": [
+            _write_json(os.path.join(tdir, "steps", "create-design", "state.json"), {
+                "skill": "create-design", "run_id": "MAR-6", "states": {},
+                "findings": [], "errors": [], "invocations": [
                     {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:01:00Z",
                      "status": "completed", "api_duration_ms": 200.0,
                      "api_duration_basis": "apportioned"},
@@ -1501,11 +1504,12 @@ class Panel7ReworkCount(unittest.TestCase):
             # _rework_count should collect distinct PR numbers from any place they appear.
             # We store PR numbers 10 and 11 (with a dup 10 in runs) to test de-dup.
             tdir = _ticket_dir(ws, "MAR-X")
-            _write_json(os.path.join(tdir, "create-pr-state.json"), {
+            _write_json(os.path.join(tdir, "steps", "create-pr", "state.json"), {
                 "skill": "create-pr",
-                "ticket_id": "MAR-X",
+                "run_id": "MAR-X",
                 "states": {"pr": {"number": 10}},
-                "runs": [
+                "findings": [], "errors": [],
+                "invocations": [
                     {"pr": {"number": 10}},   # duplicate
                     {"pr": {"number": 11}},   # distinct
                 ],

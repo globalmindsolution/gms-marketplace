@@ -73,14 +73,14 @@ UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metri
                    "test", "run-e2e-tests", "release", "project"]
 
 # Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
-# order. A schema-mirror equality test is what stops this list from drifting.
-# `test` is kept beside `run-e2e-tests` so a ledger written before the rename
-# still validates and still orders sensibly.
+# order. This is a DISPLAY order for the metrics funnel's columns -- it is not
+# the pipeline's order, which lives in workflows/ship.yaml and is that file's
+# to change. Nothing branches on it.
 PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-docs",
-                        "create-requirements", "create-ticket", "create-design", "analyze-ticket",
-                        "create-impl-plan", "create-api-contract", "create-test-docs", "code",
-                        "docs-sync", "create-e2e-tests", "test", "run-e2e-tests", "create-pr",
-                        "merge-pr"]
+                        "create-requirements", "create-ticket", "create-design",
+                        "analyze-requirements", "create-impl-plan", "create-api-contract",
+                        "create-test-docs", "code", "review-code", "docs-sync",
+                        "create-e2e-tests", "run-e2e-tests", "create-pr", "merge-pr"]
 
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the
