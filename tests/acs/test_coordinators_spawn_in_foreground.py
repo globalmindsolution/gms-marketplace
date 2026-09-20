@@ -40,7 +40,11 @@ class CoordinatorsSpawnInForegroundTest(unittest.TestCase):
         for path in sorted(glob.glob(os.path.join(SKILLS, "*", "SKILL.md"))):
             skill = os.path.basename(os.path.dirname(path))
             own = open(path, encoding="utf-8").read()
-            if not (re.search(r"acs:[a-z0-9-]+-(executor|verifier)", own)
+            # Every ROLE, not just the pair: `review-code` spawns a lens and
+            # an adjudicator, and a regex naming only executor/verifier let it
+            # out of a rule that applies to it word for word.
+            if not (re.search(r"acs:[a-z0-9-]+-(executor|verifier|lens|adjudicator)",
+                              own)
                     and "Agent tool" in own):
                 continue
             cls.spawning[skill] = norm("\n".join([own] + cls._references(own)))
@@ -58,6 +62,9 @@ class CoordinatorsSpawnInForegroundTest(unittest.TestCase):
 
     def test_the_rule_covers_every_spawning_coordinator(self):
         self.assertGreaterEqual(len(self.spawning), 14, sorted(self.spawning))
+        self.assertIn("review-code", self.spawning,
+                      "the reviewer spawns lenses and adjudicators; the rule "
+                      "applies to it word for word")
         for skill, body in sorted(self.spawning.items()):
             if skill in ("ship", "release", "create-ticket", "create-pr", "merge-pr"):
                 continue  # no reflection-loop spawn of their own, or an optional inline executor

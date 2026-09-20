@@ -88,12 +88,12 @@ class ExecuteVerifyLoopTest(unittest.TestCase):
 
     def test_the_executor_writes_authoring_notes_and_the_verifier_reads_them(self):
         skill = read(SKILL)
-        self.assertIn("iter-<n>-authoring.md", skill)
+        self.assertIn("iter-<n>/authoring.md", skill)
         executor = read(os.path.join(AGENTS, "create-docs-executor.md"))
-        self.assertIn("iter-<n>-authoring.md", executor)
+        self.assertIn("iter-<n>/authoring.md", executor)
         self.assertIn("- **Upstream inventory**", executor)
         verifier = read(os.path.join(AGENTS, "create-docs-verifier.md"))
-        self.assertIn("iter-<n>-authoring.md", verifier)
+        self.assertIn("iter-<n>/authoring.md", verifier)
         self.assertRegex(verifier, r"(?m)^4\.\s+\*\*authoring-conformance\*\*")
 
     def test_the_set_travels_in_constraints_not_in_agent_names(self):

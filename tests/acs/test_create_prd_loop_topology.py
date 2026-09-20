@@ -93,14 +93,14 @@ class ExecuteVerifyLoopTest(unittest.TestCase):
         self.assertRegex(self.norm, r"(?i)findings go verbatim into the next executor `<task>` `<context>`")
 
     def test_the_executor_writes_authoring_notes_and_the_verifier_reads_them(self):
-        self.assertIn("iter-<n>-authoring.md", self.body)
+        self.assertIn("iter-<n>/authoring.md", self.body)
         executor = read(PRD_EXECUTOR)
-        self.assertIn("iter-<n>-authoring.md", executor)
+        self.assertIn("iter-<n>/authoring.md", executor)
         self.assertIn("## Survey — what you establish before you write (iteration 1)", executor)
         for heading in ("## Code evidence", "## Answer fidelity", "## Roadmap milestones"):
             self.assertIn(heading, executor)
         verifier = read(PRD_VERIFIER)
-        self.assertIn("--plan <partition>/phases/create-prd/iter-<n>-authoring.md", verifier)
+        self.assertIn("--plan steps/create-prd/iter-<n>/authoring.md", verifier)
         self.assertNotIn("iter-<n>-plan.md", verifier)
 
     def test_findings_feed_the_executor_context_with_no_plan_phase_in_between(self):

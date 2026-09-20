@@ -97,7 +97,11 @@ class TestCoveragercOmitList(unittest.TestCase):
             for fname in _true_forwarders()
         }
         self.assertEqual(set(entries), expected)
-        self.assertEqual(len(entries), 33)
+        # Derived, not pinned: the count IS the forwarder set's size, so a
+        # skill added or retired moves both together. A hand-typed literal
+        # here had to be edited on every such change and was the half that
+        # went stale.
+        self.assertEqual(len(entries), len(expected))
         for entry in entries:
             self.assertTrue(entry.startswith("${ACS_COV_ROOT}/"), entry)
 

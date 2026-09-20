@@ -389,7 +389,10 @@ class TestInterfaceLiteralsLiveInTheAdapter(unittest.TestCase):
     def test_the_walk_reaches_inside_the_acs_lib_package(self):
         """Grounding check: without it, the guard below could pass vacuously."""
         scanned = self._plugin_modules()
-        self.assertTrue(any(os.path.join("acs_lib", "state.py") in p for p in scanned),
+        # `state.py` was split into one module per machine (§4.7); `run.py` is
+        # the one that carries the RUN machine, and it is the module a literal
+        # would most plausibly drift into.
+        self.assertTrue(any(os.path.join("acs_lib", "run.py") in p for p in scanned),
                         "the module walk must reach acs_lib's package modules")
         self.assertGreater(len(scanned), 30)
 

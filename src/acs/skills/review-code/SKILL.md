@@ -61,6 +61,17 @@ repo's own prose about what just changed.
 on MAR-583 it produced 4 of 9 blocking findings, two of them invisible in the
 diff. Never drop it to save a spawn.
 
+**Spawn in the foreground and wait on the result, never on a clock.** Spawn
+each lens with the Agent tool as `acs:review-code-lens` (fall back to the
+un-namespaced name only if the runtime rejects the namespaced one), passing
+`run_in_background: false`: the lens reports are your next input and nothing
+else can usefully happen while they run. "In parallel" means one message
+carrying every lens spawn, not a background launch you poll. If the runtime
+moves an agent to the background anyway, wait for its completion notification
+— never poll with `sleep` loops (`for i in $(seq 1 40); do sleep 15; done` and
+its kin), which wait a fixed interval whatever the agent did. The same rule
+governs stage 2's adjudicators.
+
 ### The reviewer scales itself
 
 **Up.** A changeset too large for one reviewer's context is why `code-complex`

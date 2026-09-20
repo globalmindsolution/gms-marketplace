@@ -203,7 +203,10 @@ class TestGateAgreement(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.gates_source = read(os.path.join(HOOKS, "acs_lib", "gates.py"))
+        # The brakes moved out of gates.py into acs_lib.brakes when gates
+        # crossed the line budget: a brake reads the run and the repo and
+        # resolves nothing, which is a layer of its own.
+        cls.brakes_source = read(os.path.join(HOOKS, "acs_lib", "brakes.py"))
 
     def test_the_gate_refuses_epics_for_this_skill(self):
         """The epic brake runs for every implementation step, from a table
@@ -211,7 +214,7 @@ class TestGateAgreement(unittest.TestCase):
         gate function that could be added for one step and forgotten for the
         next."""
         self.assertIn("analyze-requirements", lib.gates._EPIC_VERBS)
-        self.assertIn("_refuse_epic(ticket_id, step,", self.gates_source)
+        self.assertIn("_refuse_epic(ticket_id, step,", self.brakes_source)
 
     def test_the_gate_requires_no_artifact_of_its_own(self):
         """analyze-requirements is the first implementation step: its only

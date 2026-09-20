@@ -369,8 +369,17 @@ class PlanRevocationTest(unittest.TestCase):
             r"(?i)never.{0,60}(?:an?\s+)?approval input|"
             r"never.{0,60}conformance contract")
 
-    def test_replan_entry_names_the_code_stop_reason(self):
-        self.assertIn("plan_superseded", self._section())
+    def test_replan_entry_names_how_a_code_run_reaches_it(self):
+        """`stop_reason: plan_superseded` was never in the vocabulary the
+        three-value `stop_reason` field admits (4.3) -- it named a FAILURE,
+        not an interruption. The entry point is what matters and it is
+        unchanged: a /acs:code run that ends `failed` saying the plan is
+        superseded."""
+        section = self._section()
+        self.assertRegex(
+            section,
+            r"(?i)`failed` with a `summary` naming the plan as superseded")
+        self.assertNotIn("stop_reason: plan_superseded", section)
 
 
 class ResultDocumentStatesTest(unittest.TestCase):

@@ -366,8 +366,6 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
             "notes that MAR-522 split acs_lib.py into a package",
         ("tests/acs/test_setup_skill_reference_sweep.py", "acs_lib.py"):
             "explains why a guard went vacuous once MAR-522 deleted acs_lib.py",
-        ("tests/acs/test_ship_fix_retest_loop.py", "acs_lib.py"):
-            "asserts a false claim is ABSENT from a skill body; the string must stay verbatim",
         ("tests/acs/test_doc_fact_pins.py", "acs_lib/lanes.py"):
             "this allowlist must NAME the retired path to exempt it; the entries "
             "above are the mention the scanner is seeing. `lanes.py` became "
