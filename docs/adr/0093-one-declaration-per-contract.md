@@ -1,6 +1,6 @@
 # 0093 — One declaration per contract: derive the message validator from the XSD, type the delegation keys, and declare the state a state machine actually holds
 
-**Status**: Accepted · **Date**: 2026-09-13
+**Status**: Accepted — amended by [0100](0100-message-contract-checked-in-one-language.md) (part 1's XSD is gone and part 2's typed delegation keys did not carry over; parts 3 and 4 stand) · **Date**: 2026-09-13
 
 ## Context
 
@@ -174,3 +174,36 @@ because the prose that consumed them never emitted them literally, which is
 the gap `tests/acs/test_message_schema_derivation.py` closes from now on:
 every placeholder a charter reads must be emitted by its coordinator under a
 declared name.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The ADR's own principle — one declaration per contract — is the part that
+survived v0.5.0, and it survived by being applied harder than this ADR applied
+it. What did not survive is the file part 1 named.
+
+**Part 1 is void.** `acs-messages.xsd` and `validate_xml.py` were both removed
+(`REDESIGN-IMPLEMENTATION-PIPELINE.md` §6), so "the validator derives its
+tables from the XSD at load time" has no source and no consumer. The
+`create-spec` backward-compat exemption went with them; `create-spec` was
+retired long before, and no current reader has a vocabulary to exempt it from.
+The replacement is [0100](0100-message-contract-checked-in-one-language.md).
+
+**Part 2 is not carried over.** `constraint/@name` is no longer typed: a
+coordinator still writes `<constraint name="docs_only">`, and nothing
+enumerates the accepted names. The failure this part prevented — a typo
+reaching the executor as an absent value it has a plausible behaviour for — is
+possible again. 0100 records it as an accepted cost of removing a second schema
+language rather than as a decision to tolerate it permanently.
+
+**Part 3 survives, relocated and stronger.** `states` is no longer given its
+"real shape" in one central schema. `step-state.schema.json` validates the
+envelope and says of `states` only "validated against the skill's own fragment,
+not here"; the shape lives beside the skill in
+`skills/<name>/state.schema.json`, which is why adding a skill is a directory
+rather than an edit to a central schema. `runs[].escalations` is gone with the
+escalation machinery ([0095](0095-static-delivery-path-routing.md)), and
+`findings[]` still declares `severity` — `verdict.schema.json` requires it.
+
+**Part 4 resolved the "wire it up" way, in JSON.** `lens` is an enumerated
+field (`A`–`E`) on every finding and a nullable field on a report, so it is the
+round-trip it was meant to be rather than declared-and-dead.

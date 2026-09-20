@@ -93,3 +93,42 @@ ADR-0089: `_require_completed` is gone, and `states.plan_approved` is not read
 by any gate. The one remaining pre-`create-pr` brake is `verifier_passed`, and
 even that was narrowed to refuse only a ticket whose recorded `code` run left
 it false. Context, Decision and Consequences above are otherwise unedited.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+D-1 (deterministic predicate, never an LLM self-assertion), D-2
+(`plan-approval.py` is the sole writer and a subagent `Write` of the record is
+forbidden) and D-5 (once per approved plan digest, idempotent on resume) are
+unchanged and are the load-bearing half of this ADR. Three sub-decisions read
+differently now, and one of them is **reversed**.
+
+**D-3 is reversed: `plan_approved` IS a gate.** This ADR deliberately recorded
+the value without gating on it "this release". It gates now. `acs_lib.brakes`
+refuses to start `/acs:code` on the `standard` and `complex` paths unless
+`steps/create-impl-plan/plan-approval.json` carries `eligible: true` **and**
+its `plan_sha256` matches the plan on disk — so an implementer working from a
+plan the human approved a revision ago is refused by name. The gate this ADR
+left to `/create-pr` (`verifier_passed`) is now `/acs:review-code`'s verdict
+([0099](0099-review-is-a-step-not-a-phase.md)), and `code-state.json` is
+`steps/<skill>/state.json` ([0097](0097-two-state-machines-keyed-by-run.md)).
+
+**D-4's mechanism changed; its rule did not.** "Recompute the lane via
+`derive_lane`, never the cached `ticket.lane`" is now: read `delivery_path`
+from the plan's own `## Contract` block, never a cached field on the ticket.
+`derive_lane`, `ticket.lane` and the lane vocabulary are gone
+([0095](0095-static-delivery-path-routing.md),
+[0098](0098-delivery-path-recorded-on-the-plan.md)). The rule — recompute from
+the authority, never trust a cache — is exactly preserved, and so is the scope:
+`trivial` and `small` no-op with no record written, `standard` and `complex` are
+judged. A plan with no `delivery_path` yet is "not due", not an error.
+
+**D-6's containment root moved** from `<partition>/phases/code/` to
+`steps/create-impl-plan/` under the run, the `phases/` artifact level having
+been removed. The guard itself was strengthened while this was reconciled: the
+containment check now runs **before** the first read, so the script can no
+longer report a refusal for bytes it had already opened.
+
+One naming note, since this ADR's D-5 is where it bites: the key the record
+carries is **`eligible`**, and that key is the approval. A reader (`_brake_code`)
+that asked for `approved` found nothing, and refused every standard and complex
+run with no edit that could satisfy it.

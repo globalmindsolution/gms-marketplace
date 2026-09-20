@@ -1,6 +1,10 @@
 # 0086 — In-repo, main-checkout-anchored state (`.acs/state-machine`)
 
-**Status**: Accepted · **Date**: 2026-09-01
+**Status**: Accepted — amended by [0097](0097-two-state-machines-keyed-by-run.md) (where the workspace lives is unchanged; what it is keyed by is not) · **Date**: 2026-09-01
+
+**Supersedes**: [0003](0003-file-based-state-outside-repo.md) — 0003's status
+line has named this ADR since the day it landed; recorded here so the link is
+machine-readable in both directions.
 
 ## Context
 

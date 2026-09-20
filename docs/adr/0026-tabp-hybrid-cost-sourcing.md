@@ -1,6 +1,6 @@
 # 0026 — tabp hybrid cost sourcing: transcript-actuals plus settings-configurable dated-snapshot pricing
 
-**Status**: Accepted · **Date**: 2026-06-22
+**Status**: Superseded — `tabp` was retired by the MAR-97 PRD amendment and removed from the repository; the ADR is kept for the reasoning it records, per [README](README.md) · **Date**: 2026-06-22
 
 ## Context
 

@@ -22,7 +22,7 @@ define → specify → design → decide → verify → release & operate.
 
 But those two new sets have **no producing skill**: today they exist only as
 acs's *own* hand-written docs (the testing strategy, the release runbook). Every
-other doc-set path in [`settings.schema.json`](../../plugins/acs/schemas/settings.schema.json)
+other doc-set path in [`settings.schema.json`](../../src/acs/schemas/settings.schema.json)
 corresponds to a skill that writes it; adding `quality_path`/`operations_path`
 without deciding **who produces them** would be half a feature. This ADR settles
 that.
@@ -119,3 +119,29 @@ that.
   these templates — dogfooding the feature it ships.
 - The behavioral eval harness (Epic E1) is the acs-internal realization of the
   `quality/` strategy; this ADR generalizes it into a consumer-facing capability.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+Both doc sets shipped — `templates/quality` and `templates/operations` are in
+the plugin, and the skills that author them are live. The standing-test-run
+half of the Decision also shipped, under a different name and in a different
+class.
+
+**`/acs:test` is gone; the skill is `/acs:run-e2e-tests`.** The rename was
+decided before this release and deliberately deferred
+([0092](0092-skill-machinery-declared-per-skill.md), "What is NOT removed");
+v0.5.0 removed the alias, since 0.5.0 is the release in which every user meets
+the new name for the first time. Everything the Decision's item 6 describes is
+carried by `/acs:run-e2e-tests`: it runs the product's configured suites, reads
+them through `settings.suites`, and the daily/regression cadence is still
+scheduling it headless.
+
+**It is no longer "distinct from the pipeline".** `run-e2e-tests` is a step of
+`ship.yaml` with its own gate and its own `steps/run-e2e-tests/state.json`, and
+it is in `HOOKED_SKILLS`. The Decision's *purpose* for it — standing product
+verification a human can invoke on its own, not only as part of a change — is
+unchanged, because every skill runs standalone on a ticket id, a prompt or a
+document; what changed is that it can now also be a named step.
+
+This ADR's status was `Proposed` in the index until this reconciliation, six
+releases after it shipped.

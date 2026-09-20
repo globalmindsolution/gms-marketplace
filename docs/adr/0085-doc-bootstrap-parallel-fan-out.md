@@ -1,6 +1,6 @@
 # 0085 — Doc-bootstrap parallel fan-out: new umbrella skill, phase-level interleave, worktree-per-leg delivery, declared dependency/eligibility, no new ledger, scoped fail-fast isolation, v1 pair, deferred trigger probe
 
-**Status**: Accepted · **Date**: 2026-08-31
+**Status**: Accepted — amended by [0091](0091-design-phase-entry-point-fold.md) and [0094](0094-doc-set-legs-fold-into-create-docs.md) (the mechanics stand; the doc-set legs are gone) · **Date**: 2026-08-31
 
 > **Forward pointer — ADR-0094 (2026-09-14).** The legs are gone: the four
 > doc-set skills this umbrella fanned out were folded *into* `/acs:create-docs`,
@@ -256,3 +256,28 @@ follow-up lands.
 - This ADR is recorded as one consolidated record rather than the seven the
   design originally drafted (C-16, user-confirmed): every decision above
   (D1–D8, D3.2, D4.1–D4.3) is in force from this single ADR's acceptance.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The fan-out mechanics decided here are all still running — capped parallel over
+an eligible batch, worktree-per-leg delivery, a declared dependency table, no
+new ledger, scoped fail-fast isolation, and one docs-only PR per delivery
+ticket. What changed is what a leg *is*.
+
+**The legs are gone; the sets are the unit.** `/acs:create-docs` absorbed the
+four doc-set skills ([0094](0094-doc-set-legs-fold-into-create-docs.md)), so
+the run unit is `(create-docs, doc_set)` and the fan-out is over
+`acs_lib.DOC_SETS` rather than over four sibling skills. D2's "phase-level
+interleave in one coordinator" is unchanged as a mechanism; the phases it
+interleaves now belong to one executor/verifier pair reused per set.
+
+**D3.2's carrier is `acs step start`.** `skill-start.py` was removed in v0.5.0;
+allocation is `acs step start --step create-docs --doc-set <set> --allocate`.
+D3.2's substance — the allocating call runs in the **session checkout**, never
+inside a per-leg worktree — is unchanged and is the reason the O_EXCL critical
+section in [0087](0087-ticket-id-allocation-fail-closed-reconciliation.md)
+still holds under parallel sets.
+
+**The v1 eligible set** (`create-quality` + `create-operations`) is now two
+rows of `DOC_SETS` rather than two skills, and the sentinel/settings/dependency
+views are derived from that one table.

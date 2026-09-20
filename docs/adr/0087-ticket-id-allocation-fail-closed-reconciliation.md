@@ -123,3 +123,21 @@ CHANGELOG proposes close to the truth, a repo without one can fall through
 to a floor dozens of ids short. The gate is correct either way because the
 proposal is confirmable, never authoritative, and the human — not the
 scanner — is the source of truth for the number actually written.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The gate is unchanged in every respect that matters: `allocate_ticket_id`
+still raises `ReconciliationRequired` inside the same O_EXCL critical section,
+still fail-closed, still exit 2 with actionable stderr, and `observed_max` is
+still shown only in the refusal message and never persisted.
+
+Both call sites still exist; one is renamed. `new-ticket.py` is unchanged.
+`skill-start.py --allocate` is **`acs step start --allocate`** — the generic
+start script was removed in v0.5.0 and its allocation flags moved onto the
+`acs` CLI, including `--doc-set` for the product-level path and `--seed-next
+<n>` in both of its roles (the confirm answer to a refusal's proposal, and the
+recovery path). Neither call site is a dead end, which is the property this ADR
+required of the flag.
+
+The `counters.json` keys (`next`, `reconciled`, `seed_source`, `seeded_at`,
+`required: ["next"]`, `additionalProperties: true`) are untouched.

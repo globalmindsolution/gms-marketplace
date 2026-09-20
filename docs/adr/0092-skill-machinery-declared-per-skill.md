@@ -2,6 +2,15 @@
 
 **Status**: Accepted · **Date**: 2026-09-13
 
+**Supersedes**: [0077](0077-docs-sync-remediation-loop-execute-verify-only.md),
+[0078](0078-create-project-remediation-loop-execute-verify-only.md),
+[0079](0079-standardize-project-remediation-loop-execute-verify-only.md),
+[0083](0083-bootstrap-doc-skills-remediation-loop-execute-verify-only.md),
+[0084](0084-create-architecture-design-requirements-remediation-loop-execute-verify-only.md)
+— the five per-skill "execute + verify, no planner" decisions, each of which
+this ADR generalises into class D. Stated in the index since this ADR landed;
+recorded here so the link is machine-readable in both directions.
+
 ## Context
 
 acs ships 32 skills, 59 subagent files, 9,812 lines of agent prose and 12,261
@@ -208,3 +217,30 @@ The measurement this ADR's last consequence asks for is the release gate's:
 the stage-2 tree is measured against the last passing baseline before it
 ships, on the same scenarios, and the comparison is recorded with the
 release.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The four work classes and the per-skill declaration stand, classes B–E landed,
+and nothing here is reconsidered. One explicit non-removal was reversed.
+
+**"`/acs:test` stays" did not survive the release it was reasoning about.** The
+argument was sound and time-bound: released 0.4.9 ships `test`, has never
+shipped `run-e2e-tests`, and users would meet the rename for the first time on
+upgrade. v0.5.0 is that upgrade. The alias directory is deleted, `run-e2e-tests`
+is the skill, and it moved into `HOOKED_SKILLS` as a step of `ship.yaml` with
+its own pre/post pair — so the "not really a pipeline skill in its default
+mode" framing went with it and there is one mode, not two.
+
+Two vocabulary notes for reading the class table. "No subagents, no loop, no
+lanes" (class A) is now no delivery paths — lanes were retired by
+[0095](0095-static-delivery-path-routing.md) and the four `code-*` legs are
+dispatched from the plan's recorded path
+([0098](0098-delivery-path-recorded-on-the-plan.md)). Class D's "a planning
+phase to plan it is a second copy of the work" is unchanged and is exactly why
+`/acs:create-impl-plan` has an executor and a verifier and no planner of its
+own.
+
+The agent-file count moved again with the redesign: `/acs:code` keeps only
+`code-executor`, its verifier having left for `/acs:review-code`
+([0099](0099-review-is-a-step-not-a-phase.md)), which brought two agents of its
+own (`review-code-lens`, `review-code-adjudicator`).

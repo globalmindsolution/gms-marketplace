@@ -66,3 +66,24 @@ plan section used to declare. The code-verifier's OWN e2e-running mechanics
 (dimension 3's e2e sub-check) are UNCHANGED by this ticket — only
 create-spec's role as a named consumer of the `e2e`/`suites.e2e` setting is
 retired.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+`settings.suites` is still the single source of truth, `settings.e2e` is still
+the normalized-at-load compatibility alias, and the rejected alternative is
+still rejected. Only the list of downstream consumers in the Decision has
+aged; all three names in it changed for reasons outside this ADR.
+
+- **`/acs:test` → `/acs:run-e2e-tests`.** The alias was removed in v0.5.0; see
+  [0011](0011-sdlc-doc-sets-quality-and-operations.md)'s amendment.
+- **the code-verifier → `/acs:review-code`.** The agent is gone
+  ([0099](0099-review-is-a-step-not-a-phase.md)); the final gate is where a
+  suite is now run for the review, and it runs the full unit suite once.
+- **create-spec → `/acs:create-impl-plan`.** Spec authoring folded into
+  planning ([0066](0066-fold-spec-authoring-into-code-ticket-json-fixed-point.md)),
+  and the plan is its own step since
+  [0098](0098-delivery-path-recorded-on-the-plan.md).
+
+`/acs:init` is `/acs:setup`, and its one-time `e2e` → `suites.e2e` migration
+offer is unchanged. Every renamed consumer still reads suites through the one
+resolved map, which is the whole of what this ADR decided.

@@ -34,3 +34,32 @@ remediate — for `/acs:code`, the next **execute** remediates); resumption
 can lose at most the in-flight phase; native plan
 mode is unused — planners are headless subagents (ADR context: user approval
 has no meaning there).
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+This ADR's actual subject — **verifier independence** — is unchanged, and the
+last sentence of the Decision already says so. What changed is that the three
+contexts are no longer three phases inside one skill.
+
+**plan → execute → verify became three steps.** `/acs:create-impl-plan` authors
+the plan (executor + verifier of its own), `/acs:code` executes it, and
+`/acs:review-code` reviews the changeset
+([0099](0099-review-is-a-step-not-a-phase.md)). `/acs:code` keeps a single
+`code-executor` agent; it has no planner and no verifier. The independence this
+ADR decided is stronger under that split, not weaker: the reviewer is now a
+different *skill* with its own gate, fresh context and its own upstream
+contracts, so it cannot see the executor's narrative at all.
+
+**The artifact paths changed.** `iter-<n>-plan.md` / `-execute.json` /
+`-verify.md` are gone with the filename-prefix scheme; a phase writes into
+`iter-<n>/` under its step
+([0096](0096-workflow-is-a-list-not-a-graph.md)). The plan is one file, judged
+and approved once, as MAR-70 already had it.
+
+**"unchanged in every lane" now reads "unchanged on every delivery path".**
+Lanes were retired by [0095](0095-static-delivery-path-routing.md) and the path
+is recorded on the plan by
+[0098](0098-delivery-path-recorded-on-the-plan.md); the four `code-*` legs
+remain. The "3 iterations" cap is now the `ship.yaml` `loops:` entry
+(`from: review-code`, `back_to: code`, `max_iterations: 3`), which is the same
+number in a place a consumer can see.

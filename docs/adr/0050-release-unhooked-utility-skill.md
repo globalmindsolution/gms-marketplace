@@ -45,3 +45,24 @@ coordinator does the work directly, mirroring `plugins/acs/skills/test/SKILL.md`
   trail instead; two concurrent cut invocations are not mutually excluded by
   a lock, mitigated by the idempotency probe detecting an already-open
   release branch/PR or an already-cut tag.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+Option A stands: `/acs:release` is still an unhooked utility skill with no
+`HOOKED_SKILLS` entry, no `pre-`/`post-` pair, no gate entry and no agent
+files, and Options B–D stay rejected. The **class-siblings** it was defined
+against have changed membership.
+
+`/acs:test` is gone (removed in v0.5.0; see
+[0011](0011-sdlc-doc-sets-quality-and-operations.md)'s amendment) and its
+successor `/acs:run-e2e-tests` went the other way — into `HOOKED_SKILLS`, as a
+step of `ship.yaml` with its own pre/post pair. So the Decision's
+"class-sibling of `/acs:test`/`/acs:metrics`/`/acs:usage`" now reads
+class-sibling of `/acs:metrics`/`/acs:usage`, alongside `setup`, `ship`,
+`handoff`, `update`, `install-hooks` and `project` in `UNHOOKED_SKILLS`, and
+its model file is no longer `skills/test/SKILL.md`.
+
+That a skill moved out of this class is evidence for the Decision rather than
+against it: the class test the Decision applied — does anything here need a
+predecessor gate, a partition, a lock or native metrics? — is the same test
+that moved `run-e2e-tests`, which does need them. A cut still does not.

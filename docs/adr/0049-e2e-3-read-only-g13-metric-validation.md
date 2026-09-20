@@ -41,3 +41,21 @@ G1/G9/G11 by an observed live run rather than a standing dashboard number.
   branch protection's required contexts do not include `"E2E suite"`), so
   "0 red-e2e merges while gated" holds vacuously this release; non-vacuous
   measurement is deferred to the release that wires the gate.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+E1 stands as a **read-only** validation from existing artifacts, and E2 stays
+rejected. One of the two artifacts it reads from has a different name.
+
+Sub-metric (a) is unchanged: `merge-pr`'s `result.json` `states.readiness.ci`,
+cross-checked against the branch protection's required contexts.
+
+Sub-metric (b) read "merged tickets' `spec.md` Test-plan sections plus the
+code-verifier's existing, unchanged e2e-impact dimension". `spec.md` is gone
+with spec authoring
+([0066](0066-fold-spec-authoring-into-code-ticket-json-fixed-point.md)) — the
+test plan lives in `test-cases.md` and the plan's own `## Contract` block — and
+the `code-verifier` agent is gone with the review's move to `/acs:review-code`
+([0099](0099-review-is-a-step-not-a-phase.md)), where e2e impact is judged by
+lens A against `test-cases.md` and the plan. The reading is still read-only and
+still adds no recorded signal, which is the decision this ADR made.

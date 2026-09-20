@@ -407,3 +407,33 @@ The apportionment mechanism, the cursor rule, and the `cost_basis` vocabulary
 are unchanged. `tests/acs/test_claude_code_adapter.py` pins the eight
 distinctive interface literals as adapter-exclusive by AST inspection, so the
 drift this amendment removes cannot silently return.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The measurement decisions stand: real transcript numbers only, never an
+acs-invented estimate; `attributed` / `apportioned` / `unavailable` rather than
+a fabricated or zero-padded figure; forward-only, no backfill; and the
+`<metrics>` self-estimate element stays removed, which is the point of item 5.
+Three carriers in the Decision are gone.
+
+**`skill-start.py` is removed** (item 2). The correlation half it performed —
+read the session marker, reject a foreign `checkout_id` or one older than 15
+minutes, thread `session_id`/`transcript_path`/`checkout_id` onto the new
+entry — is now done where the marker is written, in `acs_lib.run_pre` behind
+`pre-<skill>.py`. Both halves of the correlation are one call in one place,
+which removes the window this ADR's P1 guard existed to cover; the guard
+itself is unchanged, and a rejected or absent marker still never falls back to
+slug construction.
+
+**`acs-messages.xsd` and `validate_xml.py` are removed** (item 5). That is a
+removal of the *enforcement path* named here, not of the decision: `<metrics>`
+is still absent from every agent charter, and the message contract is now the
+small attribute set checked in `acs_lib.lifecycle.validate_message`
+([0100](0100-message-contract-checked-in-one-language.md)). Nothing re-admits a
+`<metrics>` element, because nothing declares it anywhere any more — the
+strongest form of "one source of truth" this ADR asked for.
+
+**"the new run entry" is now an invocation.** Run-level attribution records
+survive verbatim — §7 of the redesign names cost/token/session attribution as
+deliberately kept — under the run and step machines
+([0097](0097-two-state-machines-keyed-by-run.md)).

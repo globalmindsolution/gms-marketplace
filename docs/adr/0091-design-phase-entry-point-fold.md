@@ -1,6 +1,11 @@
 # 0091 — The design phase narrows by an entry-point fold, not a skill collapse: a registry `internal` map, two unhooked umbrellas, and an auto-detected project mode
 
-**Status**: Accepted · **Date**: 2026-09-12
+**Status**: Accepted — amended by [0094](0094-doc-set-legs-fold-into-create-docs.md) (the doc-set legs were collapsed after all; `/acs:project`'s fold stands) · **Date**: 2026-09-12
+
+**Amends**: [0085](0085-doc-bootstrap-parallel-fan-out.md) — 0085 built the
+first entry-point fold (`/acs:create-docs`); this ADR settles how far the fold
+goes, and answers "how many skills does a consumer meet?" rather than 0085's
+"how do the legs run in parallel?". The fan-out mechanics are untouched.
 
 > **Forward pointer — ADR-0094 (2026-09-14).** For the four doc-set legs the
 > "not a collapse" decision below was reversed on the evidence this ADR asked
@@ -235,3 +240,31 @@ skills until a version is cut.
   rejected true-collapse option would have cost.
 - **ADR-0089** — pipeline order declared in `workflows/ship.yaml`; the registry
   this decision extends with the `internal` map.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The fold stands for `/acs:project`: it is still an unhooked umbrella with no
+gate, no agents and no hook scripts, picking a mode and invoking that leg's own
+Start. For the doc-set legs it did not —
+[0094](0094-doc-set-legs-fold-into-create-docs.md) collapsed them into
+`/acs:create-docs` after all, which the status line above now records.
+
+The **mechanism** this ADR chose is gone with v0.5.0.
+
+**`workflows/phases.yaml` is removed**, and with it the `phases` key, the
+`aliases` key and the `internal` map this ADR added as its third sibling. The
+workflow is `ship.yaml` v3: a version, a flat list of skill names and one
+`loops:` entry ([0096](0096-workflow-is-a-list-not-a-graph.md)). What a skill
+reads and writes is declared beside it in `skills/<name>/acs.yaml`, and
+`acs workflow validate` checks the order against those declarations rather
+than against a phase list.
+
+**"it appears in no phase list" and "a skill leaves the phase"** therefore have
+no referent. The concern behind them survives and is answered better:
+`/acs:metrics` groups by the funnel's declared display order in
+`acs_lib._common`, so a skill cannot fall outside the groups by being absent
+from a list. `UNHOOKED_SKILLS` is unchanged and still holds `project`.
+
+**`skill-start.py` is removed**; a skill that is unhooked simply has no
+`pre-<skill>.py`, which is the same statement made by the absence of a file
+rather than by a name in a list.

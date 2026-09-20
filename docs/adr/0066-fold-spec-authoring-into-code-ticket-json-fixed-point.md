@@ -2,6 +2,10 @@
 
 **Status**: Accepted · **Date**: 2026-07-29
 
+**Supersedes**: [0006](0006-spec-plan-altitude-split.md) — stated in this
+ADR's title since it was written; recorded here so the link is machine-readable
+in both directions.
+
 ## Context
 
 ADR 0006 (`docs/adr/0006-spec-plan-altitude-split.md`) kept `/acs:create-spec`
@@ -137,3 +141,29 @@ is a human-facing document and lives in the ticket's docs folder, while the
 plan-approval record and any `plan-superseded-<k>.md` copies stay in the
 workspace partition as ledger. Context, Decision and Consequences above are
 otherwise unedited.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The fold stands: spec authoring is not a skill of its own, and
+`ticket.json`'s `acceptance_criteria`/DoD is still the review loop's fixed
+point. Three of the Decision's carriers moved in v0.5.0, and the ADR should be
+read against them.
+
+**"on EVERY lane" → on every delivery path.** Lanes were retired by
+[0095](0095-static-delivery-path-routing.md); the four `code-*` legs remain and
+the path is recorded on the plan
+([0098](0098-delivery-path-recorded-on-the-plan.md)).
+
+**The plan is its own step.** This ADR folded spec authoring into `/code`'s
+plan phase; that phase is now the `/acs:create-impl-plan` step, which writes the
+plan and records the delivery path in its `## Contract` block. The fold is
+unaffected — what this ADR refused was a *separate spec document and skill*,
+not a planning step — and the sections it enumerates (Context, Requirements,
+Approach, API/data changes, Test plan, Out of scope) are the plan's free-form
+prose, with `## Contract` the one part that has a fixed shape.
+
+**"the code-verifier's review-loop fixed point relocates to …"** — that fixed
+point now belongs to `/acs:review-code`
+([0099](0099-review-is-a-step-not-a-phase.md)). The `code-verifier` agent is
+gone; design-conformance is lens C and acceptance is lens A, which is the same
+folding of dimensions this ADR performed, carried across to the new reviewer.
