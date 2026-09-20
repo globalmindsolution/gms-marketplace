@@ -134,7 +134,7 @@ from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT,
     result_document, stop, stop_counter_key, subagent_start, subagent_stop, validate_message,
     write_handoff_context, write_phase_snapshot)  # noqa: F401
 from .lifecycle import stop as stop_hook  # noqa: F401
-from .filemap import (FILEMAP_FILENAME_FMT, WRITE_TOOL_PATH_KEYS, active_executor,
+from .filemap import (FILEMAP_FILENAME, WRITE_TOOL_PATH_KEYS, active_executor,
     file_map_guard, filemap_path, load_filemap, normalize_repo_path, path_in_filemap,
     save_filemap_task)  # noqa: F401
 

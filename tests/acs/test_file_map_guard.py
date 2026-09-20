@@ -204,13 +204,13 @@ class GuardTest(FileMapGuardCase):
         off from inside the very agent it constrains."""
         self.declare("src/a.py")
         self.spawn_executor()
-        record = lib.agent_record_path(self.tdir_path, "a-1")
+        record = lib.agent_record_path(self.rdir_path, "a-1")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": record}})
         self.assertEqual(out.returncode, 2, out.stderr)
         self.assertIn("control input", out.stderr)
 
-        filemap = lib.filemap_path(self.tdir_path, "code", "1")
+        filemap = lib.filemap_path(self.rdir_path, "code", "1")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": filemap}})
         self.assertEqual(out.returncode, 2, out.stderr)
@@ -221,7 +221,7 @@ class GuardTest(FileMapGuardCase):
         executor scoped to this one."""
         self.declare("src/a.py")
         self.spawn_executor()
-        sibling = os.path.join(os.path.dirname(self.tdir_path), "OTHER-9",
+        sibling = os.path.join(os.path.dirname(self.rdir_path), "OTHER-9",
                                "code-state.json")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": sibling}})
@@ -235,7 +235,7 @@ class GuardTest(FileMapGuardCase):
         self.spawn_executor()
         self.assertEqual(self.write_attempt("outside.py").returncode, 2)
 
-        record = lib.agent_record_path(self.tdir_path, "a-1")
+        record = lib.agent_record_path(self.rdir_path, "a-1")
         entry = lib.read_json(record)
         entry["started_at"] = "2020-01-01T00:00:00+00:00"
         lib.write_json(record, entry)
@@ -280,7 +280,7 @@ class GuardTest(FileMapGuardCase):
         the partition — inside the workspace, never in the file map."""
         self.declare("src/a.py")
         self.spawn_executor()
-        report = os.path.join(self.tdir_path, "phases", "code", "iter-1-execute.json")
+        report = os.path.join(self.rdir_path, "steps", "code", "iter-1", "execute.json")
         self.assertEqual(self.write_attempt(report).returncode, 0)
 
     def test_a_write_outside_any_acs_repo_is_allowed(self):
@@ -398,14 +398,16 @@ class RefusalTextTest(FileMapGuardCase):
 
     #: The one line a deny adds when the partition has no run entry to append to.
     NOT_RECORDED = ("acs: file-map guard denial not recorded: "
-                    "no run entry on code-state.json\n")
+                    "no open invocation on steps/code/state.json\n")
 
     def clear_runs(self):
-        """Reproduce the goldens' sandbox: an acs partition whose state file
-        carries no run entry, because nothing there ever ran `acs start code`."""
-        path = lib.state_path(self.tdir_path, "code")
+        """Reproduce the goldens' sandbox: a run whose step state carries no
+        invocation, because nothing there ever ran `acs step start --step
+        code`. The denial still stands -- a bookkeeping failure must never
+        overturn the verdict it describes -- and says so on stderr."""
+        path = lib.state_path(self.rdir_path, "code")
         state = lib.read_json(path)
-        state["runs"] = []
+        state["invocations"] = []
         lib.write_json(path, state)
 
     def test_an_out_of_map_write_prints_exactly_its_existing_warning(self):
@@ -425,7 +427,7 @@ class RefusalTextTest(FileMapGuardCase):
     def test_a_control_input_write_prints_exactly_its_existing_warning(self):
         self.declare("src/a.py")
         self.spawn_executor()
-        record = lib.agent_record_path(self.tdir_path, "a-1")
+        record = lib.agent_record_path(self.rdir_path, "a-1")
         out = self.deny({"cwd": self.repo, "tool_name": "Write",
                          "tool_input": {"file_path": record}})
         self.assertEqual(out.returncode, 2)
@@ -464,7 +466,7 @@ class RefusalTextTest(FileMapGuardCase):
     def test_with_no_run_entry_a_control_input_write_prints_the_refusal_and_the_note(self):
         self.declare("src/a.py")
         self.spawn_executor()
-        record = lib.agent_record_path(self.tdir_path, "a-1")
+        record = lib.agent_record_path(self.rdir_path, "a-1")
         self.clear_runs()
         out = self.deny({"cwd": self.repo, "tool_name": "Write",
                          "tool_input": {"file_path": record}})
