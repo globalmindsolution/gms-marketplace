@@ -77,15 +77,20 @@ LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
 UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
                    "usage", "release", "project"]
 
-# Mirrors pipeline-state.schema.json's steps.propertyNames.enum, in enum
-# order. This is a DISPLAY order for the metrics funnel's columns -- it is not
-# the pipeline's order, which lives in workflows/ship.yaml and is that file's
-# to change. Nothing branches on it.
+# A DISPLAY order for the metrics funnel's columns, and nothing else. It is
+# not the pipeline's order, which lives in workflows/ship.yaml and is that
+# file's to change, and it no longer mirrors a schema enum: run.schema.json's
+# `steps` is OPEN (§4.3), because a new workflow is a YAML file and a new
+# skill is a directory -- neither should touch a schema. What binds this list
+# is only that every name in it is a real skill and every hooked skill is in
+# it, so no funnel column goes missing; a step it does not name still renders,
+# sorted after the ones it does. Nothing branches on it.
 PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-docs",
                         "create-requirements", "create-ticket", "create-design",
                         "analyze-requirements", "create-impl-plan", "create-api-contract",
                         "create-test-docs", "code", "review-code", "docs-sync",
-                        "create-e2e-tests", "run-e2e-tests", "create-pr", "merge-pr"]
+                        "create-e2e-tests", "run-e2e-tests", "create-pr", "merge-pr",
+                        "standardize-project"]
 
 # Explicit override for observed attributionSkill values (transcript records
 # carry "acs:<value>") that do not literally match a skill name once the

@@ -109,11 +109,15 @@ class MergeRoutingProseContractTest(unittest.TestCase):
     tie-break), both target subfolders, and the additive/per-area/no-overwrite
     phrasing now live in `docs-sync-executor.md` — MAR-162 re-homed them out
     of `code/SKILL.md`/`code-executor.md`, which no longer author docs.
-    `code-verifier.md` still names wrong-subfolder routing as a blocking
+    the docs-sync VERIFIER still names wrong-subfolder routing as a blocking
     finding condition (unchanged by this spec; spec 02's territory)."""
 
     DOCS_SYNC_EXECUTOR_MD = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
-    VERIFIER_MD = os.path.join(PLUGIN, "agents", "code-verifier.md")
+    # The check moved with its producer: MAR-162 re-homed the requirements
+    # merge onto /acs:docs-sync, and v0.5.0 retired code-verifier.md with the
+    # in-skill review, so the verifier that guards the routing is the one
+    # paired with the executor that does it.
+    VERIFIER_MD = os.path.join(PLUGIN, "agents", "docs-sync-verifier.md")
 
     def test_skill_md_names_functional_behavior_definition(self):
         body = read(self.DOCS_SYNC_EXECUTOR_MD)
@@ -156,7 +160,7 @@ class MergeRoutingProseContractTest(unittest.TestCase):
         self.assertRegex(body, r"never overwrit|no-overwrite|never replac")
         self.assertRegex(body, r"additive")
 
-    def test_code_verifier_md_names_wrong_subfolder_routing_as_blocking(self):
+    def test_the_verifier_names_wrong_subfolder_routing_as_a_finding(self):
         body = read(self.VERIFIER_MD)
         self.assertRegex(body, r"wrong subfolder|wrong-subfolder")
         self.assertRegex(body, re.compile(r"outside.*requirements_layout", re.DOTALL))

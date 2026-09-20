@@ -153,7 +153,11 @@ class _GuardedWriterCaseMixin:
 
 
 class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
-    MODULE = lib.step
+    # `update_index` lives in acs_lib.tickets since the state module split
+    # (§4.7: one module per machine). Patching any other sibling's write_json
+    # binds nothing the writer calls, and the shim below would never fire --
+    # which reads as "the guard was not held" rather than as a miswired test.
+    MODULE = lib.tickets
     guard_name = "tickets-index.json.lock"
 
     def _call(self, n=1):

@@ -349,7 +349,7 @@ class GuardEventsCliTest(GuardEventsCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         body = json.loads(out.stdout)
         self.assertIs(body["ok"], True)
-        self.assertEqual(body["ticket_id"], self.ticket)
+        self.assertEqual(body["run_id"], self.ticket)
         self.assertEqual(body["skill"], "code")
         self.assertEqual(body["count"], 1)
         self.assertEqual(body["events"][0]["reason"], "outside_map")
