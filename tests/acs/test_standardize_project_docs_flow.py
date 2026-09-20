@@ -211,7 +211,9 @@ class C4CountAndListFilesTest(unittest.TestCase):
                 REPO_ROOT, "src", "acs", "skills", n))])
         self.assertIn("%d x SKILL.md" % shipped, body)
         self.assertNotIn("21 x SKILL.md", body)
-        self.assertIn("32 x agent .md (all reachable)", body)
+        agents = len([n for n in os.listdir(
+            os.path.join(REPO_ROOT, "src", "acs", "agents")) if n.endswith(".md")])
+        self.assertIn("%d x agent .md (all reachable)" % agents, body)
         self.assertNotIn("43 x agent .md (all reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
 
@@ -256,7 +258,9 @@ class C4CountAndListFilesTest(unittest.TestCase):
                        if os.path.isdir(os.path.join(REPO_ROOT, "src", "acs", "skills", n))])
         self.assertIn("acs Skills (%d)" % shipped, body)
         self.assertNotIn("acs Skills (21)", body)
-        self.assertIn("32 files, all reachable", body)
+        agents = len([n for n in os.listdir(
+            os.path.join(REPO_ROOT, "src", "acs", "agents")) if n.endswith(".md")])
+        self.assertIn("%d files, all reachable" % agents, body)
         self.assertNotIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
         self.assertIn("twelve authoring skills (24 agents)", body)

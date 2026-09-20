@@ -148,11 +148,16 @@ class Mar143CountBumpCase(unittest.TestCase):
             os.path.join(REPO_ROOT, "src", "acs", "skills"))
             if os.path.isdir(os.path.join(
                 REPO_ROOT, "src", "acs", "skills", n))])
+        agents = len([n for n in os.listdir(
+            os.path.join(REPO_ROOT, "src", "acs", "agents")) if n.endswith(".md")])
+        hooks_dir = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+        pre = len([n for n in os.listdir(hooks_dir) if n.startswith("pre-")])
+        post = len([n for n in os.listdir(hooks_dir) if n.startswith("post-")])
         self.assertIn("%d x SKILL.md" % shipped, body)
-        self.assertIn("31 x agent .md (all reachable)", body)
+        self.assertIn("%d x agent .md (all reachable)" % agents, body)
         self.assertIn("twelve authoring skills", body)
         self.assertIn("create-requirements", body)
-        self.assertIn("dispatch + 15 pre + 15 post hooks", body)
+        self.assertIn("dispatch + %d pre + %d post hooks" % (pre, post), body)
 
     def test_c4_container_stale_counts_absent(self):
         body = self._c4_container()
