@@ -217,6 +217,101 @@ on the cheapest path, which v2 trivial had neither of, and a review that is
 not inside the thing it reviews. Against v3 `standard` it is less than half
 the agent work, which is the ratio PRD G14 measures.
 
+### 2.3 What crosses the loop
+
+Nothing is *sent*. Skills do not message each other — the workflow is a list,
+and a skill that needed a message from its neighbour would not be standalone.
+What crosses the loop is two **artifacts on disk**, each written by one step
+and read by the other under a contract, and the engine passes exactly one
+thing: the iteration number, in `run.json`.
+
+**Forward — `review-code` → `code`.** The verdict, at
+`steps/review-code/verdict.json` (current) and `iter-<n>/verdict.json`
+(history). `code` on iteration *n+1* reads it and nothing else from the
+review — not the lens reports, not the adjudication transcripts. What it
+reads:
+
+```jsonc
+{
+  "iteration": 1,
+  "reviewed_sha": "9c1e…",             // the commit the review judged — code's baseline for "what changed since"
+  "passed": false,
+  "findings": [
+    {
+      "id": "F-1-3",                   // stable across iterations: a re-raised finding keeps its id
+      "status": "confirmed",           // confirmed | advisory — refuted findings are NOT here (audit trail only)
+      "severity": "blocking",          // blocking | advisory
+      "kind": "defect",                // defect | acceptance | contract | regression | craft | gate
+      "lens": "B",
+      "file": "src/auth/session.py", "line": 142,
+      "claim": "refresh() drops the request-scoped tenant id; every retry after the first is cross-tenant",
+      "evidence": ["src/auth/session.py:138-151", "tests/auth/test_session.py::test_refresh_keeps_tenant (absent)"],
+      "resolved_when": "a test asserts tenant id is preserved across refresh() retries and passes",
+      "traces_to": ["TC-7", "AC-2"],   // when a lens can name them; empty otherwise
+      "adjudication": { "verdict": "confirmed", "reason": "…the refutation attempt failed because…" }
+    },
+    {
+      "id": "F-1-9", "status": "confirmed", "severity": "blocking", "kind": "gate",
+      "claim": "coverage 76% < 80%",
+      "evidence": ["pytest --cov … (exit 0)", "TOTAL 76%"],
+      "resolved_when": "coverage ≥ 80% on the full suite"
+    }
+  ]
+}
+```
+
+Three fields carry the loop, and today's verdict has none of them: **`id`**
+(so the next review can say *this* one is closed), **`evidence`** (so `code`
+does not re-derive what the reviewer already established), and
+**`resolved_when`** (the adjudicator's refutation criterion restated as an
+exit criterion — what the fix must make true). A gate failure is a finding of
+`kind: gate` with the failing command as evidence; it needs no separate
+channel.
+
+**Back — `code` → `review-code`.** The result, at `steps/code/result.json`.
+Every finding the verdict carried is answered by id; there is no third
+option:
+
+```jsonc
+{
+  "iteration": 2,
+  "since_sha": "9c1e…",                // copied from the verdict; the review diffs from here
+  "resolutions": [
+    { "id": "F-1-3", "status": "fixed",    "commits": ["b7a2…"], "tests": ["tests/auth/test_session.py::test_refresh_keeps_tenant"] },
+    { "id": "F-1-9", "status": "fixed",    "commits": ["b7a2…"] },
+    { "id": "F-1-5", "status": "disputed", "reason": "the lookback flagged a revert of a different function with the same name; evidence: git log -p shows …" }
+  ]
+}
+```
+
+`fixed` names the commit and, for a behavioural finding, the test written
+first (TDD holds inside the loop). `disputed` carries a reason and evidence,
+and is not a way out: the next review's adjudicator receives the dispute as
+additional evidence and rules again. A finding **disputed and then confirmed a
+second time** stops the run with `stop_reason: needs_input` — a human breaks
+the tie — rather than spending the remaining iteration on the same argument.
+
+**What `review-code` does with it on iteration *n+1*.** Every lens receives
+the prior verdict's confirmed findings and their resolutions as context, and
+reviews the **whole changeset** (branch against base — a fix can break
+something the first review passed), prioritising hunks changed since
+`since_sha`. A finding whose `resolved_when` now holds is recorded
+`status: resolved` in the new verdict, so the trail shows closure; a finding
+that still holds keeps its id and is confirmed again; new findings get new
+ids. The gate runs again in full.
+
+**What the engine checks.** `acs step finish` on `review-code` with
+`outcome: blocking_findings` increments `loops.review-code.iteration` and
+sets the cursor to `code`. `code`'s pre-hook then verifies the verdict exists,
+its `iteration` matches, and it carries at least one `confirmed` finding — a
+loop-back with nothing to fix is a bug, and is refused. On the way back,
+`review-code`'s pre-hook verifies `result.json` answers every confirmed id.
+
+**What must not cross.** Refuted findings (noise — they stay in
+`iter-<n>/adjudication.json`); the lens reports (prose, for humans); and in
+the other direction, `code`'s reasoning about *why* it disputes, beyond the
+evidence — the adjudicator judges evidence, not persuasion.
+
 ---
 
 ## 3. The skills
@@ -412,9 +507,9 @@ in front of it and fans lens B out across the diff when the diff warrants it
 (§3.6). That is how the four-lens depth survives the move: as a property the
 reviewer derives, not one the implementer declares.
 
-On iteration 2+ the leg receives the previous `review-code` findings as context
-and authors the remediation; TDD still applies (failing test first for a
-behavioural finding).
+On iteration 2+ the leg reads the previous verdict (§2.3) and authors the
+remediation, answering every confirmed finding by id in `result.json`; TDD
+still applies (failing test first for a behavioural finding).
 
 ### 3.6 `/acs:review-code` *(new)*
 
@@ -463,7 +558,10 @@ validator: given the finding, the requirement's intent, and read access to the
 cited evidence — never the other findings, never which lens raised it.
 Prompted to **refute**, defaulting to refuted when uncertain. `confirmed`
 blocks; `refuted` is dropped with its reason recorded; `needs-context`
-downgrades to advisory and is carried, never silently dropped.
+downgrades to advisory and is carried, never silently dropped. A confirmed
+finding leaves adjudication with a **`resolved_when`** — the refutation
+criterion the validator could not satisfy, restated as what a fix must make
+true. That field is what `code` works to on the next iteration (§2.3).
 
 Corroboration is **not** a filter. On MAR-583 iteration 1 all three blocking
 findings were single-lens; counting agreement would have shipped a broken
@@ -776,8 +874,8 @@ Fifteen JSON schemas and one XSD today; the table is every one of them.
 | `ship-workflow.schema.json` | `workflow.schema.json` | `steps` is a list of names; `loops`; **rejects** every v2 key §2.1 removed |
 | `session-pointer.schema.json` | same | `ticket_id`, `skill` → `run_id`, `step` |
 | `clarifications.schema.json` | same | `ticket_id` → `run_id` |
-| `verdict.schema.json` | same | owned by `review-code`; gains `iteration` |
-| — | `result.schema.json` | **new** — the step result document, today validated ad hoc by `acs phase validate` |
+| `verdict.schema.json` | same | owned by `review-code`; gains `reviewed_sha`, and per finding `id`, `status`, `kind`, `lens`, `claim`, `evidence`, `resolved_when`, `traces_to`, `adjudication` (§2.3) — today a finding is `severity`, `dimension`, `detail`, `file`, `line` |
+| — | `result.schema.json` | **new** — the step result document, today validated ad hoc by `acs phase validate`; for `code` it carries `since_sha` and `resolutions[]` (§2.3) |
 | `ticket.schema.json`, `tickets-index.schema.json`, `counters.schema.json`, `lock.schema.json`, `lock-events.schema.json`, `metrics.schema.json`, `phases.schema.json`, `settings.schema.json` | same | unchanged (settings loses the removed keys) |
 | `acs-messages.xsd` | — | removed (§6) |
 
