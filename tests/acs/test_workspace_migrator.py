@@ -64,7 +64,11 @@ class MigratorCase(unittest.TestCase):
 
     def mint_ticket(self, ticket_id, ws=None, archived=False, state=None):
         """Write a valid ticket.json partition (active or archived); an optional
-        `state=(skill, status)` also writes a matching <skill>-state.json."""
+        `state=(skill, status)` also writes a matching <skill>-state.json.
+
+        The FLAT, pre-re-key spelling on purpose: it is the layout a workspace
+        being migrated is most likely to carry, and the preflight has to see an
+        in-flight run in it. `mint_run_step` covers the current one."""
         ws = ws or self.old_ws
         if archived:
             tdir = os.path.join(acs_case.lib.archive_dir(ws, REPO_ID), ticket_id)
@@ -80,6 +84,18 @@ class MigratorCase(unittest.TestCase):
                 json.dump({"skill": skill, "ticket_id": ticket_id,
                            "runs": [{"status": status}]}, fh)
         return tdir
+
+    def mint_run_step(self, run_id, step, status, ws=None):
+        """The CURRENT layout: runs/<run-id>/steps/<step>/state.json, whose
+        entries are `invocations`."""
+        ws = ws or self.old_ws
+        sdir = os.path.join(acs_case.lib.repo_dir(ws, REPO_ID), "runs", run_id,
+                            "steps", step)
+        os.makedirs(sdir, exist_ok=True)
+        with open(os.path.join(sdir, "state.json"), "w", encoding="utf-8") as fh:
+            json.dump({"skill": step, "run_id": run_id,
+                       "invocations": [{"status": status}]}, fh)
+        return sdir
 
     def write_repo_level(self, rel_path, content, ws=None):
         """Write a repo-level file (or a file inside a repo-level directory like
@@ -125,6 +141,20 @@ class TestPreflight(MigratorCase):
 
     def test_completed_last_run_does_not_abort(self):
         self.mint_ticket("MAR-4", state=("code", "completed"))
+        code, out, err = self.run_migrator()
+        self.assertEqual(code, 0, err)
+
+    def test_an_in_progress_step_in_the_current_layout_also_aborts(self):
+        """A migrator that knew only the flat pre-re-key spelling would walk
+        straight past an in-flight step under runs/<run-id>/steps/."""
+        self.mint_run_step("MAR-5", "code", "in_progress")
+        code, out, err = self.run_migrator()
+        self.assertEqual(code, 2)
+        self.assertIn("MAR-5", err)
+        self.assertIn("code", err)
+
+    def test_a_completed_step_in_the_current_layout_does_not_abort(self):
+        self.mint_run_step("MAR-5", "code", "completed")
         code, out, err = self.run_migrator()
         self.assertEqual(code, 0, err)
 
@@ -346,7 +376,7 @@ class TestCliContract(MigratorCase):
                     and isinstance(node.func.value, ast.Name) and node.func.value.id == "lib"):
                 called.add(node.func.attr)
         allowed = {"repo_partition_id", "repo_dir", "archive_dir", "ticket_dir",
-                   "sessions_dir", "read_json", "last_run_status"}
+                   "sessions_dir", "read_json"}
         forbidden = {"write_json", "update_index", "update_metrics", "acquire_lock",
                      "release_lock", "save_ticket", "finalize_run", "build_context"}
         self.assertTrue(called)

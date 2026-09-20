@@ -158,7 +158,10 @@ def _require_prd(ctx):
 
 
 #: Skills that need the architecture doc set before they can do anything.
-ARCHITECTURE_GATED = ("project", "create-project", "standardize-project", "create-docs")
+#: `project` itself is NOT here: it is an unhooked umbrella, so no pre-hook
+#: ever fires for it and the row was dead. Each leg it dispatches to carries
+#: the precondition, which is where a refusal can name the leg that needs it.
+ARCHITECTURE_GATED = ("create-project", "standardize-project", "create-docs")
 
 #: Skills that need the PRD.
 #:

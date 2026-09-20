@@ -80,8 +80,13 @@ class UnhookedUmbrellaTest(unittest.TestCase):
         self.assertNotIn("project", acs_lib.PLANNING_SKILLS)
 
     def test_no_gate_is_registered(self):
-        self.assertNotIn("project", acs_lib.GATES)
-        self.assertNotIn("project", acs_lib.GATE_INPUTS)
+        """There is no per-skill gate table any more: `gate_step` gates a
+        step of the resolved workflow, and the umbrella is not one. Not being
+        hooked IS not being gated, and the two lists that could still name it
+        must not."""
+        self.assertNotIn("project", acs_lib.HOOKED_SKILLS)
+        self.assertNotIn("project", acs_lib.ARCHITECTURE_GATED)
+        self.assertNotIn("project", acs_lib.BRAKES)
 
     def test_no_pre_or_post_hook_script_on_disk(self):
         for name in ("pre-project.py", "post-project.py"):
@@ -207,7 +212,8 @@ class InternalLegFrontmatterTest(unittest.TestCase):
         for leg in LEGS:
             with self.subTest(leg=leg):
                 self.assertIn(leg, acs_lib.HOOKED_SKILLS)
-                self.assertIn(leg, acs_lib.GATES)
+                self.assertIn(leg, acs_lib.ARCHITECTURE_GATED,
+                              "%s keeps its architecture precondition" % leg)
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "pre-%s.py" % leg)))
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "post-%s.py" % leg)))
                 for role in ("executor", "verifier"):
@@ -218,8 +224,8 @@ class InternalLegFrontmatterTest(unittest.TestCase):
                     os.path.exists(os.path.join(AGENTS_DIR, "%s-planner.md" % leg)),
                     "%s lost its planner under ADR-0092, not the fold" % leg)
                 body = read(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
-                self.assertIn("skill-start.py", body)
-                self.assertIn("--skill %s" % leg, body)
+                self.assertIn("acs.py\" step start", body)
+                self.assertIn("--step %s" % leg, body)
 
     def test_each_leg_is_registered_as_an_internal_leg_of_project(self):
         legs = acs_lib.skill_legs()
