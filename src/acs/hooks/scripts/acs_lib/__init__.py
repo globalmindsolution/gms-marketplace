@@ -130,7 +130,7 @@ from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT,
     HANDOFF_CONTEXT_FILENAME,
     ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
     clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
-    in_flight_skill, open_clarifications, parse_agent_type, phase_artifact_path,
+    in_flight_step, open_clarifications, parse_agent_type, phase_artifact_path,
     pre_compact, read_agent, record_agent_start, render_handoff_context, resolve_partition,
     result_document, stop, stop_counter_key, subagent_start, subagent_stop, validate_message,
     write_handoff_context, write_phase_snapshot)  # noqa: F401

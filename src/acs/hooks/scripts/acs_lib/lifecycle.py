@@ -257,21 +257,14 @@ def phase_artifact_path(rdir, skill, iteration, phase):
     return os.path.join(iteration_dir(rdir, skill, int(iteration)), "%s.json" % phase)
 
 
-def in_flight_skill(tdir, ctx, ticket_id=None):
-    """The skill whose run is `in_progress` in this partition, or None.
+def in_flight_step(rdir, ctx=None, run_id=None):
+    """The step whose invocation is `in_progress` in this run, or None.
 
-    Pointer first (the checkout says what it is working on), then a scan of the
-    hooked skills. handoff.py, the Stop hook and PreCompact all need exactly
-    this resolution; a second copy is how two of them start disagreeing."""
-    candidates = []
-    pointer = read_json(pointer_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-    if isinstance(pointer, dict) and pointer.get("skill"):
-        candidates.append(pointer["skill"])
-    candidates += [s for s in HOOKED_SKILLS if s not in candidates]
-    for skill in candidates:
-        if last_status(tdir, skill) == "in_progress":
-            return skill
-    return None
+    I1 allows exactly one, and the run ledger names it, so there is nothing to
+    scan and nothing to guess. handoff.py, the Stop hook and PreCompact all
+    read it from here; a second copy is how two of them start disagreeing."""
+    from .run import in_progress_step, load_run
+    return in_progress_step(load_run(rdir) or {})
 
 
 def resolve_partition(cwd, ctx=None):
@@ -335,7 +328,7 @@ def result_document(rdir, skill):
     return doc if isinstance(doc, dict) else None
 
 
-def render_handoff_context(tdir, ticket_id, skill):
+def render_handoff_context(rdir, run_id, step):
     """The markdown PreCompact leaves behind: what state says, not what the
     window happens to still hold.
 
@@ -343,10 +336,11 @@ def render_handoff_context(tdir, ticket_id, skill):
     conversation stops being the record, so this points at the artifacts rather
     than trying to summarize them -- a summary written from a half-compacted
     window is exactly the unreliable thing it is replacing."""
+    from .run import load_run, step_dir as _step_dir
+    run = load_run(rdir) or {}
     # The run's subject, not a ticket.json in the partition: a run may have no
-    # ticket at all (§3.11), and when it has one the subject is where it lives.
-    from .run import load_run
-    subject = (load_run(tdir) or {}).get("subject") or {}
+    # ticket at all (3.11), and when it has one the subject is where it lives.
+    subject = run.get("subject") or {}
     ticket = {}
     if subject.get("ticket_id"):
         from .repo import find_ticket_partition
@@ -358,77 +352,80 @@ def render_handoff_context(tdir, ticket_id, skill):
             ticket = load_ticket(tpath) or {}
         except Exception:  # noqa: BLE001 -- a handoff render never raises
             ticket = {}
-    from .run import load_run
-    pipeline = load_run(tdir) or {}
+
     lines = [
-        "# Handoff context — %s" % ticket_id,
+        "# Handoff context \u2014 %s" % run_id,
         "",
-        "_Written by the acs PreCompact hook at %s from the ticket ledger, not "
+        "_Written by the acs PreCompact hook at %s from the run ledger, not "
         "from the conversation. Re-read the files it names before continuing._" % now_iso(),
         "",
-        "## Ticket",
+        "## Run",
         "",
-        "- **%s** — %s" % (ticket_id, ticket.get("title") or "(no title recorded)"),
-        "- type `%s` · status `%s`" % (ticket.get("type"), ticket.get("status")),
-        "- partition: `%s`" % tdir,
+        "- **%s** \u2014 subject `%s`" % (run_id, subject.get("kind") or "unknown"),
+        "- run directory: `%s`" % rdir,
     ]
-    if ticket.get("parent"):
-        lines.append("- parent epic: `%s`" % ticket["parent"])
+    if subject.get("ticket_id"):
+        lines.append(
+            "- ticket: **%s** \u2014 %s (type `%s` \u00b7 status `%s`)"
+            % (subject["ticket_id"], ticket.get("title") or "(no title recorded)",
+               ticket.get("type"), ticket.get("status")))
+        if ticket.get("parent"):
+            lines.append("- parent epic: `%s`" % ticket["parent"])
 
-    lines += ["", "## Pipeline", ""]
-    steps = pipeline.get("steps") if isinstance(pipeline.get("steps"), dict) else {}
+    lines += ["", "## Workflow", ""]
+    steps = run.get("steps") if isinstance(run.get("steps"), dict) else {}
     if steps:
         for name in sorted(steps):
-            step = steps[name] if isinstance(steps[name], dict) else {}
-            lines.append("- `%s` — %s" % (name, step.get("status") or "unknown"))
+            entry = steps[name] if isinstance(steps[name], dict) else {}
+            lines.append("- `%s` \u2014 %s" % (name, entry.get("status") or "unknown"))
     else:
-        lines.append("- no pipeline steps recorded yet")
+        lines.append("- no workflow steps recorded yet")
 
     lines += ["", "## In flight", ""]
-    if skill:
-        state = load_state(tdir, skill, ticket_id)
+    if step:
+        state = load_state(rdir, step, run_id)
         entry = last_invocation(state) or {}
-        lines.append("- `/acs:%s` run started %s is **%s**"
-                     % (skill, entry.get("started_at"), entry.get("status")))
-        from .run import step_dir as _step_dir
-        lines.append("- step artifacts: `%s`" % _step_dir(tdir, skill))
-        result = result_document(tdir, skill)
+        lines.append("- `/acs:%s` invocation started %s is **%s**"
+                     % (step, entry.get("started_at"), entry.get("status")))
+        lines.append("- step artifacts: `%s`" % _step_dir(rdir, step))
+        result = result_document(rdir, step)
         lines.append("- result document: %s"
                      % ("written (status `%s`)" % result.get("status") if result
-                        else "**not written yet** — the run cannot be finalized without it"))
+                        else "**not written yet** \u2014 the invocation cannot be "
+                             "finalized without it"))
         findings = [f for f in (state.get("findings") or []) if isinstance(f, dict)]
         if findings:
-            lines += ["", "### Findings carried into this run", ""]
+            lines += ["", "### Findings carried into this step", ""]
             for finding in findings:
-                lines.append("- `%s`/`%s` — %s" % (finding.get("severity"),
-                                                   finding.get("dimension"),
-                                                   finding.get("detail")))
+                lines.append("- `%s`/`%s` \u2014 %s"
+                             % (finding.get("severity"), finding.get("kind"),
+                                finding.get("claim") or finding.get("detail")))
         lines += ["", "### Next", "",
                   "- finish it: write the result document, then "
-                  "`acs.py finish --ticket %s --skill %s --status <completed|failed|...>`"
-                  % (ticket_id, skill),
+                  "`acs.py step finish --run %s --step %s "
+                  "--status <completed|failed|interrupted>`" % (run_id, step),
                   "- or hand it off: `handoff.py --summary \"...\"`"]
     else:
-        lines.append("- no run is in progress; the next step is whichever pipeline "
+        lines.append("- no step is in progress; the next step is whichever workflow "
                      "step above is not yet `completed`")
 
-    open_items = open_clarifications(tdir)
+    open_items = open_clarifications(rdir)
     if open_items:
         lines += ["", "## Open clarifications", ""]
         for item in open_items:
-            lines.append("- `%s` (%s) — %s" % (item.get("id"), item.get("status"),
+            lines.append("- `%s` (%s) \u2014 %s" % (item.get("id"), item.get("status"),
                                                 item.get("question")))
     return "\n".join(lines) + "\n"
 
 
-def write_handoff_context(tdir, ticket_id, skill):
+def write_handoff_context(rdir, run_id, step):
     # Render BEFORE writing, and write atomically. Both halves guard the same
     # thing from different directions: rendering first means a renderer that
     # raises cannot destroy the previous handoff-context.md, and write_text
     # means a crash or a hook timeout MID-WRITE cannot either. PreCompact is
     # exactly the moment there is nothing left to rebuild this file from.
-    body = render_handoff_context(tdir, ticket_id, skill)
-    path = os.path.join(tdir, HANDOFF_CONTEXT_FILENAME)
+    body = render_handoff_context(rdir, run_id, step)
+    path = os.path.join(rdir, HANDOFF_CONTEXT_FILENAME)
     write_text(path, body)
     return path
 
@@ -609,62 +606,62 @@ def write_phase_snapshot(tdir, skill, role, message):
 
 
 def stop(payload):
-    """Stop: refuse to end a turn that abandoned an in_progress run.
+    """Stop: refuse to end a turn that abandoned an in_progress step.
 
-    A run left `in_progress` with no result document is the failure mode the
-    whole ledger is built to avoid: the next skill's gate reads "not completed"
+    A step left `in_progress` with no result document is the failure mode the
+    whole ledger is built to avoid: the next step's gate reads "not completed"
     and blocks, and nobody finds out until the next invocation. SessionEnd
     finalizes it as `interrupted`, which is a safety net, not an outcome.
 
     Refuses at most BLOCK_LIMIT times per checkout and run — after that it says
     so and lets the turn end, because a session that cannot stop is worse than
-    a run the safety net will mark interrupted.
+    a step the safety net will mark interrupted.
     """
+    from .step import result_path
     cwd = payload.get("cwd") or os.getcwd()
-    ticket_id, tdir, ctx = resolve_partition(cwd)
-    if not tdir:
+    run_id, rdir, ctx = resolve_partition(cwd)
+    if not rdir:
         return 0
-    skill = in_flight_skill(tdir, ctx, ticket_id)
-    if not skill:
+    step = in_flight_step(rdir, ctx, run_id)
+    if not step:
         clear_stop_blocks(ctx)
         return 0
-    key = "%s/%s" % (ticket_id, skill)
-    result = result_document(tdir, skill)
+    key = "%s/%s" % (run_id, step)
+    result = result_document(rdir, step)
     if result and result.get("status") in ("completed", "failed", "interrupted"):
         # The document exists; only the post hook is outstanding, and its own
         # absence is what the next gate reports. Not this hook's call to make.
         return 0
 
-    waiting = open_clarifications(tdir)
+    waiting = open_clarifications(rdir)
     if waiting:
-        # A run stopped on an OPEN QUESTION is not an abandoned run. The skill
-        # contract requires the coordinator to ask before executing on an
-        # ambiguous spec (skills/code/SKILL.md), and a turn has to end for the
+        # A step stopped on an OPEN QUESTION is not an abandoned step. The
+        # skill contract requires the coordinator to ask before executing on an
+        # ambiguous plan (skills/code/SKILL.md), and a turn has to end for the
         # user to answer. Refusing here would push the model to invent a
         # terminal status at exactly the boundary the contract says not to
-        # guess at -- and because the counter is keyed per ticket/skill and is
+        # guess at -- and because the counter is keyed per run/step and is
         # only cleared when nothing is in flight, two legitimate pauses would
-        # also burn the whole budget, letting a genuinely abandoned run later
+        # also burn the whole budget, letting a genuinely abandoned step later
         # in the same run stop unchallenged.
         _note("/acs:%s for %s is in_progress with %d open clarification(s); "
               "ending the turn so they can be answered."
-              % (skill, ticket_id, len(waiting)))
+              % (step, run_id, len(waiting)))
         return 0
 
     blocks = count_stop_block(ctx, key)
     if blocks > BLOCK_LIMIT:
         _warn("/acs:%s for %s is still in_progress after %d reminders; ending the turn. "
-              "SessionEnd will finalize it as `interrupted`." % (skill, ticket_id, BLOCK_LIMIT))
+              "SessionEnd will finalize it as `interrupted`." % (step, run_id, BLOCK_LIMIT))
         return 0
     _warn(
         "/acs:%s for %s is still `in_progress` and has no result document.\n"
-        "Write %s and finish the run before stopping:\n"
-        "  python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py\" finish "
-        "--ticket %s --skill %s --status <completed|failed|interrupted>\n"
+        "Write %s and finish the step before stopping:\n"
+        "  python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py\" step finish "
+        "--run %s --step %s --status <completed|failed|interrupted>\n"
         "If the work genuinely cannot continue, hand it off instead:\n"
         "  python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py\" --summary \"...\""
-        % (skill, ticket_id, os.path.join(tdir, "phases", skill, "result.json"),
-           ticket_id, skill))
+        % (step, run_id, result_path(rdir, step), run_id, step))
     return 2
 
 
@@ -672,15 +669,15 @@ def pre_compact(payload):
     """PreCompact: write handoff-context.md from state before the window shrinks.
 
     Compaction is the moment the conversation stops being the record. What
-    survives should therefore be the ledger — the ticket, the pipeline, the
-    in-flight run, the open clarifications, and the exact command that finishes
-    it — not a summary of a window that is already half gone.
+    survives should therefore be the ledger — the run, its workflow, the
+    in-flight step, the open clarifications, and the exact command that
+    finishes it — not a summary of a window that is already half gone.
     """
     cwd = payload.get("cwd") or os.getcwd()
-    ticket_id, tdir, ctx = resolve_partition(cwd)
-    if not tdir:
+    run_id, rdir, ctx = resolve_partition(cwd)
+    if not rdir:
         return 0
-    skill = in_flight_skill(tdir, ctx, ticket_id)
-    path = write_handoff_context(tdir, ticket_id, skill)
+    step = in_flight_step(rdir, ctx, run_id)
+    path = write_handoff_context(rdir, run_id, step)
     _note("wrote %s before compaction" % path)
     return 0

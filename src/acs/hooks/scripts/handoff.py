@@ -87,7 +87,7 @@ def main():
                 "stop_reason": args.stop_reason,
                 "handoff_summary": summary,
             })
-            lib.write_handoff_context(rdir, step, summary)
+            lib.write_handoff_context(rdir, run_id, step)
             wf = lib.validate_workflow_file(
                 lib.resolve_workflow(ctx["checkout_root"])["path"])
             lib.finish_step(rdir, step, wf, status="interrupted",

@@ -361,7 +361,7 @@ class StopTest(LifecycleCase):
         self.assertEqual(out.returncode, 2)
         self.assertIn("in_progress", out.stderr)
         self.assertIn(self.ticket, out.stderr)
-        self.assertIn("acs.py\" finish", out.stderr)
+        self.assertIn("acs.py\" step finish", out.stderr)
         self.assertIn("handoff.py", out.stderr)
 
     def test_a_written_result_document_is_enough_to_stop(self):
@@ -457,9 +457,9 @@ class PreCompactTest(LifecycleCase):
         body = self._context()
         self.assertIn("# Handoff context — %s" % self.ticket, body)
         self.assertIn("Ship the thing", body)
-        self.assertIn("`/acs:code` run started", body)
+        self.assertIn("`/acs:code` invocation started", body)
         self.assertIn("not written yet", body)
-        self.assertIn("acs.py finish --ticket %s --skill code" % self.ticket, body)
+        self.assertIn("acs.py step finish --run %s --step code" % self.ticket, body)
 
     def test_says_so_when_the_result_document_already_exists(self):
         self.start_run("code")
@@ -470,12 +470,12 @@ class PreCompactTest(LifecycleCase):
     def test_carries_the_findings_the_run_is_working_through(self):
         self.start_run("code")
         state = lib.load_state(self.tdir_path, "code", self.ticket)
-        state["findings"] = [{"severity": "blocking", "dimension": "tests",
-                              "detail": "coverage 71% below the 90% target"}]
+        state["findings"] = [{"id": "F-1-1", "severity": "blocking", "kind": "gate",
+                              "claim": "coverage 71% below the 90% target"}]
         lib.write_json(lib.state_path(self.tdir_path, "code"), state)
         self.hook("pre-compact", self.payload())
         body = self._context()
-        self.assertIn("### Findings carried into this run", body)
+        self.assertIn("### Findings carried into this step", body)
         self.assertIn("coverage 71% below the 90% target", body)
 
     def test_names_the_parent_epic_when_the_ticket_has_one(self):
@@ -487,7 +487,7 @@ class PreCompactTest(LifecycleCase):
         self.hook("pre-compact", self.payload())
         self.assertIn("parent epic: `SHOP-99`", self._context())
 
-    def test_says_so_when_no_pipeline_step_has_run_yet(self):
+    def test_says_so_when_no_workflow_step_has_run_yet(self):
         self.start_run("code")
         # EMPTY the ledger's steps rather than deleting run.json: a missing
         # run.json means there is no run, and PreCompact correctly does
@@ -496,7 +496,7 @@ class PreCompactTest(LifecycleCase):
         doc["steps"] = {}
         lib.save_run(self.tdir_path, doc)
         self.hook("pre-compact", self.payload())
-        self.assertIn("no pipeline steps recorded yet", self._context())
+        self.assertIn("no workflow steps recorded yet", self._context())
 
     def test_records_open_clarifications(self):
         self.start_run("code")
@@ -509,14 +509,14 @@ class PreCompactTest(LifecycleCase):
         self.assertIn("which database?", body)
         self.assertNotIn("answered one", body)
 
-    def test_with_no_run_in_flight_it_still_records_where_the_pipeline_is(self):
+    def test_with_no_step_in_flight_it_still_records_where_the_run_is(self):
         self.start_run("code")
         self.finish_run("code")
         out = self.hook("pre-compact", self.payload())
         self.assertEqual(out.returncode, 0, out.stderr)
         body = self._context()
-        self.assertIn("no run is in progress", body)
-        self.assertIn("## Pipeline", body)
+        self.assertIn("no step is in progress", body)
+        self.assertIn("## Workflow", body)
 
     def test_a_render_failure_never_truncates_an_existing_context_file(self):
         """`open(..., "w")` truncates, so rendering INSIDE the with-block would
