@@ -23,7 +23,7 @@ import claude_code_adapter as cc  # noqa: E402
 from ._common import (DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS,
                       RUN_STATUSES, now_iso, plugin_root, read_json, write_json)
 from .settings import load_settings, validate_settings
-from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir, state_path
+from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir
 from .hostgates import record_gate_evidence
 from .lock import check_lock, read_lock, release_lock
 from .tickets import load_ticket, save_ticket, update_index

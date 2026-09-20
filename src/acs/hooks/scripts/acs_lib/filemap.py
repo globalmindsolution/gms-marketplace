@@ -17,6 +17,7 @@ from ._common import GateError, _note, _warn, now_iso, read_json, write_json
 from .artifacts import ticket_docs_root, tickets_path
 from .lifecycle import (BLOCK_LIMIT, active_agents, active_agents_dir,
     resolve_partition)
+from .step import record_guard_event
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +272,7 @@ def _record_guard_denial(payload, tdir, ctx, skill, reason, target=None,
     handler is `Exception`, never `BaseException`, so dispatch.GateTimeout
     still reaches run_file_map_guard instead of being swallowed at a deny."""
     try:
-        landed = record_guard_event(tdir, skill, {
+        landed = record_guard_event(tdir, skill, os.path.basename(tdir), {
             "ts": now_iso(),
             "skill": skill,
             "iteration": (iteration if iteration is not None

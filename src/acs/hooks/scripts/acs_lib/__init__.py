@@ -61,7 +61,7 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     gh_pr_required_checks_ok, gh_pr_view, index_path, lock_path, main_repo_root,
     pointer_path, record_session_marker, repo_dir, repo_guard, repo_partition_id,
     resolve_active_partition, resolve_ticket_id, scan_local_ticket_evidence,
-    session_marker_path, sessions_dir, state_path, ticket_dir,
+    session_marker_path, sessions_dir, ticket_dir,
     ticket_id_from_text)  # noqa: F401)  # noqa: F401
 
 from .hostgates import (DEFAULT_GATE_RESPONSE, GATE_EVIDENCE_MAX_AGE_SECONDS,
@@ -190,7 +190,7 @@ from .step import load_state, save_state  # noqa: F401
 from .step import last_invocation, last_status  # noqa: F401
 from .step import load_state as load_step_state  # noqa: F401
 from .step import save_state as save_step_state  # noqa: F401
-from .step import state_path as step_state_path  # noqa: F401
+from .step import state_path, state_path as step_state_path  # noqa: F401
 
 from . import artifacts  # noqa: F401,E402
 from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401

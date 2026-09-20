@@ -15,7 +15,8 @@ from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
 from ._common import HOOKED_SKILLS, now_iso, parse_iso, read_json, write_json
-from .repo import _guarded_repo_write, find_ticket_partition, index_path, repo_dir, state_path
+from .repo import _guarded_repo_write, find_ticket_partition, index_path, repo_dir
+from .step import state_path
 
 
 

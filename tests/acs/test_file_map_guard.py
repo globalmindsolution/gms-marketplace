@@ -83,6 +83,7 @@ class FileMapGuardCase(AcsWorkspaceCase):
         super().setUp()
         self.ticket = self.new_ticket("Ship the thing", "task")
         self.tdir_path = self.tdir(self.ticket)
+        self.rdir_path = self.ensure_run(self.ticket)
         out = self.start("code", self.ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
 

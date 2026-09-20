@@ -186,6 +186,12 @@ def _subject_from_args(args):
 # the step machine
 # ---------------------------------------------------------------------------
 
+def _ctx_of(rdir):
+    """The context a run directory sits in. Cheap to rebuild and safer than
+    threading ctx through: the pointer write must name THIS checkout."""
+    return context_or_die("step start")
+
+
 def cmd_step_start(args):
     """step -> in_progress, after the invariants hold. Writer for the
     PreToolUse(Skill) transition."""
@@ -194,6 +200,12 @@ def cmd_step_start(args):
     try:
         lib.check_invariants(rdir, wf)
         doc = lib.start_step(rdir, args.step, wf)
+        # Both machines, one verb. The run records the TRANSITION and the step
+        # opens the INVOCATION; a caller that got only the first would leave a
+        # step in_progress with no record of the session doing it, and the
+        # guard would have no invocation to append its denials to.
+        lib.append_invocation(rdir, args.step, doc["run_id"])
+        lib.point_checkout_at(_ctx_of(rdir), doc["run_id"], args.step)
     except lib.GateError as exc:
         die("step start", str(exc))
     entry = lib.step_entry(doc, args.step)

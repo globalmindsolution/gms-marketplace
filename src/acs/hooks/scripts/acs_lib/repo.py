@@ -330,10 +330,6 @@ def record_session_marker(ctx, payload):
     return marker
 
 
-def state_path(tdir, skill):
-    return os.path.join(tdir, "%s-state.json" % skill)
-
-
 def lock_path(tdir):
     return os.path.join(tdir, ".lock")
 

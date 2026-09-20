@@ -62,28 +62,28 @@ class RecordGuardEventTest(unittest.TestCase):
     def setUp(self):
         import shutil
         import tempfile
-        self.tdir_path = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, self.tdir_path, True)
+        self.rdir_path = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, self.rdir_path, True)
 
     def _seed_run(self):
-        lib.write_json(lib.state_path(self.tdir_path, "code"), {
+        lib.write_json(lib.state_path(self.rdir_path, "code"), {
             "skill": "code", "run_id": "SHOP-1", "states": {}, "findings": [],
             "errors": [], "invocations": [{"started_at": lib.now_iso(), "status": "in_progress"}]})
 
     def _events(self):
-        state = lib.read_json(lib.state_path(self.tdir_path, "code")) or {}
+        state = lib.read_json(lib.state_path(self.rdir_path, "code")) or {}
         return (state.get("invocations") or [{}])[-1].get("guard_events")
 
     def test_the_event_lands_on_the_last_run_entry(self):
         self._seed_run()
-        self.assertIs(lib.record_guard_event(self.tdir_path, "code", {"reason": "outside_map"}),
+        self.assertIs(lib.record_guard_event(self.rdir_path, "code", self.ticket, {"reason": "outside_map"}),
                       True)
         self.assertEqual(self._events(), [{"reason": "outside_map"}])
 
     def test_a_second_event_appends_rather_than_replaces(self):
         self._seed_run()
-        lib.record_guard_event(self.tdir_path, "code", {"reason": "outside_map"})
-        lib.record_guard_event(self.tdir_path, "code", {"reason": "control_input"})
+        lib.record_guard_event(self.rdir_path, "code", self.ticket, {"reason": "outside_map"})
+        lib.record_guard_event(self.rdir_path, "code", self.ticket, {"reason": "control_input"})
         self.assertEqual([e["reason"] for e in self._events()],
                          ["outside_map", "control_input"])
 
@@ -95,7 +95,7 @@ class RecordGuardEventTest(unittest.TestCase):
         deny must stand whatever the recording did. ADR-0095 retired the
         sibling, so what is pinned now is the surviving half's own behaviour —
         plus the absence of the one that could raise."""
-        self.assertIs(lib.record_guard_event(self.tdir_path, "code", {"reason": "outside_map"}),
+        self.assertIs(lib.record_guard_event(self.rdir_path, "code", self.ticket, {"reason": "outside_map"}),
                       False)
         self.assertIsNone(self._events())
         self.assertFalse(hasattr(lib, "record_escalation_event"))
@@ -132,7 +132,7 @@ class GuardEventsCase(FileMapGuardCase):
     """The real guard, driven through dispatch.py exactly as the hook does."""
 
     def entry(self, skill="code"):
-        state = lib.read_json(lib.state_path(self.tdir_path, skill)) or {}
+        state = lib.read_json(lib.state_path(self.rdir_path, skill)) or {}
         runs = state.get("invocations") or []
         return runs[-1] if runs else {}
 
@@ -184,7 +184,7 @@ class RecordedDenialTest(GuardEventsCase):
         repo-relative form of it, so the path is recorded as it was written."""
         self.declare("src/a.py")
         self.spawn_executor()
-        record = lib.agent_record_path(self.tdir_path, "a-1")
+        record = lib.agent_record_path(self.rdir_path, "a-1")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": record}})
         self.assertEqual(out.returncode, 2, out.stderr)
@@ -213,7 +213,7 @@ class RecordedDenialTest(GuardEventsCase):
         self.spawn_executor()
         self.write_attempt("src/one.py")
         self.write_attempt("src/two.py")
-        state = lib.read_json(lib.state_path(self.tdir_path, "code"))
+        state = lib.read_json(lib.state_path(self.rdir_path, "code"))
         self.assertEqual(len(state["invocations"]), 1, "no second run entry is created")
         self.assertEqual([e["target"] for e in self.events()], ["src/one.py", "src/two.py"])
 
@@ -229,7 +229,7 @@ class FailOpenSilenceTest(GuardEventsCase):
     """AC-2: a write the guard waves through leaves no trace at all."""
 
     def test_no_fail_open_branch_records_anything(self):
-        report = os.path.join(self.tdir_path, "phases", "code", "iter-1-execute.json")
+        report = os.path.join(self.rdir_path, "steps", "code", "iter-1", "execute.json")
         cases = {
             "not a write tool": {"cwd": self.repo, "tool_name": "Read",
                                  "tool_input": {"file_path": "anything.py"}},
@@ -278,7 +278,7 @@ class VerdictInvarianceTest(GuardEventsCase):
     """AC-3: recording is a side effect of the deny, never a condition of it."""
 
     def _clear_runs(self):
-        path = lib.state_path(self.tdir_path, "code")
+        path = lib.state_path(self.rdir_path, "code")
         state = lib.read_json(path)
         state["invocations"] = []
         lib.write_json(path, state)
@@ -292,7 +292,7 @@ class VerdictInvarianceTest(GuardEventsCase):
         self.assertIn("is outside this task's file map.", out.stderr)
         notes = [line for line in out.stderr.splitlines() if line.startswith(NOTE_PREFIX)]
         self.assertEqual(len(notes), 1, out.stderr)
-        self.assertEqual(lib.read_json(lib.state_path(self.tdir_path, "code"))["invocations"], [])
+        self.assertEqual(lib.read_json(lib.state_path(self.rdir_path, "code"))["invocations"], [])
 
     def test_a_writer_that_raises_leaves_the_verdict_and_notes_once(self):
         self.declare("src/a.py")
@@ -330,7 +330,7 @@ class VerdictInvarianceTest(GuardEventsCase):
 
     def _partition_files(self):
         out = []
-        for root, _dirs, names in os.walk(self.tdir_path):
+        for root, _dirs, names in os.walk(self.rdir_path):
             out += [os.path.join(root, name) for name in names]
         return out
 
@@ -402,10 +402,9 @@ class DerivedGuardDenialsCase(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
         self.ticket = self.new_ticket("Bulk import", "task")
-        self.tdir_path = self.tdir(self.ticket)
 
     def seed_run(self, events=None, skill="code"):
-        path = lib.state_path(self.tdir_path, skill)
+        path = lib.state_path(self.rdir_path, skill)
         state = lib.read_json(path)
         if not isinstance(state, dict) or not state.get("invocations"):
             state = lib.empty_state(skill, self.ticket)
@@ -424,15 +423,15 @@ class GuardDenialsDerivationTest(DerivedGuardDenialsCase):
     """The unit arms of the derivation itself (post-code.py is coverage-omitted)."""
 
     def test_no_state_file_is_zero_rather_than_an_error(self):
-        self.assertEqual(lib.guard_denials(self.tdir_path, "code"), 0)
+        self.assertEqual(lib.guard_denials(self.rdir_path, "code"), 0)
 
     def test_a_run_entry_with_no_events_is_zero(self):
         self.seed_run()
-        self.assertEqual(lib.guard_denials(self.tdir_path, "code"), 0)
+        self.assertEqual(lib.guard_denials(self.rdir_path, "code"), 0)
 
     def test_the_count_is_the_length_of_the_list(self):
         self.seed_run(events=3)
-        self.assertEqual(lib.guard_denials(self.tdir_path, "code"), 3)
+        self.assertEqual(lib.guard_denials(self.rdir_path, "code"), 3)
 
 
 class PostHookGuardDenialsTest(DerivedGuardDenialsCase):
@@ -443,10 +442,10 @@ class PostHookGuardDenialsTest(DerivedGuardDenialsCase):
         self.assertEqual(self.start("code", self.ticket).returncode, 0)
 
     def _states(self):
-        return lib.load_state(self.tdir_path, "code", self.ticket)["states"]
+        return lib.load_state(self.rdir_path, "code", self.ticket)["states"]
 
     def _entry(self):
-        return lib.last_run(lib.load_state(self.tdir_path, "code", self.ticket))
+        return lib.last_run(lib.load_state(self.rdir_path, "code", self.ticket))
 
     def test_the_count_is_derived_from_the_state_file(self):
         self.seed_run(events=2)
