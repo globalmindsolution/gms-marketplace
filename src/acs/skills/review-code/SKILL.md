@@ -42,12 +42,20 @@ Five lenses, spawned **in parallel**, read-only, running nothing. Each writes
 | B — Changed-hunk defects | logic errors, security | **the diff and nothing else** |
 | C — Contracts & architecture | API/data contract, design, plan conformance | `api-contract.md`, `design.md`, architecture docs, the plan |
 | D — History & regression | revert/hotfix patterns on the touched lines | `git log --follow -p`, bounded lookback |
-| E — Craft & scope | quality, standards, simplicity, scope creep | `standards/`, the diff |
+| E — Craft & scope | quality, standards, simplicity, scope creep, documentation of the change | `standards/`, the diff |
 
 **Lens B is defined by what it may not read.** It may not raise anything it
 cannot establish from the diff alone. That constraint is what makes it a
 different reviewer rather than a second copy of lens A. Give it the diff and
 nothing else in its `<context>`.
+
+**Lens E judges the change's own documentation, and blocks on it.** A change
+that adds a flag, an endpoint or a config key and leaves the README, the
+API/usage docs or the changelog saying otherwise is a defect in the
+changeset, not a follow-up: raise it as a blocking finding whose
+`resolved_when` names the file. That is distinct from `/acs:docs-sync`'s
+step, which re-derives the product doc GRAPH from the diff; this is the
+repo's own prose about what just changed.
 
 **Lens D runs on every run.** It is the cheapest lens and the highest-yield:
 on MAR-583 it produced 4 of 9 blocking findings, two of them invisible in the

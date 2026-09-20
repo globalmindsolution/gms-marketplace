@@ -395,8 +395,16 @@ def _read_result_from_argv():
     parser = argparse.ArgumentParser()
     parser.add_argument("--result-file", help="path to a JSON result document")
     parser.add_argument("--run", help="run id (overrides the checkout pointer)")
-    parser.add_argument("--status", choices=[s for s in RUN_STATUSES if s != "in_progress"])
-    parser.add_argument("--stop-reason")
+    # A ticket-subject run's id IS the ticket id (§4.2), so the old spelling
+    # keeps working rather than failing on an operator's muscle memory.
+    parser.add_argument("--ticket", dest="run", help=argparse.SUPPRESS)
+    # The STEP's terminal statuses, not the RUN's: this flag finalizes one
+    # invocation. `abandoned` is a run-level human decision (`acs run
+    # abandon`) and was never a status a post-hook could write.
+    parser.add_argument("--status",
+                        choices=[s for s in run_machine.STEP_STATUSES
+                                 if s != "in_progress"])
+    parser.add_argument("--stop-reason", choices=list(run_machine.STOP_REASONS))
     args = parser.parse_args()
     result = {}
     if args.result_file:
@@ -434,7 +442,7 @@ def _read_result_from_argv():
     if not result.get("status"):
         sys.stderr.write(
             "acs: result document has no 'status' — one of %s is required\n"
-            % ", ".join(s for s in RUN_STATUSES if s != "in_progress"))
+            % ", ".join(s for s in run_machine.STEP_STATUSES if s != "in_progress"))
         sys.exit(1)
     return result, args.run
 

@@ -5,8 +5,8 @@ walk gaining docs-sync between test and create-pr, and the file-content-token
 regression guard for the two mechanisms the AC-7 scope-boundary guard
 (git-history diff check, retired by MAR-162 — see
 test_code_skill_and_verifier_absent_from_this_branch_diff) used to protect:
-`code/SKILL.md`'s retained product-doc reconciliation step and
-`code-verifier.md`'s blocking Documentation dimension.
+`code/SKILL.md`'s retained product-doc reconciliation step and the blocking
+documentation check the review carries.
 
 Run:  python3 -m unittest tests.acs.test_docs_sync_pipeline_wiring -v
 """
@@ -25,7 +25,9 @@ SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
 #: delivery paths share, so what used to be one SKILL.md body is read from
 #: the reference that carries it: the execute instruction.
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "references", "execute.md")
-CODE_VERIFIER = os.path.join(PLUGIN, "agents", "code-verifier.md")
+#: The review left /acs:code for /acs:review-code in v0.5.0, so the
+#: documentation check is read where it now lives.
+REVIEW_CODE_SKILL = os.path.join(PLUGIN, "skills", "review-code", "SKILL.md")
 
 
 def read(path):
@@ -48,32 +50,32 @@ def section(body, heading):
 
 class PipelineOrderTableTest(unittest.TestCase):
     """The order MAR-160 wired into ship/SKILL.md's prose table moved into
-    workflows/ship.yaml when the skills-independence refactor landed: the
-    table is gone from the skill, and docs-sync's position is declared as a
-    step whose `needs` name code, with create-pr needing docs-sync in turn.
-    Assert the position where it now lives, not where it used to be."""
+    workflows/ship.yaml: the table is gone from the skill, and docs-sync's
+    position is the LIST's. v0.5.0 removed `needs:` with every other
+    per-step key -- the declared order IS the dependency order -- so the
+    position is asserted as an index, which is what the engine reads."""
 
     def test_ship_yaml_orders_docs_sync_after_code_and_before_create_pr(self):
-        doc = lib.load_workflow(lib.default_workflow_path())[0]
-        steps = {step["id"]: step for step in doc["steps"]}
-        self.assertIn("docs-sync", steps, "ship.yaml must declare a docs-sync step")
-        self.assertIn("code", steps["docs-sync"].get("needs") or [],
-                      "docs-sync must need code")
-        self.assertIn("docs-sync", steps["create-pr"].get("needs") or [],
-                      "create-pr must need docs-sync")
+        steps = lib.steps_of(lib.validate_workflow_file(lib.default_workflow_path()))
+        for name in ("code", "docs-sync", "create-pr"):
+            self.assertIn(name, steps, "ship.yaml must declare a %s step" % name)
+        self.assertLess(steps.index("code"), steps.index("docs-sync"),
+                        "docs-sync must follow code")
+        self.assertLess(steps.index("docs-sync"), steps.index("create-pr"),
+                        "create-pr must follow docs-sync")
 
     def test_ship_skill_no_longer_carries_a_prose_order_table(self):
         self.assertNotIn("## Pipeline order", read(SHIP_SKILL))
 
 
 class PickingNextStepWalkTest(unittest.TestCase):
-    """The walk is computed by `acs.py workflow next`; the skill delegates to
-    it instead of restating an order."""
+    """The next step is the run's cursor, printed by `acs.py run next`; the
+    skill delegates to it instead of restating an order."""
 
-    def test_the_skill_delegates_the_walk_to_workflow_next(self):
+    def test_the_skill_delegates_the_next_step_to_run_next(self):
         walk_section = section(read(SHIP_SKILL), "## The loop")
         self.assertIn("acs.py", walk_section)
-        self.assertIn("workflow next", walk_section)
+        self.assertIn("run next", walk_section)
 
     def test_the_skill_states_no_hard_coded_order(self):
         body = re.sub(r"\s+", " ", read(SHIP_SKILL))
@@ -81,8 +83,8 @@ class PickingNextStepWalkTest(unittest.TestCase):
 
 
 class Ac7ScopeBoundaryTest(unittest.TestCase):
-    """AC-7: code/SKILL.md's step 4 and code-verifier.md's dimension 11 stay
-    fully functional and untouched by this ticket."""
+    """AC-7: /acs:code's product-doc reconciliation and the review's blocking
+    documentation check stay fully functional."""
 
     def test_code_skill_and_verifier_absent_from_this_branch_diff(self):
         """MAR-160's scope-boundary carve-out guard; superseded by MAR-162,
@@ -99,8 +101,17 @@ class Ac7ScopeBoundaryTest(unittest.TestCase):
     def test_code_skill_still_has_product_doc_reconciliation_step(self):
         self.assertIn("Product-doc factual reconciliation", read(CODE_SKILL))
 
-    def test_code_verifier_still_has_blocking_documentation_dimension(self):
-        self.assertIn('severity="blocking" dimension="documentation"', read(CODE_VERIFIER))
+    def test_the_review_still_blocks_on_documentation(self):
+        """The check outlived the verifier that carried it: it is lens A's
+        acceptance scope now, and `kind` replaced the dimension number."""
+        body = re.sub(r"\s+", " ", read(REVIEW_CODE_SKILL))
+        self.assertIsNotNone(
+            re.search(r"(?i)judges the change's own documentation, and blocks "
+                      r"on it", body),
+            "the review must still block on the change's own documentation")
+        self.assertIsNotNone(
+            re.search(r"(?i)distinct from `/acs:docs-sync`", body),
+            "and must say how that differs from the docs-sync step")
 
 
 if __name__ == "__main__":
