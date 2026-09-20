@@ -285,11 +285,13 @@ def cmd_result_validate(args):
     the result document."""
     result = read_json_arg("result validate", args.result_file)
     errors = lib.validate_result(result, args.skill)
+    # A REPORT, not a refusal: the whole point is to check a document before
+    # the post-hook consumes it, so an inadmissible one is the answer rather
+    # than an error. Exit 2 is reserved for a file that could not be read,
+    # which is a usage mistake rather than a finding about the document.
     emit({"ok": not errors, "skill": args.skill, "status": result.get("status"),
           "outcome": result.get("outcome"),
           "vocabulary": lib.outcome_vocabulary(args.skill), "errors": errors})
-    if errors:
-        die("result validate", "; ".join(errors))
 
 
 # ---------------------------------------------------------------------------

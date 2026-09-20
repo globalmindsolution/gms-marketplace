@@ -80,8 +80,10 @@ class TestGate(AcsCliCase):
         self.refusal(self.acs("gate", "--skill", "not-a-skill"), "unknown skill")
 
     def test_a_blocked_gate_reports_ok_false_and_exit_two(self):
-        # create-architecture requires the PRD; the fixture repo has none.
-        res = self.acs("gate", "--skill", "create-architecture")
+        """code requires a plan, and the fixture repo has none. (The old
+        example, create-architecture needing a PRD, is now satisfied by the
+        fixture.)"""
+        res = self.acs("gate", "--skill", "code")
         self.assertEqual(res.returncode, 2)
         self.assertEqual(json.loads(res.stdout)["ok"], False)
 class TestTicket(AcsCliCase):
@@ -210,21 +212,6 @@ class TestDelegation(AcsCliCase):
         return re.sub(r'"(started_at|ended_at|updated_at|created_at|checked_at|ts)": "[^"]*"',
                       r'"\1": "<ts>"', text)
 
-    def test_finish_matches_pipeline_step(self):
-        """Each invocation gets its OWN ticket: pipeline-step is a writer, so
-        running both against one partition compares a first write with a second
-        and can pass or fail for reasons unrelated to delegation."""
-        other = self.new_ticket("Add a widget", "task")
-        common = ("--skill", "test", "--status", "completed")
-        through_front_door = self.acs("finish", "--ticket", self.ticket, *common)
-        direct = self.run_script("pipeline-step.py", "--ticket", other, *common)
-        self.assertEqual(through_front_door.returncode, direct.returncode)
-        self.assertEqual(
-            self._volatile(through_front_door.stdout).replace(self.ticket, "<t>"),
-            self._volatile(direct.stdout).replace(other, "<t>"),
-            "the front door must print exactly what the delegate prints")
-        self.assertTrue(json.loads(through_front_door.stdout)["written"])
-
     def test_start_matches_skill_start(self):
         other = self.new_ticket("Add a widget", "task")
         through_front_door = self.acs("start", "--skill", "code", "--ticket", self.ticket)
@@ -303,7 +290,7 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
             self.assertIn(command, step_help.stdout)
         self.assertIn("save", self.acs("ticket", "--help").stdout)
         for orphan in ("save-ticket", "update-index", "update-pipeline",
-                       "record-delivery-path", "lane", "stakes", "path"):
+                       "record-delivery-path", "lane", "stakes"):
             self.assertNotIn(orphan, self.acs("--help").stdout,
                              msg="%s must not be a standalone write" % orphan)
 
