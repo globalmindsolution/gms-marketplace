@@ -196,7 +196,7 @@ def cmd_step_start(args):
     """step -> in_progress, after the invariants hold. Writer for the
     PreToolUse(Skill) transition."""
     rdir, doc, _ctx, wf = _resolve_run("step start", args.run)
-    _require_step(wf, args.step, "step start")
+    in_workflow = _require_step(wf, args.step, "step start")
     try:
         # The lock, before the transition. This is the WRITER for `in_progress`
         # (§4.3), and a transition written without the lock is exactly the
@@ -215,7 +215,8 @@ def cmd_step_start(args):
         previous = lib.last_invocation(lib.load_step_state(rdir, args.step, doc["run_id"])) or {}
         reconcile = previous.get("status") in ("interrupted", "failed")
         handoff_summary = previous.get("handoff_summary") if reconcile else None
-        doc = lib.start_step(rdir, args.step, wf)
+        if in_workflow:
+            doc = lib.start_step(rdir, args.step, wf)
         # Both machines, one verb. The run records the TRANSITION and the step
         # opens the INVOCATION; a caller that got only the first would leave a
         # step in_progress with no record of the session doing it, and the
@@ -239,8 +240,9 @@ def cmd_step_start(args):
         sys.stderr.write(notice + "\n")
     entry = lib.step_entry(doc, args.step)
     emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
-          "status": entry.get("status"), "gate_enforcement": verdict,
-          "iteration": lib.iteration_of(doc, args.step, wf),
+          "status": entry.get("status") or "in_progress",
+          "in_workflow": in_workflow, "gate_enforcement": verdict,
+          "iteration": lib.iteration_of(doc, args.step, wf) if in_workflow else 1,
           "reconcile": reconcile, "handoff_summary": handoff_summary,
           "prior_status": previous.get("status")})
 
@@ -250,7 +252,7 @@ def cmd_step_finish(args):
     the run's own status. One writer owns every consequence of a step ending,
     which is what keeps them consistent."""
     rdir, doc, _ctx, wf = _resolve_run("step finish", args.run)
-    _require_step(wf, args.step, "step finish")
+    in_workflow = _require_step(wf, args.step, "step finish")
     outcome, summary, status, stop_reason = args.outcome, args.summary, args.status, args.stop_reason
     if args.no_op:
         status = "completed"
@@ -269,12 +271,14 @@ def cmd_step_finish(args):
         summary = summary or result.get("summary")
         stop_reason = stop_reason or result.get("stop_reason")
     try:
-        doc = lib.finish_step(rdir, args.step, wf, status=status, outcome=outcome,
-                              summary=summary, stop_reason=stop_reason)
+        if in_workflow:
+            doc = lib.finish_step(rdir, args.step, wf, status=status, outcome=outcome,
+                                  summary=summary, stop_reason=stop_reason)
     except lib.GateError as exc:
         die("step finish", str(exc))
     emit({"ok": True, "run_id": doc["run_id"], "step": args.step,
-          "status": lib.step_entry(doc, args.step).get("status"),
+          "status": lib.step_entry(doc, args.step).get("status") or status,
+          "in_workflow": in_workflow,
           "outcome": outcome, "cursor": doc.get("cursor"),
           "run_status": doc.get("status"),
           "loops": doc.get("loops") or {}})
@@ -289,11 +293,23 @@ def cmd_step_show(args):
 
 
 def _require_step(wf, step, command):
-    """--step validates against the RESOLVED WORKFLOW, not an argparse enum.
-    That enum was the closed skill list in its fourth place."""
-    if not lib.has_step(wf, step):
-        die(command, "%r is not a step of this workflow (%s)"
-            % (step, ", ".join(lib.steps_of(wf))))
+    """`--step` validates against the RESOLVED WORKFLOW and, failing that, the
+    SKILL DIRECTORIES. That is two open sources of truth in place of the
+    argparse enum that was the closed skill list in its fourth place.
+
+    Returns True when the workflow names it. A skill the workflow does not name
+    is not an error: `/acs:standardize-project` and the product skills are real
+    skills with real state, invoked on their own (§3.11). They keep their step
+    state -- the two machines are separate, which is what makes this possible
+    -- and record no run transition, because they have no position in a run and
+    I5 would refuse one.
+    """
+    if lib.has_step(wf, step):
+        return True
+    if not lib.is_skill(step):
+        die(command, "%r is neither a step of this workflow (%s) nor a skill "
+                     "directory" % (step, ", ".join(lib.steps_of(wf))))
+    return False
 
 
 def cmd_result_validate(args):

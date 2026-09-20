@@ -663,11 +663,17 @@ def run_post(skill):
             "%r (%s). The derived value is what was written.\n"
             % (skill, key, was, now, notes.get(key, "derived")))
 
-    doc = run_machine.finish_step(
-        rdir, skill, wf, status=status, outcome=result.get("outcome"),
-        summary=result.get("summary") or result.get("stop_reason"),
-        stop_reason=result.get("stop_reason"),
-        extra={"leg": result["leg"]} if result.get("leg") else None)
+    # The RUN transition, only for a step the workflow names. A skill invoked
+    # on its own -- `standardize-project`, the product skills -- has step state
+    # but no position in a run, and I5 refuses a `steps` entry that the
+    # workflow does not name. The two machines are separate, which is what
+    # lets the invocation above be recorded either way.
+    if workflow.has_step(wf, skill):
+        doc = run_machine.finish_step(
+            rdir, skill, wf, status=status, outcome=result.get("outcome"),
+            summary=result.get("summary") or result.get("stop_reason"),
+            stop_reason=result.get("stop_reason"),
+            extra={"leg": result["leg"]} if result.get("leg") else None)
 
     ticket_id = (doc.get("subject") or {}).get("ticket_id")
     tdir = None
@@ -682,6 +688,14 @@ def run_post(skill):
                 if skill == "create-pr" and ticket.get("status") != "done":
                     ticket["status"] = "in_review"
                     save_ticket(tdir, ticket)
+                # A delivery-ticket skill opens its OWN PR, so a recorded
+                # `states.pr` from one moves the ticket to review just as
+                # create-pr does.
+                if (skill in DELIVERY_TICKET_SKILLS
+                        and (result.get("states") or {}).get("pr")
+                        and ticket.get("status") != "done"):
+                    ticket["status"] = "in_review"
+                    save_ticket(tdir, ticket)
                 if skill == "merge-pr":
                     ticket["status"] = "done"
                     save_ticket(tdir, ticket)
@@ -691,7 +705,7 @@ def run_post(skill):
         update_metrics(
             ctx["workspace"], ctx["repo_id"], run_entry=entry,
             pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
-                        and skill == "create-pr"),
+                        and skill in (["create-pr"] + list(DELIVERY_TICKET_SKILLS))),
             pr_merged=(skill == "merge-pr" and status == "completed"),
             pr_number=pr_number,
         )
@@ -705,13 +719,21 @@ def run_post(skill):
             update_index(ctx["workspace"], ctx["repo_id"], ticket, archived=True)
     except GuardTimeout as exc:
         release_lock(rdir, cwd)
+        # The repo-level writers refuse rather than write unguarded, and they
+        # sit AFTER the run-level writes, so this is a PARTIAL step. Say
+        # exactly which half is durable -- the operator is repairing a
+        # repo-level gap, not re-running the step. What "repair" means differs
+        # by hook, which is what _POST_GUARD_REPAIR carries.
         sys.stderr.write(
             "acs post-%s: %s\n"
-            "This step's invocation, result and run.json ARE written and the lock is "
-            "released; the repo-level writes (tickets-index.json, metrics.json) are "
-            "not. This run's tokens and cost are lost from metrics.json. Do NOT "
-            "re-run this hook to repair it -- the step is already finalized, so a "
-            "second call appends a second invocation.\n" % (skill, exc))
+            "%s's invocation, result and run.json ARE written and the lock is "
+            "released; the repo-level writes (tickets-index.json, metrics.json%s) "
+            "are not. %s This run's tokens and cost are lost from metrics.json. "
+            "Do NOT re-run this hook to repair it -- the step is already "
+            "finalized, so a second call appends a second invocation.\n"
+            % (skill, exc, run_id,
+               ", and the partition archive" if skill == "merge-pr" else "",
+               _POST_GUARD_REPAIR[skill == "merge-pr"]))
         sys.exit(1)
 
     out = {"ok": True, "skill": skill, "run_id": run_id, "status": status,

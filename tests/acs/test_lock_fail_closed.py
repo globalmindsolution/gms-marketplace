@@ -341,15 +341,19 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         ticket unresumable by anyone, which is the one unrecoverable outcome."""
         ticket = self.new_ticket("Audit", "task")
         self.start("code", ticket)
-        tdir = self.tdir(ticket)
-        self.assertTrue(os.path.exists(lib.lock_path(tdir)))
+        rdir = self.rdir(ticket)
+        self.assertTrue(os.path.exists(lib.lock_path(rdir)))
         self._hold("metrics.json.lock")
         out = self.run_script("handoff.py", "--summary", "stopping here",
                               env=self._env())
         self._assert_clean_refusal(out, "handoff")
-        self.assertFalse(os.path.exists(lib.lock_path(tdir)),
+        self.assertFalse(os.path.exists(lib.lock_path(rdir)),
                          "the lock must be released even when metrics is refused")
-        self.assertEqual(lib.last_status(tdir, "code"), "handed_off")
+        # `handed_off` named a reason wearing a status (§4.3): the step is
+        # `interrupted`, and `stop_reason` says which kind of ending it was.
+        entry = lib.step_entry(lib.load_run(rdir), "code")
+        self.assertEqual(entry["status"], "interrupted")
+        self.assertEqual(entry["stop_reason"], "context_pressure")
 
     def test_session_end_releases_the_lock_even_when_metrics_refuses(self):
         """The SessionEnd net's whole job is the release, and dispatch.py
@@ -357,21 +361,24 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         held and nothing said."""
         ticket = self.new_ticket("Audit", "task")
         self.start("code", ticket)
-        tdir = self.tdir(ticket)
+        rdir = self.rdir(ticket)
         self._hold("metrics.json.lock")
         out = self.run_script("dispatch.py", "session-end",
                               stdin=json.dumps({"cwd": self.repo}),
                               env=self._env())
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertFalse(os.path.exists(lib.lock_path(tdir)),
+        self.assertFalse(os.path.exists(lib.lock_path(rdir)),
                          "the safety net must release the lock it came to release")
-        self.assertEqual(lib.last_status(tdir, "code"), "interrupted")
+        entry = lib.step_entry(lib.load_run(rdir), "code")
+        self.assertEqual(entry["status"], "interrupted")
+        self.assertEqual(entry["stop_reason"], "session_end")
 
     def test_index_guard_timeout_exits_1_names_what_landed_and_frees_the_lock(self):
         ticket = self.new_ticket("Audit", "task")
         self.start("standardize-project", ticket)
+        rdir = self.rdir(ticket)
         tdir = self.tdir(ticket)
-        self.assertTrue(os.path.exists(lib.lock_path(tdir)))
+        self.assertTrue(os.path.exists(lib.lock_path(rdir)))
 
         guard = os.path.join(lib.repo_dir(self.ws, "acme-shop"), "tickets-index.json.lock")
         open(guard, "w").close()  # fresh -> never stale, held for the whole call
@@ -386,14 +393,24 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         self.assertIn("ARE written", out.stderr)
         self.assertIn("Do NOT re-run this hook", out.stderr)
         # The half that landed really did land...
-        self.assertEqual(lib.last_status(tdir, "standardize-project"), "completed")
+        # `standardize-project` is not a step of `ship.yaml`, so it has step
+        # STATE and no run ledger entry -- the two machines are separate, and
+        # I5 refuses an entry the workflow does not name. Its invocation is
+        # what says the half that landed really landed.
+        state = lib.load_step_state(rdir, "standardize-project", ticket)
+        self.assertEqual(state["invocations"][-1]["status"], "completed")
+        self.assertEqual(lib.step_entry(lib.load_run(rdir), "standardize-project"), {})
         self.assertEqual(lib.load_ticket(tdir)["status"], "in_review")
         # ...the repo-level half did not: the index still carries the pre-call
         # status, which is the divergence the message tells the operator about.
+        # `open` is that status now -- starting a step records the RUN, not the
+        # tickets index, so nothing moved the ticket off its minted value.
         index = lib.read_json(lib.index_path(self.ws, "acme-shop")) or {}
-        self.assertEqual(index["tickets"][ticket]["status"], "in_progress")
-        # ...and the ticket is not left locked by a session that has exited.
-        self.assertFalse(os.path.exists(lib.lock_path(tdir)))
+        self.assertEqual(index["tickets"][ticket]["status"], "open")
+        self.assertNotEqual(index["tickets"][ticket]["status"],
+                            lib.load_ticket(tdir)["status"])
+        # ...and the run is not left locked by a session that has exited.
+        self.assertFalse(os.path.exists(lib.lock_path(rdir)))
         self.assertTrue(os.path.exists(guard), "the refusal must not steal the foreign guard")
 
     def test_merge_pr_names_the_archive_among_the_writes_that_did_not_happen(self):
@@ -596,7 +613,8 @@ class LockCliTest(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
         self.ticket = self.new_ticket("Ship the thing", "task")
-        self.tdir_path = self.tdir(self.ticket)
+        # The lock is the RUN's, so there has to be a run to lock (§4.2).
+        self.tdir_path = self.ensure_run(self.ticket)
 
     def _acs(self, *args):
         return self.run_script("acs.py", *args)
