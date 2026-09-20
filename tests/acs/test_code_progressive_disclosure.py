@@ -42,11 +42,20 @@ SKILLS = os.path.join(PLUGIN, "skills")
 CODE_DIR = os.path.join(SKILLS, "code")
 REFERENCES = os.path.join(CODE_DIR, "references")
 
-#: The four delivery-path legs, cheapest first, and the ceiling each declares.
-LEGS = {"code-trivial": 2, "code-small": 2, "code-standard": 3, "code-complex": 3}
+#: The four delivery-path legs, cheapest first, and the executor shape each
+#: declares. The ITERATION CEILING used to live here, one number per leg; it is
+#: `ship.yaml`'s `loops[].max_iterations` now, the same cap on every path,
+#: because it was a review property rather than an implementation one (§3.5).
+LEGS = {
+    "code-trivial": "one, always",
+    "code-small": "one, rarely two",
+    "code-standard": "one per disjoint file-map partition",
+    "code-complex": "one per disjoint file-map partition **+ an integration executor**",
+}
 
-#: The shared protocol, split by what a reader needs it for.
-SHARED = ("protocol.md", "execute.md", "verify.md", "classify.md")
+#: The shared protocol, split by what a reader needs it for. `verify.md` left
+#: with the verifier: the review is `/acs:review-code` and has its own skill.
+SHARED = ("protocol.md", "execute.md", "classify.md")
 
 #: The one pointer spelling that resolves wherever the plugin is installed.
 POINTER = re.compile(
@@ -85,7 +94,8 @@ class TheSharedProtocolExistsTest(unittest.TestCase):
         for name in SHARED:
             body = read(os.path.join(REFERENCES, name))
             for token in ("derive_lane", "verify_depth", "escalate_lane", "guard_axes",
-                          "VERIFY_ITERATION_CAP", "recommend_stakes"):
+                          "VERIFY_ITERATION_CAP", "recommend_stakes",
+                          "code-verifier", "validate_xml"):
                 with self.subTest(reference=name, symbol=token):
                     self.assertNotIn(token, body)
 
@@ -123,7 +133,7 @@ class EveryPointerResolvesTest(unittest.TestCase):
         steps. Each leg must point at the three it runs on."""
         for leg in LEGS:
             body = leg_body(leg)
-            for name in ("protocol.md", "execute.md", "verify.md"):
+            for name in ("protocol.md", "execute.md"):
                 with self.subTest(leg=leg, reference=name):
                     self.assertIn("references/%s" % name, body)
 
@@ -134,51 +144,82 @@ class EachLegDeclaresItsOwnMachineryTest(unittest.TestCase):
     sends them back to a table somewhere else -- which is the indirection the
     split removed."""
 
-    def test_each_leg_states_its_iteration_ceiling(self):
-        for leg, ceiling in LEGS.items():
+    def test_each_leg_states_its_executor_shape(self):
+        for leg, shape in LEGS.items():
             with self.subTest(leg=leg):
-                self.assertIn("**%d** execute -> verify rounds" % ceiling, leg_body(leg))
+                self.assertIn(shape, leg_body(leg))
+
+    def test_no_leg_states_an_iteration_ceiling(self):
+        """The ceiling is `ship.yaml`'s `loops[].max_iterations`, one cap for
+        every path. A leg that restated it would own a second copy of a number
+        the workflow decides -- and the four copies used to disagree, 2 on the
+        cheap paths and 3 on the deep ones, for reasons that were about the
+        REVIEW rather than about implementing."""
+        for leg in LEGS:
+            with self.subTest(leg=leg):
+                body = norm(leg_body(leg))
+                self.assertNotIn("execute -> verify rounds", body)
+                self.assertNotIn("Iteration ceiling", body)
 
     def test_the_cheap_paths_do_not_require_plan_approval(self):
         for leg in ("code-trivial", "code-small"):
             with self.subTest(leg=leg):
                 self.assertIn("Plan approval is not required", leg_body(leg))
 
-    def test_the_deep_paths_run_plan_approval_themselves(self):
-        """/acs:create-impl-plan cannot run it: it produces the artifact the
-        path is judged from, so no path exists yet when it finishes."""
+    def test_the_deep_paths_enforce_plan_approval(self):
+        """The HOOK enforces it, not the leg: a brake a coordinator applies to
+        itself is a brake the coordinator can forget. Each deep leg says so,
+        and says what makes an approval stale."""
         for leg in ("code-standard", "code-complex"):
             with self.subTest(leg=leg):
-                body = leg_body(leg)
-                self.assertIn("plan-approval.py", body)
-                self.assertIn("Plan approval is enforced", body)
+                body = norm(leg_body(leg))
+                self.assertIn("**Enforced.**", body)
+                self.assertIn("plan-approval.json", body)
+                self.assertIn("plan_sha256", body)
+                self.assertIn("An edited plan is an unapproved plan", body)
 
-    def test_only_the_complex_path_describes_the_multi_lens_spawn(self):
-        """The three single-verifier paths may (and do) say they spawn NO lens —
-        that is the useful negative. What they must not carry is the spawn
-        itself: four parallel verifiers, the lens-scoped artifacts, the merge."""
+    def test_only_the_complex_path_describes_the_integration_executor(self):
+        """This is what now separates `complex` from `standard`. Both partition
+        the file map; only `complex` runs a final pass over the SEAMS between
+        the partitions -- the concern the four-lens verifier was implicitly
+        covering, answered on the implementation side and before the review
+        rather than after it."""
         complex_body = norm(leg_body("code-complex"))
-        for token in ("4 parallel `acs:code-verifier` subagents", "verdict merge",
-                      "iter-<n>-verify-lens-"):
+        for token in ("integration executor", "union of the partitions' diffs",
+                      "intersection of their boundaries"):
             with self.subTest(token=token):
                 self.assertIn(token, complex_body)
         for leg in ("code-trivial", "code-small", "code-standard"):
             body = norm(leg_body(leg))
-            for token in ("4 parallel", "verdict merge", "iter-<n>-verify-lens-"):
-                with self.subTest(leg=leg, token=token):
-                    self.assertNotIn(token, body,
-                                     "%s is a single-verifier path; carrying the "
-                                     "multi-lens spawn is the drift this catches" % leg)
-            self.assertIn("no lens constraint", body,
-                          "%s should say plainly that it spawns no lens" % leg)
+            with self.subTest(leg=leg):
+                self.assertNotIn("integration executor", body,
+                                 "%s does not run one; carrying the prose is the "
+                                 "drift this catches" % leg)
 
-    def test_only_the_deep_paths_carry_the_ship_context_boundary(self):
-        for leg in ("code-standard", "code-complex"):
-            with self.subTest(leg=leg):
-                self.assertIn("full_verify_stop", leg_body(leg))
-        for leg in ("code-trivial", "code-small"):
-            with self.subTest(leg=leg):
-                self.assertNotIn("full_verify_stop", leg_body(leg))
+    def test_no_leg_spawns_or_sizes_a_reviewer(self):
+        """Every path gets the same review, and the reviewer measures itself
+        from the diff. A leg that named a lens count would be declaring a
+        property that is not its to declare (§3.6)."""
+        for leg in LEGS:
+            body = norm(leg_body(leg))
+            for token in ("code-verifier", "4 parallel", "verdict merge",
+                          "acs:review-code-lens", "spawn the review"):
+                with self.subTest(leg=leg, token=token):
+                    self.assertNotIn(token, body)
+            # Describing the review it will receive is fine and useful; sizing
+            # it is not. The reviewer measures the changeset itself.
+            self.assertIn("you neither size it nor spawn it", body)
+
+    def test_every_leg_carries_the_loop_contract(self):
+        """A leg is half of a loop. On iteration 2+ it answers every confirmed
+        finding by id, and there is no third option -- so every leg says so,
+        not just the ones a reader happens to open."""
+        for leg in LEGS:
+            body = norm(leg_body(leg))
+            for token in ("resolutions", "resolved_when", "disputed",
+                          "since_sha", "verdict.json"):
+                with self.subTest(leg=leg, token=token):
+                    self.assertIn(token, body)
 
     def test_no_leg_re_derives_its_own_path(self):
         """A leg is dispatched TO. One that decided its own path would make the
@@ -195,29 +236,31 @@ class TheSharedProtocolIsSharedNotCopiedTest(unittest.TestCase):
     def test_the_legs_do_not_restate_the_start_command(self):
         for leg in LEGS:
             with self.subTest(leg=leg):
-                self.assertNotIn("skill-start.py --skill code", leg_body(leg),
+                self.assertNotIn("step start --step code", leg_body(leg),
                                  "Start belongs to references/protocol.md; a leg that "
                                  "restates it owns a second copy that can drift")
 
     def test_the_shared_protocol_carries_start_branch_and_finish(self):
         body = read(os.path.join(REFERENCES, "protocol.md"))
-        for token in ("skill-start.py --skill code", "## Branch", "## Finish",
+        for token in ("step start --step code", "## Branch", "## Finish",
                       "## Completion report"):
             with self.subTest(section=token):
                 self.assertIn(token, body)
 
-    def test_the_agent_names_live_in_the_shared_protocol(self):
-        """All four legs spawn the same two agents; they declare no agents of
-        their own in phases.yaml, so the names belong in one place."""
+    def test_the_agent_name_lives_in_the_shared_protocol(self):
+        """All four legs spawn the same ONE agent -- the verifier left with the
+        review -- and they own no agent files themselves, so the name belongs
+        in one place."""
         body = read(os.path.join(REFERENCES, "protocol.md"))
-        for agent in ("acs:code-executor", "acs:code-verifier"):
-            with self.subTest(agent=agent):
-                self.assertIn(agent, body)
+        self.assertIn("acs:code-executor", body)
+        self.assertNotIn("acs:code-verifier", body)
 
-    def test_no_leg_restates_the_review_dimensions(self):
+    def test_no_leg_restates_the_review(self):
         for leg in LEGS:
             with self.subTest(leg=leg):
-                self.assertNotIn("**Acceptance-criteria conformance**", leg_body(leg))
+                body = leg_body(leg)
+                self.assertNotIn("**Acceptance-criteria conformance**", body)
+                self.assertNotIn("## The dimensions", body)
 
 
 class TheDispatcherDispatchesTest(unittest.TestCase):
@@ -230,8 +273,9 @@ class TheDispatcherDispatchesTest(unittest.TestCase):
 
     def test_it_reads_the_recorded_path_rather_than_judging_by_default(self):
         body = norm(read(os.path.join(CODE_DIR, "SKILL.md")))
-        self.assertIn("recorded_delivery_path", body)
-        self.assertIn("judged once, from the plan, and recorded", body)
+        self.assertIn("plan_contract", body)
+        self.assertIn("## Contract", body)
+        self.assertIn("judged once, by the plan, and recorded in it", body)
 
     def test_it_refuses_a_path_passed_as_an_argument(self):
         self.assertIn("Never pass a path as an argument",
