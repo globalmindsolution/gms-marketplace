@@ -129,4 +129,3 @@ gets its failing test first.
 as additional evidence and rules again, and a finding disputed then confirmed a
 second time stops the run with `stop_reason: needs_input` so a human breaks the
 tie.
-

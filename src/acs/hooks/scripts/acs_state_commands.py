@@ -502,4 +502,3 @@ def cmd_result_validate(args):
     emit({"ok": not errors, "skill": args.skill, "status": result.get("status"),
           "outcome": result.get("outcome"),
           "vocabulary": lib.outcome_vocabulary(args.skill), "errors": errors})
-

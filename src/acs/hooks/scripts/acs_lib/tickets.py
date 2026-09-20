@@ -138,4 +138,3 @@ def update_index(workspace, repo_id, ticket, archived=None):
 # ---------------------------------------------------------------------------
 # Locking (.lock per ticket partition; re-entrant per checkout)
 # ---------------------------------------------------------------------------
-
