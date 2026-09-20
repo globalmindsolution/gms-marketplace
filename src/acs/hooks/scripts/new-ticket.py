@@ -151,6 +151,10 @@ def main():
     # "create-ticket completed" is no longer a thing downstream gates read --
     # the ticket partition existing IS the ticket having been created, which
     # is what the gates checked all along.
+    #
+    # A child minted here therefore never re-runs /acs:create-ticket: its
+    # pipeline starts at /acs:code (via /acs:ship <child-id>), inheriting the
+    # EPIC's design rather than settling one of its own.
 
     if parent_ticket is not None:
         children = parent_ticket.setdefault("children", [])

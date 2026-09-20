@@ -173,19 +173,19 @@ class FanOutSectionExistsAndNamesTheFlagCase(unittest.TestCase):
 
 
 class FanOutStartResolvesExistingPartitionWithoutAllocateCase(unittest.TestCase):
-    """AC-1: Start uses skill-start.py --skill create-ticket --ticket, and
-    the shown command never carries --allocate (id-burn guard,
-    skill-start.py:132-144) -- checked on the actual command line, not on
-    whether the section discusses --allocate in prose (the split mode above
-    legitimately says "no --allocate" in words)."""
+    """AC-1: Start uses `acs step start --step create-ticket --run <epic>`,
+    and the shown command never carries --allocate (the id-burn guard) --
+    checked on the actual command line, not on whether the section discusses
+    --allocate in prose (the split mode above legitimately says "no
+    --allocate" in words)."""
 
     def test_fan_out_start_resolves_existing_partition_without_allocate(self):
         section = fan_out_section()
-        m = re.search(r"skill-start\.py[^\n`]*", section)
-        self.assertIsNotNone(m, "section must show the skill-start.py command")
+        m = re.search(r"acs\.py step start[^\n`]*", section)
+        self.assertIsNotNone(m, "section must show the `acs step start` command")
         cmd = norm(m.group(0))
-        self.assertIn("--skill create-ticket", cmd)
-        self.assertIn("--ticket", cmd)
+        self.assertIn("--step create-ticket", cmd)
+        self.assertIn("--run", cmd)
         self.assertNotIn("--allocate", cmd)
 
 
@@ -332,9 +332,9 @@ class NewTicketChildPipelineCommentNamesCodeCase(unittest.TestCase):
 
 
 class SecondCreateTicketRunOnAnExistingEpicCase(acs_case.AcsWorkspaceCase):
-    """AC-1: the fan-out mode's own Start command (skill-start.py --skill
-    create-ticket --ticket <epic>, no --allocate) resolves the existing
-    epic -- allocates no new id, mints no new partition."""
+    """AC-1: the fan-out mode's own Start command (`acs step start --step
+    create-ticket --run <epic>`, no --allocate) resolves the existing epic --
+    allocates no new id, mints no new partition."""
 
     def test_second_create_ticket_run_on_an_existing_epic_allocates_no_new_id(self):
         epic = self.new_ticket("Wishlist epic", "epic")
@@ -353,41 +353,54 @@ class SecondCreateTicketRunOnAnExistingEpicCase(acs_case.AcsWorkspaceCase):
 
 
 class FannedOutChildNeverRerunsCreateTicketCase(acs_case.AcsWorkspaceCase):
-    """AC-3, executable half: a child minted via new-ticket.py --parent has
-    a completed create-ticket run recorded for it -- it never reruns
-    /acs:create-ticket itself."""
+    """AC-3, executable half: a child minted via new-ticket.py --parent never
+    reruns /acs:create-ticket itself.
+
+    It used to be asserted as a COMPLETED create-ticket run recorded against
+    the child. Under the re-key a ticket is a run SUBJECT, not a run, so
+    minting one records nothing at all -- the partition existing IS the
+    ticket having been created, which is what every gate checked anyway. The
+    stronger form of "never reruns it" is therefore that no run exists over
+    the child and none is needed: its pipeline starts at /acs:code."""
 
     def test_fanned_out_child_never_reruns_create_ticket(self):
         epic = self.new_ticket("Wishlist epic", "epic")
         child = self.new_ticket("Wishlist API", "story", "--parent", epic,
                                  "--needs-design", "false")
-        child_tdir = self.tdir(child)
-        self.assertTrue(lib.skill_completed(child_tdir, "create-ticket"))
+        self.assertTrue(os.path.isdir(self.tdir(child)))
+        self.assertIsNone(lib.load_run(self.rdir(child)))
+        source = read(os.path.join(HOOKS_DIR, "new-ticket.py"))
+        self.assertIn("No run ledger is written here", source)
 
 
 class FanOutRunLeavesEpicCreateTicketStepCompletedCase(acs_case.AcsWorkspaceCase):
-    """AC-1: after a second skill-start + post-create-ticket.py cycle on the
-    epic (the fan-out run), skill_completed(epic_tdir, "create-ticket") is
-    still True -- the ledger the `workflow next` walk and /acs:metrics read
-    (no gate consults it since the skills-independence refactor)."""
+    """AC-1: after a second start + post-create-ticket.py cycle on the epic
+    (the fan-out run), the epic's `create-ticket` INVOCATION is recorded
+    completed -- the record /acs:metrics reads.
+
+    On the STEP machine, not the run ledger: `create-ticket` is not a step of
+    `ship.yaml`, and I5 refuses a `steps` entry the workflow does not name.
+    The two machines are separate, which is exactly what lets a skill the
+    workflow never runs keep a full invocation history."""
 
     def test_fan_out_run_leaves_the_epic_create_ticket_step_completed(self):
         epic = self.new_ticket("Wishlist epic", "epic")
-        epic_tdir = self.tdir(epic)
 
         start = self.start("create-ticket", epic)
         self.assertEqual(start.returncode, 0, start.stderr)
 
         post = self.post("create-ticket", epic, {
             "status": "completed",
-            "stop_reason": "fan-out run: no new children confirmed",
+            "summary": "fan-out run: no new children confirmed",
             "states": {
                 "ticket_id": epic, "type": "epic", "needs_design": True,
                 "children": [], "prd_trace": {"feature": None, "divergence": None},
             },
         })
         self.assertEqual(post.returncode, 0, post.stderr)
-        self.assertTrue(lib.skill_completed(epic_tdir, "create-ticket"))
+        rdir = self.rdir(epic)
+        self.assertEqual(lib.last_status(rdir, "create-ticket"), "completed")
+        self.assertNotIn("create-ticket", lib.load_run(rdir)["steps"])
 
 
 # --------------------------------------------------------------------- G1-G7

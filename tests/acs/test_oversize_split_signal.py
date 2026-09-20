@@ -49,7 +49,9 @@ REQ_NON_FUNCTIONAL = os.path.join(REPO_ROOT, "docs", "requirements", "non-functi
 # that MUST survive verbatim somewhere under docs/requirements/{functional,non-functional}/.
 PINNED_CLAUSES = (
     "- MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,",
-    "- MUST escalate an **oversized ticket** instead of producing a monster spec",
+    # "monster spec" became "monster plan" when the spec fold finished: the
+    # plan IS the spec content, so there is no second artifact to oversize.
+    "- MUST escalate an **oversized ticket** instead of producing a monster plan",
     "`/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept",
 )
 
@@ -147,7 +149,7 @@ class SplitEvidenceContractIdentityTest(unittest.TestCase):
         cls.split_section = create_ticket_split_section()
 
     def test_planner_clause_names_plan_artifact_path_token(self):
-        self.assertIn("phases/create-impl-plan/plan.md", self.item2)
+        self.assertIn("steps/create-impl-plan/plan.md", self.item2)
 
     def test_split_section_names_same_artifact(self):
         """Both sites name the ticket's plan artifact as the evidence source.

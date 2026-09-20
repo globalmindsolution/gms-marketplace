@@ -1128,14 +1128,14 @@ are stated here because `/code`'s execute phase anchors on their outputs:
 - MUST escalate an **oversized ticket** instead of producing a monster plan:
   when an honest decomposition exceeds ~4 executor tasks (or the surface
   clearly exceeds a reviewable diff), stop, record the split seams, and route
-  to `/create-ticket split <id>` (user-confirmed); the user MAY explicitly
-  accept one large PR, recorded as a clarification. Implemented as a two-lever
+  to `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
+  one large PR, recorded as a clarification. Implemented as a two-lever
   control after ADR 0066 (ADR 0069): `/create-ticket`'s upfront PR-size rubric
   fires before any decomposition exists; a non-blocking, plan-time oversize
   signal in the survey's charter item 2 fires once the decomposition itself is
   known, reusing the plan-simplicity gate's "surface, never block" contract to
   raise the same question through the clarification ledger. On a "split"
-  answer the step ends `failed` with a `stop_reason` naming the split, runs
+  answer the step ends `"failed"` with a `summary` naming the split, runs
   its mandatory Finish steps, and points at `/acs:create-ticket split <id> per
   steps/create-impl-plan/plan.md`.
 - **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by

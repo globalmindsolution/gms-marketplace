@@ -22,10 +22,10 @@ new — it mints the child story/task tickets of an EXISTING, already-created
 epic, after that epic's own design is approved. Resulting precedence:
 `--fan-out` -> split -> remote import -> raw request.
 
-1. **Start.** `acs step start --skill create-ticket --ticket <epic-id>` — no
-   `--allocate`: the epic's partition already exists, and this run is
-   recorded as a second `create-ticket` run against it (mirroring the split
-   mode's Start below).
+1. **Start.** `acs.py step start --step create-ticket --run <epic-id>` — no
+   `--allocate`: the epic's partition already exists, and this invocation is
+   recorded as a second `create-ticket` invocation against it (mirroring the
+   split mode's Start below).
 2. **Type refusal.** When the resolved ticket's `type` is not `epic`, stop
    with a message explaining `--fan-out` applies to epics only — this mode
    mints an epic's children, never a story or task's own children. This
