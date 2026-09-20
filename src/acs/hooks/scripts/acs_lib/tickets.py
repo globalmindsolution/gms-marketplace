@@ -9,6 +9,7 @@ keeping the index — and knows nothing about runs.
 import fnmatch
 import os
 import re
+import sys
 
 from ._common import (GateError, ReconciliationRequired, TICKET_ID_RE,
     now_iso, read_json, write_json)

@@ -51,14 +51,20 @@ class TestAttributionSkillMap(unittest.TestCase):
 
 
 class TestSessionMarkerPath(unittest.TestCase):
-    """session_marker_path is a sibling of the existing per-checkout pointer:
-    same sessions/ directory, `<ckid>-session.json` rather than `<ckid>.json`."""
+    """session_marker_path is a sibling of the per-checkout pointer.
+
+    The checkout's files moved from flat `sessions/<ckid>*.json` names into a
+    directory of their own, `sessions/<ckid>/`, so the marker is
+    `session.json` beside `pointer.json` rather than `<ckid>-session.json`
+    beside `<ckid>.json`. Sibling-ness is the property under test, and it is
+    unchanged."""
 
     def test_sibling_of_pointer_path(self):
         pointer = lib.pointer_path("/ws", "acme-shop", "shop-ab12cd34")
         marker = lib.session_marker_path("/ws", "acme-shop", "shop-ab12cd34")
         self.assertEqual(os.path.dirname(marker), os.path.dirname(pointer))
-        self.assertEqual(os.path.basename(marker), "shop-ab12cd34-session.json")
+        self.assertEqual(os.path.basename(marker), "session.json")
+        self.assertEqual(os.path.basename(os.path.dirname(marker)), "shop-ab12cd34")
 
 
 class TestRecordSessionMarker(AcsWorkspaceCase):
@@ -106,8 +112,12 @@ class TestRecordSessionMarker(AcsWorkspaceCase):
 
 
 class TestAppendInProgressRunSession(unittest.TestCase):
-    """append_in_progress_run gains an optional session=None parameter; the
-    default leaves every existing caller's entry shape byte-identical."""
+    """append_invocation gains an optional session=None parameter; the
+    default leaves every existing caller's entry shape byte-identical.
+
+    The step machine's list is `invocations` (one session's attempt at this
+    step), not `runs`: a RUN is the whole pass over the workflow now, so
+    calling a step's attempts runs made the two machines share a word."""
 
     def setUp(self):
         self.tdir = tempfile.mkdtemp(prefix="acs-test-")
@@ -115,35 +125,39 @@ class TestAppendInProgressRunSession(unittest.TestCase):
 
     def test_default_session_none_leaves_entry_shape_unchanged(self):
         state = lib.append_invocation(self.tdir, "code", "SHOP-1")
-        entry = state["runs"][-1]
+        entry = state["invocations"][-1]
         self.assertNotIn("session_id", entry)
         self.assertNotIn("transcript_path", entry)
-        self.assertEqual(set(entry.keys()),
-                         {"started_at", "ended_at", "tokens", "cost_usd", "status", "stop_reason"})
+        # An OPEN invocation carries only what is known at the start. The
+        # terminal fields (ended_at, status, tokens, cost_usd, stop_reason)
+        # are written by finalize_invocation -- pre-filling them with nulls
+        # made an abandoned invocation indistinguishable from a measured one.
+        self.assertEqual(set(entry.keys()), {"started_at", "status"})
+        self.assertEqual(entry["status"], "in_progress")
 
     def test_session_marker_persists_session_id_and_transcript_path(self):
         marker = {"session_id": "sess-abc", "transcript_path": "/tmp/sess-abc.jsonl"}
         state = lib.append_invocation(self.tdir, "code", "SHOP-1", session=marker)
-        entry = state["runs"][-1]
+        entry = state["invocations"][-1]
         self.assertEqual(entry["session_id"], "sess-abc")
         self.assertEqual(entry["transcript_path"], "/tmp/sess-abc.jsonl")
 
-    def test_new_ticket_py_real_call_site_unaffected(self):
-        """new-ticket.py:117 calls append_invocation(tdir, "create-ticket",
-        ticket_id) with no session argument -- grounds the "existing callers keep
-        working" claim against the actual second call site, not just this
-        module's own fixtures."""
+    def test_new_ticket_py_opens_no_invocation_at_all(self):
+        """new-ticket.py used to open a `create-ticket` invocation as it minted
+        the ticket. Under the re-key a ticket is a SUBJECT a run may later be
+        started over, not a run of its own, so minting one opens nothing: the
+        partition existing IS the ticket having been created. Grounded against
+        the real call site, not just this module's fixtures."""
         with open(os.path.join(SCRIPTS, "new-ticket.py")) as fh:
             body = fh.read()
-        self.assertIn('lib.append_invocation(tdir, "create-ticket", ticket_id)', body)
-        state = lib.append_invocation(self.tdir, "create-ticket", "SHOP-2")
-        self.assertNotIn("session_id", state["runs"][-1])
+        self.assertNotIn("append_invocation", body)
+        self.assertIn("No run ledger is written here", body)
 
 
 class TestStalenessGuardFieldContract(unittest.TestCase):
-    """The staleness/cross-session guard itself lives in skill-start.py and is
-    exercised end-to-end in test_skill_start.py; this just pins the marker's
-    on-disk field names the guard depends on (checkout_id, updated_at)."""
+    """The staleness/cross-session guard itself lives in `acs step start` and
+    is exercised end-to-end there; this just pins the marker's on-disk field
+    names the guard depends on (checkout_id, updated_at)."""
 
     def test_marker_carries_checkout_id_and_updated_at(self):
         tmp = tempfile.mkdtemp(prefix="acs-test-")

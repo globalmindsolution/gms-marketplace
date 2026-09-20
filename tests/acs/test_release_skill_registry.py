@@ -66,32 +66,35 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
             msg="'release' must NOT be miscategorized into WORKFLOW_SKILLS",
         )
 
-    def test_release_not_in_gates(self):
+    def test_release_is_not_gated(self):
+        # There is no per-skill gate table any more: `gate_step` gates a step
+        # of the resolved workflow, and an unhooked utility skill is not one.
+        # Not being in HOOKED_SKILLS IS not being gated.
         self.assertNotIn(
-            "release", lib.HOOKED_SKILLS,
-            msg="'release' must NOT have a GATES entry — no synthetic "
-                "predecessor gate for an unhooked utility skill (AC-1)",
+            "release", acs_lib.HOOKED_SKILLS,
+            msg="'release' must NOT be gated — no synthetic predecessor gate "
+                "for an unhooked utility skill (AC-1)",
         )
+        wf = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
+        self.assertFalse(acs_lib.has_step(wf, "release"))
 
-    def test_unhooked_skills_count_is_eleven(self):
+    def test_unhooked_skills_count(self):
         # MAR-1: /acs:create-docs registers in UNHOOKED_SKILLS, 9 -> 10. The
-        # skills-independence refactor adds run-e2e-tests (today's `test`
-        # renamed) beside the retained `test` alias, 10 -> 11. The design-phase
-        # entry-point fold adds the `project` umbrella, 11 -> 12.
-        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 11)
+        # skills-independence refactor added run-e2e-tests beside the retained
+        # `test` alias, 10 -> 11; the design-phase entry-point fold added the
+        # `project` umbrella, 11 -> 12. v0.5.0 retired the `test` alias and
+        # promoted run-e2e-tests to a hooked step of its own, and create-docs
+        # moved to PRODUCT_SKILLS, 12 -> 9.
+        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 9)
 
-    def test_hooked_skills_count_is_seventeen(self):
+    def test_hooked_skills_count(self):
         # Literal advances as later producer children register (MAR-143:
         # create-requirements, 14 -> 15; MAR-156: create-spec deleted, 15 -> 14;
         # MAR-160: docs-sync registered, 14 -> 15; the skills-independence
-        # refactor hooks the five Build/Test skills, 15 -> 20) — /acs:release
-        # itself adds none.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 17)
-
-    def test_gates_count_is_seventeen(self):
-        # One gate per hooked skill; see test_hooked_skills_count_is_seventeen —
-        # /acs:release itself adds none.
-        self.assertEqual(len(lib.HOOKED_SKILLS), 17)
+        # refactor hooks the five Build/Test skills, 15 -> 17; v0.5.0 adds
+        # review-code and run-e2e-tests, 17 -> 19) — /acs:release itself adds
+        # none.
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 19)
 
     def test_no_pre_or_post_release_script_on_disk(self):
         self.assertFalse(

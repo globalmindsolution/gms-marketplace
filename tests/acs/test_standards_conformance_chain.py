@@ -176,31 +176,38 @@ class ContractsMdSettingsKeysTest(unittest.TestCase):
                        "standards_path")
 
 
-class SkillsMdCodeVerifierDimensionTest(unittest.TestCase):
-    """AC-6: the code-verifier living-requirements bullet in skills.md
-    names the standards/ doc set + fallback as the source of truth for the
-    re-anchored technical-standards dimension."""
+class SkillsMdReviewLensDimensionTest(unittest.TestCase):
+    """AC-6: the changeset-review bullet in skills.md names the standards/
+    doc set as the source of truth for the re-anchored technical-standards
+    check.
+
+    The review moved from a `code-verifier` dimension to `/acs:review-code`'s
+    lens E, so the bullet moved with it. The property is the same one: the
+    doc must say WHERE the standard being conformed to comes from, or a
+    reader has no way to tell whether "craft" means the repo's rules or the
+    reviewer's taste."""
 
     def _bullet_window(self):
         body = read(SKILLS_MD)
-        m = re.search(r"(?m)^- The `code-verifier` MUST review the changeset.*$", body)
+        m = re.search(r"(?m)^\s*\d+\. \*\*Five read-only lenses in parallel\*\*.*$",
+                      body)
         self.assertIsNotNone(
-            m, "skills.md must have the code-verifier MUST-review bullet")
-        nxt = re.search(r"(?m)^- ", body[m.end():])
+            m, "skills.md must have the five-lenses review stage")
+        nxt = re.search(r"(?m)^\s*\d+\. \*\*", body[m.end():])
         end = m.end() + nxt.start() if nxt else len(body)
         return norm(body[m.start():end])
 
-    def test_bullet_retains_technical_standards_label(self):
+    def test_bullet_retains_the_craft_and_scope_label(self):
         window = self._bullet_window()
-        self.assertIn("technical standards", window.lower(),
-                       "the bullet must still name technical standards")
+        self.assertIn("craft and scope", window.lower(),
+                       "the stage must still name the craft-and-scope lens")
 
     def test_bullet_names_standards_source_of_truth(self):
         window = self._bullet_window()
         self.assertTrue(
             "standards_path" in window or "`standards/`" in window,
-            "the code-verifier bullet must name standards_path or "
-            "`standards/` as the re-anchored dimension's source of truth")
+            "the review stage must name standards_path or `standards/` as "
+            "the re-anchored check's source of truth")
 
 
 class SkillsMdCreateDesignVerifierDimensionTest(unittest.TestCase):
@@ -233,23 +240,26 @@ class SkillsMdCreateDesignVerifierDimensionTest(unittest.TestCase):
 
 
 class ReflectionMdDimensionTest(unittest.TestCase):
-    """AC-6: reflection.md's broadest-scope Note gains the same
-    standards/-doc-set + fallback parenthetical as skills.md."""
+    """AC-6: reflection.md's broadest-scope Note carries the same
+    standards/-doc-set + fallback parenthetical as skills.md.
+
+    The Note's subject is the changeset review rather than a `code-verifier`
+    dimension, since v0.5.0 made the review a step of its own."""
 
     def _note_window(self):
         body = read(REFLECTION_MD)
-        m = re.search(r"the `code-verifier` carries the broadest verification scope", body)
+        m = re.search(r"the \*\*changeset review\*\* carries the broadest scope", body)
         self.assertIsNotNone(
-            m, "reflection.md must have the broadest-verification-scope Note")
+            m, "reflection.md must have the broadest-scope Note")
         start = body.rfind("\n", 0, m.start()) + 1
         nxt = re.search(r"(?m)^>\s*$", body[m.end():])
         end = m.end() + nxt.start() if nxt else len(body)
         return norm(body[start:end])
 
-    def test_note_retains_technical_standards_label(self):
+    def test_note_retains_the_craft_and_scope_label(self):
         window = self._note_window()
-        self.assertIn("technical standards", window.lower(),
-                       "the Note must still name technical standards")
+        self.assertIn("simplicity & scope", window.lower(),
+                       "the Note must still name the craft lens's scope check")
 
     def test_note_names_standards_source_of_truth(self):
         window = self._note_window()
