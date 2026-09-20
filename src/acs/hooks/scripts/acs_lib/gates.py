@@ -254,6 +254,21 @@ def resolve_run_for(ctx, skill, payload):
             sessions.save_pointer(repo, ctx["checkout_id"], run_id=row["run_id"],
                                   checkout_path=ctx.get("checkout_root"))
             return rdir, run_machine.require_run(rdir), wf
+        # A ticket SUBJECT must be a ticket that exists. A prompt or a document
+        # carries its own content, so a run over one is self-describing; a
+        # ticket id is a REFERENCE, and minting a run over a reference to
+        # nothing produces a run whose subject cannot be read -- discovered
+        # several steps later, by whichever step first needs `ticket.json`.
+        # Refuse here, where the message can still name the skill that makes
+        # one. (A token that is not a ticket id is a prompt, so this never
+        # catches `/acs:code "fix the login timeout"`.)
+        tdir, _archived = find_ticket_partition(
+            ctx["workspace"], ctx["repo_id"], subject["ticket_id"])
+        if not os.path.isdir(tdir):
+            raise GateError(
+                "no ticket %s in this repo's workspace — run /acs:create-ticket "
+                "to make one, or give /acs:%s a prompt or a document instead."
+                % (subject["ticket_id"], skill))
 
     run_id, rdir, doc = run_machine.create_run(repo, subject, wf, wf_path)
     sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id,

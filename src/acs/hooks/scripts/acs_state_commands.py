@@ -323,6 +323,23 @@ def cmd_step_start(args):
         # id IS the ticket id (§4.2). Without this the step has a subject and
         # nowhere to record itself, which is what "no run 'SHOP-1'" meant.
         _ensure_run_for_ticket(ctx, ticket_id)
+    elif getattr(args, "ticket", None) and not args.run:
+        # `--ticket` NAMES THE SUBJECT (§3.11), and every skill must work when
+        # invoked on its own with one. A checkout that has never pointed
+        # anywhere has no current run, so resolving through the pointer here
+        # refused a caller who HAD said which subject they meant -- the exact
+        # case the standalone rule exists for. The run whose subject is that
+        # ticket is created when absent and pointed at: the same idempotent
+        # step `--allocate` takes, minus the minting, because the ticket is
+        # already there. The partition is resolved FIRST, so an unknown or
+        # archived id is refused rather than given a run over nothing.
+        try:
+            ticket_id, _tdir, _archived = lib.resolve_active_partition(
+                os.getcwd(), ctx, explicit=args.ticket.strip())
+        except lib.GateError as exc:
+            die("step start", str(exc))
+        args.run = ticket_id
+        _ensure_run_for_ticket(ctx, ticket_id)
     rdir, doc, _ctx, wf = _resolve_run("step start", args.run)
     in_workflow = _require_step(wf, args.step, "step start")
     try:

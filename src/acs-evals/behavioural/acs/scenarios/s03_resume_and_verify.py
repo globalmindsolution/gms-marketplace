@@ -103,10 +103,8 @@ def run():
         check.ok("resumed from state: wired /health (never named in prompt)",
                  _repo_mentions(sb.repo, "/health"))
 
-        # pipeline advanced code -> completed
-        ps = sb.ticket_json(tid, "pipeline-state.json")
-        check.eq("code step completed",
-                 ps.get("steps", {}).get("code", {}).get("status"), "completed")
+        # the step machine advanced code -> completed
+        check.eq("code step completed", sb.last_status(tid, "code"), "completed")
 
         # G3: the create-pr brake only opens for a code run whose verifier
         # passed — a red verifier is the one thing that still refuses.

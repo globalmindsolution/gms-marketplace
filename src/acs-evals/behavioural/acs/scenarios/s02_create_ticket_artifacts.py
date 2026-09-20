@@ -50,10 +50,11 @@ def run():
         check.eq("ticket type is task", t.get("type"), "task")
         check.eq("needs_design is false", t.get("needs_design"), False)
 
-        # Pipeline state advanced create-ticket to completed.
-        ps = sb.ticket_json(tid, "pipeline-state.json")
-        step = ps.get("steps", {}).get("create-ticket", {})
-        check.eq("create-ticket step completed", step.get("status"), "completed")
+        # The STEP machine advanced create-ticket to completed. State is keyed
+        # by run now, and a step's own file holds its invocations (ADR-0097);
+        # `pipeline-state.json` is gone.
+        check.eq("create-ticket step completed",
+                 sb.last_status(tid, "create-ticket"), "completed")
 
         # The /acs:code gate is an INPUT check, not an order check (the
         # skills-independence refactor): with the ticket created but nothing
