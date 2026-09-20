@@ -166,6 +166,18 @@ def _brake_create_pr(ctx, rdir, doc, wf):
     return None
 
 
+def _merge_pr_arg_text(payload):
+    """The raw argument string, read the same way subject_from_payload reads
+    it. /acs:merge-pr's exempt non-ticket forms (--pr N, #N, a PR URL) are
+    parsed from this before any run is resolved: an exempt PR merge is not a
+    step of a run and must not create one."""
+    tool_input = payload.get("tool_input") or {}
+    for key in ("args", "arguments", "argument"):
+        if isinstance(tool_input.get(key), str):
+            return tool_input[key]
+    return ""
+
+
 def _sha256_file(path):
     import hashlib
     digest = hashlib.sha256()
@@ -210,7 +222,19 @@ def gate_step(ctx, skill, payload, standalone=True):
     manifests = skills_registry.load_manifests()
     if skill in ARCHITECTURE_GATED:
         _require_architecture_doc_set(ctx)
-    if not skills_registry.is_step_candidate(skill, manifests):
+
+    # Only the skills the RESOLVED WORKFLOW runs go through a run. A skill
+    # that declares reads/writes but is not a step of this workflow is a
+    # skill someone invoked on its own -- and the design and product skills
+    # (create-prd, create-architecture, create-ticket) are never steps of
+    # `ship` at all. `create-ticket` in particular MAKES a subject; requiring
+    # it to name one first would be circular.
+    try:
+        resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
+        wf = workflow.validate_workflow_file(resolved["path"])
+    except WorkflowError as exc:
+        raise GateError("the workflow does not validate: %s" % exc)
+    if not workflow.has_step(wf, skill):
         return None
 
     rdir, doc, wf = resolve_run_for(ctx, skill, payload)

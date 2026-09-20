@@ -107,6 +107,7 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetR
 from .gate_inputs import e2e_case_count  # noqa: F401
 from .gates import (ARCHITECTURE_GATED, BRAKES, NothingOwed,  # noqa: F401
     _archive_partition, _clear_pointers_for_ticket, _epic_auto_done,
+    _merge_pr_arg_text,
     _read_result_from_argv, _require_architecture_doc_set, build_context,
     design_requirement, gate_step, parent_epic_dir, resolve_run_for, run_post,
     run_post_exempt_pr, run_pre, run_pre_payload, session_end,
@@ -173,7 +174,7 @@ from .run import load_index as load_runs_index  # noqa: F401
 
 from . import sessions  # noqa: F401,E402
 from .sessions import (checkout_dir, current_step, load_pointer,  # noqa: F401
-    save_pointer, sessions_dir)
+    save_pointer, sessions_root)
 
 from . import plan_contract  # noqa: F401,E402
 from . import stepgate  # noqa: F401,E402

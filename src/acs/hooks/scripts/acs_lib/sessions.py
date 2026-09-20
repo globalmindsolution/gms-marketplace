@@ -28,12 +28,15 @@ COST_FILENAME = "cost.jsonl"
 RUNTIME_FILENAME = "runtime.json"
 
 
-def sessions_dir(repo_dir_path):
+def sessions_root(repo_dir_path):
+    """Named `sessions_root`, not `sessions_dir`: `repo.sessions_dir` already
+    means this directory addressed by (workspace, repo_id), and two functions
+    with one name and different arguments is how a facade starts lying."""
     return os.path.join(repo_dir_path, SESSIONS_DIRNAME)
 
 
 def checkout_dir(repo_dir_path, ckid):
-    return os.path.join(sessions_dir(repo_dir_path), ckid)
+    return os.path.join(sessions_root(repo_dir_path), ckid)
 
 
 def pointer_path(repo_dir_path, ckid):
