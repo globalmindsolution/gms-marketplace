@@ -121,8 +121,8 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 31 green across 37 probes (matches
-  `s04_skill_triggers.py`'s 31-skill routing coverage, up from the original 12,
+  routes to the right skill — target all 32 green across 38 probes (matches
+  `s04_skill_triggers.py`'s 32-skill routing coverage, up from the original 12,
   which is 31 of the 32 shipped skill directories: only the `test` alias is
   unprobed, since `run-e2e-tests` carries its probe. The six internal legs —
   `/acs:project`'s two (ADR 0091) and `/acs:code`'s four delivery-path legs

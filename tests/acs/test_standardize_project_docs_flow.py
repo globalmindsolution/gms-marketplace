@@ -121,15 +121,29 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
 
-    def test_intro_reads_thirtyone_not_older_counts(self):
-        # 25 -> 31 with the skills-independence refactor (five new hooked
-        # Build/Test skills + the `test` -> `run-e2e-tests` alias directory).
+    #: The intro states the count in WORDS, so the check spells the number
+    #: derived from disk rather than pinning one literal that goes stale on
+    #: every skill added or retired.
+    WORDS = {23: "Twenty-three", 24: "Twenty-four", 25: "Twenty-five",
+             26: "Twenty-six", 27: "Twenty-seven", 28: "Twenty-eight",
+             29: "Twenty-nine", 30: "Thirty", 31: "Thirty-one",
+             32: "Thirty-two", 33: "Thirty-three", 34: "Thirty-four"}
+
+    def test_intro_count_matches_the_skill_directories_on_disk(self):
+        shipped = len([
+            name for name in os.listdir(os.path.join(PLUGIN, "skills"))
+            if os.path.isfile(os.path.join(PLUGIN, "skills", name, "SKILL.md"))
+        ])
+        word = self.WORDS.get(shipped)
+        self.assertIsNotNone(word, "extend WORDS for %d skills" % shipped)
         body = self._skills_req()
         intro = body[:600]
-        self.assertIn("Twenty-seven skills", intro,
-                      "skills.md intro must read 'Twenty-seven skills'")
-        for stale in ("Twenty-three skills", "Twenty-five skills"):
-            self.assertNotIn(stale, intro,
+        self.assertIn("%s skills" % word, intro,
+                      "skills.md intro must read '%s skills'" % word)
+        for other, stale in self.WORDS.items():
+            if other == shipped:
+                continue
+            self.assertNotIn("%s skills in total" % stale, intro,
                              "skills.md intro must NOT still read %r" % stale)
 
     def test_standardize_project_section_exists_not_product_level(self):
@@ -197,7 +211,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
                 REPO_ROOT, "src", "acs", "skills", n))])
         self.assertIn("%d x SKILL.md" % shipped, body)
         self.assertNotIn("21 x SKILL.md", body)
-        self.assertIn("31 x agent .md (all reachable)", body)
+        self.assertIn("32 x agent .md (all reachable)", body)
         self.assertNotIn("43 x agent .md (all reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
 
@@ -242,7 +256,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
                        if os.path.isdir(os.path.join(REPO_ROOT, "src", "acs", "skills", n))])
         self.assertIn("acs Skills (%d)" % shipped, body)
         self.assertNotIn("acs Skills (21)", body)
-        self.assertIn("31 files, all reachable", body)
+        self.assertIn("32 files, all reachable", body)
         self.assertNotIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
         self.assertIn("twelve authoring skills (24 agents)", body)
@@ -357,28 +371,44 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
             if os.path.isfile(os.path.join(PLUGIN, "skills", name, "SKILL.md"))
         ])
 
+        # Two forms, and which one is correct is DERIVED: while the probe set
+        # covers every shipped skill it says so outright ("for all N skills"),
+        # and the moment it does not it must state both counts. Accepting only
+        # the second form would force a doc to understate a complete set;
+        # accepting only the first would let an incomplete one claim
+        # completeness. v0.5.0 retired the `test` alias, the one unprobed
+        # directory, so today the complete form is the correct one.
         header = source.split("\n")[0]
-        m = re.search(r"for (\d+) of the (\d+) skills", header)
-        self.assertIsNotNone(
-            m, "s04 header must state 'for N of the M skills' — the probe set "
-               "no longer covers every skill directory, so the header states "
-               "both counts rather than claiming all of them")
-        self.assertEqual(int(m.group(1)), total)
-        self.assertEqual(
-            int(m.group(2)), shipped,
-            "the header's second count must be the number of shipped skill "
-            "directories, so adding a skill without a probe shows up here")
+        if total == shipped:
+            self.assertIn("for all %d skills" % total, header,
+                          "the probe set covers every shipped skill, so the "
+                          "header must say so rather than stating N of M")
+        else:
+            m = re.search(r"for (\d+) of the (\d+) skills", header)
+            self.assertIsNotNone(
+                m, "the probe set does not cover every skill directory, so "
+                   "the header must state both counts")
+            self.assertEqual((int(m.group(1)), int(m.group(2))), (total, shipped))
 
         m = re.search(r'"summary":\s*"([^"]*)"', source)
         self.assertIsNotNone(m, "META[\"summary\"] must be present")
         summary = m.group(1)
-        m2 = re.search(
-            r"(\d+) of (\d+) \((\d+) by description, (\d+) internal legs", summary)
-        self.assertIsNotNone(
-            m2, "summary must state 'N of M (D by description, K internal legs'")
-        self.assertEqual(
-            (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4))),
-            (total, shipped, described, user_only))
+        if total == shipped:
+            m2 = re.search(
+                r"all (\d+) \((\d+) by description, (\d+) internal legs", summary)
+            self.assertIsNotNone(
+                m2, "summary must state 'all N (D by description, K internal legs'")
+            self.assertEqual(
+                (int(m2.group(1)), int(m2.group(2)), int(m2.group(3))),
+                (total, described, user_only))
+        else:
+            m2 = re.search(
+                r"(\d+) of (\d+) \((\d+) by description, (\d+) internal legs", summary)
+            self.assertIsNotNone(
+                m2, "summary must state 'N of M (D by description, K internal legs'")
+            self.assertEqual(
+                (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4))),
+                (total, shipped, described, user_only))
 
     def test_docstring_prose_counts_match_case_lists(self):
         source = self._source()
