@@ -68,7 +68,7 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
 
     def test_release_not_in_gates(self):
         self.assertNotIn(
-            "release", acs_lib.GATES,
+            "release", lib.HOOKED_SKILLS,
             msg="'release' must NOT have a GATES entry — no synthetic "
                 "predecessor gate for an unhooked utility skill (AC-1)",
         )
@@ -91,7 +91,7 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
     def test_gates_count_is_seventeen(self):
         # One gate per hooked skill; see test_hooked_skills_count_is_seventeen —
         # /acs:release itself adds none.
-        self.assertEqual(len(acs_lib.GATES), 17)
+        self.assertEqual(len(lib.HOOKED_SKILLS), 17)
 
     def test_no_pre_or_post_release_script_on_disk(self):
         self.assertFalse(

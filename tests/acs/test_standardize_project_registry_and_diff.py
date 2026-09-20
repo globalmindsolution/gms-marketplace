@@ -51,9 +51,9 @@ class Mar121RegistryCase(unittest.TestCase):
             self.assertEqual(acs_lib.DELIVERY_TICKET_TITLES.get(key), value)
 
     def test_gate_registered_for_standardize_project(self):
-        self.assertIn("standardize-project", acs_lib.GATES)
+        self.assertIn("standardize-project", lib.HOOKED_SKILLS)
         self.assertIs(
-            acs_lib.GATES["standardize-project"], acs_lib.gate_standardize_project
+            lib.gate_step, acs_lib.gate_standardize_project
         )
 
 

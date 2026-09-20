@@ -344,7 +344,7 @@ class TestDocsSyncGates(AcsWorkspaceCase):
 
     def test_docs_sync_registered_in_workflow_skills_and_gates(self):
         self.assertIn("docs-sync", lib.WORKFLOW_SKILLS)
-        self.assertIn("docs-sync", lib.GATES)
+        self.assertIn("docs-sync", lib.HOOKED_SKILLS)
 
     def test_pipeline_state_schema_includes_docs_sync(self):
         schema_path = os.path.join(

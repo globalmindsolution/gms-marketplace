@@ -30,6 +30,7 @@ sys.path.insert(0, HOOKS_DIR)
 
 import acs_case  # noqa: E402
 import acs_lib  # noqa: E402
+import acs_lib as lib  # noqa: E402
 from acs_lib import workflow  # noqa: E402
 
 metrics_aggregate = importlib.import_module("metrics_aggregate")  # noqa: E402
@@ -88,12 +89,12 @@ class RegistryShapeCase(unittest.TestCase):
         # Count alone cannot catch a silent membership swap -- pin the names.
         self.assertEqual(sorted(acs_lib.HOOKED_SKILLS), PINNED_SORTED_HOOKED_SKILLS)
 
-    def test_gates_still_carries_create_design(self):
-        self.assertIn("create-design", acs_lib.GATES)
+    def test_create_design_is_hooked(self):
+        self.assertIn("create-design", lib.HOOKED_SKILLS)
         # One gate per hooked skill: the dispatch table and the registry are
         # the same list seen from two sides (test_producer_skill_gates asserts
         # the membership direction).
-        self.assertEqual(len(acs_lib.GATES), 17)
+        self.assertEqual(len(lib.HOOKED_SKILLS), 17)
 
 
 class DispatchRoutingCase(acs_case.AcsWorkspaceCase):

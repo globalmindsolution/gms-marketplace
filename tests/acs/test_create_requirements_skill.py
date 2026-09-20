@@ -65,10 +65,10 @@ class Mar143GateCase(unittest.TestCase):
     BEHAVIOR, not a hard gate (design.md 521-525)."""
 
     def test_gate_registered(self):
-        self.assertIn("create-requirements", acs_lib.GATES)
+        self.assertIn("create-requirements", lib.HOOKED_SKILLS)
 
     def test_gate_resolves_and_returns_none(self):
-        gate = acs_lib.GATES["create-requirements"]
+        gate = lib.gate_step
         ctx = {"checkout_root": "/nonexistent/does-not-matter", "settings": {}}
         self.assertIsNone(
             gate(ctx, {}),
@@ -78,7 +78,7 @@ class Mar143GateCase(unittest.TestCase):
 
     def test_gate_is_not_require_architecture_doc_set(self):
         self.assertIsNot(
-            acs_lib.GATES["create-requirements"],
+            lib.gate_step,
             acs_lib._require_architecture_doc_set,
             msg="gate_create_requirements must NOT be "
                 "_require_architecture_doc_set — that hard-gate is reserved "
@@ -88,7 +88,7 @@ class Mar143GateCase(unittest.TestCase):
     def test_gate_function_exists_and_named_conventionally(self):
         self.assertTrue(hasattr(acs_lib, "gate_create_requirements"))
         self.assertIs(
-            acs_lib.GATES["create-requirements"], acs_lib.gate_create_requirements)
+            lib.gate_step, acs_lib.gate_create_requirements)
 
 
 class Mar143FilesExistCase(unittest.TestCase):
