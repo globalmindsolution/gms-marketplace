@@ -274,24 +274,32 @@ def in_flight_skill(tdir, ctx, ticket_id=None):
 
 
 def resolve_partition(cwd, ctx=None):
-    """(ticket_id, tdir, ctx) for this checkout, or (None, None, ctx/None).
+    """(run_id, rdir, ctx) for this checkout, or (None, None, ctx/None).
+
+    The partition is a RUN now (§4.2), and the checkout's pointer names it --
+    which is also what lets a lifecycle hook work for a run with no ticket at
+    all.
 
     Total by design: a lifecycle hook fires in every session, most of which are
-    not working an acs ticket, and "not ours" must be indistinguishable from
+    not working an acs run, and "not ours" must be indistinguishable from
     "nothing to do"."""
     from .gates import build_context  # gates imports this module's siblings, not it
+    from .repo import repo_dir
+    from .run import load_run, run_dir
+    from .sessions import current_run_id
     if ctx is None:
         try:
             ctx = build_context(cwd)
         except GateError:
             return None, None, None
-    ticket_id, _src = resolve_ticket_id(cwd, ctx["settings"], ctx["workspace"], ctx["repo_id"])
-    if not ticket_id:
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    run_id = current_run_id(repo, ctx["checkout_id"])
+    if not run_id:
         return None, None, ctx
-    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
-    if archived or not os.path.isdir(tdir):
+    rdir = run_dir(repo, run_id)
+    if load_run(rdir) is None:
         return None, None, ctx
-    return ticket_id, tdir, ctx
+    return run_id, rdir, ctx
 
 
 def stop_block_path(ctx):
@@ -334,7 +342,8 @@ def render_handoff_context(tdir, ticket_id, skill):
     than trying to summarize them -- a summary written from a half-compacted
     window is exactly the unreliable thing it is replacing."""
     ticket = load_ticket(tdir) or {}
-    pipeline = load_pipeline(tdir, ticket_id) or {}
+    from .run import load_run
+    pipeline = load_run(tdir) or {}
     lines = [
         "# Handoff context — %s" % ticket_id,
         "",
@@ -616,7 +625,7 @@ def stop(payload):
         return 0
     key = "%s/%s" % (ticket_id, skill)
     result = result_document(tdir, skill)
-    if result and result.get("status") in ("completed", "failed", "interrupted", "handed_off"):
+    if result and result.get("status") in ("completed", "failed", "interrupted"):
         # The document exists; only the post hook is outstanding, and its own
         # absence is what the next gate reports. Not this hook's call to make.
         return 0

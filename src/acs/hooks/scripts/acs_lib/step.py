@@ -188,7 +188,13 @@ def validate_result(doc, skill, root=None):
     outcome = doc.get("outcome")
     vocabulary = outcome_vocabulary(skill, root)
     if outcome is None:
-        if vocabulary:
+        # A vocabulary of ONE is not a question. §4.5's rule is that a step
+        # with only one way to complete has no outcome to state, so filling it
+        # in is kinder than demanding the caller repeat the only answer --
+        # and it keeps the recorded ledger complete either way.
+        if len(vocabulary) == 1:
+            doc["outcome"] = outcome = vocabulary[0]
+        elif vocabulary:
             errors.append("outcome: %s completes in more than one way (%s) and must say which"
                           % (skill, " | ".join(vocabulary)))
     elif not vocabulary:

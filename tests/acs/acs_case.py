@@ -124,11 +124,40 @@ class AcsWorkspaceCase(unittest.TestCase):
         return self.run_script("dispatch.py", "pre", stdin=payload, cwd=cwd)
 
     def post(self, skill, ticket, result):
-        return self.run_script("post-%s.py" % skill, "--ticket", ticket,
+        result = dict(result)
+        result.setdefault("skill", skill)
+        result.setdefault("run_id", ticket)
+        return self.run_script("post-%s.py" % skill, "--run", ticket,
                                stdin=json.dumps(result))
 
     def start(self, skill, ticket):
-        return self.run_script("skill-start.py", "--skill", skill, "--ticket", ticket)
+        """`acs step start` replaced skill-start.py (§4.8), and --step
+        validates against the resolved workflow rather than an argparse enum.
+        A run over this ticket is created first when there is none, which is
+        what the pre-hook does for a real invocation."""
+        self.ensure_run(ticket)
+        return self.run_script("acs.py", "step", "start", "--step", skill,
+                               "--run", ticket)
+
+    def ensure_run(self, ticket):
+        """A run whose SUBJECT is this ticket, created if absent. Its id is the
+        ticket id (§4.2), which is what lets every helper here keep taking one."""
+        rdir = self.rdir(ticket)
+        if lib.load_run(rdir) is not None:
+            return rdir
+        wf_path = lib.default_workflow_path()
+        wf = lib.validate_workflow_file(wf_path)
+        lib.create_run(lib.repo_dir(self.ws, "acme-shop"),
+                       {"kind": "ticket", "ticket_id": ticket}, wf, wf_path,
+                       run_id=ticket)
+        lib.save_pointer(lib.repo_dir(self.ws, "acme-shop"),
+                         lib.checkout_id(self.repo), run_id=ticket,
+                         checkout_path=self.repo)
+        return rdir
+
+    def rdir(self, ticket):
+        """The RUN partition for this ticket's run."""
+        return lib.run_dir(lib.repo_dir(self.ws, "acme-shop"), ticket)
 
     def new_ticket(self, title, ttype, *extra):
         out = self.run_script("new-ticket.py", "--title", title, "--type", ttype, *extra)

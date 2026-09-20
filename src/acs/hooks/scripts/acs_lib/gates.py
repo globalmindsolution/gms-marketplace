@@ -444,7 +444,7 @@ def _read_result_from_argv():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--result-file", help="path to a JSON result document")
-    parser.add_argument("--ticket", help="ticket id (overrides pointer/branch resolution)")
+    parser.add_argument("--run", help="run id (overrides the checkout pointer)")
     parser.add_argument("--status", choices=[s for s in RUN_STATUSES if s != "in_progress"])
     parser.add_argument("--stop-reason")
     args = parser.parse_args()
@@ -486,7 +486,7 @@ def _read_result_from_argv():
             "acs: result document has no 'status' — one of %s is required\n"
             % ", ".join(s for s in RUN_STATUSES if s != "in_progress"))
         sys.exit(1)
-    return result, args.ticket
+    return result, args.run
 
 
 def _epic_auto_done(ctx, ticket):

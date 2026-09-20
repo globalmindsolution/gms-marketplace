@@ -121,7 +121,7 @@ class LifecycleCase(AcsWorkspaceCase):
         """Register an in_progress run AND the session pointer.
 
         A subagent only ever runs while a skill is in flight, and the pointer
-        skill-start.py writes is what makes this checkout's ticket resolvable
+        `acs step start` writes is what makes this checkout's RUN resolvable
         from a hook payload — so this is the realistic precondition for every
         lifecycle hook, not just the ones that read the run."""
         out = self.start(skill, self.ticket)
@@ -133,7 +133,7 @@ class LifecycleCase(AcsWorkspaceCase):
         self.assertEqual(out.returncode, 0, out.stderr)
 
     def write_result(self, skill, **doc):
-        path = os.path.join(self.tdir_path, "phases", skill, "result.json")
+        path = os.path.join(self.rdir(self.ticket), "steps", skill, "result.json")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(doc, fh)
