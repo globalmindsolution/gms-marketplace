@@ -6,8 +6,9 @@ through a complete, agentic software-delivery workflow: product definition
 implementation with an automatic review loop, a conditional post-code test
 gate, doc sync, pull request, and merge. Every workflow skill runs a plan → execute → verify
 reflection cycle with dedicated subagents, the pipeline's order is declared in
-`workflows/ship.yaml` (each skill's own hooks check only the inputs it reads
-and a couple of safety brakes, so every skill is runnable on its own), the
+`workflows/ship.yaml` (each skill's own hooks check the inputs it reads and the
+safety brakes listed under *How gating works*, never a predecessor's position,
+so a skill is runnable on its own), the
 human-facing ticket documents live in your repo under `docs/tickets/<id>/`,
 and all durable run state lives in a
 gitignored `.acs/state-machine` folder inside your repo by default (an
@@ -105,9 +106,10 @@ it cannot disagree with the ledger it is read from. Print the file with
 
 Every step is also invocable on its own (`/acs:create-ticket Fix flaky
 checkout rounding`, then `/acs:analyze-requirements SHOP-7`, `/acs:code SHOP-7`, …).
-A hand-run step is never refused for being out of order — its hook checks only
-that the inputs it reads exist — so you can re-run one step, skip one you do
-not need, or drive the whole thing yourself. The ticket id argument is optional
+A hand-run step is never refused for a predecessor's position in the workflow —
+its hook checks the inputs it reads and the safety brakes below — so you can
+re-run one step, skip one you do not need, or drive the whole thing yourself.
+The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
@@ -134,10 +136,14 @@ four doc-set legs `/acs:create-docs` used to fan out were a different case —
 they differed only in a table row — so ADR-0094 folded them into it outright.
 
 **Gate** says what each skill's pre-hook checks before letting it start. Since
-v0.5.0 a gate checks only *inputs* (the artifacts and configuration the skill
-reads) and *safety brakes* (the partition lock; a failed verifier). No gate
-refuses a skill for running before another one — run out of the declared order,
-the pre-hook prints a one-line advisory on stderr and the skill runs anyway.
+v0.5.0 a gate checks *inputs* (the artifacts and configuration the skill
+reads) and *safety brakes*: the lock; the epic refusal; `/acs:code`'s plan
+approval; `/acs:create-pr`'s failed verifier; `/acs:create-design`'s
+`needs_design`; `/acs:merge-pr`'s recorded PR reference. No gate refuses a
+skill for a *predecessor's position* in the workflow — run a step out of the
+declared order and the pre-hook prints a one-line advisory on stderr and the
+skill runs anyway. `/acs:merge-pr`'s brake does read whether the step that
+recorded the PR reference completed — an artifact, not a position.
 
 ### Design — define the product and the ticket
 
