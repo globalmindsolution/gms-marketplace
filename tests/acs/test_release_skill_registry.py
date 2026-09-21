@@ -67,7 +67,10 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         )
 
     def test_release_is_not_gated(self):
-        # The only per-skill gate table left is `SUBJECT_GATES` (two rows):
+        # `SUBJECT_GATES` (two rows) is the third per-skill table consulted
+        # before the workflow is read, beside `ARCHITECTURE_GATED` and
+        # `PRD_GATED`, with `BRAKES` consulted after `gate_outcome`'s
+        # `has_step` return. `release` is in none of them:
         # `gate_outcome` otherwise gates a step of the resolved workflow, and
         # an unhooked utility skill is not one.
         # Not being in HOOKED_SKILLS IS not being gated.

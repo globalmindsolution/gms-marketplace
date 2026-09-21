@@ -80,11 +80,12 @@ class UnhookedUmbrellaTest(unittest.TestCase):
         self.assertNotIn("project", acs_lib.PLANNING_SKILLS)
 
     def test_no_gate_is_registered(self):
-        """The only per-skill gate table left is `SUBJECT_GATES`, and it has
-        two rows: `gate_outcome` otherwise gates a step of the resolved
-        workflow, and the umbrella is not one. Not being
-        hooked IS not being gated, and the two lists that could still name it
-        must not."""
+        """`SUBJECT_GATES` is the third per-skill table consulted before the
+        workflow is read, beside `ARCHITECTURE_GATED` and `PRD_GATED`, and it
+        has two rows; `BRAKES` is consulted after `gate_outcome`'s `has_step`
+        return. `gate_outcome` otherwise gates a step of the resolved
+        workflow, and the umbrella is not one. Not being hooked IS not being
+        gated, and the three lists that could still name it must not."""
         self.assertNotIn("project", acs_lib.HOOKED_SKILLS)
         self.assertNotIn("project", acs_lib.ARCHITECTURE_GATED)
         self.assertNotIn("project", acs_lib.BRAKES)

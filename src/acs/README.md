@@ -231,19 +231,24 @@ different.
   skill's gate in-process. Exit 2 blocks the skill before any of its
   instructions run; stderr names the missing input and the skill that produces
   it (e.g. "no plan.md found for SHOP-12 … run /acs:create-impl-plan SHOP-12
-  first"). What a gate never does any more is refuse because a *predecessor*
-  has not completed — every skill is runnable on its own.
+  first"). No gate refuses a skill for a *predecessor's position* in the
+  workflow — every skill is runnable on its own. The one refusal that names a
+  predecessor's completion is `/acs:merge-pr`'s subject brake, which asks
+  whether the step that recorded the PR reference completed — an artifact, not
+  a position.
 - **Out-of-order runs get one advisory line, not a refusal.** When a hooked
   skill runs before a step that precedes it in the resolved workflow has
   completed, the pre-hook prints exactly one line on stderr —
   `acs: docs-sync normally follows code in ship.yaml; code has not completed
   for SHOP-12` — and exits 0. Set `workflow.advisories: false` to silence it.
-- **Two brakes survive, because they are facts, not order.** `/acs:create-pr`
-  refuses a run whose recorded `/acs:review-code` step left the verifier
-  failing,
-  and `/acs:merge-pr` refuses without a PR reference recorded by a completed
-  run. Every hooked skill also refuses while another session holds the
-  ticket's `.lock`.
+- **The brakes that survive are facts, not order.** `/acs:code` refuses a
+  standard or complex run whose plan approval is missing or is for a different
+  revision of the plan on disk; `/acs:create-pr` refuses a run whose recorded
+  `/acs:review-code` step left the verifier failing; `/acs:create-design`
+  refuses a ticket that is not flagged `needs_design`; and `/acs:merge-pr`
+  refuses without a PR reference recorded by a completed run. An epic id is
+  refused by the steps that would work it as one ticket, and every hooked
+  skill refuses while another session holds the ticket's `.lock`.
 - **Post-hooks close the loop without trusting the model.** Each skill's
   coordinator must call `post-<skill>.py --result-file …` as its mandatory
   final step; that is the only thing that flips the run to `completed`. Skill

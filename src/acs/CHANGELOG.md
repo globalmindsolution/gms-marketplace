@@ -278,9 +278,10 @@ JSON validated by JSON Schema, one central envelope plus a
   JSON value and a string or a list reached the post hook through the
   sanctioned write path. Reading it raised an `AttributeError` *after*
   `save_state` had already persisted the invocation, so the step was finalized
-  and its lock never released — the next gate then refused with "crashed or
-  still running elsewhere". The value is now checked before it is read: the
-  hook warns on stderr, records no PR number and finalizes the step normally.
+  and its lock never released — the ticket stayed locked, and the next
+  session to reach a gate was refused as locked by another session. The value
+  is now checked before it is read: the hook warns on stderr, records no PR
+  number and finalizes the step normally.
   Nothing is swallowed — the pre-hook brake still refuses a mis-shaped
   reference by name and tells you which file to correct.
 
