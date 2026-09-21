@@ -4,7 +4,7 @@ Originating ticket: MAR-586. `acs gate --skill <s>` is documented as running a
 skill's pre-gate without running the skill, and the recorded GATE cases invoke
 it while asserting the HOOK's stderr -- because the two were historically the
 same answer. They had stopped being: with `mutate=False` and no run yet,
-`resolve_run_for` returned `(None, None, wf)` and `gate_step` returned before
+`resolve_run_for` returned `(None, None, wf)` and the gate returned before
 the lock check, the invariants, the input check and every safety brake, so the
 query reported `{"ok": true}` on an epic the hook refuses outright.
 
@@ -194,39 +194,6 @@ class GateQueryIsSideEffectFreeTest(GateQueryCase):
                          "create-e2e-tests was completed by a question about it")
         doc = lib.require_run(rdir)
         self.assertNotIn("create-e2e-tests", doc.get("steps") or {})
-
-
-class GateStepStillAnswersForItsCallersTest(acs_case.AcsWorkspaceCase):
-    """`gate_step` keeps its name, signature and return value (D6).
-
-    The gate's body moved to `gate_outcome`, which is what `run_pre_payload`
-    calls, so nothing inside the plugin reaches `gate_step` any more -- it is
-    the compatibility surface `acs_lib` re-exports. A helper with no caller is
-    what AC-7 asks about, so this is the caller: it pins that the wrapper
-    still answers exactly what the gate judged, for a step skill and for one
-    that is not a step.
-    """
-
-    def gate_args(self, skill, ticket):
-        return (lib.build_context(self.repo),
-                {"cwd": self.repo, "tool_input": {"skill": skill, "args": ticket}})
-
-    def test_the_wrapper_returns_the_run_id_the_outcome_carries(self):
-        ticket = self.new_ticket("Add user login", "task")
-        ctx, payload = self.gate_args("docs-sync", ticket)
-        outcome = lib.gate_outcome(ctx, "docs-sync", payload, mutate=False)
-        self.assertEqual(outcome.run_id, ticket)
-        self.assertEqual(outcome.doc["run_id"], ticket)
-        self.assertEqual(lib.gate_step(ctx, "docs-sync", payload, mutate=False),
-                         outcome.run_id)
-
-    def test_a_skill_that_is_not_a_step_still_gates_to_none(self):
-        """`create-ticket` MAKES a subject, so it has no run and no run id."""
-        ticket = self.new_ticket("Add user login", "task")
-        ctx, payload = self.gate_args("create-ticket", ticket)
-        self.assertEqual(lib.gate_outcome(ctx, "create-ticket", payload, mutate=False),
-                         (None, None))
-        self.assertIsNone(lib.gate_step(ctx, "create-ticket", payload, mutate=False))
 
 
 class ProjectedRunTest(unittest.TestCase):

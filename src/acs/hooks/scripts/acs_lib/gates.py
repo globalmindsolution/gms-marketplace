@@ -282,18 +282,6 @@ SUBJECT_GATES = {
 GateOutcome = collections.namedtuple("GateOutcome", "run_id doc")
 
 
-def gate_step(ctx, skill, payload, standalone=True, mutate=True):
-    """The run id `gate_outcome` gated, or None for a skill that is not a step.
-
-    The whole gate lives in `gate_outcome`; this is the long-standing name and
-    return value, kept so every CALLER of it is untouched. Anything that
-    PATCHES the gate wants `gate_outcome` instead -- that is the name
-    `run_pre_payload` looks up, so a fake installed here reaches nothing.
-    """
-    return gate_outcome(ctx, skill, payload, standalone=standalone,
-                        mutate=mutate).run_id
-
-
 def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
     """The whole pre-hook gate for one skill, as a GateOutcome.
 

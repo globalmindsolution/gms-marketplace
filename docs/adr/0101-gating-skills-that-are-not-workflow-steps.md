@@ -23,7 +23,7 @@ scope line (`:5-9`) keeps the design skills — naming `create-design` — "out 
 scope" and "their current shape". Nothing removed them on purpose.
 
 They could not have survived in `BRAKES` either, and that is the decision this
-ADR exists for. `gate_step` returns as soon as the resolved workflow does not
+ADR exists for. The gate returns as soon as the resolved workflow does not
 name the skill, and `BRAKES` is consulted after that return. `ship.yaml` v3
 lists ten steps; `merge-pr` and `create-design` are not among them and must
 not become steps. So for two releases both pre-hooks exited **0 with empty
@@ -50,13 +50,13 @@ workflow?**
 ## Decision
 
 **1 · A third table of the kind that already exists, consulted where they
-are.** `gate_step` already gates non-step skills before it reads the workflow:
-`ARCHITECTURE_GATED` (`create-project`, `standardize-project`, `create-docs`)
-and `PRD_GATED` (`create-architecture`). `brakes.py:192-196` states the
-principle verbatim — these preconditions are checked there "rather than through
-a skill's `reads` declaration, because they are not run artifacts: a design or
-product skill is never a step of `ship` (§2.4), so it has no run to read them
-from."
+are.** `gate_outcome` already gates non-step skills before it reads the
+workflow: `ARCHITECTURE_GATED` (`create-project`, `standardize-project`,
+`create-docs`) and `PRD_GATED` (`create-architecture`). `brakes.py:192-196`
+states the principle verbatim — these preconditions are checked there "rather
+than through a skill's `reads` declaration, because they are not run artifacts:
+a design or product skill is never a step of `ship` (§2.4), so it has no run to
+read them from."
 
 `gates.SUBJECT_GATES` is that table for a precondition about the **subject
 ticket** rather than a repo document: `{"create-design": gate_create_design,
@@ -109,8 +109,12 @@ were handed rather than loading one that was never written: `run.check`,
 `stepgate.check_invariants`, `stepgate.check_inputs`,
 `advisory.workflow_advisory`. `gate_step`'s body moved to
 `gates.gate_outcome`, which returns `GateOutcome(run_id, doc)` so the advisory
-is rendered from the document the gate judged; `gate_step` stays as the
-one-line wrapper its callers know.
+is rendered from the document the gate judged, and the emptied `gate_step`
+wrapper is **removed** rather than kept as a compatibility name. It had no
+caller once the body moved; `acs_lib` is not a published library but this
+repo's own facade, so there is no out-of-tree caller a name could be kept for;
+and a second name that looks like the gate is precisely the trap the second
+bullet below records. `gate_outcome` is the only name the gate has.
 
 Inertness is now **structural rather than cleaned up afterwards**: nothing is
 written, so there is nothing to undo. `acquire_lock`, `_mark_step_started` and
@@ -127,7 +131,7 @@ settling no no-op. Anything scripted on its exit code will see refusals it did
 not see before; they were always the hook's answer.
 
 **Why this survived a release, recorded plainly, because it is the part that
-generalises.** The regression was not unguarded. Three tests that existed to
+generalises.** The regression was not unguarded. Two tests that existed to
 guard exactly this ground stopped doing it, and stayed green:
 
 - A unit test **asserted the absence of the behaviour as correct.**
@@ -143,24 +147,17 @@ guard exactly this ground stopped doing it, and stayed green:
   `gate_outcome` the fake reached nothing and the real gate ran — and three of
   the five cases still passed, because they asserted only `exit == 2` and the
   real gate also exits 2. The module's own docstring had warned about this
-  exact trap for a different reason.
-- Two ADR guards **pinned a count instead of the thing they guard**, which
-  fails the other way — loudly, at the next legitimate amendment.
-  `tests/acs/test_adr_0007_second_amendment.py:4` still promises "exactly
-  three `## Amendment — ` headings"; its assertion (`:50-58`) and the matching
-  one in `tests/acs/test_code_plan_doc_graph_gap.py:204-216` now pin the first
-  N headings **and their order** instead, each with a comment recording that "a
-  frozen count would forbid the next amendment instead of guarding these three
-  against drift".
+  exact trap for a different reason. The wrapper is gone now, so there is no
+  second name left to bind a fake to.
 
-The pattern is one thing said three ways: **a test that asserts the ABSENCE of
-a behaviour, binds to a NAME rather than a BEHAVIOUR, or counts instead of
-checking, stops protecting anything the moment the code moves — and the first
-two report success while doing so.** What caught all three was the golden
-dataset, which drives the real binary and asserts the message a user sees:
-GATE-011, 015, 026, 030, 042 and 045 went from FAIL to ok **byte-unchanged**,
-with no case edited. An expectation recorded against behaviour outlives the
-code that implements it; an expectation recorded against structure does not.
+The pattern is one thing said two ways: **a test that asserts the ABSENCE of a
+behaviour, or binds to a NAME rather than a BEHAVIOUR, stops protecting
+anything the moment the code moves — and reports success while doing so.** What
+caught both was the golden dataset, which drives the real binary and asserts
+the message a user sees: GATE-011, 015, 026, 030, 042 and 045 went from FAIL to
+ok **byte-unchanged**, with no case edited. An expectation recorded against
+behaviour outlives the code that implements it; one recorded against structure
+does not.
 
 **ADR-0089's "no gate reads a predecessor's run status" needs one exception
 named.** `/merge-pr`'s brake reads whether the step that recorded the PR

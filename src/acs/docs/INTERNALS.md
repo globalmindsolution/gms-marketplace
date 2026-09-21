@@ -183,7 +183,7 @@ the same sequence in three places (the gates, `/acs:ship`'s prose, the docs).
 | **Input** | Does the artifact or configuration this skill READS exist? | `/acs:code` refuses without `plan.md`: "no plan.md found for SHOP-12 (looked in the ticket's docs folder and in `<partition>`) — run `/acs:create-impl-plan SHOP-12` first." |
 | **Safety brake** | Would running now do damage that cannot be undone by re-running? | `/acs:create-pr` refuses a ticket whose recorded `/acs:code` run left `verifier_passed != true`; `/acs:merge-pr` refuses without a PR reference recorded by a completed run; every hooked skill refuses while another session holds the `.lock`. |
 
-**Where a brake lives when the skill is not a step.** `gate_step` returns as
+**Where a brake lives when the skill is not a step.** `gate_outcome` returns as
 soon as the resolved workflow does not name the skill, so `BRAKES` — consulted
 after that return — can only hold steps. Three tables sit BEFORE it, and a
 skill that is legitimately not a step of `ship.yaml` is gated from one of them:
@@ -213,9 +213,10 @@ WOULD open: the run id, the path it would occupy and the same document
 `create_run` is that function plus exactly those two writes, so the projection
 and a real run cannot drift. `gate_outcome` carries the gate's body and returns
 `GateOutcome(run_id, doc)` so the advisory renders from the document the gate
-judged rather than re-reading a run that was never written; `gate_step` remains
-the one-line wrapper its callers use, and `acquire_lock`, `_mark_step_started`
-and `settle_no_op` stay `mutate`-guarded.
+judged rather than re-reading a run that was never written. The one-line
+`gate_step` wrapper is gone — nothing called it once the body moved, so
+`gate_outcome` is the gate's only name — and `acquire_lock`,
+`_mark_step_started` and `settle_no_op` stay `mutate`-guarded.
 
 `GATE_INPUTS` in `acs_lib/gates.py` partitions the twenty gates by the input
 they check — `none`, `prd`, `architecture`, `ticket` — and a test asserts the

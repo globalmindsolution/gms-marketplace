@@ -109,7 +109,7 @@ from .gates import _workflow_for as workflow_for  # noqa: F401
 from .gates import (ARCHITECTURE_GATED, BRAKES, NothingOwed,  # noqa: F401
     SUBJECT_GATES, _merge_pr_arg_text, _require_architecture_doc_set,
     build_context, design_requirement, gate_create_design, gate_merge_pr,
-    gate_outcome, gate_step, parent_epic_dir, resolve_run_for,
+    gate_outcome, parent_epic_dir, resolve_run_for,
     run_post_exempt_pr, run_pre, run_pre_payload, session_end,
     subject_from_payload)
 from .posthook import (_archive_partition, _clear_pointers_for_ticket,  # noqa: F401
