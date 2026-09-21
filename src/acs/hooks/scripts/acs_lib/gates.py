@@ -352,7 +352,7 @@ def run_pre_payload(skill, payload, record_marker=True, mutate=True):
             if record_marker:
                 record_gate_evidence(ctx, skill)
         except Exception as exc:  # fail-open too (MAR-514), but not silently
-            # This write is the only evidence skill-start has that the gate
+            # This write is the only evidence the Start path has that the gate
             # fired, so a failure here is why a genuinely gated run will report
             # its enforcement as unconfirmed. The warning gets its OWN handler:
             # an unwritable stderr must not escape into the fail-closed arm

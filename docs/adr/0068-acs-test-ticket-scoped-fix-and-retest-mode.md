@@ -110,3 +110,17 @@ the skill.
 ticket has one, falling back to today's folded Test-plan section; the triage
 skip and the `{status, failure_output}` verdict are unchanged. Context,
 Decision and Consequences above are otherwise unedited.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The `--for-ticket` mode stands in every particular — ticket-scoped resolution,
+the fix-and-retest loop, and the verdict the caller reads. The skill is
+**`/acs:run-e2e-tests`**, not `/acs:test`: the alias was removed in v0.5.0 (see
+[0011](0011-sdlc-doc-sets-quality-and-operations.md)'s amendment).
+
+Item 5 — "`/acs:test`'s self-description is amended: the 'not a hooked pipeline
+skill' line" — is now settled the other way. `run-e2e-tests` **is** a hooked
+pipeline skill: a step of `ship.yaml` with its own pre/post pair, its own gate
+and its own `steps/run-e2e-tests/state.json`. There is one mode, not two, and
+the invocation this ADR added is how a human runs that step against a ticket
+directly rather than through `/acs:ship`.

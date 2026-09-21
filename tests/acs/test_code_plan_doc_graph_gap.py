@@ -201,12 +201,19 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
         cls.amendment = section(cls.body, "## Amendment — MAR-164")
         cls.amendment_norm = norm(cls.amendment)
 
-    def test_exactly_three_amendment_headings_third_is_mar164(self):
+    def test_the_four_guarded_amendments_lead_in_order(self):
+        # Pins the four amendments this ticket guards, and their order, rather
+        # than a total count: ADRs are append-only (docs/adr/README.md), so a
+        # frozen count would forbid the next amendment instead of guarding
+        # these four against drift.
         self.assertEqual(
-            len(self.amendment_headings), 4,
-            "ADR 0012 must carry exactly four '## Amendment —' headings, "
-            "got: %r" % (self.amendment_headings,))
-        self.assertEqual(self.amendment_headings[-1], "## Amendment — MAR-167")
+            self.amendment_headings[:4],
+            ["## Amendment — MAR-156", "## Amendment — MAR-160",
+             "## Amendment — MAR-164", "## Amendment — MAR-167"],
+            "ADR 0012's first four '## Amendment —' headings must stay "
+            "MAR-156, MAR-160, MAR-164, MAR-167 in that order; later "
+            "amendments append after them. Got: %r"
+            % (self.amendment_headings,))
 
     def test_code_named_as_bounded_touched_area_post_plan_participant(self):
         self.assertRegex(self.amendment_norm, r"(?i)/acs:code")

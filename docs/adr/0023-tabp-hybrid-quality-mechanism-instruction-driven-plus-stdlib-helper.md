@@ -1,6 +1,6 @@
 # 0023 — tabp quality-mechanism: hybrid instruction-driven orchestration plus a tabp-namespaced stdlib-Python persistence helper
 
-**Status**: Accepted · **Date**: 2026-06-20
+**Status**: Superseded — `tabp` was retired by the MAR-97 PRD amendment and removed from the repository; the ADR is kept for the reasoning it records, per [README](README.md) · **Date**: 2026-06-20
 
 ## Context
 

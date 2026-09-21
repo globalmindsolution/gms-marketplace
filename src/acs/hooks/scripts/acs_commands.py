@@ -263,8 +263,8 @@ def cmd_readiness(args):
             die("readiness", "the recorded document has no `pr_view` object")
     else:
         try:
-            # Normalised the same way skill-start.py normalises the same
-            # user input: `#42` and a PR URL both reach gh as `42`. Unnormalised,
+            # Normalised by `classify_merge_pr_arg`, the same helper the
+            # merge-pr Start path uses on the same user input: `#42` and a PR URL both reach gh as `42`. Unnormalised,
             # `readiness --pr '#42'` reached `gh pr view '#42'`, which gh
             # resolves as a BRANCH NAME.
             pr = lib.gh_pr_view(lib.classify_merge_pr_arg(args.pr)[1] or args.pr,

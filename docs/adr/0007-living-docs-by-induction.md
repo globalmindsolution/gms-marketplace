@@ -195,3 +195,23 @@ their plan's-author form, without changing either obligation's substance:
   never a finding. The three-hop repair route this ADR already describes
   (plan → executor `problems` → `/acs:docs-sync`) is unchanged when the
   survey does run.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The induction stands — base case, inductive step, and the rule that impact
+without a matching doc change in the same diff is a **blocking** finding are
+all unchanged. Two carriers were renamed.
+
+**"the code-verifier makes a positive, evidenced impact determination"** is now
+`/acs:review-code`'s work ([0099](0099-review-is-a-step-not-a-phase.md)). The
+`code-verifier` agent is gone. Lens E judges the change's own documentation and
+blocks on it; lens C judges conformance to the architecture and design
+documents this ADR keeps current. The determination is still positive and
+evidenced — an adjudicator with fresh context is prompted to refute each
+finding before it may stand — and it now runs on every delivery path rather
+than only where a verifier was spawned.
+
+**"the design and code planners"** repair out-of-band drift boy-scout style:
+the code planner is now `/acs:create-impl-plan`. The boy-scout rule and its
+area scope are unchanged, as is the widespread-drift trigger
+(`/acs:create-architecture`, this ADR's `/create-architecture`).

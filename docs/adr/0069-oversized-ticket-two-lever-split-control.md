@@ -69,3 +69,26 @@ ticket that must first be restructured into an epic.
 end — the `<questions>`/clarification-ledger seam (ADR 0038) and the
 existing split path (`create-ticket/SKILL.md:56-77`) — so no new subagent,
 schema field, or settings key is introduced.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The two-lever control stands, and both levers are live. Lever 1 is still
+`/acs:create-ticket`'s upfront PR-size rubric. Lever 2 moved with the plan.
+
+**`code-planner.md` is gone.** `/acs:code` has one agent — `code-executor` —
+because planning became its own step
+([0098](0098-delivery-path-recorded-on-the-plan.md),
+[0092](0092-skill-machinery-declared-per-skill.md)). The plan-time oversize
+signal is carried by `create-impl-plan-executor.md` and
+`create-impl-plan/SKILL.md`, with the same reviewable-diff threshold this ADR
+set (~4 tasks, ~400 changed lines, ~7 acceptance criteria), the same
+"surface as a question, never block, continue planning" contract, the same
+clarification ledger, and still no new settings key.
+
+The terminal path on "split" is unchanged in substance: the step records a
+terminal `failed` result and points at `/acs:create-ticket split <id>`. It is
+now `/acs:create-impl-plan` that does so rather than `/acs:code`, which is the
+correct owner — the decomposition the signal judges is the plan's.
+
+"No new XML element, no new status value" still holds: `failed` is one of the
+four step statuses ([0097](0097-two-state-machines-keyed-by-run.md)).

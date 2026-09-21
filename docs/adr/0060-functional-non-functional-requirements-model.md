@@ -106,3 +106,23 @@ itself is MAR-143/144's, recorded separately (ADR 0058, ADR 0059).
   requirements-conformance verifier dimension and does not touch the chain
   line in `docs/architecture/lld/contracts.md` (see ADR 0059 for the
   chain-clarifying note itself).
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The settings-key shape (Decision B-revised) and the classification rubric
+(Decision E-i) are unchanged: `requirements_layout` is still a sibling object,
+`requirements_path` is still a plain string, and both producers still classify
+by LLM judgment against the rubric carried verbatim in their own prose.
+
+Two producer names in the Decision aged. `/acs:create-requirements` is no
+longer "future" — it shipped, and it is one of the two producers. `/acs:code`'s
+requirements-merge step is the other; the doc delta rides the changeset as
+[0007](0007-living-docs-by-induction.md) has it.
+
+The Consequences' "the code-verifier's documentation dimension
+(`code-verifier.md`)" is now `/acs:review-code`'s **lens E**
+([0099](0099-review-is-a-step-not-a-phase.md)): the `code-verifier` agent is
+gone, and lens E judges the change's own documentation and blocks on it. The
+treatment this ADR asked for — a requirement written to the wrong subfolder is
+a documentation finding, not a silent pass — is unchanged, and now applies on
+every delivery path rather than only where a verifier was spawned.

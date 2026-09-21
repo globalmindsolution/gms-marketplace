@@ -54,26 +54,20 @@ HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 #: {leg: the skill whose gate, hooks and state it runs under}.
 LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
-# `run-e2e-tests` is the Test-phase suite runner (today's `test`, renamed) and
-# stays UNHOOKED: it writes no run entry and spawns no reflection triad, so
-# dispatch.py passes it through and skill-start.py cannot select it. `test` is
-# retained beside it for one release as the alias directory that forwards
-# there (workflows/phases.yaml `aliases`), so an existing /acs:test invocation
-# keeps working.
 # `project` is the design-phase fold's umbrella over create-project and
 # standardize-project: it owns no agents, no gate and no hook scripts -- it
 # picks a mode (project_mode, below) and invokes that leg's own Start as a
 # Skill-tool call -- so it is UNHOOKED and must never join HOOKED_SKILLS
 # (dispatch.py would then look for a pre-project.py that does not exist, and
-# skill-start.py would offer --skill project, which allocates nothing).
+# `acs step start` would offer --step project, which allocates nothing).
 # `create-docs` is NOT like it any more (ADR-0094): it absorbed its four doc
 # legs, so it is the hooked product skill that bootstraps a doc set itself,
 # one delivery ticket per set.
-# `run-e2e-tests` moved to HOOKED_SKILLS: it is a step of `ship.yaml` with its
-# own pre/post pair, and the "not really a pipeline skill in its default mode"
-# framing it used to carry is gone -- there is one mode (§3.11). The `test`
-# alias went with it (§6): the directory is deleted, and a name in a list with
-# no directory behind it is a name nothing can resolve.
+# `run-e2e-tests` is HOOKED, not unhooked: it is a step of `ship.yaml` with its
+# own pre/post pair, so there is one mode (§3.11), not the "not really a
+# pipeline skill in its default mode" framing it carried while it was the
+# `test` alias. That alias went with it (§6): the directory is deleted, and a
+# name in a list with no directory behind it is a name nothing can resolve.
 UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
                    "usage", "release", "project"]
 
@@ -113,8 +107,8 @@ PRODUCT_TICKET_TITLES = {
     "create-architecture": "Product architecture doc set",
     "create-project": "Project scaffold",
     # /acs:create-docs mints one delivery ticket PER DOC SET, titled from
-    # DOC_SETS below (skill-start.py --doc-set); this row is the fallback a
-    # caller that names no set would get, and skill-start refuses that.
+    # DOC_SETS below (`acs step start --doc-set`); this row is the fallback a
+    # caller that names no set would get, and that Start refuses.
     "create-docs": "Product doc set",
     "create-requirements": "Product requirements doc set",
 }

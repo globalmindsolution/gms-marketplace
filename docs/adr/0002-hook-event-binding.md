@@ -85,3 +85,31 @@ The gate count in the MAR-514 amendment moved with the five new Build/Test
 skills: twenty `pre-<skill>.py` / `post-<skill>.py` forwarders now exist, and
 `hooks.json` still registers only `dispatch.py`, so the forwarders remain
 unreachable on the hook path and reachable only from tests and `acs.py`.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The dispatcher half of the Decision is unchanged and is now literal:
+`PreToolUse` on `Skill` still routes by skill name to `pre-<skill>.py`, and
+exit 2 still blocks the skill before any instruction runs. Two carriers named
+alongside it are gone.
+
+**`skill-start.py` is removed.** The one generic script every skill called to
+register its run no longer exists; registering the step `in_progress` is the
+pre-hook's own work. `pre-<skill>.py` calls `acs_lib.run_pre("<skill>")`, which
+gates and registers in one place — so there is no second script a skill can
+forget to call, and no window in which a skill has passed its gate but recorded
+nothing.
+
+**`runs[-1] == "completed"` is gone with the ticket-keyed `runs[]` array.** A
+step's state lives in `steps/<skill>/state.json` under its run, its attempts are
+`invocations[]`, and a downstream gate asks the run's derived state whether the
+step it depends on is `completed`
+([0097](0097-two-state-machines-keyed-by-run.md)). The rule the clause
+expressed — a step may not start on top of an unfinished predecessor — is
+unchanged, and is now invariant I1.
+
+Post-hooks are per-skill scripts for the same reason pre-hooks are:
+`post-<skill>.py --result-file <path>`. The Decision's reasoning for keeping
+them coordinator-invoked ("their inputs exist only in the coordinator's
+context") is untouched; only the generic `acs step finish` call the SKILL.md
+Finish sections used to make is no longer the skill-facing surface.

@@ -1,6 +1,6 @@
 # 0095 — The delivery path is classified once from the plan and declared in ship.yaml; the dynamic lane machinery is retired
 
-**Status**: Accepted · **Date**: 2026-09-17
+**Status**: Accepted — amended by [0098](0098-delivery-path-recorded-on-the-plan.md) (the plan judges the path and records it; `/acs:ship` and the `delivery:` block do not) · **Date**: 2026-09-17
 
 **Supersedes**: [0030](0030-four-lane-hybrid-routing-from-size-stakes-axes.md),
 [0031](0031-axes-authoritative-lane-derived-cache.md),

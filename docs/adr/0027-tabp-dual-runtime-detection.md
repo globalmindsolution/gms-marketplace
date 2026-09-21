@@ -1,6 +1,6 @@
 # 0027 — tabp dual-runtime detection: explicit `--runtime` flag with auto-detect fallback
 
-**Status**: Accepted · **Date**: 2026-06-22
+**Status**: Superseded — `tabp` was retired by the MAR-97 PRD amendment and removed from the repository; the ADR is kept for the reasoning it records, per [README](README.md) · **Date**: 2026-06-22
 
 ## Context
 

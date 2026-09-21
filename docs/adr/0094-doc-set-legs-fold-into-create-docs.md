@@ -2,6 +2,11 @@
 
 **Status**: Accepted · **Date**: 2026-09-14
 
+**Amends**: [0085](0085-doc-bootstrap-parallel-fan-out.md) (the fan-out
+mechanics stand; the per-leg skills they fanned out to are gone),
+[0091](0091-design-phase-entry-point-fold.md) (the doc-set legs were collapsed
+after all; `/acs:project`'s entry-point fold stands).
+
 ## Context
 
 ADR-0011 gave each product doc set its own skill; ADR-0085 put an umbrella,
@@ -118,3 +123,17 @@ matched by its title.
 - **ADR-0091** — the entry-point fold; kept for `/acs:project`, reversed for
   the doc sets.
 - **ADR-0092** — the four work classes; this is class D applied.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The fold stands in full: one hooked skill, the declared `DOC_SETS` table as the
+single source, one executor plus one verifier for every set, no planner, and
+one delivery ticket per set.
+
+The allocating call is **`acs step start --step create-docs --doc-set <set>
+--allocate`**. `skill-start.py` was removed in v0.5.0 and its flags moved onto
+the `acs` CLI; the run unit `(create-docs, doc_set)` this ADR defined is
+unchanged, and so is the rule that the allocating call runs in the session
+checkout rather than a per-set worktree
+([0085](0085-doc-bootstrap-parallel-fan-out.md) D3.2,
+[0087](0087-ticket-id-allocation-fail-closed-reconciliation.md)).

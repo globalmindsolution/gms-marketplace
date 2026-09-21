@@ -78,3 +78,17 @@ directory kept for one release as a forwarding alias (registered under
 `aliases` in `workflows/phases.yaml`, never in a phase). Both remain unhooked
 and record their pipeline step through `pipeline-step.py`. Context, Decision
 and Consequences above are otherwise unedited.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The triage decision is unchanged in every part that matters: the regression key
+shape, the `__suite__` fallback marker, the three-way recurrence policy, the
+direct `new-ticket.py` reuse, and R1 (no failure content ever interpolated into
+a shell command).
+
+The skill that does it is **`/acs:run-e2e-tests`**, not `/acs:test` — the alias
+was removed in v0.5.0
+(see [0011](0011-sdlc-doc-sets-quality-and-operations.md)'s amendment). It is
+now a hooked step of `ship.yaml` with its own pre/post pair, so the triage runs
+inside a step whose state is recorded rather than beside the pipeline; nothing
+about what it triages, or what it mints, changed with the move.

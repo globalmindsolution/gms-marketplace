@@ -47,12 +47,17 @@ class Adr0007SecondAmendmentShapeTest(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(ADR_0007)
 
-    def test_exactly_three_amendment_headings(self):
-        headings = re.findall(r"^## Amendment — ", self.body, re.MULTILINE)
+    def test_the_three_guarded_amendments_lead_in_order(self):
+        # Pins the three amendments this ticket guards, and their order, rather
+        # than a total count: ADRs are append-only (docs/adr/README.md), so a
+        # frozen count would forbid the next amendment instead of guarding
+        # these three against drift.
+        headings = re.findall(r"^## Amendment — (.*)$", self.body, re.MULTILINE)
         self.assertEqual(
-            len(headings), 3,
-            "docs/adr/0007 must carry exactly three '## Amendment — ' headings "
-            "(MAR-65 + MAR-162 + MAR-72)")
+            headings[:3], ["MAR-65", "MAR-162", "MAR-72"],
+            "docs/adr/0007's first three '## Amendment — ' headings must stay "
+            "MAR-65, MAR-162, MAR-72 in that order; later amendments append "
+            "after them")
 
     def test_mar162_strictly_after_mar65(self):
         mar65_at = self.body.index("## Amendment — MAR-65")

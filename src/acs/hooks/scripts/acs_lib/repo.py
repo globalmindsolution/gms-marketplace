@@ -78,8 +78,9 @@ def gh_pr_view(number, fields):
     clean message when gh is missing, the lookup fails, or the output does not
     parse -- callers surface that verbatim rather than a traceback.
 
-    The one gh-shell-out helper: skill-start.py's --pr mode and `acs.py
-    readiness` both need it, and a second copy would be a second place for the
+    The one gh-shell-out helper: `acs step start --pr` (merge-pr's exempt-pr
+    mode) and `acs readiness` both need it, and a second copy would be a
+    second place for the
     missing-gh message and the failure classification to drift. Isolating the
     call here is also what lets tests stub it with a fake gh on PATH.
     """
@@ -306,7 +307,7 @@ def session_marker_path(workspace, repo_id, ckid):
 
 def record_session_marker(ctx, payload):
     """Persist the PreToolUse(Skill) envelope's session-correlation fields so
-    skill-start.py can thread them onto the new run entry without guessing.
+    `acs step start` can thread them onto the new run entry without guessing.
     Fields come straight off the envelope; a missing one is written as null,
     never constructed (e.g. never a cwd-derived guess)."""
     path = session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])

@@ -155,3 +155,27 @@ readers fall back to a partition whose `ticket.json` is gone, leaving the
 `ticket.json.moved` pointer as the only path back to the document. That is
 recorded rather than fixed because the reverse move has no user we could
 name, and an unused reverse migration is a second code path to keep correct.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The in-repo docs tree, its commit rules and the opt-out setting
+(`artifacts.tickets_path: null`) are unchanged, and so is the decision that
+`status` is **derived, never stored**.
+
+Two things in the derivation read differently now.
+
+**`skipped` is a retired status.** `derive_status`'s `in_progress` rule reads
+"any step but `create-ticket` has a status other than `skipped`"; nothing can
+write that status any longer — `run.schema.json` excludes it from the status
+enums by design, and a step with nothing owed is `completed` with an `outcome`
+it wrote itself ([0096](0096-workflow-is-a-list-not-a-graph.md),
+[0097](0097-two-state-machines-keyed-by-run.md)). The exclusion is now vacuous
+rather than wrong: every step the rule counts has one of the four live
+statuses, which is what the rule was reaching for. The residual `!= "skipped"`
+filter in `acs_lib.artifacts.derive_status` is dead code, not a behaviour.
+
+**"Build-phase" and "Design-phase" name groupings, not a phase machine.**
+`phases.yaml` and the phase lists are gone; the order is `ship.yaml`'s list
+([0096](0096-workflow-is-a-list-not-a-graph.md)). Which skill commits which
+document, and when, is unchanged — that was always stated per skill, not by the
+phase it sat in.

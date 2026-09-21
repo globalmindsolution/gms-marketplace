@@ -209,3 +209,35 @@ correct — all 8 named planners do carry the byte-identical canonical
 block. `## Amendment — MAR-164`'s own text is left as originally written
 (this ADR's amendments are append-only); this section is the record of the
 interim inaccuracy and its resolution.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The Decision stands — doc-consistency analysis is still a built-in step of the
+design-producing skills, riding skills the user already runs, with no new skill,
+no CI check and no pre-commit hook. The **carriers** it names have moved twice,
+and this ADR sat at `Proposed` in the index until this reconciliation although
+six live skills cite it.
+
+**The skill list.** `/create-spec` is gone
+([0066](0066-fold-spec-authoring-into-code-ticket-json-fixed-point.md) folded
+spec authoring into planning, which is `/acs:create-impl-plan` since
+[0098](0098-delivery-path-recorded-on-the-plan.md)); `/create-quality` and
+`/create-operations` are legs of `/acs:create-docs`
+([0094](0094-doc-set-legs-fold-into-create-docs.md)). The skills carrying the
+analysis today are `/acs:create-prd`, `/acs:create-architecture`,
+`/acs:create-design`, `/acs:create-requirements`, `/acs:create-impl-plan` and
+`/acs:create-docs`.
+
+**"a shared analysis step to their planner phase" is now the executors'.** The
+four doc-set planners folded into `create-docs-executor` (0094) and class D
+removed the planner from every authoring skill
+([0092](0092-skill-machinery-declared-per-skill.md) stage 2) on the reasoning
+that when the deliverable *is* the analysis, a planning phase to plan it is a
+second copy of the work. The analysis is shared across the five executors
+exactly as the Decision intended it to be shared across the planners; that it
+is "shared, one text, one behaviour" is the load-bearing part, not which role
+holds it.
+
+Items 1–4 of the Decision, the clarification-ledger surfacing and the
+"user decides, skill updates in the same change, verifier confirms" sequence
+are unchanged.

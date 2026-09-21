@@ -136,3 +136,28 @@ contract and carving PRD citations out of the mechanism.
   (zero-migration): `severity="blocking"` and the `plan-conformance`
   dimension name both already exist; the plan artifact keeps its
   `iter-<n>-plan.md` name and per-iteration re-spawn.
+
+## Amendment — v0.5.0 (the implementation-pipeline redesign)
+
+The hybrid mechanism stands: a deterministic citation floor plus a verifier
+that judges substantiation, chosen over a deterministic-only floor, a
+prose-only semantic check, and an evidence sidecar. D2-c's mandatory verbatim
+quoted excerpt per citation is unchanged, and `citation_check.py` still
+enforces it with no third-party dependency.
+
+**"the 4 planner charters" is now the doc-set executor.** The four doc-set
+planners folded into `create-docs-executor`
+([0094](0094-doc-set-legs-fold-into-create-docs.md)) and class D removed the
+planner from every authoring skill
+([0092](0092-skill-machinery-declared-per-skill.md)). The `Upstream inventory`
+section and its citation grammar moved with the work, into the executor's
+authoring notes; the checker reads them there.
+
+**"workspace phase artifacts" is a path that no longer exists as written.** The
+`phases/` artifact level and the `iter-<n>-*` filename-prefix scheme are gone;
+an iteration's artifacts live in `iter-<n>/` under the step
+([0096](0096-workflow-is-a-list-not-a-graph.md),
+[0097](0097-two-state-machines-keyed-by-run.md)). The reasoning this ADR gave
+for not reusing the evidence sidecar — that the sidecar convention is scoped to
+produced doc files, not to a skill's own working notes — is unaffected by where
+those notes sit.

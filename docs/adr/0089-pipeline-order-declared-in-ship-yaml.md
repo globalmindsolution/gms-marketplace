@@ -2,6 +2,13 @@
 
 **Status**: Superseded by [0096](0096-workflow-is-a-list-not-a-graph.md) · **Date**: 2026-09-12
 
+**Supersedes**: [0037](0037-spec-time-simplicity-evaluation-in-create-spec-planner.md),
+[0038](0038-spec-simplicity-gate-surfaces-never-blocks.md),
+[0039](0039-spec-simplicity-gate-planner-only-scope.md) — recorded here so the
+link is machine-readable in both directions. The three stay replaced even though
+this ADR was itself superseded, because its successor keeps the declared-order
+decision that replaced them.
+
 What this ADR decided and 0096 keeps: the order lives in a data file, the
 consumer overrides it wholesale, the parser is stdlib-only, and
 `_require_completed` stays deleted. What 0096 removes is the workflow
