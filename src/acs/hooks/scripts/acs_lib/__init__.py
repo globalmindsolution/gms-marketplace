@@ -107,8 +107,9 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetR
 from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
 from .gates import _workflow_for as workflow_for  # noqa: F401
 from .gates import (ARCHITECTURE_GATED, BRAKES, NothingOwed,  # noqa: F401
-    _merge_pr_arg_text, _require_architecture_doc_set, build_context,
-    design_requirement, gate_step, parent_epic_dir, resolve_run_for,
+    SUBJECT_GATES, _merge_pr_arg_text, _require_architecture_doc_set,
+    build_context, design_requirement, gate_create_design, gate_merge_pr,
+    gate_outcome, parent_epic_dir, resolve_run_for,
     run_post_exempt_pr, run_pre, run_pre_payload, session_end,
     subject_from_payload)
 from .posthook import (_archive_partition, _clear_pointers_for_ticket,  # noqa: F401
@@ -168,8 +169,8 @@ from . import run as run_machine  # noqa: F401,E402
 from .run import (RUN_STATUSES, STEP_STATUSES, STOP_REASONS, VERDICT_STEPS,  # noqa: F401
     SUBJECT_KINDS, TERMINAL_RUN_STATUSES, abandon_run, create_run, cursor,
     derive_run_id, existing_run_ids, finish_step, in_progress_step,
-    iteration_dir, iteration_of, latest_open_run, load_run, require_run,
-    partition_for_ticket, run_dir, run_path, save_run, start_step,
+    iteration_dir, iteration_of, latest_open_run, load_run, projected_run,
+    require_run, partition_for_ticket, run_dir, run_path, save_run, start_step,
     step_completed, step_dir,
     step_entry, step_status, steps_dir, subject_dir)
 from .run import check as check_run  # noqa: F401

@@ -1,6 +1,6 @@
 # 0096 — The workflow is a list, not a graph: no conditions, no ids, one loop
 
-**Status**: Accepted · **Date**: 2026-09-20
+**Status**: Accepted — amended by [0101](0101-gating-skills-that-are-not-workflow-steps.md) (the list decides ORDER and membership; it never decided whether a skill is GATED, and a brake for a skill it does not name is consulted before it is read) · **Date**: 2026-09-20
 
 **Supersedes**: [0089](0089-pipeline-order-declared-in-ship-yaml.md)
 

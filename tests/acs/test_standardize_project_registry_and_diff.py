@@ -52,7 +52,7 @@ class Mar121RegistryCase(unittest.TestCase):
 
     def test_gate_registered_for_standardize_project(self):
         self.assertIn("standardize-project", acs_lib.HOOKED_SKILLS)
-        # v0.5.0: one gate for every step (`gate_step`), with the
+        # v0.5.0: one gate for every step (`gate_outcome`), with the
         # architecture precondition declared as membership rather than as a
         # per-skill function. The registry row IS the registration now.
         self.assertIn("standardize-project", acs_lib.ARCHITECTURE_GATED)
@@ -61,7 +61,7 @@ class Mar121RegistryCase(unittest.TestCase):
 class Mar121GateStandardizeProjectCase(unittest.TestCase):
     """AC-3 boundary + R1 non-reproduction, direct function-level.
 
-    The per-skill `gate_standardize_project` is gone: `gate_step` runs the
+    The per-skill `gate_standardize_project` is gone: `gate_outcome` runs the
     shared `_require_architecture_doc_set` for every member of
     ARCHITECTURE_GATED. The PRECONDITION is unchanged, so it is still
     asserted here -- against the function that now owns it."""

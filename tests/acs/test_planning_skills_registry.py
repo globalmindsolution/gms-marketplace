@@ -107,20 +107,26 @@ class RegistryShapeCase(unittest.TestCase):
 
 class DispatchRoutingCase(acs_case.AcsWorkspaceCase):
     """AC-2, restated for v0.5.0: dispatch.py's pre-hook routes create-design
-    as a hooked skill, and passes it through because the resolved workflow
-    does not name it.
+    as a hooked skill, and it takes NO run position because `ship.yaml` does
+    not name it -- which is exactly what lets it run on its own (3.11) while
+    remaining hooked.
 
-    The per-skill `gate_create_design` is gone: the gate is workflow-driven
-    now (`gate_step`), and `ship.yaml` admits build/test/ship steps only.
-    A skill the workflow does not name takes NO run position -- which is
-    exactly what lets create-design run on its own (3.11) while remaining
-    hooked. The pass-through is the behaviour under test; a refusal here
-    would mean the workflow had silently adopted it."""
+    Taking no run position is not the same as being ungated. create-design is
+    gated on its SUBJECT, through `gates.SUBJECT_GATES`, which is consulted
+    before the workflow is even resolved: a ticket flagged needs_design opens,
+    and anything else is refused. So a refusal here does NOT mean the workflow
+    adopted the skill -- test_the_resolved_workflow_does_not_name_it below
+    still holds -- it means the subject did not warrant a design."""
 
-    def test_create_design_is_routed_and_passed_through(self):
-        result = self.pre("create-design")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
+    def test_create_design_is_gated_on_its_subject_not_on_a_run_position(self):
+        bare = self.pre("create-design")
+        self.assertEqual(bare.returncode, 2, bare.stderr)
+        self.assertIn("acs pre-create-design: blocked", bare.stderr)
+        self.assertNotIn("Traceback", bare.stderr)
+
+        warranted = self.pre("create-design", self.new_ticket("Wishlist", "epic"))
+        self.assertEqual(warranted.returncode, 0, warranted.stderr)
+        self.assertNotIn("Traceback", warranted.stderr)
 
     def test_the_resolved_workflow_does_not_name_it(self):
         wf = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())

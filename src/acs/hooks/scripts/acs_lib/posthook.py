@@ -36,6 +36,40 @@ from .gates import _workflow_for, build_context, parent_epic_dir
 # Post-hook persistence
 # ---------------------------------------------------------------------------
 
+def _warn_unraisably(text):
+    """Emit an advisory that must not cost the caller its `release_lock`.
+
+    `run_post` passes a point of no return at `save_state`: the invocation is
+    durably finalized from there, and the only calls to `release_lock` are
+    inside the `try:` below it and in that `try:`'s GuardTimeout arm. An
+    advisory written between the two that raises escapes `run_post`, skips
+    `release_lock`, and wedges the run's brake until the 24h staleness timeout
+    or an audited force_release -- so an unwritable stderr must not be able to
+    strand the very step these advisories are reporting on.
+
+    `os.write`, not `sys.stderr.write`, for the reason
+    `gates.run_pre_payload`'s evidence-write handler records. Both matter, and
+    which one bites depends on the message: a write that does NOT end the line
+    stays buffered, and the interpreter's flush at shutdown then fails where
+    nothing can catch it (CPython exits 120); a write that DOES -- as both
+    advisories here do, against a line-buffered stderr -- raises at the call
+    site instead, measured as exit 1 with the lock still held. `os.write` is
+    correct either way, because it raises HERE, inside this handler, and
+    leaves nothing pending.
+
+    This makes only these two advisories safe. Other stderr writes in the
+    process are unguarded; none sits between `save_state` and a
+    `release_lock`, so none can strand a run. That is why the tests covering
+    this assert the lock was RELEASED rather than asserting an exit code --
+    an unwritable stderr can still cost the process its status for reasons
+    outside this window.
+    """
+    try:
+        os.write(2, text.encode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _read_result_from_argv():
     """post-<skill>.py CLI: --result-file <path> | JSON on stdin, plus convenience flags."""
     import argparse
@@ -250,7 +284,8 @@ def run_post(skill):
                                             for key, was, now in conflicts]}
     step_machine.save_state(rdir, skill, state)
     for key, was, now in conflicts:
-        sys.stderr.write(
+        # Unraisable: this loop is already past save_state, so see _warn_unraisably.
+        _warn_unraisably(
             "acs post-%s: states.%s was %r in the result document; the artifacts say "
             "%r (%s). The derived value is what was written.\n"
             % (skill, key, was, now, notes.get(key, "derived")))
@@ -273,6 +308,21 @@ def run_post(skill):
         tdir, _archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
     epic_done = None
     archived_to = None
+    # A mis-shaped `states.pr` degrades to "no number recorded" rather than
+    # stranding the step. `states` is a bare object in result.schema.json, so
+    # validate_result admits any JSON value here, and save_state above has
+    # ALREADY persisted the invocation -- raising would escape the GuardTimeout
+    # arm below, skip release_lock, and leave the next gate refusing a run that
+    # in fact finished. Refusing is the pre-hook's job, and the brake in `gates`
+    # still refuses this value there, so nothing is swallowed by warning here.
+    recorded_pr = (result.get("states") or {}).get("pr")
+    if recorded_pr is not None and not isinstance(recorded_pr, dict):
+        # Unraisable, or this warning becomes the leak it exists to prevent.
+        _warn_unraisably(
+            "acs post-%s: states.pr is not an object (it is a %s), so no PR number "
+            "was recorded in metrics.json. The step is finalized either way; correct "
+            "the reference and the next gate will accept it.\n"
+            % (skill, type(recorded_pr).__name__))
     try:
         ticket = load_ticket(tdir) if tdir and os.path.isdir(tdir) else None
         if ticket:
@@ -284,7 +334,7 @@ def run_post(skill):
                 # `states.pr` from one moves the ticket to review just as
                 # create-pr does.
                 if (skill in DELIVERY_TICKET_SKILLS
-                        and (result.get("states") or {}).get("pr")
+                        and recorded_pr
                         and ticket.get("status") != "done"):
                     ticket["status"] = "in_review"
                     save_ticket(tdir, ticket)
@@ -293,10 +343,10 @@ def run_post(skill):
                     save_ticket(tdir, ticket)
             update_index(ctx["workspace"], ctx["repo_id"], ticket)
 
-        pr_number = ((result.get("states") or {}).get("pr") or {}).get("number")
+        pr_number = recorded_pr.get("number") if isinstance(recorded_pr, dict) else None
         update_metrics(
             ctx["workspace"], ctx["repo_id"], run_entry=entry,
-            pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
+            pr_created=(status == "completed" and bool(recorded_pr)
                         and skill in (["create-pr"] + list(DELIVERY_TICKET_SKILLS))),
             pr_merged=(skill == "merge-pr" and status == "completed"),
             pr_number=pr_number,

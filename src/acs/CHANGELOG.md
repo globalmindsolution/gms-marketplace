@@ -250,6 +250,41 @@ JSON validated by JSON Schema, one central envelope plus a
   XSD and `validate_xml.py` gone, nothing acs runs shells out to an XML tool.
   A consumer that installed it for acs can drop it; nothing else changes.
 
+- **Fixed: the three pre-hook gates that had gone silent.** `/acs:merge-pr`
+  and `/acs:create-design` exited 0 on every profile — a merge with no PR
+  reference recorded anywhere was reachable, and so was a design for a ticket
+  never flagged for one. Neither skill is a step of `ship.yaml` v3, and the
+  gate returned before its brakes for any skill the resolved workflow does not
+  name, so the rows had nowhere left to live. They live in
+  `gates.SUBJECT_GATES` now: a third table beside `ARCHITECTURE_GATED` and
+  `PRD_GATED`, consulted before the step check and therefore not switchable
+  off by a workflow edit. The refusal wording is the one the goldens record,
+  and the PR-reference lookup is re-expressed over run-keyed state — a
+  completed step carrying `states.pr` on one of the ticket's runs — rather
+  than the retired `flow: ticket|product` split.
+
+  **`acs gate --skill <name>` now answers what the hook answers.** It reported
+  `{"ok": true}` for an epic `pre-code.py` refuses outright, because
+  `mutate=False` left it with no run and every check sat past that return. It
+  judges a run *projected* in memory instead (`run.projected_run`): the run
+  the subject would open, computed and never written, so the query gained the
+  hook's sight without gaining its writes — it still creates no run, takes no
+  lock, opens no step and settles no no-op. Anything scripted on its exit code
+  will see refusals it did not see before; they were always the hook's answer.
+  See ADR-0101.
+
+- **Fixed: a post hook no longer strands the step a mis-shaped PR reference
+  lands on.** `states` is typed as a bare object, so `states.pr` can be any
+  JSON value and a string or a list reached the post hook through the
+  sanctioned write path. Reading it raised an `AttributeError` *after*
+  `save_state` had already persisted the invocation, so the step was finalized
+  and its lock never released — the ticket stayed locked, and the next
+  session to reach a gate was refused as locked by another session. The value
+  is now checked before it is read: the hook warns on stderr, records no PR
+  number and finalizes the step normally.
+  Nothing is swallowed — the pre-hook brake still refuses a mis-shaped
+  reference by name and tells you which file to correct.
+
 
 > ### ⚠️ The skills-independence refactor contains BREAKING changes
 >

@@ -1,9 +1,10 @@
 """MAR-162 spec 03 — ADR 0007 second amendment + plugin-internal reconciliation.
 
 Falsifiable AC-4/AC-5 guard: asserts docs/adr/0007-living-docs-by-induction.md
-carries exactly three `## Amendment — ` headings with the MAR-162 one strictly
-after the MAR-65 one and the MAR-72 one after both (MAR-72 promoted the third
-amendment to top level), and the MAR-65 span byte-unchanged; the MAR-162 block
+leads with `## Amendment — ` headings MAR-65, MAR-162, MAR-72 IN THAT ORDER —
+the first three, not a total count, because ADRs are append-only and later
+amendments legitimately append after them (MAR-72 promoted the third amendment
+to top level) — and the MAR-65 span byte-unchanged; the MAR-162 block
 has all four required sub-headings and states MAR-65's obligations are
 unchanged; docs-sync's shipped existence (AC-5 evidence); and cross-file
 coherence — the reworded plugin-internal files no longer assert the retired

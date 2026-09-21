@@ -140,7 +140,7 @@ class TestLifecycleWiring(unittest.TestCase):
 class TestGateAgreement(unittest.TestCase):
     """The Start section is a map of what the kernel checks; it must be accurate.
 
-    One `gate_step` serves every step and reads the skill's OWN declaration
+    One `gate_outcome` serves every step and reads the skill's OWN declaration
     (§2.4), so these pin the declaration rather than a per-skill function body.
     """
 

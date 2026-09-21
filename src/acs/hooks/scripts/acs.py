@@ -135,7 +135,8 @@ def build_parser():
     ctx.add_argument("--ticket", help="also resolve this ticket's partition")
     ctx.set_defaults(func=cmd_context)
 
-    gate = group("gate", help="run a skill's pre-gate without the skill")
+    gate = group("gate", help="run a skill's pre-gate without the skill: the "
+                              "hook's own answer, none of its writes")
     gate.add_argument("--skill", required=True)
     gate.add_argument("--ticket")
     gate.set_defaults(func=cmd_gate)

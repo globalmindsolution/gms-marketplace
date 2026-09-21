@@ -242,23 +242,43 @@ def cursor(doc, wf):
 # Writing -- the transitions
 # ---------------------------------------------------------------------------
 
-def create_run(repo_dir_path, subject, wf, wf_path, run_id=None):
-    """Record a new run and return (run_id, rdir, doc). The caller is
-    `acs run new`, reached from the first step's pre-hook when the checkout
-    has no current run."""
+def projected_run(repo_dir_path, subject, wf, wf_path, run_id=None):
+    """(run_id, rdir, doc) for the run this subject WOULD open -- computed,
+    never created.
+
+    Everything `create_run` returns, minus the two writes: no directory is
+    made, `run.json` is not saved and the run is not indexed, so the `rdir`
+    handed back is a path that does not exist. `acs gate` answers with this
+    when the checkout has no run yet: the query is documented as the pre-hook's
+    dry-run, and a dry-run that could see nothing until a run existed was not a
+    cheaper answer but a different one. Inertness is structural here -- there
+    is nothing to clean up afterwards, because nothing was written.
+    """
     kind = subject.get("kind")
     if kind not in SUBJECT_KINDS:
         raise GateError("subject kind %r is not one of %s" % (kind, ", ".join(SUBJECT_KINDS)))
     run_id = run_id or derive_run_id(subject, existing_run_ids(repo_dir_path))
-    rdir = run_dir(repo_dir_path, run_id)
-    if os.path.isdir(rdir) and load_run(rdir) is not None:
-        raise GateError("run %s already exists at %s" % (run_id, rdir))
-    os.makedirs(steps_dir(rdir), exist_ok=True)
-    os.makedirs(subject_dir(rdir), exist_ok=True)
     doc = empty_run(run_id, workflow_mod.workflow_name(wf_path),
                     wf.get("version"), subject)
     doc["started_at"] = now_iso()
     doc["cursor"] = cursor(doc, wf)
+    return run_id, run_dir(repo_dir_path, run_id), doc
+
+
+def create_run(repo_dir_path, subject, wf, wf_path, run_id=None):
+    """Record a new run and return (run_id, rdir, doc). The caller is
+    `acs run new`, reached from the first step's pre-hook when the checkout
+    has no current run.
+
+    The document is built by `projected_run`, so what the query judges and
+    what a real run records cannot drift apart: this function is that one
+    plus the two writes.
+    """
+    run_id, rdir, doc = projected_run(repo_dir_path, subject, wf, wf_path, run_id)
+    if os.path.isdir(rdir) and load_run(rdir) is not None:
+        raise GateError("run %s already exists at %s" % (run_id, rdir))
+    os.makedirs(steps_dir(rdir), exist_ok=True)
+    os.makedirs(subject_dir(rdir), exist_ok=True)
     save_run(rdir, doc)
     index_run(repo_dir_path, doc)
     return run_id, rdir, doc
@@ -525,12 +545,16 @@ def latest_open_run(repo_dir_path, kind, key):
 # Invariants -- `acs run check`
 # ---------------------------------------------------------------------------
 
-def check(rdir, wf, manifests=None):
+def check(rdir, wf, manifests=None, doc=None):
     """(errors, warnings) for invariants I1-I5 (§4.3). Every pre-hook calls
     this before allowing a transition, so a run cannot drift silently between
-    one step and the next."""
+    one step and the next.
+
+    `doc` is the ledger to judge when the caller already holds it -- a
+    projected run (`projected_run`) has none on disk to load.
+    """
     manifests = manifests if manifests is not None else skills_registry.load_manifests()
-    doc = require_run(rdir)
+    doc = doc if doc is not None else require_run(rdir)
     steps = workflow_mod.steps_of(wf)
     errors, warnings = [], []
 

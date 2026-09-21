@@ -10,9 +10,11 @@ loading a script, so a freshly loaded `dispatch` holds its OWN acs_lib object
 with its own module object. Patching the gate imported at the top of this file
 therefore patches a dictionary the dispatcher never reads, and the gate under
 test never runs -- which is exactly how the first version of these tests passed
-while asserting nothing. Always patch `dispatch.acs_lib.gate_step`, and assert on
-the distinguishing stderr rather than on the exit code alone, since the real
-gate_code also exits 2 (for a completely unrelated reason).
+while asserting nothing. Always patch `dispatch.acs_lib.gates.gate_outcome` --
+the gate's body lives there so `run_pre_payload` can reach the run document it
+judged (MAR-586 projects one for `acs gate`). And assert on the distinguishing
+stderr rather than on the exit code alone, since the real gate also exits 2
+(for a completely unrelated reason).
 """
 
 import io
@@ -62,9 +64,9 @@ class DispatchFailClosedTest(AcsWorkspaceCase):
         # shared by identity, so patching the facade reached the dispatcher;
         # a function re-export does not, and a patch that reaches nothing
         # makes a fail-closed test pass while asserting nothing.
-        original = dispatch.acs_lib.gates.gate_step
-        dispatch.acs_lib.gates.gate_step = gate
-        self.addCleanup(setattr, dispatch.acs_lib.gates, "gate_step", original)
+        original = dispatch.acs_lib.gates.gate_outcome
+        dispatch.acs_lib.gates.gate_outcome = gate
+        self.addCleanup(setattr, dispatch.acs_lib.gates, "gate_outcome", original)
         if timeout is not None:
             self.addCleanup(setattr, dispatch, "GATE_TIMEOUT_SECONDS",
                             dispatch.GATE_TIMEOUT_SECONDS)

@@ -39,11 +39,14 @@ onto the plugin hooks API like this:
    `pre-<skill>.py` wrappers exist for tests and `acs.py gate`, not for the
    hook path).
    Exit 2 blocks the skill before any of its instructions run; stderr names the
-   missing INPUT and the skill that produces it — never a predecessor that
-   "has not completed", which is no longer a reason to refuse (see "Gates:
-   order lives in ship.yaml"). This fires for user-typed slash commands and
-   model-initiated Skill calls alike — including the step skills `/ship` invokes
-   directly.
+   missing INPUT and the skill that produces it. A predecessor's POSITION in
+   the workflow is never a reason to refuse (see "Gates: order lives in
+   ship.yaml"); the one refusal that names a predecessor's completion is
+   `/acs:merge-pr`'s subject brake, which asks whether the step that recorded
+   the PR reference completed — an artifact, not a position (see "Where a
+   brake lives when the skill is not a step"). This fires for user-typed
+   slash commands and model-initiated Skill calls alike — including the step
+   skills `/ship` invokes directly.
 2. **Post-hooks — coordinator-invoked, gate-backed.** `post-<skill>.py` is the
    skill's mandatory final step (each SKILL.md ends with it). It must be a
    script the coordinator calls because its inputs — final status, stop
@@ -182,6 +185,41 @@ the same sequence in three places (the gates, `/acs:ship`'s prose, the docs).
 |---|---|---|
 | **Input** | Does the artifact or configuration this skill READS exist? | `/acs:code` refuses without `plan.md`: "no plan.md found for SHOP-12 (looked in the ticket's docs folder and in `<partition>`) — run `/acs:create-impl-plan SHOP-12` first." |
 | **Safety brake** | Would running now do damage that cannot be undone by re-running? | `/acs:create-pr` refuses a ticket whose recorded `/acs:code` run left `verifier_passed != true`; `/acs:merge-pr` refuses without a PR reference recorded by a completed run; every hooked skill refuses while another session holds the `.lock`. |
+
+**Where a brake lives when the skill is not a step.** `gate_outcome` returns as
+soon as the resolved workflow does not name the skill, so `BRAKES` — consulted
+after that return — can only hold steps. Three tables sit BEFORE it, and a
+skill that is legitimately not a step of `ship.yaml` is gated from one of them:
+
+| Table | Precondition it checks | Rows |
+|---|---|---|
+| `ARCHITECTURE_GATED` | a repo DOCUMENT: the architecture set (`hld/tech-stack.md`) | `create-project`, `standardize-project`, `create-docs` |
+| `PRD_GATED` | a repo DOCUMENT: `prd.md` | `create-architecture` |
+| `SUBJECT_GATES` | the SUBJECT TICKET the invocation names | `create-design` (flagged `needs_design`), `merge-pr` (a PR reference recorded by a completed step) |
+
+All three are consulted **unconditionally**, before the workflow is read,
+because a safety brake must not be switchable off by editing `ship.yaml`. A
+`SUBJECT_GATES` row is `f(ctx, payload)` raising `GateError` to refuse; it
+resolves a ticket and reads step state through path joins and `read_json`, so
+it opens no run and takes no lock, which is what lets `acs gate` reach it too.
+A row belongs there only when the skill is not a step AND its precondition is
+a property of the subject ticket — anything a run can answer stays in the
+skill's `reads` declaration (ADR-0101).
+
+**`acs.py gate` is the pre-hook's dry-run, and it is inert by construction.**
+It runs the same `run_pre_payload` with `record_marker=False` and
+`mutate=False`, and must produce the hook's exit code and the hook's stderr —
+fallback lines, brakes and advisory included. With no current run there is
+nothing on disk to judge, so `run.projected_run()` builds the run the subject
+WOULD open: the run id, the path it would occupy and the same document
+`create_run` builds, with no `makedirs`, no `save_run` and no `index_run`.
+`create_run` is that function plus exactly those two writes, so the projection
+and a real run cannot drift. `gate_outcome` carries the gate's body and returns
+`GateOutcome(run_id, doc)` so the advisory renders from the document the gate
+judged rather than re-reading a run that was never written. The one-line
+`gate_step` wrapper is gone — nothing called it once the body moved, so
+`gate_outcome` is the gate's only name — and `acquire_lock`,
+`_mark_step_started` and `settle_no_op` stay `mutate`-guarded.
 
 `GATE_INPUTS` in `acs_lib/gates.py` partitions the twenty gates by the input
 they check — `none`, `prd`, `architecture`, `ticket` — and a test asserts the

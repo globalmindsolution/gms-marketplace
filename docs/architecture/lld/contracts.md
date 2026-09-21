@@ -180,7 +180,10 @@ than a `0` the reader cannot distinguish from a run predating the trail.
 
 The next skill reads only canonical `states` keys — e.g. `/create-pr` gate:
 `code-state.states.verifier_passed == true`; `/merge-pr` gate: a `states.pr`
-reference in `create-pr-state` (or the product skill's state). Full table:
+reference recorded by a COMPLETED step — `gates._pr_recorded_for` reads
+`steps/<skill>/state.json` for `create-pr` and for each `DELIVERY_TICKET_SKILLS`
+member, across every run of the ticket, and requires that step's last status to
+be `completed`. Full table:
 INTERNALS.md "Canonical states keys per skill". Schemas:
 `src/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
 recorded by `plan-approval.py` and is **not** read by any gate this

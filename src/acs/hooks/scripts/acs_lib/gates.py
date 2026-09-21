@@ -7,6 +7,7 @@ workflows/ship.yaml (acs_lib.workflow) and is advised, never enforced, here
 """
 
 
+import collections
 import fnmatch
 import hashlib
 import json
@@ -128,7 +129,12 @@ def design_requirement(ctx, tdir, ticket):
 # `acs workflow validate` checks a step list's order against. One declaration,
 # two enforcers, and they cannot disagree.
 #
-# What stayed per-skill is only what is genuinely a SAFETY BRAKE.
+# What stayed per-skill is only what is genuinely a SAFETY BRAKE, and it sits
+# in three tables consulted BEFORE the workflow is resolved: ARCHITECTURE_GATED
+# and PRD_GATED for a repo DOCUMENT precondition, SUBJECT_GATES for one about
+# the subject TICKET. All three gate skills that are legitimately not steps of
+# `ship` (§2.4), which is why none of them may sit behind the `has_step`
+# return -- a safety brake must not be switchable off by a workflow edit.
 # ---------------------------------------------------------------------------
 
 # The brakes themselves live in `acs_lib.brakes` (one layer down: they read
@@ -140,12 +146,148 @@ from .brakes import (ARCHITECTURE_GATED, BRAKES, PRD_GATED,  # noqa: E402,F401
                      _require_architecture_doc_set, _sha256_file)
 
 
-def gate_step(ctx, skill, payload, standalone=True, mutate=True):
-    """The whole pre-hook gate for one skill. Returns the run id it gated, or
-    None for a skill that is not a step (setup, metrics, handoff...).
+def _run_dirs_for_ticket(repo, ticket_id):
+    """Every run partition this ticket has, newest first.
+
+    A second run on one subject is `<ticket>-r2` (`run.derive_run_id`), so the
+    ticket-keyed join names at most the first of them and a lock or a PR
+    recorded by any later one is invisible to it. The join stays as the last
+    entry, so a run directory the index does not list is still asked."""
+    rdirs, seen = [], set()
+    for row in reversed(run_machine.find_runs_for_subject(repo, "ticket", ticket_id)):
+        run_id = row.get("run_id")
+        if run_id and run_id not in seen:
+            seen.add(run_id)
+            rdirs.append(run_machine.run_dir(repo, run_id))
+    fallback, _archived = run_machine.partition_for_ticket(repo, ticket_id)
+    if fallback not in rdirs:
+        rdirs.append(fallback)
+    return rdirs
+
+
+def _resolve_ticket_for_gate(ctx, payload, skill):
+    """(ticket_id, tdir, ticket) for a gate whose subject is a TICKET, not a run."""
+    args_text = ""
+    tool_input = payload.get("tool_input") or {}
+    for key in ("args", "arguments", "argument"):
+        if isinstance(tool_input.get(key), str):
+            args_text = tool_input[key]
+            break
+    ticket_id, _source = resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"],
+                                           ctx["repo_id"], args_text=args_text)
+    if not ticket_id:
+        raise GateError(
+            "could not resolve a ticket id for /%s (no argument, no session pointer, "
+            "no ticket in the branch name). Pass it explicitly, e.g. /acs:%s %s-123."
+            % (skill, skill, ctx["settings"].get("ticket_prefix", "SHOP")))
+    tdir, archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+    if archived:
+        raise GateError("ticket %s is done and archived (%s); nothing left to run."
+                        % (ticket_id, tdir))
+    if not os.path.isdir(tdir):
+        raise GateError("no workspace partition for %s (expected %s) — run "
+                        "/acs:create-ticket first." % (ticket_id, tdir))
+    ticket = load_ticket(tdir)
+    if not ticket:
+        raise GateError("ticket file missing or corrupt at %s/ticket.json — treat as "
+                        "not created; run /acs:create-ticket." % tdir)
+    # v0.5.0 locks the RUN, not the ticket partition (§4.2), and a subject with
+    # two runs has two locks (lock.py:11) -- so every run of this ticket is
+    # asked, not only the one whose id happens to BE the ticket id. A ticket
+    # that has never been run has nothing to be locked by.
+    for rdir in _run_dirs_for_ticket(repo_dir(ctx["workspace"], ctx["repo_id"]),
+                                     ticket_id):
+        if not os.path.isdir(rdir):
+            continue
+        ok, message = check_lock(rdir, ctx["checkout_id"])
+        if not ok:
+            raise GateError(message)
+    return ticket_id, tdir, ticket
+
+
+def gate_create_design(ctx, payload):
+    """Brake: a design is only written for a design-significant ticket."""
+    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-design")
+    if not ticket.get("needs_design"):
+        raise GateError(
+            "ticket %s is not flagged needs_design — /create-design only runs for "
+            "design-significant tickets; go straight to /acs:code %s."
+            % (ticket_id, ticket_id))
+    return ticket_id
+
+
+def _pr_recorded_for(repo, ticket_id):
+    """True when a completed step of one of this ticket's runs recorded a PR."""
+    for rdir in _run_dirs_for_ticket(repo, ticket_id):
+        for skill in ["create-pr"] + list(DELIVERY_TICKET_SKILLS):
+            if not os.path.isfile(step_machine.state_path(rdir, skill)):
+                continue
+            state = step_machine.load_state(rdir, skill)
+            pr = (state.get("states") or {}).get("pr") or {}
+            # `states` is typed as a bare object (schemas/result.schema.json),
+            # so a recorded `pr` can be any JSON value and this brake is where
+            # one that is not an object surfaces.
+            if not isinstance(pr, dict):
+                raise GateError(
+                    "states.pr in %s is not an object (it is a %s) — a recorded PR "
+                    "reference is an object with a url and/or a number. Correct that "
+                    "file, or re-run /acs:create-pr to record the reference again, "
+                    "and retry." % (step_machine.state_path(rdir, skill),
+                                    type(pr).__name__))
+            if not (pr.get("url") or pr.get("number")):
+                continue
+            if step_machine.last_status(rdir, skill) == "completed":
+                return True
+    return False
+
+
+def gate_merge_pr(ctx, payload):
+    """Brake: a merge needs a PR reference a completed run actually recorded.
+
+    The exempt non-ticket forms (--pr N, #N, a PR URL, a bare integer with no
+    ticket in scope) short-circuit first: such a merge is nobody's ticket, so
+    there is no ticket gate to run on it."""
+    args_text = _merge_pr_arg_text(payload)
+    _resolved, source = resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"],
+                                          ctx["repo_id"], args_text=args_text)
+    kind, _pr_ref = classify_merge_pr_arg(
+        args_text, ctx["settings"].get("ticket_prefix"),
+        ticket_resolves=source in ("pointer", "branch"))
+    if kind == "exempt-pr":
+        return None
+    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "merge-pr")
+    if _pr_recorded_for(repo_dir(ctx["workspace"], ctx["repo_id"]), ticket_id):
+        return ticket_id
+    raise GateError(
+        "no PR reference recorded for %s — /acs:create-pr (or the product-level "
+        "skill) must complete first." % ticket_id)
+
+
+#: skill -> gate, for a skill whose precondition is about the SUBJECT TICKET.
+#: The third table beside ARCHITECTURE_GATED and PRD_GATED, and there for the
+#: same reason they are: neither skill is a step of `ship` (§2.4), so neither
+#: has a run to read its precondition from. A row here resolves a ticket
+#: through path joins and `read_json` alone -- it opens no run, takes no lock
+#: and settles nothing, which is what keeps `acs gate` inert.
+SUBJECT_GATES = {
+    "create-design": gate_create_design,
+    "merge-pr": gate_merge_pr,
+}
+
+
+#: What the gate judged: the run id it gated (None for a non-step skill) and
+#: the run document it judged it against. The DOCUMENT is the addition: a
+#: query answers against a run projected in memory, which the advisory cannot
+#: load from disk afterwards because it was never written there.
+GateOutcome = collections.namedtuple("GateOutcome", "run_id doc")
+
+
+def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
+    """The whole pre-hook gate for one skill, as a GateOutcome.
 
     Order of business, and each line is load-bearing:
-      1. a skill that is not a step has nothing here to check
+      1. the three non-step tables, then: a skill that is not a step has
+         nothing further here to check
       2. the run: this checkout's current one, or a new one over the subject
       3. the invariants, BEFORE any write (§4.3) -- a drifted ledger is
          refused here rather than discovered three steps later
@@ -157,13 +299,18 @@ def gate_step(ctx, skill, payload, standalone=True, mutate=True):
     `mutate=False` answers the question WITHOUT the answer's consequences, for
     `acs.py gate` -- which is documented as "run one skill's pre-gate without
     running the skill" and was creating a run, taking the lock, opening the
-    step and settling no-ops as a side effect of being asked.
+    step and settling no-ops as a side effect of being asked. It judges the
+    run the subject WOULD open (`run.projected_run`) instead of one it creates,
+    so the query reaches every check below and still writes nothing.
     """
     manifests = skills_registry.load_manifests()
     if skill in ARCHITECTURE_GATED:
         _require_architecture_doc_set(ctx)
     if skill in PRD_GATED:
         _require_prd(ctx)
+    subject_gate = SUBJECT_GATES.get(skill)
+    if subject_gate:
+        subject_gate(ctx, payload)
 
     # Only the skills the RESOLVED WORKFLOW runs go through a run. A skill
     # that declares reads/writes but is not a step of this workflow is a
@@ -176,11 +323,9 @@ def gate_step(ctx, skill, payload, standalone=True, mutate=True):
     except WorkflowError as exc:
         raise GateError("the workflow does not validate: %s" % exc)
     if not workflow.has_step(wf, skill):
-        return None
+        return GateOutcome(None, None)
 
     rdir, doc, wf = resolve_run_for(ctx, skill, payload, mutate=mutate)
-    if rdir is None:
-        return None
     # The LOCK, before the invariants and before any write. One run, one
     # session: a second checkout that picked this run up would interleave two
     # sessions' writes into one ledger, and the invariants that keep it honest
@@ -191,9 +336,10 @@ def gate_step(ctx, skill, payload, standalone=True, mutate=True):
         raise GateError(message)
     if mutate:
         acquire_lock(rdir, ctx.get("checkout_root") or ctx["workspace"])
-    stepgate.check_invariants(rdir, wf, manifests)
+    stepgate.check_invariants(rdir, wf, manifests, doc=doc)
 
-    fell_back = stepgate.check_inputs(rdir, skill, manifests, wf, standalone=standalone)
+    fell_back = stepgate.check_inputs(rdir, skill, manifests, wf,
+                                      standalone=standalone, doc=doc)
     for artifact in fell_back:
         sys.stderr.write(
             "acs: no %s for this run; /acs:%s will work from the run's subject instead.\n"
@@ -214,7 +360,7 @@ def gate_step(ctx, skill, payload, standalone=True, mutate=True):
     if settled:
         outcome, reason = settled
         raise NothingOwed(skill, outcome, reason)
-    return doc["run_id"]
+    return GateOutcome(doc["run_id"], doc)
 
 
 class NothingOwed(Exception):
@@ -233,7 +379,9 @@ def resolve_run_for(ctx, skill, payload, mutate=True):
     The checkout's current run when it has one, else a new run over whatever
     subject the invocation named -- a ticket id, a prompt or a document. Every
     skill accepts all three (§3.11), so this is the same resolution for all of
-    them.
+    them. `rdir` is always a run directory: under `mutate=False` it is the one
+    the subject WOULD open, which exists only in memory, so a caller reads the
+    returned `doc` rather than the path.
     """
     repo = repo_dir(ctx["workspace"], ctx["repo_id"])
     try:
@@ -279,9 +427,13 @@ def resolve_run_for(ctx, skill, payload, mutate=True):
                 % (subject["ticket_id"], skill))
 
     if not mutate:
-        # Asked, not told: report the gate against a run that does not exist
-        # yet rather than creating one to answer with.
-        return None, None, wf
+        # Asked, not told: judge the run this subject WOULD open, projected in
+        # memory, rather than creating one to answer with. Returning "no run,
+        # nothing to check" was not a smaller answer but a different one --
+        # the query reported `ok` for an epic the hook refuses outright,
+        # because every brake below sits past this return.
+        _run_id, rdir, doc = run_machine.projected_run(repo, subject, wf, wf_path)
+        return rdir, doc, wf
     run_id, rdir, doc = run_machine.create_run(repo, subject, wf, wf_path)
     sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id,
                           checkout_path=ctx.get("checkout_root"))
@@ -379,7 +531,7 @@ def run_pre_payload(skill, payload, record_marker=True, mutate=True):
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)
         try:
-            run_id = gate_step(ctx, skill, payload, mutate=mutate)
+            outcome = gate_outcome(ctx, skill, payload, mutate=mutate)
         except NothingOwed as owed:
             # Not a refusal to report as one: the step is COMPLETE. Exit 2
             # stops the Skill from running, which is the point -- no
@@ -389,12 +541,14 @@ def run_pre_payload(skill, payload, record_marker=True, mutate=True):
                 "acs: /acs:%s has nothing to do on this run — recorded %s (%s). "
                 "The step is complete.\n" % (owed.skill, owed.outcome, owed.reason))
             return 2
-        if run_id:
-            advisory = workflow_advisory(ctx, skill, run_id)
+        if outcome.run_id:
+            # The judged document, not a re-read: a projected run has none on
+            # disk, and the query must print the line the hook would print.
+            advisory = workflow_advisory(ctx, skill, outcome.run_id, doc=outcome.doc)
             if advisory:
                 sys.stderr.write(advisory + "\n")
             if mutate:
-                _mark_step_started(ctx, skill, run_id)
+                _mark_step_started(ctx, skill, outcome.run_id)
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
         return 2

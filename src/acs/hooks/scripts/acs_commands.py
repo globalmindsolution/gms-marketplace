@@ -59,7 +59,14 @@ def cmd_context(args):
 
 def cmd_gate(args):
     """Run one skill's pre-gate without running the skill. Exit code mirrors
-    the gate's own (0 open, 2 blocked); the gate writes its reason to stderr."""
+    the gate's own (0 open, 2 blocked); the gate writes its reason to stderr.
+
+    A faithful dry-run of `pre-<skill>.py`: the same exit code and the same
+    stderr for the same subject, including the input fallbacks, the safety
+    brakes and the out-of-order advisory. When the checkout has no run yet the
+    gate judges the run the subject WOULD open, projected in memory
+    (`run.projected_run`), so the answer is the hook's without the hook's
+    writes."""
     if args.skill not in lib.HOOKED_SKILLS:
         die("gate", "unknown skill %r (expected one of %s)"
             % (args.skill, ", ".join(sorted(lib.HOOKED_SKILLS))))
@@ -72,7 +79,9 @@ def cmd_gate(args):
     # its cost/usage attribution. Asking "would this gate pass?" must not.
     # mutate=False: "would this gate pass?" must not answer by creating a run,
     # taking the lock, opening the step or settling a no-op. It did all four,
-    # so asking about `create-e2e-tests` permanently completed that step.
+    # so asking about `create-e2e-tests` permanently completed that step. The
+    # question is still answered in full -- against a projected run, not a
+    # created one -- so removing the side effects did not cost the sight.
     code = lib.run_pre_payload(args.skill, payload, record_marker=False, mutate=False)
     emit({"ok": code == 0, "skill": args.skill, "exit_code": code})
     sys.exit(code)

@@ -23,6 +23,10 @@ from . import step as step_machine
 #: Safety brakes, by skill. Each returns None or raises GateError. These are
 #: the checks that are not "does an input exist" -- the ones where running
 #: anyway would do damage a re-run could not undo.
+#:
+#: BRAKES is consulted AFTER `gate_outcome`'s `has_step` return, so it can only
+#: hold steps of the workflow. A brake for a skill that is legitimately not a
+#: step lives in `gates.SUBJECT_GATES`, which is consulted before it.
 def _brake_code(ctx, rdir, doc, wf):
     """On the deep paths the plan must be APPROVED, and the approval must be
     for the plan that is on disk now. An implementer working from a plan the
@@ -79,7 +83,7 @@ def _merge_pr_arg_text(payload):
     """The raw argument string, read the same way subject_from_payload reads
     it. /acs:merge-pr's exempt non-ticket forms (--pr N, #N, a PR URL) are
     parsed from this before any run is resolved: an exempt PR merge is not a
-    step of a run and must not create one."""
+    step of a run and must not create one. Called by `gates.gate_merge_pr`."""
     tool_input = payload.get("tool_input") or {}
     for key in ("args", "arguments", "argument"):
         if isinstance(tool_input.get(key), str):

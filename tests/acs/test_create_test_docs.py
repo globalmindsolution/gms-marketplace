@@ -197,7 +197,7 @@ class TestIndependence(unittest.TestCase):
         self.assertRegex(self.body, r"read WHEN PRESENT — neither is required")
 
     def test_the_gate_it_describes_is_the_gate_that_exists(self):
-        """One `gate_step` serves every step and reads the skill's OWN
+        """One `gate_outcome` serves every step and reads the skill's OWN
         declaration (§2.4), so what the prose promises is pinned against
         `skills/create-test-docs/acs.yaml` rather than a function body."""
         self.assertTrue(lib.is_step_candidate("create-test-docs"))
