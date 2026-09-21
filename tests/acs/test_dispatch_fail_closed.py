@@ -12,10 +12,9 @@ therefore patches a dictionary the dispatcher never reads, and the gate under
 test never runs -- which is exactly how the first version of these tests passed
 while asserting nothing. Always patch `dispatch.acs_lib.gates.gate_outcome` --
 the gate's body lives there so `run_pre_payload` can reach the run document it
-judged (MAR-586 projects one for `acs gate`), and `gate_step` is now only the
-compatibility wrapper, so a fake installed on THAT name reaches nothing. And
-assert on the distinguishing stderr rather than on the exit code alone, since
-the real gate also exits 2 (for a completely unrelated reason).
+judged (MAR-586 projects one for `acs gate`). And assert on the distinguishing
+stderr rather than on the exit code alone, since the real gate also exits 2
+(for a completely unrelated reason).
 """
 
 import io

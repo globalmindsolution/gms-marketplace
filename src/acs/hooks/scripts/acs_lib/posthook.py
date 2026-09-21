@@ -273,6 +273,20 @@ def run_post(skill):
         tdir, _archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
     epic_done = None
     archived_to = None
+    # A mis-shaped `states.pr` degrades to "no number recorded" rather than
+    # stranding the step. `states` is a bare object in result.schema.json, so
+    # validate_result admits any JSON value here, and save_state above has
+    # ALREADY persisted the invocation -- raising would escape the GuardTimeout
+    # arm below, skip release_lock, and leave the next gate refusing a run that
+    # in fact finished. Refusing is the pre-hook's job, and the brake in `gates`
+    # still refuses this value there, so nothing is swallowed by warning here.
+    recorded_pr = (result.get("states") or {}).get("pr")
+    if recorded_pr is not None and not isinstance(recorded_pr, dict):
+        sys.stderr.write(
+            "acs post-%s: states.pr is not an object (it is a %s), so no PR number "
+            "was recorded in metrics.json. The step is finalized either way; correct "
+            "the reference and the next gate will accept it.\n"
+            % (skill, type(recorded_pr).__name__))
     try:
         ticket = load_ticket(tdir) if tdir and os.path.isdir(tdir) else None
         if ticket:
@@ -284,7 +298,7 @@ def run_post(skill):
                 # `states.pr` from one moves the ticket to review just as
                 # create-pr does.
                 if (skill in DELIVERY_TICKET_SKILLS
-                        and (result.get("states") or {}).get("pr")
+                        and recorded_pr
                         and ticket.get("status") != "done"):
                     ticket["status"] = "in_review"
                     save_ticket(tdir, ticket)
@@ -293,10 +307,10 @@ def run_post(skill):
                     save_ticket(tdir, ticket)
             update_index(ctx["workspace"], ctx["repo_id"], ticket)
 
-        pr_number = ((result.get("states") or {}).get("pr") or {}).get("number")
+        pr_number = recorded_pr.get("number") if isinstance(recorded_pr, dict) else None
         update_metrics(
             ctx["workspace"], ctx["repo_id"], run_entry=entry,
-            pr_created=(status == "completed" and bool((result.get("states") or {}).get("pr"))
+            pr_created=(status == "completed" and bool(recorded_pr)
                         and skill in (["create-pr"] + list(DELIVERY_TICKET_SKILLS))),
             pr_merged=(skill == "merge-pr" and status == "completed"),
             pr_number=pr_number,
