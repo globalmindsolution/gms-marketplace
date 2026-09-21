@@ -39,11 +39,14 @@ onto the plugin hooks API like this:
    `pre-<skill>.py` wrappers exist for tests and `acs.py gate`, not for the
    hook path).
    Exit 2 blocks the skill before any of its instructions run; stderr names the
-   missing INPUT and the skill that produces it — never a predecessor that
-   "has not completed", which is no longer a reason to refuse (see "Gates:
-   order lives in ship.yaml"). This fires for user-typed slash commands and
-   model-initiated Skill calls alike — including the step skills `/ship` invokes
-   directly.
+   missing INPUT and the skill that produces it. A predecessor's POSITION in
+   the workflow is never a reason to refuse (see "Gates: order lives in
+   ship.yaml"); the one refusal that names a predecessor's completion is
+   `/acs:merge-pr`'s subject brake, which asks whether the step that recorded
+   the PR reference completed — an artifact, not a position (see "Where a
+   brake lives when the skill is not a step"). This fires for user-typed
+   slash commands and model-initiated Skill calls alike — including the step
+   skills `/ship` invokes directly.
 2. **Post-hooks — coordinator-invoked, gate-backed.** `post-<skill>.py` is the
    skill's mandatory final step (each SKILL.md ends with it). It must be a
    script the coordinator calls because its inputs — final status, stop

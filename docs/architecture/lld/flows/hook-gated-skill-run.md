@@ -209,7 +209,11 @@ is still the block. What it evaluates is now only:
   `/acs:create-pr`'s `verifier_passed` brake (narrowed to a ticket that HAS a
   recorded `code` run), and `/acs:merge-pr`'s recorded-PR requirement.
 
-No gate reads another skill's run status: `_require_completed` is deleted.
+No gate refuses a skill for a predecessor's POSITION: `_require_completed`
+is deleted. The one gate that reads another step's status is
+`/acs:merge-pr`'s subject brake, which asks whether the step that recorded
+the PR reference completed (`gates._pr_recorded_for`) — an artifact, not a
+position.
 When the skill IS a step of the resolved `workflows/ship.yaml` and that step's
 a step that precedes it in `ship.yaml` has not completed, the gate passes and
 prints one stderr line — `acs: docs-sync normally follows code in ship.yaml;
