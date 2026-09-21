@@ -64,7 +64,7 @@ class Mar143GateCase(unittest.TestCase):
     architecture-awareness is an authoring BEHAVIOR, not a hard gate
     (design.md 521-525).
 
-    There is one gate now (`gate_step`), so "the gate is standalone" is no
+    There is one gate now (`gate_outcome`), so "the gate is standalone" is no
     longer a property of a function: it is the absence of this skill from the
     hard-gated sets, and the absence of a required run artifact from its own
     declaration. Both are data, which is what makes them checkable.

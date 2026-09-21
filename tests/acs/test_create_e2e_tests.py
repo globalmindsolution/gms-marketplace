@@ -145,7 +145,7 @@ class TestIndependence(unittest.TestCase):
 class TestGateAgreement(unittest.TestCase):
     """What the Start section promises is what the kernel checks.
 
-    There is no `gate_create_e2e_tests` any more: one `gate_step` serves every
+    There is no `gate_create_e2e_tests` any more: one `gate_outcome` serves every
     step and reads the skill's OWN declaration (§2.4). So the pins are on the
     declaration and the outcome vocabulary rather than on a function body,
     which is what makes them impossible to satisfy with prose alone.

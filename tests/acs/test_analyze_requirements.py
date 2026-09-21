@@ -184,7 +184,7 @@ class TestIndependence(unittest.TestCase):
                 self.assertNotIn(dead, self.body)
 
     def test_the_gate_it_describes_is_the_gate_that_exists(self):
-        """One gate for every step now (`gate_step`), and what it checks is
+        """One gate for every step now (`gate_outcome`), and what it checks is
         the skill's OWN declaration: `reads` in skills/<name>/acs.yaml drives
         both the runtime input check and `acs workflow validate`'s order
         check, so the two cannot disagree."""

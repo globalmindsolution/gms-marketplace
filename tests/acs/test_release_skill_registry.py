@@ -67,8 +67,9 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         )
 
     def test_release_is_not_gated(self):
-        # There is no per-skill gate table any more: `gate_step` gates a step
-        # of the resolved workflow, and an unhooked utility skill is not one.
+        # The only per-skill gate table left is `SUBJECT_GATES` (two rows):
+        # `gate_outcome` otherwise gates a step of the resolved workflow, and
+        # an unhooked utility skill is not one.
         # Not being in HOOKED_SKILLS IS not being gated.
         self.assertNotIn(
             "release", acs_lib.HOOKED_SKILLS,
