@@ -37,13 +37,17 @@ def render_advisory(skill, run_id, predecessor, cursor):
             % (skill, ADVISORY_MARK, predecessor, run_id, cursor))
 
 
-def workflow_advisory(ctx, skill, run_id):
+def workflow_advisory(ctx, skill, run_id, doc=None):
     """The out-of-order advisory for a hooked skill about to run, or None.
 
     None -- no line at all -- for every ordinary case: the skill IS the
     cursor, the workflow does not name it, advisories are off, or anything
     cannot be read. A line that appeared when nothing was wrong would train
     the reader to ignore it.
+
+    `doc` is the run's ledger when the caller already holds it -- a projected
+    run (`run.projected_run`) has none on disk to load, and `acs gate` must
+    print the line the hook would print rather than fall silent.
     """
     settings = (ctx.get("settings") or {}).get("workflow") or {}
     if settings.get("advisories") is False:
@@ -55,11 +59,12 @@ def workflow_advisory(ctx, skill, run_id):
         return None
     if not workflow.has_step(wf, skill):
         return None
-    try:
-        rdir = run_machine.run_dir(repo_dir(ctx["workspace"], ctx["repo_id"]), run_id)
-        doc = run_machine.load_run(rdir)
-    except Exception:  # noqa: BLE001
-        return None
+    if doc is None:
+        try:
+            rdir = run_machine.run_dir(repo_dir(ctx["workspace"], ctx["repo_id"]), run_id)
+            doc = run_machine.load_run(rdir)
+        except Exception:  # noqa: BLE001
+            return None
     if doc is None:
         return None
     cursor = run_machine.cursor(doc, wf)

@@ -7,6 +7,7 @@ workflows/ship.yaml (acs_lib.workflow) and is advised, never enforced, here
 """
 
 
+import collections
 import fnmatch
 import hashlib
 import json
@@ -253,9 +254,27 @@ SUBJECT_GATES = {
 }
 
 
+#: What the gate judged: the run id it gated (None for a non-step skill) and
+#: the run document it judged it against. The DOCUMENT is the addition: a
+#: query answers against a run projected in memory, which the advisory cannot
+#: load from disk afterwards because it was never written there.
+GateOutcome = collections.namedtuple("GateOutcome", "run_id doc")
+
+
 def gate_step(ctx, skill, payload, standalone=True, mutate=True):
-    """The whole pre-hook gate for one skill. Returns the run id it gated, or
-    None for a skill that is not a step (setup, metrics, handoff...).
+    """The run id `gate_outcome` gated, or None for a skill that is not a step.
+
+    The whole gate lives in `gate_outcome`; this is the long-standing name and
+    return value, kept so every CALLER of it is untouched. Anything that
+    PATCHES the gate wants `gate_outcome` instead -- that is the name
+    `run_pre_payload` looks up, so a fake installed here reaches nothing.
+    """
+    return gate_outcome(ctx, skill, payload, standalone=standalone,
+                        mutate=mutate).run_id
+
+
+def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
+    """The whole pre-hook gate for one skill, as a GateOutcome.
 
     Order of business, and each line is load-bearing:
       1. the three non-step tables, then: a skill that is not a step has
@@ -271,7 +290,9 @@ def gate_step(ctx, skill, payload, standalone=True, mutate=True):
     `mutate=False` answers the question WITHOUT the answer's consequences, for
     `acs.py gate` -- which is documented as "run one skill's pre-gate without
     running the skill" and was creating a run, taking the lock, opening the
-    step and settling no-ops as a side effect of being asked.
+    step and settling no-ops as a side effect of being asked. It judges the
+    run the subject WOULD open (`run.projected_run`) instead of one it creates,
+    so the query reaches every check below and still writes nothing.
     """
     manifests = skills_registry.load_manifests()
     if skill in ARCHITECTURE_GATED:
@@ -293,11 +314,9 @@ def gate_step(ctx, skill, payload, standalone=True, mutate=True):
     except WorkflowError as exc:
         raise GateError("the workflow does not validate: %s" % exc)
     if not workflow.has_step(wf, skill):
-        return None
+        return GateOutcome(None, None)
 
     rdir, doc, wf = resolve_run_for(ctx, skill, payload, mutate=mutate)
-    if rdir is None:
-        return None
     # The LOCK, before the invariants and before any write. One run, one
     # session: a second checkout that picked this run up would interleave two
     # sessions' writes into one ledger, and the invariants that keep it honest
@@ -308,9 +327,10 @@ def gate_step(ctx, skill, payload, standalone=True, mutate=True):
         raise GateError(message)
     if mutate:
         acquire_lock(rdir, ctx.get("checkout_root") or ctx["workspace"])
-    stepgate.check_invariants(rdir, wf, manifests)
+    stepgate.check_invariants(rdir, wf, manifests, doc=doc)
 
-    fell_back = stepgate.check_inputs(rdir, skill, manifests, wf, standalone=standalone)
+    fell_back = stepgate.check_inputs(rdir, skill, manifests, wf,
+                                      standalone=standalone, doc=doc)
     for artifact in fell_back:
         sys.stderr.write(
             "acs: no %s for this run; /acs:%s will work from the run's subject instead.\n"
@@ -331,7 +351,7 @@ def gate_step(ctx, skill, payload, standalone=True, mutate=True):
     if settled:
         outcome, reason = settled
         raise NothingOwed(skill, outcome, reason)
-    return doc["run_id"]
+    return GateOutcome(doc["run_id"], doc)
 
 
 class NothingOwed(Exception):
@@ -350,7 +370,9 @@ def resolve_run_for(ctx, skill, payload, mutate=True):
     The checkout's current run when it has one, else a new run over whatever
     subject the invocation named -- a ticket id, a prompt or a document. Every
     skill accepts all three (§3.11), so this is the same resolution for all of
-    them.
+    them. `rdir` is always a run directory: under `mutate=False` it is the one
+    the subject WOULD open, which exists only in memory, so a caller reads the
+    returned `doc` rather than the path.
     """
     repo = repo_dir(ctx["workspace"], ctx["repo_id"])
     try:
@@ -396,9 +418,13 @@ def resolve_run_for(ctx, skill, payload, mutate=True):
                 % (subject["ticket_id"], skill))
 
     if not mutate:
-        # Asked, not told: report the gate against a run that does not exist
-        # yet rather than creating one to answer with.
-        return None, None, wf
+        # Asked, not told: judge the run this subject WOULD open, projected in
+        # memory, rather than creating one to answer with. Returning "no run,
+        # nothing to check" was not a smaller answer but a different one --
+        # the query reported `ok` for an epic the hook refuses outright,
+        # because every brake below sits past this return.
+        _run_id, rdir, doc = run_machine.projected_run(repo, subject, wf, wf_path)
+        return rdir, doc, wf
     run_id, rdir, doc = run_machine.create_run(repo, subject, wf, wf_path)
     sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id,
                           checkout_path=ctx.get("checkout_root"))
@@ -496,7 +522,7 @@ def run_pre_payload(skill, payload, record_marker=True, mutate=True):
         if warn:
             sys.stderr.write("acs: warning: %s\n" % warn)
         try:
-            run_id = gate_step(ctx, skill, payload, mutate=mutate)
+            outcome = gate_outcome(ctx, skill, payload, mutate=mutate)
         except NothingOwed as owed:
             # Not a refusal to report as one: the step is COMPLETE. Exit 2
             # stops the Skill from running, which is the point -- no
@@ -506,12 +532,14 @@ def run_pre_payload(skill, payload, record_marker=True, mutate=True):
                 "acs: /acs:%s has nothing to do on this run — recorded %s (%s). "
                 "The step is complete.\n" % (owed.skill, owed.outcome, owed.reason))
             return 2
-        if run_id:
-            advisory = workflow_advisory(ctx, skill, run_id)
+        if outcome.run_id:
+            # The judged document, not a re-read: a projected run has none on
+            # disk, and the query must print the line the hook would print.
+            advisory = workflow_advisory(ctx, skill, outcome.run_id, doc=outcome.doc)
             if advisory:
                 sys.stderr.write(advisory + "\n")
             if mutate:
-                _mark_step_started(ctx, skill, run_id)
+                _mark_step_started(ctx, skill, outcome.run_id)
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
         return 2

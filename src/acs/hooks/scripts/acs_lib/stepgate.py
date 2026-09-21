@@ -66,7 +66,7 @@ NO_OP_STEPS = {
 }
 
 
-def check_inputs(rdir, step, manifests=None, wf=None, standalone=False):
+def check_inputs(rdir, step, manifests=None, wf=None, standalone=False, doc=None):
     """Raise GateError when a required artifact is absent and nothing can
     stand in for it. Returns the list of artifacts that fell back, for the
     caller to report.
@@ -74,6 +74,9 @@ def check_inputs(rdir, step, manifests=None, wf=None, standalone=False):
     `standalone=True` is a hand invocation: a missing artifact becomes a
     fallback the skill resolves from the subject, and only a run with no
     subject at all is refused.
+
+    `doc` is the run's ledger when the caller already holds it -- a projected
+    run (`run.projected_run`) has none on disk to load.
     """
     manifests = manifests if manifests is not None else skills_registry.load_manifests()
     missing = run_machine.missing_reads(rdir, step, manifests, wf)
@@ -85,7 +88,7 @@ def check_inputs(rdir, step, manifests=None, wf=None, standalone=False):
             "no %s for this run (expected %s) — run /acs:%s first."
             % (artifact, run_machine.artifact_path(rdir, artifact, manifests, wf),
                producer or "<the skill that writes it>"))
-    doc = run_machine.load_run(rdir)
+    doc = doc if doc is not None else run_machine.load_run(rdir)
     if doc is None or not (doc.get("subject") or {}).get("kind"):
         artifact, producer = missing[0]
         raise GateError(
@@ -134,11 +137,15 @@ def settle_no_op(rdir, step, run_id, wf, manifests=None):
     return outcome, reason
 
 
-def check_invariants(rdir, wf, manifests=None):
+def check_invariants(rdir, wf, manifests=None, doc=None):
     """I1-I5 before any transition (§4.3). A run that has drifted is refused
     here rather than discovered three steps later, when the artifacts no
-    longer say which state was the true one."""
-    errors, warnings = run_machine.check(rdir, wf, manifests)
+    longer say which state was the true one.
+
+    `doc` is the ledger to judge when the caller already holds it -- a
+    projected run (`run.projected_run`) has none on disk to load.
+    """
+    errors, warnings = run_machine.check(rdir, wf, manifests, doc=doc)
     if errors:
         raise GateError(
             "this run's ledger is inconsistent and acs will not write to it:\n  %s\n"
