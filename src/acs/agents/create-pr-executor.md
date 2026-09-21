@@ -44,11 +44,34 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
 ## Charter — ship the PR, in this order
 
-1. **Branch.** Verify the ticket branch from the plan exists
-   (`git rev-parse --verify <branch>` locally, or already on origin per the plan).
-   Push it: `git push -u origin <branch>`; skip the push when it exists only on
-   origin and is current. NEVER commit new work — uncommitted implementation
-   changes are /acs:code's job: stop and return `needs_input` with the question.
+1. **Branch, base, and the stacked-base pre-flight.** Verify the ticket branch
+   from the plan exists (`git rev-parse --verify <branch>` locally, or already on
+   origin per the plan). Detect the base BEFORE anything is pushed —
+   `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name` — then
+   refresh it and run the pre-flight (the helper is read-only and network-free,
+   so the fetch is yours to do):
+
+   ```bash
+   git fetch origin <base>
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stacked-base.py" check \
+     --base <base> --commit-message-format "<settings.formats.commit_message>" \
+     --ticket-prefix <settings.ticket_prefix>
+   ```
+
+   Exit 0 (`verdict` `clean` or `own_violations`) — nothing is stacked, carry
+   on. Exit 1 (`verdict` `stacked_base`) — the branch is stacked on a base that
+   was squash-merged: do NOT push and do NOT create or edit a PR; stop and
+   return `needs_input` carrying the report's `message` VERBATIM (it names the
+   offending subjects and the replay command with real SHAs — a paraphrase drops
+   exactly what the author needs), and record it in your execute report. The
+   author replays the branch; you never rewrite it. Exit 2 (unevaluable — the base ref does not
+   resolve, or the histories share no merge base; `acs stacked-base: <reason>`
+   on stderr) — one `info` finding, then CONTINUE, and treat a failed
+   `git fetch` the same way; an advisory pre-flight never fails a good PR.
+   Only then push: `git push -u origin <branch>`; skip the push when it exists
+   only on origin and is current. NEVER commit new work — uncommitted
+   implementation changes are /acs:code's job: stop and return `needs_input`
+   with the question.
 2. **Body.** Fill the resolved template into
    `steps/create-pr/pr-body.md`: replace every placeholder
    (`{ticket_id}`, `{type}`, `{title}`, `{summary}`, `{external_key}`;
