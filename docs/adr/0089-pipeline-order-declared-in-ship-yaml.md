@@ -1,6 +1,6 @@
 # 0089 — Pipeline order is declared in `ship.yaml`; skills are independent; hooks keep input and safety brakes
 
-**Status**: Superseded by [0096](0096-workflow-is-a-list-not-a-graph.md) · **Date**: 2026-09-12
+**Status**: Superseded by [0096](0096-workflow-is-a-list-not-a-graph.md) — amended by [0101](0101-gating-skills-that-are-not-workflow-steps.md) (the two brakes it kept per-skill are restored, and where a gate for a non-step skill is consulted is now recorded; its "no gate reads a predecessor's run status" is narrowed for `/merge-pr`'s recorded-PR brake) · **Date**: 2026-09-12
 
 **Supersedes**: [0037](0037-spec-time-simplicity-evaluation-in-create-spec-planner.md),
 [0038](0038-spec-simplicity-gate-surfaces-never-blocks.md),

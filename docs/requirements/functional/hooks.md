@@ -63,8 +63,12 @@ sequence:
 
 A pre-hook MUST NOT refuse a skill because another skill has not completed.
 The primitive that did so (`_require_completed`) was removed with the
-skills-independence refactor; nothing in the gate layer reads a predecessor's
-run status any more.
+skills-independence refactor; no gate reads a predecessor's **position**. One
+brake reads a predecessor's recorded state, and only for the artifact inside
+it: `/merge-pr` accepts a PR reference only from a step recorded `completed`,
+because a reference written by a step that never finished is not evidence that
+a PR exists. That brake names an artifact, never a position, and refuses
+nothing for being early ([ADR 0101](../../adr/0101-gating-skills-that-are-not-workflow-steps.md)).
 
 **3. Order advisory (never a refusal)** — when the skill IS a step of the
 resolved `ship.yaml` and that step's `needs` are not all satisfied for this
@@ -102,6 +106,14 @@ Example: if no `plan.md` exists for ticket `SHOP-123`, then `pre-code.py`
 exits 2 naming `/acs:create-impl-plan SHOP-123` and `/code` stops before
 doing any work. If a `plan.md` exists but `/acs:analyze-requirements` never ran,
 `/code` runs — after one advisory line.
+
+**`acs gate --skill <name>` MUST answer exactly what the pre-hook would
+answer** — the same exit code and the same stderr for the same subject,
+including the input-fallback lines, the safety brakes and the order advisory —
+**and MUST NOT write anything doing it**: no run created, no lock taken, no
+step opened, no no-op settled. When the checkout has no run yet, the gate
+judges the run the subject *would* open, projected in memory and never
+persisted ([ADR 0101](../../adr/0101-gating-skills-that-are-not-workflow-steps.md)).
 
 ### Post-hooks — state persistence
 
@@ -192,6 +204,14 @@ Every row is an **input** (the skill cannot do its work without it) or a
 | `/create-e2e-tests` | an e2e suite is configured (`settings.e2e` / `settings.suites.e2e`) **and** `test-cases.md` lists ≥ 1 e2e case | lock free |
 | `/create-pr` | ticket resolves | a recorded `/code` run must not have left `verifier_passed != true` (a ticket with **no** recorded code run is allowed); lock free |
 | `/merge-pr` | ticket resolves | a PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)); lock free |
+
+**A skill the workflow does not name is still gated.** `/create-design` and
+`/merge-pr` are deliberately not steps of `ship.yaml` and MUST NOT become
+steps; their brakes are therefore consulted from a subject-ticket table
+**before** the resolved workflow is read, not from the step gate behind it. A
+safety brake is not switchable off by editing a workflow file, and adding
+either skill to a workflow would add the run machinery to it rather than
+remove the brake ([ADR 0101](../../adr/0101-gating-skills-that-are-not-workflow-steps.md)).
 
 Three rows changed meaning with the skills-independence refactor and are
 worth stating explicitly, because each used to be an order gate:
