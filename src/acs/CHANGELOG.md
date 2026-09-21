@@ -273,6 +273,17 @@ JSON validated by JSON Schema, one central envelope plus a
   will see refusals it did not see before; they were always the hook's answer.
   See ADR-0101.
 
+- **Fixed: a post hook no longer strands the step a mis-shaped PR reference
+  lands on.** `states` is typed as a bare object, so `states.pr` can be any
+  JSON value and a string or a list reached the post hook through the
+  sanctioned write path. Reading it raised an `AttributeError` *after*
+  `save_state` had already persisted the invocation, so the step was finalized
+  and its lock never released — the next gate then refused with "crashed or
+  still running elsewhere". The value is now checked before it is read: the
+  hook warns on stderr, records no PR number and finalizes the step normally.
+  Nothing is swallowed — the pre-hook brake still refuses a mis-shaped
+  reference by name and tells you which file to correct.
+
 
 > ### ⚠️ The skills-independence refactor contains BREAKING changes
 >
