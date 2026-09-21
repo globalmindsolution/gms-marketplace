@@ -3,9 +3,11 @@
 **Status**: Accepted · **Date**: 2026-09-21
 
 **Amends**: [0089](0089-pipeline-order-declared-in-ship-yaml.md) (the two
-brakes it kept per-skill stand and are restored; "nothing in the gate layer
-reads a predecessor's run status any more" is narrowed, because `/merge-pr`'s
-brake reads whether the step that recorded the PR completed),
+brakes it kept per-skill stand and are restored; its "`_require_completed` is
+deleted, and no gate reads another skill's run status" is narrowed, because
+`/merge-pr`'s brake reads whether the step that recorded the PR completed —
+as was the broader gloss `requirements/functional/hooks.md` carried before
+this changeset rewrote it),
 [0096](0096-workflow-is-a-list-not-a-graph.md) (the list still decides ORDER
 and membership; it never decided whether a skill is GATED, and the gate no
 longer reads it as if it did)

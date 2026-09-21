@@ -47,14 +47,22 @@ def _warn_unraisably(text):
     or an audited force_release -- so an unwritable stderr must not be able to
     strand the very step these advisories are reporting on.
 
-    os.write, not sys.stderr.write, for the reason gates.run_pre_payload's
-    evidence-write handler records from a real encounter: a buffered write leaves the message pending and the
-    interpreter's flush at shutdown then fails where nothing can catch it
-    (CPython exits 120). Writing the fd raises HERE, inside the handler, and
-    leaves nothing behind. This makes only these advisories safe -- any other
-    buffered stderr write in the process still exits 120 on an unwritable
-    stderr, which is why the tests covering this assert the lock was RELEASED
-    rather than asserting an exit code.
+    `os.write`, not `sys.stderr.write`, for the reason
+    `gates.run_pre_payload`'s evidence-write handler records. Both matter, and
+    which one bites depends on the message: a write that does NOT end the line
+    stays buffered, and the interpreter's flush at shutdown then fails where
+    nothing can catch it (CPython exits 120); a write that DOES -- as both
+    advisories here do, against a line-buffered stderr -- raises at the call
+    site instead, measured as exit 1 with the lock still held. `os.write` is
+    correct either way, because it raises HERE, inside this handler, and
+    leaves nothing pending.
+
+    This makes only these two advisories safe. Other stderr writes in the
+    process are unguarded; none sits between `save_state` and a
+    `release_lock`, so none can strand a run. That is why the tests covering
+    this assert the lock was RELEASED rather than asserting an exit code --
+    an unwritable stderr can still cost the process its status for reasons
+    outside this window.
     """
     try:
         os.write(2, text.encode("utf-8", "replace"))
