@@ -70,7 +70,15 @@ sequenceDiagram
     Dev->>CC: /acs:code SHOP-123
     CC->>D: PreToolUse(Skill) payload
     D->>PRE: route by skill name, bounded alarm (same payload)
-    alt an input is missing or a brake fires
+    alt the skill is hooked but the resolved workflow does not name it (create-design, merge-pr)
+        PRE->>PRE: SUBJECT_GATES first, before the workflow is read — resolve the subject ticket and read its steps, opening no run
+        alt the subject ticket fails the brake
+            PRE-->>CC: exit 2 + stderr ("no PR reference recorded for SHOP-123 — /acs:create-pr (or the product-level skill) must complete first.")
+            CC-->>Dev: skill blocked, actionable message
+        else the subject ticket passes
+            PRE-->>CC: exit 0 with no run id — the skill runs and takes NO position in the run (no lock, no step, no no-op settle)
+        end
+    else an input is missing or a brake fires
         PRE-->>CC: exit 2 + stderr ("no plan.md found for SHOP-123 ... — run /acs:create-impl-plan SHOP-123 first.")
         CC-->>Dev: skill blocked, actionable message
     else inputs present, no brake
@@ -207,7 +215,8 @@ is still the block. What it evaluates is now only:
   e2e-typed case in `test-cases.md` for `/acs:create-e2e-tests`; and
 - a small set of **safety brakes** — the partition `.lock`, the epic refusal,
   `/acs:create-pr`'s `verifier_passed` brake (narrowed to a ticket that HAS a
-  recorded `code` run), and `/acs:merge-pr`'s recorded-PR requirement.
+  recorded `code` run), `/acs:create-design`'s `needs_design` brake, and
+  `/acs:merge-pr`'s recorded-PR requirement.
 
 No gate refuses a skill for a predecessor's POSITION: `_require_completed`
 is deleted. The one gate that reads another step's status is
@@ -221,6 +230,13 @@ code has not completed for SHOP-123` — suppressed by
 `settings.workflow.advisories: false` and by any read it cannot complete. The
 order itself is enforced one layer up, by `/acs:ship`'s loop over
 `acs.py run next` (`ship-pipeline.md`).
+
+`acs gate --skill <s>` re-runs this same `PRE` participant with `mutate=False`,
+judging a run PROJECTED in memory (`run.projected_run`) rather than one it
+creates, so it reproduces the hook's exit code and its stderr while creating no
+run, taking no lock, opening no step and settling no no-op. It is drawn as no
+step of this flow on purpose: `cmd_gate` is a CLI query, not a `PreToolUse`
+event.
 
 Two other participants in the diagram moved with the refactor. The
 plan-authoring `EX` leg and the `PA` leg belong to `/acs:create-impl-plan`
