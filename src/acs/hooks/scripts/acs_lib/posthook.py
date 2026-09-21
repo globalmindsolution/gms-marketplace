@@ -36,6 +36,32 @@ from .gates import _workflow_for, build_context, parent_epic_dir
 # Post-hook persistence
 # ---------------------------------------------------------------------------
 
+def _warn_unraisably(text):
+    """Emit an advisory that must not cost the caller its `release_lock`.
+
+    `run_post` passes a point of no return at `save_state`: the invocation is
+    durably finalized from there, and the only calls to `release_lock` are
+    inside the `try:` below it and in that `try:`'s GuardTimeout arm. An
+    advisory written between the two that raises escapes `run_post`, skips
+    `release_lock`, and wedges the run's brake until the 24h staleness timeout
+    or an audited force_release -- so an unwritable stderr must not be able to
+    strand the very step these advisories are reporting on.
+
+    os.write, not sys.stderr.write, for the reason gates.run_pre_payload's
+    evidence-write handler records from a real encounter: a buffered write leaves the message pending and the
+    interpreter's flush at shutdown then fails where nothing can catch it
+    (CPython exits 120). Writing the fd raises HERE, inside the handler, and
+    leaves nothing behind. This makes only these advisories safe -- any other
+    buffered stderr write in the process still exits 120 on an unwritable
+    stderr, which is why the tests covering this assert the lock was RELEASED
+    rather than asserting an exit code.
+    """
+    try:
+        os.write(2, text.encode("utf-8", "replace"))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _read_result_from_argv():
     """post-<skill>.py CLI: --result-file <path> | JSON on stdin, plus convenience flags."""
     import argparse
@@ -250,7 +276,8 @@ def run_post(skill):
                                             for key, was, now in conflicts]}
     step_machine.save_state(rdir, skill, state)
     for key, was, now in conflicts:
-        sys.stderr.write(
+        # Unraisable: this loop is already past save_state, so see _warn_unraisably.
+        _warn_unraisably(
             "acs post-%s: states.%s was %r in the result document; the artifacts say "
             "%r (%s). The derived value is what was written.\n"
             % (skill, key, was, now, notes.get(key, "derived")))
@@ -282,7 +309,8 @@ def run_post(skill):
     # still refuses this value there, so nothing is swallowed by warning here.
     recorded_pr = (result.get("states") or {}).get("pr")
     if recorded_pr is not None and not isinstance(recorded_pr, dict):
-        sys.stderr.write(
+        # Unraisable, or this warning becomes the leak it exists to prevent.
+        _warn_unraisably(
             "acs post-%s: states.pr is not an object (it is a %s), so no PR number "
             "was recorded in metrics.json. The step is finalized either way; correct "
             "the reference and the next gate will accept it.\n"

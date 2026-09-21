@@ -21,6 +21,7 @@ gate, so the operator is still made to correct it.
 
 import json
 import os
+import subprocess
 import sys
 import unittest
 
@@ -107,6 +108,107 @@ class MalformedPrReferenceTest(MalformedPrReferenceCase):
         out = self.post("create-pr", self.ticket, {"status": "completed"})
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn("states.pr", out.stderr)
+
+
+#: /dev/full accepts every write and fails it with ENOSPC, which is the
+#: cheapest faithful stand-in for the unwritable stderr this class of defect
+#: needs (a closed fd or a full disk behave the same to the writer). It is a
+#: Linux device node, so the cases that need it skip elsewhere.
+DEV_FULL = "/dev/full"
+
+
+class UnwritableStderrTest(MalformedPrReferenceCase):
+    """The warnings emitted between `save_state` and the `try:` that releases
+    the lock must not become the thing that strands the lock (MAR-586).
+
+    `run_post` reaches a point of no return at `step_machine.save_state`: the
+    invocation is durably `completed` from there on, and the only calls to
+    `release_lock` are inside the `try:` further down and in its `GuardTimeout`
+    arm. Two advisory writes sit in between -- the `conflicts` loop and the
+    mis-shaped `states.pr` warning -- and a `sys.stderr.write` that raises
+    there escapes `run_post` entirely, skipping `release_lock` and leaving the
+    next gate refusing a run that in fact finished. That is the exact failure
+    mode the `states.pr` warning was added to prevent, so the warning must not
+    reintroduce it.
+
+    These cases assert the LOCK, not the exit code: an unwritable stderr can
+    still cost the process a non-zero status at interpreter shutdown for
+    reasons outside this hunk (gates.run_pre_payload's evidence-write handler
+    records CPython exiting 120 on a pending buffered write), and the invariant being defended here is that
+    the brake is not left engaged.
+    """
+
+    def arm(self, skill):
+        """Open the step the way a real session does, and confirm the lock it
+        takes is actually held -- otherwise "the lock is gone afterwards"
+        would be true of a lock that was never there."""
+        out = self.start(skill, self.ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertTrue(os.path.exists(lib.lock_path(self.rdir_path)),
+                        "precondition: the run lock must be held before the post hook")
+
+    def post_to(self, skill, result, dest):
+        """`self.post` captures stderr through a pipe, which never fails; this
+        hands the hook a real fd that does."""
+        result = dict(result)
+        result.setdefault("skill", skill)
+        result.setdefault("run_id", self.ticket)
+        with open(dest, "w") as fd2:
+            return subprocess.run(
+                [sys.executable, os.path.join(SCRIPTS, "post-%s.py" % skill),
+                 "--run", self.ticket],
+                input=json.dumps(result), text=True, cwd=self.repo,
+                stdout=subprocess.PIPE, stderr=fd2)
+
+    def locked(self):
+        return os.path.exists(lib.lock_path(self.rdir_path))
+
+    @unittest.skipUnless(os.path.exists(DEV_FULL), "needs /dev/full")
+    def test_the_mis_shaped_reference_warning_does_not_strand_the_lock(self):
+        """The defect: the warning is emitted before the `try:`, so on the one
+        input it exists to handle an unwritable stderr left the lock held."""
+        self.arm("create-pr")
+        self.post_to("create-pr",
+                     {"status": "completed",
+                      "states": {"pr": "https://github.com/acme/shop/pull/7"}},
+                     DEV_FULL)
+        self.assertFalse(self.locked(),
+                         "the mis-shaped-pr warning skipped release_lock")
+
+    @unittest.skipUnless(os.path.exists(DEV_FULL), "needs /dev/full")
+    def test_a_well_formed_reference_releases_the_lock_on_the_same_stderr(self):
+        """The control that makes the case above causal: same unwritable
+        stderr, a value that does not reach the warning, lock released."""
+        self.arm("create-pr")
+        self.post_to("create-pr",
+                     {"status": "completed", "states": {"pr": {"number": 7}}},
+                     DEV_FULL)
+        self.assertFalse(self.locked())
+
+    @unittest.skipUnless(os.path.exists(DEV_FULL), "needs /dev/full")
+    def test_the_conflicting_state_warning_does_not_strand_the_lock_either(self):
+        """The same exposure one loop earlier. It predates the `states.pr`
+        warning, but it is the same two lines of the same window, so fixing
+        one and knowing about the other is not a stopping point."""
+        self.seed_verdict(self.ticket, passed=True)
+        self.arm("review-code")
+        self.post_to("review-code",
+                     {"status": "completed", "outcome": "passed", "iteration": 1,
+                      "states": {"verifier_passed": False}},
+                     DEV_FULL)
+        self.assertFalse(self.locked(),
+                         "the derived-state conflict warning skipped release_lock")
+
+    def test_a_conflicting_state_value_is_still_reported(self):
+        """Guards the case above against passing vacuously, and pins that the
+        warning survives the change of writer."""
+        self.seed_verdict(self.ticket, passed=True)
+        self.arm("review-code")
+        out = self.post("review-code", self.ticket,
+                        {"status": "completed", "outcome": "passed", "iteration": 1,
+                         "states": {"verifier_passed": False}})
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("verifier_passed", out.stderr)
 
 
 if __name__ == "__main__":
