@@ -99,6 +99,19 @@ class MergePrGateTest(acs_case.AcsWorkspaceCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn("blocked", out.stderr)
 
+    def test_a_run_locked_by_another_checkout_refuses_the_merge(self):
+        # v0.5.0 locks the RUN, not the ticket partition, so that is where the
+        # subject gate looks for a holder.
+        ticket = self.new_ticket("Add user login", "task")
+        rdir = self.ensure_run(ticket)
+        lib.write_json(lib.lock_path(rdir), {
+            "checkout_id": "someone-else", "checkout_path": "/elsewhere/shop",
+            "pid": os.getpid(), "hostname": "elsewhere", "created_at": lib.now_iso()})
+
+        out = self.pre("merge-pr", ticket)
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("locked by another session", out.stderr)
+
     def test_the_exempt_pr_form_is_never_ticket_gated(self):
         for args_text in ("--pr 42", "#42", "https://github.com/acme/shop/pull/42"):
             with self.subTest(args=args_text):
