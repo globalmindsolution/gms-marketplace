@@ -146,6 +146,25 @@ from .brakes import (ARCHITECTURE_GATED, BRAKES, PRD_GATED,  # noqa: E402,F401
                      _require_architecture_doc_set, _sha256_file)
 
 
+def _run_dirs_for_ticket(repo, ticket_id):
+    """Every run partition this ticket has, newest first.
+
+    A second run on one subject is `<ticket>-r2` (`run.derive_run_id`), so the
+    ticket-keyed join names at most the first of them and a lock or a PR
+    recorded by any later one is invisible to it. The join stays as the last
+    entry, so a run directory the index does not list is still asked."""
+    rdirs, seen = [], set()
+    for row in reversed(run_machine.find_runs_for_subject(repo, "ticket", ticket_id)):
+        run_id = row.get("run_id")
+        if run_id and run_id not in seen:
+            seen.add(run_id)
+            rdirs.append(run_machine.run_dir(repo, run_id))
+    fallback, _archived = run_machine.partition_for_ticket(repo, ticket_id)
+    if fallback not in rdirs:
+        rdirs.append(fallback)
+    return rdirs
+
+
 def _resolve_ticket_for_gate(ctx, payload, skill):
     """(ticket_id, tdir, ticket) for a gate whose subject is a TICKET, not a run."""
     args_text = ""
@@ -172,11 +191,14 @@ def _resolve_ticket_for_gate(ctx, payload, skill):
     if not ticket:
         raise GateError("ticket file missing or corrupt at %s/ticket.json — treat as "
                         "not created; run /acs:create-ticket." % tdir)
-    # v0.5.0 locks the RUN, not the ticket partition (§4.2), and a ticket that
-    # has never been run has nothing to be locked by.
-    rdir, _archived_run = run_machine.partition_for_ticket(
-        repo_dir(ctx["workspace"], ctx["repo_id"]), ticket_id)
-    if os.path.isdir(rdir):
+    # v0.5.0 locks the RUN, not the ticket partition (§4.2), and a subject with
+    # two runs has two locks (lock.py:11) -- so every run of this ticket is
+    # asked, not only the one whose id happens to BE the ticket id. A ticket
+    # that has never been run has nothing to be locked by.
+    for rdir in _run_dirs_for_ticket(repo_dir(ctx["workspace"], ctx["repo_id"]),
+                                     ticket_id):
+        if not os.path.isdir(rdir):
+            continue
         ok, message = check_lock(rdir, ctx["checkout_id"])
         if not ok:
             raise GateError(message)
@@ -196,23 +218,22 @@ def gate_create_design(ctx, payload):
 
 def _pr_recorded_for(repo, ticket_id):
     """True when a completed step of one of this ticket's runs recorded a PR."""
-    rdirs, seen = [], set()
-    for row in reversed(run_machine.find_runs_for_subject(repo, "ticket", ticket_id)):
-        run_id = row.get("run_id")
-        if run_id and run_id not in seen:
-            seen.add(run_id)
-            rdirs.append(run_machine.run_dir(repo, run_id))
-    # The ticket-keyed partition as well, so a run the index no longer lists --
-    # an archived one -- still answers for the PR it opened.
-    fallback, _archived = run_machine.partition_for_ticket(repo, ticket_id)
-    if fallback not in rdirs:
-        rdirs.append(fallback)
-    for rdir in rdirs:
+    for rdir in _run_dirs_for_ticket(repo, ticket_id):
         for skill in ["create-pr"] + list(DELIVERY_TICKET_SKILLS):
             if not os.path.isfile(step_machine.state_path(rdir, skill)):
                 continue
             state = step_machine.load_state(rdir, skill)
             pr = (state.get("states") or {}).get("pr") or {}
+            # `states` is typed as a bare object (schemas/result.schema.json),
+            # so a recorded `pr` can be any JSON value and this brake is where
+            # one that is not an object surfaces.
+            if not isinstance(pr, dict):
+                raise GateError(
+                    "states.pr in %s is not an object (it is a %s) — a recorded PR "
+                    "reference is an object with a url and/or a number. Correct that "
+                    "file, or re-run /acs:create-pr to record the reference again, "
+                    "and retry." % (step_machine.state_path(rdir, skill),
+                                    type(pr).__name__))
             if not (pr.get("url") or pr.get("number")):
                 continue
             if step_machine.last_status(rdir, skill) == "completed":

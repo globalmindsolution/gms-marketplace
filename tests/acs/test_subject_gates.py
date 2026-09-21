@@ -1,7 +1,7 @@
 """The two pre-hook gates for skills that are NOT steps of the resolved workflow.
 
 Originating ticket: MAR-586. `/acs:merge-pr` and `/acs:create-design` are
-deliberately absent from `ship.yaml`, so `gate_step`'s `has_step` return used to
+deliberately absent from `ship.yaml`, so the gate's `has_step` return used to
 short-circuit before any brake ran and both hooks exited 0 on every profile.
 This module pins the restored behaviour:
 
@@ -147,6 +147,109 @@ class CreateDesignGateTest(acs_case.AcsWorkspaceCase):
         out = self.pre("create-design", ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn("blocked", out.stderr)
+
+
+class SecondRunLockTest(acs_case.AcsWorkspaceCase):
+    """WHICH run's lock a subject gate consults when a subject has several.
+
+    Every run recorded for the subject, plus the ticket-keyed partition -- the
+    same list `_pr_recorded_for` already walks, for the same reason.
+    `derive_run_id` mints `<ticket>-r2`, `-r3` for later runs on one subject
+    (`run.py:126`), and `lock.py:11` states the model: "two runs on the same
+    subject are two partitions and two locks". No single directory owns "the"
+    lock for a ticket, and the bare `runs/<ticket_id>` join `partition_for_ticket`
+    does cannot name a later one at all.
+
+    Deliberately NOT "the newest open run": which runs are over is the runs
+    index's claim, and `_reindex` writes it best-effort (`run.py:488-491`). A
+    brake that consults a lock only while a second document says the run is live
+    stops consulting it exactly when that document drifts. Checking every run
+    refuses more, never less; a lock that outlived its run is what `check_lock`'s
+    staleness branch and `force-unlock` exist to answer.
+    """
+
+    def lock_foreign(self, rdir):
+        """The lock as another checkout writes it."""
+        lib.write_json(lib.lock_path(rdir), {
+            "checkout_id": "someone-else", "checkout_path": "/elsewhere/shop",
+            "pid": os.getpid(), "hostname": "elsewhere", "created_at": lib.now_iso()})
+        return rdir
+
+    def second_run(self, ticket):
+        """The run `acs run new` opens second on this subject."""
+        repo = lib.repo_dir(self.ws, "acme-shop")
+        wf_path = lib.default_workflow_path()
+        run_id = "%s-r2" % ticket
+        self.assertEqual(
+            run_id, lib.derive_run_id({"kind": "ticket", "ticket_id": ticket}, [ticket]),
+            "the fixture must use the id derive_run_id mints for a second run")
+        _id, rdir, _doc = lib.create_run(
+            repo, {"kind": "ticket", "ticket_id": ticket},
+            lib.validate_workflow_file(wf_path), wf_path, run_id=run_id)
+        return rdir
+
+    def test_a_lock_on_the_only_run_is_honoured_when_that_run_is_a_second_one(self):
+        ticket = self.new_ticket("Add user login", "task")
+        self.lock_foreign(self.second_run(ticket))
+        out = self.pre("merge-pr", ticket)
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("locked by another session", out.stderr)
+        self.assertNotIn("no PR reference recorded", out.stderr)
+
+    def test_a_locked_second_run_refuses_while_the_first_run_sits_idle(self):
+        ticket = self.new_ticket("Add user login", "task")
+        self.ensure_run(ticket)  # runs/<ticket>, unlocked
+        self.lock_foreign(self.second_run(ticket))
+        out = self.pre("merge-pr", ticket)
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("locked by another session", out.stderr)
+        self.assertNotIn("no PR reference recorded", out.stderr)
+
+
+class MalformedPrStateTest(acs_case.AcsWorkspaceCase):
+    """A recorded `states.pr` that is not an object refuses by name.
+
+    `schemas/result.schema.json` types `states` as a bare object, so
+    `validate_result` admits any `states.pr` -- a string, a list -- and
+    `finalize_invocation` copies it verbatim into the step state file
+    (`step.py:191-192`). The merge brake reads it back from there and must say
+    which file is wrong and what to do about it, rather than failing on an
+    attribute the value does not have.
+    """
+
+    def state_with_pr(self, ticket, pr):
+        """The create-pr state file a completed step leaves, with `states.pr`
+        as recorded. Written through `save_state`, the writer the post-hook
+        itself uses, so the fixture is the state the gate really reads."""
+        self.assertEqual(
+            lib.validate_result({"status": "completed", "skill": "create-pr",
+                                 "run_id": ticket, "states": {"pr": pr}}, "create-pr"),
+            [], "a non-object states.pr is admissible, which is why the gate meets one")
+        self.walk_to(ticket, "docs-sync")
+        started = self.start("create-pr", ticket)
+        self.assertEqual(started.returncode, 0, started.stderr)
+        posted = self.post("create-pr", ticket, {
+            "status": "completed",
+            "states": {"pr": {"number": 7, "url": "https://example.invalid/pull/7"}}})
+        self.assertEqual(posted.returncode, 0, posted.stderr)
+        rdir = self.rdir(ticket)
+        state = lib.load_state(rdir, "create-pr")
+        state["states"]["pr"] = pr
+        lib.save_state(rdir, "create-pr", state)
+        return lib.state_path(rdir, "create-pr")
+
+    def test_a_non_object_pr_reference_is_refused_by_file_and_remedy(self):
+        for pr in ("https://example.invalid/pull/7", [7]):
+            with self.subTest(pr=pr):
+                ticket = self.new_ticket("Add user login", "task")
+                state_file = self.state_with_pr(ticket, pr)
+                out = self.pre("merge-pr", ticket)
+                self.assertEqual(out.returncode, 2, out.stderr)
+                self.assertNotIn("Traceback", out.stderr)
+                self.assertNotIn("AttributeError", out.stderr)
+                self.assertIn(state_file, out.stderr)
+                self.assertIn("is not an object", out.stderr)
+                self.assertIn("/acs:create-pr", out.stderr)
 
 
 class SubjectGateCreatesNoRunTest(acs_case.AcsWorkspaceCase):
