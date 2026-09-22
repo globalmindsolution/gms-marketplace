@@ -23,8 +23,8 @@ run day to day:
 
 ```bash
 python3 -m unittest discover -s tests -v   # deterministic + contract suites (free)
-python3 src/acs-evals/behavioural/run_evals.py                 # free behavioral smoke (gate + cleanup)
-python3 src/acs-evals/behavioural/run_evals.py --paid          # full agentic suite — on demand, not a gate ($)
+python3 evals/behavioural/run_evals.py     # free behavioral smoke (gate + cleanup)
+python3 evals/behavioural/run_evals.py --paid   # full agentic suite — on demand, not a gate ($)
 ```
 
 - The **free** layers gate every commit (pre-commit) and every PR (CI). Keep
@@ -33,10 +33,11 @@ python3 src/acs-evals/behavioural/run_evals.py --paid          # full agentic su
   (they cost money and are non-deterministic) — kept for the forge-tier
   scenarios, and not a gate on any ticket, PR or release.
 - The **pre-release gate is acs-evals**, in this repo at
-  [`src/acs-evals/`](src/acs-evals/README.md): `make eval-source`, then
-  `make measure` / `make perf` against the release candidate. Run it before
-  bumping `version` — see the
-  [release runbook](docs/operations/release-runbook.md).
+  [`evals/`](evals/README.md): `make -C evals eval-source`, then
+  `make -C evals check` / `mutation` / `measure` / `perf` against the release
+  candidate — the authoritative list is `release.pre_release_gate` in
+  [`.acs/settings.json`](.acs/settings.json). Run it before bumping `version`
+  — see the [release runbook](docs/operations/release-runbook.md).
 
 ### Reproducing the *Tests & coverage* gate locally
 
@@ -82,8 +83,8 @@ above:
 - CI must be green (tests on 3.9 + 3.12, pre-commit, gitleaks, version
   consistency). PRs merge **squash**.
 - The repo ships one shared version across four manifests:
-  `.claude-plugin/marketplace.json`, `src/acs/.claude-plugin/plugin.json`,
-  `src/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
+  `.claude-plugin/marketplace.json`, `plugins/acs/.claude-plugin/plugin.json`,
+  `plugins/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
   `/acs:release` bumps all of them via `release.version_locations` — never
   bump one by hand.
 - Touching the plugin? Update the docs it affects in the same PR — acs treats
@@ -93,8 +94,13 @@ above:
 
 - [docs/README.md](docs/README.md) — the full-SDLC doc map (product →
   requirements → architecture → adr → quality → operations).
-- [src/acs/docs/](src/acs/docs/) — implementation contract for
+- [plugins/acs/](plugins/acs/README.md) — the shipped plugin: skills, agents,
+  hooks, workflows, schemas, templates.
+- [plugins/acs/docs/](plugins/acs/docs/) — implementation contract for
   contributors (INTERNALS, AUTHORING).
+- [evals/README.md](evals/README.md) — the golden dataset (release gate) and,
+  under [`evals/behavioural/`](evals/behavioural/README.md), the behavioural
+  scenarios.
 - [docs/product/roadmap.md](docs/product/roadmap.md) — what's planned and why.
 
 ## Dogfooding
