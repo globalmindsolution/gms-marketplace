@@ -148,8 +148,9 @@ def tree_index(root, ref, tmpdir, name):
     """An env whose GIT_INDEX_FILE is a throwaway index holding `ref`'s tree."""
     # read-tree MUST carry the same env as the later apply: without it git
     # writes the REPOSITORY's index and leaves this one empty, at which point
-    # every check silently returns "not absorbed". The write-tree comparison
-    # below is the self-check that makes that failure loud instead of silent.
+    # every check returns "not absorbed". The write-tree comparison below
+    # catches that; returning None is what `check` turns into a `notes` entry,
+    # which is what keeps the failure from being silent.
     env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tmpdir, name))
     if _git(root, ["read-tree", ref], env=env)[0] != 0:
         return None
@@ -195,9 +196,13 @@ def find_replay_point(root, merge_base, commits, oldest_candidate, base_env):
     return None, None
 
 
-def build_message(base, base_ref, rng, stacked, replay_onto, own_count):
+def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded=False):
     """The author-facing text — the whole user-visible deliverable."""
     if not stacked:
+        if degraded:
+            return ("Stacked-base check could not run: its throwaway index was "
+                    "unusable, so the %d non-conforming commit subject(s) in %s "
+                    "were never tested against the base." % (own_count, rng))
         return ("No stacked-base condition: %d non-conforming commit subject(s) "
                 "in %s are this branch's own." % (own_count, rng))
     listing = "\n".join("  %s  %s" % (e["sha"], e["subject"]) for e in stacked)
@@ -266,6 +271,12 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
     try:
         base_env = tree_index(repo_root, base_ref, tmpdir, "base")
         fork_env = tree_index(repo_root, merge_base, tmpdir, "fork")
+        # Fail open, but never silently: with no usable index every commit
+        # reads as not-absorbed, which is the healthy-branch answer.
+        degraded = base_env is None or fork_env is None
+        if degraded:
+            notes.append("throwaway index unusable; no commit could be tested "
+                         "against the base")
         for index, sha, short, subject in offenders:
             if absorbed(repo_root, sha, short, base_env, fork_env, notes):
                 candidates.append(index)
@@ -301,7 +312,12 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
     }
     if stacked:
         result["replay_onto"] = replay_onto
-    result["message"] = build_message(base, base_ref, rng, stacked, replay_onto, len(own))
+    # <M> counts the commits the emitted rebase KEEPS — everything newer than
+    # replay_onto, conforming or not. Without a replay point the other
+    # sentences instead count the branch's own non-conforming subjects.
+    own_count = len(own) if replay_index is None else replay_index
+    result["message"] = build_message(base, base_ref, rng, stacked, replay_onto,
+                                      own_count, degraded)
     return result
 
 

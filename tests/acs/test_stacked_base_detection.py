@@ -328,6 +328,27 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(len(result["stacked"]), 1)
         self.assertIn("1 of its commits\nis not yours to fix.", result["message"])
 
+    def test_the_own_count_is_what_the_replay_keeps_not_what_it_discards(self):
+        # The sentence sits under a --force-with-lease, so it must count the
+        # commits the emitted rebase KEEPS: everything newer than replay_onto.
+        # Here X3 is the replay target and BOTH `MAR-2 dependent work` and
+        # `oops my own bad commit` are newer than it, so the answer is 2 --
+        # a shape the adjacent convergent_minimal fixture cannot distinguish.
+        root, _ = incident(self, own_bad_commit=True)
+        _, result, _ = check_json(root)
+        self.assertEqual(len(result["own"]), 1)
+        self.assertIn("Your own 2 commits are unaffected and keep their subjects.",
+                      result["message"])
+
+    def test_the_own_count_reads_correctly_for_a_single_surviving_commit(self):
+        # Only `MAR-2 dependent work` is newer than X3, and it conforms -- so
+        # it never enters `own` at all, which is exactly the miscount.
+        root, _ = incident(self)
+        _, result, _ = check_json(root)
+        self.assertEqual(result["own"], [])
+        self.assertIn("Your own 1 commit is unaffected and keeps its subjects.",
+                      result["message"])
+
 
 class TestNegativeCase(unittest.TestCase):
 
@@ -417,6 +438,48 @@ class TestResidual(unittest.TestCase):
         self.assertEqual(result["verdict"], "stacked_base")
         self.assertEqual(code, 1)
         self.assertEqual(subjects(result["stacked"]), ["shout beta"])
+
+
+class TestDegradedIndex(unittest.TestCase):
+    """A throwaway index that could not be seeded makes every reverse-apply
+    return False, so the detector finds nothing and its report is
+    indistinguishable from a healthy branch -- while asserting that inherited
+    commits "are this branch's own". The posture stays fail-open; the failure
+    stops being silent."""
+
+    def test_an_unusable_index_is_noted_instead_of_read_as_a_healthy_branch(self):
+        root, _ = incident(self)
+        with mock.patch.object(mod, "tree_index", return_value=None):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        self.assertTrue(any("throwaway index" in note for note in result["notes"]),
+                        result["notes"])
+        self.assertNotIn("are this branch's own", result["message"])
+
+    def test_an_unusable_index_still_exits_zero_rather_than_blocking_the_author(self):
+        root, _ = incident(self)
+        with mock.patch.object(mod, "tree_index", return_value=None):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        self.assertEqual(result["verdict"], "own_violations")
+        self.assertEqual(result["stacked"], [])
+
+    def test_a_read_tree_failure_yields_no_index_env(self):
+        root = clean_branch(self)
+        tmpdir = tempfile.mkdtemp(prefix="acs-stacked-base-idx-")
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+        self.assertIsNone(mod.tree_index(root, "no-such-ref", tmpdir, "base"))
+
+    def test_a_write_tree_mismatch_yields_no_index_env(self):
+        # The self-check the read-tree env comment relies on: the index seeded
+        # fine as far as read-tree knew, but it does not hold the ref's tree.
+        root = clean_branch(self)
+        tmpdir = tempfile.mkdtemp(prefix="acs-stacked-base-idx-")
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+        with mock.patch.object(mod, "_text", return_value="0" * 40):
+            self.assertIsNone(mod.tree_index(root, "main", tmpdir, "base"))
+
+    def test_a_missing_index_env_never_reports_content_as_present(self):
+        root = clean_branch(self)
+        self.assertFalse(mod.reverse_applies(root, b"any patch bytes", None))
 
 
 class TestReadOnly(unittest.TestCase):
