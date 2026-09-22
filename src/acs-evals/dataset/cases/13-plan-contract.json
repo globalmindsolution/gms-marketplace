@@ -1,0 +1,197 @@
+{
+  "group": "plan contract",
+  "description": "The delivery path, read where ADR-0098 put it: in the plan's `## Contract` block. `/acs:create-impl-plan` judges the path ONCE, from the plan's own scope, and writes it into the plan; `acs plan path` (plan-approval.py path) is the read every later step makes \u2014 `/acs:code` dispatches to its leg from `delivery_path`, and the four always-run steps read `owes` to decide whether they owe anything.\n\nThis group succeeds the five retired `acs path show | set` cases. That surface judged and STORED the path on `pipeline-state.json`, so its cases were mostly about the write \u2014 refusing an undeclared path, an unexplained one, and a re-judge. Under ADR-0098 there is no write: the judgement is the plan, and the refusals that survive are refusals to ACT on a contract that cannot be acted on. The case that matters most is the pair PLAN-PATH-001 / PLAN-PATH-003, which is what makes `delivery_path: null` readable: a plan that has not been judged is not the same thing as a plan whose Contract block does not parse, and a caller that cannot tell them apart will dispatch on a typo.\n\nProfile: run = one open run (TKT-1) over the ticket the path is judged for. The plan is seeded under `runs/<run-id>/steps/create-impl-plan/`, which is where the script resolves it and nowhere else.",
+  "surface": "acs plan path",
+  "covers": [
+    "ADR-0098"
+  ],
+  "profile": "run",
+  "severity": "critical",
+  "cases": [
+    {
+      "id": "PLAN-PATH-001",
+      "title": "a plan with no Contract block reports no path, rather than guessing one",
+      "note": "ADR-0098: the path is judged once by /acs:create-impl-plan and recorded in the plan. A plan that carries no `## Contract` has not been judged, and saying so is the answer \u2014 an unclassified plan is a plan that is not ready to dispatch. `contract_errors` is empty because an absent block is a plan written before the judgement, not a broken one.",
+      "files": [
+        {
+          "base": "run",
+          "path": "steps/create-impl-plan/plan.md",
+          "text": "# Add user login\n\nThe plan, written for a human to approve in one read. It names the files\nand the tests, and it stops there: nothing below is machine-readable yet.\n"
+        }
+      ],
+      "invoke": {
+        "script": "plan-approval.py",
+        "argv": [
+          "path"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "run_dir": "<WS>/runs/TKT-1",
+          "plan": "<WS>/runs/TKT-1/steps/create-impl-plan/plan.md",
+          "delivery_path": null,
+          "owes": {
+            "api_contract": null,
+            "test_cases": null,
+            "e2e": null
+          },
+          "contract_errors": []
+        }
+      }
+    },
+    {
+      "id": "PLAN-PATH-002",
+      "title": "a judged plan prints its path back with the owes flags decided alongside it, and writes nothing",
+      "note": "ADR-0098 moved BOTH machine-readable answers into the plan: the delivery path /acs:code dispatches on, and the `owes` flags that replaced the workflow's `when:` predicates. The reason that decided the path is recorded beside them, in the plan itself, which is the artifact the PR reviews \u2014 under the retired `acs path set` it lived on pipeline-state.json, away from the evidence. `after` pins the other half of the contract: `path` is a READ, so it leaves no plan-approval.json behind (ADR-0097 keys that record to the run).",
+      "files": [
+        {
+          "base": "run",
+          "path": "steps/create-impl-plan/plan.md",
+          "text": "# Add user login\n\nProse a human approves in one read.\n\n## Contract\ndelivery_path: standard\nowes:\n  api_contract: true\n  test_cases:   true\n  e2e:          false\n  reason: \"CLI-only change; no HTTP surface, no browser flow\"\n\n### Executor tasks & file map\n- task 1: src/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py\n"
+        }
+      ],
+      "invoke": {
+        "script": "plan-approval.py",
+        "argv": [
+          "path"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "run_dir": "<WS>/runs/TKT-1",
+          "plan": "<WS>/runs/TKT-1/steps/create-impl-plan/plan.md",
+          "delivery_path": "standard",
+          "owes": {
+            "api_contract": true,
+            "test_cases": true,
+            "e2e": false
+          },
+          "contract_errors": []
+        },
+        "after": [
+          {
+            "base": "run",
+            "path": "steps/create-impl-plan/plan-approval.json",
+            "exists": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "PLAN-PATH-003",
+      "title": "a Contract the dispatcher cannot act on is refused a path, and says of each clause why",
+      "note": "ADR-0098: `/acs:code` dispatches to `code-<path>`, so a path outside the declared vocabulary has no leg to dispatch to and must not be passed on as if it had one. The path is withheld \u2014 `delivery_path: null`, the same value PLAN-PATH-001 gets \u2014 and `contract_errors` is what tells the two apart: absent there, and here naming every clause that cannot be acted on, including an `owes` flag that is not a boolean and one that is not an owes key at all. Recorded as a list of needles, not the bare string its predecessor asserted nothing with.",
+      "files": [
+        {
+          "base": "run",
+          "path": "steps/create-impl-plan/plan.md",
+          "text": "# Add user login\n\nProse a human approves in one read.\n\n## Contract\ndelivery_path: medium\nowes:\n  api_contract: true\n  test_cases:   maybe\n  nonsense:     true\n\n### Executor tasks & file map\n- task 1: src/acs/hooks/scripts/acs_lib/run.py\n"
+        }
+      ],
+      "invoke": {
+        "script": "plan-approval.py",
+        "argv": [
+          "path"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "run_dir": "<WS>/runs/TKT-1",
+          "plan": "<WS>/runs/TKT-1/steps/create-impl-plan/plan.md",
+          "delivery_path": null,
+          "owes": {
+            "api_contract": true,
+            "test_cases": null,
+            "e2e": null
+          },
+          "contract_errors": [
+            "delivery_path: 'medium' is not one of trivial | small | standard | complex",
+            "owes.test_cases: expected true or false, got 'maybe'",
+            "owes.nonsense: not one of api_contract, test_cases, e2e"
+          ]
+        }
+      }
+    },
+    {
+      "id": "PLAN-PATH-004",
+      "title": "a --plan pointing outside the plan step is refused before anything is read",
+      "note": "ADR-0098 made the plan the record of the judgement, so a contract printed for this run must come from THIS run's plan: an escaping `--plan` would report a path that belongs to no run, and a caller cannot see from the JSON which bytes it was read from. The refusal is silent on stdout \u2014 a guard that still printed the contract it refused to read would leak exactly what it was guarding.",
+      "files": [
+        {
+          "base": "run",
+          "path": "steps/create-impl-plan/plan.md",
+          "text": "# Add user login\n\nProse a human approves in one read.\n\n## Contract\ndelivery_path: standard\nowes:\n  api_contract: true\n  test_cases:   true\n  e2e:          false\n  reason: \"CLI-only change; no HTTP surface, no browser flow\"\n\n### Executor tasks & file map\n- task 1: src/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py\n"
+        }
+      ],
+      "invoke": {
+        "script": "plan-approval.py",
+        "argv": [
+          "path",
+          "--plan",
+          "{{run_dir}}/run.json"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "acs plan-approval: --plan must resolve within steps/create-impl-plan/"
+        ],
+        "stdout_excludes": [
+          "delivery_path",
+          "standard"
+        ]
+      }
+    },
+    {
+      "id": "PLAN-PATH-005",
+      "title": "`acs plan path` reaches the same read through acs.py, and is still a read",
+      "note": "REDESIGN-IMPLEMENTATION-PIPELINE.md:1099 records the replacement by its consumer-facing spelling: `acs plan path` replaces `acs path` (MAR-521, \u00a74.8). acs.py forwards a delegated verb VERBATIM except for `plan check`, whose verb it drops \u2014 so the one way this seam can break is `path` being dropped too, which would silently turn ADR-0098's read into the approval WRITE. `after` is what catches that: `check` leaves a state.json in the step, and `path` leaves the step empty but for the plan it read.",
+      "files": [
+        {
+          "base": "run",
+          "path": "steps/create-impl-plan/plan.md",
+          "text": "# Add user login\n\nProse a human approves in one read.\n\n## Contract\ndelivery_path: standard\nowes:\n  api_contract: true\n  test_cases:   true\n  e2e:          false\n  reason: \"CLI-only change; no HTTP surface, no browser flow\"\n\n### Executor tasks & file map\n- task 1: src/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py\n"
+        }
+      ],
+      "invoke": {
+        "argv": [
+          "plan",
+          "path"
+        ]
+      },
+      "expect": {
+        "exit_code": 0,
+        "stdout_json_subset": {
+          "ok": true,
+          "run_dir": "<WS>/runs/TKT-1",
+          "plan": "<WS>/runs/TKT-1/steps/create-impl-plan/plan.md",
+          "delivery_path": "standard",
+          "owes": {
+            "api_contract": true,
+            "test_cases": true,
+            "e2e": false
+          },
+          "contract_errors": []
+        },
+        "after": [
+          {
+            "base": "run",
+            "path": "steps/create-impl-plan/state.json",
+            "exists": false
+          },
+          {
+            "base": "run",
+            "path": "steps/create-impl-plan/plan-approval.json",
+            "exists": false
+          }
+        ]
+      }
+    }
+  ]
+}
