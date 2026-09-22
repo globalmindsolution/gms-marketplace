@@ -63,7 +63,7 @@ export ACS_PLUGIN_ROOT=$PWD/../../src/acs   # the build being released
 make gate
 ```
 
-`make gate` = **`eval`** (run the 502 deterministic cases) → **`check`**
+`make gate` = **`eval`** (run the 361 deterministic cases) → **`check`**
 (assert both generated trees are in sync with their sources) → **`mutation`**
 (measure schema coverage, floor 90%) → **`report`** (render
 `results/report.md` and `results/report.html`) → **`perf`** (judge the tier-3
@@ -120,14 +120,14 @@ that catches packaging drift.
 
 | Tier | Where | Runner | Cost | Status |
 |---|---|---|---|---|
-| **1 — Deterministic** | `dataset/cases/` | `runner/run_golden.py` | $0, no model, no network | **502 cases, all green** |
+| **1 — Deterministic** | `dataset/cases/` | `runner/run_golden.py` | $0, no model, no network | **361 cases, all green** |
 | **2 — Agentic (routing)** | `evals/` | `claude plugin eval` | paid sessions | authored, **never executed** — needs early access |
 | **3 — Skill performance** | `dataset/scenarios.json` | `runner/measure_skills.py` + `runner/perf_gate.py` | paid sessions to measure; $0 to judge | **built, never measured** — see [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) |
 
 Tier 1 asks whether the plumbing still emits the same bytes. **Tier 3 asks the
 four questions a release actually turns on** — did the skills get less
 reliable, worse, more expensive, or slower — because a build that made every
-skill twice as slow and three times as expensive passes all 502 tier-1 cases
+skill twice as slow and three times as expensive passes all 361 tier-1 cases
 and prints PASSED. Tier 3 also measures routing through plain `claude -p`, so
 it does not wait on tier 2's early access.
 
@@ -199,25 +199,26 @@ is pinned deterministically in tier 1 as `SKILL-*`.
 
 ## What the dataset covers
 
-502 deterministic cases across the surfaces v0.5.0 changed **and** the pipeline
+361 deterministic cases across the surfaces v0.5.0 changed **and** the pipeline
 spine every release depends on.
 
 | Cases | Group | What it pins |
 |---:|---|---|
-| 32 | `01-derivation` | slug, the 12-cell lane matrix, lane ranks, stakes recommendation and the ratchet guard, docs fan-out batching |
+| 4 | `01-derivation` | the slug derivation and the docs fan-out batching |
 | 18 | `02-readiness` | merge-pr's four readiness dimensions replayed from recorded `gh pr view` documents (MAR-524) |
-| 15 | `03-verdict` | the verifier verdict's derived-`passed` invariant, completeness, freshness, lens merge (MAR-527) |
+| 12 | `03-verdict` | the verifier verdict's derived-`passed` invariant, completeness, freshness, lens merge (MAR-527) |
 | 8 | `04-filemap` | the executor file map's declaration side and its accumulating union (MAR-529) |
-| 11 | `05-lock` | lock staleness bases — the no-signal age timeout and the same-host liveness probe — the audited `force-unlock`, and skill-start's two refusal messages (MAR-530) |
-| 45 | `06-gates` | all 15 gated skills × 3 workspace states — the pipeline ordering, and the reason each refusal gives |
-| 12 | `07-spine` | ticket minting, the fail-closed id counter, settings resolution, ticket read/write |
-| 35 | `08-schemas` | the 12 shipped JSON schemas — the accept seeds, and the reject cases that carry judgement |
+| 11 | `05-lock` | lock staleness bases — the no-signal age timeout and the same-host liveness probe — the audited `force-unlock`, and `acs step start`'s two refusal messages (MAR-530) |
+| 36 | `06-gates` | all 12 gated skills × 3 workspace states — the pipeline ordering, and the reason each refusal gives |
+| 13 | `07-spine` | ticket minting, the fail-closed id counter, settings resolution, ticket read/write |
+| 32 | `08-schemas` | the 10 shipped JSON schemas it seeds — the accept seeds, and the reject cases that carry judgement |
 | 12 | `09-internals` | PR conventions, doc structure lint, status line, metrics aggregate, SessionEnd |
-| 25 | `10-skills` | every skill's shipped routing surface |
-| 128 | `11-schema-constraints` | **generated** — one reject case per reachable schema constraint |
+| 32 | `10-skills` | every skill's shipped routing surface |
+| 163 | `11-schema-constraints` | **generated** — one reject case per reachable schema constraint |
 | 15 | `12-filemap-guard` | the file-map deny control as the PreToolUse hook runs it: nine fail-open scope answers, four fail-closed denials, the stop-attempt cap edge (MAR-529) |
+| 5 | `13-plan-contract` | the delivery path where ADR-0098 put it — the plan's `## Contract` block, as `acs plan path` reads it |
 
-Tickets covered: MAR-402, MAR-520 – MAR-530.
+Tickets covered: MAR-402, MAR-520 – MAR-530, MAR-575, MAR-578, MAR-579, MAR-585 – MAR-587.
 
 ### The cases worth reading first
 

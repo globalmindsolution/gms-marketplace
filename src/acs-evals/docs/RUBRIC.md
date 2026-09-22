@@ -136,9 +136,11 @@ Two conditions are reported alongside the verdict and are also blocking:
   `additionalProperties: true` says exactly what its own absence says, so no
   case can ever pin it), and the case generator refused every constraint it
   could not reason about in advance instead of building the mutant and asking
-  the validator. With both fixed, and every schema seeded, the tier measures
-  **100% of the 224 constraints any instance could distinguish** — so a 50%
-  floor gated nothing. A floor no run can fail is not a floor.
+  the validator. With both fixed, the tier measures **100% of the 141
+  constraints the schemas it seeds can distinguish** — so a 50% floor gated
+  nothing. A floor no run can fail is not a floor. Five schemas carry no cases
+  at all; they contribute 0/0, so they are absent from that denominator rather
+  than counted as covered, and the sweep names them on every run.
 
   The floor sits at 90 rather than 100 deliberately: the steady state is 100%,
   and the ten points are headroom for a schema that grows a constraint before

@@ -47,7 +47,7 @@ gate-deterministic: eval check mutation report ## The deterministic tier only â€
 	@printf '\nDeterministic tier complete. This says NOTHING about skill\n'
 	@printf 'quality, reliability, cost or time â€” see docs/PERFORMANCE.md.\n'
 
-eval: ## Run the deterministic tier (502 cases, zero cost, no model)
+eval: ## Run the deterministic tier (361 cases, zero cost, no model)
 	$(PYTHON) runner/run_golden.py --json $(JSON)
 
 # Point the suite at the sibling plugin source. This does NOT change

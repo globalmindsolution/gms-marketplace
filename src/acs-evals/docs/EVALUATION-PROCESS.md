@@ -32,8 +32,10 @@ make gate
 
 `make gate` runs four steps and stops at the first failure:
 
-1. **`make eval`** — the deterministic tier. 502 cases against the resolved
-   build, writing `results/latest.json`. Non-zero exit if any case differs.
+1. **`make eval`** — the deterministic tier. 361 cases against the resolved
+   build, writing `results/latest.json`. Non-zero exit if a `critical` or
+   `major` case differs; `minor` drift is reported as PASSED and does not
+   block, per the severity policy in [`RUBRIC.md`](RUBRIC.md).
 2. **`make check`** — asserts both GENERATED trees are still in sync with their
    sources: `evals/**/case.yaml` against `dataset/routing.json`, and
    `dataset/cases/11-schema-constraints.json` against the shipped schemas.
