@@ -211,17 +211,37 @@ FORK_DEGRADED = ("One control did not run: the throwaway index of the fork point
                  "unusable, so each commit was tested against %s only — a commit that "
                  "reverts this branch's own earlier work can read as absorbed that way.")
 
+#: Without the base index nothing was tested at all, so this shape replaces the
+#: ownership claim outright instead of qualifying it.
+BASE_UNUSABLE = ("Stacked-base check could not run: its throwaway index of %s was "
+                 "unusable, so the %d non-conforming commit subject(s) in %s "
+                 "were never tested against the base.")
 
-def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded=None):
+#: A `notes` entry is something the run could not settle, so no shape may state
+#: a settled result beside one. The paths with no more specific sentence of
+#: their own carry this, and it names which note qualified the report.
+QUALIFIED = ("This report is qualified rather than settled: %s. The classification "
+             "above is not confirmed for the commit(s) that raised it.")
+
+
+def _qualify(text, separator, base_ref, degraded, notes):
+    """Never state a settled result beside a non-empty `notes`."""
+    if degraded == "fork":
+        return text + separator + FORK_DEGRADED % base_ref
+    if notes:
+        return text + separator + QUALIFIED % "; ".join(notes)
+    return text
+
+
+def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded=None,
+                  notes=()):
     """The author-facing text — the whole user-visible deliverable."""
     if not stacked:
         if degraded == "base":
-            return ("Stacked-base check could not run: its throwaway index of %s was "
-                    "unusable, so the %d non-conforming commit subject(s) in %s "
-                    "were never tested against the base." % (base_ref, own_count, rng))
+            return BASE_UNUSABLE % (base_ref, own_count, rng)
         text = ("No stacked-base condition: %d non-conforming commit subject(s) "
                 "in %s are this branch's own." % (own_count, rng))
-        return (text + " " + FORK_DEGRADED % base_ref) if degraded == "fork" else text
+        return _qualify(text, " ", base_ref, degraded, notes)
     listing = "\n".join("  %s  %s" % (e["sha"], e["subject"]) for e in stacked)
     text = (
         "This branch is stacked on a base that was squash-merged, and %d of its commits\n"
@@ -256,7 +276,7 @@ def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded
            own_count,
            " is" if own_count == 1 else "s are",
            "s its" if own_count == 1 else " their"))
-    return (text + "\n\n" + FORK_DEGRADED % base_ref) if degraded == "fork" else text
+    return _qualify(text, "\n\n", base_ref, degraded, notes)
 
 
 def check(repo_root, base, commit_message_format, ticket_prefix):
@@ -345,7 +365,7 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
     # other sentences instead count the branch's own non-conforming subjects.
     own_count = len(own) if kept is None else len(kept)
     result["message"] = build_message(base, base_ref, rng, stacked, replay_onto,
-                                      own_count, degraded)
+                                      own_count, degraded, notes)
     return result
 
 

@@ -661,6 +661,98 @@ class TestDegradedIndex(unittest.TestCase):
         self.assertFalse(mod.reverse_applies(root, b"any patch bytes", None))
 
 
+class TestQualifiedReport(unittest.TestCase):
+    """A non-empty `notes` never coexists with a settled claim in `message`.
+
+    `notes` records what the run could not settle, and both reading surfaces
+    hand `message` to the author verbatim -- so a note the message does not
+    carry is a qualification nobody ever sees. Every site that appends to
+    `notes` is built here on a real fixture and held to the qualification the
+    module says that path emits; the count guard below turns a sixth site red
+    rather than letting it ship unqualified.
+    """
+
+    BARE_CLAIM = "are this branch's own."
+
+    def _root_commit_skipped(self):
+        root = clean_branch(self)
+        orphan = _orphan_commit(root, "orphan.txt", "orphan\n", "oops orphan work")
+        _git(root, "merge", "--allow-unrelated-histories", "-q", "-m",
+             "Merge unrelated side", orphan)
+        short = _git(root, "rev-parse", "--short", orphan).strip()
+        _, result, _ = check_json(root)
+        return result, "root commit %s skipped" % short
+
+    def _empty_commit(self):
+        # On the STACKED shape deliberately: the qualification is required of
+        # both renderings, and an empty non-conforming commit rides along with
+        # the inherited ones without ever becoming a candidate itself.
+        root, _ = incident(self)
+        _git(root, "commit", "-q", "--allow-empty", "-m", "oops trigger ci")
+        short = _git(root, "rev-parse", "--short", "HEAD").strip()
+        code, result, _ = check_json(root)
+        self.assertEqual((code, result["verdict"]), (1, "stacked_base"))
+        return result, "empty commit %s" % short
+
+    def _no_lossless_replay_point(self):
+        root = convergent(self)
+        _, result, _ = check_json(root)
+        return result, "1 commit(s) look absorbed but no lossless replay point exists"
+
+    def _base_index_unusable(self):
+        root, _ = incident(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("base")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        return result, "no commit could be tested against the base"
+
+    def _fork_index_unusable(self):
+        root = own_bad(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        return result, "the merge-base control could not run"
+
+    #: One entry per `notes.append` site in stacked-base.py: the fixture that
+    #: reaches it, and the qualification the message must then carry, rendered
+    #: from the module's own template rather than copied out of it.
+    NOTES_PATHS = (
+        ("root commit skipped", _root_commit_skipped,
+         lambda result, note: mod.QUALIFIED % note),
+        ("empty commit", _empty_commit,
+         lambda result, note: mod.QUALIFIED % note),
+        ("no lossless replay point", _no_lossless_replay_point,
+         lambda result, note: mod.QUALIFIED % note),
+        ("base index unusable", _base_index_unusable,
+         lambda result, note: mod.BASE_UNUSABLE % (result["base_ref"],
+                                                   len(result["own"]), result["range"])),
+        ("fork index unusable", _fork_index_unusable,
+         lambda result, note: mod.FORK_DEGRADED % result["base_ref"]),
+    )
+
+    def test_every_notes_path_carries_its_qualification_into_the_message(self):
+        for name, build, qualification in self.NOTES_PATHS:
+            with self.subTest(path=name):
+                result, note = build(self)
+                self.assertIn(note, " ".join(result["notes"]),
+                              "%s: the fixture never reached this path" % name)
+                message = " ".join(result["message"].split())
+                self.assertIn(" ".join(qualification(result, note).split()), message,
+                              "%s: `notes` says %r and `message` does not say so: %s"
+                              % (name, note, message))
+                self.assertFalse(message.endswith(self.BARE_CLAIM),
+                                 "%s: a qualified run still ends on the bare ownership "
+                                 "claim: %s" % (name, message))
+
+    def test_every_path_that_appends_to_notes_is_pinned_above(self):
+        # The class guard: a sixth append site is a sixth way to ship an
+        # unqualified message, and the table above is what proves there is not
+        # one.
+        with open(mod.__file__, encoding="utf-8") as fh:
+            source = fh.read()
+        self.assertEqual(source.count("notes.append("), len(self.NOTES_PATHS),
+                         "stacked-base.py appends to `notes` from a different number "
+                         "of sites than this table builds a fixture for")
+
+
 class TestReadOnly(unittest.TestCase):
 
     def test_the_check_writes_nothing_to_the_repository(self):
