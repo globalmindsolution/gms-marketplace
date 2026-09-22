@@ -18,6 +18,7 @@ Run:  python3 -m unittest tests.acs.test_eval_deletions_are_justified -v
 """
 
 import glob
+import importlib.util
 import json
 import os
 import sys
@@ -27,7 +28,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acs_case import SCRIPTS  # noqa: E402
 
 sys.path.insert(0, SCRIPTS)
-import acs  # noqa: E402
 import acs_lib  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,9 +44,27 @@ def case_files():
     return out
 
 
+def acs_cli():
+    """The shipped `acs.py`, loaded by path under a name of its own.
+
+    A plain `import acs` binds the TEST package: under `unittest discover -s
+    tests` this module is `acs.test_eval_deletions_are_justified`, so the CLI
+    would be shadowed by the directory holding its own tests.
+    """
+    name = "acs_cli_under_test"
+    mod = sys.modules.get(name)
+    if mod is None:
+        spec = importlib.util.spec_from_file_location(
+            name, os.path.join(SCRIPTS, "acs.py"))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[name] = mod
+        spec.loader.exec_module(mod)
+    return mod
+
+
 def cli_surface():
     """`{verb: {subcommand, ...}}` as `acs.py`'s own parser declares it."""
-    _parser, choices = acs.build_parser()
+    _parser, choices = acs_cli().build_parser()
     groups = {}
     for verb, sub in choices.items():
         names = set()
