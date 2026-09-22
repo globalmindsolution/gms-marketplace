@@ -43,6 +43,23 @@ FORMAT = "{ticket_id} {summary}"
 PREFIX = "MAR"
 BINARY = b"\x00\x01\x02\x03binary payload\x00\xff"
 
+#: The third author-facing copy of the module's degraded-run and accepted-
+#: limitations prose -- the file an author opens when the conventions gate is
+#: already red.
+CI_REFERENCE = os.path.join(acs_case.REPO_ROOT, "src", "acs", "skills", "create-pr",
+                            "references", "ci-convention-check.md")
+
+
+def read_text(path):
+    with open(path, "r", encoding="utf-8") as fh:
+        return fh.read()
+
+
+def flatten(text):
+    """Whitespace-collapsed, backtick-free body, so a re-wrapped or code-quoted
+    copy of the same sentence still matches."""
+    return " ".join(text.replace("`", "").split())
+
 
 # ---------------------------------------------------------------------------
 # Fixture plumbing
@@ -546,6 +563,33 @@ class TestDegradedIndex(unittest.TestCase):
     commits "are this branch's own". The posture stays fail-open; the failure
     stops being silent."""
 
+    #: Every factual claim the degraded-run and accepted-limitations prose
+    #: makes, the surfaces that repeat it, and the wrong form it must stay
+    #: clear of. One table for three copies of one sentence: restoring the
+    #: earlier wording to any single copy used to leave the suite green,
+    #: because only two of the three were ever read. Values in braces come from
+    #: the run measured in the test, so the prose is pinned to what the tool
+    #: does rather than to a literal.
+    ALL_SURFACES = ("report message", "module docstring", "ci-convention-check.md")
+    PROSE_SURFACES = ("module docstring", "ci-convention-check.md")
+    DEGRADED_CLAIMS = (
+        ("which commit of the revert pair reads as absorbed", ALL_SURFACES,
+         "a commit that reverts this branch's own earlier work",
+         "a commit this branch itself reverted"),
+        ("which index going missing causes that read", ALL_SURFACES,
+         "fork[- ]point|fork index", "base[- ]?index"),
+        ("the warning is carried on either verdict", PROSE_SURFACES,
+         "on either verdict", None),
+        # Anchored to its own sentence: "reported as stacked" alone appears
+        # twice in the docstring, so an unqualified pattern is satisfied by the
+        # self-revert paragraph and stops noticing if this claim is deleted.
+        ("the zero-net-content residual is reported as stacked", PROSE_SURFACES,
+         "net content against the base is already in the base"
+         ".{{0,60}}reported as {reported_as}", "reported as clean"),
+        ("the exit code the stacked_base verdict gets", ("ci-convention-check.md",),
+         "{code} for verdict {verdict}", None),
+    )
+
     def test_an_unusable_index_is_noted_instead_of_read_as_a_healthy_branch(self):
         root, _ = incident(self)
         with mock.patch.object(mod, "tree_index", return_value=None):
@@ -617,10 +661,25 @@ class TestDegradedIndex(unittest.TestCase):
         self.assertFalse(mod.absorbed(root, reverted, "reverted", base_env, None, []))
         with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
             result = mod.check(root, "main", FORMAT, PREFIX)
-        for surface in (result["message"], mod.__doc__):
-            flat = " ".join(surface.split())
-            self.assertIn("a commit that reverts this branch's own earlier work", flat)
-            self.assertNotIn("a commit this branch itself reverted", flat)
+        # The residual shape is measured in the same test, so the prose claims
+        # about it below are held to what the tool does rather than to a
+        # literal somebody typed into three files.
+        code, residual, _ = check_json(convergent_minimal(self))
+        measured = {"code": code, "verdict": residual["verdict"],
+                    "reported_as": residual["verdict"].split("_")[0]}
+        surfaces = {"report message": result["message"],
+                    "module docstring": mod.__doc__,
+                    "ci-convention-check.md": read_text(CI_REFERENCE)}
+        for claim, names, required, forbidden in self.DEGRADED_CLAIMS:
+            for name in names:
+                with self.subTest(claim=claim, surface=name):
+                    body = flatten(surfaces[name])
+                    self.assertRegex(body, required.format(**measured),
+                                     "%s: %s -- not stated" % (name, claim))
+                    if forbidden:
+                        self.assertNotRegex(body, forbidden,
+                                            "%s: %s -- stated the wrong way round"
+                                            % (name, claim))
 
     def test_the_degraded_note_never_contradicts_the_absorbed_note(self):
         # Without the fork index the merge-base control cannot run, so the
