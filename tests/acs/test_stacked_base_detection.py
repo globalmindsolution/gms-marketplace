@@ -410,6 +410,14 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(len(result["stacked"]), 1)
         self.assertIn("1 of its commits\nis not yours to fix.", result["message"])
 
+    def test_the_message_reads_correctly_for_several_stacked_commits(self):
+        # The sibling of the single-commit case above: the plural rendering is
+        # the one an author almost always sees, and nothing held it.
+        root, _ = incident(self)
+        _, result, _ = check_json(root)
+        self.assertEqual(len(result["stacked"]), 2)
+        self.assertIn("2 of its commits\nare not yours to fix.", result["message"])
+
     def test_the_own_count_is_what_the_replay_keeps_not_what_it_discards(self):
         # The sentence sits under a --force-with-lease, so it must count the
         # commits the emitted rebase KEEPS: everything newer than replay_onto.
@@ -579,6 +587,17 @@ class TestDegradedIndex(unittest.TestCase):
             result = mod.check(root, "main", FORMAT, PREFIX)
         self.assertEqual(result["verdict"], "stacked_base")
         self.assertIn("--force-with-lease", result["message"])
+        self.assertIn("fork point", result["message"])
+
+    def test_a_fork_index_failure_is_surfaced_on_the_exit_zero_message_too(self):
+        # The mirror of the stacked case, and the path that actually prints the
+        # bare ownership claim: without the caveat this message tells the author
+        # its subjects are his own while the control that proves it is off.
+        root = own_bad(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        self.assertEqual(result["verdict"], "own_violations")
+        self.assertIn("are this branch's own", result["message"])
         self.assertIn("fork point", result["message"])
 
     def test_the_degraded_note_never_contradicts_the_absorbed_note(self):
