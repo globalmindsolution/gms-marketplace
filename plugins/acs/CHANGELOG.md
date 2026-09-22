@@ -7,12 +7,15 @@ and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Releases are automated: run **`/acs:release <version>`** to perform the five
-steps below in one command — bump `version` in BOTH
-`.claude-plugin/marketplace.json` and `plugins/acs/.claude-plugin/plugin.json`
-to the same value, point the acs `source.ref` in `marketplace.json` at
-`v<version>`, add a matching section here, and merge to `main` — the Release
-workflow tags `v<version>` and publishes a GitHub release using that section as
-the notes.
+steps below in one command — bump `version` to the same value in all FOUR
+locations `.acs/settings.json` lists (`.claude-plugin/marketplace.json`,
+`plugins/acs/.claude-plugin/plugin.json`,
+`plugins/acs/.devin-plugin/plugin.json` and `.devin-plugin/plugin.json`),
+point the `plugins/acs` entry's `ref` in `.devin-plugin/plugin.json`'s
+`requiredPlugins` at `v<version>` — the marketplace entry's source is the
+relative string `"./plugins/acs"` and carries no `ref` of its own — add a
+matching section here, and merge to `main` — the Release workflow tags
+`v<version>` and publishes a GitHub release using that section as the notes.
 
 ## [Unreleased]
 
@@ -43,41 +46,6 @@ the notes.
 > contract.
 
 ### The v0.5.0 redesign
-
-- **The plugin moves back to `plugins/acs`, the eval suite to `evals/`, and the
-  marketplace entry becomes a relative source.** `.claude-plugin/marketplace.json`
-  now resolves acs from the string `"./plugins/acs"` instead of a `git-subdir`
-  object carrying its own `url`, `path` and `ref`. This is the layout the Claude
-  Code marketplace documentation describes, and the one tag `v0.4.9` already
-  ships — the `src/` layout existed only on unreleased `main`, so no consumer
-  ever installed from it and there is nothing to migrate.
-
-  **Why the source form changed, not just the directory.** A relative source
-  resolves from the marketplace checkout itself, so there is no second ref to
-  keep in sync. The object form had two readers that disagree: `ci.yml`'s
-  validator resolves `path` against the working tree, while the installer
-  resolves it at `ref`. On 2026-09-16 `acs@gms-marketplace` could not be
-  installed at all because the tree had moved to `src/acs` while `ref` still
-  named `v0.4.9`, where the plugin sits at `plugins/acs` — each field
-  individually correct, the pair unresolvable. That failure mode is now absent
-  by construction rather than guarded against.
-
-  **Pinning moves from the plugin to the marketplace.** The entry no longer
-  carries its own `ref`, so a controlled rollout pins the marketplace instead:
-  `claude plugin marketplace add globalmindsolution/gms-marketplace@v0.5.0`.
-  Equivalent here, because the catalog holds exactly one plugin.
-
-  The two `release.extra_refs` entries that rewrote `source/ref` and
-  `source/path` on every cut are **removed** — a relative string source has
-  neither field, and leaving them would rewrite a valid source into an invalid
-  object. `tests/acs/test_marketplace_ref_resolves.py` is re-cut to assert the
-  working-tree property for a string source while keeping the at-ref property
-  for object sources, and gains a guard that no `extra_ref` may write into a
-  string source.
-
-  **Migration:** a consumer installing from the marketplace is unaffected. A
-  `--plugin-dir`, `scripts/dev_install.py` checkout or CI job naming `src/acs`
-  must name `plugins/acs`; one naming `src/acs-evals` must name `evals`.
 
 The pipeline had accumulated its decisions in the wrong places: a workflow
 file that decided whether a skill applied, a state machine that mixed the run
@@ -200,7 +168,7 @@ to the place that has the evidence for it**.
     reason: "CLI-only change; no HTTP surface, no browser flow"
 
   ### Executor tasks & file map
-  - task 1: src/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py
+  - task 1: plugins/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py
   ```
 
   It is not a template and it is not a form: short is not empty, and a plan
@@ -373,7 +341,7 @@ JSON validated by JSON Schema, one central envelope plus a
   failure or vanishing.
 - **The dogfood repo's per-ticket paid e2e gate is retired** (MAR-579, #529)
   in favour of the acs-evals tiers: `.acs/settings.json`'s release gate is
-  `make -C src/acs-evals eval-source`, `measure` and `perf`, and no ticket
+  `make -C evals eval-source`, `measure` and `perf`, and no ticket
   pays for a model run of its own.
 
 ### Changed
@@ -535,7 +503,7 @@ JSON validated by JSON Schema, one central envelope plus a
   whose gate passed, and the release PR body carries each command's exit code
   and output tail as the cut's evidence. Nothing bypasses the step. A repo
   that declares no gate is told so and proceeds. This marketplace's gate is
-  `make -C src/acs-evals eval-source`, `measure` and `perf`: the tier-3
+  `make -C evals eval-source`, `measure` and `perf`: the tier-3
   measurement now records the content digest of the tree it exercised,
   `perf` refuses a measurement of any other build (`UNMEASURED (stale)`),
   and `measure` is a no-op when a complete measurement of the identical
@@ -724,6 +692,41 @@ JSON validated by JSON Schema, one central envelope plus a
   On the 2026-09-15 gate a two-line login ticket came back not ready on
   exactly those three defaults, on a headless run with nobody to answer.
 
+- **The plugin moves back to `plugins/acs`, the eval suite to `evals/`, and the
+  marketplace entry becomes a relative source.** `.claude-plugin/marketplace.json`
+  now resolves acs from the string `"./plugins/acs"` instead of a `git-subdir`
+  object carrying its own `url`, `path` and `ref`. This is the layout the Claude
+  Code marketplace documentation describes, and the one tag `v0.4.9` already
+  ships — the `src/` layout existed only on unreleased `main`, so no consumer
+  ever installed from it and there is nothing to migrate.
+
+  **Why the source form changed, not just the directory.** A relative source
+  resolves from the marketplace checkout itself, so there is no second ref to
+  keep in sync. The object form had two readers that disagree: `ci.yml`'s
+  validator resolves `path` against the working tree, while the installer
+  resolves it at `ref`. On 2026-09-16 `acs@gms-marketplace` could not be
+  installed at all because the tree had moved to `src/acs` while `ref` still
+  named `v0.4.9`, where the plugin sits at `plugins/acs` — each field
+  individually correct, the pair unresolvable. That failure mode is now absent
+  by construction rather than guarded against.
+
+  **Pinning moves from the plugin to the marketplace.** The entry no longer
+  carries its own `ref`, so a controlled rollout pins the marketplace instead:
+  `claude plugin marketplace add globalmindsolution/gms-marketplace@v0.5.0`.
+  Equivalent here, because the catalog holds exactly one plugin.
+
+  The two `release.extra_refs` entries that rewrote `source/ref` and
+  `source/path` on every cut are **removed** — a relative string source has
+  neither field, and leaving them would rewrite a valid source into an invalid
+  object. `tests/acs/test_marketplace_ref_resolves.py` is re-cut to assert the
+  working-tree property for a string source while keeping the at-ref property
+  for object sources, and gains a guard that no `extra_ref` may write into a
+  string source.
+
+  **Migration:** a consumer installing from the marketplace is unaffected. A
+  `--plugin-dir`, `scripts/dev_install.py` checkout or CI job naming `src/acs`
+  must name `plugins/acs`; one naming `src/acs-evals` must name `evals`.
+
 ### Deprecated
 
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.
@@ -732,7 +735,7 @@ JSON validated by JSON Schema, one central envelope plus a
 
 - **The coordinator's lens merge pass is the adversarial merge pass, not a
   "confidence-scoring" one** (MAR-584). Three live documents —
-  `src/acs/agents/code-verifier.md`, `docs/requirements/functional/skills.md`
+  `plugins/acs/agents/code-verifier.md`, `docs/requirements/functional/skills.md`
   and `docs/requirements/functional/reflection.md` — described the `complex`
   path's post-lens merge as a "confidence-scoring/adversarial" pass, naming a
   mechanism that has never existed anywhere in acs: no 0-100 scale, no
