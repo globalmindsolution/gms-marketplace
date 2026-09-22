@@ -4,12 +4,12 @@
   "probe_count": 43,
   "probes": [
     {
-      "id": "ROUTE-analyze-ticket",
-      "skill": "acs:analyze-ticket",
+      "id": "ROUTE-analyze-requirements",
+      "skill": "acs:analyze-requirements",
       "kind": "positive",
       "prompt": "Before we plan anything for TKT-1, work out what it really asks for: what breaks, what is unclear, and what we are assuming.",
       "must_route": true,
-      "why": "A natural-language request in the skill's domain, never naming the skill. Deliberately pre-plan: the neighbour is create-impl-plan, so the prompt asks for understanding and open questions, never for an approach or a file list."
+      "why": "A natural-language request in the skill's domain, never naming the skill. Deliberately pre-plan: the neighbour is create-impl-plan, so the prompt asks for understanding and open questions, never for an approach or a file list. Renamed with the skill it probes: `analyze-ticket` -> `analyze-requirements` (REDESIGN-IMPLEMENTATION-PIPELINE.md:424, :1187-1189)."
     },
     {
       "id": "ROUTE-code",
@@ -260,6 +260,14 @@
       "why": "A natural-language request in the skill's domain, never naming the skill."
     },
     {
+      "id": "ROUTE-review-code",
+      "skill": "acs:review-code",
+      "kind": "positive",
+      "prompt": "TKT-1's branch is implemented and committed. Go over the whole changeset against what it was supposed to deliver, and tell me what is wrong with it before we go any further.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. review-code is added by v0.5.0 (ADR-0099; REDESIGN-IMPLEMENTATION-PIPELINE.md:1313-1315 requires a probe that routes to `review-code` rather than to a `code-*` leg). Its neighbours are code, which implements, and create-pr, which opens the PR, so the prompt asks for a judgement on a finished changeset and never for an implementation or a pull request."
+    },
+    {
       "id": "ROUTE-run-e2e-tests",
       "skill": "acs:run-e2e-tests",
       "kind": "positive",
@@ -298,14 +306,6 @@
       "prompt": "Audit this existing repo against our standards and scaffold whatever tooling is missing.",
       "must_route": false,
       "why": "A plain description of the leg's own subject must NOT reach the leg: /acs:project is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION (\"Internal leg of /acs:project, not a user-facing command\"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:project dispatches this leg with a real Skill(acs:standardize-project) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is."
-    },
-    {
-      "id": "ROUTE-test-explicit",
-      "skill": "acs:test",
-      "kind": "positive",
-      "prompt": "/acs:test",
-      "must_route": true,
-      "why": "acs:test is a DEPRECATED ALIAS for acs:run-e2e-tests, retained for one release so existing invocations, scripts and habits keep working. Registration, not routing, is the whole guarantee, so this probe asserts it the way the other explicit probes do — at the session's init event. The natural-language half of the domain belongs to ROUTE-run-e2e-tests and is measured there. The 1.5.0 form asked in prose (\"Run our test suites and tell me whether anything broke\") and must_route'd to the alias; it routed nowhere on 5/5 runs of the 2026-09-13 measurement — what a description reading \"Deprecated alias ... Prefer /acs:run-e2e-tests\" should produce."
     },
     {
       "id": "ROUTE-update-explicit",

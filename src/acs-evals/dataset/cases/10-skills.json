@@ -3,19 +3,22 @@
   "description": "All 32 shipped skills, checked deterministically. What a skill ROUTES on is its frontmatter \u2014 the `description` Claude matches against, and `disable-model-invocation`, which decides whether it may be auto-invoked at all. Both are packaged data, so both are assertable with no model and no cost.\n\nThis catches the failure the paid routing tier cannot: a skill that stops shipping, loses its description, or silently gains/loses its user-only flag. The behavioural half \u2014 does a real request actually route here \u2014 lives in dataset/routing.json and the evals/ tier.",
   "surface": "skills/*/SKILL.md",
   "covers": [
-    "MAR-526"
+    "MAR-526",
+    "ADR-0095",
+    "ADR-0099"
   ],
   "profile": "bare",
   "cases": [
     {
-      "id": "SKILL-analyze-ticket",
+      "id": "SKILL-analyze-requirements",
       "kind": "skill_manifest",
-      "skill": "analyze-ticket",
-      "title": "analyze-ticket: ships as a model-invocable skill with a routing description",
+      "skill": "analyze-requirements",
+      "title": "analyze-requirements: ships as a model-invocable skill with a routing description",
+      "note": "Renamed with the skill: REDESIGN-IMPLEMENTATION-PIPELINE.md:424 (\u00a73.1 `/acs:analyze-requirements`, renamed from `analyze-ticket`) and :1187-1189. `src/acs/skills/analyze-ticket/` no longer exists.",
       "expect": {
         "present": true,
         "frontmatter": {
-          "name": "analyze-ticket"
+          "name": "analyze-requirements"
         },
         "frontmatter_nonempty": [
           "description"
@@ -42,6 +45,86 @@
           "disable-model-invocation"
         ]
       }
+    },
+    {
+      "id": "SKILL-code-complex",
+      "kind": "skill_manifest",
+      "skill": "code-complex",
+      "title": "code-complex: ships as an internal leg of /acs:code, dispatchable by it, with a routing description",
+      "note": "An ADR-0095 delivery-path leg, dispatched by /acs:code and never chosen by hand; REDESIGN-IMPLEMENTATION-PIPELINE.md:1265-1267 keeps the four legs through the redesign, and :1187-1189 counts them in the 32.",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "code-complex"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "SKILL-code-small",
+      "kind": "skill_manifest",
+      "skill": "code-small",
+      "title": "code-small: ships as an internal leg of /acs:code, dispatchable by it, with a routing description",
+      "note": "An ADR-0095 delivery-path leg, dispatched by /acs:code and never chosen by hand; REDESIGN-IMPLEMENTATION-PIPELINE.md:1265-1267 keeps the four legs through the redesign, and :1187-1189 counts them in the 32.",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "code-small"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "SKILL-code-standard",
+      "kind": "skill_manifest",
+      "skill": "code-standard",
+      "title": "code-standard: ships as an internal leg of /acs:code, dispatchable by it, with a routing description",
+      "note": "An ADR-0095 delivery-path leg, dispatched by /acs:code and never chosen by hand; REDESIGN-IMPLEMENTATION-PIPELINE.md:1265-1267 keeps the four legs through the redesign, and :1187-1189 counts them in the 32.",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "code-standard"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "SKILL-code-trivial",
+      "kind": "skill_manifest",
+      "skill": "code-trivial",
+      "title": "code-trivial: ships as an internal leg of /acs:code, dispatchable by it, with a routing description",
+      "note": "An ADR-0095 delivery-path leg, dispatched by /acs:code and never chosen by hand; REDESIGN-IMPLEMENTATION-PIPELINE.md:1265-1267 keeps the four legs through the redesign, and :1187-1189 counts them in the 32.",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "code-trivial"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      },
+      "severity": "critical"
     },
     {
       "id": "SKILL-create-api-contract",
@@ -387,6 +470,25 @@
       }
     },
     {
+      "id": "SKILL-review-code",
+      "kind": "skill_manifest",
+      "skill": "review-code",
+      "title": "review-code: ships as a model-invocable skill with a routing description",
+      "note": "The skill v0.5.0 adds: ADR-0099 (review is a step, not a phase) and REDESIGN-IMPLEMENTATION-PIPELINE.md:1187-1189.",
+      "expect": {
+        "present": true,
+        "frontmatter": {
+          "name": "review-code"
+        },
+        "frontmatter_nonempty": [
+          "description"
+        ],
+        "frontmatter_absent": [
+          "disable-model-invocation"
+        ]
+      }
+    },
+    {
       "id": "SKILL-run-e2e-tests",
       "kind": "skill_manifest",
       "skill": "run-e2e-tests",
@@ -458,24 +560,6 @@
         ]
       },
       "severity": "critical"
-    },
-    {
-      "id": "SKILL-test",
-      "kind": "skill_manifest",
-      "skill": "test",
-      "title": "test: ships as a model-invocable skill with a routing description",
-      "expect": {
-        "present": true,
-        "frontmatter": {
-          "name": "test"
-        },
-        "frontmatter_nonempty": [
-          "description"
-        ],
-        "frontmatter_absent": [
-          "disable-model-invocation"
-        ]
-      }
     },
     {
       "id": "SKILL-update",

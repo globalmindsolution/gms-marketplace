@@ -4,7 +4,8 @@
   "surface": "pr-conventions.py|structure_lint.py|statusline.py|metrics_aggregate.py|dispatch.py",
   "covers": [
     "MAR-520",
-    "MAR-525"
+    "MAR-525",
+    "ADR-0097"
   ],
   "cases": [
     {
@@ -212,8 +213,8 @@
     },
     {
       "id": "STATUS-001",
-      "title": "the status line names the repo and says there is no active ticket",
-      "note": "MAR-520 routed every degradation through one switch; 'no active ticket' is the ordinary answer, not a degraded one.",
+      "title": "the status line names the repo and says there is no active run",
+      "note": "MAR-520 routed every degradation through one switch; 'no active run' is the ordinary answer, not a degraded one. Re-recorded from 'no active ticket' on the authority of ADR-0097 (two state machines, keyed by the run): the partition is keyed by run, so what the status line reports the absence of is a run.",
       "profile": "bare",
       "invoke": {
         "script": "statusline.py",
@@ -223,7 +224,7 @@
         "exit_code": 0,
         "stdout_contains": [
           "repo",
-          "acs: no active ticket"
+          "acs: no active run"
         ]
       }
     },
