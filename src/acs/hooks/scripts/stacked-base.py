@@ -24,9 +24,12 @@ HOW IT DECIDES — two controls, both found by measurement, neither redundant.
   Step A, the pre-filter. For each NON-CONFORMING commit `C`:
   `git diff --binary C^ C` must be non-empty, must reverse-apply cleanly to
   `<base_ref>`'s tree, and must NOT reverse-apply cleanly to the merge-base's
-  tree. That last leg is control one: without it, a branch that reverts its own
-  earlier commit is reported as stacked, because the reverted post-image is
-  exactly what the base holds.
+  tree. That last leg is control one. A commit that undoes this branch's own
+  earlier work leaves a post-image the base already holds, so the base-side
+  test alone reads it as absorbed and only the merge-base tree says otherwise.
+  Where it decides the verdict is a branch that ALSO converges with the base:
+  step B finds an `R` there, so without control one that revert is reported as
+  stacked. On a plain self-revert step B declines on its own.
 
   Step B, the R gate. `R` is the NEWEST commit in range whose CUMULATIVE patch
   `git diff --binary <merge_base> <R>` is non-empty and reverse-applies cleanly
@@ -224,24 +227,31 @@ QUALIFIED = ("This report is qualified rather than settled: %s. The classificati
              "above is not confirmed for the commit(s) that raised it.")
 
 
-def _qualify(text, separator, base_ref, degraded, notes):
-    """Never state a settled result beside a non-empty `notes`."""
+def _qualify(text, separator, base_ref, degraded, notes, degraded_note=None):
+    """Never state a settled result beside a non-empty `notes`, and name every
+    entry in it exactly once."""
     if degraded == "fork":
-        return text + separator + FORK_DEGRADED % base_ref
-    if notes:
-        return text + separator + QUALIFIED % "; ".join(notes)
+        text += separator + FORK_DEGRADED % base_ref
+    # An index failure is already named by its own sentence — the one above, or
+    # the BASE_UNUSABLE the caller passed in as `text` — so it is dropped from
+    # the general list rather than stated a second time. Everything else `notes`
+    # holds has no sentence of its own and would otherwise go unsaid.
+    remaining = [note for note in notes if note != degraded_note]
+    if remaining:
+        text += separator + QUALIFIED % "; ".join(remaining)
     return text
 
 
 def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded=None,
-                  notes=()):
+                  notes=(), degraded_note=None):
     """The author-facing text — the whole user-visible deliverable."""
     if not stacked:
         if degraded == "base":
-            return BASE_UNUSABLE % (base_ref, own_count, rng)
-        text = ("No stacked-base condition: %d non-conforming commit subject(s) "
-                "in %s are this branch's own." % (own_count, rng))
-        return _qualify(text, " ", base_ref, degraded, notes)
+            text = BASE_UNUSABLE % (base_ref, own_count, rng)
+        else:
+            text = ("No stacked-base condition: %d non-conforming commit subject(s) "
+                    "in %s are this branch's own." % (own_count, rng))
+        return _qualify(text, " ", base_ref, degraded, notes, degraded_note)
     listing = "\n".join("  %s  %s" % (e["sha"], e["subject"]) for e in stacked)
     text = (
         "This branch is stacked on a base that was squash-merged, and %d of its commits\n"
@@ -276,7 +286,7 @@ def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded
            own_count,
            " is" if own_count == 1 else "s are",
            "s its" if own_count == 1 else " their"))
-    return _qualify(text, "\n\n", base_ref, degraded, notes)
+    return _qualify(text, "\n\n", base_ref, degraded, notes, degraded_note)
 
 
 def check(repo_root, base, commit_message_format, ticket_prefix):
@@ -304,7 +314,8 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
             offenders.append((index, sha, short, subject))
 
     notes, candidates = [], []
-    replay_index, replay_onto, kept, degraded = None, None, None, None
+    replay_index, replay_onto, kept = None, None, None
+    degraded, degraded_note = None, None
     tmpdir = tempfile.mkdtemp(prefix="acs-stacked-base-")
     try:
         base_env = tree_index(repo_root, base_ref, tmpdir, "base")
@@ -315,12 +326,14 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
         # commit then reads as MORE absorbed.
         if base_env is None:
             degraded = "base"
-            notes.append("throwaway index of %s unusable; no commit could be "
-                         "tested against the base" % base_ref)
+            degraded_note = ("throwaway index of %s unusable; no commit could be "
+                             "tested against the base" % base_ref)
+            notes.append(degraded_note)
         elif fork_env is None:
             degraded = "fork"
-            notes.append("throwaway index of the fork point unusable; the "
-                         "merge-base control could not run")
+            degraded_note = ("throwaway index of the fork point unusable; the "
+                             "merge-base control could not run")
+            notes.append(degraded_note)
         for index, sha, short, subject in offenders:
             if absorbed(repo_root, sha, short, base_env, fork_env, notes):
                 candidates.append(index)
@@ -365,7 +378,7 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
     # other sentences instead count the branch's own non-conforming subjects.
     own_count = len(own) if kept is None else len(kept)
     result["message"] = build_message(base, base_ref, rng, stacked, replay_onto,
-                                      own_count, degraded, notes)
+                                      own_count, degraded, notes, degraded_note)
     return result
 
 

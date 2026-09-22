@@ -12,17 +12,24 @@ The fixtures build the incident shape with plumbing (`git commit-tree`), not
 checkout games, so the squash is exactly what GitHub produces: one commit
 whose tree is the merged head's tree, parented on the fork point.
 
-Two negative shapes are load-bearing and each pins one control:
-  * self-revert (GAP 1)  -> the merge-base control;
-  * convergent change (GAP 4) -> the R gate (the cumulative scan).
-Neither control is redundant: the convergent shape defeats the merge-base
-control on its own, which is why both tests exist.
+Each control is pinned by the shape where it ALONE changes the verdict, which
+is not the shape that motivated it:
+  * convergent change + self-revert -> the merge-base control. A plain
+    self-revert (GAP 1) does NOT pin it: there the R gate independently
+    reaches own_violations, so deleting the control changes no verdict. Only
+    a branch that converges with the base AND reverts its own later work has
+    an R to satisfy step B, and there the control alone decides.
+  * convergent change (GAP 4) -> the R gate (the cumulative scan), which the
+    merge-base control does not reach.
+Neither control is redundant, and deleting either one turns this suite red --
+which is the claim this paragraph used to make about a shape that did not.
 
 Run:  python3 -m unittest discover -s tests
 """
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -219,6 +226,29 @@ def convergent(case):
     _commit(root, "MAR-2 my own earlier work", "mine_early.txt", "early\n")
     _commit(root, "shout beta", "f.txt", "alpha\nBETA\n")
     _commit(root, "MAR-4 more own work", "mine_late.txt", "late\n")
+    _git(root, "checkout", "-q", "main")
+    _write(root, "f.txt", "alpha\nBETA\n")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "MAR-7 the base makes the same change")
+    _git(root, "checkout", "-q", "work")
+    return root
+
+
+def convergent_self_revert(case):
+    """The shape where the merge-base control ALONE decides the verdict: the
+    branch converges with the base and also reverts its own later work.
+
+    The revert's post-image (no `scratch.txt`) is what the base holds, so the
+    base-side test reads it as absorbed. The fork point holds it too, which is
+    the only thing that says otherwise. The R gate does not reach this shape --
+    the branch's cumulative content against the base IS in the base, thanks to
+    the convergent edit, so an `R` exists and step B is satisfied.
+    """
+    root = _new_repo(case, "f.txt", "alpha\nbeta\n")
+    _commit(root, "MAR-2 converge with the base", "f.txt", "alpha\nBETA\n")
+    _commit(root, "MAR-3 add a scratch file", "scratch.txt", "scratch\n")
+    os.remove(os.path.join(root, "scratch.txt"))
+    _commit(root, "oops undo that scratch file")
     _git(root, "checkout", "-q", "main")
     _write(root, "f.txt", "alpha\nBETA\n")
     _git(root, "add", "-A")
@@ -489,6 +519,37 @@ class TestNegativeCase(unittest.TestCase):
         self.assertEqual(result["verdict"], "own_violations")
         self.assertEqual(result["stacked"], [])
 
+    def test_does_not_fire_when_a_convergent_branch_reverts_its_own_later_work(self):
+        # The shape the merge-base control exists for. On a PLAIN self-revert
+        # the R gate independently reaches own_violations, so that shape pins
+        # nothing; here the convergent edit gives step B an `R`, and control
+        # one is the only thing left that keeps `oops undo that scratch file`
+        # out of the candidate set. Without it this branch is told, above a
+        # --force-with-lease, that its own revert belongs to a merged PR.
+        root = convergent_self_revert(self)
+        code, result, _ = check_json(root)
+        self.assertEqual(result["verdict"], "own_violations")
+        self.assertEqual(code, 0)
+        self.assertEqual(result["stacked"], [])
+        self.assertEqual(subjects(result["own"]), ["oops undo that scratch file"])
+        self.assertNotIn("replay_onto", result)
+
+    def test_the_merge_base_control_is_what_rejects_that_revert(self):
+        # Measured on the commit the control decides, so the verdict above
+        # cannot quietly start resting on some other mechanism.
+        root = convergent_self_revert(self)
+        tmpdir = tempfile.mkdtemp(prefix="acs-stacked-base-idx-")
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+        merge_base = _git(root, "merge-base", "main", "HEAD").strip()
+        base_env = mod.tree_index(root, "main", tmpdir, "base")
+        fork_env = mod.tree_index(root, merge_base, tmpdir, "fork")
+        revert = _git(root, "rev-parse", "HEAD").strip()
+        self.assertTrue(mod.reverse_applies(root, mod.commit_patch(root, revert), base_env),
+                        "the base-side test alone reads this revert as absorbed")
+        self.assertFalse(mod.absorbed(root, revert, "revert", base_env, fork_env, []),
+                         "the merge-base control is what keeps it out of the "
+                         "candidate set, and nothing else does")
+
     def test_does_not_fire_when_the_base_made_the_same_change_independently(self):
         # GAP 4. The merge-base control passes this shape: the content IS in
         # the base and was NOT at the fork point. Only the cumulative R gate
@@ -588,7 +649,43 @@ class TestDegradedIndex(unittest.TestCase):
          ".{{0,60}}reported as {reported_as}", "reported as clean"),
         ("the exit code the stacked_base verdict gets", ("ci-convention-check.md",),
          "{code} for verdict {verdict}", None),
+        # The qualification's own CONTENT, held to literal text written here.
+        # The other assertion on this template renders its expectation from the
+        # template itself, so both sides move together and the sentence can
+        # invert -- "is not confirmed" to "is confirmed" -- with nothing red.
+        ("the qualification names the note that raised it",
+         ("qualified report message",), "{qualifying_note}", None),
+        ("the qualification withholds the classification rather than "
+         "reinforcing it", ("qualified report message",),
+         "classification above is not confirmed for the commit",
+         "classification above is confirmed"),
+        ("nothing was tested when the base index is unusable",
+         ("base-unusable report message",),
+         "were never tested against the base",
+         "were tested against the base anyway"),
+        # Pre-existing clauses that survived mutation, pinned while the table
+        # is open: which tree remained, and which half of a revert pair the
+        # lost control leaves alone.
+        ("only one of the two trees was consulted", ("report message",),
+         "tested against {base_ref} only", None),
+        ("the commit on the other side of the revert is unaffected",
+         PROSE_SURFACES, "commit it reverted is unaffected", None),
     )
+
+    def _a_qualified_report_message(self):
+        """A report whose only note has no sentence of its own, so `QUALIFIED`
+        is what carries it. Returns (message, the note it must name)."""
+        root = clean_branch(self)
+        _git(root, "commit", "-q", "--allow-empty", "-m", "oops trigger ci")
+        short = _git(root, "rev-parse", "--short", "HEAD").strip()
+        _, result, _ = check_json(root)
+        return result["message"], "empty commit %s" % short
+
+    def _a_base_unusable_report_message(self):
+        """The report the author gets when the base index could not be built."""
+        root, _ = incident(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("base")):
+            return mod.check(root, "main", FORMAT, PREFIX)["message"]
 
     def test_an_unusable_index_is_noted_instead_of_read_as_a_healthy_branch(self):
         root, _ = incident(self)
@@ -665,9 +762,14 @@ class TestDegradedIndex(unittest.TestCase):
         # about it below are held to what the tool does rather than to a
         # literal somebody typed into three files.
         code, residual, _ = check_json(convergent_minimal(self))
+        qualified_message, qualifying_note = self._a_qualified_report_message()
         measured = {"code": code, "verdict": residual["verdict"],
-                    "reported_as": residual["verdict"].split("_")[0]}
+                    "reported_as": residual["verdict"].split("_")[0],
+                    "base_ref": result["base_ref"],
+                    "qualifying_note": re.escape(qualifying_note)}
         surfaces = {"report message": result["message"],
+                    "qualified report message": qualified_message,
+                    "base-unusable report message": self._a_base_unusable_report_message(),
                     "module docstring": mod.__doc__,
                     "ci-convention-check.md": read_text(CI_REFERENCE)}
         for claim, names, required, forbidden in self.DEGRADED_CLAIMS:
@@ -733,6 +835,44 @@ class TestQualifiedReport(unittest.TestCase):
 
     BARE_CLAIM = "are this branch's own."
 
+    #: The literal text that proves `message` carries a given note's fact. A
+    #: note with no sentence of its own is carried verbatim, so the note itself
+    #: is the proof; the two index failures are named by their own sentence
+    #: instead, and that sentence is written out HERE rather than rendered from
+    #: the template it is supposed to check -- an expectation rendered from its
+    #: own source moves with it and cannot see it invert.
+    NOTE_IS_NAMED_BY = (
+        ("no commit could be tested against the base",
+         "were never tested against the base"),
+        ("the merge-base control could not run",
+         "throwaway index of the fork point was unusable"),
+    )
+
+    @classmethod
+    def identifying_text(cls, note):
+        """The text `message` must carry for `note` to count as named."""
+        for fragment, sentence in cls.NOTE_IS_NAMED_BY:
+            if fragment in note:
+                return sentence
+        return note
+
+    def assert_message_names_every_note(self, result, label):
+        """Every entry in `notes` is identifiable in `message`, and stated once."""
+        message = " ".join(result["message"].split())
+        self.assertTrue(result["notes"],
+                        "%s: the fixture reached no notes path at all" % label)
+        for note in result["notes"]:
+            named_by = self.identifying_text(note)
+            self.assertIn(named_by, message,
+                          "%s: `notes` says %r and `message` does not say so: %s"
+                          % (label, note, message))
+            if named_by != note:
+                # Its own sentence already states this fact; carrying the note
+                # verbatim in the general list as well would state it twice.
+                self.assertNotIn(note, message,
+                                 "%s: %r is stated twice over: %s"
+                                 % (label, note, message))
+
     def _root_commit_skipped(self):
         root = clean_branch(self)
         orphan = _orphan_commit(root, "orphan.txt", "orphan\n", "oops orphan work")
@@ -797,9 +937,101 @@ class TestQualifiedReport(unittest.TestCase):
                 self.assertIn(" ".join(qualification(result, note).split()), message,
                               "%s: `notes` says %r and `message` does not say so: %s"
                               % (name, note, message))
+                # The line above proves the wiring and nothing about the words:
+                # its expectation is rendered from the same template the
+                # message is. This one is not, so the interpolation is real.
+                self.assert_message_names_every_note(result, name)
                 self.assertFalse(message.endswith(self.BARE_CLAIM),
                                  "%s: a qualified run still ends on the bare ownership "
                                  "claim: %s" % (name, message))
+
+    def _root_commit_and_empty_commit(self):
+        # Two notes with no index failure and no mocking at all -- the compound
+        # shape a real branch reaches, and the one where `_qualify` has no
+        # specific sentence to lead with.
+        root = clean_branch(self)
+        orphan = _orphan_commit(root, "orphan.txt", "orphan\n", "oops orphan work")
+        _git(root, "merge", "--allow-unrelated-histories", "-q", "-m",
+             "Merge unrelated side", orphan)
+        _git(root, "commit", "-q", "--allow-empty", "-m", "oops trigger ci")
+        _, result, _ = check_json(root)
+        return result
+
+    def _fork_index_and_no_replay_point(self):
+        # Losing the control is itself what makes the revert read as absorbed,
+        # so this shape raises its second note by way of the first.
+        root = self_revert(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            return mod.check(root, "main", FORMAT, PREFIX)
+
+    def _fork_index_and_root_commit_skipped(self):
+        root = clean_branch(self)
+        orphan = _orphan_commit(root, "orphan.txt", "orphan\n", "oops orphan work")
+        _git(root, "merge", "--allow-unrelated-histories", "-q", "-m",
+             "Merge unrelated side", orphan)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            return mod.check(root, "main", FORMAT, PREFIX)
+
+    def _fork_index_and_empty_commit_while_stacked(self):
+        # The STACKED rendering of a compound shape: a different separator and
+        # a different branch of `build_message` reach the same helper.
+        root, _ = incident(self)
+        _git(root, "commit", "-q", "--allow-empty", "-m", "oops trigger ci")
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        self.assertEqual(result["verdict"], "stacked_base")
+        return result
+
+    def _fork_index_and_two_skipped_commits(self):
+        # Three notes, so a message that names the degraded sentence and ONE
+        # more is still short of the contract.
+        root = clean_branch(self)
+        orphan = _orphan_commit(root, "orphan.txt", "orphan\n", "oops orphan work")
+        _git(root, "merge", "--allow-unrelated-histories", "-q", "-m",
+             "Merge unrelated side", orphan)
+        _git(root, "commit", "-q", "--allow-empty", "-m", "oops trigger ci")
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            return mod.check(root, "main", FORMAT, PREFIX)
+
+    def _base_index_and_empty_commit(self):
+        root = clean_branch(self)
+        _git(root, "commit", "-q", "--allow-empty", "-m", "oops trigger ci")
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("base")):
+            return mod.check(root, "main", FORMAT, PREFIX)
+
+    def _base_index_and_root_commit_skipped(self):
+        root = clean_branch(self)
+        orphan = _orphan_commit(root, "orphan.txt", "orphan\n", "oops orphan work")
+        _git(root, "merge", "--allow-unrelated-histories", "-q", "-m",
+             "Merge unrelated side", orphan)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("base")):
+            return mod.check(root, "main", FORMAT, PREFIX)
+
+    #: Shapes that raise MORE THAN ONE note in a single run. The table above
+    #: reaches exactly one path per fixture, so a message that names the first
+    #: note and silently drops the rest satisfies every row of it -- which is
+    #: why every defect in this family has lived in the combinations.
+    COMPOUND_SHAPES = (
+        ("root commit + empty commit, no index failure", _root_commit_and_empty_commit),
+        ("fork index + no lossless replay point", _fork_index_and_no_replay_point),
+        ("fork index + root commit skipped", _fork_index_and_root_commit_skipped),
+        ("fork index + empty commit, stacked", _fork_index_and_empty_commit_while_stacked),
+        ("fork index + root commit + empty commit", _fork_index_and_two_skipped_commits),
+        ("base index + empty commit", _base_index_and_empty_commit),
+        ("base index + root commit skipped", _base_index_and_root_commit_skipped),
+    )
+
+    def test_every_compound_shape_names_every_one_of_its_notes(self):
+        # Asserted over `result["notes"]` itself rather than against a list of
+        # expected sentences, so a combination nobody thought of is covered the
+        # day the code can produce it.
+        for name, build in self.COMPOUND_SHAPES:
+            with self.subTest(shape=name):
+                result = build(self)
+                self.assertGreater(len(result["notes"]), 1,
+                                   "%s: not a compound shape after all -- notes: %s"
+                                   % (name, result["notes"]))
+                self.assert_message_names_every_note(result, name)
 
     def test_every_path_that_appends_to_notes_is_pinned_above(self):
         # The class guard: a sixth append site is a sixth way to ship an
