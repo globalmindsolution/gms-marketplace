@@ -16842,104 +16842,46 @@
       "constraint": "required",
       "instance_path": "(root)",
       "json": {
-        "ticket_id": "TKT-1",
+        "run_id": "TKT-1",
         "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
         "lens": null,
         "passed": true,
-        "dimensions": [
+        "findings": [
           {
-            "id": 1,
-            "name": "Acceptance-criteria conformance",
-            "result": "pass",
-            "evidence": "reviewed acceptance-criteria conformance"
-          },
-          {
-            "id": 2,
-            "name": "Tests",
-            "result": "pass",
-            "evidence": "pytest -q -> 12 passed"
-          },
-          {
-            "id": 3,
-            "name": "Coverage",
-            "result": "pass",
-            "evidence": "pytest -q -> 12 passed"
-          },
-          {
-            "id": 4,
-            "name": "Business logic",
-            "result": "pass",
-            "evidence": "reviewed business logic"
-          },
-          {
-            "id": 5,
-            "name": "Features",
-            "result": "pass",
-            "evidence": "reviewed features"
-          },
-          {
-            "id": 6,
-            "name": "Quality",
-            "result": "pass",
-            "evidence": "reviewed quality"
-          },
-          {
-            "id": 7,
-            "name": "Technical standards",
-            "result": "pass",
-            "evidence": "reviewed technical standards"
-          },
-          {
-            "id": 8,
-            "name": "Architecture",
-            "result": "pass",
-            "evidence": "reviewed architecture"
-          },
-          {
-            "id": 9,
-            "name": "System design",
-            "result": "pass",
-            "evidence": "reviewed system design"
-          },
-          {
-            "id": 10,
-            "name": "Security",
-            "result": "pass",
-            "evidence": "reviewed security"
-          },
-          {
-            "id": 11,
-            "name": "Documentation",
-            "result": "pass",
-            "evidence": "reviewed documentation"
-          },
-          {
-            "id": 12,
-            "name": "Simplicity & scope",
-            "result": "pass",
-            "evidence": "reviewed simplicity & scope"
-          },
-          {
-            "id": 13,
-            "name": "Audience-style",
-            "result": "pass",
-            "evidence": "reviewed audience-style"
-          },
-          {
-            "id": 15,
-            "name": "Plan conformance",
-            "result": "pass",
-            "evidence": "reviewed plan conformance"
-          },
-          {
-            "id": 16,
-            "name": "Approval-audit",
-            "result": "pass",
-            "evidence": "reviewed approval-audit"
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
           }
         ],
-        "findings": [],
-        "written_at": "2026-01-01T00:00:00Z"
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -16958,104 +16900,46 @@
       "instance_path": "skill",
       "json": {
         "skill": "",
-        "ticket_id": "TKT-1",
+        "run_id": "TKT-1",
         "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
         "lens": null,
         "passed": true,
-        "dimensions": [
+        "findings": [
           {
-            "id": 1,
-            "name": "Acceptance-criteria conformance",
-            "result": "pass",
-            "evidence": "reviewed acceptance-criteria conformance"
-          },
-          {
-            "id": 2,
-            "name": "Tests",
-            "result": "pass",
-            "evidence": "pytest -q -> 12 passed"
-          },
-          {
-            "id": 3,
-            "name": "Coverage",
-            "result": "pass",
-            "evidence": "pytest -q -> 12 passed"
-          },
-          {
-            "id": 4,
-            "name": "Business logic",
-            "result": "pass",
-            "evidence": "reviewed business logic"
-          },
-          {
-            "id": 5,
-            "name": "Features",
-            "result": "pass",
-            "evidence": "reviewed features"
-          },
-          {
-            "id": 6,
-            "name": "Quality",
-            "result": "pass",
-            "evidence": "reviewed quality"
-          },
-          {
-            "id": 7,
-            "name": "Technical standards",
-            "result": "pass",
-            "evidence": "reviewed technical standards"
-          },
-          {
-            "id": 8,
-            "name": "Architecture",
-            "result": "pass",
-            "evidence": "reviewed architecture"
-          },
-          {
-            "id": 9,
-            "name": "System design",
-            "result": "pass",
-            "evidence": "reviewed system design"
-          },
-          {
-            "id": 10,
-            "name": "Security",
-            "result": "pass",
-            "evidence": "reviewed security"
-          },
-          {
-            "id": 11,
-            "name": "Documentation",
-            "result": "pass",
-            "evidence": "reviewed documentation"
-          },
-          {
-            "id": 12,
-            "name": "Simplicity & scope",
-            "result": "pass",
-            "evidence": "reviewed simplicity & scope"
-          },
-          {
-            "id": 13,
-            "name": "Audience-style",
-            "result": "pass",
-            "evidence": "reviewed audience-style"
-          },
-          {
-            "id": 15,
-            "name": "Plan conformance",
-            "result": "pass",
-            "evidence": "reviewed plan conformance"
-          },
-          {
-            "id": 16,
-            "name": "Approval-audit",
-            "result": "pass",
-            "evidence": "reviewed approval-audit"
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
           }
         ],
-        "findings": [],
-        "written_at": "2026-01-01T00:00:00Z"
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -17068,109 +16952,108 @@
       "id": "SC-VERDICT-003",
       "kind": "schema",
       "schema": "verdict.schema.json",
+      "title": "run_id violates minLength",
+      "constraint": "minLength",
+      "instance_path": "run_id",
+      "json": {
+        "skill": "code",
+        "run_id": "",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "shorter than minLength"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-004",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
       "title": "iteration violates minimum",
       "constraint": "minimum",
       "instance_path": "iteration",
       "json": {
         "skill": "code",
-        "ticket_id": "TKT-1",
+        "run_id": "TKT-1",
         "iteration": 0,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
         "lens": null,
         "passed": true,
-        "dimensions": [
+        "findings": [
           {
-            "id": 1,
-            "name": "Acceptance-criteria conformance",
-            "result": "pass",
-            "evidence": "reviewed acceptance-criteria conformance"
-          },
-          {
-            "id": 2,
-            "name": "Tests",
-            "result": "pass",
-            "evidence": "pytest -q -> 12 passed"
-          },
-          {
-            "id": 3,
-            "name": "Coverage",
-            "result": "pass",
-            "evidence": "pytest -q -> 12 passed"
-          },
-          {
-            "id": 4,
-            "name": "Business logic",
-            "result": "pass",
-            "evidence": "reviewed business logic"
-          },
-          {
-            "id": 5,
-            "name": "Features",
-            "result": "pass",
-            "evidence": "reviewed features"
-          },
-          {
-            "id": 6,
-            "name": "Quality",
-            "result": "pass",
-            "evidence": "reviewed quality"
-          },
-          {
-            "id": 7,
-            "name": "Technical standards",
-            "result": "pass",
-            "evidence": "reviewed technical standards"
-          },
-          {
-            "id": 8,
-            "name": "Architecture",
-            "result": "pass",
-            "evidence": "reviewed architecture"
-          },
-          {
-            "id": 9,
-            "name": "System design",
-            "result": "pass",
-            "evidence": "reviewed system design"
-          },
-          {
-            "id": 10,
-            "name": "Security",
-            "result": "pass",
-            "evidence": "reviewed security"
-          },
-          {
-            "id": 11,
-            "name": "Documentation",
-            "result": "pass",
-            "evidence": "reviewed documentation"
-          },
-          {
-            "id": 12,
-            "name": "Simplicity & scope",
-            "result": "pass",
-            "evidence": "reviewed simplicity & scope"
-          },
-          {
-            "id": 13,
-            "name": "Audience-style",
-            "result": "pass",
-            "evidence": "reviewed audience-style"
-          },
-          {
-            "id": 15,
-            "name": "Plan conformance",
-            "result": "pass",
-            "evidence": "reviewed plan conformance"
-          },
-          {
-            "id": 16,
-            "name": "Approval-audit",
-            "result": "pass",
-            "evidence": "reviewed approval-audit"
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
           }
         ],
-        "findings": [],
-        "written_at": "2026-01-01T00:00:00Z"
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
@@ -17180,7 +17063,64 @@
       }
     },
     {
-      "id": "SC-VERDICT-004",
+      "id": "SC-VERDICT-005",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "reviewed_sha violates minLength",
+      "constraint": "minLength",
+      "instance_path": "reviewed_sha",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "shorter than minLength"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-006",
       "kind": "schema",
       "schema": "verdict.schema.json",
       "title": "lens violates enum",
@@ -17188,109 +17128,790 @@
       "instance_path": "lens",
       "json": {
         "skill": "code",
-        "ticket_id": "TKT-1",
+        "run_id": "TKT-1",
         "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
         "lens": "__acs_evals_not_in_enum__",
         "passed": true,
-        "dimensions": [
+        "findings": [
           {
-            "id": 1,
-            "name": "Acceptance-criteria conformance",
-            "result": "pass",
-            "evidence": "reviewed acceptance-criteria conformance"
-          },
-          {
-            "id": 2,
-            "name": "Tests",
-            "result": "pass",
-            "evidence": "pytest -q -> 12 passed"
-          },
-          {
-            "id": 3,
-            "name": "Coverage",
-            "result": "pass",
-            "evidence": "pytest -q -> 12 passed"
-          },
-          {
-            "id": 4,
-            "name": "Business logic",
-            "result": "pass",
-            "evidence": "reviewed business logic"
-          },
-          {
-            "id": 5,
-            "name": "Features",
-            "result": "pass",
-            "evidence": "reviewed features"
-          },
-          {
-            "id": 6,
-            "name": "Quality",
-            "result": "pass",
-            "evidence": "reviewed quality"
-          },
-          {
-            "id": 7,
-            "name": "Technical standards",
-            "result": "pass",
-            "evidence": "reviewed technical standards"
-          },
-          {
-            "id": 8,
-            "name": "Architecture",
-            "result": "pass",
-            "evidence": "reviewed architecture"
-          },
-          {
-            "id": 9,
-            "name": "System design",
-            "result": "pass",
-            "evidence": "reviewed system design"
-          },
-          {
-            "id": 10,
-            "name": "Security",
-            "result": "pass",
-            "evidence": "reviewed security"
-          },
-          {
-            "id": 11,
-            "name": "Documentation",
-            "result": "pass",
-            "evidence": "reviewed documentation"
-          },
-          {
-            "id": 12,
-            "name": "Simplicity & scope",
-            "result": "pass",
-            "evidence": "reviewed simplicity & scope"
-          },
-          {
-            "id": 13,
-            "name": "Audience-style",
-            "result": "pass",
-            "evidence": "reviewed audience-style"
-          },
-          {
-            "id": 15,
-            "name": "Plan conformance",
-            "result": "pass",
-            "evidence": "reviewed plan conformance"
-          },
-          {
-            "id": 16,
-            "name": "Approval-audit",
-            "result": "pass",
-            "evidence": "reviewed approval-audit"
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
           }
         ],
-        "findings": [],
-        "written_at": "2026-01-01T00:00:00Z"
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
       },
       "expect": {
         "valid": false,
         "errors_contain": [
           "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-007",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.id is required",
+      "constraint": "required",
+      "instance_path": "findings.0",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "required property is missing",
+          "id"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-008",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.id violates minLength",
+      "constraint": "minLength",
+      "instance_path": "findings.0.id",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "shorter than minLength"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-009",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.status violates enum",
+      "constraint": "enum",
+      "instance_path": "findings.0.status",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "__acs_evals_not_in_enum__",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-010",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.severity violates enum",
+      "constraint": "enum",
+      "instance_path": "findings.0.severity",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "__acs_evals_not_in_enum__",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-011",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.kind violates enum",
+      "constraint": "enum",
+      "instance_path": "findings.0.kind",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "__acs_evals_not_in_enum__",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-012",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.lens violates enum",
+      "constraint": "enum",
+      "instance_path": "findings.0.lens",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "__acs_evals_not_in_enum__",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-013",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.claim violates minLength",
+      "constraint": "minLength",
+      "instance_path": "findings.0.claim",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "shorter than minLength"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-014",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.evidence violates minItems",
+      "constraint": "minItems",
+      "instance_path": "findings.0.evidence",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "fewer than minItems"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-015",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "findings.0.adjudication.verdict violates enum",
+      "constraint": "enum",
+      "instance_path": "findings.0.adjudication.verdict",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "__acs_evals_not_in_enum__",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "is not one of"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-016",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "tests.passed violates minimum",
+      "constraint": "minimum",
+      "instance_path": "tests.passed",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": -1,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-017",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "tests.failed violates minimum",
+      "constraint": "minimum",
+      "instance_path": "tests.failed",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": -1,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 93.4,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-018",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "coverage.percent violates minimum",
+      "constraint": "minimum",
+      "instance_path": "coverage.percent",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": -1,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "below minimum"
+        ]
+      }
+    },
+    {
+      "id": "SC-VERDICT-019",
+      "kind": "schema",
+      "schema": "verdict.schema.json",
+      "title": "coverage.percent violates maximum",
+      "constraint": "maximum",
+      "instance_path": "coverage.percent",
+      "json": {
+        "skill": "code",
+        "run_id": "TKT-1",
+        "iteration": 1,
+        "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
+        "lens": null,
+        "passed": true,
+        "findings": [
+          {
+            "id": "x",
+            "status": "confirmed",
+            "severity": "blocking",
+            "kind": "defect",
+            "lens": "A",
+            "file": "x",
+            "line": 1,
+            "claim": "x",
+            "evidence": [
+              "x"
+            ],
+            "resolved_when": "x",
+            "traces_to": [
+              "x"
+            ],
+            "adjudication": {
+              "verdict": "confirmed",
+              "reason": "x"
+            }
+          }
+        ],
+        "written_at": "2026-01-01T00:00:00Z",
+        "tests": {
+          "passed": 12,
+          "failed": 0,
+          "command": "pytest -q",
+          "skipped": "x"
+        },
+        "coverage": {
+          "percent": 101,
+          "command": "pytest -q --cov=src",
+          "skipped": "x"
+        }
+      },
+      "expect": {
+        "valid": false,
+        "errors_contain": [
+          "above maximum"
         ]
       }
     }
