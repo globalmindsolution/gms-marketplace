@@ -4,15 +4,23 @@
 The sweep's value rests on two things this checks without spending a second
 on the CLI tier: that every site it enumerates can be applied and still
 compiles, and that a seeded sample is the same sample twice.
+
+`HonestDenominatorTest` covers the schema-tier sweep's denominator rule, which
+answers the same question about `mutation_sweep.py`: a number nobody can trust
+measures nothing.
 """
 
+import json
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mutation_cli import apply_mutation, enumerate_sites, sample_sites  # noqa: E402
+import mutation_sweep  # noqa: E402
 
 SOURCE = '''
 LIMIT = 400
@@ -102,6 +110,78 @@ class ApplyTest(unittest.TestCase):
         ns = {}
         exec(apply_mutation(SOURCE, site), ns)
         self.assertTrue(ns["retries"](5))
+
+
+#: Three mutable constraints: `required` and `additionalProperties` at the
+#: root, `minLength` under /properties/a. `type` is never mutated.
+HONEST_SCHEMA = {
+    "type": "object",
+    "required": ["a"],
+    "properties": {"a": {"type": "string", "minLength": 1}},
+    "additionalProperties": False,
+}
+
+
+def schema_case(case_id, schema, instance, valid, errors_contain=()):
+    """One schema-tier case, shaped as dataset/cases/*.json records them."""
+    expect = {"valid": valid}
+    if errors_contain:
+        expect["errors_contain"] = list(errors_contain)
+    return {"id": case_id, "kind": "schema", "schema": schema,
+            "json": instance, "expect": expect}
+
+
+class HonestDenominatorTest(unittest.TestCase):
+    """A fixture that fails against the UNMUTATED schema detects nothing.
+
+    It fails for every mutant too, so counting it credits the dataset with
+    detection it never performed -- which is how `verdict.schema.json` reported
+    a fake 19/19 while five of its cases could not hold unmutated.
+    """
+
+    #: Pins `minLength` honestly: the empty string is rejected, and stops being
+    #: rejected the moment that one constraint is deleted.
+    PINNED = schema_case("PIN-1", "pinned.schema.json", {"a": ""}, False,
+                         ["shorter than minLength"])
+    #: Rigged: expects valid, cannot ever be valid. Detects all three.
+    RIGGED = schema_case("RIG-1", "pinned.schema.json", {"b": 1}, True)
+
+    def setUp(self):
+        root = tempfile.mkdtemp(prefix="acs-mutation-denominator-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.mkdir(os.path.join(root, "schemas"))
+        for name in ("pinned.schema.json", "only-rigged.schema.json"):
+            with open(os.path.join(root, "schemas", name), "w") as fh:
+                json.dump(HONEST_SCHEMA, fh)
+        self.root = root
+
+    def test_a_fixture_that_fails_unmutated_is_named_by_id(self):
+        defects = mutation_sweep.defective_fixtures(
+            self.root, [self.PINNED, self.RIGGED])
+        self.assertEqual([(cid, name) for cid, name, _why in defects],
+                         [("RIG-1", "pinned.schema.json")])
+        self.assertIn("valid", defects[0][2])
+
+    def test_the_rig_inflates_the_schema_until_it_is_excluded(self):
+        cases = [self.PINNED, self.RIGGED]
+        counted, _holes, _skipped = mutation_sweep.sweep(self.root, cases)
+        self.assertEqual(counted["pinned.schema.json"], (3, 3))
+        honest, holes, _skipped = mutation_sweep.sweep(self.root, cases,
+                                                       {"RIG-1"})
+        self.assertEqual(honest["pinned.schema.json"], (1, 3))
+        self.assertEqual(sorted(k for _n, k, _p in holes),
+                         ["additionalProperties", "required"])
+
+    def test_an_excluded_case_never_shrinks_the_denominator(self):
+        # sweep() drops a schema no case names to 0/0, which would leave the
+        # percentage untouched while a whole schema stopped being measured:
+        # one false number traded for another. A schema whose only case is
+        # defective is reported 0/3 -- unpinned, and still counted.
+        only_rigged = schema_case("RIG-2", "only-rigged.schema.json",
+                                  {"b": 1}, True)
+        results, _holes, _skipped = mutation_sweep.sweep(
+            self.root, [only_rigged], {"RIG-2"})
+        self.assertEqual(results["only-rigged.schema.json"], (0, 3))
 
 
 class SampleTest(unittest.TestCase):

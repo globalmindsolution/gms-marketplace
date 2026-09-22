@@ -23,6 +23,11 @@ for that schema are re-evaluated in process, and a constraint whose deletion
 leaves every case still passing is a HOLE — the dataset does not pin it, and a
 release that loosened it would go out green.
 
+A case that cannot pass the UNMUTATED schema is excluded from detection and
+reported by id: it fails against every mutant, so counting it would credit the
+dataset with detection it never performed. Its schema stays in the denominator
+and the run exits non-zero — an unearned 100% is worse than a red gate.
+
 This is why `dataset/cases/11-schema-constraints.json` is generated: the
 hand-written cases alone pinned 9.3% of 227 constraints, which did not support
 the claim the dataset was making about itself. Run this after changing either
@@ -111,21 +116,53 @@ def schema_cases():
     return out
 
 
+def mismatch(case, schema):
+    """Why this case's recorded expectation fails against `schema`, or None."""
+    try:
+        errors = js.validate(seed_content(case), schema)
+    except js.UnsupportedKeyword as exc:
+        return "unsupported keyword: %s" % exc
+    if (not errors) != case["expect"]["valid"]:
+        return ("expected valid=%s, got %s"
+                % (case["expect"]["valid"], errors[0] if errors else "no error"))
+    for needle in case["expect"].get("errors_contain", []):
+        if not any(needle in e for e in errors):
+            return "no error contains %r" % needle
+    return None
+
+
 def holds(cases, schema_name, schema):
     """Do all cases for this schema still hold against a mutated schema?"""
-    for case in cases:
-        if case["schema"] != schema_name:
+    return all(mismatch(case, schema) is None
+               for case in cases if case["schema"] == schema_name)
+
+
+def defective_fixtures(build_root, cases):
+    """Cases that fail the UNMUTATED schema, as (id, schema, why).
+
+    Such a case fails against every mutant as well, so it "detects" each one
+    without pinning anything -- and a schema whose cases all fail
+    unconditionally reports a perfect score while pinning nothing at all. That
+    is how `verdict.schema.json` read 19/19 against a schema five of its cases
+    could not pass, and how a release gate reported a pass it had not earned.
+
+    A case naming a schema this build does not ship is not defective here: the
+    sweep never consults it, so it cannot inflate any schema's score.
+    """
+    out = []
+    for name in sorted({case["schema"] for case in cases}):
+        path = os.path.join(build_root, "schemas", name)
+        if not os.path.exists(path):
             continue
-        try:
-            errors = js.validate(seed_content(case), schema)
-        except js.UnsupportedKeyword:
-            return False
-        if (not errors) != case["expect"]["valid"]:
-            return False
-        for needle in case["expect"].get("errors_contain", []):
-            if not any(needle in e for e in errors):
-                return False
-    return True
+        with open(path) as fh:
+            schema = json.load(fh)
+        for case in cases:
+            if case["schema"] != name:
+                continue
+            why = mismatch(case, schema)
+            if why:
+                out.append((case["id"], name, why))
+    return out
 
 
 def points(node, path=""):
@@ -148,7 +185,15 @@ def at(doc, pointer):
     return node
 
 
-def sweep(build_root, cases):
+def sweep(build_root, cases, defective=()):
+    """Per-schema (caught, total), counting detection only from sound cases.
+
+    `defective` names case ids excluded from detection. They stay in `cases`
+    for the schema-selection test below on purpose: dropping them outright
+    would retire a schema whose every case is defective from the denominator
+    altogether, trading one false number for another.
+    """
+    counted = [c for c in cases if c["id"] not in defective]
     results, holes, skipped = {}, [], []
     for path in sorted(glob.glob(os.path.join(build_root, "schemas", "*.json"))):
         name = os.path.basename(path)
@@ -169,7 +214,7 @@ def sweep(build_root, cases):
                 continue
             del parent[key]
             total += 1
-            if holds(cases, name, mutant):
+            if holds(counted, name, mutant):
                 holes.append((name, key, pointer or "(root)"))
             else:
                 caught += 1
@@ -191,7 +236,9 @@ def main():
 
     build = resolve_build()
     cases = schema_cases()
-    results, holes, skipped = sweep(build.root, cases)
+    defects = defective_fixtures(build.root, cases)
+    results, holes, skipped = sweep(build.root, cases,
+                                    {case_id for case_id, _n, _w in defects})
 
     caught = sum(c for c, _t in results.values())
     total = sum(t for _c, t in results.values())
@@ -206,6 +253,13 @@ def main():
         else:
             print("  %-32s %3d/%-3d  %5.1f%%" % (name, c, t, 100.0 * c / t))
     print("\n  %-32s %3d/%-3d  %5.1f%%" % ("TOTAL", caught, total, pct))
+    if defects:
+        print("\n  %d DEFECTIVE fixture(s) do not hold against the unmutated "
+              "schema. They detect every mutant without pinning anything, so "
+              "they are excluded from detection above; their schemas stay in "
+              "the denominator. Repair them:" % len(defects))
+        for case_id, name, why in defects:
+            print("    %-24s %-30s %s" % (case_id, name, why))
     uncovered = sorted(n for n, (_c, t) in results.items() if not t)
     print("\n  %d constraint(s) pinned by no case." % len(holes))
     if uncovered:
@@ -230,12 +284,17 @@ def main():
         for name, key, pointer, why in skipped:
             print("  %-30s %-22s %-46s %s" % (name, key, pointer, why))
 
+    status = 0
+    if defects:
+        print("\nDEFECTIVE FIXTURES: %d case(s) cannot pass the schema they "
+              "are recorded against" % len(defects), file=sys.stderr)
+        status = 1
     if args.threshold is not None and total:
         if caught / total < args.threshold:
             print("\nBELOW THRESHOLD: %.1f%% < %.1f%%"
                   % (pct, args.threshold * 100), file=sys.stderr)
-            return 1
-    return 0
+            status = 1
+    return status
 
 
 if __name__ == "__main__":
