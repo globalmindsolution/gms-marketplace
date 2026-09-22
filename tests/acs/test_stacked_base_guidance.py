@@ -153,6 +153,48 @@ class WiringTest(unittest.TestCase):
         self.assertRegex(region, r"info[^.]*finding|finding[^.]*info")
 
 
+class DegradedStateReachesTheAuthorTest(unittest.TestCase):
+    """A run whose throwaway index failed exits 0 with a `notes` entry and a
+    `message` saying so -- so prose reading exit 0 as "these subjects are this
+    branch's own" makes the one claim the module refuses to make, and the
+    author never sees the note. Both surfaces must read `notes`."""
+
+    def exit_zero_region(self, path):
+        """The exit-0 handling only: from `Exit 0` up to `Exit 1`."""
+        body = norm(read(path))
+        start = body.index("Exit 0")
+        return body[start:body.index("Exit 1", start)]
+
+    def test_both_surfaces_condition_the_ownership_conclusion_on_notes(self):
+        for name, path in PUSH_SURFACES.items():
+            region = self.exit_zero_region(path)
+            self.assertIn("notes", region,
+                          "%s: exit 0 never looks at `notes`, so a degraded run reads "
+                          "as a healthy branch" % name)
+            self.assertRegex(
+                region.lower(),
+                r"notes[^.]*(empty|non-empty)|(empty|non-empty)[^.]*notes",
+                "%s: the subjects-are-your-own conclusion is stated "
+                "unconditionally" % name)
+
+    def test_a_degraded_exit_zero_surfaces_the_message_as_an_info_finding(self):
+        for name, path in PUSH_SURFACES.items():
+            region = self.exit_zero_region(path)
+            self.assertIn("message", region,
+                          "%s: the degraded run's `message` reaches nobody" % name)
+            self.assertRegex(region.lower(), r"info[^.]*finding|finding[^.]*info",
+                             "%s: a degraded exit-0 run produces no finding" % name)
+
+    def test_the_degraded_exit_zero_still_never_fails_a_good_pr(self):
+        # The exit-2 shape being mirrored is advisory; exit 0 must stay so too.
+        for name, path in PUSH_SURFACES.items():
+            region = self.exit_zero_region(path).lower()
+            self.assertRegex(region, r"continue|carry on",
+                             "%s: exit 0 no longer continues" % name)
+            self.assertNotRegex(region, r"do not push|needs_input|stop the run",
+                                "%s: exit 0 became a way to fail a good PR" % name)
+
+
 class ProseMatchesModuleTest(unittest.TestCase):
     """The documented CLI is the CLI the module actually implements."""
 

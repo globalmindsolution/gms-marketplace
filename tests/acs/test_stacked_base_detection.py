@@ -51,7 +51,8 @@ BINARY = b"\x00\x01\x02\x03binary payload\x00\xff"
 def _git(root, *args, **kwargs):
     """Run a git command in `root`, returning stdout; raise on a non-zero exit."""
     proc = subprocess.run(["git", "-C", root] + list(args),
-                          capture_output=True, text=True, input=kwargs.get("input"))
+                          capture_output=True, text=True, input=kwargs.get("input"),
+                          env=kwargs.get("env"))
     if proc.returncode != 0:
         raise RuntimeError("git %s failed: %s" % (" ".join(args), proc.stderr))
     return proc.stdout
@@ -74,6 +75,15 @@ def _commit(root, subject, rel=None, text=None):
         _write(root, rel, text)
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", subject)
+    return _git(root, "rev-parse", "HEAD").strip(), _git(root, "rev-parse", "--short", "HEAD").strip()
+
+
+def _commit_at(root, subject, rel, text, when):
+    """`_commit` with both dates pinned, so `git log`'s date order is deterministic."""
+    _write(root, rel, text)
+    env = dict(os.environ, GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", subject, env=env)
     return _git(root, "rev-parse", "HEAD").strip(), _git(root, "rev-parse", "--short", "HEAD").strip()
 
 
@@ -144,6 +154,35 @@ def incident(case, advance_base=False, own_bad_commit=False):
     _squash_onto(root, shas["X3"][0], shas["A"])
     if advance_base:
         _advance_base(root)
+    return root, shas
+
+
+def merged_sibling(case):
+    """The incident shape on a branch that also merged a sibling forked at the
+    old base tip, dated before the squashed commits.
+
+    `git log` lists by commit DATE, so the sibling's own commit comes out after
+    the replay target while ancestry puts it ahead of it -- the one shape where
+    list position and `git rebase --onto` disagree about who owns what.
+    """
+    root = _new_repo(case)
+    shas = {"A": _git(root, "rev-parse", "HEAD").strip()}
+    _commit_at(root, "Reconcile the record one", "one.txt", "one\n", "2026-01-02T00:00:00+00:00")
+    _commit_at(root, "Reconcile the record two", "two.txt", "two\n", "2026-01-03T00:00:00+00:00")
+    shas["X3"] = _commit_at(root, "MAR-9 a conforming inherited commit", "three.txt",
+                            "three\n", "2026-01-04T00:00:00+00:00")
+    _git(root, "checkout", "-q", "-b", "side", shas["X3"][0])
+    shas["SIDE"] = _commit_at(root, "oops side work of my own", "side.txt", "side\n",
+                              "2026-01-01T00:00:00+00:00")
+    _git(root, "checkout", "-q", "work")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'side' into work",
+         shas["SIDE"][0],
+         env=dict(os.environ, GIT_AUTHOR_DATE="2026-01-05T00:00:00+00:00",
+                  GIT_COMMITTER_DATE="2026-01-05T00:00:00+00:00"))
+    _commit_at(root, "MAR-2 dependent work", "dep.txt", "dep\n", "2026-01-09T00:00:00+00:00")
+    _commit_at(root, "oops my own bad commit", "dep.txt", "dep\nmore\n",
+               "2026-01-10T00:00:00+00:00")
+    _squash_onto(root, shas["X3"][0], shas["A"])
     return root, shas
 
 
@@ -295,6 +334,49 @@ class TestReplayTarget(unittest.TestCase):
         self.assertNotEqual(result["replay_onto"], shas["X2"][1])
 
 
+class TestMergeInRange(unittest.TestCase):
+    """AC-2 on a range containing a merge: `git log --no-merges` lists by commit
+    DATE while `git rebase --onto R` keeps whatever descends from R, so only an
+    ancestry-derived classification can agree with the command the same message
+    prints. The oracle below is git's own answer, never the module's."""
+
+    def kept(self, root, replay_onto_full):
+        out = _git(root, "log", "--no-merges", "--format=%s",
+                   "%s..HEAD" % replay_onto_full).strip()
+        return set(out.splitlines())
+
+    def test_the_classification_agrees_with_the_rebase_the_message_emits(self):
+        root, shas = merged_sibling(self)
+        _, result, _ = check_json(root)
+        self.assertEqual(result["replay_onto"], shas["X3"][1])
+        kept = self.kept(root, shas["X3"][0])
+        self.assertEqual(set(subjects(result["own"])) - kept, set(),
+                         "reported as this branch's own, but the replay discards it")
+        self.assertEqual(set(subjects(result["stacked"])) & kept, set(),
+                         "told the author renaming will not help, but the replay keeps it "
+                         "and the gate stays red on it")
+
+    def test_a_commit_the_replay_keeps_is_reported_as_the_branchs_own(self):
+        # The sibling's commit is a descendant of R and is nobody else's work.
+        root, _ = merged_sibling(self)
+        _, result, _ = check_json(root)
+        self.assertIn("oops side work of my own", subjects(result["own"]))
+
+    def test_a_commit_the_replay_keeps_is_never_listed_under_the_replay_advice(self):
+        root, _ = merged_sibling(self)
+        _, result, _ = check_json(root)
+        self.assertEqual(subjects(result["stacked"]),
+                         ["Reconcile the record two", "Reconcile the record one"])
+
+    def test_the_own_count_counts_the_survivors_not_the_list_positions(self):
+        # Three commits descend from R here -- the sibling's, `MAR-2 dependent
+        # work` and `oops my own bad commit` -- while R sits at list index 2.
+        root, _ = merged_sibling(self)
+        _, result, _ = check_json(root)
+        self.assertIn("Your own 3 commits are unaffected and keep their subjects.",
+                      result["message"])
+
+
 class TestMessage(unittest.TestCase):
 
     def test_the_message_names_every_offending_subject(self):
@@ -440,6 +522,15 @@ class TestResidual(unittest.TestCase):
         self.assertEqual(subjects(result["stacked"]), ["shout beta"])
 
 
+def _index_unusable(which):
+    """A `tree_index` stand-in failing for exactly one of the two indexes."""
+    real = mod.tree_index
+
+    def fake(root, ref, tmpdir, name):
+        return None if name == which else real(root, ref, tmpdir, name)
+    return fake
+
+
 class TestDegradedIndex(unittest.TestCase):
     """A throwaway index that could not be seeded makes every reverse-apply
     return False, so the detector finds nothing and its report is
@@ -461,6 +552,53 @@ class TestDegradedIndex(unittest.TestCase):
             result = mod.check(root, "main", FORMAT, PREFIX)
         self.assertEqual(result["verdict"], "own_violations")
         self.assertEqual(result["stacked"], [])
+
+    def test_a_base_index_failure_names_the_base_it_could_not_read(self):
+        root, _ = incident(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("base")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        self.assertEqual(result["verdict"], "own_violations")
+        self.assertIn("no commit could be tested against the base", " ".join(result["notes"]))
+        self.assertIn("index of %s was unusable" % result["base_ref"], result["message"])
+
+    def test_a_fork_index_failure_names_itself_instead_of_claiming_nothing_was_tested(self):
+        # Losing the FORK index leaves every base-side test running; saying
+        # nothing was tested describes the other failure, not this one.
+        root, _ = incident(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        note = " ".join(result["notes"])
+        self.assertIn("fork point", note)
+        self.assertNotIn("no commit could be tested", note)
+
+    def test_a_fork_index_failure_is_surfaced_on_the_stacked_message_too(self):
+        # find_replay_point needs only the base index, so this shape still
+        # prints a force-push replay -- with a control silently switched off.
+        root, _ = incident(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        self.assertEqual(result["verdict"], "stacked_base")
+        self.assertIn("--force-with-lease", result["message"])
+        self.assertIn("fork point", result["message"])
+
+    def test_the_degraded_note_never_contradicts_the_absorbed_note(self):
+        # Without the fork index the merge-base control cannot run, so the
+        # self-revert commit reads as absorbed -- the opposite of untested.
+        root = self_revert(self)
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        self.assertIn("1 commit(s) look absorbed but no lossless replay point exists",
+                      result["notes"])
+        self.assertFalse(any("no commit could be tested" in note for note in result["notes"]),
+                         result["notes"])
+
+    def test_neither_single_index_failure_blocks_the_author(self):
+        root, _ = incident(self)
+        for which in ("base", "fork"):
+            with mock.patch.object(mod, "tree_index", side_effect=_index_unusable(which)):
+                code, result, err = check_json(root)
+            self.assertEqual(err, "", which)
+            self.assertEqual(code, 1 if result["stacked"] else 0, which)
 
     def test_a_read_tree_failure_yields_no_index_env(self):
         root = clean_branch(self)

@@ -130,8 +130,13 @@ exact error — no silent fallback.
    It prints one compact JSON object on stdout and exits:
 
    - **Exit 0** (`verdict` `clean` or `own_violations`): nothing is stacked —
-     continue. A non-conforming subject here is this branch's own and gets the
-     ordinary gate failure, never replay advice.
+     continue. With `notes` empty, a non-conforming subject here is this
+     branch's own and gets the ordinary gate failure, never replay advice. With
+     `notes` NON-empty the run qualified its own report — a commit it could not
+     test, an index it could not build, or absorbed-looking content with no safe
+     replay point — so do not conclude ownership from it: surface the report's
+     `message` VERBATIM as one `info` finding, record it, and CONTINUE, the same
+     shape as exit 2.
    - **Exit 1** (`verdict` `stacked_base`): the branch is stacked on a base that
      was squash-merged, and the conventions gate will fail on subjects the
      author cannot fix by renaming them. Do NOT push, and do NOT run `gh pr

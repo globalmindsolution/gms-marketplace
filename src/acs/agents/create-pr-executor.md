@@ -59,7 +59,13 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    ```
 
    Exit 0 (`verdict` `clean` or `own_violations`) — nothing is stacked, carry
-   on. Exit 1 (`verdict` `stacked_base`) — the branch is stacked on a base that
+   on: with `notes` empty a non-conforming subject is this branch's own and
+   gets the ordinary gate failure. With `notes` NON-empty the run qualified its
+   own report — a commit it could not test, an index it could not build, or
+   absorbed-looking content with no safe replay point — so do not conclude
+   ownership from it: record the report's `message` VERBATIM as one `info`
+   finding and CONTINUE, the same shape as exit 2.
+   Exit 1 (`verdict` `stacked_base`) — the branch is stacked on a base that
    was squash-merged: do NOT push and do NOT create or edit a PR; stop and
    return `needs_input` carrying the report's `message` VERBATIM (it names the
    offending subjects and the replay command with real SHAs — a paraphrase drops

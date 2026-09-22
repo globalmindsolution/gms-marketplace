@@ -35,7 +35,10 @@ HOW IT DECIDES — two controls, both found by measurement, neither redundant.
   has to be proven cumulatively. A target chosen from one commit's own content
   says nothing about the commits OLDER than it, and was measured dropping the
   author's own earlier work on a convergent-change branch. No `R` means
-  `own_violations`, whatever step A said.
+  `own_violations`, whatever step A said. What the replay KEEPS is then read
+  back from `R..HEAD` — the same set the rebase replays — never from a commit's
+  position in the listing, which `git log`'s commit-date order does not keep in
+  ancestry order once the range holds a merge.
 
 REJECTED, WITH MEASURED EVIDENCE — DO NOT RE-ATTEMPT.
 
@@ -61,6 +64,10 @@ KNOWN LIMITATIONS, ACCEPTED.
     base is already in the base (both sides made the same edit) acquires an `R`
     and is reported as stacked. The diagnosis is wrong, but such a branch has
     zero net content, so the replay is a no-op and cannot lose work.
+  * A degraded run can add a second one, and says so rather than hiding it:
+    with the fork index unusable control one cannot run, so a commit this
+    branch itself reverted reads as absorbed. `notes` then names the index that
+    failed and the message carries the same warning, on either verdict.
 
 Usage:
   stacked-base.py check --base main \\
@@ -196,17 +203,25 @@ def find_replay_point(root, merge_base, commits, oldest_candidate, base_env):
     return None, None
 
 
-def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded=False):
+#: A lost fork index disables control one, whatever shape the report takes, so
+#: both message shapes carry this sentence rather than only the not-stacked one.
+FORK_DEGRADED = ("One control did not run: the throwaway index of the fork point was "
+                 "unusable, so each commit was tested against %s only — a commit this "
+                 "branch itself reverted can read as absorbed that way.")
+
+
+def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded=None):
     """The author-facing text — the whole user-visible deliverable."""
     if not stacked:
-        if degraded:
-            return ("Stacked-base check could not run: its throwaway index was "
+        if degraded == "base":
+            return ("Stacked-base check could not run: its throwaway index of %s was "
                     "unusable, so the %d non-conforming commit subject(s) in %s "
-                    "were never tested against the base." % (own_count, rng))
-        return ("No stacked-base condition: %d non-conforming commit subject(s) "
+                    "were never tested against the base." % (base_ref, own_count, rng))
+        text = ("No stacked-base condition: %d non-conforming commit subject(s) "
                 "in %s are this branch's own." % (own_count, rng))
+        return (text + " " + FORK_DEGRADED % base_ref) if degraded == "fork" else text
     listing = "\n".join("  %s  %s" % (e["sha"], e["subject"]) for e in stacked)
-    return (
+    text = (
         "This branch is stacked on a base that was squash-merged, and %d of its commits\n"
         "%s not yours to fix.\n"
         "\n"
@@ -239,6 +254,7 @@ def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded
            own_count,
            " is" if own_count == 1 else "s are",
            "s its" if own_count == 1 else " their"))
+    return (text + "\n\n" + FORK_DEGRADED % base_ref) if degraded == "fork" else text
 
 
 def check(repo_root, base, commit_message_format, ticket_prefix):
@@ -266,17 +282,23 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
             offenders.append((index, sha, short, subject))
 
     notes, candidates = [], []
-    replay_index, replay_onto = None, None
+    replay_index, replay_onto, kept, degraded = None, None, None, None
     tmpdir = tempfile.mkdtemp(prefix="acs-stacked-base-")
     try:
         base_env = tree_index(repo_root, base_ref, tmpdir, "base")
         fork_env = tree_index(repo_root, merge_base, tmpdir, "fork")
-        # Fail open, but never silently: with no usable index every commit
-        # reads as not-absorbed, which is the healthy-branch answer.
-        degraded = base_env is None or fork_env is None
-        if degraded:
-            notes.append("throwaway index unusable; no commit could be tested "
-                         "against the base")
+        # Fail open, but never silently, and never with one sentence for two
+        # opposite failures: without the base index nothing can be tested at
+        # all, while without the fork index only control one is lost and every
+        # commit then reads as MORE absorbed.
+        if base_env is None:
+            degraded = "base"
+            notes.append("throwaway index of %s unusable; no commit could be "
+                         "tested against the base" % base_ref)
+        elif fork_env is None:
+            degraded = "fork"
+            notes.append("throwaway index of the fork point unusable; the "
+                         "merge-base control could not run")
         for index, sha, short, subject in offenders:
             if absorbed(repo_root, sha, short, base_env, fork_env, notes):
                 candidates.append(index)
@@ -292,8 +314,12 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
                          % len(candidates))
         stacked, own = [], offenders
     else:
-        stacked = [o for o in offenders if o[0] >= replay_index]
-        own = [o for o in offenders if o[0] < replay_index]
+        # Classify by ANCESTRY, never by list position: `git log` orders by
+        # commit date, so a range holding a merge can list an own commit after
+        # R, while `R..HEAD` is exactly what the emitted rebase replays.
+        kept = {sha for sha, _, _ in range_commits(repo_root, commits[replay_index][0])}
+        stacked = [o for o in offenders if o[1] not in kept]
+        own = [o for o in offenders if o[1] in kept]
 
     stacked = [{"sha": short, "subject": subject} for _, _, short, subject in stacked]
     own = [{"sha": short, "subject": subject} for _, _, short, subject in own]
@@ -312,10 +338,10 @@ def check(repo_root, base, commit_message_format, ticket_prefix):
     }
     if stacked:
         result["replay_onto"] = replay_onto
-    # <M> counts the commits the emitted rebase KEEPS — everything newer than
-    # replay_onto, conforming or not. Without a replay point the other
-    # sentences instead count the branch's own non-conforming subjects.
-    own_count = len(own) if replay_index is None else replay_index
+    # <M> counts the commits the emitted rebase KEEPS — everything that
+    # descends from replay_onto, conforming or not. Without a replay point the
+    # other sentences instead count the branch's own non-conforming subjects.
+    own_count = len(own) if kept is None else len(kept)
     result["message"] = build_message(base, base_ref, rng, stacked, replay_onto,
                                       own_count, degraded)
     return result
