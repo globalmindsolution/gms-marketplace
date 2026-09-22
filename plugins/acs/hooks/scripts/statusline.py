@@ -15,7 +15,7 @@ never forced by the plugin. In ~/.claude/settings.json or
 <repo>/.claude/settings.json:
 
     {"statusLine": {"type": "command",
-                    "command": "python3 /abs/path/to/src/acs/hooks/scripts/statusline.py"}}
+                    "command": "python3 /abs/path/to/plugins/acs/hooks/scripts/statusline.py"}}
 
 Claude Code pipes a JSON payload on stdin (model, workspace, session, cost);
 we parse it defensively and NEVER crash — on any problem we print a minimal

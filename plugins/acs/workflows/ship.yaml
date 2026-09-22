@@ -22,7 +22,7 @@
 # whose order does not matter and it passes; swap two whose order does and it
 # names the pair.
 #
-# See src/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md §2.
+# See plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md §2.
 version: 3
 
 steps:

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/result.schema.json",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/result.schema.json",
   "title": "acs step result (runs/<run-id>/steps/<skill>/result.json)",
   "description": "The document a step writes when it ends, and the post-hook's input -- previously validated ad hoc by `acs phase validate`. `acs step finish` reads the step's transition out of this file, which is why it is a schema rather than a convention. For `code` it also carries `since_sha` and the `resolutions[]` that answer every confirmed finding of the previous verdict by id (\u00a72.3).",
   "type": "object",

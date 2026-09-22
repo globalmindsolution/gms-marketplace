@@ -499,8 +499,8 @@ owes:
   reason: "CLI-only change; no HTTP surface, no browser flow"
 
 ### Executor tasks & file map     ← unchanged heading; the file-map guard reads it
-- task 1: src/acs/hooks/scripts/acs_lib/workflow.py, tests/acs/test_workflow.py
-- task 2: src/acs/skills/ship/SKILL.md
+- task 1: plugins/acs/hooks/scripts/acs_lib/workflow.py, tests/acs/test_workflow.py
+- task 2: plugins/acs/skills/ship/SKILL.md
 ```
 
 The heading `## Executor tasks & file map` is kept verbatim because the guard

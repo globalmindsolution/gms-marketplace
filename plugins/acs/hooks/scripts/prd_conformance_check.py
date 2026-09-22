@@ -49,7 +49,7 @@ Rules:
                                    `## Roadmap milestones` declaration.
 
 Usage:
-  python3 src/acs/hooks/scripts/prd_conformance_check.py \\
+  python3 plugins/acs/hooks/scripts/prd_conformance_check.py \\
       --plan <iter-n-plan.md> --mode {greenfield|brownfield|amend} \\
       --repo-root <repo-root> \\
       --clarifications <partition>/clarifications.json \\

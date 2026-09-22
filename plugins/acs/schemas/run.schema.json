@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/run.schema.json",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/run.schema.json",
   "title": "acs run state (runs/<run-id>/run.json)",
   "description": "The RUN machine (§4.3): one workflow's progress over one subject. Replaces pipeline-state.json. `steps` is OPEN -- the 18-name enum is gone, because step names validate against the RESOLVED WORKFLOW and skill/leg names against the SKILL DIRECTORIES, while this schema validates shape only. That is what makes a new workflow a YAML file and a new skill a directory, neither touching a schema. `skipped` and `handed_off` are absent from the status enums by design: the first recorded a workflow predicate's answer (a step with nothing to do is `completed` with an `outcome`), the second named a reason rather than a state (it is now `interrupted` plus `stop_reason`).",
   "type": "object",

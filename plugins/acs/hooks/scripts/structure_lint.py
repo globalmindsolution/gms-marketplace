@@ -28,7 +28,7 @@ Rules:
                        conforming doc.
 
 Usage:
-  python3 src/acs/hooks/scripts/structure_lint.py --sections "A; B; C" \\
+  python3 plugins/acs/hooks/scripts/structure_lint.py --sections "A; B; C" \\
       [--ordered] DOC.md
 Importable:
   from structure_lint import lint_structure, lint_file, Finding

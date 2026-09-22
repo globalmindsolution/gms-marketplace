@@ -37,7 +37,7 @@ gh release list --repo globalmindsolution/gms-marketplace --json tagName,publish
 Fallback when `gh` is unavailable or unauthenticated:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/globalmindsolution/gms-marketplace/main/src/acs/.claude-plugin/plugin.json | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])"
+curl -fsSL https://raw.githubusercontent.com/globalmindsolution/gms-marketplace/main/plugins/acs/.claude-plugin/plugin.json | python3 -c "import json,sys; print(json.load(sys.stdin)['version'])"
 ```
 
 If both fail (offline, repo unreachable): report that the version check is
@@ -62,7 +62,7 @@ Fetch the changelog and extract every `## [<version>]` section strictly
 between the installed and latest versions (newest first):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/globalmindsolution/gms-marketplace/main/src/acs/CHANGELOG.md
+curl -fsSL https://raw.githubusercontent.com/globalmindsolution/gms-marketplace/main/plugins/acs/CHANGELOG.md
 ```
 
 Present the delta to the user. Call out explicitly:

@@ -11,16 +11,16 @@ component follows.
 | Piece | Where | Count |
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
-| Plugin manifest | `src/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `src/acs/skills/<name>/SKILL.md` | 32 |
-| Subagents | `src/acs/agents/<skill>-<role>.md` | 32 files, all reachable (13 executor + verifier pairs — the twelve authoring skills plus `create-docs` — 4 apply-work executors, and `review-code`'s lens and adjudicator; no skill has a planner since ADR-0092, and `code` lost its verifier to `/acs:review-code`). Each skill declares the roles it owns under `agents` in `skills/<name>/acs.yaml`; the files on disk are exactly that set |
-| Hooks | `src/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
+| Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 32 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 32 files, all reachable (13 executor + verifier pairs — the twelve authoring skills plus `create-docs` — 4 apply-work executors, and `review-code`'s lens and adjudicator; no skill has a planner since ADR-0092, and `code` lost its verifier to `/acs:review-code`). Each skill declares the roles it owns under `agents` in `skills/<name>/acs.yaml`; the files on disk are exactly that set |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,stacked-base,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 19 |
 | Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 3; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
-| Workflow files | `src/acs/workflows/{phases,ship}.yaml` | 2 (the skill registry and the default delivery pipeline; a consumer may override the latter at `<repo>/.acs/workflows/ship.yaml`) |
-| JSON Schemas | `src/acs/schemas/*.schema.json` | 14 |
-| XML schema | `src/acs/the SubagentStop hook` | 1 |
-| Templates | `src/acs/templates/*.md` | 6 (4 description templates — `pr-default`, `epic/story/task-default` — plus `design-default` and the `CLAUDE.acs` managed block) |
+| Workflow files | `plugins/acs/workflows/{phases,ship}.yaml` | 2 (the skill registry and the default delivery pipeline; a consumer may override the latter at `<repo>/.acs/workflows/ship.yaml`) |
+| JSON Schemas | `plugins/acs/schemas/*.schema.json` | 14 |
+| XML schema | `plugins/acs/the SubagentStop hook` | 1 |
+| Templates | `plugins/acs/templates/*.md` | 6 (4 description templates — `pr-default`, `epic/story/task-default` — plus `design-default` and the `CLAUDE.acs` managed block) |
 
 Skills are invoked namespaced: `/acs:setup`, `/acs:ship`, `/acs:create-ticket`, …
 (The requirements docs write `/setup`, `/ship`, … — same skills, plugin-namespaced
@@ -398,7 +398,7 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
      - the coordinator persists every message it receives under
        steps/<skill>/iter-<n>/ at the phase boundary, before starting the next
        phase. The messages are JSON, validated in the hook against the schemas
-       under src/acs/schemas/; there is no second schema language and no
+       under plugins/acs/schemas/; there is no second schema language and no
        validate_xml.py.
      - verifier findings == 0 -> done; findings > 0 -> feed findings into next iteration
      - iteration 3 still failing -> stop; final status "failed", findings recorded
@@ -671,7 +671,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-32 agent files named `<skill>-<role>` in `src/acs/agents/`, 32 reachable —
+32 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 32 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty)
 declares under `agents` (ADR-0092), which is what

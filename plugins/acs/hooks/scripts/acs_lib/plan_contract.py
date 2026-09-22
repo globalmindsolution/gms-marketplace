@@ -18,8 +18,8 @@ section of fixed shape, and everything above it is free-form:
       reason: "CLI-only change; no HTTP surface, no browser flow"
 
     ### Executor tasks & file map
-    - task 1: src/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py
-    - task 2: src/acs/skills/ship/SKILL.md
+    - task 1: plugins/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py
+    - task 2: plugins/acs/skills/ship/SKILL.md
 
 `### Executor tasks & file map` keeps its exact heading because the file-map
 guard and `plan-approval.py` already key on it.

@@ -29,7 +29,7 @@ Resolve `release_block = ctx["settings"].get("release")`. If the release block i
 Do this immediately — before invoking `release_notes.py` at all — with a
 clear, actionable error stating this repo's `.acs/settings.json` has no
 release block configured, so `/acs:release` cannot run here; point at
-`src/acs/schemas/settings.schema.json`'s `release` sub-schema as the
+`plugins/acs/schemas/settings.schema.json`'s `release` sub-schema as the
 reference shape and at this marketplace's own profile #1 in
 `.acs/settings.json` as a worked example. Do NOT guess a fallback shape, do
 NOT silently proceed with a hardcoded marketplace path, and do NOT shell
@@ -282,7 +282,7 @@ same resolved values the coordinator already computed — the
 `--release-config` JSON string, `<release_branch>`, `<release_tag>`, and
 `<base_branch>` — it never re-derives or re-resolves `settings["release"]`
 itself. No dedicated agent file exists for this — a generic `Task` subagent
-needs no `src/acs/agents/release-*.md` file on disk. There is no
+needs no `plugins/acs/agents/release-*.md` file on disk. There is no
 planner and no verifier subagent under any circumstance: a release cut has
 nothing for a planner to weigh or a verifier to independently re-derive
 that the coverage report and the human PR reviewer do not already cover.

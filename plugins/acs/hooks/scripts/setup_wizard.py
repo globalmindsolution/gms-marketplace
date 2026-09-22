@@ -663,7 +663,7 @@ def render_labels():
 
 #: The answers document's shape. Not a JSON Schema file, because this is the
 #: only consumer and the whole point is a readable refusal -- but the same
-#: contract its ten sibling artifacts get from src/acs/schemas/.
+#: contract its ten sibling artifacts get from plugins/acs/schemas/.
 ANSWER_TYPES = {
     "scope": (str, "\"project\" or \"user\""),
     "settings": (dict, "an object of setting keys"),

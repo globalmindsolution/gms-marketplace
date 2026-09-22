@@ -276,8 +276,8 @@ owes:
   reason: "CLI-only change; no HTTP surface, no browser flow"
 
 ### Executor tasks & file map
-- task 1: src/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run_machine.py
-- task 2: src/acs/skills/ship/SKILL.md
+- task 1: plugins/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run_machine.py
+- task 2: plugins/acs/skills/ship/SKILL.md
 ```
 
 Three readers, three reasons:

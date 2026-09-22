@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/lock-events.schema.json",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/lock-events.schema.json",
   "title": "acs lock-events.jsonl entry",
   "description": "One line of a ticket partition's append-only lock ledger (lock-events.jsonl, JSONL: one object per line, never rewritten). Written only by `acs.py lock force-unlock`, which breaks a lock this checkout does not hold. The ledger is what makes that break reviewable, so this schema pins the entry shape its readers -- future tooling and auditors -- depend on. `event` is the discriminator: the two kinds carry different key sets, and the entry recording the break is always appended BEFORE the lock file is removed, so a crash between the two leaves a recorded break with the lock still in place rather than a broken lock nobody can trace.",
   "type": "object",

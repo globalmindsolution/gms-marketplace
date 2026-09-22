@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/step-state.schema.json",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/step-state.schema.json",
   "title": "acs step state (runs/<run-id>/steps/<skill>/state.json)",
   "description": "The STEP machine (\u00a74.4): one skill's progress inside a run. Replaces <skill>-state.json. This schema validates the ENVELOPE only -- the `states` keys and the `outcome` vocabulary are declared per skill in skills/<name>/state.schema.json, so a new skill is a directory rather than an edit here. `skill` carries no enum for the same reason: it validates against the skill directories. `runs[]` became `invocations[]` because, once the partition is runs/<run-id>/, a `runs` array inside a step meant the wrong thing.",
   "type": "object",

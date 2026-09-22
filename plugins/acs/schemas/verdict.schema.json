@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/verdict.schema.json",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/verdict.schema.json",
   "title": "acs review verdict",
   "description": "The verdict /acs:review-code writes for one iteration, and the one document that crosses the review loop to /acs:code. NOTE: the invariant that makes this a verdict rather than a self-report -- `passed` must equal \"no blocking finding still standing\" -- is NOT expressible here and is enforced by acs_lib.verdict.validate_verdict, which is what the hooks actually run. This schema pins the shape; that function pins the meaning. Refuted findings never appear here: they stay in iter-<n>/adjudication.json as an audit trail.",
   "type": "object",

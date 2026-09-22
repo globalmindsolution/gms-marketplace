@@ -38,7 +38,7 @@ Rules:
                                 lines.
 
 Usage:
-  python3 src/acs/hooks/scripts/citation_check.py \\
+  python3 plugins/acs/hooks/scripts/citation_check.py \\
       --plan <plan.md> --root prd=<path> --root architecture=<path> \\
       [--root principles=<path>]
 Importable:

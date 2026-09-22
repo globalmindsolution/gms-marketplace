@@ -68,8 +68,8 @@ Audit each of the four categories independently — none gates the others:
        suite, no gate, unchanged.
      - **Set AND `.github/workflows/acs-e2e.yml` absent** ⇒ emit a concrete
        scaffold-able gap naming the two exact copy targets — `acs-e2e.yml` (from
-       `src/acs/templates/ci/acs-e2e.yml`) and `run-e2e.py` (from
-       `src/acs/templates/ci/run-e2e.py`), reused verbatim, under allowlist
+       `plugins/acs/templates/ci/acs-e2e.yml`) and `run-e2e.py` (from
+       `plugins/acs/templates/ci/run-e2e.py`), reused verbatim, under allowlist
        categories 1+2 — feeding the executor task breakdown; also draft a
        `recommended_follow_ups` entry pointing at `/acs:setup` to wire the required
        check — this skill never wires branch protection itself.
@@ -120,7 +120,7 @@ finding to what you changed.
    chmod +x .acs/ci/run-e2e.py
    ```
 
-   This mirrors `src/acs/skills/setup/SKILL.md`'s Step 3 (same `cp`/`chmod` shape,
+   This mirrors `plugins/acs/skills/setup/SKILL.md`'s Step 3 (same `cp`/`chmod` shape,
    same `${CLAUDE_PLUGIN_ROOT}/templates/ci/` source, same two target paths).
 4. **NEVER edit, rename, move, or delete any pre-existing source file** not named as an
    append target by the notes — this restriction holds regardless of what the notes'

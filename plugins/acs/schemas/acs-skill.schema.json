@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/globalmindsolution/gms-marketplace/src/acs/schemas/acs-skill.schema.json",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/acs-skill.schema.json",
   "title": "acs skill manifest (skills/<name>/acs.yaml)",
   "description": "What acs knows about one skill, declared beside it. Replaces the central workflows/phases.yaml registry: `phase` is the lifecycle group (the README table's order and the metrics grouping, nothing branches on it), `leg_of` names the entry point an internal leg serves, and `reads` / `writes` name the ARTIFACTS the skill consumes and produces. reads/writes are facts about the skill that hold in every workflow -- they are what `acs workflow validate` checks a step list's order against without any edge in the workflow file, and what the runtime input gate consults, so the two can never disagree about what a skill needs. A skill that declares neither reads nor writes is not a step candidate (setup, metrics, handoff and ship itself are skills, not steps). This file is acs's own: Claude Code's SKILL.md front matter is untouched by it.",
   "type": "object",

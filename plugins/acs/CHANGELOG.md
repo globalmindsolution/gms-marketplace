@@ -27,7 +27,7 @@ the notes.
 > from mid-cycle `main` and applying the redesign afterwards would have
 > published eleven skills' contracts and then re-cut every one of them weeks
 > later — consumers migrating twice, the second time out of a surface that had
-> existed for days. See `src/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md` §0.
+> existed for days. See `plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md` §0.
 >
 > Superseded within this cycle, by the entries under **The v0.5.0 redesign**
 > below: `workflows/ship.yaml` version 2 and its `delivery:` block; the
@@ -43,6 +43,41 @@ the notes.
 > contract.
 
 ### The v0.5.0 redesign
+
+- **The plugin moves back to `plugins/acs`, the eval suite to `evals/`, and the
+  marketplace entry becomes a relative source.** `.claude-plugin/marketplace.json`
+  now resolves acs from the string `"./plugins/acs"` instead of a `git-subdir`
+  object carrying its own `url`, `path` and `ref`. This is the layout the Claude
+  Code marketplace documentation describes, and the one tag `v0.4.9` already
+  ships — the `src/` layout existed only on unreleased `main`, so no consumer
+  ever installed from it and there is nothing to migrate.
+
+  **Why the source form changed, not just the directory.** A relative source
+  resolves from the marketplace checkout itself, so there is no second ref to
+  keep in sync. The object form had two readers that disagree: `ci.yml`'s
+  validator resolves `path` against the working tree, while the installer
+  resolves it at `ref`. On 2026-09-16 `acs@gms-marketplace` could not be
+  installed at all because the tree had moved to `src/acs` while `ref` still
+  named `v0.4.9`, where the plugin sits at `plugins/acs` — each field
+  individually correct, the pair unresolvable. That failure mode is now absent
+  by construction rather than guarded against.
+
+  **Pinning moves from the plugin to the marketplace.** The entry no longer
+  carries its own `ref`, so a controlled rollout pins the marketplace instead:
+  `claude plugin marketplace add globalmindsolution/gms-marketplace@v0.5.0`.
+  Equivalent here, because the catalog holds exactly one plugin.
+
+  The two `release.extra_refs` entries that rewrote `source/ref` and
+  `source/path` on every cut are **removed** — a relative string source has
+  neither field, and leaving them would rewrite a valid source into an invalid
+  object. `tests/acs/test_marketplace_ref_resolves.py` is re-cut to assert the
+  working-tree property for a string source while keeping the at-ref property
+  for object sources, and gains a guard that no `extra_ref` may write into a
+  string source.
+
+  **Migration:** a consumer installing from the marketplace is unaffected. A
+  `--plugin-dir`, `scripts/dev_install.py` checkout or CI job naming `src/acs`
+  must name `plugins/acs`; one naming `src/acs-evals` must name `evals`.
 
 The pipeline had accumulated its decisions in the wrong places: a workflow
 file that decided whether a skill applied, a state machine that mixed the run
@@ -586,8 +621,12 @@ JSON validated by JSON Schema, one central envelope plus a
   follows it, so a consumer installing acs from the marketplace is
   unaffected; a `--plugin-dir`, `scripts/dev_install.py` checkout or CI job
   that named `plugins/acs` directly must name `src/acs`. `src/acs-evals`
-  grades its sibling `../acs`. Entries above this one refer to `plugins/acs`
-  paths as they were at the time; the tree they describe is `src/acs` now.
+  grades its sibling `../acs`. **Both moves were later reverted, before
+  either shipped** — see the `[Unreleased]` entry adopting the conventional
+  marketplace layout. The tree is `plugins/acs` again and the eval suite is
+  `evals/`, so the `plugins/acs` paths in entries above this one read
+  correctly once more. This entry is kept because it happened, not because
+  it still describes the tree.
 
 - **`/acs:create-impl-plan` on TRIVIAL/SMALL revises its own draft up to
   twice before failing.** The coordinator-authored plan used to end the run

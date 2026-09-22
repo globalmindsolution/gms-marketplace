@@ -199,7 +199,7 @@ registry is `skills/<name>/acs.yaml`. In order:
 1. **Register it in `skills/<name>/acs.yaml`** — exactly once, in one of the
    five phase groups, or as an `aliases` key when the directory only forwards
    to another skill. `tests/acs/test_phases_registry.py` asserts the registry
-   and `src/acs/skills/` agree in both directions, so an unregistered
+   and `plugins/acs/skills/` agree in both directions, so an unregistered
    directory fails CI before anything else does.
 2. **Write `skills/<name>/SKILL.md`** to the rules above, plus
    `agents/<name>-{executor,verifier}.md` when the skill runs a reflection

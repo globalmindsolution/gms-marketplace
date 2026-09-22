@@ -20,7 +20,7 @@ Rules:
   - empty-block          : a ```mermaid block with no diagram content.
 
 Usage:
-  python3 src/acs/hooks/scripts/mermaid_lint.py FILE.md [FILE.md ...]   # exits 1 on findings
+  python3 plugins/acs/hooks/scripts/mermaid_lint.py FILE.md [FILE.md ...]   # exits 1 on findings
 Importable:
   from mermaid_lint import lint_text, lint_file, Finding
 """

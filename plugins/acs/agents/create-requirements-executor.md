@@ -167,7 +167,7 @@ Mode rules:
 
   1. **Classify — reuse, do not fork.** Before writing, classify the
      requirement functional-vs-non-functional using the **exact rubric
-     below**, quoted verbatim from `src/acs/skills/code/SKILL.md` (single
+     below**, quoted verbatim from `plugins/acs/skills/code/SKILL.md` (single
      source of the wording — never paraphrase or re-derive it; a divergent
      paraphrase is the classification-drift risk):
 

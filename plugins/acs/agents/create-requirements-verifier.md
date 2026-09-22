@@ -90,7 +90,7 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's mes
 9. **Functional/non-functional routing spot-check** — re-check a sample of
    the executor's classifications against the rubric quoted in
    `create-requirements-executor.md` (verbatim from
-   `src/acs/skills/code/SKILL.md`); a misrouted requirement (e.g. a
+   `plugins/acs/skills/code/SKILL.md`); a misrouted requirement (e.g. a
    behavioral clause filed under non-functional) is a blocking finding.
 10. **Augment-only-absent / no-overwrite** — run `git diff -- <requirements_path>`
     yourself and confirm no file the notes marked "human-authored present,

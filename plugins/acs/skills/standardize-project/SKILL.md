@@ -113,8 +113,8 @@ The audit inputs, read before spawning the executor:
     - **Unset** ⇒ this whole dimension is **N/A** (the opt-in invariant: unset means no
       scaffold — no e2e suite, no gate, unchanged).
     - **Set AND `.github/workflows/acs-e2e.yml` absent** ⇒ a concrete scaffold-able gap:
-      additively copy `src/acs/templates/ci/acs-e2e.yml` →
-      `.github/workflows/acs-e2e.yml` and `src/acs/templates/ci/run-e2e.py` →
+      additively copy `plugins/acs/templates/ci/acs-e2e.yml` →
+      `.github/workflows/acs-e2e.yml` and `plugins/acs/templates/ci/run-e2e.py` →
       `.acs/ci/run-e2e.py`, reusing E2E-1's committed templates verbatim — never
       re-author or hand-write them (mirrors `create-project/SKILL.md:150-164`'s
       greenfield e2e-scaffold framing). Both land under allowlist categories 1 + 2,
