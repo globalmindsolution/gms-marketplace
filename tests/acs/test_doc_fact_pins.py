@@ -353,6 +353,17 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
     ALLOWED = {
         ("plugins/acs/CHANGELOG.md", "acs_lib.py"):
             "a changelog records what past releases did; rewriting it would falsify history",
+        ("plugins/acs/CHANGELOG.md", "acs_lib/phases.py"):
+            "same changelog, same rule: the entry RECORDS phases.py being removed, so the "
+            "retired path is the fact being reported",
+        ("plugins/acs/CHANGELOG.md", "acs_lib/lanes.py"):
+            "records the lanes.py -> planrules.py rename; naming the old path is the point",
+        ("plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md", "acs_lib/phases.py"):
+            "the v0.5.0 design doc states what phases.py BECOMES; it describes the change, "
+            "so the pre-change path has to appear",
+        ("plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md", "acs_lib/state.py"):
+            "the same doc naming the module the redesign split; the problem statement cannot "
+            "be written without the name of the module that had the problem",
         ("docs/adr/0030-four-lane-hybrid-routing-from-size-stakes-axes.md", "acs_lib/lanes.py"):
             "a superseded ADR records what was decided and where it lived AT THE TIME; "
             "ADR-0095 retired the routing and renamed the module to planrules.py, and "
@@ -366,6 +377,11 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
             "notes that MAR-522 split acs_lib.py into a package",
         ("tests/acs/test_setup_skill_reference_sweep.py", "acs_lib.py"):
             "explains why a guard went vacuous once MAR-522 deleted acs_lib.py",
+        ("tests/acs/test_doc_fact_pins.py", "acs_lib/phases.py"):
+            "self-exemption, same recursion as lanes.py below: the entries above name "
+            "phases.py in order to exempt it, and the scanner reads this file too",
+        ("tests/acs/test_doc_fact_pins.py", "acs_lib/state.py"):
+            "self-exemption for the REDESIGN-doc entry above, same recursion",
         ("tests/acs/test_doc_fact_pins.py", "acs_lib/lanes.py"):
             "this allowlist must NAME the retired path to exempt it; the entries "
             "above are the mention the scanner is seeing. `lanes.py` became "
@@ -380,7 +396,7 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
             "load-bearing test below keeps every entry honest",
     }
     #: Module docstrings that record their own extraction are allowed wholesale.
-    EXTRACTION_NOTE = "extracted from acs_lib.py by MAR-522"
+    EXTRACTION_NOTE = "extracted from acs_lib.py by mar-522"  # matched case-insensitively
 
     def _referring_files(self):
         for sub in ("docs", "tests", "plugins"):
@@ -398,7 +414,7 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
             with open(path, "r", encoding="utf-8") as fh:
                 text = fh.read()
             for lineno, line in enumerate(text.split("\n"), 1):
-                if self.EXTRACTION_NOTE in line:
+                if self.EXTRACTION_NOTE in line.lower():
                     continue
                 for ref in pattern.findall(line):
                     if os.path.exists(os.path.join(self.SCRIPTS, ref)):

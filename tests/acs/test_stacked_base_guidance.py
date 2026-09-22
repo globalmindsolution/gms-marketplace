@@ -54,8 +54,13 @@ SHIPPED_DOCS = {
     "create-pr-executor.md": CREATE_PR_EXECUTOR,
     "ci-convention-check.md": CI_REFERENCE,
     "CLAUDE.acs.md": BLOCK_TEMPLATE,
-    "CLAUDE.md": REPO_CLAUDE_MD,
 }
+
+#: This repo's own CLAUDE.md is NOT in SHIPPED_DOCS. It carried the acs-managed
+#: block until that block was removed, and a file with no managed block has
+#: nothing for /acs:setup to overwrite and nothing to keep in step with the
+#: template. The block TEMPLATE above is still asserted in full, so what a
+#: consumer installs is unchanged; only the dogfood copy is gone.
 
 # The two surfaces that must run the check before pushing: SKILL.md may delegate
 # its whole numbered flow to the executor agent, so a pre-flight on one only is
@@ -280,7 +285,7 @@ class ProseMatchesModuleTest(unittest.TestCase):
 class ReplayDocumentedTest(unittest.TestCase):
     """AC-3: the remedy is written where an author actually meets it."""
 
-    SURFACES = ("CLAUDE.acs.md", "CLAUDE.md", "ci-convention-check.md")
+    SURFACES = ("CLAUDE.acs.md", "ci-convention-check.md")
 
     def test_every_author_surface_carries_the_replay_command(self):
         for name in self.SURFACES:
@@ -333,9 +338,22 @@ class ManagedBlockTest(unittest.TestCase):
         self.assertNotRegex(bullet, r"\{[^}]*\}")
 
     def test_the_repo_copy_carries_the_identical_bullet(self):
+        """If this repo installs the managed block, it must match the template.
+
+        Conditional rather than unconditional: the block was removed from this
+        repo's CLAUDE.md, and absent is a valid state — /acs:setup has nothing
+        to overwrite. Asserting presence would pin a choice the repo made the
+        other way. Asserting agreement WHEN PRESENT keeps the check live, so
+        re-adding the block through /acs:setup restores the guarantee instead
+        of silently landing a copy that has drifted from its template."""
+        if not os.path.exists(REPO_CLAUDE_MD):
+            self.skipTest("this repo carries no CLAUDE.md")
+        body = read(REPO_CLAUDE_MD)
+        if "BEGIN acs-managed" not in body:
+            self.skipTest("this repo's CLAUDE.md carries no acs-managed block")
         template_bullet = norm(block_containing(read(BLOCK_TEMPLATE), REPLAY_FORM))
         rendered = acs_lib.render_managed_block(template_bullet, "MAR", "acs-exempt")
-        self.assertEqual(rendered, norm(block_containing(read(REPO_CLAUDE_MD), REPLAY_FORM)),
+        self.assertEqual(rendered, norm(block_containing(body, REPLAY_FORM)),
                          "this repo's managed block and its template disagree on the "
                          "replay bullet — the rendered copy is the one /acs:setup overwrites")
 
@@ -382,7 +400,7 @@ class ScopeHeldTest(unittest.TestCase):
         for name, path in SHIPPED_DOCS.items():
             self.assertNotIn("resync-shas", read(path),
                              "%s: names a subcommand that does not exist yet (MAR-591)" % name)
-        for name in ("CLAUDE.acs.md", "CLAUDE.md", "ci-convention-check.md"):
+        for name in ("CLAUDE.acs.md", "ci-convention-check.md"):
             self.assertIn("stale", norm(read(SHIPPED_DOCS[name])).lower(),
                           "%s: the stale-SHA consequence is what stands in for that "
                           "command — it must be stated" % name)
@@ -395,7 +413,7 @@ class ScopeHeldTest(unittest.TestCase):
         self.assertEqual(acs_lib.DEFAULT_SETTINGS["merge_strategy"], "squash")
 
     def test_stacking_stays_permitted(self):
-        for name in ("CLAUDE.acs.md", "CLAUDE.md", "ci-convention-check.md"):
+        for name in ("CLAUDE.acs.md", "ci-convention-check.md"):
             body = norm(read(SHIPPED_DOCS[name]))
             self.assertIn("stays permitted", body,
                           "%s: must say stacking remains allowed (AC-6, ledger C-1)" % name)
