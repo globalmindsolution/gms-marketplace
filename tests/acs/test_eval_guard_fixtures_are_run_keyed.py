@@ -118,9 +118,10 @@ class GuardFixturesAreRunKeyedTest(unittest.TestCase):
         cls.doc = load_case_file(GUARD_FILE)
 
     def test_the_file_still_carries_all_fifteen_cases(self):
-        """AC-6: relocating a fixture is not an excuse to drop a case."""
-        self.assertEqual(len(self.doc["cases"]), 15,
-                         "GUARD cases were added or lost, not relocated")
+        """AC-6: relocating a fixture is not an excuse to drop a case. Stated as
+        a floor, not an equality, so a later ticket may still add one."""
+        self.assertGreaterEqual(len(self.doc["cases"]), 15,
+                                "a GUARD case was lost rather than relocated")
 
     def test_every_guard_case_seeds_under_the_run_base(self):
         stray = ["%s %s -> base %r" % (c["id"], s["path"], s.get("base", "ticket"))
