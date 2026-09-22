@@ -16,13 +16,16 @@ Run:  python3 -m unittest tests.acs.test_eval_mutation_honest_denominator -v
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EVALS = os.path.join(REPO_ROOT, "src", "acs-evals")
 BUILD = os.path.join(REPO_ROOT, "src", "acs")
+SWEEP = os.path.join(EVALS, "runner", "mutation_sweep.py")
 
 #: The defective set, re-derived from the dataset and the shipped schemas.
 #: Deliberately not `mutation_sweep`'s own definition of the defect: checking
@@ -61,10 +64,10 @@ print(json.dumps(sorted(out)))
 '''
 
 
-def run_python(*args):
+def run_python(*args, build=BUILD):
     """A child rooted at src/acs-evals, pointed at this checkout's own build."""
     return subprocess.run([sys.executable] + list(args), cwd=EVALS,
-                          env=dict(os.environ, ACS_PLUGIN_ROOT=BUILD),
+                          env=dict(os.environ, ACS_PLUGIN_ROOT=build),
                           capture_output=True, text=True)
 
 
@@ -98,8 +101,7 @@ class MutationSweepRefusesADefectiveFixtureTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.result = run_python(os.path.join(EVALS, "runner", "mutation_sweep.py"),
-                                "--threshold", "0.9")
+        cls.result = run_python(SWEEP, "--threshold", "0.9")
         derived = run_python("-c", DERIVE)
         assert derived.returncode == 0, derived.stderr
         cls.defective = json.loads(derived.stdout)
@@ -145,11 +147,43 @@ class MutationSweepRefusesADefectiveFixtureTest(unittest.TestCase):
         self.assertIsNotNone(total, self.result.stdout)
         self.assertEqual(total, (sum(c for c, _t in rows), sum(t for _c, t in rows)))
 
+    def a_build_with_one_unpinned_constraint(self):
+        """This checkout's counters schema, plus a constraint no case pins.
+
+        `maxProperties` admits every recorded counters instance, so all six
+        cases still hold against it unmutated; deleting it changes no verdict
+        either, which is exactly what an unpinned constraint is. Measured
+        3/4 = 75%.
+        """
+        root = tempfile.mkdtemp(prefix="acs-mutation-threshold-")
+        self.addCleanup(shutil.rmtree, root, True)
+        for leg in (("schemas",), ("hooks", "scripts"), (".claude-plugin",)):
+            os.makedirs(os.path.join(root, *leg))
+        with open(os.path.join(root, ".claude-plugin", "plugin.json"), "w") as fh:
+            json.dump({"name": "acs", "version": "0.0.0-test"}, fh)
+        open(os.path.join(root, "hooks", "scripts", "acs.py"), "w").close()
+        with open(os.path.join(BUILD, "schemas", "counters.schema.json")) as fh:
+            schema = json.load(fh)
+        schema["maxProperties"] = 8
+        with open(os.path.join(root, "schemas", "counters.schema.json"), "w") as fh:
+            json.dump(schema, fh)
+        return root
+
     def test_the_threshold_still_governs_the_exit_code(self):
-        strict = run_python(os.path.join(EVALS, "runner", "mutation_sweep.py"),
-                            "--threshold", "1.0")
-        self.assertIn("BELOW THRESHOLD", strict.stderr)
-        self.assertNotEqual(strict.returncode, 0)
+        # Raising the bar cannot reach a fully pinned dataset from below --
+        # `caught / total < threshold` is false at 100% for every threshold a
+        # percentage can take. So measure a build that has a real hole, which
+        # is the situation the threshold exists to catch, and check it decides
+        # the exit code in BOTH directions.
+        holed = self.a_build_with_one_unpinned_constraint()
+        low = run_python(SWEEP, "--threshold", "0.9", build=holed)
+        self.assertIn("BELOW THRESHOLD", low.stderr)
+        self.assertNotEqual(low.returncode, 0)
+        # and the threshold ALONE decided it: no fixture here is defective.
+        self.assertNotIn("DEFECTIVE FIXTURES", low.stderr)
+        met = run_python(SWEEP, "--threshold", "0.5", build=holed)
+        self.assertNotIn("BELOW THRESHOLD", met.stderr)
+        self.assertEqual(met.returncode, 0, met.stderr)
 
 
 if __name__ == "__main__":
