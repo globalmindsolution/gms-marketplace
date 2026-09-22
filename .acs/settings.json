@@ -79,11 +79,11 @@
         "pointer": "/version"
       },
       {
-        "file": "src/acs/.claude-plugin/plugin.json",
+        "file": "plugins/acs/.claude-plugin/plugin.json",
         "pointer": "/version"
       },
       {
-        "file": "src/acs/.devin-plugin/plugin.json",
+        "file": "plugins/acs/.devin-plugin/plugin.json",
         "pointer": "/version"
       },
       {
@@ -93,40 +93,18 @@
     ],
     "extra_refs": [
       {
-        "file": ".claude-plugin/marketplace.json",
-        "selector": {
-          "pointer": "/plugins",
-          "match": {
-            "name": "acs"
-          },
-          "set": "source/ref"
-        },
-        "value_format": "v{version}"
-      },
-      {
-        "file": ".claude-plugin/marketplace.json",
-        "selector": {
-          "pointer": "/plugins",
-          "match": {
-            "name": "acs"
-          },
-          "set": "source/path"
-        },
-        "value_format": "src/acs"
-      },
-      {
         "file": ".devin-plugin/plugin.json",
         "selector": {
           "pointer": "/requiredPlugins",
           "match": {
-            "path": "src/acs"
+            "path": "plugins/acs"
           },
           "set": "ref"
         },
         "value_format": "v{version}"
       }
     ],
-    "changelog_path": "src/acs/CHANGELOG.md",
+    "changelog_path": "plugins/acs/CHANGELOG.md",
     "tag_format": "v{version}",
     "base_branch": "main",
     "release_branch_format": "release/v{version}",
@@ -137,11 +115,11 @@
       ]
     },
     "pre_release_gate": [
-      "make -C src/acs-evals eval-source",
-      "make -C src/acs-evals check",
-      "make -C src/acs-evals mutation",
-      "make -C src/acs-evals measure",
-      "make -C src/acs-evals perf"
+      "make -C evals eval-source",
+      "make -C evals check",
+      "make -C evals mutation",
+      "make -C evals measure",
+      "make -C evals perf"
     ]
   },
   "tests": {

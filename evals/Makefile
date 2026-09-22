@@ -4,27 +4,27 @@
 # write the report. Everything else is a step of it, or a tool for working on
 # the dataset.
 #
-# This suite lives at src/acs-evals/ inside the gms-marketplace repo, so the
-# plugin source it grades is a sibling: ../acs.
+# This suite lives at evals/ at the root of the gms-marketplace repo, and the
+# plugin source it grades lives beside it at ../plugins/acs.
 #
 # `make behavioural` is the other half: the real-session scenarios under
-# behavioural/, which were the repo-root evals/ tree before they were folded in
+# behavioural/, which were their own top-level tree before they were folded in
 # here. They are not part of `gate` — the free tier already runs on every commit
 # via the acs-free-evals pre-commit hook, and the paid tier spends money.
 #
 # ACS_PLUGIN_ROOT selects the build under test. Leave it unset and the runner
 # resolves the newest INSTALLED acs build, which is what a consumer actually
 # runs; set it to point at a working tree instead. `make eval-source` is that
-# second form, pre-spelled for the sibling source.
+# second form, pre-spelled for this checkout's plugin source.
 #
-#   make gate ACS_PLUGIN_ROOT=$(CURDIR)/../acs
+#   make gate ACS_PLUGIN_ROOT=$(CURDIR)/../plugins/acs
 
 PYTHON  ?= python3
 MUTANTS ?= 40
 CATCH_RUNS ?= 1
-WORKSPACE ?= ../../.acs/state-machine/globalmindsolution-gms-marketplace
+WORKSPACE ?= ../.acs/state-machine/globalmindsolution-gms-marketplace
 #: The plugin source this checkout carries, as `eval-source` points at it.
-SOURCE  := $(CURDIR)/../acs
+SOURCE  := $(CURDIR)/../plugins/acs
 RESULTS ?= results
 JSON    ?= $(RESULTS)/latest.json
 REPORT  ?= $(RESULTS)/report
@@ -50,12 +50,12 @@ gate-deterministic: eval check mutation report ## The deterministic tier only �
 eval: ## Run the deterministic tier (502 cases, zero cost, no model)
 	$(PYTHON) runner/run_golden.py --json $(JSON)
 
-# Point the suite at the sibling plugin source. This does NOT change
+# Point the suite at this checkout's plugin source. This does NOT change
 # resolution: runner/harness.py still prefers the INSTALLED build by default,
 # on purpose — packaging drift between source and installed is a defect this
 # dataset exists to catch, and a source-only gate would never see it.
-eval-source: ## Run the deterministic tier against this checkout's src/acs
-	ACS_PLUGIN_ROOT=$(CURDIR)/../acs $(PYTHON) runner/run_golden.py --json $(JSON)
+eval-source: ## Run the deterministic tier against this checkout's plugins/acs
+	ACS_PLUGIN_ROOT=$(CURDIR)/../plugins/acs $(PYTHON) runner/run_golden.py --json $(JSON)
 
 #: Extra flags for `measure` (e.g. MEASURE_ARGS=--force to re-measure a build
 #: that already has a complete measurement on disk).
@@ -156,10 +156,10 @@ list: ## List every case without running anything
 # than recorded CLI surfaces. Its dispatcher takes --plugin and resolves paths
 # from the repo root, hence the `cd`.
 behavioural: ## Run the behavioural FREE tier (deterministic, $0, no model) against this checkout
-	cd ../.. && ACS_EVAL_SOURCE=1 $(PYTHON) src/acs-evals/behavioural/run_evals.py --plugin acs
+	cd .. && ACS_EVAL_SOURCE=1 $(PYTHON) evals/behavioural/run_evals.py --plugin acs
 
 behavioural-paid: ## The behavioural PAID tier — SPENDS MONEY; needs an authenticated `claude`
-	cd ../.. && $(PYTHON) src/acs-evals/behavioural/run_evals.py --plugin acs --paid
+	cd .. && $(PYTHON) evals/behavioural/run_evals.py --plugin acs --paid
 
 verify-self: ## Byte-compile the runner, parse every dataset file, self-test the gate
 	$(PYTHON) -m py_compile runner/*.py

@@ -1,8 +1,8 @@
-"""acs behavioral eval harness — acs-specific layer under src/acs-evals/behavioural/acs/ (M2 epic E1.1).
+"""acs behavioral eval harness — acs-specific layer under evals/behavioural/acs/ (M2 epic E1.1).
 
-This module is the acs eval harness.  It lives under ``src/acs-evals/behavioural/acs/`` (relocated
-from the src/acs-evals/behavioural/ root in MAR-33) and contains only acs-specific symbols.  It is
-imported by the acs scenario runner (``src/acs-evals/behavioural/acs/run_evals.py``) and by the 5
+This module is the acs eval harness.  It lives under ``evals/behavioural/acs/`` (relocated
+from the behavioural/ root in MAR-33) and contains only acs-specific symbols.  It is
+imported by the acs scenario runner (``evals/behavioural/acs/run_evals.py``) and by the 5
 acs scenario files via a ``sys.path`` insertion that the runner performs at
 module scope.
 
@@ -32,10 +32,10 @@ Two tiers of scenario, by cost:
     in the shipped build (the unittest suite only sees the source tree).
   * **paid**  — spawns ``claude -p``. Asserts on the artifacts the agents write.
 
-Run:  python3 src/acs-evals/behavioural/run_evals.py            # free tier only (default, via dispatcher)
-      python3 src/acs-evals/behavioural/acs/run_evals.py        # directly
-      python3 src/acs-evals/behavioural/run_evals.py --paid     # include claude-driven scenarios
-      python3 src/acs-evals/behavioural/run_evals.py --list
+Run:  python3 evals/behavioural/run_evals.py            # free tier only (default, via dispatcher)
+      python3 evals/behavioural/acs/run_evals.py        # directly
+      python3 evals/behavioural/run_evals.py --paid     # include claude-driven scenarios
+      python3 evals/behavioural/run_evals.py --list
 """
 
 import glob
@@ -49,17 +49,17 @@ import tempfile
 import time
 import uuid
 
-# REPO_ROOT: dirname x5 from src/acs-evals/behavioural/acs/harness.py reaches
-# the repo root. The count is the file's depth, so it moved with the tree: it
-# was x3 while this lived at src/acs-evals/behavioural/acs/harness.py. Stopping short leaves
-# SOURCE_SCRIPTS resolving under src/acs-evals/ — a nonexistent path that
-# breaks the free tier with no error until a scenario runs.
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))))))
+# REPO_ROOT: dirname x4 from evals/behavioural/acs/harness.py reaches the repo
+# root. The count is the file's depth, so it moves with the tree: it was x5
+# while the suite lived at src/acs-evals/. Miscounting leaves SOURCE_SCRIPTS
+# resolving outside the checkout — a nonexistent path that breaks the free tier
+# with no error until a scenario runs.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
 
 # acs-specific: SOURCE_SCRIPTS and installed_scripts_dir() are the acs cache-
 # resolution seam.  They are deliberately NOT generalised to arbitrary plugins.
-SOURCE_SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SOURCE_SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 
 
 # --------------------------------------------------------------------------- #

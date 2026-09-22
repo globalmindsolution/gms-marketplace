@@ -519,7 +519,7 @@ class BuildUnderTestIsActuallyLoadedTest(unittest.TestCase):
     """
 
     class _Build:
-        root = "/somewhere/src/acs"
+        root = "/somewhere/plugins/acs"
         version = "0.4.10-rc1"
 
     def test_a_routing_probe_loads_the_resolved_build(self):
@@ -879,10 +879,10 @@ class BuildRecordTest(unittest.TestCase):
 
     def test_a_measurement_names_its_build_by_content(self):
         class B:
-            version, root = "0.5.0", "/src/acs"
+            version, root = "0.5.0", "/plugins/acs"
             fingerprint, digest = "fac10cbbcd9f7fb5", "c077424d2d52ac47"
         rec = measure_skills.build_record(B())
-        self.assertEqual(rec, {"version": "0.5.0", "root": "/src/acs",
+        self.assertEqual(rec, {"version": "0.5.0", "root": "/plugins/acs",
                                "fingerprint": "fac10cbbcd9f7fb5",
                                "digest": "c077424d2d52ac47"})
 
@@ -1280,7 +1280,7 @@ class MintedTicketLedgerTest(unittest.TestCase):
 class StagedBuildTest(unittest.TestCase):
     """The build under test is measured from a copy outside any checkout.
 
-    Resolved in place, this marketplace's build is `src/acs` inside the
+    Resolved in place, this marketplace's build is `plugins/acs` inside the
     checkout running the measurement, and every command a skill embeds names
     that path. Two PIPE-create-ticket sessions on 2026-09-14 took it for the
     project, `cd`'d into the checkout before `skill-start.py --allocate`, and
@@ -1430,7 +1430,7 @@ class ChildEnvTest(unittest.TestCase):
     def test_session_binding_and_behaviour_variables_are_dropped(self):
         base = {"PATH": "/usr/bin", "HTTPS_PROXY": "http://proxy",
                 "CLAUDE_AUTO_BACKGROUND_TASKS": "true", "CLAUDE_EFFORT": "xhigh",
-                "CLAUDE_CODE_SESSION_ID": "abc", "ACS_PLUGIN_ROOT": "/src/acs",
+                "CLAUDE_CODE_SESSION_ID": "abc", "ACS_PLUGIN_ROOT": "/plugins/acs",
                 "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST": "1"}
         env = measure_skills.child_env(base)
         for name in ("CLAUDE_AUTO_BACKGROUND_TASKS", "CLAUDE_EFFORT",

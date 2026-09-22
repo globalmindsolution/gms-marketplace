@@ -68,8 +68,9 @@ def _candidates():
     if os.path.isdir(markets):
         for marketplace in sorted(os.listdir(markets)):
             # The marketplace clone carries the plugin at its manifest path:
-            # src/acs since 0.5.0, plugins/acs in every earlier marketplace.
-            for rel in (("src", "acs"), ("plugins", "acs")):
+            # plugins/acs in the current layout, src/acs in the marketplaces
+            # published while the plugin lived under src/.
+            for rel in (("plugins", "acs"), ("src", "acs")):
                 root = os.path.join(markets, marketplace, *rel)
                 if os.path.isdir(root):
                     yield root

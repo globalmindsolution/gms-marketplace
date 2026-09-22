@@ -63,7 +63,7 @@ jobs:
               echo "::error file=$f::invalid JSON"
               status=1
             fi
-          done < <(find .claude-plugin .devin-plugin plugins src -name '*.json' -not -path '*/__pycache__/*' -print0 | sort -z)
+          done < <(find .claude-plugin .devin-plugin plugins evals -name '*.json' -not -path '*/__pycache__/*' -print0 | sort -z)
           exit "$status"
 
       - name: Validate marketplace/plugin version consistency
@@ -86,13 +86,16 @@ jobs:
           def read_manifest(rel, ref):
               """The plugin.json an INSTALL of this entry would get, or None.
 
-              `path` belongs to `ref`, not to this working tree. Resolving it
-              here instead is what broke the marketplace twice: when the tree
-              moved plugins/acs -> src/acs, this check demanded a working-tree
-              src/acs, so `path` was edited to satisfy it -- and the install
-              then asked for src/acs at tag v0.4.9, where it does not exist.
-              A pinned entry is judged at its ref; only an unpinned one (which
-              tracks the default branch) is judged against the tree.
+              For a PINNED entry the source path belongs to `ref`, not to this
+              working tree. Resolving it there instead is what broke the
+              marketplace twice: when the tree moved plugins/acs -> src/acs,
+              this check demanded a working-tree src/acs, so `path` was edited
+              to satisfy it -- and the install then asked for src/acs at tag
+              v0.4.9, where it does not exist. A pinned entry is judged at its
+              ref; an unpinned one -- a relative string source, or git-subdir
+              with no ref, both of which track the ref the marketplace itself
+              was installed at -- is judged against the tree. The acs entry is
+              unpinned today ("./plugins/acs"), so it takes the tree path.
               """
               target = os.path.join(rel, ".claude-plugin", "plugin.json")
 
@@ -178,12 +181,13 @@ jobs:
                   )
 
           # The Devin manifests are working-tree files, so they are judged
-          # against the tree -- via plugin_dirs(), never via the entry's `path`.
-          # `path` is ref-relative (read_manifest above reads the Claude
-          # manifest AT the ref), so pairing the two switches this check off
-          # silently: with the entry pinned at plugins/acs@v0.4.9 while the
-          # tree holds src/acs, os.path.exists(rel + "/.devin-plugin") is False
-          # for the one plugin there is, and a wrong version passes green.
+          # against the tree -- via plugin_dirs(), never via the marketplace
+          # entry's source. A pinned entry's path is ref-relative (read_manifest
+          # above reads the Claude manifest AT the ref), so pairing the two
+          # switches this check off silently: when the entry was pinned at
+          # plugins/acs@v0.4.9 while the tree held src/acs,
+          # os.path.exists(rel + "/.devin-plugin") was False for the one plugin
+          # there was, and a wrong version passed green.
           # Same trap, same remedy as .github/scripts/plugin_source_dirs.py.
           sys.path.insert(0, ".github/scripts")
           from plugin_source_dirs import plugin_dirs
@@ -246,8 +250,9 @@ jobs:
 
           failed = False
 
-          # The SOURCE dirs in this tree, not marketplace.json's `path` (which
-          # is ref-relative -- see .github/scripts/plugin_source_dirs.py).
+          # The SOURCE dirs in this tree, not the marketplace entry's source
+          # (which names where an INSTALL fetches from -- see
+          # .github/scripts/plugin_source_dirs.py).
           for plugin_dir in plugin_dirs():
 
               paths = sorted(glob.glob(os.path.join(plugin_dir, "schemas", "*.schema.json")))
@@ -373,8 +378,9 @@ jobs:
 
           failed = False
 
-          # The SOURCE dirs in this tree, not marketplace.json's `path` (which
-          # is ref-relative -- see .github/scripts/plugin_source_dirs.py).
+          # The SOURCE dirs in this tree, not the marketplace entry's source
+          # (which names where an INSTALL fetches from -- see
+          # .github/scripts/plugin_source_dirs.py).
           for plugin_dir in plugin_dirs():
 
               paths = sorted(glob.glob(os.path.join(plugin_dir, "skills", "*", "SKILL.md"))) \

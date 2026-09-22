@@ -462,7 +462,7 @@ def stage_build(build):
     """A copy of the build under test in a directory that is not a checkout.
 
     The build is resolved from wherever it lives -- for this marketplace,
-    `src/acs` inside the very checkout that runs the measurement. Every
+    `plugins/acs` inside the very checkout that runs the measurement. Every
     command a skill's prose embeds then names that path, and on 2026-09-14
     two of three PIPE-create-ticket sessions read it as the project: they
     ran `cd /home/user/gms-marketplace` before `skill-start.py --allocate`,

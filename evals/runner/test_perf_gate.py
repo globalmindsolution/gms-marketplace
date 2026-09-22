@@ -100,7 +100,7 @@ def measurement(probes, version="0.5.0", sset="1.0.0", incomplete=False,
 
 
 class _Build:
-    def __init__(self, version="0.5.0", digest="c0ffee", root="/src/acs"):
+    def __init__(self, version="0.5.0", digest="c0ffee", root="/plugins/acs"):
         self.version, self.digest, self.root = version, digest, root
 
 
@@ -474,7 +474,7 @@ class TestBuildIdentity(unittest.TestCase):
         why = pg.stale_measurement(m, _Build(digest="d15ea5e"))
         self.assertIn("c0ffee", why)
         self.assertIn("d15ea5e", why)
-        self.assertIn("/src/acs", why, "name the tree it resolved, so a "
+        self.assertIn("/plugins/acs", why, "name the tree it resolved, so a "
                       "mismatch caused by resolving the wrong tree is obvious")
 
     def test_a_measurement_with_no_digest_is_refused(self):

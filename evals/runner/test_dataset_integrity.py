@@ -21,7 +21,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 EVALS = os.path.dirname(HERE)
 DATASET = os.path.join(EVALS, "dataset")
-PLUGIN = os.path.join(os.path.dirname(EVALS), "acs")
+PLUGIN = os.path.join(os.path.dirname(EVALS), "plugins", "acs")
 
 
 def load(name):

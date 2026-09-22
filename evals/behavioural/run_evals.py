@@ -2,14 +2,14 @@
 """Thin dispatcher for per-plugin behavioral eval runners (M2 epic E1.1).
 
 Parses ``--plugin`` (default ``acs``) and delegates to
-``src/acs-evals/behavioural/<plugin>/run_evals.py``, forwarding all remaining flags verbatim.
+``evals/behavioural/<plugin>/run_evals.py``, forwarding all remaining flags verbatim.
 Each per-plugin runner owns its own scenario loop, sys.path mutations, and
 any plugin-specific banner — none of that lives here.
 
-    python3 src/acs-evals/behavioural/run_evals.py                       # acs free tier (default)
-    python3 src/acs-evals/behavioural/run_evals.py --plugin acs          # explicit acs free tier
-    python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid   # + claude-driven scenarios
-    python3 src/acs-evals/behavioural/run_evals.py --plugin acs --list
+    python3 evals/behavioural/run_evals.py                       # acs free tier (default)
+    python3 evals/behavioural/run_evals.py --plugin acs          # explicit acs free tier
+    python3 evals/behavioural/run_evals.py --plugin acs --paid   # + claude-driven scenarios
+    python3 evals/behavioural/run_evals.py --plugin acs --list
 
 Exit code is the child runner's exit code (non-zero propagated verbatim).
 """

@@ -14,7 +14,7 @@ and the epic's own `external.key` must be identical before and after the
 fan-out run (an unchanged tracker sync — a duplicate-issue regression would
 show up here as a changed key).
 
-Tier `forge` (src/acs-evals/behavioural/README.md:61 — "needs a GitHub remote ... Not yet
+Tier `forge` (evals/behavioural/README.md:61 — "needs a GitHub remote ... Not yet
 populated") is the correct, already-established classification for this
 scenario: it needs real `gh` access against a live GitHub repo/project, which
 `--paid` alone does not guarantee. This is a GUARDED scenario (MAR-84 decision
