@@ -1,41 +1,33 @@
 {
   "skill": "code",
-  "ticket_id": "TKT-1",
+  "run_id": "TKT-1",
   "iteration": 1,
+  "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
   "lens": "A",
   "passed": true,
-  "dimensions": [
+  "findings": [
     {
-      "id": 1,
-      "name": "Acceptance-criteria conformance",
-      "result": "pass",
-      "evidence": "reviewed acceptance-criteria conformance"
-    },
-    {
-      "id": 2,
-      "name": "Tests",
-      "result": "pass",
-      "evidence": "pytest -q -> 12 passed"
-    },
-    {
-      "id": 3,
-      "name": "Coverage",
-      "result": "pass",
-      "evidence": "pytest -q -> 12 passed"
-    },
-    {
-      "id": 4,
-      "name": "Business logic",
-      "result": "pass",
-      "evidence": "reviewed business logic"
-    },
-    {
-      "id": 5,
-      "name": "Features",
-      "result": "pass",
-      "evidence": "reviewed features"
+      "id": "F-1-1",
+      "status": "advisory",
+      "severity": "advisory",
+      "kind": "craft",
+      "lens": "A",
+      "file": "src/login/session.py",
+      "line": 42,
+      "claim": "the retry helper repeats a backoff table two other modules already carry",
+      "evidence": [
+        "src/login/session.py:42-58",
+        "src/auth/backoff.py:11-27"
+      ],
+      "resolved_when": "the backoff table has one definition the three call sites share",
+      "traces_to": [
+        "AC-2"
+      ],
+      "adjudication": {
+        "verdict": "needs-context",
+        "reason": "the duplication predates this changeset"
+      }
     }
   ],
-  "findings": [],
   "written_at": "2026-01-01T00:00:00Z"
 }

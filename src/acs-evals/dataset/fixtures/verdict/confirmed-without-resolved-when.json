@@ -19,7 +19,6 @@
         "pytest -q -> 3 failed, 9 passed",
         "tests/test_login.py:22-41"
       ],
-      "resolved_when": "pytest -q reports 0 failed on tests/test_login.py",
       "traces_to": [
         "AC-1"
       ],
@@ -29,14 +28,5 @@
       }
     }
   ],
-  "written_at": "2026-01-01T00:00:00Z",
-  "tests": {
-    "passed": 9,
-    "failed": 3,
-    "command": "pytest -q"
-  },
-  "coverage": {
-    "percent": 93.4,
-    "command": "pytest -q --cov=src"
-  }
+  "written_at": "2026-01-01T00:00:00Z"
 }

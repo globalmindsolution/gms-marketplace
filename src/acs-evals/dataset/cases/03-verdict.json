@@ -1,19 +1,23 @@
 {
   "group": "verifier verdict",
-  "description": "MAR-527 made `verifier_passed` a field the kernel READS from a verdict document the verifier WRITES, instead of a claim the coordinator relayed. The invariant that makes it a verdict rather than a self-report \u2014 `passed` must equal 'no blocking finding' \u2014 is not expressible in JSON Schema and is enforced by acs_lib.verdict.validate_verdict, which is what the SubagentStop hook runs. These cases pin that meaning, in both directions, plus the completeness and freshness rules that stop a stale or partial verdict from opening the create-pr gate.",
+  "description": "MAR-527 made `verifier_passed` a field the kernel READS from a verdict document the reviewer WRITES, instead of a claim the coordinator relayed. The invariant that makes it a verdict rather than a self-report -- `passed` must equal 'no blocking finding' -- is not expressible in JSON Schema and is enforced by acs_lib.verdict.validate_verdict, which is what the SubagentStop hook runs. These cases pin that meaning, in both directions, plus the freshness rules that stop a stale verdict from opening the create-pr gate and the two fields ADR-0099 makes a review owe the loop: the commit it judged, and what a fix must make true.",
   "surface": "acs verdict",
   "covers": [
-    "MAR-527"
+    "MAR-527",
+    "MAR-573",
+    "ADR-0099",
+    "ADR-0097"
   ],
-  "profile": "ticketed",
+  "profile": "run",
   "cases": [
     {
       "id": "VERDICT-001",
-      "title": "an honest pass over all 15 base dimensions is accepted",
+      "title": "an honest pass is accepted",
+      "note": "ADR-0099 retired the sixteen-dimension table the old title counted (\"over all 15 base dimensions\"): a verdict is a list of findings, and a pass is an empty one. ADR-0097 keys the document to the run, so the reply names `run_id` where it named `ticket_id` and the document lives under runs/<id>/steps/code/iter-1/.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
           "fixture": "verdict/honest-pass.json"
         }
       ],
@@ -21,8 +25,8 @@
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -37,18 +41,18 @@
           "claimed_passed": true,
           "blocking": 0,
           "errors": [],
-          "ticket_id": "TKT-1"
+          "run_id": "TKT-1"
         }
       }
     },
     {
       "id": "VERDICT-002",
       "title": "HEADLINE: passed=true alongside a blocking finding is refused",
-      "note": "The defect MAR-527 exists to remove. A verifier that claims to pass while carrying a blocking finding must not be able to open the create-pr gate.",
+      "note": "The defect MAR-527 exists to remove. A verifier that claims to pass while carrying a blocking finding must not be able to open the create-pr gate. The rule is untouched by the redesign; ADR-0099 only changes how the refusal names the offender -- a finding id (`F-1-1`), because an id is what crosses the loop, where a dimension name was all the old document had.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
           "fixture": "verdict/lying-pass.json"
         }
       ],
@@ -56,8 +60,8 @@
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -67,7 +71,7 @@
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "passed is true but the verdict carries 1 blocking finding(s) (Tests)",
+          "passed is true but the verdict carries 1 blocking finding(s) (F-1-1)",
           "`passed` is derived from the findings, not asserted alongside them"
         ]
       },
@@ -75,11 +79,12 @@
     },
     {
       "id": "VERDICT-003",
-      "title": "an honest fail \u2014 passed=false with the blocking finding recorded \u2014 is accepted",
+      "title": "an honest fail -- passed=false with the blocking finding recorded -- is accepted",
+      "note": "Unchanged in force. ADR-0099 gives the finding the three fields the loop runs on -- `id`, `evidence`, `resolved_when` -- so the fixture carries them and validate_verdict now requires them.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
           "fixture": "verdict/honest-fail.json"
         }
       ],
@@ -87,8 +92,8 @@
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -110,11 +115,11 @@
     {
       "id": "VERDICT-004",
       "title": "the invariant binds in both directions: passed=false with no blocking finding is refused",
-      "note": "A verifier cannot fail a run without saying what blocks it \u2014 otherwise the review loop has nothing to converge on.",
+      "note": "A verifier cannot fail a run without saying what blocks it -- otherwise the review loop has nothing to converge on. The wording is unchanged; ADR-0097 only moves where the document is read from.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
           "fixture": "verdict/lying-fail.json"
         }
       ],
@@ -122,8 +127,8 @@
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -141,11 +146,12 @@
     },
     {
       "id": "VERDICT-005",
-      "title": "an `info` finding is carried but never gates",
+      "title": "an `advisory` finding is carried but never gates",
+      "note": "ADR-0099 closes the severity enum to blocking|advisory: `info` was the dimension-era spelling of the same idea and is gone. A `needs-context` adjudication lands here rather than being dropped, which is what makes the non-gating severity load-bearing.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
           "fixture": "verdict/info-finding-does-not-gate.json"
         }
       ],
@@ -153,8 +159,8 @@
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -172,85 +178,22 @@
       }
     },
     {
-      "id": "VERDICT-006",
-      "title": "a verdict that skips dimensions it owed is refused",
-      "note": "Completeness is what stops a verifier narrowing its own review to the dimensions it expects to pass.",
-      "files": [
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
-          "fixture": "verdict/incomplete-dimensions.json"
-        }
-      ],
-      "invoke": {
-        "argv": [
-          "verdict",
-          "show",
-          "--ticket",
-          "TKT-1",
-          "--skill",
-          "code",
-          "--iteration",
-          "1"
-        ]
-      },
-      "expect": {
-        "exit_code": 2,
-        "stderr_contains": [
-          "dimensions 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16 are not reported",
-          "a verdict must cover every dimension it owed (use result \"n/a\" where one does not apply)"
-        ]
-      },
-      "severity": "critical"
-    },
-    {
-      "id": "VERDICT-007",
-      "title": "`n/a` is a real answer: a docs-only run may mark Tests and Coverage n/a",
-      "files": [
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
-          "fixture": "verdict/docs-only-na.json"
-        }
-      ],
-      "invoke": {
-        "argv": [
-          "verdict",
-          "show",
-          "--ticket",
-          "TKT-1",
-          "--skill",
-          "code",
-          "--iteration",
-          "1"
-        ]
-      },
-      "expect": {
-        "exit_code": 0,
-        "stdout_json_subset": {
-          "ok": true,
-          "passed": true,
-          "errors": []
-        }
-      }
-    },
-    {
       "id": "VERDICT-008",
-      "title": "FRESHNESS: another ticket's verdict is refused even on the right path",
-      "note": "A verdict is evidence only for the run that produced it \u2014 copying a clean one into place must not open the gate.",
+      "title": "FRESHNESS: another run's verdict is refused even on the right path",
+      "note": "A verdict is evidence only for the run that produced it -- copying a clean one into place must not open the gate. ADR-0097 makes the run, not the ticket, the thing it is evidence for, so the freshness axis is `run_id`.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
-          "fixture": "verdict/stale-ticket.json"
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
+          "fixture": "verdict/stale-run.json"
         }
       ],
       "invoke": {
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -260,7 +203,7 @@
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "verdict ticket_id is 'TKT-9' but this is 'TKT-1'",
+          "verdict run_id is 'TKT-9' but this is 'TKT-1'",
           "a verdict is evidence only for the run that produced it"
         ]
       },
@@ -269,10 +212,11 @@
     {
       "id": "VERDICT-009",
       "title": "FRESHNESS: `verdict show` refuses a verdict from another iteration",
+      "note": "Was a known_divergence through v0.4.9: cmd_verdict_show called validate_verdict without `skill` or `iteration`, so a document whose own iteration was 1 read as a clean pass at iteration 3's path. MAR-573 passes both arguments through, closing it. The case pins the rule rather than the gap -- the refusal reaches stderr AND no passing verdict leaks to stdout, because the original defect's harm was a body reporting passed:true, not the exit code alone. ADR-0097 moves the iteration from the filename into the directory (steps/code/iter-3/verdict.json).",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-3-verdict.json",
+          "base": "run",
+          "path": "steps/code/iter-3/verdict.json",
           "fixture": "verdict/stale-iteration.json"
         }
       ],
@@ -280,8 +224,8 @@
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -300,16 +244,16 @@
           "\"ok\""
         ]
       },
-      "severity": "critical",
-      "note": "Was a known_divergence through v0.4.9: cmd_verdict_show called validate_verdict without `skill` or `iteration`, so a document whose own iteration was 1 read as a clean pass at iteration 3's path. MAR-573 passes both arguments through, closing it. The case now pins the rule instead of the gap \u2014 it asserts the refusal reaches stderr AND that no passing verdict leaks to stdout, because the original defect's harm was a body reporting passed:true, not the exit code alone."
+      "severity": "critical"
     },
     {
       "id": "VERDICT-014",
       "title": "FRESHNESS: `verdict show` refuses a verdict from another skill",
+      "note": "The other axis of the same gap, closed by the same one-call change in MAR-573. Was a known_divergence through v0.4.9. Under ADR-0097 the skill names a step directory under the run, so the axis survives verbatim.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict.json",
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
           "fixture": "verdict/wrong-skill.json"
         }
       ],
@@ -317,8 +261,8 @@
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -337,18 +281,18 @@
           "\"ok\""
         ]
       },
-      "severity": "critical",
-      "note": "The other axis of the same gap, closed by the same one-call change in MAR-573. Was a known_divergence through v0.4.9."
+      "severity": "critical"
     },
     {
       "id": "VERDICT-010",
       "title": "a missing verdict is reported, not treated as a pass",
+      "note": "The subject survives verbatim; ADR-0097 moves the path it reports from the ticket partition to runs/<id>/steps/code/iter-1/verdict.json, so the case now pins that path as well as the refusal.",
       "invoke": {
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -358,17 +302,19 @@
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "no verdict at"
+          "no verdict at",
+          "steps/code/iter-1/verdict.json"
         ]
       }
     },
     {
       "id": "VERDICT-011",
-      "title": "a lens verdict is judged against its own 5 dimensions, not all 16",
+      "title": "a lens verdict validates under its own lens",
+      "note": "ADR-0099 keeps the five lenses (A-E) and retires the per-lens dimension subsets the old title counted (\"its own 5 dimensions, not all 16\"): a lens reports findings, and what is judged per lens is that the document declares the lens it was written for.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-A.json",
+          "base": "run",
+          "path": "steps/code/iter-1/verdict-lens-A.json",
           "fixture": "verdict/lens-a.json"
         }
       ],
@@ -376,8 +322,8 @@
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
@@ -396,140 +342,71 @@
       }
     },
     {
-      "id": "VERDICT-012",
-      "title": "the four full-depth lenses merge into one 16-dimension verdict",
+      "id": "VERDICT-016",
+      "title": "a verdict with no `reviewed_sha` is refused",
+      "note": "Replaces VERDICT-006's completeness rule with the v0.5.0 form of the same question -- did the review do what it owed? ADR-0099 answers it with the commit the review judged: /acs:code copies `reviewed_sha` into result.json and diffs from it, so a verdict without one cannot say what it reviewed and the next iteration has no baseline.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-A.json",
-          "fixture": "verdict/lens-a.json"
-        },
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-B.json",
-          "fixture": "verdict/lens-b.json"
-        },
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-C.json",
-          "fixture": "verdict/lens-c.json"
-        },
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-D.json",
-          "fixture": "verdict/lens-d.json"
-        }
-      ],
-      "invoke": {
-        "argv": [
-          "verdict",
-          "merge",
-          "--ticket",
-          "TKT-1",
-          "--skill",
-          "code",
-          "--iteration",
-          "1"
-        ]
-      },
-      "expect": {
-        "exit_code": 0,
-        "stdout_json_subset": {
-          "ok": true,
-          "passed": true,
-          "blocking": 0,
-          "merged_from": [
-            "A",
-            "B",
-            "C",
-            "D"
-          ]
-        }
-      }
-    },
-    {
-      "id": "VERDICT-013",
-      "title": "one lens's blocking finding fails the merged verdict",
-      "note": "The merge is an AND across lenses: three clean lenses cannot outvote one blocking finding.",
-      "files": [
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-A.json",
-          "fixture": "verdict/lens-a-blocking.json"
-        },
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-B.json",
-          "fixture": "verdict/lens-b.json"
-        },
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-C.json",
-          "fixture": "verdict/lens-c.json"
-        },
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-D.json",
-          "fixture": "verdict/lens-d.json"
-        }
-      ],
-      "invoke": {
-        "argv": [
-          "verdict",
-          "merge",
-          "--ticket",
-          "TKT-1",
-          "--skill",
-          "code",
-          "--iteration",
-          "1"
-        ]
-      },
-      "expect": {
-        "exit_code": 0,
-        "stdout_json_subset": {
-          "ok": true,
-          "passed": false,
-          "blocking": 1,
-          "merged_from": [
-            "A",
-            "B",
-            "C",
-            "D"
-          ]
-        }
-      }
-    },
-    {
-      "id": "VERDICT-015",
-      "title": "a lens verdict that skips one of ITS OWN owed dimensions is refused",
-      "note": "Completeness is judged against the lens's subset, not all sixteen. Without this, VERDICT-011 only proves a complete lens-A verdict is ACCEPTED \u2014 a change that shrank lens A's owed set would go unnoticed.",
-      "files": [
-        {
-          "base": "ticket",
-          "path": "phases/code/iter-1-verdict-lens-A.json",
-          "fixture": "verdict/lens-a-incomplete.json"
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
+          "fixture": "verdict/no-reviewed-sha.json"
         }
       ],
       "invoke": {
         "argv": [
           "verdict",
           "show",
-          "--ticket",
-          "TKT-1",
+          "--run",
+          "{{run}}",
           "--skill",
           "code",
           "--iteration",
-          "1",
-          "--lens",
-          "A"
+          "1"
         ]
       },
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "dimensions 5 are not reported",
-          "a verdict must cover every dimension it owed"
+          "reviewed_sha is required and must be a non-empty string",
+          "it is the baseline /acs:code diffs from"
+        ],
+        "stdout_excludes": [
+          "\"passed\""
+        ]
+      },
+      "severity": "critical"
+    },
+    {
+      "id": "VERDICT-017",
+      "title": "a `confirmed` finding with no `resolved_when` is refused",
+      "note": "The other half of VERDICT-015's retired subject. ADR-0099 makes `resolved_when` the adjudicator's refutation criterion restated as an exit criterion: a confirmed finding without one tells /acs:code to fix something without saying when it is fixed, which is how a review loop fails to converge.",
+      "files": [
+        {
+          "base": "run",
+          "path": "steps/code/iter-1/verdict.json",
+          "fixture": "verdict/confirmed-without-resolved-when.json"
+        }
+      ],
+      "invoke": {
+        "argv": [
+          "verdict",
+          "show",
+          "--run",
+          "{{run}}",
+          "--skill",
+          "code",
+          "--iteration",
+          "1"
+        ]
+      },
+      "expect": {
+        "exit_code": 2,
+        "stderr_contains": [
+          "is confirmed but carries no resolved_when",
+          "that field is what /acs:code works to"
+        ],
+        "stdout_excludes": [
+          "\"passed\""
         ]
       },
       "severity": "critical"

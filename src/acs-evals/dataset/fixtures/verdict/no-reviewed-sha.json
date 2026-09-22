@@ -1,8 +1,7 @@
 {
-  "skill": "docs-sync",
+  "skill": "code",
   "run_id": "TKT-1",
   "iteration": 1,
-  "reviewed_sha": "9f1c2ab7d4e5063b1c8a2f90d7e4b615a3c0d829",
   "lens": null,
   "passed": true,
   "findings": [],
