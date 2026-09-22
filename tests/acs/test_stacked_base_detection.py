@@ -600,6 +600,28 @@ class TestDegradedIndex(unittest.TestCase):
         self.assertIn("are this branch's own", result["message"])
         self.assertIn("fork point", result["message"])
 
+    def test_the_fork_warning_names_the_commit_that_does_the_reverting(self):
+        # Which half of a revert pair the lost control actually mis-reads,
+        # measured here rather than assumed: the REVERT restores content the
+        # base already holds, so it is the one that flips to absorbed. The
+        # commit it reverted reads False either way, and conforms, so it is
+        # never patch-tested -- naming it points the author at the only commit
+        # of the pair the missing control does not affect.
+        root = self_revert(self)
+        tmpdir = tempfile.mkdtemp(prefix="acs-stacked-base-idx-")
+        self.addCleanup(shutil.rmtree, tmpdir, True)
+        base_env = mod.tree_index(root, "main", tmpdir, "base")
+        revert = _git(root, "rev-parse", "HEAD").strip()
+        reverted = _git(root, "rev-parse", "HEAD~1").strip()
+        self.assertTrue(mod.absorbed(root, revert, "revert", base_env, None, []))
+        self.assertFalse(mod.absorbed(root, reverted, "reverted", base_env, None, []))
+        with mock.patch.object(mod, "tree_index", side_effect=_index_unusable("fork")):
+            result = mod.check(root, "main", FORMAT, PREFIX)
+        for surface in (result["message"], mod.__doc__):
+            flat = " ".join(surface.split())
+            self.assertIn("a commit that reverts this branch's own earlier work", flat)
+            self.assertNotIn("a commit this branch itself reverted", flat)
+
     def test_the_degraded_note_never_contradicts_the_absorbed_note(self):
         # Without the fork index the merge-base control cannot run, so the
         # self-revert commit reads as absorbed -- the opposite of untested.

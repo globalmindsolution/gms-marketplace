@@ -65,9 +65,11 @@ KNOWN LIMITATIONS, ACCEPTED.
     and is reported as stacked. The diagnosis is wrong, but such a branch has
     zero net content, so the replay is a no-op and cannot lose work.
   * A degraded run can add a second one, and says so rather than hiding it:
-    with the fork index unusable control one cannot run, so a commit this
-    branch itself reverted reads as absorbed. `notes` then names the index that
-    failed and the message carries the same warning, on either verdict.
+    with the fork index unusable control one cannot run, so a commit that
+    reverts this branch's own earlier work reads as absorbed — its post-image
+    is exactly what the base holds. The commit it reverted is unaffected.
+    `notes` then names the index that failed and the message carries the same
+    warning, on either verdict.
 
 Usage:
   stacked-base.py check --base main \\
@@ -206,8 +208,8 @@ def find_replay_point(root, merge_base, commits, oldest_candidate, base_env):
 #: A lost fork index disables control one, whatever shape the report takes, so
 #: both message shapes carry this sentence rather than only the not-stacked one.
 FORK_DEGRADED = ("One control did not run: the throwaway index of the fork point was "
-                 "unusable, so each commit was tested against %s only — a commit this "
-                 "branch itself reverted can read as absorbed that way.")
+                 "unusable, so each commit was tested against %s only — a commit that "
+                 "reverts this branch's own earlier work can read as absorbed that way.")
 
 
 def build_message(base, base_ref, rng, stacked, replay_onto, own_count, degraded=None):
