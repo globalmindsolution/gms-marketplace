@@ -1469,6 +1469,29 @@ Purpose: ship the implementation as a pull request.
   `Parent`/`Epic`) using type-driven value mapping, reusing the existing
   Project `field-list` call. A schema-undefined field is surfaced as an
   info finding, mirroring the existing fallback above.
+- **Stacked-base pre-flight (standing behavior, MAR-590):** step 1 detects the
+  base branch and then runs a read-only, network-free pre-flight over the
+  branch's commit range BEFORE anything is pushed; the caller performs the
+  `git fetch` the helper deliberately does not. Base detection moves into step 1
+  and is **critical**, so its failure stops the run before the push rather than
+  after it. On a stacked-base verdict the run MUST stop before the push: no
+  push, no `gh pr create`/`gh pr edit`, the report's `message` surfaced
+  VERBATIM as a blocking problem, and no PR created — so a `/create-pr` run can
+  now end with no PR. A pre-flight that cannot evaluate the condition is
+  advisory — one `info` finding and the run continues — and a failed
+  `git fetch` is treated the same way. A not-stacked verdict whose report
+  carries a non-empty `notes` is advisory too, never conclusive: the report's
+  `message` accounts for every `notes` entry, each named exactly once, on both
+  the stacked and the not-stacked message shape, and the run MUST NOT read such
+  a report as evidence that the non-conforming subjects are the branch's own —
+  it surfaces that `message` as an `info` finding and continues. Detection is
+  deliberately incomplete and never authoritative: it reports before the push
+  rather than preventing the conventions-gate failure, a miss degrades to the
+  ordinary red gate with no replay advice rather than to a false alarm, one
+  false positive is accepted deliberately, and a degraded run can add a second
+  that the report announces. The skill never runs the rebase or the force-push;
+  the author does. Stacking remains permitted and the repository's merge
+  strategy is unchanged.
 
 ## 6. `/merge-pr`
 
