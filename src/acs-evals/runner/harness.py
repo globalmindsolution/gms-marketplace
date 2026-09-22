@@ -232,7 +232,8 @@ SETTINGS = {
     "merge_strategy": "squash",
 }
 
-PROFILES = ("bare", "seeded", "ticketed", "epic", "app", "app-ticketed")
+PROFILES = ("bare", "seeded", "ticketed", "epic", "app", "app-ticketed",
+            "run", "run-epic")
 
 #: Settings for the fixture-app profiles: a real coverage floor the gate can
 #: bite on and the fixture's own test command. It also carried
@@ -289,6 +290,14 @@ class Sandbox:
     a real codebase with tests, docs, a payments path and 32 commits of history)
     plus the reconciled counter; ``app-ticketed`` mints a task on it whose
     implementation touches the API, the payments path and the docs.
+
+    ``run`` and ``run-epic`` stack one step further: they open a run over the
+    ticket ``ticketed`` and ``epic`` mint. Since ADR-0097 the workspace is keyed
+    by RUN -- locks, file maps and step state live under ``runs/<run-id>/`` --
+    so a case that seeds under the ticket partition seeds where nothing reads
+    and its guard fails open. Those two profiles are additions, deliberately:
+    opening a run inside ``ticketed`` would change what the gates resolve for
+    every case that already stands on it.
     """
 
     def __init__(self, build, profile="bare", keep=False):
@@ -302,6 +311,7 @@ class Sandbox:
         self.ws = os.path.join(self.base, "ws")
         self.partition = os.path.join(self.ws, "repo")
         self.ticket_id = None
+        self.run_id = None
         self._build()
 
     # -- construction ----------------------------------------------------
@@ -332,10 +342,12 @@ class Sandbox:
                       fh, indent=2)
         # No `--size`/`--stakes`: ADR-0095 retired the axes, and rigor is
         # judged from `plan.md` by /acs:ship rather than declared at mint time.
-        if self.profile == "ticketed":
+        if self.profile in ("ticketed", "run"):
             self.ticket_id = self._mint("Add user login", "task")
-        elif self.profile == "epic":
+        elif self.profile in ("epic", "run-epic"):
             self.ticket_id = self._mint("Checkout revamp", "epic")
+        if self.profile in ("run", "run-epic"):
+            self.run_id = self._open_run()
 
     def _build_app(self):
         from fixture_app import build as build_fixture  # runner/ is on sys.path
@@ -360,6 +372,16 @@ class Sandbox:
             raise BuildError("could not mint a %s ticket in the %s profile: %s"
                              % (kind, self.profile, out["stderr"] or out["stdout"]))
         return json.loads(out["stdout"])["ticket_id"]
+
+    def _open_run(self):
+        """One run over the minted ticket -- what the run-keyed surfaces answer
+        about. The id is DERIVED from the subject, never allocated, so it is
+        read back rather than assumed."""
+        out = self.run("acs.py", "run", "new", "--ticket", self.ticket_id)
+        if out["exit_code"] != 0:
+            raise BuildError("could not open a run in the %s profile: %s"
+                             % (self.profile, out["stderr"] or out["stdout"]))
+        return json.loads(out["stdout"])["run_id"]
 
     # -- driving ---------------------------------------------------------
     def run(self, script, *argv, stdin=None):
@@ -397,10 +419,13 @@ class Sandbox:
     def ticket_dir(self, ticket_id=None):
         return os.path.join(self.partition, ticket_id or self.ticket_id or "")
 
+    def run_dir(self, run_id=None):
+        return os.path.join(self.partition, "runs", run_id or self.run_id or "")
+
     def write(self, base, rel, content):
-        """Write one seed file under ``repo``, ``ws`` or ``ticket``."""
+        """Write one seed file under ``repo``, ``ws``, ``ticket`` or ``run``."""
         root = {"repo": self.repo, "ws": self.partition,
-                "ticket": self.ticket_dir()}[base]
+                "ticket": self.ticket_dir(), "run": self.run_dir()}[base]
         path = os.path.join(root, rel)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as fh:
