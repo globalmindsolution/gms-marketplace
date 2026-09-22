@@ -3,14 +3,14 @@
   "target_plugin": "acs",
   "target_release": "v0.5.0",
   "recorded_against": "0.4.9",
-  "recorded_against_fingerprint": "60a7c34b59f402c0",
+  "recorded_against_fingerprint": "60aaca0ff147fa54",
   "recorded_on": "2026-09-14",
-  "description": "Golden dataset for the acs plugin's next release gate. Covers the surfaces v0.5.0 changed (the deterministic acs.py entry point and the contracts it made computable), the pipeline spine every release depends on, and — as of 1.1.0 — the skill surface after the skills-independence refactor and the ADR 0091 design-phase entry-point fold: all 32 shipped skills (28 as of 1.2.0, after ADR 0094 folded the four doc-set legs into /acs:create-docs), ship.yaml-driven ordering with its out-of-order advisories in place of the removed order gates, and the four-wide doc-bootstrap fan-out.",
+  "description": "Golden dataset for the acs plugin's next release gate. Covers the surfaces v0.5.0 changed (the deterministic acs.py entry point and the contracts it made computable), the pipeline spine every release depends on, and — as of 1.1.0 — the skill surface after the skills-independence refactor and the ADR 0091 design-phase entry-point fold: all 32 shipped skills (28 as of 1.2.0, after ADR 0094 folded the four doc-set legs into /acs:create-docs; 32 again on the v0.5.0 surface, which adds review-code and the four ADR 0095 code-* legs and drops the test alias), ship.yaml-driven ordering with its out-of-order advisories in place of the removed order gates, and the four-wide doc-bootstrap fan-out.",
   "tiers": {
     "deterministic": "dataset/cases/*.json, run by runner/run_golden.py. No model, no network, $0.",
     "agentic": "evals/**/case.yaml, run by `claude plugin eval`. Spawns sessions; costs money."
   },
-  "recorded_against_note": "1.2.0 is recorded against the SOURCE tree in this checkout (src/acs, moved there from plugins/acs), not against an installed build: every surface this version pins landed after 0.4.9 was released, so the installed plugin predates the dataset. Run it with `make eval-source`, which sets ACS_PLUGIN_ROOT=<checkout>/src/acs; against that source it is 519/519. Against installed 0.4.9 it fails, and that is the dataset working correctly — it is reporting the installed build as stale, not a regression. `recorded_against` is the version string a human recognises and `recorded_against_fingerprint` is what actually identifies the build, because an unreleased source tree carries the version of the release it supersedes. Cutting v0.5.0 sets `recorded_against` to \"0.5.0\"; the fingerprint is unchanged by a version bump and is re-stamped only by `--record`.",
+  "recorded_against_note": "1.2.0 is recorded against the SOURCE tree in this checkout (src/acs, moved there from plugins/acs), not against an installed build: every surface this version pins landed after 0.4.9 was released, so the installed plugin predates the dataset. Run it with `make eval-source`, which sets ACS_PLUGIN_ROOT=<checkout>/src/acs; against that source it is 361/361. Against installed 0.4.9 it fails, and that is the dataset working correctly — it is reporting the installed build as stale, not a regression. `recorded_against` is the version string a human recognises and `recorded_against_fingerprint` is what actually identifies the build, because an unreleased source tree carries the version of the release it supersedes. Cutting v0.5.0 sets `recorded_against` to \"0.5.0\"; the fingerprint is unchanged by a version bump and is re-stamped by `--record` or, when a reconciliation records the goldens case by case instead, by hand. This entry was re-stamped by hand from 60a7c34b59f402c0 to 60aaca0ff147fa54: the v0.5.0 surface adds `review-code`, removes the `test` alias and renames `analyze-ticket`, so REDESIGN-IMPLEMENTATION-PIPELINE.md:1306-1312 invalidates the old fingerprint by design and directs that it be re-recorded as part of the gate rather than read as a regression.",
   "covers": [
     "MAR-402",
     "MAR-520",
@@ -26,6 +26,9 @@
     "MAR-530",
     "MAR-575",
     "MAR-578",
-    "MAR-579"
+    "MAR-579",
+    "MAR-585",
+    "MAR-586",
+    "MAR-587"
   ]
 }
