@@ -122,9 +122,10 @@ configured and have not yet been validated against a live remote.
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
   routes to the right skill — target all 32 green across 38 probes (matches
-  `s04_skill_triggers.py`'s 32-skill routing coverage, up from the original 12,
-  which is 31 of the 32 shipped skill directories: only the `test` alias is
-  unprobed, since `run-e2e-tests` carries its probe. The six internal legs —
+  `s04_skill_triggers.py`'s 32-skill routing coverage — its own 38-probe set is
+  32 description/explicit probes plus 6 negatives — up from the original 12, and
+  now covering all 32 of the 32 shipped skill directories, with no exclusions
+  since v0.5.0 deleted the `test` alias directory. The six internal legs —
   `/acs:project`'s two (ADR 0091) and `/acs:code`'s four delivery-path legs
   (ADR-0095) — are probed by explicit invocation plus a negative saying a
   description of the leg's subject must reach its entry point; the four doc-set
