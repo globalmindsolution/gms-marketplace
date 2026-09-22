@@ -6,7 +6,7 @@ flowchart LR
         MR["globalmindsolution/gms-marketplace<br/>(marketplace repo)"]
         ACT["GitHub Actions<br/>CI: tests/acs/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump (via /acs:release's release/* PR + human merge)"]
         PRS["Consumer-repo PRs"]
-        EVALS["src/acs-evals/behavioural/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
+        EVALS["evals/behavioural/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
         subgraph gates["Consumer-repo required-check gates (opt-in, /acs:setup-installed)"]
             G_CONV["acs-conventions.yml<br/>Branch / PR / commit conventions"]
             G_TEST["acs-tests.yml<br/>Tests & coverage"]
@@ -68,7 +68,7 @@ Key facts:
   gated by its own **`Tests & coverage`** required check
   (`.github/workflows/acs-tests.yml`, run via `.acs/ci/run-tests.py`) —
   graded repo-wide against the 90% floor. Behavioral evals
-  (`src/acs-evals/behavioural/<plugin>/`) run **locally only** — they make LLM calls and are not
+  (`evals/behavioural/<plugin>/`) run **locally only** — they make LLM calls and are not
   coupled to CI.
 - **Consumer-repo required-check gates**: `/acs:setup` can opt-in scaffold up
   to three independent GitHub Actions checks per consumer repo — conventions

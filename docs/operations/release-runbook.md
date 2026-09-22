@@ -13,14 +13,14 @@ the step-by-step the maintainer follows.
 
 1. **The pre-release quality gate — acs-evals — runs before the cut, and
    the cut stops on its first failure.** It lives in this repo at
-   [`src/acs-evals/`](../../src/acs-evals/README.md) and is declared as
+   [`evals/`](../../evals/README.md) and is declared as
    `release.pre_release_gate` in `.acs/settings.json`; `/acs:release
    <version>` runs it verbatim, in order, from the checkout root before it
    drafts, bumps, branches or pushes anything. To run it by hand first —
    which is how you find out before the cut does:
    ```bash
-   cd src/acs-evals
-   make eval-source   # golden cases against ../../src/acs — the gate
+   cd evals
+   make eval-source   # golden cases against ../plugins/acs — the gate
    make measure       # tier 3 — SPENDS MONEY; a no-op when this exact build is already measured
    make perf          # judge the measurement; refuses one taken of any other build
    ```
@@ -36,7 +36,7 @@ the step-by-step the maintainer follows.
    `make perf` reports, before continuing — do not tag on red, and do not
    cut past the gate: `/acs:release` will not. (The free in-repo smoke already ran on every commit via
    pre-commit. The in-repo paid suite,
-   `python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid`, is an on-demand tool kept
+   `python3 evals/behavioural/run_evals.py --plugin acs --paid`, is an on-demand tool kept
    for the forge-tier scenarios, not the gate.) When you do run that on-demand
    suite, note that it can exit non-zero with **no** failing scenario, printing
    `PRE-FLIGHT FAILED — the sandbox cannot see the plugin` and
@@ -54,10 +54,10 @@ the step-by-step the maintainer follows.
    the skill is unavailable:
    1. **Bump the version** — set the same `version` in both
       `.claude-plugin/marketplace.json` and
-      `src/acs/.claude-plugin/plugin.json` (by convention both are kept in
+      `plugins/acs/.claude-plugin/plugin.json` (by convention both are kept in
       sync), and point the acs `git-subdir` `source.ref` at the new tag.
    2. **Update the changelog** — add the matching section to
-      [`src/acs/CHANGELOG.md`](../../src/acs/CHANGELOG.md) (Keep a Changelog
+      [`plugins/acs/CHANGELOG.md`](../../plugins/acs/CHANGELOG.md) (Keep a Changelog
       format); this becomes the release notes.
    3. **Open the release PR**, get CI green, and merge (squash). On merge the
       Release workflow cuts the immutable `v<version>` tag and publishes the
@@ -80,7 +80,7 @@ from `run_post_skill()`'s `skill == "merge-pr" and status == "completed"`
 branch). A ticket merged any other way never gets an archive entry, so it is
 invisible to the archive-only path. `enumerate_merged_tickets()` now also
 recovers such tickets from `base_branch` commit-subject history (see
-`src/acs/skills/release/SKILL.md`); this section records why the gap
+`plugins/acs/skills/release/SKILL.md`); this section records why the gap
 exists and what the fallback does and does not fix.
 
 ### Why `/acs:merge-pr` was not invoked for MAR-71..MAR-305 and PR #391
@@ -115,7 +115,7 @@ without any single cause being sufficient on its own:
    "This GraphQL query is not enabled for this session"), so the skill
    cannot run here at all regardless of the review-gate question above.
 4. **Process seam.** `/acs:ship` deliberately stops at `create-pr` and
-   never runs `/acs:merge-pr` itself (`src/acs/skills/ship/SKILL.md:30`,
+   never runs `/acs:merge-pr` itself (`plugins/acs/skills/ship/SKILL.md:30`,
    `:89`); this repo's own `CLAUDE.md` names `/acs:merge-pr` only in its
    `--pr` exempt-PR form (`CLAUDE.md:23,28`). Nothing in the default
    pipeline path routes a ticket PR to the sanctioned merge step, so a human

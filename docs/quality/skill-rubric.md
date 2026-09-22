@@ -1,9 +1,9 @@
 # Skill rubric
 
 How good is a skill? Every other document in this set, and every document in
-[acs-evals](../../src/acs-evals/README.md) — this repo's golden dataset, at
-`src/acs-evals/` — deliberately refuses to answer that.
-`src/acs-evals/docs/RUBRIC.md` ranks *the consequence of a case failing*, and
+[acs-evals](../../evals/README.md) — this repo's golden dataset, at
+`evals/` — deliberately refuses to answer that.
+`evals/docs/RUBRIC.md` ranks *the consequence of a case failing*, and
 says so outright: "whether acs should behave that way in the
 first place is a design judgement this dataset deliberately does not make."
 `EVALUATION-PROCESS.md` opens by disclaiming the same question. Both are right
@@ -31,10 +31,10 @@ skill. The dimension asks whether it is *discriminating*, not whether it is
 well written: a description that wins its own probe but also wins its
 neighbour's is worse than a plain one that wins only its own.
 
-- **Evidence**: the skill's probe in `src/acs-evals/behavioural/acs/scenarios/s04_skill_triggers.py`
-  and `src/acs-evals/dataset/routing.json`, measured over 5 runs.
+- **Evidence**: the skill's probe in `evals/behavioural/acs/scenarios/s04_skill_triggers.py`
+  and `evals/dataset/routing.json`, measured over 5 runs.
 - **Blocks** when reliability is below 100%. Routing is an absolute floor —
-  `src/acs-evals/docs/PERFORMANCE.md` already treats it as one, and a skill that
+  `evals/docs/PERFORMANCE.md` already treats it as one, and a skill that
   routes 4 times in 5 fails one user in five.
 - **Reports, never blocks**: time-to-route. The median across description
   probes is ~3.0s; `ship` at 6.5s and `create-requirements` at 5.2s are slower
@@ -72,7 +72,7 @@ coordinator's prose.
 
 ### 4. Structure — is the document itself conformant?
 
-- **Evidence**: the `SKILL-*` case in `src/acs-evals/dataset/cases/10-skills.json`
+- **Evidence**: the `SKILL-*` case in `evals/dataset/cases/10-skills.json`
   (frontmatter: `name`, a non-empty `description`, the invocation flag), and
   `structure_lint.py` against the skill's own declared `required_sections`
   (ADR 0056 — the list the executor is told to write IS the list the verifier
@@ -148,14 +148,14 @@ Per skill, and deliberately **not a score**:
 separately is the point of the rubric: a thin skill is not a broken skill, and
 it is not a finished one either.
 
-There is no composite number, for the reason `src/acs-evals/docs/RUBRIC.md` gives
+There is no composite number, for the reason `evals/docs/RUBRIC.md` gives
 about its own levels: a percentage "invites shipping on a number", and one
 skill that refuses to route is not offset by thirty-one that do.
 
 ## Using it before a release
 
 1. Run the deterministic tier and the routing measurement. Both are described
-   in `src/acs-evals/behavioural/README.md`; the routing half costs money, the rest does not.
+   in `evals/behavioural/README.md`; the routing half costs money, the rest does not.
 2. Fill the matrix in
    [`testing-strategy.md`](testing-strategy.md) — it already carries a
    per-skill row per layer, and those layers map onto dimensions 1, 2, 3 and 4.
@@ -177,5 +177,5 @@ and with the user, not by grading.
 It also inherits the limit its sibling states plainly: evidence is only as good
 as the build it was measured against. A dimension that passed against an
 installed build older than the source under review is not evidence about the
-source. See `src/acs-evals/dataset/manifest.json` for which build the current
+source. See `evals/dataset/manifest.json` for which build the current
 figures describe.

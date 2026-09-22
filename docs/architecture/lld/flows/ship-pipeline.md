@@ -1,7 +1,7 @@
 # Flow — /ship pipeline orchestration
 
 `/ship` adds orchestration only, and it adds it by **reading a declaration**:
-the step order lives in `src/acs/workflows/ship.yaml` (or the consumer's
+the step order lives in `plugins/acs/workflows/ship.yaml` (or the consumer's
 `.acs/workflows/ship.yaml`, which replaces it wholesale). The coordinator
 loops over `acs.py run next`, which prints the run's **derived** cursor — the
 first step in that list the run has not recorded `completed`. No new state:

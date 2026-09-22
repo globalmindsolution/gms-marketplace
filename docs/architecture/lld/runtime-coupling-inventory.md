@@ -133,7 +133,7 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 
 ### Additionally confirmed agnostic, beyond the design list (assumption C-1)
 
-The following scripts exist in `src/acs/hooks/scripts/` and are runtime-agnostic by
+The following scripts exist in `plugins/acs/hooks/scripts/` and are runtime-agnostic by
 construction (Bash-invoked, read/write workspace JSON or partition state). The design's
 `design.md:244-245` list omitted them; they are flagged here so AC-1
 ("every … component") holds completely.
@@ -156,8 +156,8 @@ construction (Bash-invoked, read/write workspace JSON or partition state). The d
 - `subagent-statusline.py` — renders the subagent statusline; reads workspace JSON via Bash
   invocation.
 
-All four scripts exist in `src/acs/hooks/scripts/` (confirmed by
-`ls src/acs/hooks/scripts/`); `statusline.py`'s cost-sampling half is coupled per the
+All four scripts exist in `plugins/acs/hooks/scripts/` (confirmed by
+`ls plugins/acs/hooks/scripts/`); `statusline.py`'s cost-sampling half is coupled per the
 note above, not purely agnostic.
 
 ---
@@ -196,9 +196,9 @@ documented here rather than half-implemented in code.
 ### A. `check-conventions.py` — ticket description vs. repo
 
 The ticket description names `check-conventions.py` among runtime-agnostic components. There
-is NO `check-conventions.py` in `src/acs/hooks/scripts/`. What exists is a CI template at
-`src/acs/templates/ci/check-conventions.py` that `/acs:setup` copies into the consumer repo
-at `.acs/ci/check-conventions.py` (confirmed by `ls src/acs/templates/ci/`). It is a
+is NO `check-conventions.py` in `plugins/acs/hooks/scripts/`. What exists is a CI template at
+`plugins/acs/templates/ci/check-conventions.py` that `/acs:setup` copies into the consumer repo
+at `.acs/ci/check-conventions.py` (confirmed by `ls plugins/acs/templates/ci/`). It is a
 consumer-repo commit-convention checker, NOT a plugin runtime component. The design's
 runtime-agnostic list (`design.md:244-245`) correctly omits it.
 
@@ -208,7 +208,7 @@ ticket-description divergence is noted rather than silently propagated into docu
 ### B. Schema count reconciliation (C-2)
 
 The design (`design.md:21`) states "the 9 `*.schema.json` files." The repo
-(`ls src/acs/schemas/`) has **10 `*.schema.json` files** + `acs-messages.xsd`:
+(`ls plugins/acs/schemas/`) has **10 `*.schema.json` files** + `acs-messages.xsd`:
 
 | File | Type |
 |------|------|
@@ -255,7 +255,7 @@ does NOT edit any of the listed files.
 | `docs/architecture/hld/tech-stack.md` | Add Codex CLI shim row; add Codex runtime adapter row | MAR-5 |
 | `docs/architecture/lld/contracts.md` | Add "Hook events (Codex CLI)" section; add `models.claude-code`/`models.codex` to Settings section | MAR-5 (shim section), MAR-6 (settings section) |
 | `docs/architecture/lld/flows/hook-gated-skill-run.md` | Add Codex CLI variant note after the existing Claude Code sequence diagram | MAR-5 |
-| `src/acs/schemas/settings.schema.json` | Add `models.claude-code` and `models.codex` sub-objects (D4 Option A; activates `ci.yml:197-199`) | MAR-6 |
+| `plugins/acs/schemas/settings.schema.json` | Add `models.claude-code` and `models.codex` sub-objects (D4 Option A; activates `ci.yml:197-199`) | MAR-6 |
 
 **Scope guard:** MAR-4 does NOT edit any of these files. Editing them before the corresponding
 code exists would document behavior that has no implementation, breaking the conformance chain

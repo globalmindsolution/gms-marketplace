@@ -1,7 +1,7 @@
 # Skill Requirements
 
 Thirty-two skills in total. There is no registry file listing them: a skill is
-a **directory** under `src/acs/skills/` holding a `SKILL.md`, and that is the
+a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). `skills/<name>/acs.yaml` declares what
 each one reads and writes; nothing declares which group it belongs to, because
 nothing needs to.
@@ -28,7 +28,7 @@ skill's own progress inside a step is `steps/<skill>/state.json`.
 
 The phase a skill sits in is a grouping, not an order. The order the Build,
 Test and Ship steps run in for a ticket is declared in
-`src/acs/workflows/ship.yaml` ([workflow.md](workflow.md#pipeline)), and
+`plugins/acs/workflows/ship.yaml` ([workflow.md](workflow.md#pipeline)), and
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
@@ -954,7 +954,7 @@ tickets where the change is architecturally significant.
 
 > **Section numbering.** The numbers below are stable identifiers for these
 > per-skill blocks, not the run order. The order the Build/Test/Ship steps
-> run in is declared in `src/acs/workflows/ship.yaml`
+> run in is declared in `plugins/acs/workflows/ship.yaml`
 > ([workflow.md](workflow.md#pipeline)); the lettered sections (2a–2d, 3a)
 > are the Build/Test skills added by the skills-independence refactor, which
 > land between the originally-numbered ones.

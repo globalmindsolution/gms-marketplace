@@ -71,7 +71,7 @@ In a fresh session inside `/tmp/acs-spike`:
 - ✅ `~/acs-workspace/` exists (created and write-probed).
 - ✅ Final validation passes (init refuses to finish on invalid settings).
 
-Validates: [setup/SKILL.md](../../../src/acs/skills/setup/SKILL.md) steps 5–7,
+Validates: [setup/SKILL.md](../../../plugins/acs/skills/setup/SKILL.md) steps 5–7,
 G6.
 
 ## Step 2 — Gate proof (exit-2 blocks) — the G1 core
@@ -88,9 +88,9 @@ Before creating any ticket, try to jump the pipeline:
 - ✅ With settings removed/absent, any skill reports
   `… Run /acs:init first.` instead.
 
-Validates: [README.md "How gating works"](../../../src/acs/README.md#how-gating-works),
+Validates: [README.md "How gating works"](../../../plugins/acs/README.md#how-gating-works),
 gate messages in
-[acs_lib/_common.py](../../../src/acs/hooks/scripts/acs_lib/_common.py) (`GateError`), G1.
+[acs_lib/_common.py](../../../plugins/acs/hooks/scripts/acs_lib/_common.py) (`GateError`), G1.
 
 ## Step 3 — `/acs:create-ticket`
 
@@ -108,7 +108,7 @@ gate messages in
   `no specs found … run /acs:create-spec SPIKE-1 first.`) — the gate moved
   forward by exactly one step.
 
-Validates: [README.md "Workspace layout"](../../../src/acs/README.md#workspace-layout),
+Validates: [README.md "Workspace layout"](../../../plugins/acs/README.md#workspace-layout),
 ticket schema, G1.
 
 ## Step 4 — `/acs:ship SPIKE-1`
@@ -129,7 +129,7 @@ ticket schema, G1.
   conversation.
 
 Validates: [usage.md "umbrella mode"](../../requirements/usage.md#ship-a-feature--umbrella-mode),
-[README.md skills table](../../../src/acs/README.md#the-12-skills), G1, G2.
+[README.md skills table](../../../plugins/acs/README.md#the-12-skills), G1, G2.
 
 ## Step 5 — `/acs:merge-pr SPIKE-1`
 
@@ -146,7 +146,7 @@ After a human glance at the PR:
   run's tokens/cost.
 
 Validates: [usage.md merge flow](../../requirements/usage.md#ship-a-feature--umbrella-mode),
-[README.md skills table](../../../src/acs/README.md#the-12-skills).
+[README.md skills table](../../../plugins/acs/README.md#the-12-skills).
 
 ## Outcome
 

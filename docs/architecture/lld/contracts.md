@@ -1,9 +1,9 @@
 # LLD — Interface contracts
 
 The binding shapes live in machine-validated files; this page is the index.
-Canonical detail: `src/acs/docs/INTERNALS.md`.
+Canonical detail: `plugins/acs/docs/INTERNALS.md`.
 
-## Coordinator ↔ subagent (JSON, `src/acs/schemas/`)
+## Coordinator ↔ subagent (JSON, `plugins/acs/schemas/`)
 
 | Message | Direction | Key content |
 |---------|-----------|-------------|
@@ -16,7 +16,7 @@ Canonical detail: `src/acs/docs/INTERNALS.md`.
 v0.5.0: a second schema language bought nothing the first one did not already
 carry, and the in-process XML validator existed only to avoid a subprocess per
 message. The contract's declarations are now the fifteen JSON Schemas under
-`src/acs/schemas/`, `result.schema.json` among them, and `acs.py result
+`plugins/acs/schemas/`, `result.schema.json` among them, and `acs.py result
 validate` checks a step's result document before its post-hook consumes it.
 Constraint names stay typed — a misspelled delegation key fails at the
 coordinator rather than arriving at the subagent as an absent value.
@@ -165,7 +165,7 @@ every fail-open branch (not a write tool, no partition, no active executor)
 records nothing — and recording **never changes the verdict**: a failed append
 is one extra stderr note beside the unchanged warning, with no retry, wait or
 lock. The item shape **is** declared in
-`src/acs/schemas/skill-state.schema.json` — the retired `escalations` array
+`plugins/acs/schemas/skill-state.schema.json` — the retired `escalations` array
 never was; run-entry items already declare
 `additionalProperties: true`, so that declaration documents the entry rather
 than tightening what a run entry may carry.
@@ -188,7 +188,7 @@ reference recorded by a COMPLETED step — `gates._pr_recorded_for` reads
 member, across every run of the ticket, and requires that step's last status to
 be `completed`. Full table:
 INTERNALS.md "Canonical states keys per skill". Schemas:
-`src/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
+`plugins/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
 recorded by `plan-approval.py` and is **not** read by any gate this
 release — `/create-pr`'s gate remains `code-state.states.verifier_passed ==
 true` (unchanged; MAR-73, slice 3 of MAR-69).

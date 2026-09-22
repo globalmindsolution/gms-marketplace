@@ -7,7 +7,7 @@ eval must assert to count as evidence; this doc says which numbers decide
 whether a version ships, and which of the PRD's own goals those numbers cover.
 
 The machine-readable source is
-[`src/acs-evals/dataset/thresholds.json`](../../src/acs-evals/dataset/thresholds.json):
+[`evals/dataset/thresholds.json`](../../evals/dataset/thresholds.json):
 every threshold carries its `value`, `severity`, `rule` and `why`, and
 `runner/perf_gate.py` reads that file rather than any number written here. Where
 this doc and that file disagree, the file is right and this doc is stale.
@@ -19,11 +19,11 @@ stops at the first non-zero exit. Nothing else gates a cut.
 
 | # | Command | Cost | What a failure means |
 |---|---|---|---|
-| 1 | `make -C src/acs-evals eval-source` | free, 20 s | A contract this build was recorded emitting has moved. |
-| 2 | `make -C src/acs-evals check` | free, 1 s | A generated case tree or the fixture hash is stale against the plugin source. |
-| 3 | `make -C src/acs-evals mutation` | free, 2 s | Schema-constraint coverage fell below its 0.9 floor. |
-| 4 | `make -C src/acs-evals measure` | ~10 h, ~$150 | A skill stopped routing, stopped completing, or moved on cost, time or quality. |
-| 5 | `make -C src/acs-evals perf` | free | The measurement, judged against the thresholds and the baseline. |
+| 1 | `make -C evals eval-source` | free, 20 s | A contract this build was recorded emitting has moved. |
+| 2 | `make -C evals check` | free, 1 s | A generated case tree or the fixture hash is stale against the plugin source. |
+| 3 | `make -C evals mutation` | free, 2 s | Schema-constraint coverage fell below its 0.9 floor. |
+| 4 | `make -C evals measure` | ~10 h, ~$150 | A skill stopped routing, stopped completing, or moved on cost, time or quality. |
+| 5 | `make -C evals perf` | free | The measurement, judged against the thresholds and the baseline. |
 
 Steps 2 and 3 were added on 2026-09-16 and are the point of this ordering: both
 are free, both fail closed on their own exit codes, and together they cost 3

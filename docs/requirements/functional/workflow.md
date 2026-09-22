@@ -4,10 +4,10 @@
 
 The `acs` plugin implements a multi-step delivery workflow. Every skill
 declares its own **phase** — design, build, test, ship, utility — in
-`src/acs/skills/<name>/acs.yaml`, beside the artifacts it reads and writes.
+`plugins/acs/skills/<name>/acs.yaml`, beside the artifacts it reads and writes.
 There is no registry file: the surfaces that need the grouping read the skill
 directories. The ORDER in which a ticket's build/test/ship steps run is
-**declared data, not hook code**: it lives in `src/acs/workflows/ship.yaml`,
+**declared data, not hook code**: it lives in `plugins/acs/workflows/ship.yaml`,
 which a consumer repo MAY replace wholesale with
 `<repo>/.acs/workflows/ship.yaml` (an override, never a merge).
 

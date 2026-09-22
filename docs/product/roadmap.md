@@ -58,8 +58,8 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 32 skills + 32 agent files on disk (verified `ls src/acs/skills` = 32,
-  `ls src/acs/agents` = 32; ADR-0095 added `/acs:code`'s four delivery-path
+- 32 skills + 32 agent files on disk (verified `ls plugins/acs/skills` = 32,
+  `ls plugins/acs/agents` = 32; ADR-0095 added `/acs:code`'s four delivery-path
   legs, which own no agents of their own and spawn `code`'s pair); the reflection (execute→verify) protocol is
   active on the fourteen skills that run a loop — the twelve authoring
   skills plus `/acs:code` and `/acs:create-docs`; no skill has a plan phase
@@ -109,7 +109,7 @@ the docs. Step-by-step runbook with per-step assertions:
 Traces G1, G3, G4, G5. The regression net that makes dogfooding and every
 future change safe; built on what M2-0 learns by hand.
 
-All four sub-epics are implemented in [`src/acs-evals/behavioural/`](../../src/acs-evals/behavioural/README.md): a tiered
+All four sub-epics are implemented in [`evals/behavioural/`](../../evals/behavioural/README.md): a tiered
 runner (free deterministic checks + paid `claude -p`), a `Sandbox`/`Check`
 harness asserting on workspace artifacts, and 8 scenarios covering G1–G4,
 G8+G9, G11, plus cleanup. The 6 free/paid scenarios (`s01`–`s06`) validated
@@ -157,7 +157,7 @@ configured and have not yet been validated against a live remote.
   pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic) becomes
   this repo's per-PR CI brake once a workflow is wired to run it. The suite
   itself has now been **imported into this repository** at
-  [`src/acs-evals/`](../../src/acs-evals/README.md), so the brake no longer
+  [`evals/`](../../evals/README.md), so the brake no longer
   waits on a sibling checkout at a pinned ref — only the
   workflow is decided, not yet landed, and `.github/workflows/` still carries
   no eval job. Paid measurement runs at release cadence from that same suite.
@@ -264,7 +264,7 @@ the `acs:metrics` skill land in E1 before the skill ships. **Note (delivered):**
 `acs:metrics` (delivery KPIs — throughput, funnel, coverage, review iterations)
 shipped alongside a separate `acs:usage` skill (AI spend/tokens/time), splitting
 delivery-metrics from AI-spend tracking; both verified on disk
-(`src/acs/skills/metrics/SKILL.md`, `src/acs/skills/usage/SKILL.md`).
+(`plugins/acs/skills/metrics/SKILL.md`, `plugins/acs/skills/usage/SKILL.md`).
 
 - **E4.1** — Skill skeleton + data-source wiring (`metrics.json`, `tickets-index.json`, `pipeline-state.json`, `code-state.json`, `create-pr-state.json`).
 - **E4.2** — Six dashboard panels implemented and rendered via `show_widget` inline in the Claude Code session.
@@ -561,7 +561,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   `required_sections`) is settled in this epic's design phase, per **C-21**. **(Shipped in v0.4.5 — G38/G39 epic MAR-149: MAR-150 #284, MAR-151 #285, MAR-152 #286.)** Of thread (i)/(iii) above,
   the `create-spec` extension target and `formats.spec_template` were
   retired outright in v0.4.6 when MAR-156/ADR 0066 deleted `/acs:create-spec`
-  (`src/acs/CHANGELOG.md`'s `## [0.4.6]` "Removed"/"Changed" entries) — this
+  (`plugins/acs/CHANGELOG.md`'s `## [0.4.6]` "Removed"/"Changed" entries) — this
   bullet records what shipped in v0.4.5, not current capability. The
   advisory→blocking promotion for the other 8 producer verifiers and
   `formats.design_template` remain live (the former now lives in
