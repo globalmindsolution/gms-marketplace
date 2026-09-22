@@ -1,21 +1,22 @@
 {
   "group": "executor file map",
-  "description": "MAR-529 turned 'mutate ONLY the files in your task's file map' from a sentence in the executor prompt into a PreToolUse write guard. These cases pin the DECLARATION side \u2014 what `acs filemap set/show` accepts, and how the enforced union accumulates across an iteration's parallel executor tasks.\n\nNOT COVERED: the guard's own allow/deny decisions. Driving them needs a PreToolUse hook envelope with an active executor record, which this harness does not construct. FILEMAP-006 records the declaration-side half of that seam; the enforcement half is an open gap.",
+  "description": "MAR-529 turned 'mutate ONLY the files in your task's file map' from a sentence in the executor prompt into a PreToolUse write guard. These cases pin the DECLARATION side \u2014 what `acs filemap set/show` accepts, and how the enforced union accumulates across an iteration's parallel executor tasks.\n\nNOT COVERED: the guard's own allow/deny decisions. Driving them needs a PreToolUse hook envelope with an active executor record, which this harness does not construct. FILEMAP-006 records the declaration-side half of that seam; the enforcement half is 12-filemap-guard.json, which drives the PreToolUse hook directly.",
   "surface": "acs filemap",
   "covers": [
-    "MAR-529"
+    "MAR-529",
+    "ADR-0097"
   ],
-  "profile": "ticketed",
+  "profile": "run",
   "cases": [
     {
       "id": "FILEMAP-001",
       "title": "before any declaration the map is empty and declared is false",
-      "note": "A TRIVIAL-lane run spawns no planner, so no map is ever declared; the guard fails open on exactly this state rather than denying every write.",
+      "note": "A TRIVIAL-lane run spawns no planner, so no map is ever declared; the guard fails open on exactly this state rather than denying every write. Re-keyed by ADR-0097: the map moved to `runs/<id>/steps/<skill>/iter-<n>/filemap.json` (REDESIGN-IMPLEMENTATION-PIPELINE.md:858-880, acs_lib/filemap.py:43-59), and REDESIGN-IMPLEMENTATION-PIPELINE.md:1093 leaves `acs filemap` itself unchanged -- only `--ticket` -> `--run` and `ticket_id` -> `run_id` move. What the surface accepts and reports is what it was.",
       "invoke": {
         "argv": [
           "filemap",
           "show",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--skill",
           "code",
@@ -30,7 +31,7 @@
           "declared": false,
           "tasks": {},
           "union": [],
-          "ticket_id": "TKT-1",
+          "run_id": "TKT-1",
           "skill": "code",
           "iteration": "1"
         }
@@ -43,7 +44,7 @@
         "argv": [
           "filemap",
           "set",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--skill",
           "code",
@@ -73,16 +74,17 @@
             ]
           }
         }
-      }
+      },
+      "note": "Re-keyed by ADR-0097: the map moved to `runs/<id>/steps/<skill>/iter-<n>/filemap.json` (REDESIGN-IMPLEMENTATION-PIPELINE.md:858-880, acs_lib/filemap.py:43-59), and REDESIGN-IMPLEMENTATION-PIPELINE.md:1093 leaves `acs filemap` itself unchanged -- only `--ticket` -> `--run` and `ticket_id` -> `run_id` move. What the surface accepts and reports is what it was."
     },
     {
       "id": "FILEMAP-003",
       "title": "a second task adds to the iteration's union without disturbing the first",
-      "note": "Parallel executors each declare their own task; the guard enforces the union, so one task's declaration must never overwrite another's.",
+      "note": "Parallel executors each declare their own task; the guard enforces the union, so one task's declaration must never overwrite another's. Re-keyed by ADR-0097: the map moved to `runs/<id>/steps/<skill>/iter-<n>/filemap.json` (REDESIGN-IMPLEMENTATION-PIPELINE.md:858-880, acs_lib/filemap.py:43-59), and REDESIGN-IMPLEMENTATION-PIPELINE.md:1093 leaves `acs filemap` itself unchanged -- only `--ticket` -> `--run` and `ticket_id` -> `run_id` move. What the surface accepts and reports is what it was.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-filemap.json",
+          "base": "run",
+          "path": "steps/code/iter-1/filemap.json",
           "json": {
             "skill": "code",
             "iteration": "1",
@@ -100,7 +102,7 @@
         "argv": [
           "filemap",
           "set",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--skill",
           "code",
@@ -137,8 +139,8 @@
       "title": "show reports the union across every declared task",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-filemap.json",
+          "base": "run",
+          "path": "steps/code/iter-1/filemap.json",
           "json": {
             "skill": "code",
             "iteration": "1",
@@ -159,7 +161,7 @@
         "argv": [
           "filemap",
           "show",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--skill",
           "code",
@@ -187,17 +189,18 @@
             "tests/test_login.py"
           ]
         }
-      }
+      },
+      "note": "Re-keyed by ADR-0097: the map moved to `runs/<id>/steps/<skill>/iter-<n>/filemap.json` (REDESIGN-IMPLEMENTATION-PIPELINE.md:858-880, acs_lib/filemap.py:43-59), and REDESIGN-IMPLEMENTATION-PIPELINE.md:1093 leaves `acs filemap` itself unchanged -- only `--ticket` -> `--run` and `ticket_id` -> `run_id` move. What the surface accepts and reports is what it was."
     },
     {
       "id": "FILEMAP-005",
       "title": "an absolute path is normalised to a repo-relative one on declaration",
-      "note": "The map is repo-relative by construction, so a leading slash is stripped rather than rejected. The guard resolves the WRITE target the same way, which is what makes /repo/../outside.py fail to match anything.",
+      "note": "The map is repo-relative by construction, so a leading slash is stripped rather than rejected. The guard resolves the WRITE target the same way, which is what makes /repo/../outside.py fail to match anything. Re-keyed by ADR-0097: the map moved to `runs/<id>/steps/<skill>/iter-<n>/filemap.json` (REDESIGN-IMPLEMENTATION-PIPELINE.md:858-880, acs_lib/filemap.py:43-59), and REDESIGN-IMPLEMENTATION-PIPELINE.md:1093 leaves `acs filemap` itself unchanged -- only `--ticket` -> `--run` and `ticket_id` -> `run_id` move. What the surface accepts and reports is what it was.",
       "invoke": {
         "argv": [
           "filemap",
           "set",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--skill",
           "code",
@@ -227,12 +230,12 @@
     {
       "id": "FILEMAP-006",
       "title": "declaration accepts a traversal path verbatim \u2014 matching it is what fails",
-      "note": "Pins a real asymmetry. `../outside.py` is stored as written, but the guard normalises a write target before comparing, so no target ever matches this entry: declaring an escape does not grant one. Recorded so a future change to either side shows up here.",
+      "note": "Pins a real asymmetry. `../outside.py` is stored as written, but the guard normalises a write target before comparing, so no target ever matches this entry: declaring an escape does not grant one. Recorded so a future change to either side shows up here. Re-keyed by ADR-0097: the map moved to `runs/<id>/steps/<skill>/iter-<n>/filemap.json` (REDESIGN-IMPLEMENTATION-PIPELINE.md:858-880, acs_lib/filemap.py:43-59), and REDESIGN-IMPLEMENTATION-PIPELINE.md:1093 leaves `acs filemap` itself unchanged -- only `--ticket` -> `--run` and `ticket_id` -> `run_id` move. What the surface accepts and reports is what it was.",
       "invoke": {
         "argv": [
           "filemap",
           "set",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--skill",
           "code",
@@ -261,7 +264,7 @@
         "argv": [
           "filemap",
           "set",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--skill",
           "code",
@@ -283,16 +286,17 @@
             "src/b.py"
           ]
         }
-      }
+      },
+      "note": "Re-keyed by ADR-0097: the map moved to `runs/<id>/steps/<skill>/iter-<n>/filemap.json` (REDESIGN-IMPLEMENTATION-PIPELINE.md:858-880, acs_lib/filemap.py:43-59), and REDESIGN-IMPLEMENTATION-PIPELINE.md:1093 leaves `acs filemap` itself unchanged -- only `--ticket` -> `--run` and `ticket_id` -> `run_id` move. What the surface accepts and reports is what it was."
     },
     {
       "id": "FILEMAP-008",
       "title": "each iteration carries its own map",
-      "note": "The coordinator declares a fresh map before each iteration's executors, and the guard reads the highest iteration declared.",
+      "note": "The coordinator declares a fresh map before each iteration's executors, and the guard reads the highest iteration declared. Re-keyed by ADR-0097: the map moved to `runs/<id>/steps/<skill>/iter-<n>/filemap.json` (REDESIGN-IMPLEMENTATION-PIPELINE.md:858-880, acs_lib/filemap.py:43-59), and REDESIGN-IMPLEMENTATION-PIPELINE.md:1093 leaves `acs filemap` itself unchanged -- only `--ticket` -> `--run` and `ticket_id` -> `run_id` move. What the surface accepts and reports is what it was.",
       "files": [
         {
-          "base": "ticket",
-          "path": "phases/code/iter-1-filemap.json",
+          "base": "run",
+          "path": "steps/code/iter-1/filemap.json",
           "json": {
             "skill": "code",
             "iteration": "1",
@@ -309,7 +313,7 @@
         "argv": [
           "filemap",
           "show",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--skill",
           "code",

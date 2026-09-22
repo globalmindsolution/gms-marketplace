@@ -1,11 +1,12 @@
 {
-  "group": "ticket locks",
-  "description": "MAR-530 made state writes and locks fail closed. A ticket lock held by another checkout is never auto-stolen: `lock status` reports WHO holds it and ON WHAT EVIDENCE, and breaking it requires the explicit `force-unlock` with a reason, which is recorded in the partition's audit ledger. `stale` is the verdict; `basis` is how it was reached — and the two regimes differ, because a lock held on another host has no liveness signal at all and degrades to an age timeout.\n\nThe three age-based bases below are host-independent and so are pinned here. The pid-liveness bases (holder-process-gone / -live / -unprobeable) depend on the running host's process table and on whether the runner may probe the pid, so they are left to the plugin's own unit tests rather than recorded as goldens.",
+  "group": "run locks",
+  "description": "MAR-530 made state writes and locks fail closed. A run lock held by another checkout is never auto-stolen: `lock status` reports WHO holds it and ON WHAT EVIDENCE, and breaking it requires the explicit `force-unlock` with a reason, which is recorded in the partition's audit ledger. `stale` is the verdict; `basis` is how it was reached — and the two regimes differ, because a lock held on another host has no liveness signal at all and degrades to an age timeout.\n\nThe three age-based bases below are host-independent and so are pinned here. The pid-liveness bases (holder-process-gone / -live / -unprobeable) depend on the running host's process table and on whether the runner may probe the pid, so they are left to the plugin's own unit tests rather than recorded as goldens.",
   "surface": "acs lock",
   "covers": [
-    "MAR-530"
+    "MAR-530",
+    "ADR-0097"
   ],
-  "profile": "ticketed",
+  "profile": "run",
   "cases": [
     {
       "id": "LOCK-001",
@@ -14,7 +15,7 @@
         "argv": [
           "lock",
           "status",
-          "--ticket",
+          "--run",
           "TKT-1"
         ]
       },
@@ -30,15 +31,16 @@
           "basis_detail": null,
           "held_by_me": false
         }
-      }
+      },
+      "note": "Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were."
     },
     {
       "id": "LOCK-002",
       "title": "a foreign lock older than 24h is stale on an age timeout",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/foreign-stale.json"
         }
       ],
@@ -46,7 +48,7 @@
         "argv": [
           "lock",
           "status",
-          "--ticket",
+          "--run",
           "TKT-1"
         ]
       },
@@ -61,15 +63,16 @@
           "basis_detail": "no liveness signal is available and it is older than 24h"
         }
       },
-      "severity": "critical"
+      "severity": "critical",
+      "note": "Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were."
     },
     {
       "id": "LOCK-003",
       "title": "a foreign lock younger than 24h is NOT stale",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/foreign-fresh.json"
         }
       ],
@@ -77,7 +80,7 @@
         "argv": [
           "lock",
           "status",
-          "--ticket",
+          "--run",
           "TKT-1"
         ]
       },
@@ -91,16 +94,17 @@
           "basis": "age-within-timeout",
           "basis_detail": "no liveness signal is available and it is younger than 24h"
         }
-      }
+      },
+      "note": "Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were."
     },
     {
       "id": "LOCK-004",
       "title": "FAIL CLOSED: an unreadable created_at is not stale",
-      "note": "With no liveness signal and no readable age, the safe answer is 'do not steal this lock', not 'assume it is dead'.",
+      "note": "With no liveness signal and no readable age, the safe answer is 'do not steal this lock', not 'assume it is dead'. Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were.",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/foreign-no-timestamp.json"
         }
       ],
@@ -108,7 +112,7 @@
         "argv": [
           "lock",
           "status",
-          "--ticket",
+          "--run",
           "TKT-1"
         ]
       },
@@ -127,12 +131,12 @@
     {
       "id": "LOCK-005",
       "title": "force-unlock refuses to run without a reason",
-      "note": "The reason is the audit record's whole point, so it is a required argument rather than an optional note.",
+      "note": "The reason is the audit record's whole point, so it is a required argument rather than an optional note. Re-keyed with the family even though it was green: the old spelling errored on the missing --reason before argparse read the key at all, so the case never reached the surface it names. Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were.",
       "invoke": {
         "argv": [
           "lock",
           "force-unlock",
-          "--ticket",
+          "--run",
           "TKT-1"
         ]
       },
@@ -148,8 +152,8 @@
       "title": "force-unlock breaks a stale lock and records the staleness it saw",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/foreign-stale.json"
         }
       ],
@@ -157,7 +161,7 @@
         "argv": [
           "lock",
           "force-unlock",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--reason",
           "holder host is decommissioned"
@@ -173,18 +177,21 @@
             "checkout_id": "elsewhere-deadbeef",
             "hostname": "some-other-host.invalid",
             "pid": 4242
-          }
+          },
+          "was_stale": true,
+          "staleness_basis": "age-timeout"
         }
-      }
+      },
+      "note": "`was_stale`/`staleness_basis` are what the title means by 'records the staleness it saw', pinned here rather than left to the ledger. Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were."
     },
     {
       "id": "LOCK-007",
       "title": "force-unlock also breaks a NON-stale foreign lock — the audit is the control, not a refusal",
-      "note": "Deliberate: an operator who has decided a live-looking lock must go is not blocked, but the ledger records the staleness verdict that stood at the time, so the decision is reviewable afterwards.",
+      "note": "Deliberate: an operator who has decided a live-looking lock must go is not blocked, but the ledger records the staleness verdict that stood at the time, so the decision is reviewable afterwards. `was_stale`/`staleness_basis` pin the verdict the ledger records, which is the control this case describes. Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were.",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/foreign-fresh.json"
         }
       ],
@@ -192,7 +199,7 @@
         "argv": [
           "lock",
           "force-unlock",
-          "--ticket",
+          "--run",
           "TKT-1",
           "--reason",
           "operator intervention"
@@ -203,18 +210,20 @@
         "stdout_json_subset": {
           "ok": true,
           "forced": true,
-          "detail": "lock broken"
+          "detail": "lock broken",
+          "was_stale": false,
+          "staleness_basis": "age-within-timeout"
         }
       }
     },
     {
       "id": "LOCK-008",
       "title": "SAME HOST: a live holder process is never stale, however old the lock",
-      "note": "The only regime with a real liveness signal. The lock is 30h old — past the 24h timeout — yet the holder pid is alive on this host, so age is not consulted. Pins state.py's holder-process-live answer, which no case reached before (a mutant flipping it survived the CLI mutation sweep). The pid and hostname are the runner's own at record time, so the expectation pins only the verdict and its basis.",
+      "note": "The only regime with a real liveness signal. The lock is 30h old — past the 24h timeout — yet the holder pid is alive on this host, so age is not consulted. Pins state.py's holder-process-live answer, which no case reached before (a mutant flipping it survived the CLI mutation sweep). The pid and hostname are the runner's own at record time, so the expectation pins only the verdict and its basis. Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were.",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/same-host-live.json"
         }
       ],
@@ -222,7 +231,7 @@
         "argv": [
           "lock",
           "status",
-          "--ticket",
+          "--run",
           "TKT-1"
         ]
       },
@@ -242,11 +251,11 @@
     {
       "id": "LOCK-009",
       "title": "SAME HOST: a holder process that is gone makes the lock stale at once",
-      "note": "A fresh lock (created now) whose pid on this host no longer exists: provably dead beats any age rule. The pid and hostname are the runner's own at record time, so the expectation pins only the verdict and its basis.",
+      "note": "A fresh lock (created now) whose pid on this host no longer exists: provably dead beats any age rule. The pid and hostname are the runner's own at record time, so the expectation pins only the verdict and its basis. Re-keyed by ADR-0097: REDESIGN-IMPLEMENTATION-PIPELINE.md:868 relocates the lock verbatim ('the lock protocol, unchanged, relocated') and :1093 leaves `acs lock` itself alone, so only `--ticket` -> `--run` and `.lock` -> `runs/<id>/lock.json` move; the verdict and its basis are what they were.",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/same-host-gone.json"
         }
       ],
@@ -254,7 +263,7 @@
         "argv": [
           "lock",
           "status",
-          "--ticket",
+          "--run",
           "TKT-1"
         ]
       },
@@ -273,61 +282,63 @@
     },
     {
       "id": "LOCK-010",
-      "title": "skill-start refuses a ticket held by a STALE foreign lock and says it looks stale",
-      "note": "check_lock's message has two branches: a lock that looks stale names the basis and the force-unlock command; a fresh one does not. The stale branch was reached by no case (its negation survived the CLI mutation sweep).",
+      "title": "step start refuses a ticket held by a STALE foreign lock and says it looks stale",
+      "note": "check_lock's message has two branches: a lock that looks stale names the basis and the force-unlock command; a fresh one does not. The stale branch was reached by no case (its negation survived the CLI mutation sweep). Re-keyed by ADR-0097; REDESIGN-IMPLEMENTATION-PIPELINE.md:1094 replaces `acs start` (skill-start.py) with `acs step start --step <name>` and :1123 keeps the skill-start reconciliation it carried. check_lock's text is unchanged (acs_lib/lock.py:97-120): only the command prefix and the lock's path move.",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/foreign-stale.json"
         }
       ],
       "invoke": {
-        "script": "skill-start.py",
         "argv": [
-          "--skill",
-          "code",
-          "--args",
-          "TKT-1"
+          "step",
+          "start",
+          "--run",
+          "TKT-1",
+          "--step",
+          "code"
         ]
       },
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "acs skill-start: ticket is locked by /elsewhere/repo but the lock looks stale (no liveness signal is available and it is older than 24h). If you are sure no other session is working this ticket, break it with `acs.py lock force-unlock --reason \"...\"` (which records who broke it), or remove <WS>/TKT-1/.lock manually, and retry."
+          "acs step start: ticket is locked by /elsewhere/repo but the lock looks stale (no liveness signal is available and it is older than 24h). If you are sure no other session is working this ticket, break it with `acs.py lock force-unlock --reason \"...\"` (which records who broke it), or remove <WS>/runs/TKT-1/lock.json manually, and retry."
         ]
       }
     },
     {
       "id": "LOCK-011",
-      "title": "skill-start refuses a ticket held by a FRESH foreign lock without calling it stale",
+      "title": "step start refuses a ticket held by a FRESH foreign lock without calling it stale",
       "files": [
         {
-          "base": "ticket",
-          "path": ".lock",
+          "base": "run",
+          "path": "lock.json",
           "fixture": "lock/foreign-fresh.json"
         }
       ],
       "invoke": {
-        "script": "skill-start.py",
         "argv": [
-          "--skill",
-          "code",
-          "--args",
-          "TKT-1"
+          "step",
+          "start",
+          "--run",
+          "TKT-1",
+          "--step",
+          "code"
         ]
       },
       "expect": {
         "exit_code": 2,
         "stderr_contains": [
-          "acs skill-start: ticket is locked by another session (/elsewhere/repo, since <TS>; no liveness signal is available and it is younger than 24h)."
+          "acs step start: ticket is locked by another session (/elsewhere/repo, since <TS>; no liveness signal is available and it is younger than 24h)."
         ],
         "stderr_excludes": [
           "looks stale",
           "force-unlock"
         ]
       },
-      "note": "The fresh branch of check_lock's message: locked, with the basis named, and no suggestion to break it."
+      "note": "The fresh branch of check_lock's message: locked, with the basis named, and no suggestion to break it. Re-keyed by ADR-0097; REDESIGN-IMPLEMENTATION-PIPELINE.md:1094 replaces `acs start` (skill-start.py) with `acs step start --step <name>` and :1123 keeps the skill-start reconciliation it carried. check_lock's text is unchanged (acs_lib/lock.py:97-120): only the command prefix and the lock's path move."
     }
   ],
   "severity": "major"
