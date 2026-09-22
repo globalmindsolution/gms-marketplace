@@ -66,13 +66,21 @@ the range still lists them, and the `commit_message` check fails on subjects
 belonging to a pull request that is already merged.
 
 **What the pre-flight reports.** One compact JSON object on stdout, and one of
-three exits: `0` for verdict `clean` or `own_violations` (nothing is stacked —
-any non-conforming subject is this branch's own and gets the ordinary gate
-failure), `1` for verdict `stacked_base`, and `2` when the condition cannot be
-evaluated at all (`acs stacked-base: <reason>` on stderr — an unresolvable base
-ref, or no merge base). Exit 2 is advisory: the run continues. On exit 1 the
-report's `message` is the deliverable — it names the offending subjects with
-their short SHAs and carries the replay command with real values substituted.
+three exits: `0` for verdict `clean` or `own_violations` (nothing is stacked),
+`1` for verdict `stacked_base`, and `2` when the condition cannot be evaluated
+at all (`acs stacked-base: <reason>` on stderr — an unresolvable base ref, or no
+merge base). Exit 2 is advisory: the run continues. On exit 1 the report's
+`message` is the deliverable — it names the offending subjects with their short
+SHAs and carries the replay command with real values substituted.
+
+**On exit 0, read `notes` before concluding the subjects are yours.** That
+conclusion holds while `notes` is empty: a non-conforming subject is then this
+branch's own and gets the ordinary gate failure, never replay advice. A
+NON-empty `notes` means the run qualified its own report — a commit it could
+not test, an index it could not build, or absorbed-looking content with no safe
+replay point — and `message` says which. A qualified exit 0 is not evidence of
+ownership; it is the same kind of answer as exit 2, and the report's `message`
+is what to record and carry on from.
 
 **The remedy is a replay, not a rename.** The generic form is
 `git rebase --onto origin/<base> <old-base>`; the report emits it with the
@@ -101,7 +109,12 @@ today's behaviour, a red gate with no replay advice, never to a false alarm. In
 the other direction one case is accepted deliberately: a branch whose entire net
 content against the base is already in the base is reported as stacked even when
 it was never stacked. The diagnosis is wrong there, but such a branch has no net
-content, so the replay is a no-op and cannot lose work.
+content, so the replay is a no-op and cannot lose work. A third case belongs to
+degraded runs alone, and the report announces it rather than hiding it: with the
+fork-point index unusable the check loses the control that tells a revert from
+an inherited commit, so a commit that reverts this branch's own earlier work can
+read as absorbed — the commit it reverted is unaffected. `notes` names the index
+that failed and `message` carries the same warning, on either verdict.
 
 **Do not reach for `git log --cherry-pick`.** Measured against the real
 pre-replay branch (PR #562 stacked on PR #561, squash-merged as `d09c52f`),
