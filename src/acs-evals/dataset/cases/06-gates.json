@@ -4,7 +4,12 @@
   "surface": "acs gate",
   "covers": [
     "MAR-523",
-    "MAR-528"
+    "MAR-528",
+    "MAR-587",
+    "ADR-0096",
+    "ADR-0097",
+    "ADR-0101",
+    "REDESIGN"
   ],
   "cases": [
     {
@@ -164,7 +169,8 @@
     },
     {
       "id": "GATE-012",
-      "title": "bare: /code is blocked \u2014 could not resolve a ticket id for /code (no argument, no session point",
+      "title": "bare: /code is blocked \u2014 no current run for this checkout and no subject in the invocation",
+      "note": "Re-recorded for v0.5.0, not a regression: resolution is keyed by RUN (ADR-0097), so the refusal names the missing run and subject rather than a ticket id it no longer looks up. The refusal itself is PRESERVED \u2014 REDESIGN-IMPLEMENTATION-PIPELINE.md:752-756 keeps it exactly when the fallback chain bottoms out with no subject at all. Emitter: acs_lib/gates.py:400-404.",
       "profile": "bare",
       "invoke": {
         "argv": [
@@ -175,15 +181,21 @@
       },
       "expect": {
         "exit_code": 2,
+        "stdout_json": {
+          "exit_code": 2,
+          "ok": false,
+          "skill": "code"
+        },
         "stderr_contains": [
           "acs pre-code: blocked",
-          "could not resolve a ticket id for /code (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:code TKT-123."
+          "no current run for this checkout and no subject in the invocation. Give /acs:code a ticket id, a prompt or a path to a document."
         ]
       }
     },
     {
       "id": "GATE-013",
-      "title": "bare: /docs-sync is blocked \u2014 could not resolve a ticket id for /docs-sync (no argument, no session ",
+      "title": "bare: /docs-sync is blocked \u2014 no current run for this checkout and no subject in the invocation",
+      "note": "Re-recorded for v0.5.0, not a regression: resolution is keyed by RUN (ADR-0097), so the refusal names the missing run and subject rather than a ticket id it no longer looks up. The refusal itself is PRESERVED \u2014 REDESIGN-IMPLEMENTATION-PIPELINE.md:752-756 keeps it exactly when the fallback chain bottoms out with no subject at all. Emitter: acs_lib/gates.py:400-404.",
       "profile": "bare",
       "invoke": {
         "argv": [
@@ -194,15 +206,21 @@
       },
       "expect": {
         "exit_code": 2,
+        "stdout_json": {
+          "exit_code": 2,
+          "ok": false,
+          "skill": "docs-sync"
+        },
         "stderr_contains": [
           "acs pre-docs-sync: blocked",
-          "could not resolve a ticket id for /docs-sync (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:docs-sync TKT-123."
+          "no current run for this checkout and no subject in the invocation. Give /acs:docs-sync a ticket id, a prompt or a path to a document."
         ]
       }
     },
     {
       "id": "GATE-014",
-      "title": "bare: /create-pr is blocked \u2014 could not resolve a ticket id for /create-pr (no argument, no session ",
+      "title": "bare: /create-pr is blocked \u2014 no current run for this checkout and no subject in the invocation",
+      "note": "Re-recorded for v0.5.0, not a regression: resolution is keyed by RUN (ADR-0097), so the refusal names the missing run and subject rather than a ticket id it no longer looks up. The refusal itself is PRESERVED \u2014 REDESIGN-IMPLEMENTATION-PIPELINE.md:752-756 keeps it exactly when the fallback chain bottoms out with no subject at all. Emitter: acs_lib/gates.py:400-404.",
       "profile": "bare",
       "invoke": {
         "argv": [
@@ -213,9 +231,14 @@
       },
       "expect": {
         "exit_code": 2,
+        "stdout_json": {
+          "exit_code": 2,
+          "ok": false,
+          "skill": "create-pr"
+        },
         "stderr_contains": [
           "acs pre-create-pr: blocked",
-          "could not resolve a ticket id for /create-pr (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:create-pr TKT-123."
+          "no current run for this checkout and no subject in the invocation. Give /acs:create-pr a ticket id, a prompt or a path to a document."
         ]
       }
     },
@@ -411,7 +434,8 @@
     },
     {
       "id": "GATE-027",
-      "title": "ticketed: /code is blocked \u2014 no plan.md \u2014 run /acs:create-impl-plan TKT-1 first.",
+      "title": "ticketed: /code opens on the run's subject when there is no plan, with the ship.yaml advisory",
+      "note": "Re-recorded for v0.5.0, and the only refusal in this family that becomes a pass. Legitimate only because the BEHAVIOUR changed under REDESIGN-IMPLEMENTATION-PIPELINE.md:752-756 (every upstream artifact has a fallback chain that ends at the subject), :761 (the plan falls back to an implicit plan /acs:code derives from its own read-only survey) and :770-771 (standalone, the same missing read is the fallback doing its job). Emitter: acs_lib/gates.py:342-346. The standard/complex refusal :761 describes lives in /acs:code's own survey, not in this CLI surface, so no deterministic companion case replaces it; the case instead asserts MORE than it did \u2014 the fallback line, the advisory line (ADR-0096's cursor form, acs_lib/advisory.py:32-37) and the stdout subset.",
       "profile": "ticketed",
       "invoke": {
         "argv": [
@@ -423,20 +447,22 @@
         ]
       },
       "expect": {
-        "exit_code": 2,
+        "exit_code": 0,
         "stdout_json_subset": {
-          "ok": false,
-          "exit_code": 2,
+          "ok": true,
+          "exit_code": 0,
           "skill": "code"
         },
         "stderr_contains": [
-          "acs pre-code: blocked \u2014 no plan.md found for TKT-1 (looked in the ticket's docs folder and in <WS>/TKT-1) \u2014 run /acs:create-impl-plan TKT-1 first."
+          "acs: no plan for this run; /acs:code will work from the run's subject instead.",
+          "acs: code normally follows create-test-docs in ship.yaml; the cursor for TKT-1 is analyze-requirements"
         ]
       }
     },
     {
       "id": "GATE-028",
       "title": "ticketed: /docs-sync opens out of order, with the ship.yaml advisory on stderr",
+      "note": "Re-recorded for v0.5.0. Predecessor: ship.yaml is a LIST and the list IS the order (ADR-0096), with run-e2e-tests immediately before docs-sync (src/acs/workflows/ship.yaml:36-37). The version-2 line named the step's unsatisfied `needs:`; there are none now \u2014 the list IS the order \u2014 so render_advisory names the run's cursor instead (acs_lib/advisory.py:11-15, :32-37). `needs:` is an authorised removal: REDESIGN-IMPLEMENTATION-PIPELINE.md \u00a76 (:1168-1173, :1246), and ship.yaml v3 rejects it.",
       "profile": "ticketed",
       "invoke": {
         "argv": [
@@ -455,13 +481,14 @@
           "skill": "docs-sync"
         },
         "stderr_contains": [
-          "acs: docs-sync normally follows code in ship.yaml; code has not completed for TKT-1"
+          "acs: docs-sync normally follows run-e2e-tests in ship.yaml; the cursor for TKT-1 is analyze-requirements"
         ]
       }
     },
     {
       "id": "GATE-029",
       "title": "ticketed: /create-pr opens out of order, with the ship.yaml advisory on stderr",
+      "note": "Re-recorded for v0.5.0, same authority as GATE-028: ADR-0096 makes ship.yaml a list, so the predecessor SET shrinks to the single step before create-pr \u2014 docs-sync (src/acs/workflows/ship.yaml:37-38). The version-2 line named the step's unsatisfied `needs:`; there are none now \u2014 the list IS the order \u2014 so render_advisory names the run's cursor instead (acs_lib/advisory.py:11-15, :32-37). `needs:` is an authorised removal: REDESIGN-IMPLEMENTATION-PIPELINE.md \u00a76 (:1168-1173, :1246), and ship.yaml v3 rejects it.",
       "profile": "ticketed",
       "invoke": {
         "argv": [
@@ -480,7 +507,7 @@
           "skill": "create-pr"
         },
         "stderr_contains": [
-          "acs: create-pr normally follows docs-sync and run-e2e-tests in ship.yaml; docs-sync and run-e2e-tests have not completed for TKT-1"
+          "acs: create-pr normally follows docs-sync in ship.yaml; the cursor for TKT-1 is analyze-requirements"
         ]
       }
     },
@@ -701,6 +728,7 @@
     {
       "id": "GATE-043",
       "title": "epic: /docs-sync opens out of order, with the ship.yaml advisory on stderr",
+      "note": "Re-recorded for v0.5.0. Predecessor: ship.yaml is a LIST and the list IS the order (ADR-0096), with run-e2e-tests immediately before docs-sync (src/acs/workflows/ship.yaml:36-37). The version-2 line named the step's unsatisfied `needs:`; there are none now \u2014 the list IS the order \u2014 so render_advisory names the run's cursor instead (acs_lib/advisory.py:11-15, :32-37). `needs:` is an authorised removal: REDESIGN-IMPLEMENTATION-PIPELINE.md \u00a76 (:1168-1173, :1246), and ship.yaml v3 rejects it. The epic profile changes nothing here: the advisory is a property of the workflow and the run's cursor, not of the ticket's type.",
       "profile": "epic",
       "invoke": {
         "argv": [
@@ -719,13 +747,14 @@
           "skill": "docs-sync"
         },
         "stderr_contains": [
-          "acs: docs-sync normally follows code in ship.yaml; code has not completed for TKT-1"
+          "acs: docs-sync normally follows run-e2e-tests in ship.yaml; the cursor for TKT-1 is analyze-requirements"
         ]
       }
     },
     {
       "id": "GATE-044",
-      "title": "epic: /create-pr opens out of order, with the ship.yaml advisory on stderr",
+      "title": "epic: /create-pr is blocked \u2014 epics are never opened as one pull request directly",
+      "note": "Re-recorded for v0.5.0, and the EXPLICIT resolution of the GATE-042/GATE-044 contradiction, in GATE-042's favour. ADR-0101 (Consequences) records it: create-pr is in _EPIC_VERBS and GATE-042 \u2014 byte-unchanged here \u2014 requires the query to SEE that brake, so one mechanism cannot point both ways and making 042 pass necessarily makes 044 exit 2. Table: acs_lib/brakes.py:121-130 (\"create-pr\": \"opened as one pull request\" at :129), applied to every step in it at acs_lib/gates.py:352-353. Pinned durably by tests/acs/test_epic_brake_covers_create_pr.py, so the two goldens can never silently disagree again.",
       "profile": "epic",
       "invoke": {
         "argv": [
@@ -737,14 +766,15 @@
         ]
       },
       "expect": {
-        "exit_code": 0,
+        "exit_code": 2,
         "stdout_json": {
-          "exit_code": 0,
-          "ok": true,
+          "exit_code": 2,
+          "ok": false,
           "skill": "create-pr"
         },
         "stderr_contains": [
-          "acs: create-pr normally follows docs-sync and run-e2e-tests in ship.yaml; docs-sync and run-e2e-tests have not completed for TKT-1"
+          "acs pre-create-pr: blocked",
+          "ticket TKT-1 is an epic \u2014 epics are never opened as one pull request directly; run /acs:create-design TKT-1 first if the epic has no design yet, then break it down into child tickets with /acs:create-ticket TKT-1 (epic fan-out), then run /acs:create-pr on a child."
         ]
       }
     },
