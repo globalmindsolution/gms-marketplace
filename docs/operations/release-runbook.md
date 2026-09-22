@@ -47,15 +47,25 @@ the step-by-step the maintainer follows.
 2. **Cut the release — recommended: `/acs:release <version>`.** This
    one-command skill runs `release_notes.py status` → `draft` → `bump`
    (drafting and dating the CHANGELOG section from the merged-ticket archive
-   plus the `base_branch` git-history fallback), bumps both manifests +
-   `source.ref`, and opens the exempt `release/*` PR, then stops for a
-   mandatory human merge (ADRs 0050-0052). The manual steps below are the
-   underlying mechanism it automates, and remain the documented fallback if
-   the skill is unavailable:
-   1. **Bump the version** — set the same `version` in both
-      `.claude-plugin/marketplace.json` and
-      `plugins/acs/.claude-plugin/plugin.json` (by convention both are kept in
-      sync), and point the acs `git-subdir` `source.ref` at the new tag.
+   plus the `base_branch` git-history fallback), bumps all four manifests +
+   the Devin meta-plugin's `ref`, and opens the exempt `release/*` PR, then
+   stops for a mandatory human merge (ADRs 0050-0052). The manual steps below
+   are the underlying mechanism it automates, and remain the documented
+   fallback if the skill is unavailable:
+   1. **Bump the version** — set the same `version` in all four files
+      `release.version_locations` lists: `.claude-plugin/marketplace.json`,
+      `plugins/acs/.claude-plugin/plugin.json`,
+      `plugins/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
+      CI checks each Devin manifest against `marketplace.json`, so skipping one
+      fails the cut (`.devin-plugin/plugin.json version != marketplace.json
+      version`). Leave the marketplace `acs` entry's `source` string
+      `"./plugins/acs"` **untouched** — that entry is no longer a pinned
+      `git-subdir` object, so there is nothing to repoint: the ref the
+      marketplace itself was installed at *is* the pin. Rewriting it back into
+      the pinned-object shape is what broke the install twice (recorded in
+      `.github/workflows/ci.yml`). The one ref to set is
+      `requiredPlugins[0].ref` in `.devin-plugin/plugin.json` → `v<version>`;
+      this is what `release.extra_refs` automates.
    2. **Update the changelog** — add the matching section to
       [`plugins/acs/CHANGELOG.md`](../../plugins/acs/CHANGELOG.md) (Keep a Changelog
       format); this becomes the release notes.
