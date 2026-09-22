@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -227,7 +227,7 @@ class LockLedgerHasASchemaTest(unittest.TestCase):
     """An append-only AUDIT artifact is the one whose shape most needs a
     contract: its readers are future tooling and auditors, not this code."""
 
-    SCHEMAS = os.path.join(REPO_ROOT, "src", "acs", "schemas")
+    SCHEMAS = os.path.join(REPO_ROOT, "plugins", "acs", "schemas")
 
     def _schema(self):
         with open(os.path.join(self.SCHEMAS, "lock-events.schema.json"),

@@ -1,7 +1,7 @@
 """MAR-137 spec 02 — wire the diagram-lint gate into the two verifiers.
 
-Prose-contract tests over `src/acs/agents/create-architecture-verifier.md`
-(dimension `mermaid-diagrams`) and `src/acs/agents/create-design-verifier.md`
+Prose-contract tests over `plugins/acs/agents/create-architecture-verifier.md`
+(dimension `mermaid-diagrams`) and `plugins/acs/agents/create-design-verifier.md`
 (dimension `completeness`): both dimensions must invoke the Spec-01-promoted
 `mermaid_lint.py` helper via `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py`
 and map any finding to `severity="blocking"`, replacing the old soft/LLM-judgment
@@ -29,7 +29,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 ARCH_VERIFIER = os.path.join(PLUGIN, "agents", "create-architecture-verifier.md")
 DESIGN_VERIFIER = os.path.join(PLUGIN, "agents", "create-design-verifier.md")

@@ -18,7 +18,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILLS = os.path.join(PLUGIN, "skills")
 AGENTS = os.path.join(PLUGIN, "agents")
 DOCS = os.path.join(REPO_ROOT, "docs")
@@ -34,7 +34,7 @@ def shipped_skills():
     """Counted from disk, not pinned: these two diagrams name the number of
     skills the plugin ships, and a new skill directory must move both rather
     than waiting for someone to notice the drift."""
-    root = os.path.join(REPO_ROOT, "src", "acs", "skills")
+    root = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
     return len([n for n in os.listdir(root)
                 if os.path.isdir(os.path.join(root, n))])
 
@@ -43,7 +43,7 @@ def shipped_agents():
     moves the diagram's count by itself rather than waiting for someone to
     notice, which is how `31` outlived the 32nd agent."""
     return len([n for n in os.listdir(
-        os.path.join(REPO_ROOT, "src", "acs", "agents")) if n.endswith(".md")])
+        os.path.join(REPO_ROOT, "plugins", "acs", "agents")) if n.endswith(".md")])
 
 
 def read(path):

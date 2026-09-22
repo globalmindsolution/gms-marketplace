@@ -17,8 +17,8 @@ yourself first is how you find out before the cut does.
 - [ ] **Working tree is green.** The code being released behaves as recorded.
 
       ```bash
-      cd src/acs-evals
-      export ACS_PLUGIN_ROOT=$PWD/../../src/acs
+      cd evals
+      export ACS_PLUGIN_ROOT=$PWD/../plugins/acs
       make gate
       ```
 

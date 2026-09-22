@@ -1,7 +1,7 @@
 """MAR-114 — /acs:setup Step 4 documents `suites` + the e2e->suites.e2e re-run
 migration offer (AC-5).
 
-Prose-contract unit test for `src/acs/skills/setup/SKILL.md`, mirroring
+Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`, mirroring
 tests/acs/test_setup_quality_path.py's bounded-window `section()`
 technique so a stray mention elsewhere in the file cannot satisfy an
 assertion. `suites` must be defaulted like `quality_path`/`operations_path`
@@ -23,7 +23,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 
 

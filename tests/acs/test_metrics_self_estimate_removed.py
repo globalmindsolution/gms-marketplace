@@ -60,13 +60,13 @@ class TestMetricsAreMeasuredNotAsserted(unittest.TestCase):
 
     def test_the_result_schema_does_not_invite_self_reported_metrics(self):
         import json
-        path = os.path.join(REPO_ROOT, "src", "acs", "schemas", "result.schema.json")
+        path = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "result.schema.json")
         with open(path, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("metrics", schema["properties"])
 
     def test_finalize_invocation_measures_rather_than_copying(self):
-        source = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts",
+        source = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts",
                               "acs_lib", "step.py")
         with open(source, encoding="utf-8") as fh:
             body = fh.read()
@@ -81,8 +81,8 @@ class TestCharterSweepClean(unittest.TestCase):
 
     def test_no_metrics_element_in_agents_or_skills(self):
         hits = _files_containing(
-            [os.path.join(REPO_ROOT, "src", "acs", "agents"),
-             os.path.join(REPO_ROOT, "src", "acs", "skills")],
+            [os.path.join(REPO_ROOT, "plugins", "acs", "agents"),
+             os.path.join(REPO_ROOT, "plugins", "acs", "skills")],
             "<metrics",
         )
         self.assertEqual(
@@ -110,7 +110,7 @@ class TestCharterSweepClean(unittest.TestCase):
         skill reintroducing any variant of it is caught, not just this one
         literal string."""
         pattern = re.compile(r"estimate.{0,80}cost_usd|cost_usd.{0,80}estimate", re.IGNORECASE | re.DOTALL)
-        skills_dir = os.path.join(REPO_ROOT, "src", "acs", "skills")
+        skills_dir = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
         hits = []
         for dirpath, _dirnames, filenames in os.walk(skills_dir):
             for filename in filenames:
@@ -152,7 +152,7 @@ class TestImmutableSurfacesUntouched(unittest.TestCase):
         the XSD's skillName enum, which went with the XSD; a skill is a
         DIRECTORY now, so the directory is the pin."""
         self.assertTrue(os.path.isfile(os.path.join(
-            REPO_ROOT, "src", "acs", "skills", "metrics", "SKILL.md")))
+            REPO_ROOT, "plugins", "acs", "skills", "metrics", "SKILL.md")))
         self.assertIn("metrics", acs_case.lib.UNHOOKED_SKILLS)
 
 

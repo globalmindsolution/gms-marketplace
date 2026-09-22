@@ -14,7 +14,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, HOOKS_DIR)
 

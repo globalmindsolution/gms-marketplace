@@ -175,7 +175,7 @@ generator; one far looser makes it decorative.
 
 A measurement records the **content digest** of the plugin tree it
 exercised (`build.digest`, from `harness.build_digest`): every byte under
-`src/acs` that can change behaviour — skills, agents, hooks, schemas,
+`plugins/acs` that can change behaviour — skills, agents, hooks, schemas,
 templates, workflows, the docs a skill reads at runtime — and nothing a
 release cut rewrites (`plugin.json`'s version label, `CHANGELOG.md`). The
 version string cannot do this job, because an unreleased tree shares one with
@@ -311,7 +311,7 @@ fixed in the runner rather than the dataset:
   reader now finds the one ticket directory the run created.
 
 - **The build is staged outside any checkout.** Resolved in place, this
-  marketplace's build is `src/acs` inside the checkout running the
+  marketplace's build is `plugins/acs` inside the checkout running the
   measurement, and every command a skill embeds names that path. Two of
   three PIPE-create-ticket sessions took it for the project, `cd`'d into the
   checkout before `skill-start.py --allocate`, and minted two tickets in the
@@ -452,7 +452,7 @@ stream and fixed; a routing probe is never re-spent twice.
   could build the wrong thing; and the seeded ticket states all three
   (1.15.0), as the app ticket states its status mapping, so the setup no
   longer depends on that judgement at all. Because the fix touches
-  `src/acs`, it changes the build identity and the checkpoint under it: the
+  `plugins/acs`, it changes the build identity and the checkpoint under it: the
   gate re-runs from scratch.
 
 Scenario set 1.9.0 also rewrote PIPE-create-ticket's prompt: it delegates the

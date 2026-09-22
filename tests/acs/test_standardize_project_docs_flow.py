@@ -20,9 +20,9 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
 import mermaid_lint  # noqa: E402
 
 FLOW_DOC = os.path.join(
@@ -206,13 +206,13 @@ class C4CountAndListFilesTest(unittest.TestCase):
         # Derived, not pinned: a new skill directory moves the diagram
         # by itself rather than waiting for someone to notice.
         shipped = len([n for n in os.listdir(
-            os.path.join(REPO_ROOT, "src", "acs", "skills"))
+            os.path.join(REPO_ROOT, "plugins", "acs", "skills"))
             if os.path.isdir(os.path.join(
-                REPO_ROOT, "src", "acs", "skills", n))])
+                REPO_ROOT, "plugins", "acs", "skills", n))])
         self.assertIn("%d x SKILL.md" % shipped, body)
         self.assertNotIn("21 x SKILL.md", body)
         agents = len([n for n in os.listdir(
-            os.path.join(REPO_ROOT, "src", "acs", "agents")) if n.endswith(".md")])
+            os.path.join(REPO_ROOT, "plugins", "acs", "agents")) if n.endswith(".md")])
         self.assertIn("%d x agent .md (all reachable)" % agents, body)
         self.assertNotIn("43 x agent .md (all reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
@@ -254,12 +254,12 @@ class C4CountAndListFilesTest(unittest.TestCase):
         body = read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "tech-stack.md"))
         # Derived, not pinned: a new skill directory moves this count by
         # itself rather than waiting for someone to notice the doc is stale.
-        shipped = len([n for n in os.listdir(os.path.join(REPO_ROOT, "src", "acs", "skills"))
-                       if os.path.isdir(os.path.join(REPO_ROOT, "src", "acs", "skills", n))])
+        shipped = len([n for n in os.listdir(os.path.join(REPO_ROOT, "plugins", "acs", "skills"))
+                       if os.path.isdir(os.path.join(REPO_ROOT, "plugins", "acs", "skills", n))])
         self.assertIn("acs Skills (%d)" % shipped, body)
         self.assertNotIn("acs Skills (21)", body)
         agents = len([n for n in os.listdir(
-            os.path.join(REPO_ROOT, "src", "acs", "agents")) if n.endswith(".md")])
+            os.path.join(REPO_ROOT, "plugins", "acs", "agents")) if n.endswith(".md")])
         self.assertIn("%d files, all reachable" % agents, body)
         self.assertNotIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
@@ -293,7 +293,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
     so a future case-list change cascades to zero test edits here."""
 
     def _source(self):
-        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
+        path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         return read(path)
 
     def _list(self, name):
@@ -354,7 +354,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
 
         # No eval scenario anywhere references the deleted skill (AC-1,
         # scope extension): scan the whole scenarios package, not just s04.
-        scenarios_dir = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios")
+        scenarios_dir = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios")
         for name in sorted(os.listdir(scenarios_dir)):
             if not name.endswith(".py"):
                 continue

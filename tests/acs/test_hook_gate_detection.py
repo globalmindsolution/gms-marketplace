@@ -41,8 +41,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-HOOKS_JSON = os.path.join(REPO_ROOT, "src", "acs", "hooks", "hooks.json")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+HOOKS_JSON = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -346,7 +346,7 @@ class FailOpenTest(EvidenceCase):
         interpreter rather than acs, and asserting != 2 missed the regression
         entirely, since it escapes as 1."""
         self.break_sessions_dir()
-        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=os.path.join(REPO_ROOT, "src", "acs"))
+        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=os.path.join(REPO_ROOT, "plugins", "acs"))
         with open("/dev/full", "w") as devfull:
             result = subprocess.run(
                 [sys.executable, os.path.join(SCRIPTS, "pre-create-ticket.py")],

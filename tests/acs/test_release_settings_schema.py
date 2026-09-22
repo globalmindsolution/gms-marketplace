@@ -1,6 +1,6 @@
 """MAR-129 — settings.schema.json `release` sub-schema (Decision 5, ADR 0054).
 
-Structure-contract unit test over `src/acs/schemas/settings.schema.json`'s
+Structure-contract unit test over `plugins/acs/schemas/settings.schema.json`'s
 new `properties.release` sub-schema (Option A): shape presence, the
 `required` key list, a recursive no-secret-field walk (Security NFR (i)),
 and a hand-rolled structural conformance check of this repo's own committed
@@ -21,7 +21,7 @@ import os
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
 
@@ -205,8 +205,8 @@ class Mar129ReleaseSettingsProfileOneConformanceCase(unittest.TestCase):
         files = {entry["file"] for entry in settings["release"]["version_locations"]}
         self.assertEqual(
             files,
-            {".claude-plugin/marketplace.json", "src/acs/.claude-plugin/plugin.json",
-             "src/acs/.devin-plugin/plugin.json", ".devin-plugin/plugin.json"},
+            {".claude-plugin/marketplace.json", "plugins/acs/.claude-plugin/plugin.json",
+             "plugins/acs/.devin-plugin/plugin.json", ".devin-plugin/plugin.json"},
         )
 
 

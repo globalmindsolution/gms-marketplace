@@ -1,6 +1,6 @@
 """Unit tests for the PR-convention helper CLI (MAR-72 spec 01).
 
-src/acs/hooks/scripts/pr-conventions.py gives SKILL prose a deterministic
+plugins/acs/hooks/scripts/pr-conventions.py gives SKILL prose a deterministic
 way to (a) render the configured PR title via acs_lib.render_format and (b)
 self-check a rendered title + body against the repo's configured PR
 conventions by driving check-conventions.py's evaluate() — never a divergent
@@ -19,7 +19,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-TARGET = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts", "pr-conventions.py")
+TARGET = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts", "pr-conventions.py")
 
 _spec = importlib.util.spec_from_file_location("acs_pr_conventions", TARGET)
 pc = importlib.util.module_from_spec(_spec)

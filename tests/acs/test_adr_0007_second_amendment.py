@@ -20,7 +20,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 ADR_0007 = os.path.join(REPO_ROOT, "docs", "adr", "0007-living-docs-by-induction.md")
 DOCS_SYNC_SKILL = os.path.join(PLUGIN, "skills", "docs-sync", "SKILL.md")
 README = os.path.join(PLUGIN, "README.md")
@@ -173,7 +173,7 @@ class DocsSyncMechanismEvidenceTest(unittest.TestCase):
 
     def test_docs_sync_skill_exists(self):
         self.assertTrue(os.path.isfile(DOCS_SYNC_SKILL),
-                        "src/acs/skills/docs-sync/SKILL.md must exist")
+                        "plugins/acs/skills/docs-sync/SKILL.md must exist")
 
     def test_workflow_skills_contains_docs_sync(self):
         body = acs_lib_source()
@@ -195,7 +195,7 @@ class DocsSyncMechanismEvidenceTest(unittest.TestCase):
                          "ledger; the order is ship.yaml's")
         self.assertIn("verifier_passed", brake)
         import sys
-        sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
+        sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
         import acs_lib as lib
         steps = lib.steps_of(lib.validate_workflow_file(lib.default_workflow_path()))
         for earlier in ("docs-sync", "run-e2e-tests"):

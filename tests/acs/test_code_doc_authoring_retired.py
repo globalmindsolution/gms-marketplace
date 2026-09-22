@@ -23,7 +23,7 @@ import os
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 CODE_EXECUTE_REF = os.path.join(PLUGIN, "skills", "code", "references",
                                 "execute.md")
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")

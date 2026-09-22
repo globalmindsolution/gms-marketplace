@@ -10,7 +10,7 @@ checkout's run, a ticket id / prompt / document names a subject, and `--run`
 is the only form that names an id. The one refusal it still owns is the epic,
 and the pointer it surfaces is the gate's own.
 
-These are prose-contract checks over `src/acs/skills/ship/SKILL.md` (stdlib
+These are prose-contract checks over `plugins/acs/skills/ship/SKILL.md` (stdlib
 re, the shape every other SKILL.md test in this package uses), cross-checked
 against the live workflow so the prose cannot drift away from the mechanism it
 describes. Run:
@@ -23,7 +23,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402

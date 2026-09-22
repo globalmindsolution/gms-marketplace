@@ -1,8 +1,8 @@
 """MAR-119 spec 02 — create-design-verifier + create-design/SKILL.md
 standards re-anchor.
 
-Prose-contract tests over `src/acs/agents/create-design-verifier.md` and
-`src/acs/skills/create-design/SKILL.md`: the `consistency`/`nfr`
+Prose-contract tests over `plugins/acs/agents/create-design-verifier.md` and
+`plugins/acs/skills/create-design/SKILL.md`: the `consistency`/`nfr`
 dimensions gain a `standards` sub-check reading `standards/` at
 `standards_path`, applied to the design decisions this design.md introduces,
 with the same changeset-scoped block/surface + graceful-degradation rule as
@@ -19,7 +19,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 VERIFIER = os.path.join(PLUGIN, "agents", "create-design-verifier.md")
 SKILL = os.path.join(PLUGIN, "skills", "create-design", "SKILL.md")

@@ -1,4 +1,4 @@
-"""Unit + edge + perf tests for src/acs/hooks/scripts/metrics_aggregate.py (MAR-5 spec 01).
+"""Unit + edge + perf tests for plugins/acs/hooks/scripts/metrics_aggregate.py (MAR-5 spec 01).
 
 Pure stdlib (unittest, tempfile, json, os, time, re); NO show_widget import. Tests drive the
 PURE aggregate(workspace, repo_id) -> dict function against workspaces synthesized in a
@@ -20,7 +20,7 @@ from tempfile import TemporaryDirectory
 
 _SCRIPTS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "src", "acs", "hooks", "scripts",
+    "plugins", "acs", "hooks", "scripts",
 )
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)

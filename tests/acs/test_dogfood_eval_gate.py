@@ -8,7 +8,7 @@ Two guards over committed artifacts, both deterministic and stdlib-only:
    `acs_lib.load_settings(REPO_ROOT)` (which folds a configured `e2e` into
    `suites.e2e`, so the resolved view is the one `/acs:ship` actually reads).
    It then applies the shipped post-code test-gate rule
-   (`src/acs/skills/ship/SKILL.md`, "Post-code test gate": an explicit
+   (`plugins/acs/skills/ship/SKILL.md`, "Post-code test gate": an explicit
    `post_code_test.enabled` wins; otherwise the step is ON iff `settings.e2e`
    or `suites.e2e` is set) and requires it to resolve OFF. This pins a
    repo-local configuration choice, not plugin behaviour: the plugin's e2e
@@ -39,14 +39,14 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
 
 PRD_PATH = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
 ROADMAP_PATH = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
-EVALS_README_PATH = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "README.md")
+EVALS_README_PATH = os.path.join(REPO_ROOT, "evals", "behavioural", "README.md")
 TESTING_STRATEGY_PATH = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
 RUNBOOK_PATH = os.path.join(REPO_ROOT, "docs", "operations", "release-runbook.md")
 ADR_PATH = os.path.join(
@@ -191,7 +191,7 @@ def _s04_probed_skills():
     assertion existed to catch, twice.
     """
     import ast
-    path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
+    path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
     with open(path, encoding="utf-8") as fh:
         tree = ast.parse(fh.read())
     found = set()
@@ -262,7 +262,7 @@ class DocsPolicyTest(unittest.TestCase):
         pre_commit = section(readme, "## Pre-commit and CI")
         self.assertRegex(pre_commit, r"(?i)not a gate")
         # C-4's grep invariant is not this ticket's to narrow.
-        self.assertIn('grep -rn "run_evals\\|src/acs-evals/behavioural/" .github/workflows/', pre_commit)
+        self.assertIn('grep -rn "run_evals\\|evals/behavioural/" .github/workflows/', pre_commit)
 
         strategy = read(TESTING_STRATEGY_PATH)
         for layer in ("5", "6"):
@@ -270,7 +270,7 @@ class DocsPolicyTest(unittest.TestCase):
         self.assertIn("acs-evals", paragraph(strategy, "Layers 1–4 are free"))
         principle = list_item(strategy, "**Cost-aware tiering.**")
         self.assertIn("acs-evals", principle)
-        self.assertNotIn("`python3 src/acs-evals/behavioural/run_evals.py --paid` before tagging", principle)
+        self.assertNotIn("`python3 evals/behavioural/run_evals.py --paid` before tagging", principle)
         # The standing G13 validation-record section stays exactly where it was.
         self.assertIn("## G13 e2e-integrity validation", strategy)
 
@@ -285,8 +285,9 @@ class DocsPolicyTest(unittest.TestCase):
     def test_ci_brake_is_stated_as_a_plan_not_current_fact(self):
         """No document claims this repo already runs acs-evals in CI.
 
-        Two halves, and they moved apart when the suite was folded in as
-        `src/acs-evals/`: the **import** has landed, the **workflow** has not.
+        Two halves, and they moved apart when the suite was folded into this
+        repo (it lives at `evals/` today, having been imported as
+        `src/acs-evals/`): the **import** has landed, the **workflow** has not.
         A document that still names the import as the pending half sends a
         maintainer looking for a checkout that is already here, so the
         pending-wording assertions below are what make this guard bite on the
@@ -310,15 +311,18 @@ class DocsPolicyTest(unittest.TestCase):
             self.assertIn("not yet landed", flattened,
                           "%s must still mark the CI brake as unlanded" % name)
             self.assertNotIn("MAR-576", text, "%s names a retired ticket" % name)
-            self.assertIn(
-                "src/acs-evals", flattened,
-                "%s must name where the imported suite lives" % name,
+            # `evals/` as its own path segment -- a bare "evals" substring
+            # would also match the product name "acs-evals", which these
+            # documents use throughout, and the assertion would pass vacuously.
+            self.assertRegex(
+                flattened, r"(?<![\w/-])evals/",
+                "%s must name where the imported suite lives (the evals/ tree)" % name,
             )
             for stale in pending_import:
                 self.assertNotIn(
                     stale, flattened,
                     "%s still describes the import as pending; it landed at "
-                    "src/acs-evals — only the workflow has not" % name,
+                    "evals/ — only the workflow has not" % name,
                 )
         # Neither release doc may send a maintainer to a ref no workflow pins.
         for path in (RUNBOOK_PATH, EVALS_README_PATH):

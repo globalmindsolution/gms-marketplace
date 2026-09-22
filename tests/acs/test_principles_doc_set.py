@@ -28,14 +28,14 @@ except ImportError:
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
 DOC_PATH = os.path.join(REPO_ROOT, "docs", "principles", "principles.md")
 
 FORBIDDEN_ARTIFACTS = (
     ".claude-plugin/marketplace.json",
-    "src/acs/.claude-plugin/plugin.json",
+    "plugins/acs/.claude-plugin/plugin.json",
     "source.ref",
-    "src/acs/CHANGELOG.md",
+    "plugins/acs/CHANGELOG.md",
     "release.yml",
 )
 

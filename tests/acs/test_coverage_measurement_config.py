@@ -22,7 +22,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS_DIR = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 COVERAGERC = os.path.join(REPO_ROOT, ".coveragerc")
 SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
 GITIGNORE = os.path.join(REPO_ROOT, ".gitignore")
@@ -69,7 +69,7 @@ class TestCoveragercRunSection(unittest.TestCase):
 
     def test_source_is_absolute_var_substituted(self):
         source = self.cp.get("run", "source")
-        self.assertEqual(source, "${ACS_COV_ROOT}/src/acs/hooks/scripts")
+        self.assertEqual(source, "${ACS_COV_ROOT}/plugins/acs/hooks/scripts")
         self.assertIn("${", source)
         self.assertTrue(os.path.isabs(source.replace("${ACS_COV_ROOT}", "/dummy-root")))
 
@@ -93,7 +93,7 @@ class TestCoveragercOmitList(unittest.TestCase):
     def test_omit_lists_exactly_the_true_forwarders(self):
         entries = self._omit_entries()
         expected = {
-            "${ACS_COV_ROOT}/src/acs/hooks/scripts/%s" % fname
+            "${ACS_COV_ROOT}/plugins/acs/hooks/scripts/%s" % fname
             for fname in _true_forwarders()
         }
         self.assertEqual(set(entries), expected)
@@ -108,7 +108,7 @@ class TestCoveragercOmitList(unittest.TestCase):
     def test_post_merge_pr_not_omitted(self):
         entries = self._omit_entries()
         self.assertNotIn(
-            "${ACS_COV_ROOT}/src/acs/hooks/scripts/post-merge-pr.py", entries)
+            "${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-merge-pr.py", entries)
 
     def test_omit_not_in_report_section(self):
         if self.cp.has_section("report"):

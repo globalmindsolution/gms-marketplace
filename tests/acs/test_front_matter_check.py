@@ -24,7 +24,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 HOOKS = os.path.join(PLUGIN, "hooks", "scripts")
 SCRIPT = os.path.join(HOOKS, "front_matter_check.py")
 

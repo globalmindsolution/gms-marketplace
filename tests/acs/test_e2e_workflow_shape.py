@@ -1,5 +1,5 @@
 """Shape/security assertions for the e2e CI workflow template /acs:setup Step 7f
-ships into consumer repos (src/acs/templates/ci/acs-e2e.yml).
+ships into consumer repos (plugins/acs/templates/ci/acs-e2e.yml).
 
 acs-e2e.yml is cloned from acs-tests.yml (NOT acs-conventions.yml): safe
 trigger events only, minimal permissions, cancel-in-progress enabled (unlike
@@ -16,8 +16,8 @@ import os
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-WORKFLOW = os.path.join(REPO_ROOT, "src", "acs", "templates", "ci", "acs-e2e.yml")
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+WORKFLOW = os.path.join(REPO_ROOT, "plugins", "acs", "templates", "ci", "acs-e2e.yml")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
 
 
 def _read(path):

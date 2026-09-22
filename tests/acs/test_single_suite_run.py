@@ -52,7 +52,7 @@ import unittest
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 #: The execute instruction the four delivery paths share (ADR-0095).
 CODE_EXECUTE = os.path.join(PLUGIN, "skills", "code", "references", "execute.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")

@@ -1,24 +1,26 @@
 # acs-evals — golden dataset for the `acs` plugin
 
-The evaluation suite for the [`acs`](../../src/acs) Claude Code plugin. It
+The evaluation suite for the [`acs`](../plugins/acs) Claude Code plugin. It
 holds a **golden dataset**: a curated, versioned corpus of inputs paired with
 the outputs the plugin actually produced, so a release can be checked against
 recorded behaviour instead of against someone's memory of it.
 
 It began as the separate
 [`globalmindsolution/acs-evals`](https://github.com/globalmindsolution/acs-evals)
-repository and was folded into this one at `src/acs-evals/`.
+repository and was folded into this one. It lives at `evals/` today; it was
+folded in at `src/acs-evals/` and moved here when the repo was restructured.
 
 **Reading the pre-fold history.** The fold was squash-merged, so on `main` the
-whole dataset arrives in a single commit and `git log -- src/acs-evals/` shows
-only that one. The commits that built it are still in the original repository,
-on `claude/acs-evals-review-az3x51`, and they carry the **old,
+whole dataset arrives in a single commit, and `git log -- evals/
+src/acs-evals/` — both of the tree's in-repo paths — shows only that one. The
+commits that built it are still in the original repository, on
+`claude/acs-evals-review-az3x51`, and they carry the **old,
 repo-root-relative paths** — so read them there, by the original path:
 
 ```bash
 git remote add acs-evals https://github.com/globalmindsolution/acs-evals.git
 git fetch acs-evals claude/acs-evals-review-az3x51
-git log FETCH_HEAD -- dataset/cases/06-gates.json   # not src/acs-evals/dataset/...
+git log FETCH_HEAD -- dataset/cases/06-gates.json   # not evals/dataset/...
 ```
 
 Built as the release gate for **v0.5.0**.
@@ -33,10 +35,11 @@ Two suites, one tree, because both grade the same plugin:
 | [`behavioural/`](behavioural/README.md) | **behavioural scenarios** that spawn real `claude -p` sessions, per plugin (`behavioural/acs/`) | the `acs-free-evals` pre-commit hook on every commit (free tier); on demand for the paid tier |
 | `evals/` | the routing cases **generated** from `dataset/routing.json` for `claude plugin eval` | `make generate` / `make check` |
 
-`behavioural/` was the repo-root `evals/` tree until it was folded in here, so
-that the plugin's evaluation lives in one place rather than two. Note the name
-collision it had to avoid: `evals/` in this directory is generated output, not
-a suite anyone writes by hand.
+`behavioural/` was a top-level `evals/` tree of its own until it was folded in
+here, so that the plugin's evaluation lives in one place rather than two. Mind
+the name collision, which the restructure made literal: this suite is `evals/`
+at the repo root, and the `evals/` *inside* it (`evals/evals/`) is generated
+output, not a suite anyone writes by hand.
 
 ## How this differs from the plugin's own tests
 
@@ -58,8 +61,8 @@ also catches packaging drift that a source-tree test suite cannot see.
 One command runs the gate:
 
 ```bash
-cd src/acs-evals
-export ACS_PLUGIN_ROOT=$PWD/../../src/acs   # the build being released
+cd evals
+export ACS_PLUGIN_ROOT=$PWD/../plugins/acs   # the build being released
 make gate
 ```
 
@@ -147,7 +150,7 @@ Exit status is 0 only when every selected case matches. Stdlib only, Python
 
 **Which build gets tested.** `ACS_PLUGIN_ROOT` wins if set; otherwise the newest
 installed build under `~/.claude/plugins/cache/*/acs/*/`; otherwise a
-marketplace checkout under `~/.claude/plugins/marketplaces/*/src/acs`. The
+marketplace checkout under `~/.claude/plugins/marketplaces/*/plugins/acs`. The
 banner prints what it resolved, and warns when the build's version differs from
 the one the goldens were recorded against.
 
@@ -155,8 +158,8 @@ That resolution governs **both tiers**. Tier 1 runs the resolved build's CLIs
 directly. Tier 3 hands the same root to `claude --plugin-dir`, so its sessions
 load the build the run names — no plugin cache is touched and nothing needs
 restoring afterwards. Every `make` target except `eval` defaults the root to
-this checkout's `../../src/acs`, so the suite grades the source it sits
-next to; `eval` is left alone because which build the gate judges is the
+this checkout's `../plugins/acs`, so the suite grades the source it sits
+beside; `eval` is left alone because which build the gate judges is the
 question, not a detail.
 
 This was not always true of tier 3, and the failure was quiet: the root was
@@ -167,7 +170,7 @@ against the skills the resolved build ships, and refuses to spend if they
 differ — so the banner is an assertion rather than a caption.
 
 ```bash
-ACS_PLUGIN_ROOT=$PWD/../../src/acs python3 runner/run_golden.py   # or: make eval-source
+ACS_PLUGIN_ROOT=$PWD/../plugins/acs python3 runner/run_golden.py   # or: make eval-source
 ```
 
 ### Tier 2 — agentic routing (not yet runnable)

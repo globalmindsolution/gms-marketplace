@@ -5,7 +5,7 @@ The problem
 -----------
 Claude Code caches an installed plugin at
 ``<cache>/<marketplace>/<plugin>/<version>`` and records that path in
-``installed_plugins.json``. ``src/acs/.claude-plugin/plugin.json`` declares
+``installed_plugins.json``. ``plugins/acs/.claude-plugin/plugin.json`` declares
 ``0.4.9`` -- the same string the released tag declares -- so installing this
 working tree resolves to the directory the RELEASE already occupies. The
 install short-circuits, the stale release is served, and nothing says so. That
@@ -17,7 +17,7 @@ The fix
 Give the working tree a version no release can collide with, derived from the
 tree's own contents:
 
-    0.5.0-dev.<12 hex of a hash over every file under src/acs>
+    0.5.0-dev.<12 hex of a hash over every file under plugins/acs>
 
 Edit any byte of the plugin and the version changes, so the cache key changes,
 so a stale hit is impossible by construction rather than by remembering to
@@ -51,19 +51,19 @@ import shutil
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLUGIN_SRC = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN_SRC = os.path.join(REPO_ROOT, "plugins", "acs")
 
 
 def _evals_harness():
     """The eval suite's harness, loaded by path.
 
-    `harness` is also the module name of `src/acs-evals/behavioural/acs/harness.py`, and a test
+    `harness` is also the module name of `evals/behavioural/acs/harness.py`, and a test
     run that imported that one first would hand it back from `sys.modules`
     under a plain import. Loading by path under a private name sidesteps
     the collision instead of depending on import order.
     """
     import importlib.util
-    path = os.path.join(REPO_ROOT, "src", "acs-evals", "runner", "harness.py")
+    path = os.path.join(REPO_ROOT, "evals", "runner", "harness.py")
     spec = importlib.util.spec_from_file_location("acs_evals_harness", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

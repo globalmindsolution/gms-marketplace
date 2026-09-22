@@ -22,9 +22,9 @@ from tempfile import TemporaryDirectory
 
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_ACS))
-HOOKS_DIR = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-SHIP_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "ship", "SKILL.md")
-WORKFLOW_SCHEMA = os.path.join(REPO_ROOT, "src", "acs", "schemas",
+HOOKS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SHIP_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "ship", "SKILL.md")
+WORKFLOW_SCHEMA = os.path.join(REPO_ROOT, "plugins", "acs", "schemas",
                                "workflow.schema.json")
 
 sys.path.insert(0, TESTS_ACS)

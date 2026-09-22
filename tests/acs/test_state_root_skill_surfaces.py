@@ -18,13 +18,13 @@ Prose-contract unit test covering every shipped surface outside
     grounded finding from the plan — pinned here as a regression guard).
   AC5 — plugin.json's description is ASCII-only and describes the in-repo
     default; .claude-plugin/marketplace.json stays byte-identical (out of
-    MAR-4 scope, byte-pinned). src/acs/CHANGELOG.md is append-only
+    MAR-4 scope, byte-pinned). plugins/acs/CHANGELOG.md is append-only
     instead of byte-identical: MAR-5 (`/acs:docs-sync`) is the ticket
     responsible for landing the epic's missing changelog entries, so this
     guard only checks that the diff against `main` never removes or
     rewords an existing line.
   AC6 — both README.md files (plugin + repo-root) describe the in-repo
-    default; src/acs/README.md gains a "Migrating an existing external
+    default; plugins/acs/README.md gains a "Migrating an existing external
     workspace" section naming the exact migrate_workspace.py CLI shape.
 
 Stdlib-only (json, os, re, unittest), mirroring
@@ -43,7 +43,7 @@ import subprocess
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 HANDOFF_SKILL = os.path.join(PLUGIN, "skills", "handoff", "SKILL.md")
 UPDATE_SKILL = os.path.join(PLUGIN, "skills", "update", "SKILL.md")
@@ -295,9 +295,9 @@ class OutOfScopeUntouchedCase(unittest.TestCase):
     the documented release process -- so the guard made cutting any release
     impossible. Removed in 0.4.9, the same class of cleanup as #488.
 
-    `src/acs/CHANGELOG.md` is different: any ticket adding its own
+    `plugins/acs/CHANGELOG.md` is different: any ticket adding its own
     dated entry under `[Unreleased]` is expected and must not be blocked by
-    this guard (see `src/acs/skills/code/SKILL.md`'s docs-sync
+    this guard (see `plugins/acs/skills/code/SKILL.md`'s docs-sync
     hand-off, and `docs-sync/SKILL.md`), so a byte-identical guard would
     directly contradict that required deliverable. The invariant this
     file's own header actually promises — CHANGELOG.md is append-only — is
@@ -309,21 +309,21 @@ class OutOfScopeUntouchedCase(unittest.TestCase):
             self.skipTest("no base ref (origin/main or main) to diff against")
 
     def test_changelog_append_only(self):
-        diff = git_diff_against_merge_base("src/acs/CHANGELOG.md")
+        diff = git_diff_against_merge_base("plugins/acs/CHANGELOG.md")
         removed = [
             line for line in diff.splitlines()
             if line.startswith("-") and not line.startswith("---")
         ]
         self.assertEqual(
             removed, [],
-            msg="`src/acs/CHANGELOG.md` must only gain new lines "
+            msg="`plugins/acs/CHANGELOG.md` must only gain new lines "
                 "relative to `main` (append-only) — no pre-existing line may "
                 "be edited or removed: %r" % (removed[:5],),
         )
 
 
 class PluginReadmeCase(unittest.TestCase):
-    """AC6 — src/acs/README.md describes the in-repo default and gains
+    """AC6 — plugins/acs/README.md describes the in-repo default and gains
     a migration section."""
 
     @classmethod
@@ -333,7 +333,7 @@ class PluginReadmeCase(unittest.TestCase):
     def test_no_outside_your_repo_claim(self):
         self.assertNotIn(
             "outside your repo", self.body,
-            msg="src/acs/README.md must drop the 'outside your repo' claim (AC6)",
+            msg="plugins/acs/README.md must drop the 'outside your repo' claim (AC6)",
         )
 
     def test_quick_start_no_longer_requires_outside_repo_workspace_path(self):
@@ -365,7 +365,7 @@ class PluginReadmeCase(unittest.TestCase):
     def test_has_a_migration_section(self):
         self.assertIn(
             "## Migrating an existing external workspace", self.body,
-            msg="src/acs/README.md must gain a 'Migrating an existing "
+            msg="plugins/acs/README.md must gain a 'Migrating an existing "
                 "external workspace' section (AC6)",
         )
         migration = section(self.body, "## Migrating an existing external workspace")

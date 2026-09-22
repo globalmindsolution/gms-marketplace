@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 
 import evidence_sidecar  # noqa: E402
 
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 CORE = "architecture → principles → standards → design"
 SIX_NODE = ("PRD → architecture → principles → standards → "

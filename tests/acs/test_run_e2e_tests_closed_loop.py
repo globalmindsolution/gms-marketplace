@@ -1,7 +1,7 @@
 """/acs:run-e2e-tests failure-path closed loop (triage, dedup/recurrence, R1).
 
 Prose-contract unit test for the failure-path section of
-`src/acs/skills/run-e2e-tests/SKILL.md` — the suite-runner prose that
+`plugins/acs/skills/run-e2e-tests/SKILL.md` — the suite-runner prose that
 shipped as `/acs:test` before the skills-independence refactor renamed it. Uses the
 same bounded-window `section()` technique as
 `tests/acs/test_setup_quality_path.py:29-40` so a stray mention
@@ -24,7 +24,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SKILL_PATH = os.path.join(REPO_ROOT, "src", "acs", "skills",
+SKILL_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "skills",
                           "run-e2e-tests", "SKILL.md")
 
 

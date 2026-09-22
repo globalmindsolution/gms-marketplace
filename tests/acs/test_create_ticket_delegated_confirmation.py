@@ -20,7 +20,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "create-ticket", "SKILL.md")
+SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-ticket", "SKILL.md")
 
 
 def norm(text):

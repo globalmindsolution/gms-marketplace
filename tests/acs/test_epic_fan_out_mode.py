@@ -28,7 +28,7 @@ import unittest
 
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_ACS))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")

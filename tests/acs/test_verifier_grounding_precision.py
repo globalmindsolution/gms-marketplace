@@ -10,7 +10,7 @@ now carries one carve-out: a right-file, wrong-lines citation or a loose
 paraphrase is noted, not a finding; a source that says otherwise, a missing
 file, or an uncited repo fact still blocks.
 
-Assertions are by substring on every *-verifier.md under src/acs/agents.
+Assertions are by substring on every *-verifier.md under plugins/acs/agents.
 Run: python3 -m unittest tests.acs.test_verifier_grounding_precision -v
 """
 
@@ -20,7 +20,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-AGENTS = os.path.join(REPO_ROOT, "src", "acs", "agents")
+AGENTS = os.path.join(REPO_ROOT, "plugins", "acs", "agents")
 
 
 def norm(text):

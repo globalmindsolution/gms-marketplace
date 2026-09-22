@@ -1,7 +1,7 @@
 """`/acs:release` runs the repo's pre-release gate, and never cuts past it.
 
 The gate is settings-driven, not hardcoded: the skill used to end by telling
-the human to run `python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid`, a path that
+the human to run `python3 evals/behavioural/run_evals.py --plugin acs --paid`, a path that
 exists only in this marketplace and that stopped being even this repo's gate
 when MAR-579 retired the per-ticket paid tier. It then read one from
 `release.pre_release_gate` -- and only REMINDED the human to run it, which is
@@ -16,7 +16,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL = os.path.join(PLUGIN, "skills", "release", "SKILL.md")
 SCHEMA = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
@@ -141,8 +141,11 @@ class ThisRepoDeclaresItsOwnGateTest(unittest.TestCase):
         gate = json.load(open(SETTINGS))["release"]["pre_release_gate"]
         self.assertTrue(gate, "this repo has a gate; it must declare it")
         joined = " ".join(gate)
-        self.assertIn("src/acs-evals", joined,
-                      "the gate lives at src/acs-evals since the fold")
+        # Pinned as the whole `make -C <tree>` invocation: a bare "evals"
+        # substring would also match the product name "acs-evals" and pass
+        # without the gate naming the tree at all.
+        self.assertIn("make -C evals", joined,
+                      "the gate runs out of the evals/ tree since the restructure")
         self.assertNotIn("run_evals.py", joined,
                          "the in-repo paid tier is an on-demand tool, not the gate")
 

@@ -43,7 +43,7 @@ from acs_lib import artifacts  # noqa: E402
 TICKET = "SHOP-1"
 REPO_ID = "acme-shop"
 #: The description templates /acs:create-ticket builds every ticket body from.
-TEMPLATES_DIR = os.path.join(REPO_ROOT, "src", "acs", "templates")
+TEMPLATES_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
 DESCRIPTION_TEMPLATES = ("task-default", "story-default", "epic-default")
 
 
@@ -589,7 +589,7 @@ class TestCommitOwnership(unittest.TestCase):
     def skill(self, name):
         """The SKILL.md with whitespace runs folded, so a phrase check cannot
         fail merely because markdown word-wrap inserted a line break."""
-        raw = read_text(os.path.join(REPO_ROOT, "src", "acs", "skills", name, "SKILL.md"))
+        raw = read_text(os.path.join(REPO_ROOT, "plugins", "acs", "skills", name, "SKILL.md"))
         return " ".join(raw.split())
 
     def test_analyze_ticket_commits_the_whole_docs_folder(self):

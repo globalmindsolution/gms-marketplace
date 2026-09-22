@@ -18,7 +18,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
 
@@ -863,7 +863,7 @@ class TestApplyTierInline(unittest.TestCase):
 
 class TestCreatePrConventionWiring(unittest.TestCase):
     """MAR-72 spec 02: pin the deterministic-render + pre-open self-check
-    wiring in src/acs/skills/create-pr/SKILL.md. Additive only — no
+    wiring in plugins/acs/skills/create-pr/SKILL.md. Additive only — no
     existing assertion in this file is modified. Written TDD-first (RED
     before Spec 02's SKILL.md edit lands)."""
 

@@ -32,7 +32,7 @@ import acs_case  # noqa: E402
 
 lib = acs_case.lib
 
-GOLDENS = os.path.join(REPO_ROOT, "src", "acs-evals", "dataset", "cases", "06-gates.json")
+GOLDENS = os.path.join(REPO_ROOT, "evals", "dataset", "cases", "06-gates.json")
 
 #: The prefix the golden sandbox mints under, the one this fixture does, and
 #: the ticket id every recorded ticketed/epic case names.

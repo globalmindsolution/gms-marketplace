@@ -17,7 +17,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 
 
@@ -152,7 +152,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
     skill that carries the prose."""
 
     def _cases(self):
-        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
+        path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         tree = ast.parse(read(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and any(

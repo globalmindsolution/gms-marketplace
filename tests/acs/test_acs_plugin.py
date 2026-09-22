@@ -23,7 +23,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -173,12 +173,12 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
     carry its footprint."""
 
     DELETED_PATHS = [
-        os.path.join("src", "acs", "skills", "create-spec", "SKILL.md"),
-        os.path.join("src", "acs", "agents", "create-spec-planner.md"),
-        os.path.join("src", "acs", "agents", "create-spec-executor.md"),
-        os.path.join("src", "acs", "agents", "create-spec-verifier.md"),
-        os.path.join("src", "acs", "hooks", "scripts", "pre-create-spec.py"),
-        os.path.join("src", "acs", "hooks", "scripts", "post-create-spec.py"),
+        os.path.join("plugins", "acs", "skills", "create-spec", "SKILL.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-planner.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-executor.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-verifier.md"),
+        os.path.join("plugins", "acs", "hooks", "scripts", "pre-create-spec.py"),
+        os.path.join("plugins", "acs", "hooks", "scripts", "post-create-spec.py"),
     ]
 
     def test_create_spec_absent_from_registries(self):
@@ -197,7 +197,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
         skill names against the skill directories, which is what makes a new
         workflow a YAML file and a new skill a directory (§4.3 I5)."""
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
+            REPO_ROOT, "plugins", "acs", "schemas", "run.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("propertyNames", schema["properties"]["steps"])
@@ -205,7 +205,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
 
     def test_settings_schema_drops_spec_template_and_sections(self):
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("spec_template", schema["properties"]["formats"]["properties"])
@@ -222,7 +222,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
         which is the drift MAR-516 exists to close.
         """
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
@@ -358,7 +358,7 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
         """The 18-name enum is gone: step names validate against the RESOLVED
         WORKFLOW, so a new workflow is a YAML file and touches no schema."""
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
+            REPO_ROOT, "plugins", "acs", "schemas", "run.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("enum", schema["properties"]["steps"].get("propertyNames", {}))
@@ -538,7 +538,7 @@ class ToolchainTests(unittest.TestCase):
 # MAR-9 — pipeline-default CLAUDE.md guidance + exempt non-ticket merge-pr --pr
 # ---------------------------------------------------------------------------
 
-TEMPLATE_DIR = os.path.join(REPO_ROOT, "src", "acs", "templates")
+TEMPLATE_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
 
 
 class TestManagedBlock(unittest.TestCase):
@@ -855,7 +855,7 @@ class TestManagedBlock(unittest.TestCase):
         # AC-4: durable-invariant CHANGELOG assertion — findable anywhere in the
         # file body, never pinned to the `[Unreleased]` heading (that pinned
         # style breaks at the next release cut).
-        changelog_path = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
+        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
         with open(changelog_path, encoding="utf-8") as fh:
             body = fh.read()
         self.assertIn("(MAR-104)", body)
@@ -864,7 +864,7 @@ class TestManagedBlock(unittest.TestCase):
         # AC-7: durable-invariant CHANGELOG assertion — findable anywhere in
         # the file body, never pinned to [Unreleased] or a line window (the
         # anti-pattern that broke at the v0.3.5 and v0.3.6 release cuts).
-        changelog_path = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
+        changelog_path = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
         with open(changelog_path, encoding="utf-8") as fh:
             body = fh.read()
         self.assertIn("(MAR-106)", body)
@@ -1020,7 +1020,7 @@ class TestDueDateSchema(unittest.TestCase):
     and applied with `re.match`, so the tests track the real schema rule.
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "ticket.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "ticket.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -1114,7 +1114,7 @@ class TestQualityPathSettings(unittest.TestCase):
     TestHighStakesPathsSettings (no jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -1185,7 +1185,7 @@ class TestOperationsPathSettings(unittest.TestCase):
     jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -1257,7 +1257,7 @@ class TestPrinciplesPathSettings(unittest.TestCase):
     TestOperationsPathSettings (no jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -1329,7 +1329,7 @@ class TestStandardsPathSettings(unittest.TestCase):
     jsonschema import).
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
 
     @classmethod
     def setUpClass(cls):

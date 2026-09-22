@@ -27,7 +27,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 #: Skills whose only agent is an executor: the work is DOING something to the
 #: world (a ticket, a PR, a merge, a changeset) rather than authoring a
@@ -87,7 +87,7 @@ def _load_acs_lib():
 
 
 def _s04_cases():
-    path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
+    path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
     tree = ast.parse(read(path))
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and any(
@@ -291,8 +291,8 @@ class RoadmapTopologyTest(unittest.TestCase):
 
     def test_ls_skills_and_agents_counts(self):
         body = self._body()
-        m1 = re.search(r"`ls src/acs/skills` = (\d+)", body)
-        m2 = re.search(r"`ls src/acs/agents` = (\d+)", body)
+        m1 = re.search(r"`ls plugins/acs/skills` = (\d+)", body)
+        m2 = re.search(r"`ls plugins/acs/agents` = (\d+)", body)
         self.assertIsNotNone(m1, "roadmap.md ls-skills count not found")
         self.assertIsNotNone(m2, "roadmap.md ls-agents count not found")
         self.assertEqual(int(m1.group(1)), D["n_skills"])

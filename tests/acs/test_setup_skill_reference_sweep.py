@@ -45,7 +45,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 SCHEMAS_DIR = os.path.join(PLUGIN, "schemas")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
@@ -299,7 +299,7 @@ class NoLiveReferenceOutsideHistoryTest(unittest.TestCase):
         self.assertEqual(
             hits, [],
             "live /acs:init or /init reference(s) found outside the historical "
-            "allowlist (docs/adr/**, src/acs/CHANGELOG.md, "
+            "allowlist (docs/adr/**, plugins/acs/CHANGELOG.md, "
             "docs/product/spikes/m2-0-validation-spike.md):\n" + "\n".join(hits))
 
     def test_no_live_acs_initialize_reference_outside_history(self):
@@ -326,7 +326,7 @@ class NoLiveReferenceOutsideHistoryTest(unittest.TestCase):
         self.assertEqual(
             hits, [],
             "live /acs:initialize or /initialize reference(s) found outside "
-            "the historical allowlist (docs/adr/**, src/acs/CHANGELOG.md, "
+            "the historical allowlist (docs/adr/**, plugins/acs/CHANGELOG.md, "
             "docs/product/spikes/m2-0-validation-spike.md, and the "
             "2026-08-13 docs/requirements/README.md ledger row):\n" + "\n".join(hits))
 
@@ -380,7 +380,7 @@ class StaleInitializeLiteralTest(unittest.TestCase):
 
     def test_ci_convention_comment_names_setup(self):
         for rel in (
-            "src/acs/templates/ci/check-conventions.py",
+            "plugins/acs/templates/ci/check-conventions.py",
             ".acs/ci/check-conventions.py",
         ):
             path = os.path.join(REPO_ROOT, rel)
@@ -399,27 +399,27 @@ class StaleInitializeLiteralTest(unittest.TestCase):
 # named neither the old nor the new skill would pass a negative-only check
 # vacuously), so this positively asserts the replacement landed.
 T2_T3_SETUP_PATHS = (
-    "src/acs/skills/handoff/SKILL.md",
-    "src/acs/skills/install-hooks/SKILL.md",
-    "src/acs/skills/merge-pr/SKILL.md",
-    "src/acs/skills/ship/SKILL.md",
-    "src/acs/skills/standardize-project/SKILL.md",
-    "src/acs/skills/update/SKILL.md",
-    "src/acs/agents/standardize-project-executor.md",
-    "src/acs/agents/standardize-project-verifier.md",
-    "src/acs/README.md",
-    "src/acs/docs/INTERNALS.md",
-    "src/acs/docs/AUTHORING.md",
-    "src/acs/templates/CLAUDE.acs.md",
-    "src/acs/templates/ci/acs-conventions.yml",
-    "src/acs/templates/ci/acs-tests.yml",
-    "src/acs/templates/ci/acs-e2e.yml",
-    "src/acs/templates/ci/check-conventions.py",
-    "src/acs/templates/ci/commit-msg",
-    "src/acs/templates/ci/install-hooks.sh",
-    "src/acs/templates/ci/pre-push",
-    "src/acs/templates/ci/run-tests.py",
-    "src/acs/templates/ci/run-e2e.py",
+    "plugins/acs/skills/handoff/SKILL.md",
+    "plugins/acs/skills/install-hooks/SKILL.md",
+    "plugins/acs/skills/merge-pr/SKILL.md",
+    "plugins/acs/skills/ship/SKILL.md",
+    "plugins/acs/skills/standardize-project/SKILL.md",
+    "plugins/acs/skills/update/SKILL.md",
+    "plugins/acs/agents/standardize-project-executor.md",
+    "plugins/acs/agents/standardize-project-verifier.md",
+    "plugins/acs/README.md",
+    "plugins/acs/docs/INTERNALS.md",
+    "plugins/acs/docs/AUTHORING.md",
+    "plugins/acs/templates/CLAUDE.acs.md",
+    "plugins/acs/templates/ci/acs-conventions.yml",
+    "plugins/acs/templates/ci/acs-tests.yml",
+    "plugins/acs/templates/ci/acs-e2e.yml",
+    "plugins/acs/templates/ci/check-conventions.py",
+    "plugins/acs/templates/ci/commit-msg",
+    "plugins/acs/templates/ci/install-hooks.sh",
+    "plugins/acs/templates/ci/pre-push",
+    "plugins/acs/templates/ci/run-tests.py",
+    "plugins/acs/templates/ci/run-e2e.py",
     ".acs/ci/check-conventions.py",
     ".acs/ci/commit-msg",
     ".acs/ci/install-hooks.sh",
@@ -448,11 +448,11 @@ T2_T3_SETUP_PATHS = (
     "docs/requirements/non-functional/portability.md",
     "docs/requirements/non-functional/security.md",
     "tests/acs/fixtures/mar145_clause_inventory.json",
-    "src/acs-evals/behavioural/acs/README.md",
-    "src/acs-evals/behavioural/acs/harness.py",
-    "src/acs-evals/behavioural/acs/scenarios/s01_install_gate_smoke.py",
-    "src/acs-evals/behavioural/acs/scenarios/s04_skill_triggers.py",
-    "src/acs-evals/behavioural/acs/scenarios/s06_update_migration.py",
+    "evals/behavioural/acs/README.md",
+    "evals/behavioural/acs/harness.py",
+    "evals/behavioural/acs/scenarios/s01_install_gate_smoke.py",
+    "evals/behavioural/acs/scenarios/s04_skill_triggers.py",
+    "evals/behavioural/acs/scenarios/s06_update_migration.py",
 )
 
 SETUP_LITERAL_RE = re.compile(r"/acs:setup|(?<![A-Za-z0-9_-])setup(?![A-Za-z0-9_-])")
@@ -548,14 +548,26 @@ class SkillBodyUnchangedExceptRenameTest(unittest.TestCase):
         if self.base is None:
             self.skipTest("no base ref (origin/main or main) to diff against")
 
+    #: Where the pre-rename skill body lives at the base ref. The plugin tree
+    #: has moved (`src/acs` -> `plugins/acs`), and this reads a COMMIT, not the
+    #: working tree, so a base ref from either side of that move has to
+    #: resolve -- pinning one path would turn this guard into a silent skip.
+    _PRE_RENAME_SKILL_PATHS = (
+        "plugins/acs/skills/initialize/SKILL.md",
+        "src/acs/skills/initialize/SKILL.md",
+    )
+
     def test_skill_body_unchanged_except_rename_tokens(self):
-        result = subprocess.run(
-            ["git", "show", "%s:src/acs/skills/initialize/SKILL.md" % self.base],
-            cwd=REPO_ROOT, capture_output=True, text=True,
-        )
-        if result.returncode != 0:
-            self.skipTest(
-                "%s has no src/acs/skills/initialize/SKILL.md" % self.base)
+        for rel in self._PRE_RENAME_SKILL_PATHS:
+            result = subprocess.run(
+                ["git", "show", "%s:%s" % (self.base, rel)],
+                cwd=REPO_ROOT, capture_output=True, text=True,
+            )
+            if result.returncode == 0:
+                break
+        else:
+            self.skipTest("%s has none of %s" % (
+                self.base, ", ".join(self._PRE_RENAME_SKILL_PATHS)))
         expected = result.stdout.replace("/acs:initialize", "/acs:setup")
         expected = re.sub(r"(?m)^name: initialize$", "name: setup", expected)
         self.assertEqual(expected, read(SETUP_SKILL_MD))
@@ -573,7 +585,7 @@ def changelog_section_with_marker(body, marker):
         if marker in candidate:
             return candidate
     raise AssertionError(
-        "src/acs/CHANGELOG.md must contain a %r marker inside a "
+        "plugins/acs/CHANGELOG.md must contain a %r marker inside a "
         "'## [...]' section span" % (marker,))
 
 
@@ -633,11 +645,11 @@ class ChangelogAddOnlyTest(unittest.TestCase):
         output = result.stdout.strip()
         if output == "":
             self.skipTest(
-                "no src/acs/CHANGELOG.md diff against %s yet" % self.base)
+                "no plugins/acs/CHANGELOG.md diff against %s yet" % self.base)
         added, deleted, _ = output.split("\t", 2)
         self.assertEqual(
             deleted, "0",
-            "src/acs/CHANGELOG.md diff must have zero deleted lines, "
+            "plugins/acs/CHANGELOG.md diff must have zero deleted lines, "
             "got: %s" % output)
 
 
@@ -645,7 +657,7 @@ class EvalTriggerCaseTest(unittest.TestCase):
     """AC-5: s04_skill_triggers.py's CASES list names no "init" expected skill."""
 
     def test_eval_trigger_case_expects_setup(self):
-        s04_path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
+        s04_path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         body = read(s04_path)
         m = re.search(r"CASES\s*=\s*\[(.*?)\n\]\n", body, re.S)
         self.assertIsNotNone(m, "CASES list not found in %s" % s04_path)
@@ -719,8 +731,8 @@ class GitignoredPathsNotSweptTest(unittest.TestCase):
         The named files are asserted to exist first, so a rename cannot quietly
         empty this test again."""
         swept = {os.path.realpath(p) for p in iter_repo_files()}
-        for rel in ("src/acs/hooks/scripts/acs_lib/_common.py",
-                    "src/acs/hooks/scripts/acs.py",
+        for rel in ("plugins/acs/hooks/scripts/acs_lib/_common.py",
+                    "plugins/acs/hooks/scripts/acs.py",
                     "docs/adr/README.md"):
             path = os.path.realpath(os.path.join(REPO_ROOT, rel))
             self.assertTrue(os.path.isfile(path),

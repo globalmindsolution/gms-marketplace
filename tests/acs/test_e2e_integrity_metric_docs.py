@@ -13,7 +13,7 @@ import subprocess
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 PRD_PATH = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
 ROADMAP_PATH = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
 TESTING_STRATEGY_PATH = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
@@ -149,7 +149,7 @@ class TestNoNewMechanism(unittest.TestCase):
 
     def test_no_runtime_skill_touched(self):
         self.assertEqual(range_diff_names(SKILLS_DIR), "",
-                          "no src/acs/skills/** file may change")
+                          "no plugins/acs/skills/** file may change")
 
     def test_architecture_untouched(self):
         self.assertEqual(range_diff_names(ARCHITECTURE_DIR), "",

@@ -28,7 +28,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 DESIGN_TEMPLATE_PATH = os.path.join(PLUGIN, "templates", "design-default.md")
 CREATE_DESIGN_SKILL = os.path.join(PLUGIN, "skills", "create-design", "SKILL.md")

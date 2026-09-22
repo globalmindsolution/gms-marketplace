@@ -467,7 +467,7 @@ class NoMarketplacePathHardcodingTest(unittest.TestCase):
     assertion below proves the set has not silently emptied."""
 
     SCOPED_FILES = (
-        os.path.join(REPO_ROOT, "src", "acs", "agents", "docs-sync-executor.md"),
+        os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-executor.md"),
     )
 
     LITERAL_PATH_RE = re.compile(

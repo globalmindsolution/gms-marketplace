@@ -18,7 +18,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
@@ -97,7 +97,7 @@ class UnhookedUmbrellaTest(unittest.TestCase):
 
     def test_no_project_agent_files_on_disk(self):
         strays = [p for p in glob.glob(os.path.join(AGENTS_DIR, "project-*.md"))]
-        self.assertEqual(strays, [], "no src/acs/agents/project-*.md -- no new triad")
+        self.assertEqual(strays, [], "no plugins/acs/agents/project-*.md -- no new triad")
 
     def test_no_skill_start_and_no_own_reflection_loop(self):
         body = read(SKILL_PATH)

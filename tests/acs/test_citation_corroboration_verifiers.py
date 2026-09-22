@@ -33,11 +33,11 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
 import citation_check  # noqa: E402
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py"
@@ -419,7 +419,7 @@ class HybridMechanismTest(unittest.TestCase):
 
 class SharedIdenticallyTest(unittest.TestCase):
     """AC-4: exactly one citation_check.py exists under
-    src/acs/hooks/scripts/, and the corroboration clause normalizes
+    plugins/acs/hooks/scripts/, and the corroboration clause normalizes
     identically across the 4 verifiers."""
 
     def test_exactly_one_citation_check_script(self):

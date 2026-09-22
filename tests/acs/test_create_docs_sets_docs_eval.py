@@ -20,7 +20,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 
 import acs_lib  # noqa: E402
@@ -161,7 +161,7 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
     create-docs; no CASE survives for a retired leg."""
 
     def _assign(self, name):
-        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
+        path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
         tree = ast.parse(read(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and any(

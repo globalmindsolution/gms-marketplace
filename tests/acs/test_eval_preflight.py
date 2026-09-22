@@ -5,7 +5,7 @@ not see the plugin at all. The runner now probes one throwaway session for
 `/acs:setup` registration (decided at the session's init event, before any model
 turn, so it is free) and refuses to start the paid tier when that probe fails.
 
-These tests drive `src/acs-evals/behavioural/acs/run_evals.py` with fake scenarios and a fake
+These tests drive `evals/behavioural/acs/run_evals.py` with fake scenarios and a fake
 sandbox: no `claude`, no network, no cost.
 
 Run:  python3 -m unittest tests.acs.test_eval_preflight -v
@@ -20,7 +20,7 @@ from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "behavioural", "acs"))
 import harness  # noqa: E402  (path-inserted, same resolution run_evals.py uses)
 import run_evals  # noqa: E402
 

@@ -25,9 +25,9 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-HOOKS_DIR = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-AGENTS_DIR = os.path.join(REPO_ROOT, "src", "acs", "agents")
-SKILL_PATH = os.path.join(REPO_ROOT, "src", "acs", "skills", "release", "SKILL.md")
+HOOKS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+AGENTS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "agents")
+SKILL_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "release", "SKILL.md")
 sys.path.insert(0, HOOKS_DIR)
 
 import acs_lib  # noqa: E402
@@ -113,7 +113,7 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
     def test_no_release_agent_files_on_disk(self):
         self.assertEqual(
             glob.glob(os.path.join(AGENTS_DIR, "release-*.md")), [],
-            "no src/acs/agents/release-*.md file may exist (AC-1)",
+            "no plugins/acs/agents/release-*.md file may exist (AC-1)",
         )
 
     def test_agent_files_match_the_registry_exactly(self):
@@ -148,8 +148,8 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
     def test_no_hardcoded_marketplace_literals_in_bash_fences(self):
         forbidden = [
             ".claude-plugin/marketplace.json",
-            "src/acs/.claude-plugin/plugin.json",
-            "src/acs/CHANGELOG.md",
+            "plugins/acs/.claude-plugin/plugin.json",
+            "plugins/acs/CHANGELOG.md",
             "release/v",
             "--base main",
         ]

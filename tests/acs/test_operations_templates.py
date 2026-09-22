@@ -2,7 +2,7 @@
 
 Pins AC-4: release-process.md, runbooks.md, observability.md,
 incident-response.md, and test-scheduling.md ship under
-src/acs/templates/operations/ with the design's required sections and no
+plugins/acs/templates/operations/ with the design's required sections and no
 runtime {placeholder} tokens. Written TDD-first (RED before the five files
 exist); turns GREEN once spec 03 lands. Kept in its own module (mirroring
 test_quality_templates.py) so this task's diff stays file-disjoint from spec
@@ -13,7 +13,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 
 def read(path):
@@ -31,23 +31,23 @@ class TestOperationsTemplatesExist(unittest.TestCase):
 
     def test_release_process_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("release-process")),
-                         "src/acs/templates/operations/release-process.md must exist")
+                         "plugins/acs/templates/operations/release-process.md must exist")
 
     def test_runbooks_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("runbooks")),
-                         "src/acs/templates/operations/runbooks.md must exist")
+                         "plugins/acs/templates/operations/runbooks.md must exist")
 
     def test_observability_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("observability")),
-                         "src/acs/templates/operations/observability.md must exist")
+                         "plugins/acs/templates/operations/observability.md must exist")
 
     def test_incident_response_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("incident-response")),
-                         "src/acs/templates/operations/incident-response.md must exist")
+                         "plugins/acs/templates/operations/incident-response.md must exist")
 
     def test_test_scheduling_file_exists(self):
         self.assertTrue(os.path.isfile(template_path("test-scheduling")),
-                         "src/acs/templates/operations/test-scheduling.md must exist")
+                         "plugins/acs/templates/operations/test-scheduling.md must exist")
 
 
 class TestReleaseProcessRequiredSections(unittest.TestCase):

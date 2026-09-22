@@ -20,7 +20,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
 sys.path.insert(0, HOOKS_DIR)
@@ -145,12 +145,12 @@ class Mar143CountBumpCase(unittest.TestCase):
         # Derived, not pinned: a new skill directory moves the diagram
         # by itself rather than waiting for someone to notice.
         shipped = len([n for n in os.listdir(
-            os.path.join(REPO_ROOT, "src", "acs", "skills"))
+            os.path.join(REPO_ROOT, "plugins", "acs", "skills"))
             if os.path.isdir(os.path.join(
-                REPO_ROOT, "src", "acs", "skills", n))])
+                REPO_ROOT, "plugins", "acs", "skills", n))])
         agents = len([n for n in os.listdir(
-            os.path.join(REPO_ROOT, "src", "acs", "agents")) if n.endswith(".md")])
-        hooks_dir = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+            os.path.join(REPO_ROOT, "plugins", "acs", "agents")) if n.endswith(".md")])
+        hooks_dir = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
         pre = len([n for n in os.listdir(hooks_dir) if n.startswith("pre-")])
         post = len([n for n in os.listdir(hooks_dir) if n.startswith("post-")])
         self.assertIn("%d x SKILL.md" % shipped, body)

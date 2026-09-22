@@ -54,7 +54,7 @@ owes:
   reason: "a pre-hook gate has no browser flow"
 
 ### Executor tasks & file map
-- task 1: src/acs/hooks/scripts/acs_lib/gates.py
+- task 1: plugins/acs/hooks/scripts/acs_lib/gates.py
 """
 
 

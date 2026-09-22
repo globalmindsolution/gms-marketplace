@@ -6,7 +6,7 @@ modules were already over it — `metrics_render.py` (1682), `metrics_aggregate.
 plugin-wide reading E1 would have closed with its own success criterion unmet.
 
 SCOPE DECISION (recorded on #417): "under `acs/`" is read **plugin-wide**.
-`src/acs/` is the plugin root, and those three modules live under it; a
+`plugins/acs/` is the plugin root, and those three modules live under it; a
 reading that covered only the package MAR-522 created would make the criterion
 true by construction and say nothing about the plugin's maintainability, which
 is what it exists to protect.
@@ -19,14 +19,14 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 #: E1's number, unchanged. It is a budget, not a target: a module at 799 lines
 #: is not "fine", it is one edit from a split.
 LINE_BUDGET = 800
 
 #: What the budget covers: every Python module the plugin ships. Tests, evals
-#: and the consumer-repo templates are outside `src/acs/`.
+#: and the consumer-repo templates are outside `plugins/acs/`.
 def plugin_modules():
     for root, dirs, names in os.walk(PLUGIN):
         dirs[:] = [d for d in dirs if d != "__pycache__"]
