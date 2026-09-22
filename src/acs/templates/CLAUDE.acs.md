@@ -31,6 +31,16 @@ bypass it.
   stops before merge.
 - **Ticketed work uses the `{ticket_prefix}-N` prefix.** Reference the ticket id
   in branch names and commits so the gate and tracker can trace the change.
+- **If `/acs:create-pr` stops with a stacked-base report, replay the branch.**
+  The base PR was squash-merged, so the commits it carried never became
+  ancestors of the base: this branch still lists them and the convention gate
+  fails on subjects that are not yours to rename. Replay rather than rename —
+  `git fetch origin <base>`, then `git rebase --onto origin/<base> <old-base>`
+  (`<old-base>` is the `replay_onto` commit the report names, the tip of the
+  branch that was squashed), then `git push --force-with-lease`. Every commit
+  SHA on the branch changes, so any SHA recorded elsewhere — phase artifacts,
+  PR or issue comments — is stale afterwards and has to be updated by hand.
+  Stacking stays permitted; this is a report, not a policy change.
 - **For a legitimate one-off NON-ticket PR** (a hotfix, a chore, a doc tweak
   that does not warrant a ticket), label it with the **`{exempt_label}`** label
   and merge it via **`/acs:merge-pr --pr <PRNUMBER>`** — the sanctioned exempt

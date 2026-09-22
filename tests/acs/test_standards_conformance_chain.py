@@ -95,11 +95,23 @@ BASELINE_FLOWS = {
 # own prose that this guard is not a participant in its skill-boundary diagram, so
 # the deny path with its recording is a distinct runtime flow no existing flow doc
 # covered.
+# MAR-590 (child A of epic MAR-589) legitimately added
+# create-pr-stacked-base-preflight.md — the stacked-base pre-flight runs INSIDE
+# /acs:create-pr step 1, before anything is pushed, and its exit-1 arm terminates
+# the skill before that side effect instead of reporting after it, while exit 2
+# and a qualified exit 0 stay advisory. No existing flow doc covers it:
+# ship-pipeline.md places create-pr in the workflow and reads its verifier brake,
+# hook-gated-skill-run.md covers the inline shape and the gating,
+# ticket-lifecycle.md the state transition, and github-call-failure-policy.md
+# names create-pr/SKILL.md only as a gh call site — none describes what happens
+# inside step 1. The remedy the flow hands the author ends in a git rebase --onto
+# and a git push --force-with-lease, so its dispositions are a distinct runtime
+# flow rather than a re-anchor of an existing one.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
                           "acs-cost-metering.md", "state-root-resolution.md",
                           "setup-state-root-setup.md", "doc-bootstrap-fanout.md",
                           "ticket-id-reconciliation.md", "github-call-failure-policy.md",
-                          "file-map-guard-deny.md"}
+                          "file-map-guard-deny.md", "create-pr-stacked-base-preflight.md"}
 
 
 def read(path):
