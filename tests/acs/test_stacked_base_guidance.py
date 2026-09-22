@@ -157,7 +157,16 @@ class DegradedStateReachesTheAuthorTest(unittest.TestCase):
     """A run whose throwaway index failed exits 0 with a `notes` entry and a
     `message` saying so -- so prose reading exit 0 as "these subjects are this
     branch's own" makes the one claim the module refuses to make, and the
-    author never sees the note. Both surfaces must read `notes`."""
+    author never sees the note. All three surfaces must read `notes`: the two
+    that instruct an agent, and the reference an author opens when the
+    conventions gate is already red."""
+
+    #: One distinctive topic per KNOWN LIMITATIONS bullet in stacked-base.py.
+    LIMITATION_TOPICS = {
+        "the region the base re-edited after the squash": r"edited again|not recognised",
+        "the zero-net-content false positive": r"no net content|entire net content",
+        "the degraded run": r"degraded run|fork-point index",
+    }
 
     def exit_zero_region(self, path):
         """The exit-0 handling only: from `Exit 0` up to `Exit 1`."""
@@ -176,6 +185,52 @@ class DegradedStateReachesTheAuthorTest(unittest.TestCase):
                 r"notes[^.]*(empty|non-empty)|(empty|non-empty)[^.]*notes",
                 "%s: the subjects-are-your-own conclusion is stated "
                 "unconditionally" % name)
+
+    def reference_region(self, start, end):
+        """One paragraph span of the reference, anchored on its own lead-ins."""
+        body = norm(read(CI_REFERENCE))
+        begin = body.index(start)
+        return body[begin:body.index(end, begin)]
+
+    def test_the_reference_conditions_the_ownership_conclusion_on_notes_too(self):
+        # The third surface. The other two instruct an agent; this one describes
+        # what the author sees, so it is held to the CONCLUSION rather than to
+        # the info-finding shape -- but to the same conclusion, because a red
+        # commit_message gate is exactly when a reader opens this file to decide
+        # whether the failing subjects are his own.
+        region = self.reference_region("What the pre-flight reports.",
+                                       "The remedy is a replay")
+        self.assertIn("notes", region,
+                      "ci-convention-check.md: exit 0 never looks at `notes`, so a "
+                      "degraded run reads as a healthy branch")
+        self.assertRegex(
+            region.lower(),
+            r"notes[^.]*(empty|non-empty)|(empty|non-empty)[^.]*notes",
+            "ci-convention-check.md: the subjects-are-your-own conclusion is "
+            "stated unconditionally")
+        self.assertNotRegex(
+            region.lower(), r"any non-conforming subject[^.]*this branch's own",
+            "ci-convention-check.md: still states the unconditional ownership "
+            "claim the other two surfaces retracted")
+
+    def test_the_reference_lists_every_limitation_the_module_accepts(self):
+        # Not a word-count of the prose: the module's KNOWN LIMITATIONS section
+        # is the source of truth, and each bullet there has to be recognisable
+        # in the paragraph that promises to say what the check will not tell
+        # you. A fourth bullet in the module turns this red rather than letting
+        # the reference quietly fall one short again.
+        docstring, _ = module_docstring_and_code(DETECTOR)
+        section = docstring[docstring.index("KNOWN LIMITATIONS"):docstring.index("Usage:")]
+        self.assertEqual(len(re.findall(r"^\s+\* ", section, re.M)),
+                         len(self.LIMITATION_TOPICS),
+                         "stacked-base.py accepts a different number of limitations "
+                         "than this test knows how to look for")
+        paragraph = self.reference_region("What it will and will not tell you.",
+                                          "Do not reach for")
+        for topic, pattern in self.LIMITATION_TOPICS.items():
+            self.assertRegex(paragraph.lower(), pattern,
+                             "ci-convention-check.md: the paragraph promising what "
+                             "the check will not tell you omits %s" % topic)
 
     def test_a_degraded_exit_zero_surfaces_the_message_as_an_info_finding(self):
         for name, path in PUSH_SURFACES.items():
