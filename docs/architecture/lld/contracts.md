@@ -72,6 +72,7 @@ becomes invalid.
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
 | `handoff.py --summary` | finalizes the in-flight step `interrupted` with `stop_reason: context_pressure`, releases the lock, prints `continue_with` |
 | `codeowners.py resolve --repo-root --changed-files [--codeowners-path]` | stdout: `{source, owners[], reason}`; exit 0 on all data outcomes, exit 2 on malformed invocation |
+| `stacked-base.py check --base B --commit-message-format F --ticket-prefix P [--repo-root P]` | stdout: one compact JSON object — `verdict` (`clean`\|`own_violations`\|`stacked_base`), `base_ref`, `merge_base`, `range`, `checked`, `stacked[]`, `own[]`, `ignored[]`, `notes[]`, `message`, plus `replay_onto` **only when `stacked` is non-empty**; **exit 1** on verdict `stacked_base` — a *verdict*, neither a failure nor a finding, and the one signal `/acs:create-pr` stops its step-1 run on, before the push; **exit 2** when the condition cannot be evaluated at all (the base ref does not resolve, or the histories share no merge base) with `acs stacked-base: <reason>` on stderr and **no stdout at all** — the JSON object is printed on exits 0 and 1 only. Read-only and network-free: every tree test runs against a throwaway `GIT_INDEX_FILE` under `tempfile.mkdtemp()`, nothing under `.git` is written, and the caller performs the `git fetch`. A non-empty `notes` qualifies the report — `message` accounts for every entry, each named exactly once — so a qualified exit 0 is advisory, never a settled result |
 | `mermaid_lint.py FILE.md [FILE.md ...]` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; also importable — `lint_text(text, source="<text>")`, `lint_file(path)`, `Finding(source, line, rule, message)` |
 | `structure_lint.py --sections "A; B; C" [--ordered] DOC.md` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; `--sections` is `;`-delimited (a name containing `&` is not split); also importable — `lint_structure(text, sections, ordered=True, source="<text>")`, `lint_file(path, sections, ordered=True)`, `Finding(source, line, rule, message)` (same 4-field shape as `mermaid_lint.Finding`) |
 | `citation_check.py --plan <plan.md> --root <name>=<path> [--root …]` | stdout: one JSON line per resolved citation — `{claim, path, line, excerpt}`, where `line` is the citation's line in the **plan** file, never a locus in the cited file; stderr: `source:line: [rule] message` per finding (`citation-unresolved`, `citation-excerpt-not-found`, `citation-inventory-empty`); exit 1 on any finding, exit 0 clean (≥ 1 citation, all resolved and excerpt-matched), exit 2 on usage error or an unreadable plan file; also importable — `extract_citations(text, heading=…)`, `resolve_and_check(citations, roots, plan_path)`, `Finding(source, line, rule, message)` (same 4-field shape as `structure_lint.Finding`) |
@@ -87,7 +88,9 @@ because its `O_EXCL` guard was held for the whole budget (`GuardTimeout`, a
 and any ticket lock the command took is released first), or a malformed
 invocation — **unless a row above states otherwise** (`post-<skill>.py` exits 1 on the
 failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py`/`citation_check.py`/
-`prd_conformance_check.py` exit 1 on findings). Always with actionable stderr.
+`prd_conformance_check.py` exit 1 on findings, and `stacked-base.py check`
+exits 1 to report the `stacked_base` verdict, which is neither a failure nor a
+finding). Always with actionable stderr.
 
 ## Hook events (Claude Code)
 
