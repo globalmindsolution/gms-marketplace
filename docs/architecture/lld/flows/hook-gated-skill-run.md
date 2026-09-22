@@ -82,7 +82,7 @@ sequenceDiagram
         PRE-->>CC: exit 2 + stderr ("no plan.md found for SHOP-123 ... — run /acs:create-impl-plan SHOP-123 first.")
         CC-->>Dev: skill blocked, actionable message
     else inputs present, no brake
-        PRE-->>CC: exit 0 (plus one stderr advisory when this step's ship.yaml needs are unsatisfied)
+        PRE-->>CC: exit 0 (plus one stderr advisory when this step is not the run's cursor in ship.yaml)
         CC->>CO: run SKILL.md
         CO->>SS: --skill code --args "$ARGUMENTS"
         SS->>WS: lock, pointer, in_progress run, ledger
@@ -223,13 +223,12 @@ is deleted. The one gate that reads another step's status is
 `/acs:merge-pr`'s subject brake, which asks whether the step that recorded
 the PR reference completed (`gates._pr_recorded_for`) — an artifact, not a
 position.
-When the skill IS a step of the resolved `workflows/ship.yaml` and that step's
-a step that precedes it in `ship.yaml` has not completed, the gate passes and
-prints one stderr line — `acs: docs-sync normally follows code in ship.yaml;
-code has not completed for SHOP-123` — suppressed by
-`settings.workflow.advisories: false` and by any read it cannot complete. The
-order itself is enforced one layer up, by `/acs:ship`'s loop over
-`acs.py run next` (`ship-pipeline.md`).
+When the skill IS a step of the resolved `workflows/ship.yaml` and the run's
+cursor is some other step, the gate passes and prints one stderr line —
+`acs: docs-sync normally follows run-e2e-tests in ship.yaml; the cursor for
+SHOP-123 is code` — suppressed by `settings.workflow.advisories: false` and
+by any read it cannot complete. The order itself is enforced one layer up, by
+`/acs:ship`'s loop over `acs.py run next` (`ship-pipeline.md`).
 
 `acs gate --skill <s>` re-runs this same `PRE` participant with `mutate=False`,
 judging a run PROJECTED in memory (`run.projected_run`) rather than one it

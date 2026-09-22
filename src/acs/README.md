@@ -243,10 +243,11 @@ different.
   whether the step that recorded the PR reference completed — an artifact, not
   a position.
 - **Out-of-order runs get one advisory line, not a refusal.** When a hooked
-  skill runs before a step that precedes it in the resolved workflow has
-  completed, the pre-hook prints exactly one line on stderr —
-  `acs: docs-sync normally follows code in ship.yaml; code has not completed
-  for SHOP-12` — and exits 0. Set `workflow.advisories: false` to silence it.
+  skill runs somewhere other than the run's cursor in the resolved workflow,
+  the pre-hook prints exactly one line on stderr —
+  `acs: docs-sync normally follows run-e2e-tests in ship.yaml; the cursor for
+  SHOP-123 is code` — and exits 0. Set `workflow.advisories: false` to
+  silence it.
 - **The brakes that survive are facts, not order.** `/acs:code` refuses a
   standard or complex run whose plan approval is missing or is for a different
   revision of the plan on disk; `/acs:create-pr` refuses a run whose recorded
@@ -367,10 +368,11 @@ runs resolve the new in-repo default instead of the old override.
   file, where it looked, and the skill that produces it — run that one for the
   same ticket (here `/acs:create-impl-plan SHOP-123`). A "run /setup first"
   message means no `settings.json` could be resolved: run `/acs:setup`.
-- **"acs: docs-sync normally follows code in ship.yaml …" (skill runs
-  anyway).** That is the out-of-order ADVISORY, not a refusal — one stderr line,
-  exit 0. It means the step you invoked is ahead of its `needs` in the resolved
-  workflow; ignore it when that is deliberate, or run the named step first.
+- **"acs: docs-sync normally follows run-e2e-tests in ship.yaml …" (skill
+  runs anyway).** That is the out-of-order ADVISORY, not a refusal — one stderr
+  line, exit 0. It means the step you invoked is not the run's cursor in the
+  resolved workflow, and the line names the cursor; ignore it when running
+  early is deliberate, or run the named step first.
   `workflow.advisories: false` silences it.
 - **"/code ran for SHOP-123 but its verifier did not pass".** A brake, not an
   order check: the ticket HAS a recorded `/acs:code` run whose review loop never

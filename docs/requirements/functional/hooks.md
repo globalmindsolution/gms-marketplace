@@ -71,12 +71,12 @@ a PR exists. That brake names an artifact, never a position, and refuses
 nothing for being early ([ADR 0101](../../adr/0101-gating-skills-that-are-not-workflow-steps.md)).
 
 **3. Order advisory (never a refusal)** — when the skill IS a step of the
-resolved `ship.yaml` and that step's `needs` are not all satisfied for this
-ticket, the pre-hook MUST print exactly one line on stderr naming the
-position and exit **0**:
+resolved `ship.yaml` and the run's cursor is some other step, the pre-hook
+MUST print exactly one line on stderr naming the step it normally follows and
+the cursor the run is waiting on, and exit **0**:
 
 ```text
-acs: docs-sync normally follows code in ship.yaml; code has not completed for SHOP-123
+acs: docs-sync normally follows run-e2e-tests in ship.yaml; the cursor for SHOP-123 is code
 ```
 
 The advisory MUST be suppressed when `settings.workflow.advisories` is
