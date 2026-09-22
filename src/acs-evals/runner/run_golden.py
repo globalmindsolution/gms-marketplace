@@ -125,6 +125,25 @@ def is_subset(expected, actual, path="$"):
     return []
 
 
+def needles(expect, key, errs):
+    """The needle list one containment clause asserts, or nothing when it is
+    not a list.
+
+    A bare string is REFUSED rather than iterated: `for needle in "is not one
+    of"` walks CHARACTERS, so the clause holds as soon as the stream shares a
+    letter with it -- an `excludes` clause written that way can hardly fail at
+    all. The case stays green while asserting nothing, which is worse than a
+    red one because nobody looks at it again.
+    """
+    value = expect.get(key, [])
+    if isinstance(value, (list, tuple)):
+        return value
+    errs.append("%s: expected a list of needles, got %s %r — a bare string is "
+                "iterated character by character and asserts nothing"
+                % (key, type(value).__name__, value))
+    return ()
+
+
 def compare(expect, observed):
     """Every way the observed run differs from the recorded expectation."""
     errs = []
@@ -162,11 +181,11 @@ def compare(expect, observed):
         errs.append("exit_code: expected %s, got %s"
                     % (expect["exit_code"], observed["exit_code"]))
     for key, stream in (("stdout_contains", "stdout"), ("stderr_contains", "stderr")):
-        for needle in expect.get(key, []):
+        for needle in needles(expect, key, errs):
             if needle not in observed[stream]:
                 errs.append("%s: %r not in %s" % (key, needle, stream))
     for key, stream in (("stdout_excludes", "stdout"), ("stderr_excludes", "stderr")):
-        for needle in expect.get(key, []):
+        for needle in needles(expect, key, errs):
             if needle in observed[stream]:
                 errs.append("%s: %r unexpectedly in %s" % (key, needle, stream))
     for want in expect.get("after", []):
@@ -210,7 +229,9 @@ def expand(token, sb):
     out = (token.replace("{{repo}}", sb.repo)
                 .replace("{{ws}}", sb.partition)
                 .replace("{{ticket_dir}}", sb.ticket_dir())
-                .replace("{{ticket}}", sb.ticket_id or ""))
+                .replace("{{run_dir}}", sb.run_dir())
+                .replace("{{ticket}}", sb.ticket_id or "")
+                .replace("{{run}}", sb.run_id or ""))
     if "{{checkout_id}}" in out:
         out = out.replace("{{checkout_id}}", _checkout_id(sb))
     return out
@@ -374,8 +395,8 @@ def read_after(case, sb):
     """
     out = {}
     for want in case.get("expect", {}).get("after", []):
-        root = {"repo": sb.repo, "ws": sb.partition,
-                "ticket": sb.ticket_dir()}[want.get("base", "ticket")]
+        root = {"repo": sb.repo, "ws": sb.partition, "ticket": sb.ticket_dir(),
+                "run": sb.run_dir()}[want.get("base", "ticket")]
         path = os.path.join(root, want["path"])
         entry = {"exists": os.path.exists(path)}
         if entry["exists"] and want.get("json_subset") is not None:
