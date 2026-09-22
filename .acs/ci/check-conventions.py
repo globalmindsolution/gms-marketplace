@@ -33,7 +33,7 @@ import subprocess
 import sys
 
 # ---------------------------------------------------------------------------
-# Defaults — mirror src/acs/schemas/settings.schema.json. Used only when a
+# Defaults — mirror plugins/acs/schemas/settings.schema.json. Used only when a
 # key is absent from the merged settings, so behaviour is predictable even on a
 # repo initialised by an older acs that has no `enforcement` block yet.
 # ---------------------------------------------------------------------------
