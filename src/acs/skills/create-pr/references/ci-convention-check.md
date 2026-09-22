@@ -65,10 +65,11 @@ become ancestors of the base. A branch stacked on that base still carries them,
 the range still lists them, and the `commit_message` check fails on subjects
 belonging to a pull request that is already merged.
 
-**What the pre-flight reports.** One compact JSON object on stdout, and one of
-three exits: `0` for verdict `clean` or `own_violations` (nothing is stacked),
-`1` for verdict `stacked_base`, and `2` when the condition cannot be evaluated
-at all (`acs stacked-base: <reason>` on stderr — an unresolvable base ref, or no
+**What the pre-flight reports.** One of three exits: `0` for verdict `clean` or
+`own_violations` (nothing is stacked) and `1` for verdict `stacked_base`, each
+printing one compact JSON object on stdout; and `2` when the condition cannot be
+evaluated at all, which prints nothing on stdout and reports its reason on
+stderr alone (`acs stacked-base: <reason>` — an unresolvable base ref, or no
 merge base). Exit 2 is advisory: the run continues. On exit 1 the report's
 `message` is the deliverable — it names the offending subjects with their short
 SHAs and carries the replay command with real values substituted.

@@ -127,7 +127,8 @@ exact error — no silent fallback.
      --ticket-prefix <settings.ticket_prefix>
    ```
 
-   It prints one compact JSON object on stdout and exits:
+   Exit codes 0 and 1 print one compact JSON object on stdout; exit code 2
+   prints nothing on stdout and reports its reason on stderr instead:
 
    - **Exit 0** (`verdict` `clean` or `own_violations`): nothing is stacked —
      continue. With `notes` empty, a non-conforming subject here is this

@@ -10,10 +10,11 @@ author cannot fix by renaming them.
 
   check   Decide whether `<base_ref>..HEAD` is that shape and, if it is, name
           the offending subjects and emit a replay command proven lossless.
-          One compact JSON object on stdout. Exit 0 = no stacked base (verdict
-          `clean` or `own_violations`), 1 = `stacked_base`, 2 = unevaluable
-          (base ref does not resolve, no merge base) with `acs stacked-base:
-          <reason>` on stderr.
+          Exit 0 = no stacked base (verdict `clean` or `own_violations`)
+          and exit 1 = `stacked_base` both print one compact JSON object on
+          stdout. Exit 2 = unevaluable (base ref does not resolve, no merge
+          base) prints nothing at all on stdout and writes only
+          `acs stacked-base: <reason>` to stderr.
 
 Read-only: every tree test runs against a throwaway `GIT_INDEX_FILE` under
 `tempfile.mkdtemp()`, so nothing in `.git` is written and the check is safe to
