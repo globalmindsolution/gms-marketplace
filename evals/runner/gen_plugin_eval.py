@@ -51,6 +51,32 @@ read its argument. Each probe therefore carries an `llm` grader naming the
 expected skill, and positive probes additionally carry a free `tool_used`
 grader proving a skill fired at all — a deterministic floor under the judge,
 which catches "routed nowhere" without paying for a verdict.
+
+THE TREE RUNS. THE RESULTS ARE NOT YET VALID ROUTING MEASUREMENTS.
+------------------------------------------------------------------
+First full execution, 2026-09-23: 40 cases, $3.87, and the numbers cannot be
+read as routing health. Two instrument defects, both in THIS file, both proven
+from a kept trace rather than inferred:
+
+1. THE SANDBOX HAS NO ACS WORKSPACE. `route-code` scored 0.50, and its trace
+   shows `{"skill": "acs:code", "args": "TKT-1"}` — it routed EXACTLY as the
+   probe asserts. Its final message is then "the acs plugin isn't set up in
+   this repo yet — /acs:code requires .acs/settings.json, which doesn't
+   exist". The skill routed and its precondition gate refused, and the judge,
+   which reads the last message, scored the GATE REFUSAL as a routing failure.
+   Every gated skill is mis-scored this way. The CLI supports `scaffold_script`
+   (`--scaffold`) for exactly this; tier 3 already solved the same problem with
+   routing.json's `profile`/`setup` keys, which this renderer ignores.
+
+2. MAX_TURNS IS TOO LOW. At 3, many runs are truncated before any conclusive
+   final message, so the judge grades a fragment. `route-metrics` is ungated
+   and still scored 0.50 for this reason alone, while `route-usage` — ungated
+   AND short enough to finish — is the one positive that scored 1.00.
+
+Negative probes are unaffected by both defects and look sound: all five scored
+1.00, and a gate refusal is a legitimate PASS for "this must not route here".
+
+Do not re-record a baseline from this run.
 """
 
 import argparse
