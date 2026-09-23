@@ -21,11 +21,31 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 RUN_EVALS = os.path.join(REPO_ROOT, "evals", "behavioural", "run_evals.py")
 
 
-class DispatchAcsPluginTest(unittest.TestCase):
-    """--plugin acs routes to evals/behavioural/acs/run_evals.py which lists 8 scenarios."""
+def registered_scenarios():
+    """The acs scenario registry, read from the package that defines it.
 
-    def test_plugin_acs_list_shows_eight_scenarios(self):
-        """--plugin acs --list must list exactly 8 scenarios without import error."""
+    Derived rather than written down: a scenario added or retired moves these
+    tests by itself. This used to pin the literal 8 and the literal name list,
+    which is how retiring s04_skill_triggers -- routing, consolidated onto the
+    `claude plugin eval` tree -- broke them instead of updating them."""
+    pkg = os.path.join(REPO_ROOT, "evals", "behavioural", "acs")
+    sys.path.insert(0, pkg)
+    try:
+        for stale in ("scenarios",):
+            sys.modules.pop(stale, None)
+        import importlib
+        mod = importlib.import_module("scenarios")
+        return [m.META["name"] for m in mod.SCENARIOS]
+    finally:
+        sys.path.remove(pkg)
+        sys.modules.pop("scenarios", None)
+
+
+class DispatchAcsPluginTest(unittest.TestCase):
+    """--plugin acs routes to evals/behavioural/acs/run_evals.py and lists
+    exactly the scenarios its registry declares."""
+
+    def _list(self):
         result = subprocess.run(
             [sys.executable, RUN_EVALS, "--plugin", "acs", "--list"],
             capture_output=True,
@@ -36,32 +56,24 @@ class DispatchAcsPluginTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0,
                          "run_evals.py --plugin acs --list exited non-zero: "
                          + result.stderr)
+        return result
+
+    def test_plugin_acs_list_shows_every_registered_scenario(self):
+        """--list must print one line per registered scenario, no import error."""
+        expected = registered_scenarios()
+        self.assertTrue(expected, "the acs scenario registry is empty")
+        result = self._list()
         lines = [ln for ln in result.stdout.splitlines() if ln.strip()]
         self.assertEqual(
-            len(lines), 8,
-            "Expected 8 scenario lines, got %d:\n%s" % (len(lines), result.stdout),
+            len(lines), len(expected),
+            "Expected %d scenario lines, got %d:\n%s"
+            % (len(expected), len(lines), result.stdout),
         )
 
     def test_plugin_acs_list_scenario_names(self):
-        """The 8 acs scenario names appear in --list output."""
-        result = subprocess.run(
-            [sys.executable, RUN_EVALS, "--plugin", "acs", "--list"],
-            capture_output=True,
-            text=True,
-            cwd=REPO_ROOT,
-            env={"ACS_EVAL_SOURCE": "1", **os.environ},
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        for name in (
-            "install_gate_smoke",
-            "create_ticket_artifacts",
-            "resume_and_verify",
-            "skill_triggers",
-            "session_end",
-            "update_migration",
-            "fanout_tracker_sync",
-            "create_pr_forge",
-        ):
+        """Every registered scenario name appears in --list output."""
+        result = self._list()
+        for name in registered_scenarios():
             self.assertIn(name, result.stdout,
                           "Scenario '%s' missing from --list output" % name)
 
