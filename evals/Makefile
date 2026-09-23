@@ -31,7 +31,20 @@ REPORT  ?= $(RESULTS)/report
 MEASURE ?= $(RESULTS)/measurements.json
 #: Routing is stochastic; one run per case is a smoke test, not a rate.
 ROUTING_RUNS ?= 3
-ROUTING_JSON ?= $(RESULTS)/routing-cases.json
+#: Empty by default ON PURPOSE. --json makes the run QUIET -- no progress
+#: lines, no summary table -- and aggregate-result.json is written to the
+#: results directory either way, so passing it buys nothing interactively and
+#: costs the operator every signal. Set it for an archived, scriptable copy.
+ROUTING_JSON ?=
+#: 1.0 is the CLI default: a case passes only if EVERY run routed as asserted,
+#: and anything less exits 1. That is the right bar for a routing assertion --
+#: "it routes two times in three" is a finding, not a pass.
+ROUTING_THRESHOLD ?= 1.0
+#: Unset uses whatever the CLI defaults to. PIN IT before recording any number
+#: you intend to compare against a later run: the reference is explicit that an
+#: unpinned model makes a rollout indistinguishable from a plugin regression,
+#: which is exactly what these tiers exist to tell apart.
+ROUTING_MODEL ?=
 #: Each job is a full `claude` child on one credential, so they share a rate
 #: limit. The ceiling is a guard, not a budget: at ~$0.12 a run, 40 cases x 3
 #: runs lands near $15. The reference is explicit that --max-cost-usd is the
@@ -162,8 +175,9 @@ generate: ## Re-render both generated trees (routing cases, schema constraint ca
 routing-cases: ## TIER 2 -- run the generated routing cases against the plugin (~$0.12/run)
 	cd .. && claude plugin eval plugins/acs \
 	  --case 'route-*' --runs $(ROUTING_RUNS) --ablation $(ROUTING_ABLATION) \
+	  --threshold $(ROUTING_THRESHOLD) $(if $(ROUTING_MODEL),--model $(ROUTING_MODEL)) \
 	  -j $(ROUTING_JOBS) --max-cost-usd $(ROUTING_MAX_USD) \
-	  --trust-plugin --no-publish --json evals/$(ROUTING_JSON)
+	  --trust-plugin --no-publish $(if $(ROUTING_JSON),--json evals/$(ROUTING_JSON))
 
 mutation-cli: ## Measure CLI-tier coverage by mutating the plugin's decision code (slow: ~10s per mutant)
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/mutation_cli.py --max-mutants $(MUTANTS)

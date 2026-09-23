@@ -26,15 +26,25 @@ make -C evals check         # fail if stale (runs in the gate)
 ## Running it
 
 ```bash
-make -C evals routing-cases                              # ~$0.12/run, 40 cases x 3 runs
-make -C evals routing-cases ROUTING_RUNS=1               # smoke test, not a rate
+make -C evals routing-cases                               # ~$15: 40 cases x 3 runs
+make -C evals routing-cases ROUTING_RUNS=1                # smoke test, not a rate
 make -C evals routing-cases ROUTING_ABLATION=with-without # buy the no-plugin baseline arm
+make -C evals routing-cases ROUTING_MODEL=claude-sonnet-5 # pin the model (see below)
 ```
 
-`ROUTING_MAX_USD` is the cost ceiling — the reference is explicit that this,
-rather than a tight `max_turns`, is the lever for cost. Results land in
-`evals/results/` at the repo root and in this directory's gitignored
-`results/`.
+`ROUTING_MAX_USD` (default 20) is the cost ceiling — the reference is explicit
+that this, not a tight `max_turns`, is the lever for cost. Hitting it exits 2
+with `partial: true`; leave partial documents out of any trend.
+
+**Pin `ROUTING_MODEL` before recording a number you mean to compare later.**
+Unpinned, a model rollout is indistinguishable from a plugin regression, which
+is the one thing these tiers exist to tell apart.
+
+Every run writes `aggregate-result.json` and `report.html` to this directory's
+gitignored `results/<timestamp>/`. `ROUTING_JSON` is empty by default on
+purpose: `--json` makes the run *quiet* — no progress lines, no summary table —
+and the aggregate JSON is written either way, so passing it interactively costs
+every signal and buys nothing. Set it for an archived, scriptable copy.
 
 ## What these cases assert, and what they do not
 
