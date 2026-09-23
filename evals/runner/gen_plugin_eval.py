@@ -77,6 +77,36 @@ Negative probes are unaffected by both defects and look sound: all five scored
 1.00, and a gate refusal is a legitimate PASS for "this must not route here".
 
 Do not re-record a baseline from this run.
+
+WHY THE POSITIVE PROBES CANNOT BE GRADED AT ALL (proven 2026-09-23)
+-------------------------------------------------------------------
+Chasing those two defects ran into a harder wall, and the wall is the tool, not
+the sandbox: NO GRADER TYPE CAN OBSERVE WHICH SKILL WAS INVOKED.
+
+  regex       `target` enum is `last_message` only. And the evidence is not
+              reliably there: on a run whose trace.jsonl plainly contains
+              {"skill": "acs:code"} and whose final assistant text says "the
+              acs:code skill requires .acs/settings.json", a free regex grader
+              for `acs:code` against last_message reported PATTERN NOT FOUND.
+              What graders receive as last_message is narrower than the final
+              text.
+  tool_used   proves the Skill tool fired, never with which argument
+  tool_order  before/after sequencing
+  llm         reads the response, not the tool calls. Its criteria plumbing is
+              fine - a grader saying "always pass" returns PASS PASS PASS and
+              one saying "always fail" returns FAIL FAIL FAIL - so the FAILs on
+              positive probes are a visibility limit, not a wording problem.
+              Rewording a grader to accept a gate refusal as proof of routing
+              did not change the verdict.
+
+So tier 2 can deterministically answer "did SOME skill fire" and "did NO skill
+fire", and cannot answer "did acs:code fire". Positive routing probes are not
+gradeable here today, at any wording, with or without a seeded sandbox.
+
+This is what tier 3 already does correctly and why it exists: measure_skills.py
+reads the Skill tool_use out of the `claude -p` stream directly and kills the
+run at the first one. Keep routing measurement there. Tier 2 remains useful for
+its ablation support and for assertions about whether a skill fired at all.
 """
 
 import argparse
