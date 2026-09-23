@@ -40,6 +40,11 @@ Two consequences worth stating plainly rather than discovering later:
   frontmatter. That is a contract suite, not an eval, and the guide's format
   cannot express it without spending an agent session per case. It was removed
   on request; `tests/` is where that kind of assertion belongs.
+- **Source vs installed build survives.** `make -C evals routing-cases-installed`
+  passes the named target `acs@gms-marketplace`, which the guide resolves to the
+  cases in the installed copy's eval directory with the installed copy loaded.
+  Until a release ships `plugins/acs/evals/` it reports "No eval cases found",
+  which is the packaging answer rather than a broken command.
 - **Explicit-invocation probes are no longer measurable.** A typed
   `/acs:<skill>` is decided by the session's registration list *before any model
   turn*, so no grader in the guide can see it — `tool_used: Skill` reports zero

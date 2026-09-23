@@ -90,10 +90,19 @@ kept for what it asserts about artifacts and hook behaviour. It is the next thin
 build's observable surface, with its own runner, schema-constraint generator, mutation sweeps
 and a tier-3 session measurer. It ran no model, so it was a contract suite rather than an eval,
 and routing was measured three separate times across the tiers. It was removed in favour of the
-documented format; git history has it. Two things went with it, and are worth knowing before
-you look for them: **packaging drift** is no longer caught by an installed-build run, and
-**explicit `/acs:<skill>` invocation** is no longer measurable — it is decided by the session's
-registration list before any model turn, which no grader in the guide can observe.
+documented format; git history has it.
+
+One capability went with it and has no replacement: **explicit `/acs:<skill>` invocation** is no
+longer measurable. It is decided by the session's registration list before any model turn, so
+`tool_used: Skill` reports zero calls for a probe that routed perfectly well — seven of the nine
+explicit probes read as failures for that reason alone.
+
+**Source vs installed build survives**, and is a first-class distinction rather than a detail.
+`make -C evals routing-cases-installed` passes the *named* target `acs@gms-marketplace`, which
+the guide resolves to the cases in the INSTALLED copy's eval directory with the installed copy
+loaded — what a consumer actually executes, so it catches packaging drift a source-tree run
+cannot. Until a release ships `plugins/acs/evals/`, it reports "No eval cases found": that is
+the packaging answer, not a broken command.
 
 **Behavioural and LLM evals never run in CI** (ADR-0022). The invariant is enforced by a grep
 that must keep returning nothing:

@@ -45,7 +45,7 @@ ROUTING_MAX_USD ?= 20
 ROUTING_ABLATION ?= none
 
 .DEFAULT_GOAL := help
-.PHONY: help check generate routing-cases behavioural behavioural-paid verify-self clean
+.PHONY: help check generate routing-cases routing-cases-installed behavioural behavioural-paid verify-self clean
 
 help: ## Show this help
 	@printf '\nacs evals — evaluation process\n\n'
@@ -79,6 +79,18 @@ routing-cases: ## Run the generated routing cases against the plugin (~$0.12/run
 	  --threshold $(ROUTING_THRESHOLD) $(if $(ROUTING_MODEL),--model $(ROUTING_MODEL)) \
 	  -j $(ROUTING_JOBS) --max-cost-usd $(ROUTING_MAX_USD) \
 	  --trust-plugin --no-publish $(if $(ROUTING_JSON),--json evals/$(ROUTING_JSON))
+
+#: The SOURCE-vs-INSTALLED distinction, which the guide expresses directly: a
+#: named target runs the cases in the INSTALLED copy's eval directory with the
+#: installed copy loaded -- what a consumer actually executes. Until a release
+#: ships plugins/acs/evals/, this correctly reports "No eval cases found":
+#: that IS the packaging answer, not a failure of the command.
+routing-cases-installed: ## Run the suite against the newest INSTALLED build, not this checkout
+	claude plugin eval acs@gms-marketplace \
+	  --case 'route-*' --runs $(ROUTING_RUNS) --ablation $(ROUTING_ABLATION) \
+	  --threshold $(ROUTING_THRESHOLD) $(if $(ROUTING_MODEL),--model $(ROUTING_MODEL)) \
+	  -j $(ROUTING_JOBS) --max-cost-usd $(ROUTING_MAX_USD) \
+	  --trust-plugin --no-publish
 
 behavioural: ## Run the behavioural FREE tier (deterministic, $0, no model) against this checkout
 	ACS_EVAL_SOURCE=1 $(PYTHON) behavioural/run_evals.py --plugin acs
