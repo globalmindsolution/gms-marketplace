@@ -122,9 +122,9 @@ they do.
 
 3. **Workspace reachable** — resolve the workspace the same way item 1 does
    (`acs_lib.load_settings` + `acs_lib.validate_settings`, which derives the
-   in-repo `.acs/state-machine` default when no explicit `workspace_path` is
-   set), then check the resolved directory exists and is writable; if not,
-   the next pre-hook will block anyway, but say it now.
+   in-repo `<main-checkout>/.acs/state-machine` — there is no override), then
+   check the resolved directory exists and is writable; if not, the next
+   pre-hook will block anyway, but say it now.
 
 ## Completion report (normative)
 

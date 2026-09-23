@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs-workspace/example-shop/tickets-index.json }
+target: { source: file, path: .acs/state-machine/example-shop/tickets-index.json }
 pattern: '"EVAL-1"'
 ---
 

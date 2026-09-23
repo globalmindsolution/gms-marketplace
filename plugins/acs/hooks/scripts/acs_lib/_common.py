@@ -124,8 +124,9 @@ DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES,
 # The product doc sets /acs:create-docs bootstraps and maintains (ADR-0094)
 # ---------------------------------------------------------------------------
 #: One row per doc set, and the ONLY declaration of what a set is: the
-#: settings key that locates it (unset = the consumer opted out), the title of
-#: the delivery ticket each run mints, the template directory under
+#: directory a NEW set is created in when the repo has none (an existing set is
+#: found, not configured -- ADR-0102), the title of the delivery ticket each
+#: run mints, the template directory under
 #: templates/, the files the executor writes (in order; the FIRST is the
 #: sentinel that says "this set has shipped") with the sections each must
 #: carry, the audience register its prose is judged against, the upstream
@@ -137,7 +138,7 @@ DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES,
 #: it in prose. Adding a fifth doc set is one row here plus its templates.
 DOC_SETS = {
     "quality": {
-        "settings_key": "quality_path",
+        "default_dir": "docs/quality",
         "title": "Product quality doc set",
         "template_dir": "quality",
         "files": {
@@ -152,7 +153,7 @@ DOC_SETS = {
         "hard": [], "soft": [],
     },
     "operations": {
-        "settings_key": "operations_path",
+        "default_dir": "docs/operations",
         "title": "Product operations doc set",
         "template_dir": "operations",
         "files": {
@@ -173,7 +174,7 @@ DOC_SETS = {
         "hard": [], "soft": [],
     },
     "principles": {
-        "settings_key": "principles_path",
+        "default_dir": "docs/principles",
         "title": "Product principles doc set",
         "template_dir": "principles",
         "files": {"principles.md": ["Principles", "Rationale"]},
@@ -182,7 +183,7 @@ DOC_SETS = {
         "hard": [], "soft": [],
     },
     "standards": {
-        "settings_key": "standards_path",
+        "default_dir": "docs/standards",
         "title": "Product standards doc set",
         "template_dir": "standards",
         "files": {
@@ -194,8 +195,8 @@ DOC_SETS = {
         "audience": "engineers (concise normative rules)",
         # The one set with an extra upstream read: architecture -> principles
         # -> standards is an altitude gradient, an abstract principle realized
-        # by a concrete standard. Read when principles_path is set AND the set
-        # exists on disk; otherwise grounding N/A for the run, never a block.
+        # by a concrete standard. Read when the repo has a principles set;
+        # otherwise grounding N/A for the run, never a block.
         "upstream": {"prd": "whole", "architecture": True, "principles": True},
         "hard": [], "soft": ["principles"],
     },
@@ -206,7 +207,7 @@ DOC_SETS = {
 DOC_BOOTSTRAP_FANOUT_V1 = tuple(DOC_SETS)
 DOC_BOOTSTRAP_DEPENDENCIES = {name: {"hard": list(row["hard"]), "soft": list(row["soft"])}
                               for name, row in DOC_SETS.items()}
-DOC_BOOTSTRAP_SETTINGS_KEY = {name: row["settings_key"] for name, row in DOC_SETS.items()}
+DOC_SET_DEFAULT_DIR = {name: row["default_dir"] for name, row in DOC_SETS.items()}
 DOC_BOOTSTRAP_SENTINEL = {name: next(iter(row["files"])) for name, row in DOC_SETS.items()}
 DOC_SET_TITLES = {name: row["title"] for name, row in DOC_SETS.items()}
 """The six plan headings create-impl-plan/SKILL.md requires on every run."""

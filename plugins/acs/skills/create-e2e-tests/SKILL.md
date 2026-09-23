@@ -77,14 +77,20 @@ Parse the printed context JSON. Fields you will use:
   to it.
 - `settings` — you need `suites` (the reserved `e2e` entry: its `command`,
   optional `setup`/`teardown`; `settings.e2e` is normalized into it at load
-  time, so read `suites["e2e"]` and never the raw alias), `artifacts.tickets_path`
-  (where `test-cases.md` lives), `quality_path`, `architecture_path`,
+  time, so read `suites["e2e"]` and never the raw alias),
   `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+
+Locate the repo's quality doc set and architecture doc set (its
+`hld/tech-stack.md`) once, here, the way any session finds a document:
+CLAUDE.md and whatever docs index it or the repo points at (e.g.
+`docs/README.md`), then a Glob/Grep by file name or content. Their
+repo-relative directories are `<quality_dir>` and `<architecture_dir>` below.
+One the repo does not have is simply absent; this skill creates neither.
 
 ## Branch — the suites are repo files
 
@@ -103,9 +109,9 @@ recreate or reset it, and never rebase it. Commit the suites with
 `settings.formats.commit_message` (default `"{ticket_id} {summary}"`). Do NOT
 push — `/acs:create-pr` pushes.
 
-Unlike the ticket's documents, the suites are code: they are committed in the
-repo whatever `artifacts.tickets_path` is set to. The docs-tree opt-out
-(`tickets_path: null`) changes only where `test-cases.md` is READ from.
+Unlike the ticket's documents, which live in its docs folder
+(`docs/tickets/<id>/`), the suites are code: they are committed where the repo
+keeps its e2e suites (resolved below).
 
 ### The e2e cases — resolve them before anything else
 
@@ -150,7 +156,7 @@ repo's e2e suites live, once, before planning, and state it in the plan's
 2. The e2e command itself: a runner config (`playwright.config.*`,
    `cypress.config.*`, a pytest path argument, a make target) names its test
    root. Read the config rather than guessing from the command string.
-3. `<checkout_root>/<settings.architecture_path>/hld/project-structure.md` when
+3. `<checkout_root>/<architecture_dir>/hld/project-structure.md` when
    it exists — the repo's declared layout.
 
 If all three are silent — a configured command but no suite, no config and no
@@ -206,7 +212,7 @@ inline a file body):
 4. The product surface the cases drive: the routes, commands or screens, read
    from the code itself, so a selector or an endpoint in a test is one you have
    seen.
-5. `<checkout_root>/<settings.quality_path>/` when it exists — the repo's test
+5. `<checkout_root>/<quality_dir>/` when the repo has one — the repo's test
    strategy, including what it says about e2e scope, determinism and runtime.
 6. `settings.suites["e2e"]` — `command`, `setup`, `teardown`. The suites must be
    runnable by THAT command with no new runner, no new flag and no new

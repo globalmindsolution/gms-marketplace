@@ -1,6 +1,6 @@
 <!--
   incident-response — built-in operations doc-set template (used by /acs:create-operations).
-  Bootstrapped verbatim into the consumer's operations_path, then lightly tailored
+  Bootstrapped verbatim into the consumer's operations/ doc set, then lightly tailored
   to the detected tech stack/deployment. No runtime placeholders — tailoring is an
   in-place prose edit, not a string substitution. Documents the incident
   process only — a running postmortem log is out of scope (deferred).

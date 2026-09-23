@@ -48,7 +48,10 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
 - `<constraints>` — at least `coverage_target` (settings.test_coverage_percent),
   `branch` (the ticket branch name), `commit_message` (the configured format),
   `plan_draft` (the draft path you write) and `docs_only` when it applies;
-  plus `architecture_path` and `adr_path` when set;
+  plus `architecture_dir`, `requirements_dir` and `adr_dir` when the repo has
+  them (the coordinator located them; when one is absent, locate it yourself
+  from CLAUDE.md, the repo's docs index, then a Glob/Grep — none found means
+  the repo has none);
 - `<context>` — the user's recorded clarification answers, and on iteration
   2+ the verifier findings assigned to you.
 
@@ -135,8 +138,8 @@ plan and covers the API surface the plan declares.
    independently re-derives every other doc-delta this change touches —
    README, API/usage docs, the changelog, code comments, the
    living-requirements file for each touched feature area, the HLD under
-   `architecture_path`, the `lld/flows/` sequence diagrams, and the ADRs
-   under `adr_path` — from the diff (and the design, when one applies) after
+   `architecture_dir`, the `lld/flows/` sequence diagrams, and the ADRs
+   under `adr_dir` — from the diff (and the design, when one applies) after
    `/acs:code` completes; this plan does not name them. Always assess whether
    the change makes any factual claim in
    `docs/product/prd.md` or `docs/product/roadmap.md` stale (factual items:
@@ -160,11 +163,11 @@ plan and covers the API surface the plan declares.
    doc-graph **edge** (not disagreement, but absence) across four
    bounded edge types, checkable against the same docs this item
    already opens: **E1** a touched/added component has no entry in
-   `<architecture_path>/hld/c4-component.md`; **E2** a touched/added
+   `<architecture_dir>/hld/c4-component.md`; **E2** a touched/added
    persisted entity or state shape has no row in
-   `<architecture_path>/hld/data-model.md`; **E3** a touched/added
+   `<architecture_dir>/hld/data-model.md`; **E3** a touched/added
    runtime flow has no sequence diagram under
-   `<architecture_path>/lld/flows/`; **E4** a user-visible capability
+   `<architecture_dir>/lld/flows/`; **E4** a user-visible capability
    the change delivers has no PRD goal or roadmap row to trace to in
    `docs/product/prd.md` / `docs/product/roadmap.md`. A found E1-E4 gap
    rides the SAME `problems` carrier as a Boy-scout drift item: cite
@@ -172,7 +175,7 @@ plan and covers the API surface the plan declares.
    the doc it is missing from — no new question type, no new field, no
    new lifecycle. Bound: touched-area only, the same scope as the
    drift repair above — no whole-repo reconciliation. Explicitly NOT
-   covered: `requirements_path` edges and `adr_path` edges — they
+   covered: `requirements_dir` edges and `adr_dir` edges — they
    remain the responsibility of `/acs:create-design`'s full ADR-0012
    step (for `needs_design: true` tickets) and `/acs:docs-sync`'s
    diff-grounded re-derivation. When the consumer repo has no

@@ -34,20 +34,9 @@ BUILTIN_TEMPLATES = {"pr-default", "epic-default", "story-default", "task-defaul
 DEFAULT_SETTINGS = {
     "test_coverage_percent": 90,
     "merge_strategy": "squash",
-    "prd_path": "docs/product",
-    "architecture_path": "docs/architecture",
-    "requirements_path": "docs/requirements",
-    "requirements_layout": {"functional_subdir": "functional", "non_functional_subdir": "non-functional"},
-    "adr_path": "docs/adr",
-    "quality_path": "docs/quality",
-    "operations_path": "docs/operations",
-    "principles_path": "docs/principles",
-    "standards_path": "docs/standards",
     "suites": {},
     "workflow": {"advisories": True},
     "hook_gates": {"when_absent": DEFAULT_GATE_RESPONSE},
-    "artifacts": {"tickets_path": "docs/tickets"},
-    "contracts_path": "docs/api",
     "tracker": {"provider": "local"},
     "models": {},
     "formats": {
@@ -62,6 +51,16 @@ DEFAULT_SETTINGS = {
         },
     },
 }
+
+#: Keys an older acs read and this one ignores (ADR-0102): no setting locates a
+#: document or the workspace. Still legal in a settings file -- unknown keys
+#: are -- and named by `/acs:setup detect` so a stale one is not mistaken for a
+#: live one.
+RETIRED_SETTINGS_KEYS = (
+    "workspace_path", "prd_path", "architecture_path", "requirements_path",
+    "requirements_layout", "adr_path", "quality_path", "operations_path",
+    "principles_path", "standards_path", "artifacts", "contracts_path",
+)
 
 # Enforcement defaults — mirror schemas/settings.schema.json + the consumer-side
 # templates/ci/check-conventions.py, used only when a key is absent from settings
@@ -132,13 +131,13 @@ def _normalize_e2e_into_suites(merged):
 
 
 def validate_settings(settings, cwd, require_workspace=True):
-    """Shared baseline validation used by every pre-hook. Raises GateError."""
-    workspace = settings.get("workspace_path")
-    if require_workspace:
-        if workspace:
-            workspace = os.path.abspath(os.path.expanduser(str(workspace)))
-        else:
-            workspace = default_state_root(cwd)  # may raise GateError
+    """Shared baseline validation used by every pre-hook. Raises GateError.
+
+    The workspace is always <main-checkout>/.acs/state-machine (ADR-0086). No
+    setting locates it, and none locates a document either (ADR-0102): a skill
+    finds the repo's docs the way any session does, through CLAUDE.md and the
+    repo itself."""
+    workspace = default_state_root(cwd) if require_workspace else None  # may raise GateError
     prefix = settings.get("ticket_prefix")
     if require_workspace:
         if not prefix or not re.fullmatch(r"[A-Z][A-Z0-9]*", str(prefix)):

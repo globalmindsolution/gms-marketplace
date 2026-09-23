@@ -49,15 +49,11 @@ You need the run directory before flushing. Resolve it like the hooks do:
 - **Settings** (per-key merge, most specific wins): read
   `<main-checkout>/.acs/settings.local.json`, then
   `<main-checkout>/.acs/settings.json`, then `~/.acs/settings.json`; take the
-  first `workspace_path` (expand `~`) and `ticket_prefix` found. In a linked
-  worktree also check the worktree's own `.acs/` files. **Workspace**: derive
-  the in-repo default first — `<main-checkout>/.acs/state-machine`, the same
-  derivation `acs_lib.default_state_root()` does — and only fall back to an
-  explicit `workspace_path` override when the settings actually set one. "acs
-  is not initialized" is reserved for the case where even the default cannot
-  be derived (a bare repo or a submodule, with no override set) — stop and
-  tell the user to run `/acs:setup` first, or set an explicit
-  `workspace_path`.
+  first `ticket_prefix` found. In a linked worktree also check the worktree's
+  own `.acs/` files. **Workspace**: always `<main-checkout>/.acs/state-machine`,
+  the same derivation `acs_lib.default_state_root()` does — no override
+  exists. When it cannot be derived (a bare repo or a submodule), stop and tell
+  the user that acs must be run from a regular git checkout.
 - **repo-id**: from `git config --get remote.origin.url` take the last two
   path segments as `owner-name` (strip scheme, `user@`, trailing `.git`;
   replace `:` with `/`; sanitize any character outside `[A-Za-z0-9._-]` to
@@ -173,8 +169,8 @@ If it exits non-zero, surface its stderr verbatim and stop. Known cases:
 - `acs requires a git repository` / `no .acs/settings.json found (user or
   project scope)` — tell the user to run `/acs:setup`.
 - `... acs cannot derive an in-repo state root here` (bare repo or
-  submodule) — tell the user to set an explicit `workspace_path` override in
-  `.acs/settings.local.json`, or run `/acs:setup` to do it interactively.
+  submodule) — tell the user that acs must be run from a regular git
+  checkout.
 - `no current run for this checkout (nothing to hand off)` — ask the user
   for the run id and re-run `/acs:handoff SHOP-123`.
 - `no run recorded at <path>` — the run never started, or the id is wrong;
@@ -202,9 +198,8 @@ Tell the user, compactly:
    the run over, not just this checkout.
 4. **Scope** — the handoff targets a new session on the **same machine and
    checkout**: the state machine lives in the repo's main checkout at
-   `.acs/state-machine/` by default, or at an explicit `workspace_path`
-   override when one is set; either way it is local to this machine, so
-   cross-machine handoff is out of scope.
+   `.acs/state-machine/`, local to this machine, so cross-machine handoff is
+   out of scope.
 
 If `handoff.py` reported `"step": null`, say explicitly that **nothing was
 in flight — there is nothing to hand off**: every completed step is already

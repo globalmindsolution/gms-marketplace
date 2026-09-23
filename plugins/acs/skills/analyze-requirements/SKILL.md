@@ -54,12 +54,10 @@ Parse the printed context JSON. Fields you will use:
   basename is that ticket's id. When `design.required` is true, resolve the
   design document itself with `acs.py artifacts show --ticket <that id>` and
   read `artifacts["design.md"]` — the design ticket's docs folder, or
-  `<design.dir>/design.md` when the tree is opted out. Call it `<design_doc>`;
-  the analysis is bounded by a design that already exists, never a second
-  opinion on it.
-- `settings` — you need `artifacts.tickets_path` (where `analysis.md` is
-  published), `prd_path`, `requirements_path`, `architecture_path`,
-  `contracts_path`, `formats.branch_name`, `formats.commit_message`.
+  `<design.dir>/design.md` while it still lives in the partition. Call it
+  `<design_doc>`; the analysis is bounded by a design that already exists,
+  never a second opinion on it.
+- `settings` — you need `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see
   `references/resume.md`.
@@ -75,9 +73,9 @@ out with `/acs:create-ticket <id>`, then run `/acs:analyze-requirements` on a ch
 
 ## Branch — the analysis is a repo file
 
-When the ticket docs tree is active (`settings.artifacts.tickets_path` is not
-null), `analysis.md` is a file in the consumer repo and belongs on the ticket
-branch with every other change for this ticket. Render
+`analysis.md` is a file in the consumer repo — in the ticket's docs folder,
+`docs/tickets/<id>/`, a fixed location rather than a setting — and belongs on
+the ticket branch with every other change for this ticket. Render
 `settings.formats.branch_name` (default `"{type}/{ticket_id}-{slug}"`) with
 `{ticket_id}`, `{type}` (`ticket.type`), `{slug}` (the slugified ticket title —
 `acs.py slug --text "<title>"`), and `{external_key}`, then create or reuse it:
@@ -90,9 +88,6 @@ As the first Build step this usually CREATES the ticket branch; on resume, or
 when a Design-phase skill already made it, reuse it — never recreate or reset
 it. Commit the published analysis with `settings.formats.commit_message`
 (default `"{ticket_id} {summary}"`). Do NOT push — `/acs:create-pr` pushes.
-
-When the tree is opted out (`artifacts.tickets_path: null`) the analysis is
-written to the workspace partition instead and nothing enters the repo.
 
 ### Analysis artifact resolution
 
@@ -108,7 +103,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id
   second file).
 - else `docs_dir` non-null → the analysis is published to
   `<docs_dir>/analysis.md`.
-- else → the analysis is published to `<partition>/analysis.md`.
+- else (no checkout to anchor the docs folder to) → the analysis is
+  published to `<partition>/analysis.md`.
 
 This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
 `/acs:create-api-contract` gate looks for, so the path this run chooses is the
@@ -138,12 +134,16 @@ inline a file body):
    acceptance criterion, type, parent.
 2. `<design_doc>` when `design.required` — the decided architecture.
    The analysis maps the ticket onto that decision; it never re-opens it.
-3. The PRD at `<checkout_root>/<settings.prd_path>/prd.md` and the living
-   requirements under `<checkout_root>/<settings.requirements_path>/` when they
-   exist — what the product already promises about this area.
-4. The architecture doc set under `<checkout_root>/<settings.architecture_path>/`
-   when it exists (`hld/`, `lld/flows/`, `lld/contracts.md`) — the components
-   the impact map names are the components those docs name.
+3. The PRD and the living requirements set when they exist — what the
+   product already promises about this area. Locate them, and the
+   architecture set below, the way any session finds a document: CLAUDE.md
+   and whatever docs index it or the repo points at (e.g. `docs/README.md`),
+   then a Glob/Grep by file name or content (`prd.md`, a `requirements/`
+   folder, `hld/tech-stack.md`; conventionally under `docs/product/`,
+   `docs/requirements/`, `docs/architecture/`). Not found → not an input.
+4. The architecture doc set when it exists (`hld/`, `lld/flows/`,
+   `lld/contracts.md`) — the components the impact map names are the
+   components those docs name.
 5. The consumer repo itself: the source, tests, docs and configuration the
    ticket touches. The impact map is derived from the CODE, not from the
    ticket's prose.
@@ -341,8 +341,8 @@ bytes must equal the verified bytes:
 cp "<partition>/steps/analyze-requirements/analysis.md" "<analysis_path>"
 ```
 
-Then commit on the ticket branch when the analysis is inside the repo (the
-docs tree active). Commit **the ticket's whole docs folder** — `git add
+Then commit on the ticket branch when the analysis is inside the repo
+(published under `<docs_dir>`). Commit **the ticket's whole docs folder** — `git add
 "<docs_dir>"` — not only `<analysis_path>`: `ticket.md` and, when the ticket
 needed one, `design.md` were published in the Design phase before this branch
 existed, and acs never commits to the default branch, so this first Build

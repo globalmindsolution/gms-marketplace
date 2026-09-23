@@ -240,18 +240,18 @@ def default_state_root(cwd):
     if not is_bare:
         raise GateError(
             "%s is not a git repository (or git is unavailable); acs cannot derive an "
-            "in-repo state root here. Set an explicit workspace_path override." % cwd
+            "in-repo state root here. Run acs from a regular git checkout." % cwd
         )
     if is_bare == "true":
         raise GateError(
             "%s is a bare git repository; acs cannot derive an in-repo state root here. "
-            "Set an explicit workspace_path override." % cwd
+            "Run acs from a regular git checkout." % cwd
         )
     common = _git(["rev-parse", "--git-common-dir"], cwd)
     if not common:
         raise GateError(
             "could not resolve %s's git-common-dir; acs cannot derive an in-repo state "
-            "root here. Set an explicit workspace_path override." % cwd
+            "root here. Run acs from a regular git checkout." % cwd
         )
     if not os.path.isabs(common):
         common = os.path.join(cwd, common)
@@ -261,11 +261,11 @@ def default_state_root(cwd):
         if superproject:
             raise GateError(
                 "%s is a git submodule; acs cannot derive an in-repo state root anchored "
-                "to a stable main checkout here. Set an explicit workspace_path override." % cwd
+                "to a stable main checkout here. Run acs from a regular git checkout." % cwd
             )
         raise GateError(
             "%s has an unusual git layout (git-common-dir is not a .git directory); acs "
-            "cannot derive an in-repo state root here. Set an explicit workspace_path override." % cwd
+            "cannot derive an in-repo state root here. Run acs from a regular git checkout." % cwd
         )
     root = os.path.dirname(common)
     return os.path.join(root, ".acs", "state-machine")

@@ -1,14 +1,19 @@
 """MAR-121 spec 02 — /acs:standardize-project skill, triad, and prose-contract tests.
 
 Focused prose-contract tests pinning what the shared tests/acs/test_skill_contracts.py
-suite does not already cover: brownfield non-refusal framing (AC-2), no <set>_path
+suite does not already cover: brownfield non-refusal framing (AC-2), no doc-set
 producer semantics (AC-2), planner audit-inputs + graceful degradation (AC-3),
 executor tool restriction + never-touch-existing-source + never-write-under-doc-set-
-paths (AC-4), narrowed allowlist + recommended_follow_ups shape (AC-4/AC-6), verifier
+dirs (AC-4), narrowed allowlist + recommended_follow_ups shape (AC-4/AC-6), verifier
 re-run-every-iteration diff-status gate (AC-5), recommended-only / one-PR (AC-6),
 completion-report + recommended_follow_ups on the result document (AC-6/AC-7), and the
 delivery-title string verbatim (cross-spec identity with spec 01's
 DELIVERY_TICKET_TITLES).
+
+Since ADR-0102 the principles and standards sets are found, not configured: the
+coordinator locates them at Start and passes them to its agents as the
+`principles_dir` / `standards_dir` constraints, so these tests pin those names where
+they once pinned the removed `principles_path` / `standards_path` settings keys.
 
 Stdlib-only (os, re, unittest), mirroring the bounded-window `section()` technique from
 test_create_standards_skill.py and test_create_architecture_project_structure.py.
@@ -73,9 +78,11 @@ class Mar121BrownfieldNonRefusalCase(unittest.TestCase):
 
 
 class Mar121NoSetPathProducerCase(unittest.TestCase):
-    """AC-2: SKILL.md is not a <set>_path doc-set producer — no new settings key
-    in frontmatter, and no Start-time refusal guard keyed to principles_path or
-    standards_path being null (unlike create-standards' own-set-only guard)."""
+    """AC-2: SKILL.md is not a doc-set producer — no settings key in
+    frontmatter, and no Start-time refusal guard on a missing principles or
+    standards set (unlike create-standards' own-set-only guard). Since ADR-0102
+    Start locates both sets; not finding one is never a stop, and the only
+    Start-time STOP is the architecture set's."""
 
     @classmethod
     def setUpClass(cls):
@@ -83,20 +90,33 @@ class Mar121NoSetPathProducerCase(unittest.TestCase):
         cls.fm = cls.body.split("---\n", 2)[1]
         cls.start = section(cls.body, "## Start")
 
+    def _start_bullet(self, needle):
+        """The Start bullet (a top-level `- ` item and its wrapped lines) that
+        names `needle`."""
+        for bullet in re.split(r"(?m)^- ", self.start)[1:]:
+            if needle in bullet:
+                return " ".join(bullet.split())
+        raise AssertionError("no Start bullet names %r" % needle)
+
     def test_no_new_settings_key_in_frontmatter(self):
         self.assertNotIn("_path:", self.fm)
 
-    def test_no_refusal_guard_on_principles_path(self):
-        self.assertIsNone(
-            re.search(r"STOP.{0,120}principles_path.{0,40}null", self.start, re.DOTALL))
-        self.assertIsNone(
-            re.search(r"principles_path.{0,40}null.{0,120}STOP", self.start, re.DOTALL))
+    def test_start_states_no_refusal_guard_on_either_set(self):
+        start = " ".join(self.start.split())
+        self.assertIn("No refusal guard on the principles or standards set", start)
+        self.assertIn("Only the architecture set is a Start-time precondition", start)
 
-    def test_no_refusal_guard_on_standards_path(self):
-        self.assertIsNone(
-            re.search(r"STOP.{0,120}standards_path.{0,40}null", self.start, re.DOTALL))
-        self.assertIsNone(
-            re.search(r"standards_path.{0,40}null.{0,120}STOP", self.start, re.DOTALL))
+    def test_no_refusal_guard_on_principles_set(self):
+        bullet = self._start_bullet("<principles_dir>")
+        self.assertNotIn("STOP", bullet)
+        self.assertIn("never a stop", bullet)
+        self.assertNotIn("principles_path", self.body)
+
+    def test_no_refusal_guard_on_standards_set(self):
+        bullet = self._start_bullet("<standards_dir>")
+        self.assertNotIn("STOP", bullet)
+        self.assertIn("never a stop", bullet)
+        self.assertNotIn("standards_path", self.body)
 
 
 class Mar121PlannerAuditInputsCase(unittest.TestCase):
@@ -108,11 +128,13 @@ class Mar121PlannerAuditInputsCase(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(PLANNER_PATH)
 
-    def test_names_principles_path(self):
-        self.assertIn("principles_path", self.body)
+    def test_names_principles_dir(self):
+        self.assertIn("principles_dir", self.body)
+        self.assertNotIn("principles_path", self.body)
 
-    def test_names_standards_path(self):
-        self.assertIn("standards_path", self.body)
+    def test_names_standards_dir(self):
+        self.assertIn("standards_dir", self.body)
+        self.assertNotIn("standards_path", self.body)
 
     def test_names_project_structure_target(self):
         self.assertIn("hld/project-structure.md", self.body)
@@ -124,13 +146,13 @@ class Mar121PlannerAuditInputsCase(unittest.TestCase):
     def test_graceful_degradation_language_present(self):
         self.assertIsNotNone(
             re.search(
-                r"(?s)(principles_path|standards_path).{0,600}"
+                r"(?s)(principles_dir|standards_dir).{0,600}"
                 r"(N/A|proceed|never a.{0,20}block)"
                 r"|(N/A|proceed|never a.{0,20}block).{0,600}"
-                r"(principles_path|standards_path)",
+                r"(principles_dir|standards_dir)",
                 self.body,
             ),
-            "planner must co-locate a principles_path/standards_path null/absent "
+            "planner must co-locate a principles_dir/standards_dir absent-set "
             "condition with N/A / proceed / never-a-block language",
         )
 
@@ -138,7 +160,7 @@ class Mar121PlannerAuditInputsCase(unittest.TestCase):
 class Mar121ExecutorRestrictionCase(unittest.TestCase):
     """AC-4: executor frontmatter carries disallowedTools: Agent, Skill; its
     Doing-the-work section states never-edit/rename/delete-existing-source AND
-    never-write-under-principles_path/standards_path, independent of the
+    never-write-under-principles_dir/standards_dir, independent of the
     frontmatter tool check."""
 
     @classmethod
@@ -154,21 +176,21 @@ class Mar121ExecutorRestrictionCase(unittest.TestCase):
         self.assertIsNotNone(
             re.search(r"(?i)never edit, rename, move, or delete", self.doing))
 
-    def test_never_write_under_principles_path(self):
+    def test_never_write_under_principles_dir(self):
         self.assertIsNotNone(
-            re.search(r"NEVER.{0,300}principles_path", self.doing, re.DOTALL)
-            or re.search(r"principles_path.{0,300}NEVER", self.doing, re.DOTALL))
+            re.search(r"NEVER.{0,300}principles_dir", self.doing, re.DOTALL)
+            or re.search(r"principles_dir.{0,300}NEVER", self.doing, re.DOTALL))
 
-    def test_never_write_under_standards_path(self):
+    def test_never_write_under_standards_dir(self):
         self.assertIsNotNone(
-            re.search(r"NEVER.{0,300}standards_path", self.doing, re.DOTALL)
-            or re.search(r"standards_path.{0,300}NEVER", self.doing, re.DOTALL))
+            re.search(r"NEVER.{0,300}standards_dir", self.doing, re.DOTALL)
+            or re.search(r"standards_dir.{0,300}NEVER", self.doing, re.DOTALL))
 
 
 class Mar121AdditiveSurfaceAllowlistCase(unittest.TestCase):
     """AC-4/AC-6: the Additive-surface contract section names the allowlist
     categories (CI workflow, tooling config) and explicitly states
-    principles_path/standards_path are NOT scaffold targets; the
+    principles_dir/standards_dir are NOT scaffold targets; the
     recommended_follow_ups shape keys are all present."""
 
     @classmethod
@@ -182,15 +204,15 @@ class Mar121AdditiveSurfaceAllowlistCase(unittest.TestCase):
     def test_names_tooling_config_category(self):
         self.assertIn("tooling config", self.contract)
 
-    def test_states_principles_path_not_scaffold_target(self):
+    def test_states_principles_dir_not_scaffold_target(self):
         self.assertIsNotNone(
-            re.search(r"NEVER.{0,300}principles_path", self.contract, re.DOTALL)
-            or re.search(r"principles_path.{0,300}NEVER", self.contract, re.DOTALL))
+            re.search(r"NEVER.{0,300}principles_dir", self.contract, re.DOTALL)
+            or re.search(r"principles_dir.{0,300}NEVER", self.contract, re.DOTALL))
 
-    def test_states_standards_path_not_scaffold_target(self):
+    def test_states_standards_dir_not_scaffold_target(self):
         self.assertIsNotNone(
-            re.search(r"NEVER.{0,300}standards_path", self.contract, re.DOTALL)
-            or re.search(r"standards_path.{0,300}NEVER", self.contract, re.DOTALL))
+            re.search(r"NEVER.{0,300}standards_dir", self.contract, re.DOTALL)
+            or re.search(r"standards_dir.{0,300}NEVER", self.contract, re.DOTALL))
 
     def test_recommended_follow_ups_shape_keys(self):
         for key in ("title", "rationale", "target_path"):

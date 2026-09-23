@@ -103,7 +103,9 @@ without any single cause being sufficient on its own:
    pipeline workspace, which by default is now anchored in-repo
    (ADR-0086), but this host's `.acs/settings.local.json` (gitignored)
    overrides it to an external, machine-local path
-   (`workspace_path: /home/user/acs-workspace`; as observed then, that
+   (`/home/user/acs-workspace`, through the workspace override setting
+   [ADR-0102](../adr/0102-documents-are-found-not-configured.md) later
+   removed; as observed then, that
    directory was created 2026-09-01). That workspace holds exactly one
    ticket (`MAR-306`) and no
    `archive/` directory at all — so even a history of perfectly-executed

@@ -4,9 +4,8 @@
 #
 # Two things make this gradeable, and both are load-bearing:
 #
-#   * settings.local.json redirects `workspace_path` under the run's own
-#     directory. acs keeps pipeline state OUTSIDE the repo tree by default,
-#     which would put every artifact somewhere no grader can read.
+#   * the run directory IS the repo's main checkout, so acs's workspace is
+#     `.acs/state-machine/` inside it (ADR-0086), where a grader can read it.
 #   * the git remote is fixed, so the partition id acs derives from it
 #     (owner-name, via acs_lib.repo_partition_id) is deterministically
 #     `example-shop` and a grader can name the path.
@@ -28,20 +27,16 @@ cat > .acs/settings.json <<'JSON'
   "tracker": { "provider": "none" }
 }
 JSON
-cat > .acs/settings.local.json <<'JSON'
-{ "workspace_path": "./.acs-workspace" }
-JSON
-echo '.acs/settings.local.json' >> .gitignore
-mkdir -p .acs-workspace
+echo '.acs/state-machine/' >> .gitignore
 
 # A fresh partition refuses to allocate an id: acs's reconciliation guard will
 # not restart a sequence it has no evidence for (it could collide with ids
 # already in the repo's history). A reconciled counters.json is the documented
 # fixture seam for that (MAR-402) -- without it the first mint blocks and asks
 # for `--seed-next`, which a "do not ask me anything" prompt cannot answer.
-mkdir -p .acs-workspace/example-shop
+mkdir -p .acs/state-machine/example-shop
 printf '{"next": 1, "reconciled": true, "seed_source": "explicit-user", "seeded_at": "%s"}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .acs-workspace/example-shop/counters.json
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .acs/state-machine/example-shop/counters.json
 
 git add -A
 git commit -qm seed

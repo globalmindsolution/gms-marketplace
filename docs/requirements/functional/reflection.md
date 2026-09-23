@@ -168,9 +168,8 @@ Requirements:
 > runs five lenses in parallel — acceptance conformance, defects, contracts
 > and regressions, security and operability, and craft (which includes
 > **Simplicity & scope**: overcomplication and out-of-scope edits are
-> blocking) — over the whole changeset, against the `standards/` doc set at
-> `standards_path` when configured and the documented architecture when
-> unset. Every candidate finding then goes to a **fresh-context adjudicator**
+> blocking) — over the whole changeset, against the repo's `standards/` doc
+> set when it has one and the documented architecture when it has none. Every candidate finding then goes to a **fresh-context adjudicator**
 > prompted to refute it, and only what survives refutation is recorded.
 > Findings carry a `kind`, not a dimension number: the numbered dimension
 > list is retired, because a finding's identity is its claim and its

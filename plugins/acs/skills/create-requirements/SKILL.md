@@ -8,12 +8,13 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-requirements. You produce or amend the
 consumer `requirements/` doc set — one file per functional feature and one per
 non-functional item, in the functional/non-functional layout `/acs:code`'s
-living-requirements merge already writes into — at `settings.requirements_path`
-(default `docs/requirements`), resolved into `<requirements_path>/<functional_subdir>/`
-and `<requirements_path>/<non_functional_subdir>/` via `settings.requirements_layout`
-(defaults `functional`/`non-functional`; never hardcode these literals — always
-read them from settings). You ship it yourself as a docs-only PR on a fresh
-delivery ticket — `/acs:code` and `/acs:create-pr` are NOT involved. You
+living-requirements merge already writes into — wherever the repo already keeps
+its requirements set, else at `docs/requirements/`, as `<requirements_dir>` with
+its functional subfolder `<functional_dir>` and non-functional subfolder
+`<non_functional_dir>` (`functional/` and `non-functional/` for a new set; an
+existing set's own subfolder names are followed, never renamed — see Start).
+You ship it yourself as a docs-only PR on a fresh delivery ticket —
+`/acs:code` and `/acs:create-pr` are NOT involved. You
 orchestrate executor/verifier subagents — execute -> verify, no planner
 (ADR-0092); you never write requirement content yourself.
 
@@ -30,9 +31,17 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 
 - Otherwise (fresh bootstrap or amendment — every run gets a NEW delivery ticket):
 
-  Before calling `acs step start --allocate`, detect whether this is an **amend**
-  run by checking if the resolved `<requirements_path>/<functional_subdir>/` or
-  `<non_functional_subdir>/` already holds files (a substantially-populated set).
+  Before calling `acs step start --allocate`, locate the repo's requirements set
+  the way any session finds a document: CLAUDE.md and whatever docs index it or
+  the repo points at (e.g. `docs/README.md`), then a Glob/Grep for a
+  `requirements/` folder or requirement files by content. Found → that folder is
+  `<requirements_dir>`, and its existing functional and non-functional subfolders
+  — whatever the set names them — are `<functional_dir>` and
+  `<non_functional_dir>`. Not found → `<requirements_dir>` = `docs/requirements`,
+  `<functional_dir>` = `docs/requirements/functional`, `<non_functional_dir>` =
+  `docs/requirements/non-functional`, the conventional default. Then detect
+  whether this is an **amend** run by checking if `<functional_dir>` or
+  `<non_functional_dir>` already holds files (a substantially-populated set).
   This mirrors the executor's amend definition (see Execute below).
 
   - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
@@ -65,10 +74,13 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 If `acs step start` exits non-zero: STOP and surface its stderr verbatim.
 
 Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
-`settings` (`requirements_path`, `requirements_layout`, `formats`), `models`,
+`settings` (`formats`), `models`,
 `reconcile`, `handoff_summary`, `post_hook`.
 
 Keep the free text of `$ARGUMENTS` (focus notes, amendment request): it is executor input.
+`<requirements_dir>`, `<functional_dir>` and `<non_functional_dir>` are the
+repo-relative paths every later section uses; on the resume form, locate them the
+same way right after `acs step start`.
 
 ## Resume & reconcile
 
@@ -77,9 +89,9 @@ continuing:
 
 1. Re-read `steps/create-requirements/iter-*-*.xml` and
    `<partition>/create-requirements-state.json` to see which phases completed.
-2. Re-read the `<requirements_path>` tree against recorded executor claims — does
-   the actual `functional/`/`non-functional/` file set match what the recorded
-   executor results claim?
+2. Re-read the `<requirements_dir>` tree against recorded executor claims — does
+   the actual `<functional_dir>`/`<non_functional_dir>` file set match what the
+   recorded executor results claim?
 3. Check delivery progress: does the delivery branch exist
    (`git branch --list "<branch>"` / `git ls-remote --heads origin "<branch>"`)? Was a
    PR already opened (`gh pr list --head "<branch>" --json number,url`)?
@@ -139,7 +151,7 @@ Decomposition is YOURS alone — subagents never spawn subagents.
 ### Execute — iteration 1 surveys before it writes
 
 The executor's first job on iteration 1 is mode classification, keyed on whether
-`<requirements_path>` already holds functional/non-functional content:
+`<requirements_dir>` already holds functional/non-functional content:
 
 - **brownfield** (headline) — the requirements set is absent or sparse AND the
   repo has real code. Plan to reverse-engineer per-area requirements from the
@@ -149,8 +161,8 @@ The executor's first job on iteration 1 is mode classification, keyed on whether
   surgical augmentation: which absent/ungrounded area files gain new content,
   which existing files are preserved byte-for-byte.
 - **greenfield** — no meaningful codebase to reverse-engineer AND the set is
-  absent, so each elicited area maps to a `<functional_subdir>/<feature>.md`
-  (behavioral feature) or `<non_functional_subdir>/<item>.md` (NFR item) target,
+  absent, so each elicited area maps to a `<functional_dir>/<feature>.md`
+  (behavioral feature) or `<non_functional_dir>/<item>.md` (NFR item) target,
   DRAFT-marked. Plan the elicitation: per candidate feature area, the behavior
   it must have (a functional requirement), and per candidate quality concern,
   the constraint it must meet (a non-functional requirement) — mirroring
@@ -176,8 +188,8 @@ before writing any area file (see Interactive-confirm below).
   same constraint-passing mechanism `create-principles/SKILL.md` and
   `create-principles-verifier.md` use for their own G36 gate.
 
-**Per-file format (finalized).** Both `<functional_subdir>/<feature>.md` and
-`<non_functional_subdir>/<item>.md` open with the `DRAFT — human-confirm-required`
+**Per-file format (finalized).** Both `<functional_dir>/<feature>.md` and
+`<non_functional_dir>/<item>.md` open with the `DRAFT — human-confirm-required`
 marker line, then follow the existing living-requirements prose format — the
 `MUST` / `SHOULD` / `MAY` / `[OPEN]` / `[ASSUMPTION]` vocabulary — with NO fixed
 universal heading skeleton (design Decision B-revised). The executor names the
@@ -198,9 +210,9 @@ and, on the re-run after interactive-confirm, the user's recorded answers):
     <file>/abs/repo/docs/architecture/hld/c4-container.md</file>
   </inputs>
   <constraints>
-    <constraint name="requirements_path">docs/requirements</constraint>
-    <constraint name="functional_subdir">functional</constraint>
-    <constraint name="non_functional_subdir">non-functional</constraint>
+    <constraint name="requirements_dir">docs/requirements</constraint>
+    <constraint name="functional_dir">docs/requirements/functional</constraint>
+    <constraint name="non_functional_dir">docs/requirements/non-functional</constraint>
     <constraint name="required_sections">functional/checkout.md: MUST/SHOULD/MAY/[OPEN]/[ASSUMPTION]</constraint>
     <constraint name="audience_style_profile">engineers (behavioral-contract prose)</constraint>
   </constraints>
@@ -249,14 +261,14 @@ Spawn the executor (`phase="execute"`) with the approved outline, the user's ans
 and the mode. The executor — the only role that mutates the repo — writes,
 per the mode:
 
-- **brownfield/amend** — one `<requirements_path>/<functional_subdir>/<feature>.md`
-  per behavioral feature and one `<requirements_path>/<non_functional_subdir>/<item>.md`
+- **brownfield/amend** — one `<functional_dir>/<feature>.md`
+  per behavioral feature and one `<non_functional_dir>/<item>.md`
   per NFR item, classifying each requirement functional-vs-non-functional before
   writing it. Augment-only-absent: an existing area file is preserved byte-for-byte,
   never overwritten.
 - **greenfield** — writes one
-  `<requirements_path>/<functional_subdir>/<feature>.md` per elicited behavioral
-  feature and one `<requirements_path>/<non_functional_subdir>/<item>.md` per
+  `<functional_dir>/<feature>.md` per elicited behavioral
+  feature and one `<non_functional_dir>/<item>.md` per
   elicited NFR item, from the plan's elicitation outline plus the user's
   answers; DRAFT-marked. No code-citation is required or expected (there is no
   code to cite) — every clause is grounded in the user's elicited answer, cited
@@ -302,7 +314,7 @@ recorded; go to Finish (no PR is opened).
 Only after the verifier passes:
 
 ```bash
-git add "<requirements_path>/<functional_subdir>" "<requirements_path>/<non_functional_subdir>"
+git add "<functional_dir>" "<non_functional_dir>"
 git commit -m "<rendered formats.commit_message>"      # default {ticket_id} {summary}
 git push -u origin "<branch>"
 gh label create ACS 2>/dev/null || true                # create the label if missing
@@ -382,8 +394,8 @@ Before a needs_input handoff, record the outgoing questions as `open`
 - **Amend**: confirm exactly which absent/ungrounded area files are augmented and
   why before executing; every other area file is untouched.
 - **Greenfield**: elicit the definition from the user and map it to
-  `<functional_subdir>/<feature>.md` files (the feature list — what the
-  product/system does) and `<non_functional_subdir>/<item>.md` files (the NFR
+  `<functional_dir>/<feature>.md` files (the feature list — what the
+  product/system does) and `<non_functional_dir>/<item>.md` files (the NFR
   list — performance/security/reliability/portability/operability constraints).
   Batch questions (AskUserQuestion or plain questions) via the same
   clarify-ledger-first mechanism used for brownfield/amend; when `$ARGUMENTS`
@@ -460,7 +472,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: requirements area files written/amended at `requirements_path`; delivery ticket id; PR number/URL
+- **Results**: requirements area files written/amended under `<requirements_dir>`; delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>

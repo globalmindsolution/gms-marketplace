@@ -11,8 +11,7 @@ safety brakes listed under *How gating works*, never a predecessor's position,
 so a skill is runnable on its own), the
 human-facing ticket documents live in your repo under `docs/tickets/<id>/`,
 and all durable run state lives in a
-gitignored `.acs/state-machine` folder inside your repo by default (an
-explicit `workspace_path` override can still point it elsewhere) — so runs
+gitignored `.acs/state-machine` folder inside your repo — so runs
 are resumable, tickets can ship in parallel across git worktrees, and the
 coordinator never depends on conversation history between steps.
 
@@ -41,14 +40,13 @@ marketplace `globalmindsolution/gms-marketplace`, then install `acs` from it.
 
 ## Quick start
 
-One-time setup in any repo (the workspace defaults to a gitignored in-repo
-folder — no path to pick unless you want one):
+One-time setup in any repo (the workspace is the gitignored
+`.acs/state-machine` folder in the main checkout — there is no path to pick):
 
 ```text
 cd acme-shop
 /acs:setup
   → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
-  → workspace_path?   <default>          (.acs/state-machine in this checkout; set an override only if you want state elsewhere)
   → ticket_prefix?    SHOP               (suggested from the repo name)
   → coverage 90, merge_strategy squash, tracker local  (defaults, editable)
 ```
@@ -149,10 +147,10 @@ recorded the PR reference completed — an artifact, not a position.
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
-| `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set at `prd_path`; docs PR via its own delivery ticket. |
-| `/acs:create-requirements` | Settings exist | Bootstraps or amends the requirements/ doc set (functional + non-functional, one file per feature/item) at `requirements_path` — brownfield reverse-engineers it code-cited, greenfield elicits it interactively, amend augments only absent/ungrounded areas; docs PR via its own delivery ticket. |
-| `/acs:create-architecture` | PRD doc set exists | HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) at `architecture_path`, all Mermaid; docs PR. |
-| `/acs:create-docs` | Architecture doc set exists | Bootstraps or maintains the four product doc sets — `quality` (test strategy, coverage policy), `operations` (release process, runbooks, observability, incident response, test scheduling), `principles` (engineering principles + rationale), `standards` (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set. Takes `all`, a comma-separated list of sets, or a delivery-ticket id to resume one; runs the eligible sets in capped parallel (at most 2 at a time, a limit the skill sets for itself — `ship.yaml` carries no `max_parallel`), each as its own docs-only PR on its own delivery ticket. One executor and one verifier serve every set (the set rides in the task constraints); `standards` reads the `principles` set when present and never blocks on its absence. |
+| `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; docs PR via its own delivery ticket. |
+| `/acs:create-requirements` | Settings exist | Bootstraps or amends the requirements/ doc set (functional + non-functional, one file per feature/item) — the repo's own, else `docs/requirements/` — brownfield reverse-engineers it code-cited, greenfield elicits it interactively, amend augments only absent/ungrounded areas; docs PR via its own delivery ticket. |
+| `/acs:create-architecture` | Settings exist; the skill itself stops at Start without a PRD | HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) in the repo's architecture set, else `docs/architecture/`, all Mermaid; docs PR. |
+| `/acs:create-docs` | Settings exist; the skill itself stops at Start without the architecture doc set | Bootstraps or maintains the four product doc sets — `quality` (test strategy, coverage policy), `operations` (release process, runbooks, observability, incident response, test scheduling), `principles` (engineering principles + rationale), `standards` (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set. Takes `all`, a comma-separated list of sets, or a delivery-ticket id to resume one; runs the eligible sets in capped parallel (at most 2 at a time, a limit the skill sets for itself — `ship.yaml` carries no `max_parallel`), each as its own docs-only PR on its own delivery ticket. One executor and one verifier serve every set (the set rides in the task constraints); `standards` reads the `principles` set when present and never blocks on its absence. |
 | `/acs:project` | — (unhooked umbrella; each leg keeps its own gate) | The only user-facing command for repository structure and tooling. Decides its own mode from declared on-disk evidence (`acs_lib.PROJECT_MODE_SENTINEL` — ten packaging/build/tooling files): no evidence at all ⇒ `bootstrap`, any evidence ⇒ `standardize`. States the mode and the evidence it rests on, then dispatches to that leg as a real Skill-tool call. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
@@ -173,8 +171,8 @@ scaffold ticket in `tickets-index.json`).
 
 | Leg | Entry point | Gate (input / brake) | What it does |
 |-----|-------------|----------------------|--------------|
-| `create-project` | `/acs:project` | Architecture doc set exists | Greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. The `bootstrap` mode's leg. |
-| `standardize-project` | `/acs:project` | Architecture doc set exists | Audits an EXISTING repo against `principles_path`/`standards_path`, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. The `standardize` mode's leg. |
+| `create-project` | `/acs:project` | Settings exist; the skill itself stops at Start without the architecture doc set | Greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. The `bootstrap` mode's leg. |
+| `standardize-project` | `/acs:project` | Settings exist; the skill itself stops at Start without the architecture doc set | Audits an EXISTING repo against its principles and standards doc sets, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. The `standardize` mode's leg. |
 | `code-trivial` | `/acs:code` | Subject resolves; not an epic; a plan exists | The `trivial` delivery path: one executor, the plan's own test strategy as the test contract, no plan approval. |
 | `code-small` | `/acs:code` | Subject resolves; not an epic; a plan exists | The `small` delivery path: one executor (rarely two), `test-cases.md` as the test contract, no plan approval. |
 | `code-standard` | `/acs:code` | Subject resolves; not an epic; an approved plan exists | The `standard` delivery path: one executor per disjoint file-map partition, `test-cases.md` as the test contract, plan approval enforced. |
@@ -196,7 +194,7 @@ different.
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
 | `/acs:analyze-requirements` | Ticket resolves; not an epic | Reads the ticket, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on. |
-| `/acs:create-api-contract` | `plan.md` exists **and** `analysis.md` declares `api_surface: true` | Writes `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples — each traced to an AC and a plan item, plus the machine-readable contract files under `contracts_path` when the repo keeps them. |
+| `/acs:create-api-contract` | `plan.md` exists **and** `analysis.md` declares `api_surface: true` | Writes `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples — each traced to an AC and a plan item, plus the machine-readable contract files where the repo keeps them, else under `docs/api/`. |
 | `/acs:create-impl-plan` | Ticket resolves; not an epic | The plan phase carved out of `/acs:code`: the executor's survey (the former planner charter), the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. Reads `analysis.md` and `design.md` when present. |
 | `/acs:create-test-docs` | Ticket resolves | Writes `test-cases.md` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
 | `/acs:code` | Subject resolves; not an epic; a plan exists | Dispatches to the delivery-path leg the plan recorded (ADR-0095). TDD implementation on the run's branch, writing tests from `test-cases.md` when present. **Targeted tests only** — it has no verifier and never runs the full suite. |
@@ -222,7 +220,7 @@ different.
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
-| `/acs:setup` | — (bootstrap) | Generates `.acs/settings.json` (user or project scope): workspace path, ticket prefix, coverage target, formats, tracker, artifact paths, advisories. Opt-in (default-on) writes a pipeline-default `CLAUDE.md` managed block so sessions ship via `/acs:ship`, not raw `gh pr create`. Re-runs update in place. |
+| `/acs:setup` | — (bootstrap) | Generates `.acs/settings.json` (user or project scope): ticket prefix, coverage target, formats, tracker, advisories. Opt-in (default-on) writes a pipeline-default `CLAUDE.md` managed block so sessions ship via `/acs:ship`, not raw `gh pr create`. Re-runs update in place. |
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, status-line paths). Reloading stays your action. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
@@ -273,7 +271,7 @@ committed in your repo, and the **run ledger** stays in the gitignored
 workspace.
 
 ```text
-<repo>/docs/tickets/<ticket-id>/        # artifacts.tickets_path (default)
+<repo>/docs/tickets/<ticket-id>/        # fixed location, not a setting
   ticket.md      # front matter = the ticket fields; body = description, ACs, clarifications
   design.md  analysis.md  api-contract.md  plan.md  test-cases.md
 
@@ -305,10 +303,9 @@ run.
 (`open` → `in_progress` → `in_review` → `done`), so the committed document and
 the run state can never disagree. An existing repo moves its artifacts across
 once with `acs.py artifacts migrate` (add `--dry-run` to preview; it is
-idempotent and leaves a `ticket.json.moved` pointer behind). Set
-`artifacts.tickets_path: null` to opt out entirely and keep every artifact in
-the workspace partition exactly as before. `acs.py artifacts show --ticket <id>`
-prints where each of a ticket's artifacts actually resolved.
+idempotent and leaves a `ticket.json.moved` pointer behind).
+`acs.py artifacts show --ticket <id>` prints where each of a ticket's
+artifacts actually resolved.
 
 Executors may not write inside the ticket docs tree — it is a control input the
 file-map guard denies, like the guard's own records.
@@ -325,16 +322,18 @@ project `settings.json` → `~/.acs/settings.json`. The most-used keys:
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `workspace_path` | unset (derives `.acs/state-machine` in the main checkout) | State folder; an explicit override lives in gitignored `settings.local.json` |
 | `ticket_prefix` | — (required at setup time) | Per-repo ticket id prefix (`SHOP` → `SHOP-123`) |
 | `test_coverage_percent` | `90` | `/acs:code` TDD coverage target (hard fail if missed) |
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
-| `prd_path` | `"docs/product"` | PRD doc set location in the repo |
-| `architecture_path` | `"docs/architecture"` | HLD/LLD doc set location in the repo |
-| `adr_path` | unset | When set, `/acs:docs-sync` commits accepted decision records here |
 | `models` | inherit | Per-role model + reasoning effort (`executor`/`verifier`, per-skill overrides; a `planner` entry is still accepted but no skill spawns one — ADR-0092) |
 | `tracker` | `{ "provider": "local" }` | Ticket backend: `local`, `github` (Projects v2), or `jira` |
 | `formats` | built-ins | Branch/commit/PR/ticket formats (`branch_name` must embed `{ticket_id}`) |
+
+No key locates a document: acs finds the repo's documents through `CLAUDE.md`
+and the repo itself, creates a missing one at the `docs/` conventions
+(`docs/product/`, `docs/architecture/`, `docs/adr/`, …), and keeps ticket
+documents at the fixed `docs/tickets/<ID>/` (ADR-0102). No key locates the
+workspace either: it is always `.acs/state-machine` in the main checkout.
 
 Full reference: [docs/requirements/functional/configuration.md](../../docs/requirements/functional/configuration.md)
 (all keys, placeholder vocabulary, description templates, tracker mapping)
@@ -343,9 +342,10 @@ and the machine-readable
 
 ## Migrating an existing external workspace
 
-If this repo has an existing `workspace_path` pointing outside the repo (set
-before the in-repo default shipped), `/acs:setup` detects it and offers
-to migrate on your next re-run. To migrate by hand instead:
+If this repo's state still lives in an external workspace outside the repo
+(from before the in-repo workspace shipped), acs no longer reads it — the
+workspace is always `.acs/state-machine` in the main checkout (ADR-0102) — so
+move it across once:
 
 ```text
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/migrate_workspace.py" \
@@ -356,9 +356,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/migrate_workspace.py" \
 The migrator preflights (refuses if a `.lock` is held or a run is
 `in_progress`), copies the repo's partition tree, verifies the copy, then
 removes the old tree; it is idempotent, so it is safe to re-run if
-interrupted. Add `--dry-run` to preview without writing. Once it succeeds,
-remove the `workspace_path` key from `.acs/settings.local.json` so future
-runs resolve the new in-repo default instead of the old override.
+interrupted. Add `--dry-run` to preview without writing. The old
+`workspace_path` key left in `.acs/settings.local.json` is ignored and can be
+deleted.
 
 ## Troubleshooting
 

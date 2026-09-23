@@ -57,10 +57,15 @@ class TestGates(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("setup", result.stderr)
 
-    def test_create_architecture_requires_prd(self):
+    def test_the_prd_precondition_is_the_skills_not_the_hooks(self):
+        """ADR-0102: no setting says where the PRD lives, so the hook cannot
+        look for it. /acs:create-architecture finds it itself and stops."""
         result = self.pre("create-architecture")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("create-prd", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-architecture",
+                               "SKILL.md"), encoding="utf-8") as fh:
+            body = " ".join(fh.read().split())
+        self.assertIn("no PRD found — run /acs:create-prd first", body)
 
     def test_code_requires_resolvable_ticket(self):
         result = self.pre("code")
@@ -228,7 +233,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
         overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
             "propertyNames"]["enum"]
         self.assertEqual(sorted(overrides_enum), sorted(lib.HOOKED_SKILLS))
-        for field in ("requirements_path", "e2e"):
+        for field in ("e2e",):
             self.assertNotIn(
                 "/create-spec", schema["properties"][field]["description"],
                 "%s description must not reference the deleted /create-spec" % field)
@@ -254,14 +259,17 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotIn("KeyError", result.stderr)
 
-    def test_blocks_without_architecture_gateerror_not_keyerror(self):
+    def test_without_architecture_the_skill_stops_not_the_hook(self):
+        """ADR-0102: the architecture precondition moved into the skill, which
+        can find a set wherever the repo keeps it; the hook passes."""
         for skill in self.PRODUCERS:
             with self.subTest(skill=skill):
                 result = self.pre(skill)
-                self.assertEqual(result.returncode, 2)
-                self.assertIn("create-architecture", result.stderr)
+                self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotIn("KeyError", result.stderr)
-                self.assertNotIn("unexpected error in gate", result.stderr)
+                with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", skill,
+                                       "SKILL.md"), encoding="utf-8") as fh:
+                    self.assertIn("run /acs:create-architecture first", " ".join(fh.read().split()))
 
 
 class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
@@ -1104,291 +1112,6 @@ class TestDueDateWritePath(AcsWorkspaceCase):
             "--due-date", "2026-07-01T00:00:00Z",
         )
         self.assertNotEqual(result.returncode, 0)
-class TestQualityPathSettings(unittest.TestCase):
-    """AC-2/AC-3 (MAR-112): quality_path settings key mirrors adr_path's
-    oneOf string|null shape; DEFAULT_SETTINGS seeds it; load_settings resolves
-    the default when absent; validate_settings accepts both a string and an
-    explicit null without raising GateError.
-
-    Uses the same stdlib-only approach as TestDueDateSchema/
-    TestHighStakesPathsSettings (no jsonschema import).
-    """
-
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
-
-    @classmethod
-    def setUpClass(cls):
-        with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = json.load(fh)
-
-    def test_quality_path_in_schema(self):
-        """settings.schema.json must define quality_path."""
-        self.assertIn("quality_path", self.schema["properties"])
-
-    def test_quality_path_oneof_mirrors_adr_path(self):
-        """quality_path's oneOf must have exactly two branches: a non-empty
-        string branch and a null branch — the same shape as adr_path, read
-        live from the schema so the test tracks the real rule."""
-        prop = self.schema["properties"]["quality_path"]
-        branches = prop["oneOf"]
-        self.assertEqual(len(branches), 2)
-        self.assertIn({"type": "string", "minLength": 1}, branches)
-        self.assertIn({"type": "null"}, branches)
-
-    def test_quality_path_schema_default(self):
-        """The schema's default for quality_path must be 'docs/quality'."""
-        prop = self.schema["properties"]["quality_path"]
-        self.assertEqual(prop.get("default"), "docs/quality")
-
-    def test_default_settings_has_quality_path_seed(self):
-        """DEFAULT_SETTINGS['quality_path'] must equal 'docs/quality'."""
-        self.assertEqual(lib.DEFAULT_SETTINGS["quality_path"], "docs/quality")
-
-    def test_load_settings_resolves_default_when_absent(self):
-        """When quality_path is absent from every settings scope,
-        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
-        tmp = tempfile.mkdtemp(prefix="acs-quality-path-test-")
-        self.addCleanup(shutil.rmtree, tmp, True)
-        repo = os.path.join(tmp, "shop")
-        os.makedirs(os.path.join(repo, ".acs"))
-        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
-            json.dump({"ticket_prefix": "SHOP"}, fh)
-        merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["quality_path"], "docs/quality")
-
-    def test_validate_settings_accepts_string_quality_path(self):
-        """A settings dict with an explicit non-empty string quality_path
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "quality_path": "docs/quality"}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a string quality_path: %s" % exc)
-
-    def test_validate_settings_accepts_null_quality_path(self):
-        """A settings dict with quality_path explicitly set to null (disabled)
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "quality_path": None}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a null quality_path: %s" % exc)
-
-
-class TestOperationsPathSettings(unittest.TestCase):
-    """AC-2/AC-3 (MAR-113): operations_path settings key mirrors quality_path's
-    oneOf string|null shape; DEFAULT_SETTINGS seeds it; load_settings resolves
-    the default when absent; validate_settings accepts both a string and an
-    explicit null without raising GateError.
-
-    Uses the same stdlib-only approach as TestQualityPathSettings (no
-    jsonschema import).
-    """
-
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
-
-    @classmethod
-    def setUpClass(cls):
-        with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = json.load(fh)
-
-    def test_operations_path_in_schema(self):
-        """settings.schema.json must define operations_path."""
-        self.assertIn("operations_path", self.schema["properties"])
-
-    def test_operations_path_oneof_mirrors_quality_path(self):
-        """operations_path's oneOf must have exactly two branches: a non-empty
-        string branch and a null branch — the same shape as quality_path's/
-        adr_path's existing branches, read live from the schema so the test
-        tracks the real rule."""
-        prop = self.schema["properties"]["operations_path"]
-        branches = prop["oneOf"]
-        self.assertEqual(len(branches), 2)
-        self.assertIn({"type": "string", "minLength": 1}, branches)
-        self.assertIn({"type": "null"}, branches)
-
-    def test_operations_path_schema_default(self):
-        """The schema's default for operations_path must be 'docs/operations'."""
-        prop = self.schema["properties"]["operations_path"]
-        self.assertEqual(prop.get("default"), "docs/operations")
-
-    def test_default_settings_has_operations_path_seed(self):
-        """DEFAULT_SETTINGS['operations_path'] must equal 'docs/operations'."""
-        self.assertEqual(lib.DEFAULT_SETTINGS["operations_path"], "docs/operations")
-
-    def test_load_settings_resolves_default_when_absent(self):
-        """When operations_path is absent from every settings scope,
-        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
-        tmp = tempfile.mkdtemp(prefix="acs-operations-path-test-")
-        self.addCleanup(shutil.rmtree, tmp, True)
-        repo = os.path.join(tmp, "shop")
-        os.makedirs(os.path.join(repo, ".acs"))
-        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
-            json.dump({"ticket_prefix": "SHOP"}, fh)
-        merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["operations_path"], "docs/operations")
-
-    def test_validate_settings_accepts_string_operations_path(self):
-        """A settings dict with an explicit non-empty string operations_path
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "operations_path": "docs/operations"}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a string operations_path: %s" % exc)
-
-    def test_validate_settings_accepts_null_operations_path(self):
-        """A settings dict with operations_path explicitly set to null (disabled)
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "operations_path": None}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a null operations_path: %s" % exc)
-
-
-class TestPrinciplesPathSettings(unittest.TestCase):
-    """AC-5/AC-6 (MAR-117): principles_path settings key mirrors quality_path's/
-    operations_path's oneOf string|null shape; DEFAULT_SETTINGS seeds it;
-    load_settings resolves the default when absent; validate_settings accepts
-    both a string and an explicit null without raising GateError.
-
-    Uses the same stdlib-only approach as TestQualityPathSettings/
-    TestOperationsPathSettings (no jsonschema import).
-    """
-
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
-
-    @classmethod
-    def setUpClass(cls):
-        with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = json.load(fh)
-
-    def test_principles_path_in_schema(self):
-        """settings.schema.json must define principles_path."""
-        self.assertIn("principles_path", self.schema["properties"])
-
-    def test_principles_path_oneof_mirrors_quality_path(self):
-        """principles_path's oneOf must have exactly two branches: a non-empty
-        string branch and a null branch — the same shape as quality_path's/
-        operations_path's existing branches, read live from the schema so the
-        test tracks the real rule."""
-        prop = self.schema["properties"]["principles_path"]
-        branches = prop["oneOf"]
-        self.assertEqual(len(branches), 2)
-        self.assertIn({"type": "string", "minLength": 1}, branches)
-        self.assertIn({"type": "null"}, branches)
-
-    def test_principles_path_schema_default(self):
-        """The schema's default for principles_path must be 'docs/principles'."""
-        prop = self.schema["properties"]["principles_path"]
-        self.assertEqual(prop.get("default"), "docs/principles")
-
-    def test_default_settings_has_principles_path_seed(self):
-        """DEFAULT_SETTINGS['principles_path'] must equal 'docs/principles'."""
-        self.assertEqual(lib.DEFAULT_SETTINGS["principles_path"], "docs/principles")
-
-    def test_load_settings_resolves_default_when_absent(self):
-        """When principles_path is absent from every settings scope,
-        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
-        tmp = tempfile.mkdtemp(prefix="acs-principles-path-test-")
-        self.addCleanup(shutil.rmtree, tmp, True)
-        repo = os.path.join(tmp, "shop")
-        os.makedirs(os.path.join(repo, ".acs"))
-        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
-            json.dump({"ticket_prefix": "SHOP"}, fh)
-        merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["principles_path"], "docs/principles")
-
-    def test_validate_settings_accepts_string_principles_path(self):
-        """A settings dict with an explicit non-empty string principles_path
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "principles_path": "docs/principles"}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a string principles_path: %s" % exc)
-
-    def test_validate_settings_accepts_null_principles_path(self):
-        """A settings dict with principles_path explicitly set to null (disabled)
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "principles_path": None}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a null principles_path: %s" % exc)
-
-
-class TestStandardsPathSettings(unittest.TestCase):
-    """AC-5/AC-6 (MAR-118): standards_path settings key mirrors principles_path's
-    oneOf string|null shape; DEFAULT_SETTINGS seeds it; load_settings resolves
-    the default when absent; validate_settings accepts both a string and an
-    explicit null without raising GateError.
-
-    Uses the same stdlib-only approach as TestPrinciplesPathSettings (no
-    jsonschema import).
-    """
-
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
-
-    @classmethod
-    def setUpClass(cls):
-        with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = json.load(fh)
-
-    def test_standards_path_in_schema(self):
-        """settings.schema.json must define standards_path."""
-        self.assertIn("standards_path", self.schema["properties"])
-
-    def test_standards_path_oneof_mirrors_principles_path(self):
-        """standards_path's oneOf must have exactly two branches: a non-empty
-        string branch and a null branch — the same shape as principles_path's
-        existing branches, read live from the schema so the test tracks the
-        real rule."""
-        prop = self.schema["properties"]["standards_path"]
-        branches = prop["oneOf"]
-        self.assertEqual(len(branches), 2)
-        self.assertIn({"type": "string", "minLength": 1}, branches)
-        self.assertIn({"type": "null"}, branches)
-
-    def test_standards_path_schema_default(self):
-        """The schema's default for standards_path must be 'docs/standards'."""
-        prop = self.schema["properties"]["standards_path"]
-        self.assertEqual(prop.get("default"), "docs/standards")
-
-    def test_default_settings_has_standards_path_seed(self):
-        """DEFAULT_SETTINGS['standards_path'] must equal 'docs/standards'."""
-        self.assertEqual(lib.DEFAULT_SETTINGS["standards_path"], "docs/standards")
-
-    def test_load_settings_resolves_default_when_absent(self):
-        """When standards_path is absent from every settings scope,
-        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
-        tmp = tempfile.mkdtemp(prefix="acs-standards-path-test-")
-        self.addCleanup(shutil.rmtree, tmp, True)
-        repo = os.path.join(tmp, "shop")
-        os.makedirs(os.path.join(repo, ".acs"))
-        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
-            json.dump({"ticket_prefix": "SHOP"}, fh)
-        merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["standards_path"], "docs/standards")
-
-    def test_validate_settings_accepts_string_standards_path(self):
-        """A settings dict with an explicit non-empty string standards_path
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "standards_path": "docs/standards"}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a string standards_path: %s" % exc)
-
-    def test_validate_settings_accepts_null_standards_path(self):
-        """A settings dict with standards_path explicitly set to null (disabled)
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "standards_path": None}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a null standards_path: %s" % exc)
 class TestRecordExternal(AcsWorkspaceCase):
     """MAR-84 spec 01: record-external.py — the deterministic write seam that
     stamps external={provider,key} into one ticket's ticket.json. Drives the

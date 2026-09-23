@@ -158,14 +158,21 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
         self.assertNotIn(
             "(product-level)", heading_line,
             "the standardize-project section heading must NOT be tagged "
-            "(product-level) — it is not a <set>_path doc-set producer")
+            "(product-level) — it is not a doc-set producer")
         window = section(body, heading_line)
+        # The audited doc sets are named as the sets the skill locates
+        # (ADR-0102: documents are found, not configured), never as the
+        # removed principles_path / standards_path settings keys.
         for token in (
-            "principles_path", "standards_path", "hld/project-structure.md",
+            "principles and standards sets", "hld/project-structure.md",
             "additive",
         ):
-            self.assertIn(token, window,
+            self.assertIn(token, " ".join(window.split()),
                           "standardize-project section must mention %r" % token)
+        for removed in ("principles_path", "standards_path"):
+            self.assertNotIn(removed, window,
+                             "standardize-project section must not name the "
+                             "removed setting %r (ADR-0102)" % removed)
         self.assertTrue(
             "recommended_follow_ups" in window or "recommended follow-up" in window,
             "standardize-project section must mention recommended_follow_ups "

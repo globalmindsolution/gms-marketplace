@@ -50,14 +50,13 @@ Key facts:
 - **Per-plugin install paths**: acs installs into Claude Code
   (`claude plugin install acs@gms-marketplace`). The catalog is designed so a
   plugin names its own runtime host (ADR 0021); acs is the only one today.
-- **In-repo by default, one workspace store per repo checkout** (ADR-0086):
-  the workspace defaults to `<main-checkout>/.acs/state-machine/`,
+- **In-repo, one workspace store per repo checkout** (ADR-0086):
+  the workspace is always `<main-checkout>/.acs/state-machine/`,
   gitignored, anchored to the repo's main checkout (`git rev-parse
   --git-common-dir`) so every linked worktree resolves to the same physical
-  partition. An explicit `workspace_path` override (`settings.local.json`,
-  gitignored) may still point anywhere — including a single external
-  location shared across repos, for anyone who wants the old topology — with
-  partitions keyed by repo identity derived from the git remote either way.
+  partition, with partitions keyed by repo identity derived from the git
+  remote. No setting overrides it ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)); acs must be
+  run from a regular git checkout.
 - **No server-side anything**: the plugins are files; all execution happens in
   the user's Claude Code session and shell. Tracker/PR access goes
   through the user's authenticated CLIs.

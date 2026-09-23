@@ -28,8 +28,9 @@ class TestFixtureUsableFromANewFile(acs_case.AcsWorkspaceCase):
     def test_repo_workspace_and_settings_files_after_a_run(self):
         self.assertTrue(os.path.isdir(self.repo))
         self.assertTrue(os.path.isfile(os.path.join(self.repo, ".acs", "settings.json")))
-        self.assertTrue(os.path.isfile(
-            os.path.join(self.repo, ".acs", "settings.local.json")))
+        # No settings.local.json: the workspace is the in-repo default
+        # (ADR-0102), which nothing has to point at.
+        self.assertEqual(self.ws, os.path.join(self.repo, ".acs", "state-machine"))
         out = self.run_script("new-ticket.py", "--title", "Fixture check", "--type", "task")
         self.assertEqual(out.returncode, 0, out.stderr)
         payload = json.loads(out.stdout)

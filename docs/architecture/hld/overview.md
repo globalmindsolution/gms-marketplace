@@ -18,7 +18,8 @@ is published today:
   **consumer repository**, persisting all pipeline state into a gitignored
   **`.acs/state-machine/` folder inside that repo**, anchored to the repo's
   main checkout so every linked worktree resolves to the same on-disk state
-  (an explicit `workspace_path` override may still point anywhere; ADR-0086).
+  (no setting overrides it; ADR-0086,
+  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 
 ## Quality attributes (drive the design)
 

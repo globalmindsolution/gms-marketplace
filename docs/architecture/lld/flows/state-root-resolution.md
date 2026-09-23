@@ -2,11 +2,10 @@
 
 Every gated skill run resolves its workspace partition root through
 `build_context` -> `validate_settings` in `acs_lib/gates.py`. When
-`require_workspace` is `True` (the default for every pre-hook) and the
-loaded settings carry no explicit `workspace_path`, `validate_settings`
-derives one via the new `default_state_root(cwd)` helper instead of
-rejecting the value — the settings key is now optional, not a mandatory
-outside-the-repo pointer. `default_state_root` walks git plumbing directly
+`require_workspace` is `True` (the default for every pre-hook),
+`validate_settings` always derives it via the `default_state_root(cwd)`
+helper — no setting overrides it ([ADR-0102](../../../adr/0102-documents-are-found-not-configured.md)).
+`default_state_root` walks git plumbing directly
 (`_git`) rather than reusing `main_repo_root`, because `main_repo_root`
 cannot itself distinguish a bare or submodule checkout from a normal one; it
 raises a distinct `GateError` for each layout it cannot safely anchor a
@@ -25,10 +24,7 @@ sequenceDiagram
     Caller->>VS: validate_settings settings, cwd, require_workspace
     alt require_workspace is False
         VS-->>Caller: None - no derivation attempted
-    else workspace_path is set - explicit override
-        VS->>VS: expanduser + abspath normalize
-        VS-->>Caller: normalized workspace_path - no git derivation, no bare/submodule check
-    else workspace_path is absent
+    else require_workspace is True
         VS->>DSR: default_state_root cwd
         DSR->>Git: rev-parse --is-bare-repository
         alt result is empty
@@ -72,7 +68,7 @@ Failure shapes: every raised `GateError` above propagates unchanged through
 `validate_settings` to the pre-hook, which exits 2 with the `GateError`'s
 message and blocks the skill run (the same hook-gate mechanism traced in
 `hook-gated-skill-run.md`) — there is no fallback or default-of-last-resort;
-the caller is told to set an explicit `workspace_path` override. The success
+the caller is told to run acs from a regular git checkout. The success
 leg never raises: a normal checkout, or a linked worktree of one, resolves
 to the same `<main-checkout>/.acs/state-machine` path (proven for a linked
 worktree by `tests/acs/test_acs_lib_state_locks.py`'s

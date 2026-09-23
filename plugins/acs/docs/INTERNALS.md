@@ -188,17 +188,20 @@ the same sequence in three places (the gates, `/acs:ship`'s prose, the docs).
 
 **Where a brake lives when the skill is not a step.** `gate_outcome` returns as
 soon as the resolved workflow does not name the skill, so `BRAKES` — consulted
-after that return — can only hold steps. Three tables sit BEFORE it, and a
-skill that is legitimately not a step of `ship.yaml` is gated from one of them:
+after that return — can only hold steps. One table sits BEFORE it, and a
+skill that is legitimately not a step of `ship.yaml` is gated from it:
 
 | Table | Precondition it checks | Rows |
 |---|---|---|
-| `ARCHITECTURE_GATED` | a repo DOCUMENT: the architecture set (`hld/tech-stack.md`) | `create-project`, `standardize-project`, `create-docs` |
-| `PRD_GATED` | a repo DOCUMENT: `prd.md` | `create-architecture` |
 | `SUBJECT_GATES` | the SUBJECT TICKET the invocation names | `create-design` (flagged `needs_design`), `merge-pr` (a PR reference recorded by a completed step) |
 
-All three are consulted **unconditionally**, before the workflow is read,
+It is consulted **unconditionally**, before the workflow is read,
 because a safety brake must not be switchable off by editing `ship.yaml`. A
+repo DOCUMENT precondition is not a hook's to check: no setting says where the
+PRD or the architecture set lives, so the skill that needs one finds it at
+Start and stops without it — `create-architecture` without a PRD;
+`create-project`, `standardize-project` and `create-docs` without the
+architecture set's `hld/tech-stack.md` (ADR-0102). A
 `SUBJECT_GATES` row is `f(ctx, payload)` raising `GateError` to refuse; it
 resolves a ticket and reads step state through path joins and `read_json`, so
 it opens no run and takes no lock, which is what lets `acs gate` reach it too.
@@ -605,7 +608,7 @@ every other key below is persisted verbatim from the result document:
 | create-architecture | `architecture` `{path, hld:[...], lld:[...]}`, `pr` `{...}` |
 | create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
-| create-design | `design_path` (the published `design.md` — the docs folder, or the partition when the tree is opted out), `decision` (one line) |
+| create-design | `design_path` (the published `design.md` — the docs folder, or the partition when there is no checkout), `decision` (one line) |
 | analyze-requirements | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
 | create-impl-plan | `plan_path`, `plan_approved: true/false` (written by `plan-approval.py`), `file_map` (object) |
 | create-api-contract | `contract_path`, `items` (int), `traced_acs: [...]` |
@@ -633,7 +636,7 @@ runnable on its own:
 |---|---|---|---|
 | `analyze-requirements` | the ticket, PRD/requirements/architecture, the codebase | `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `stakes_recommendation`, `needs_design_recommendation`) | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s executor plans from the impact map; a not-ready analysis returns `needs_input` |
 | `create-impl-plan` | `analysis.md`, `design.md`, the ticket | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code`'s input gate; `on_replan` re-runs it when execution finds the plan wrong |
-| `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts under `contracts_path` | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
+| `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts where the repo keeps them (else `docs/api/`) | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
 | `create-test-docs` | the ticket's ACs, `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the executor writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
 | `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.e2e`/`suites.e2e` | e2e suites at the repo's configured location, on the ticket branch | `run-e2e-tests` executes them |
 | `run-e2e-tests` | the ticket's suites (from `test-cases.md`, falling back to the plan's Test-plan section) | the run artifact + triage | `on_fail: {relay_to: code}` with the fix-loop cap |
@@ -732,7 +735,7 @@ tree and `/acs:analyze-requirements`, the first Build step, commits the ticket's
 whole docs folder when it creates the branch.
 
 ```
-<checkout>/<settings.artifacts.tickets_path>/<ticket-id>/   # default docs/tickets
+<checkout>/docs/tickets/<ticket-id>/    # fixed: artifacts.TICKETS_PATH
   ticket.md        # YAML front matter = the ticket fields; body = Description,
                    #   Acceptance criteria, Clarifications (a read-only mirror)
   design.md  analysis.md  api-contract.md  plan.md  test-cases.md
@@ -763,10 +766,10 @@ whole docs folder when it creates the branch.
 `artifacts.py` owns the layout and every read/write of it.
 
 - **Resolution is first-existing, then a write target.**
-  `artifact_path(settings, checkout_root, tdir, ticket_id, name)` returns the
+  `artifact_path(checkout_root, tdir, ticket_id, name)` returns the
   first of `<docs>/<name>`, `<tdir>/<name>`, `<tdir>/<legacy rel>` that exists;
-  when none does it returns where a WRITE should go — `<docs>/<name>` when the
-  tree is configured, else `<tdir>/<name>`. Callers tell the two apart with
+  when none does it returns where a WRITE should go — `<docs>/<name>` when
+  there is a checkout, else `<tdir>/<name>`. Callers tell the two apart with
   `os.path.isfile`. This is why a partition built before the move keeps working
   unchanged, and why the gates' "looked in the ticket's docs folder and in
   `<partition>`" wording is literally true.
@@ -810,13 +813,14 @@ whole docs folder when it creates the branch.
   `archive/`, refuses while a partition to move holds a `.lock`, and re-running
   it is a no-op. `acs.py artifacts show [--ticket ID]` prints where a ticket's
   documents actually resolved, which source answered, and the derived status.
-- **Opting out.** `artifacts.tickets_path: null` keeps every artifact in the
-  workspace partition exactly as before the move — the docs-tree branch of every
-  resolver simply drops out. The tree is ACTIVE when its root directory exists;
-  `migrate` creates it, and so does a skill writing into `<docs>/<ID>/`.
+- **The location is fixed, not a setting.** `TICKETS_PATH` (`docs/tickets`)
+  is a constant the hooks own; `ticket_docs_root(checkout_root)` and
+  `ticket_docs_dir(checkout_root, ticket_id)` anchor it to the checkout, and
+  there is no opt-out (ADR-0102). The tree is ACTIVE when its root directory
+  exists; `migrate` creates it, and so does a skill writing into `<docs>/<ID>/`.
 - **The docs tree is a control input.** `acs_lib/filemap.py` denies an executor
-  write under `<checkout_root>/<tickets_path>/` with exit 2 and
-  "`<target>` is the ticket docs tree (`<tickets_path>/`), a control input only
+  write under `<checkout_root>/docs/tickets/` with exit 2 and
+  "`<target>` is the ticket docs tree (`docs/tickets/`), a control input only
   the coordinator and the ticket skills write." — the same polarity as the
   guard's own `active-agents/` and `iter-*-filemap.json` records: an executor
   that can rewrite the ticket can rewrite its own scope.
@@ -988,8 +992,8 @@ resolution, not for primary content capture.)
 
 ## Living architecture — day-by-day currency by induction
 
-The architecture doc set (`architecture_path`) stays current through an
-induction invariant, not a periodic chore:
+The architecture doc set (the repo's own, else `docs/architecture/`) stays
+current through an induction invariant, not a periodic chore:
 
 - **Base case** — /create-architecture bootstraps the doc set verified
   against both the PRD and the actual codebase.
@@ -1018,7 +1022,7 @@ architecture" is not a separate activity but a blocking dimension of every
 change that has architectural impact.
 
 The same induction maintains the **living requirements**
-(`requirements_path`, default `docs/requirements/`, one file per feature
+(the repo's requirements set, else `docs/requirements/`, one file per feature
 area): per-ticket specs are archived change-deltas, so the CURRENT
 behavioral contract accumulates here instead — `/acs:docs-sync`'s executor
 merges the merged ticket's acceptance criteria and behavior-defining
@@ -1168,15 +1172,15 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   `branch_name` must embed `{ticket_id}`).
 - Long descriptions come from templates: built-in name -> `templates/`;
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
-- Three keys configure the pipeline itself, all with working defaults so an
-  existing repo needs no settings change:
-  `artifacts.tickets_path` (default `"docs/tickets"`; `null` keeps every ticket
-  artifact in the workspace partition as before), `contracts_path` (default
-  `"docs/api"`, where `/acs:create-api-contract` keeps machine-readable contract
-  files; `null` = the ticket folder only), and `workflow.advisories` (default
-  `true`, the one-line out-of-order notice the pre-hook prints). An explicit
-  `null` in a consumer file overrides the default through the same deep merge
-  as any other key — which is exactly how the opt-outs are expressed. The
+- One key configures the pipeline itself, with a working default so an
+  existing repo needs no settings change: `workflow.advisories` (default
+  `true`, the one-line out-of-order notice the pre-hook prints). No key
+  locates a document or the workspace (ADR-0102): ticket documents live at the
+  fixed `docs/tickets/<ID>/` (`artifacts.TICKETS_PATH`), the workspace at
+  `<main-checkout>/.acs/state-machine`, and a skill finds every other repo
+  document through `CLAUDE.md` and the repo itself, creating a missing one at
+  its `docs/` convention — `/acs:create-api-contract`'s machine-readable
+  contract files go where the repo keeps them, else `docs/api/`. The
   delivery pipeline itself is NOT a settings key: it is the resolved
   `workflows/ship.yaml`, overridden wholesale at `<repo>/.acs/workflows/ship.yaml`
   when a repo ships one.

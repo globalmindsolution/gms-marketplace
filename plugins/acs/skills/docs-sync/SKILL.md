@@ -114,19 +114,27 @@ validate — never invent a variant such as `commit_message_format` or
   <constraint name="branch">task/SHOP-123-add-user-login</constraint>
   <constraint name="default_branch">main</constraint>
   <constraint name="commit_message">{ticket_id} {summary}</constraint>
-  <constraint name="requirements_path">docs/requirements</constraint>
-  <constraint name="functional_subdir">functional</constraint>
-  <constraint name="non_functional_subdir">non-functional</constraint>
+  <constraint name="requirements_dir">docs/requirements</constraint>
+  <constraint name="functional_dir">docs/requirements/functional</constraint>
+  <constraint name="non_functional_dir">docs/requirements/non-functional</constraint>
 </constraints>
 ```
 
 `checkout_root` is `context.checkout_root`; `branch` is the ticket branch
 confirmed above; `default_branch` is the base the diff is taken against;
 `commit_message` is `settings.formats.commit_message`; the requirements
-trio is `settings.requirements_path` plus `settings.requirements_layout`.
-Add the other doc roots the executor's charter names when the setting is
-non-null — `prd_path`, `architecture_path`, `adr_path`, `contracts_path`,
-`standards_path` — each as its own `<constraint>` under that exact name.
+trio is the requirements set and its functional and non-functional
+subfolders. Add the other document locations the executor's charter names —
+`architecture_dir` and `adr_dir` — each as its own `<constraint>` under that
+exact name.
+
+Locate every one of them once, before the loop, the way any session finds a
+document: CLAUDE.md and whatever docs index it or the repo points at (e.g.
+`docs/README.md`), then a Glob/Grep by file name or content. Found → that
+repo-relative location. Not found → the conventional default, where a doc
+update would create it: `docs/requirements/` with `functional/` and
+`non-functional/` subfolders (an existing set's own subfolder names are
+followed), `docs/architecture/`, `docs/adr/`.
 
 ## Reflection loop — execute → verify, no planner
 

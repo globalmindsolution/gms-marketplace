@@ -863,7 +863,7 @@ Six things are wrong with it, and none is fixable by renaming a directory:
   tickets-index.json               every ticket (unchanged)
   runs-index.json                  every run: id, workflow, subject, status, started/ended
   metrics.json                     repo aggregates (unchanged)
-  tickets/<ticket-id>/ticket.json  only when settings.artifacts.tickets_path is null
+  tickets/<ticket-id>/ticket.json  only for a ticket not yet moved to docs/tickets/<ID>/
   sessions/<checkout-id>/          one directory per checkout, not five prefixed files
     pointer.json                   current run + step  (was: current ticket + skill)
     session.json · cost.jsonl · runtime.json

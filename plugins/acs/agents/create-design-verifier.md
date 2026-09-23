@@ -42,9 +42,9 @@ gets its own numbered check-dimension entry.)
    claims against the doc set — an undeclared doc-set impact, or a declared
    change that isn't actually needed, is a finding.
 
-   **Standards conformance (sub-check).** When `standards_path` is set
+   **Standards conformance (sub-check).** When `standards_dir` is set
    (via the task's `<constraints>`) and the directory it names exists,
-   read `standards/` at `standards_path` as the source of truth and check
+   read the standards set at `standards_dir` as the source of truth and check
    that the design decisions this design.md **introduces** (its Options
    considered, Decision & rationale, and Architecture sections — content
    this design run authored, not content merely referenced from an
@@ -55,7 +55,7 @@ gets its own numbered check-dimension entry.)
    references or extends but does not itself introduce or change) is an
    explicit flagged divergence note, surfaced but not blocking (mirrors
    `code-verifier.md:93-97`'s product-doc intent-divergence note shape).
-   Graceful degradation: when `standards_path` is unset or the directory
+   Graceful degradation: when `standards_dir` is unset or the directory
    it names is absent, the standards sub-check is N/A — never a false
    block; the rest of this dimension's checks continue unaffected.
 3. `feasibility` — implementable with the documented tech stack
@@ -68,7 +68,7 @@ gets its own numbered check-dimension entry.)
    checklist. Hand-waving ("we should be careful about security") is a
    finding.
 
-   **Standards conformance (sub-check).** When `standards_path` is set,
+   **Standards conformance (sub-check).** When `standards_dir` is set,
    `standards/` content that is itself NFR-shaped (testing-conventions and
    review-checklist criteria touching performance/security/operability
    posture) is checked against the design decisions this design.md
@@ -90,7 +90,7 @@ gets its own numbered check-dimension entry.)
    `sequenceDiagram` message or note text) and `er-key-space` (`erDiagram`
    multi-key attributes comma-separated, `PK,FK` not `PK FK`) rules detect.
    `### Decision records` is
-   present if and only if the task constraints say `adr_path` is configured.
+   present and names the `adr_dir` the task constraints carry.
 6. `structure` — deterministic section-conformance floor over `design.md`:
    run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py
    --sections "<required_sections constraint, verbatim>" --ordered design.md`.
@@ -156,8 +156,8 @@ ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the design draft, the iteration's authoring notes
 (`iter-<n>/authoring.md`), the ticket document, and the architecture docs),
 `<constraints>` (always including `required_sections` and
-`audience_style_profile`, plus `standards_path` when
-`settings.standards_path` is configured — see dimensions 2/4 above), and
+`audience_style_profile` and `adr_dir`, plus `standards_dir` when the
+coordinator found a standards set — see dimensions 2/4/5 above), and
 optional `<context>` (prior findings). You share NO memory with the
 coordinator or the executor — read everything yourself from the `<inputs>`
 paths.

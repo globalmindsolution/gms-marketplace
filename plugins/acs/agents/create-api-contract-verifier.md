@@ -36,7 +36,7 @@ A shape that is wrong here is built wrong and tested wrong.
    files the plan named are updated, in their existing format, consistent with
    the markdown contract, and committed on the ticket branch (check `git log` /
    `git show`); `contract_files` in the front matter lists exactly those files.
-   Under the other modes: no repo contract file was touched.
+   Under `no-machine-readable-contracts`: no repo contract file was touched.
 6. `front-matter` and `structure` — the three front-matter keys are present
    with the right types, `items` equals the number of `### ` subsections under
    `## Surface`, and exactly the seven required headings appear in order, each

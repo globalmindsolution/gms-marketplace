@@ -33,6 +33,10 @@ def read(path):
         return fh.read()
 
 
+def flat(text):
+    return " ".join(text.split())
+
+
 class Mar143RegistryCase(unittest.TestCase):
     """AC-1: create-requirements is registered in PRODUCT_SKILLS and
     PRODUCT_TICKET_TITLES, and consequently joins the derived HOOKED_SKILLS."""
@@ -66,8 +70,11 @@ class Mar143GateCase(unittest.TestCase):
 
     There is one gate now (`gate_outcome`), so "the gate is standalone" is no
     longer a property of a function: it is the absence of this skill from the
-    hard-gated sets, and the absence of a required run artifact from its own
-    declaration. Both are data, which is what makes them checkable.
+    hook's gate tables, and the absence of a required run artifact from its own
+    declaration. Both are data, which is what makes them checkable. ADR-0102
+    removed the hook's document gates (`ARCHITECTURE_GATED`, `PRD_GATED`)
+    outright; a skill that needs a document now refuses at its own Start, and
+    this skill's Start refuses on neither.
     """
 
     def test_it_is_a_hooked_skill(self):
@@ -75,10 +82,16 @@ class Mar143GateCase(unittest.TestCase):
 
     def test_it_is_not_architecture_gated(self):
         from acs_lib import gates
-        self.assertNotIn("create-requirements", gates.ARCHITECTURE_GATED,
-                         "the architecture hard-gate is reserved for the "
-                         "project and doc-set skills (AC-6)")
-        self.assertNotIn("create-requirements", gates.PRD_GATED)
+        # The hook's document gates stay gone (ADR-0102): SUBJECT_GATES is the
+        # one table left, and it gates ticket state, not this skill.
+        self.assertFalse(hasattr(gates, "ARCHITECTURE_GATED"))
+        self.assertFalse(hasattr(gates, "PRD_GATED"))
+        self.assertNotIn("create-requirements", gates.SUBJECT_GATES)
+        # Nor did the refusal move into this skill: the architecture
+        # precondition belongs to the project and doc-set skills (AC-6).
+        body = flat(read(SKILL_PATH))
+        self.assertNotIn("run /acs:create-architecture first", body)
+        self.assertNotIn("run /acs:create-prd first", body)
 
     def test_it_requires_no_run_artifact_of_its_own(self):
         """A product skill is never a step of `ship` (2.4), so it has no run
@@ -187,8 +200,9 @@ class Mar143CountBumpCase(unittest.TestCase):
 class Mar143CoordinatorContractCase(unittest.TestCase):
     """AC-1, AC-6: the coordinator recognizes all three modes, elicits
     greenfield interactively (updated for the landed greenfield mode), and
-    threads the settings-driven write target (never a hardcoded marketplace
-    literal)."""
+    threads the located write target to its agents as task constraints (found
+    in the repo, else the `docs/requirements/` convention — ADR-0102; never a
+    path read out of settings)."""
 
     @classmethod
     def setUpClass(cls):
@@ -217,9 +231,19 @@ class Mar143CoordinatorContractCase(unittest.TestCase):
     def test_g36_audience_style_profile_declared(self):
         self.assertIn("engineers (behavioral-contract prose)", self.body)
 
-    def test_threads_requirements_settings(self):
-        self.assertIn("requirements_path", self.body)
-        self.assertIn("requirements_layout", self.body)
+    def test_threads_located_requirements_dirs(self):
+        body = flat(self.body)
+        for name, default in (
+            ("requirements_dir", "docs/requirements"),
+            ("functional_dir", "docs/requirements/functional"),
+            ("non_functional_dir", "docs/requirements/non-functional"),
+        ):
+            self.assertIn(
+                '<constraint name="%s">%s</constraint>' % (name, default), body)
+        self.assertIn(
+            "Not found → `<requirements_dir>` = `docs/requirements`", body)
+        self.assertNotIn("requirements_path", body)
+        self.assertNotIn("requirements_layout", body)
 
     def test_ships_own_docs_only_pr(self):
         self.assertIn("gh pr create", self.body)

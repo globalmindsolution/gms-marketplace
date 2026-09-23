@@ -179,9 +179,10 @@ class RecordedDenialTest(GuardEventsCase):
             self.write_attempt(os.path.join(self.repo, "src", "elsewhere.py")).returncode, 2)
         self.assertEqual(self.events()[-1]["target"], "src/elsewhere.py")
 
-    def test_a_target_outside_the_checkout_records_as_given(self):
-        """A control input lives in the WORKSPACE, not the checkout: there is no
-        repo-relative form of it, so the path is recorded as it was written."""
+    def test_a_control_input_records_repo_relative(self):
+        """A control input lives in the WORKSPACE, which is always the main
+        checkout's .acs/state-machine (ADR-0102), so it records repo-relative
+        like any other target under the checkout."""
         self.declare("src/a.py")
         self.spawn_executor()
         record = lib.agent_record_path(self.rdir_path, "a-1")
@@ -189,9 +190,23 @@ class RecordedDenialTest(GuardEventsCase):
                                      "tool_input": {"file_path": record}})
         self.assertEqual(out.returncode, 2, out.stderr)
         event = self.events()[-1]
-        self.assertEqual(event["target"], record)
+        self.assertEqual(event["target"], os.path.relpath(os.path.realpath(record),
+                                                          os.path.realpath(self.repo)))
         self.assertEqual(event["reason"], "control_input")
         self.assertEqual(event["declared_count"], 0)
+
+    def test_a_target_outside_the_checkout_records_as_given(self):
+        """There is no repo-relative form of a path outside the checkout, so it
+        is recorded as it was written."""
+        self.declare("src/a.py")
+        self.spawn_executor()
+        outside = os.path.join(self.tmp, "elsewhere", "b.py")
+        out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
+                                     "tool_input": {"file_path": outside}})
+        self.assertEqual(out.returncode, 2, out.stderr)
+        event = self.events()[-1]
+        self.assertEqual(event["target"], outside)
+        self.assertEqual(event["reason"], "outside_map")
 
     def test_an_unreadable_payload_records_the_reason_with_no_target(self):
         """Nothing nameable was written, so `target` is null rather than an

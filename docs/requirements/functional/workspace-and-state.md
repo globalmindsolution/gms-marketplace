@@ -7,35 +7,36 @@ below belongs to exactly one of them:
 
 | | Repo docs tree | Workspace partition |
 |---|----------------|---------------------|
-| **Where** | `<repo>/<settings.artifacts.tickets_path>/<ID>/` (default `docs/tickets/<ID>/`) | `<workspace>/<repo>/<ticket-id>/` |
+| **Where** | `<repo>/docs/tickets/<ID>/` (fixed — no setting) | `<workspace>/<repo>/<ticket-id>/` |
 | **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `run.json`, `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `metrics.json` / `sessions/` |
 | **Versioned** | yes — committed on the ticket branch, reviewed in the PR | no — gitignored |
 | **Written by** | the coordinator and the ticket skills; an executor MUST NOT write there (the file-map guard treats it as a control input) | hooks and the skills' own subagents |
 
-`artifacts.tickets_path` set to **`null`** turns the split off: every
-document stays in the workspace partition exactly as before the split, and
-every reader falls back to it. Readers MUST therefore resolve a document by
-looking in the docs tree first and the partition second, so a partition
-written before the split keeps working unmigrated
+The docs-tree location is **fixed, never discovered**, and the split has no
+opt-out ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+Readers MUST still resolve a document by looking in the docs tree first and
+the partition second, so a partition written before the split keeps working
+unmigrated
 ([Migrating ticket documents into the repo](#migrating-ticket-documents-into-the-repo)).
 
 ## Workspace folder
 
 - The workspace is the single home for all pipeline **run state**. **All
   skills and hooks MUST read and write their state files in the workspace
-  folder**, located via `workspace_path` in `settings.json`
-  ([configuration.md](configuration.md)).
+  folder**, which is always `<main-checkout>/.acs/state-machine` — no
+  setting locates it ([configuration.md](configuration.md)).
 - The workspace MUST be resolvable to the **same physical location from
   every worktree of a repo** — that is the actual invariant, enabling
   **parallel tasks** (a worktree per ticket without state colliding or
-  polluting the repo). It is achieved by default via the in-repo,
+  polluting the repo). It is achieved via the in-repo,
   main-checkout-anchored `.acs/state-machine` folder (gitignored, resolved
-  from `git rev-parse --git-common-dir`), or via an explicit `workspace_path`
-  override for anyone who needs a different location (see ADR-0086).
+  from `git rev-parse --git-common-dir`), with no override (see ADR-0086,
+  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)); a layout
+  that cannot resolve a main checkout (bare repo, submodule) is refused —
+  acs must be run from a regular git checkout.
 - The workspace MUST be partitioned **by consumer repo, then by
   `<ticket-id>`**: every pipeline artifact for a ticket lives under
-  `<workspace>/<repo>/<ticket-id>/`. One `workspace_path` can therefore be
-  shared by any number of consumer repos.
+  `<workspace>/<repo>/<ticket-id>/`.
 - `<repo>` is a stable identifier derived from the git remote
   (e.g. `owner-name`), falling back to the repo directory name when there is
   no remote. All worktrees of the same repo MUST resolve to the **same**
@@ -44,7 +45,7 @@ written before the split keeps working unmigrated
 
 ## Migrating an existing external workspace
 
-- When an existing external `workspace_path` is detected for a repo,
+- When an external workspace left by an older acs is detected for a repo,
   `/acs:setup` MUST detect it and SHOULD offer a user-confirmed
   migration into the in-repo default on the next re-run (ADR-0086; the
   MUST/SHOULD split for `/setup` itself is specified in
@@ -59,9 +60,10 @@ written before the split keeps working unmigrated
   copies the repo's partition tree, verifies the copy, and only then
   removes the old tree; it is idempotent, so re-running after an
   interruption is safe.
-- Once the migration succeeds, the repo owner MUST remove the
-  `workspace_path` key from `.acs/settings.local.json`, so that future runs
-  resolve the in-repo default instead of the old override.
+- No setting points at the old location: every run resolves the in-repo
+  workspace, so the old tree is no longer read once the migration succeeds.
+  A leftover key for it in `.acs/settings.local.json` is an unknown key —
+  ignored, and safe to delete.
 
 ## Migrating ticket documents into the repo
 
@@ -76,8 +78,6 @@ written before the split keeps working unmigrated
   and unlinks `ticket.json`. It MUST be **idempotent** (a second run reports
   the already-migrated tickets and writes nothing new) and MUST refuse while
   a partition it still has to move holds a `.lock`.
-- A repo that does not want the split sets `artifacts.tickets_path` to
-  `null`; `artifacts migrate` then refuses rather than half-moving anything.
 - `acs.py artifacts show [--ticket ID]` reports, for one ticket, which store
   each document currently resolves from — the diagnostic for "where did my
   design.md go".
@@ -88,7 +88,7 @@ The repo docs tree (committed, one folder per ticket):
 
 ```
 <repo>/
-└── docs/tickets/                       # settings.artifacts.tickets_path
+└── docs/tickets/                       # fixed location, not a setting (ADR-0102)
     ├── SHOP-122/                       # an epic
     │   ├── ticket.md                   # front matter (every ticket.json field except status) + Description / Acceptance criteria / Clarifications
     │   └── design.md                   # epics always carry the design; children read it from here
@@ -116,7 +116,7 @@ The workspace (gitignored, the run ledger):
     │       ├── cost.jsonl              # append-only statusLine cost samples, rotated in place (MAR-1)
     │       └── runtime.json            # allocation cursor into the cost-sample log (MAR-1)
     ├── archive/                        # runs of done tickets move here post-merge
-    ├── tickets/<ticket-id>/ticket.json # only when settings.artifacts.tickets_path is null
+    ├── tickets/<ticket-id>/ticket.json # only until artifacts migrate moves it
     └── runs/
         ├── SHOP-1/                     # a product-level delivery run (here: PRD)
         │   ├── run.json                # THE RUN MACHINE
@@ -347,13 +347,13 @@ perform lightweight stdlib-only structural checks
 - Writers are the subagents/hooks of the owning skill; other skills read but
   MUST NOT modify another skill's state file.
 - Cross-ticket **reads** are allowed (e.g. a child ticket resolves its
-  parent epic's `design.md`, from the epic's docs-tree folder or, when the
-  tree is off, the epic's partition); cross-partition **writes** are limited
+  parent epic's `design.md`, from the epic's docs-tree folder or, for an
+  unmigrated epic, its partition); cross-partition **writes** are limited
   to the defined parent-epic status updates performed by child hooks
   ([workflow.md](workflow.md#epic-fan-out)).
 - The repo docs tree is a **control input**: the file-map guard refuses an
   executor subagent a write anywhere under
-  `<settings.artifacts.tickets_path>/`, with exit 2 and a message naming it
+  `docs/tickets/`, with exit 2 and a message naming it
   as a control input only the coordinator and the ticket skills write. An
   executor cannot widen or disarm its own scope by editing the ticket.
 - Re-running a skill for the same ticket updates the **current state** in

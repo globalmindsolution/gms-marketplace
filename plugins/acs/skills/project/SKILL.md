@@ -68,17 +68,15 @@ raw `cwd`: every sentinel is resolved relative to that root, so a run started
 from a repo subdirectory (or from a worktree) cannot read an existing project
 as absent. This is the same resolution every gate uses — `build_context`
 (`acs_lib/gates.py`) fills `ctx["checkout_root"]` from `checkout_root(cwd)`
-(`acs_lib/repo.py`), and `create-docs/SKILL.md`'s Start does the same for
-`fanout_batches`.
+(`acs_lib/repo.py`), and `create-docs/SKILL.md`'s Start searches for its doc
+sets from that same root.
 
 **What decided it.** `acs_lib.project_mode` is the **declared, not inferred**
 mode predicate: `PROJECT_MODE_SENTINEL` names each piece of evidence that this
 repo ALREADY has a project (a build manifest — `pyproject.toml`,
 `package.json`, `go.mod`, …) and `PROJECT_MODE_SETTINGS_KEY` names the settings
 key that resolves the directory it lives in (`null` = the checkout root
-itself). It is the same settings-path + sentinel-file mechanism
-`doc_set_present_on_disk` reads for the doc-bootstrap sets, through the same
-presence primitive. Two directions, both pinned by tests:
+itself). Two directions, both pinned by tests:
 
 - **no evidence at all → `bootstrap`** → the leg is `create-project`;
 - **any evidence present → `standardize`** → the leg is `standardize-project`.
@@ -122,14 +120,15 @@ Never invoke a leg from inside a spawned subagent (no acs subagent holds both
 the Agent and Skill tools; decomposition stays the coordinator's job), and
 never spawn a leg's agents yourself — the leg's own coordinator does that.
 
-**Both legs share one precondition.** `gate_create_project` and
-`gate_standardize_project` each check exactly `_require_architecture_doc_set`
-(the architecture doc set — `hld/tech-stack.md` — must exist). If the selected
-leg's Start exits non-zero, STOP and surface its stderr verbatim; never
-improvise a substitute and never re-dispatch to the other leg to get past a
-refusal — switching legs to dodge a gate is exactly the bypass this umbrella
-must not perform. A missing architecture doc set refuses **either** leg, and
-its stderr already says to run `/acs:create-architecture` first.
+**Both legs share one precondition.** Each leg's skill checks at Start that
+the architecture doc set exists (its `hld/tech-stack.md`, not merely a
+directory) and stops without it. If the selected leg's Start refuses — that
+check, or `acs step start` exiting non-zero — STOP and surface its message
+verbatim; never improvise a substitute and never re-dispatch to the other leg
+to get past a refusal — switching legs to dodge a gate is exactly the bypass
+this umbrella must not perform. A missing architecture doc set refuses
+**either** leg, and its message already says to run `/acs:create-architecture`
+first.
 
 One specific case: on a fresh/unreconciled workspace partition, the leg's own
 `--allocate` refuses with exit 2 and a ranked local-evidence reconciliation

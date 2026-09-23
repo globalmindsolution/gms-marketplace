@@ -12,7 +12,7 @@ Usage:
 
 Prints {"ticket_id": ..., "partition": ..., "ticket_document": ...} on
 success. `ticket_document` is the file the ticket was written to: the
-TRACKED `<tickets_path>/<ID>/ticket.md` in the consumer repo when the docs
+TRACKED `docs/tickets/<ID>/ticket.md` in the consumer repo when the docs
 tree is active, else `<partition>/ticket.json`. This command mints a ticket
 before any ticket branch exists, so it never commits or stages that file --
 /acs:analyze-ticket's first commit on the ticket branch carries the ticket's
@@ -129,7 +129,7 @@ def main():
     )
     lib.save_ticket(tdir, ticket)
     # Where the ticket actually landed. With the docs tree active this is a
-    # TRACKED file in the consumer repo (<tickets_path>/<ID>/ticket.md), and
+    # TRACKED file in the consumer repo (docs/tickets/<ID>/ticket.md), and
     # this command runs before any ticket branch exists -- acs never commits
     # to the default branch -- so it is deliberately left uncommitted for the
     # first Build step's commit (see ADR 0090). Reporting the path is what

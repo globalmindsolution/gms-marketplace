@@ -38,15 +38,15 @@ ticket's `design.md`.
    - `## Decision & rationale` — the one-line decision statement FIRST (the
      coordinator lifts it verbatim into `states.decision`), then why the
      winner wins and why the others lose, citing the user's answers where they
-     settled a trade-off. Add `### Decision records` (one-line ADR title per
-     accepted decision, plus the note that /acs:code commits them under
-     `adr_path`) ONLY when the task constraints say `adr_path` is configured.
+     settled a trade-off. Then `### Decision records` — a one-line ADR title
+     per accepted decision, plus the note that /acs:code commits them under
+     the `adr_dir` your task constraints carry.
    - `## Architecture` — components (new/changed, mapped to the C4
      container/component views by doc path); interfaces/contracts (signatures,
      payloads, error shapes); data-model changes (Mermaid ER diagram when
      entities change); a Mermaid `sequenceDiagram` for EVERY new or changed
      runtime flow your notes name. End with `### Architecture conformance`:
-     either "Conforms to <architecture_path> — no doc-set changes required" or
+     either "Conforms to <architecture_dir> — no doc-set changes required" or
      "Required architecture changes" listing each doc-set file (e.g.
      `hld/c4-container.md`, `lld/flows/<flow>.md`, `lld/contracts.md`) and
      what changes in it.
@@ -191,7 +191,8 @@ After producing the artifact, write
 
 Your prompt contains an XML `<task skill="create-design" phase="execute"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>`, `<constraints>`
-(e.g. `architecture`, `nfr`, `adr_path`), and optional `<context>`. You share
+(e.g. `architecture_dir`, `adr_dir`, `architecture`, `nfr`), and optional
+`<context>`. You share
 NO memory with the coordinator — every fact comes from the
 files in `<inputs>` or the `<context>` text.
 

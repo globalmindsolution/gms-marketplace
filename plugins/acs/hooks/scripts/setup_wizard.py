@@ -64,10 +64,6 @@ CI_INSTALLS = {
     "e2e": (("run-e2e.py",), "acs-e2e.yml", "E2E suite"),
 }
 
-#: Keys that are machine-specific and therefore always land in
-#: settings.local.json, whatever scope the user chose for the rest.
-LOCAL_ONLY_KEYS = ("workspace_path",)
-
 #: The two Claude Code status-line keys, and the script each points at.
 STATUS_LINES = {"statusLine": "statusline.py",
                 "subagentStatusLine": "subagent-statusline.py"}
@@ -111,16 +107,10 @@ def plugin_templates():
 
 
 def resolve_workspace(settings, cwd):
-    """The state root, resolved exactly as validate_settings does — an explicit
-    `workspace_path` (expanded), else `default_state_root`.
-
-    `validate_settings(..., require_workspace=False)` returns the RAW key, which
-    is None on the common path where the repo takes the in-repo default, so what
-    setup creates has to be resolved here or it would not be what every later
-    run reads."""
-    explicit = (settings or {}).get("workspace_path")
-    if explicit:
-        return os.path.abspath(os.path.expanduser(str(explicit))), None
+    """The state root, resolved exactly as validate_settings does:
+    `default_state_root`, always (no setting relocates it -- ADR-0102).
+    Returned with the error rather than raising, so `detect` can report a
+    repo layout acs cannot anchor to instead of crashing on it."""
     try:
         return lib.default_state_root(cwd), None
     except lib.GateError as exc:
@@ -550,14 +540,10 @@ def apply(cwd, answers, dry_run=False):
 
     scope = answers.get("scope", "project")
     values = dict(answers.get("settings") or {})
-    local = {k: values.pop(k) for k in LOCAL_ONLY_KEYS if k in values}
-    if answers.get("workspace_path"):
-        local["workspace_path"] = answers["workspace_path"]
 
     scope_path = (os.path.expanduser(os.path.join("~", ".acs", "settings.json"))
                   if scope == "user" else os.path.join(root, ".acs", "settings.json"))
-    for target, payload in ((scope_path, values),
-                            (os.path.join(root, ".acs", "settings.local.json"), local)):
+    for target, payload in ((scope_path, values),):
         if not payload:
             continue
         try:
@@ -667,7 +653,6 @@ def render_labels():
 ANSWER_TYPES = {
     "scope": (str, "\"project\" or \"user\""),
     "settings": (dict, "an object of setting keys"),
-    "workspace_path": (str, "a path"),
     "ci": (list, "a list of any of %s" % ", ".join(sorted(CI_INSTALLS))),
     "claude_md": (bool, "true or false"),
     "status_line": (dict, "an object"),

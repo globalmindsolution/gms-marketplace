@@ -22,12 +22,13 @@ initialise refuses each run.
 
 Each of these was found by running the seed, not by reading about it:
 
-- **Redirect `workspace_path` under the run directory.** acs keeps state
-  OUTSIDE the repo tree by default, where no grader can read it.
-  `.acs/settings.local.json` overrides it.
+- **Make the run directory the repo.** acs keeps its workspace in the main
+  checkout at `.acs/state-machine/` (ADR-0086), so a `git init` in the run
+  directory puts every artifact where a grader can read it. No setting
+  relocates it.
 - **Fix the git remote.** acs derives its partition id from it (`owner-name`),
   so `https://github.com/example/shop.git` makes the path deterministically
-  `.acs-workspace/example-shop/` and a grader can name it.
+  `.acs/state-machine/example-shop/` and a grader can name it.
 - **Seed a reconciled `counters.json`** (the MAR-402 fixture seam). A fresh
   partition otherwise refuses to allocate an id and asks for `--seed-next` —
   which a "do not ask me anything" prompt cannot answer.

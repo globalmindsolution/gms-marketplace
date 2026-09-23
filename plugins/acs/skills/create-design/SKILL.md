@@ -35,10 +35,19 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-de
 - Parse the printed context JSON. Fields you will use: `partition` (the ticket
   directory — all state lives here), `ticket` (full ticket doc: type, description,
   acceptance criteria, parent, children), `ticket_id`, `settings` (notably
-  `architecture_path`, `prd_path`, optional `adr_path`, `standards_path`),
+  `formats` and `enforcement.design_sections`),
   `models` (resolved executor/verifier model+effort), `reconcile`,
   `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
   (consumer repo root).
+- Locate the repo documents this skill reads, once, the way any session finds
+  a document: CLAUDE.md and whatever docs index it or the repo points at
+  (e.g. `docs/README.md`), then a Glob/Grep by file name or content. Record
+  them repo-relative: `<architecture_dir>` (the folder holding
+  `hld/tech-stack.md`), `<prd>` (the PRD file), `<standards_dir>` (the
+  standards set) — each absent when not found — and `<adr_dir>`, the repo's
+  ADR folder, else `docs/adr/`. Subagents receive the folders as task
+  constraints (`architecture_dir`, `adr_dir`, `standards_dir`) and the files
+  by path in `<inputs>`; they never look a location up in settings.
 
 Throughout this file `<partition>` means the `partition` path from the context JSON
 and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -58,7 +67,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id
   run REVISES it in place (a re-design after new information, never a second
   file).
 - else `docs_dir` non-null → the design is published to `<docs_dir>/design.md`.
-- else (`artifacts.tickets_path: null`, the opted-out repo) → the design is
+- else (no checkout to anchor the docs folder to) → the design is
   published to `<partition>/design.md` and nothing enters the repo.
 
 This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
@@ -100,14 +109,14 @@ Read (you and your executor; reference by path in XML, do not inline file bodies
    partition — whichever `acs.py artifacts show` reports as `source_path`):
    title, description, acceptance criteria, type, priority, children.
 2. **The product architecture doc set — PRIMARY input when it exists**:
-   `<checkout_root>/<settings.architecture_path>/` (default `docs/architecture/`):
+   `<checkout_root>/<architecture_dir>/` (conventionally `docs/architecture/`):
    `hld/overview.md`, `hld/c4-context.md`, `hld/c4-container.md`,
    `hld/c4-component.md`, `hld/data-model.md`, `hld/deployment.md`,
    `hld/tech-stack.md`, `lld/flows/*.md`, `lld/contracts.md`. The design either
    CONFORMS to this doc set or explicitly lists the architecture changes it
    requires (which /acs:code later applies to the doc set). If the doc set is
    absent, note that in design.md and design against the codebase directly.
-3. The PRD at `<checkout_root>/<settings.prd_path>/prd.md` when present —
+3. The PRD at `<checkout_root>/<prd>` when present —
    product-level NFRs and constraints bound the design.
 4. The consumer repo's code and docs relevant to the ticket (the executor's
    survey identifies the exact files).
@@ -139,6 +148,8 @@ For every phase:
        <file>/abs/repo/docs/architecture/lld/contracts.md</file>
      </inputs>
      <constraints>
+       <constraint name="architecture_dir">docs/architecture</constraint>
+       <constraint name="adr_dir">docs/adr</constraint>
        <constraint name="architecture">Conform to docs/architecture or list every doc-set change the design requires</constraint>
        <constraint name="nfr">Cover security and performance explicitly</constraint>
      </constraints>
@@ -217,7 +228,7 @@ sections, exactly these headings:
    (Mermaid ER when entities change), and Mermaid sequence diagrams for every
    new or changed runtime flow.
    ### Architecture conformance
-   Either "Conforms to <architecture_path> — no doc-set changes required" or
+   Either "Conforms to <architecture_dir> — no doc-set changes required" or
    "Required architecture changes": exact list of doc-set files /acs:code must
    update (e.g. hld/c4-container.md, hld/data-model.md, lld/flows/<flow>.md,
    lld/contracts.md) and what changes in each.
@@ -250,10 +261,11 @@ custom-named template plus a matching `enforcement.design_sections`) has its
 `design.md` gated against ITS sections. The `audience_style_profile` constraint
 (MAR-150) is unchanged.
 
-If `settings.adr_path` is set, the executor adds a subsection
+The executor adds a subsection
 `### Decision records` under "Decision & rationale" listing each accepted
 decision as a one-line ADR title and noting: "/acs:code commits these as ADRs
-under `<adr_path>` as part of its documentation updates." If unset, omit it.
+under `<adr_dir>` as part of its documentation updates." Execute and verify
+tasks both carry `adr_dir`.
 
 All diagrams are Mermaid. The design references architecture docs by path; it
 never copies them wholesale. For an epic: design at epic level — children
@@ -273,8 +285,8 @@ plan phase in between.
 ### Phase: verify — `acs:create-design-verifier`
 
 The verify `<task>`'s `<constraints>` always carry `required_sections` and
-`audience_style_profile` (declared above in Execute), alongside `standards_path`
-when set (see below).
+`audience_style_profile` (declared above in Execute), alongside `adr_dir`
+and, when Start found a standards set, `standards_dir` (see below).
 
 Spawn fresh — it sees artifacts (the design draft, ticket, architecture docs,
 code), never the executor's reasoning. Its `<inputs>` name the draft at
@@ -285,7 +297,7 @@ each a finding `dimension`:
 - `alternatives` — >=2 options genuinely weighed with real trade-offs, not strawmen;
 - `consistency` — design agrees with the actual codebase and the architecture
   doc set; the conformance subsection is accurate and complete; also runs a
-  `standards` sub-check against `standards/` at `standards_path` when set,
+  `standards` sub-check against the standards set at `standards_dir` when set,
   emitting `dimension="standards"` findings for design decisions this
   design.md introduces (changeset-scoped block/surface, graceful
   degradation when unset);
@@ -297,11 +309,10 @@ each a finding `dimension`:
 - `completeness` — all required sections present and substantive; Mermaid
   diagrams present for new/changed flows and syntactically plausible.
 
-When `settings.standards_path` is set, it is passed into the verify
-`<task>`'s `<constraints>` (present only when set) — mirroring how
+When Start located a standards set, `standards_dir` is passed into the
+verify `<task>`'s `<constraints>` (present only when found) — mirroring how
 `code/SKILL.md` conditionally passes `e2e_command`/`e2e_setup`/
-`e2e_teardown`/`e2e_per_iteration` and how this skill's own Execute phase
-conditions `### Decision records` on `settings.adr_path` being set.
+`e2e_teardown`/`e2e_per_iteration`.
 
 ALL findings block — zero findings = pass. On findings: persist the verify XML,
 feed every finding verbatim into the next iteration's executor `<task>`
@@ -330,8 +341,8 @@ docs folder, which carries this design into the branch and into the PR. If a
 ticket branch for `<id>` is ALREADY the checked-out branch (a re-design
 mid-ticket), commit `<design_path>` on it yourself with
 `settings.formats.commit_message` and do not push — `/acs:create-pr` pushes.
-When the tree is opted out (`artifacts.tickets_path: null`) the design stays
-in the workspace partition and nothing is ever committed.
+A design published to the workspace partition (no docs folder, above) is
+never committed.
 
 ## User interaction
 
@@ -406,8 +417,8 @@ MANDATORY final step — never skipped, including on failure or handoff:
    ```
 
    `design_path` is the PUBLISHED path this run resolved (`<design_path>` —
-   repo-relative inside the docs tree, or `"design.md"` when the tree is opted
-   out); `decision` is the one-line decision statement from "Decision &
+   repo-relative inside the docs tree, or `"design.md"` when it was published
+   to the partition); `decision` is the one-line decision statement from "Decision &
    rationale". On `failed`: keep whatever is true (e.g. `design_path` when a
    draft exists but was never published, naming the draft), put the verifier's
    blocking findings in `findings`, and the reason in `summary`.

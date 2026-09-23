@@ -32,10 +32,12 @@ front matter. A case set that misses a criterion ships a ticket nobody proved.
    without an observable is a finding; so is a case whose steps depend on an
    outcome the plan does not build.
 3. `levels-and-suites` — the `Type` of each case matches this repo's quality
-   policy (read `quality_path` when set), and its `Suite` is a test file or
-   configured suite that exists — open it — or is explicitly marked new. An e2e
-   case that could be an integration case, or a unit case that needs a live
-   dependency, is a finding.
+   policy (read the set under the `quality_dir` constraint; when it is absent,
+   locate the repo's quality docs yourself from CLAUDE.md, its docs index, then
+   a Glob/Grep — none found means the repo has none), and its `Suite` is a test
+   file or configured suite that exists — open it — or is explicitly marked
+   new. An e2e case that could be an integration case, or a unit case that
+   needs a live dependency, is a finding.
 4. `front-matter` — the three keys are present with the right types and their
    values equal the table. COUNT the rows yourself, and re-run the gate's own
    counter (below) and quote its output: when the printed count disagrees with

@@ -81,20 +81,27 @@ class CodeSkillExecuteSpanRetiredTest(unittest.TestCase):
     def test_absence_accepted_decision_records(self):
         self.assertNotIn("accepted decision records", self.span)
 
-    def test_absence_architecture_path(self):
-        self.assertNotIn("architecture_path", self.span)
+    def test_absence_architecture_location(self):
+        # The retired `architecture_path` setting and the `architecture_dir`
+        # constraint that replaced it (ADR-0102) both name a doc-authoring
+        # target; neither belongs in /code's execute span.
+        for token in ("architecture_path", "architecture_dir"):
+            self.assertNotIn(token, self.span)
 
-    def test_absence_adr_path(self):
-        self.assertNotIn("adr_path", self.span)
+    def test_absence_adr_location(self):
+        for token in ("adr_path", "adr_dir"):
+            self.assertNotIn(token, self.span)
 
     def test_absence_merge_ticket_acceptance_criteria(self):
         self.assertNotIn("Merge the ticket's acceptance criteria", self.span)
 
-    def test_absence_requirements_path(self):
-        self.assertNotIn("requirements_path", self.span)
+    def test_absence_requirements_location(self):
+        for token in ("requirements_path", "requirements_dir"):
+            self.assertNotIn(token, self.span)
 
-    def test_absence_requirements_layout(self):
-        self.assertNotIn("requirements_layout", self.span)
+    def test_absence_requirements_subfolders(self):
+        for token in ("requirements_layout", "functional_dir"):
+            self.assertNotIn(token, self.span)
 
     def test_presence_reconcile_product_doc_facts_heading(self):
         self.assertIn("Reconcile product-doc facts", self.span)
@@ -152,17 +159,23 @@ class CodeExecutorWholeBodyRetiredTest(unittest.TestCase):
         # does not exist in this file.
         self.assertNotIn("behavior-defining", self.body)
 
-    def test_absence_requirements_path(self):
-        self.assertNotIn("requirements_path", self.body)
+    # Each location is checked under both of its names: the retired setting
+    # and the constraint that replaced it (ADR-0102).
+    def test_absence_requirements_location(self):
+        for token in ("requirements_path", "requirements_dir"):
+            self.assertNotIn(token, self.body)
 
-    def test_absence_requirements_layout(self):
-        self.assertNotIn("requirements_layout", self.body)
+    def test_absence_requirements_subfolders(self):
+        for token in ("requirements_layout", "functional_dir"):
+            self.assertNotIn(token, self.body)
 
-    def test_absence_architecture_path(self):
-        self.assertNotIn("architecture_path", self.body)
+    def test_absence_architecture_location(self):
+        for token in ("architecture_path", "architecture_dir"):
+            self.assertNotIn(token, self.body)
 
-    def test_absence_adr_path(self):
-        self.assertNotIn("adr_path", self.body)
+    def test_absence_adr_location(self):
+        for token in ("adr_path", "adr_dir"):
+            self.assertNotIn(token, self.body)
 
 
 class CodeExecutorCharterSpanTest(unittest.TestCase):
@@ -202,7 +215,10 @@ class CodeExecutorCharterSpanTest(unittest.TestCase):
 class DocsSyncExecutorRehomeTest(unittest.TestCase):
     """The re-home landed: docs-sync-executor.md's charter now carries the
     tokens this spec removed from /code's producers, proving re-home rather
-    than plain deletion."""
+    than plain deletion. The doc locations it writes to were settings keys
+    when this spec shipped; since ADR-0102 they are the task constraints the
+    coordinator resolves (`requirements_dir`, `functional_dir`,
+    `non_functional_dir`, `architecture_dir`, `adr_dir`)."""
 
     @classmethod
     def setUpClass(cls):
@@ -211,23 +227,29 @@ class DocsSyncExecutorRehomeTest(unittest.TestCase):
     def test_presence_functional(self):
         self.assertIn("FUNCTIONAL", self.body)
 
-    def test_presence_requirements_layout(self):
-        self.assertIn("requirements_layout", self.body)
+    def test_presence_functional_dir_constraints(self):
+        self.assertIn("`<functional_dir>/<feature>.md`", self.body)
+        self.assertIn("`<non_functional_dir>/<item>.md`", self.body)
 
-    def test_presence_requirements_path(self):
-        self.assertIn("requirements_path", self.body)
+    def test_presence_requirements_dir(self):
+        self.assertIn("`requirements_dir`", self.body)
 
     def test_presence_evidence_sidecar(self):
         self.assertIn(".evidence.md", self.body)
 
-    def test_presence_architecture_path(self):
-        self.assertIn("architecture_path", self.body)
+    def test_presence_architecture_dir(self):
+        self.assertIn("`<architecture_dir>`", self.body)
 
     def test_presence_lld_flows(self):
         self.assertIn("lld/flows", self.body)
 
-    def test_presence_adr_path(self):
-        self.assertIn("adr_path", self.body)
+    def test_presence_adr_dir(self):
+        self.assertIn("`<adr_dir>`", self.body)
+
+    def test_no_path_setting_named(self):
+        for key in ("requirements_path", "requirements_layout",
+                    "architecture_path", "adr_path"):
+            self.assertNotIn(key, self.body)
 
 
 class PlanPlannerBoyScoutRetainedTest(unittest.TestCase):

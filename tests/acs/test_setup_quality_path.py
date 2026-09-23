@@ -1,28 +1,33 @@
-"""MAR-112 — /acs:setup Step 4 documents and defaults quality_path (AC-3).
+"""MAR-112 -- /acs:setup and `quality_path` (AC-3), inverted by ADR-0102.
 
-Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`. `quality_path`
-must be defaulted like `architecture_path`/`adr_path` in the Step 4
-optional-settings batch, and must NOT be added to the "always ask explicitly"
-carve-out (which names only `### models` and `e2e`).
-
-Stdlib-only (os, re, unittest), mirroring tests/acs/test_setup_offers.py's
-`section()` bounded-window technique so a stray mention elsewhere in the file
-cannot satisfy either assertion.
+AC-3 was a prose-contract test that /acs:setup's optional-settings batch
+defaulted `quality_path` to `docs/quality` and named `/acs:create-docs quality` as
+its consumer. ADR-0102 removed every document-locating settings key: the
+quality set is found where the repo keeps it, else created at the conventional
+`docs/quality/` that `acs_lib.DOC_SETS` declares. AC-3 is therefore inverted
+into a guard that setup -- its skill prose and its deterministic half,
+`setup_wizard.py` -- never names the key and that `DEFAULT_SETTINGS` never
+seeds it. The "always ask explicitly" carve-out check was deleted with it: a
+key setup never offers has no batch placement to pin.
 
 Renamed under MAR-1 (the skill formerly invoked as acs:initialize is now
-acs:setup): module name and internal skill-path/token references updated;
-behavior and originating ticket reference unchanged.
+acs:setup).
 
-Run:  python3 -m unittest tests.acs.test_mar112_quality_path_init -v
+Run:  python3 -m unittest tests.acs.test_setup_quality_path -v
 """
 
 import os
-import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
+HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
+WIZARD_PATH = os.path.join(HOOKS_DIR, "setup_wizard.py")
+sys.path.insert(0, HOOKS_DIR)
+
+import acs_lib  # noqa: E402
 
 
 def read(path):
@@ -30,75 +35,20 @@ def read(path):
         return fh.read()
 
 
-def section(body, heading):
-    """Return the text of a markdown section: from the line whose start is
-    `heading` (matched at line-start) up to the next same-or-higher-level
-    heading (or end of file)."""
-    m = re.search(r"(?m)^" + re.escape(heading) + r"\b.*$", body)
-    if m is None:
-        raise AssertionError("heading %r not found in SKILL.md" % heading)
-    start = m.start()
-    level = len(heading) - len(heading.lstrip("#"))
-    nxt = re.search(r"(?m)^#{1,%d} \S" % level, body[m.end():])
-    end = m.end() + nxt.start() if nxt else len(body)
-    return body[start:end]
+class SetupOffersNoQualityPathCase(unittest.TestCase):
+    """AC-3, inverted by ADR-0102: no setting locates the quality set, so
+    /acs:setup neither offers nor seeds `quality_path`."""
 
+    def test_setup_never_names_quality_path(self):
+        for path in (SKILL_PATH, WIZARD_PATH):
+            with self.subTest(file=os.path.relpath(path, REPO_ROOT)):
+                self.assertNotIn("quality_path", read(path))
 
-class Mar112QualityPathInitCase(unittest.TestCase):
-    """Fixture: read the setup SKILL.md once and isolate its Step 4 section."""
+    def test_default_settings_never_seed_quality_path(self):
+        self.assertNotIn("quality_path", acs_lib.DEFAULT_SETTINGS)
 
-    @classmethod
-    def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
-        # MAR-526 turned setup into a conversational skill: the optional-settings
-        # batch is its own `### Optional settings` section now, and the step
-        # numbering changed with it. The content these ACs pin is unmoved.
-        cls.step4 = section(cls.body, "### Optional settings")
-
-    def test_step4_batch_documents_quality_path_default(self):
-        """The Step 4 batch-default bullet list names quality_path with its
-        default 'docs/quality' in a bounded window after the marker, proving
-        the default is documented (not merely present in the schema)."""
-        m = re.search(r"`quality_path`", self.step4)
-        self.assertIsNotNone(
-            m, "Step 4 must document a `quality_path` bullet (AC-3)"
-        )
-        window = self.step4[m.start():m.start() + 300]
-        self.assertIn(
-            "docs/quality", window,
-            msg="the `quality_path` bullet must state its default 'docs/quality' "
-                "within a bounded window of the marker (AC-3)",
-        )
-
-    def test_step4_names_create_quality_as_consumer(self):
-        """The quality_path bullet names /acs:create-docs quality as the consuming
-        skill, mirroring how the adr_path bullet names /acs:code."""
-        m = re.search(r"`quality_path`", self.step4)
-        self.assertIsNotNone(m)
-        window = self.step4[m.start():m.start() + 300]
-        self.assertIn(
-            "create-docs quality", window,
-            msg="the `quality_path` bullet must name /acs:create-docs quality as "
-                "the consumer (AC-3)",
-        )
-
-    def test_carveout_does_not_name_quality_path(self):
-        """The 'always ask explicitly' carve-out sentence (naming `### models`
-        and e2e) must NOT gain quality_path — proving quality_path is a
-        silently-defaultable batch entry, not an always-ask exception."""
-        carveout = re.search(
-            r"(?s)present these as a batch.{0,900}", self.step4, re.IGNORECASE
-        )
-        self.assertIsNotNone(
-            carveout, "Step 4 must retain the 'present these as a batch' framing"
-        )
-        window = carveout.group(0)
-        self.assertNotIn(
-            "quality_path", window,
-            msg="quality_path must NOT appear in the always-ask carve-out "
-                "window — it is defaulted like architecture_path, not an "
-                "always-ask exception (AC-3)",
-        )
+    def test_the_quality_set_default_is_declared_on_its_row(self):
+        self.assertEqual(acs_lib.DOC_SETS["quality"]["default_dir"], "docs/quality")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 <!--
   coding-standards — built-in standards doc-set template (used by
   /acs:create-standards). Bootstrapped verbatim into the consumer's
-  standards_path, then lightly tailored to the product's stack. No
+  standards/ doc set, then lightly tailored to the product's stack. No
   runtime placeholders — tailoring is an in-place prose edit, not a
   string substitution.
 -->

@@ -3,9 +3,8 @@
 Until the skills-independence refactor every ticket document sat in the
 state-machine workspace next to the run ledger: ticket.json, design.md, the
 plan under phases/code/. The documents a human reads and edits now live in the
-repo's docs tree, `<checkout>/<settings.artifacts.tickets_path>/<ID>/`
-(default docs/tickets; an explicit null keeps everything in the partition as
-before), and the ledger stays where it was: <skill>-state.json,
+repo's docs tree, `<checkout>/docs/tickets/<ID>/` (TICKETS_PATH -- a fixed
+location, not a setting: ADR-0102), and the ledger stays where it was: <skill>-state.json,
 pipeline-state.json, phase artifacts, verdicts, locks, active-agents,
 clarifications.json and tickets-index.json never leave the partition.
 
@@ -37,9 +36,8 @@ from the end of the body (see _body_sections); neither of them can emit a
 WHICH FILE A TICKET LIVES IN. load_ticket reads ticket.md when the ticket's
 docs folder holds one, else ticket.json, else the file a ticket.json.moved
 pointer names. save_ticket writes ticket.md only when the docs tree is ACTIVE
-for this checkout -- tickets_path is not null, the process cwd resolves to a
-checkout whose workspace owns the partition, and <checkout>/<tickets_path>/
-exists (`acs.py artifacts migrate` creates it) -- and the ticket already lives
+for this checkout -- the process cwd resolves to a checkout whose workspace
+owns the partition, and <checkout>/docs/tickets/ exists (`acs.py artifacts migrate` creates it) -- and the ticket already lives
 there or has no ticket.json yet. A ticket that still has a ticket.json keeps
 being written as ticket.json until migrate moves it, so every ticket has
 exactly one home and no copy goes stale behind a reader. The workspace check
@@ -62,7 +60,9 @@ from .settings import load_settings
 from . import yamlsubset
 from .yamlsubset import YamlSubsetError
 
-DEFAULT_TICKETS_PATH = "docs/tickets"
+#: Where the ticket documents live, relative to the checkout root. Fixed: the
+#: hooks own these files and must find them without asking anyone (ADR-0102).
+TICKETS_PATH = "docs/tickets"
 TICKET_MD_FILENAME = "ticket.md"
 TICKET_JSON_FILENAME = "ticket.json"
 #: Left in the partition by migrate where ticket.json used to be; names the
@@ -100,35 +100,25 @@ CLARIFICATIONS_HEADING = "Clarifications"
 # Where the documents live
 # ---------------------------------------------------------------------------
 
-def tickets_path(settings):
-    """settings.artifacts.tickets_path: the repo-relative folder, or None when
-    the consumer opted out with an explicit null."""
-    block = (settings or {}).get("artifacts") or {}
-    return block["tickets_path"] if "tickets_path" in block else DEFAULT_TICKETS_PATH
+def ticket_docs_root(checkout_root):
+    """<checkout_root>/docs/tickets, or None when there is no checkout."""
+    return os.path.join(checkout_root, TICKETS_PATH) if checkout_root else None
 
 
-def ticket_docs_root(settings, checkout_root):
-    """<checkout_root>/<tickets_path>, or None (opted out, or no checkout)."""
-    base = tickets_path(settings)
-    if not base or not checkout_root:
-        return None
-    return os.path.join(checkout_root, base)
-
-
-def ticket_docs_dir(settings, checkout_root, ticket_id):
-    """The ticket's docs folder, or None when the tree is opted out (null) or
-    there is no checkout to anchor it to."""
-    root = ticket_docs_root(settings, checkout_root)
+def ticket_docs_dir(checkout_root, ticket_id):
+    """The ticket's docs folder, or None when there is no checkout to anchor
+    it to."""
+    root = ticket_docs_root(checkout_root)
     return os.path.join(root, ticket_id) if root else None
 
 
-def artifact_path(settings, checkout_root, tdir, ticket_id, name):
+def artifact_path(checkout_root, tdir, ticket_id, name):
     """Where `name` (design.md, analysis.md, api-contract.md, plan.md,
     test-cases.md, ticket.md) lives for a ticket: the first EXISTING copy in
     the docs folder, the partition, then the legacy partition location; when
-    none exists, where a writer should put it -- the docs folder when the tree
-    is configured, else the partition. os.path.isfile tells the two apart."""
-    docs = ticket_docs_dir(settings, checkout_root, ticket_id)
+    none exists, where a writer should put it -- the docs folder when there is
+    a checkout, else the partition. os.path.isfile tells the two apart."""
+    docs = ticket_docs_dir(checkout_root, ticket_id)
     candidates = [os.path.join(docs, name)] if docs else []
     candidates.append(os.path.join(tdir, name))
     candidates.extend(os.path.join(tdir, rel) for rel in LEGACY_ARTIFACT_PATHS.get(name, ()))
@@ -157,26 +147,21 @@ def is_archived_partition(tdir):
 def _checkout_view(cwd):
     """What the process cwd says about the docs tree: the checkout root, its
     settings, the tree root and the workspace repo dir the tree belongs to.
-    None outside a git checkout; tickets_root/repo_dir None when opted out or
-    when the workspace cannot be derived. Never raises."""
+    None outside a git checkout; tickets_root/repo_dir None when the
+    workspace cannot be derived. Never raises."""
     root = _repo.checkout_root(cwd)
     if not root:
         return None
     settings, _sources = load_settings(cwd)
     view = {"checkout_root": root, "settings": settings, "tickets_root": None, "repo_dir": None}
-    base = tickets_path(settings)
-    if not base:
-        return view
     try:
-        workspace = settings.get("workspace_path")
-        workspace = (os.path.abspath(os.path.expanduser(str(workspace))) if workspace
-                     else _repo.default_state_root(cwd))
+        workspace = _repo.default_state_root(cwd)
         repo_id = _repo.repo_partition_id(cwd)
     except GateError:
         return view
     if not repo_id:
         return view
-    view["tickets_root"] = os.path.join(root, base)
+    view["tickets_root"] = ticket_docs_root(root)
     view["repo_dir"] = _repo.repo_dir(workspace, repo_id)
     return view
 
@@ -639,18 +624,16 @@ def _copy_text(src, dest):
         write_text(dest, fh.read())
 
 
-def migrate(workspace, repo_id, settings, checkout_root, dry_run=False):
-    """Move every live partition's ticket.json into <tickets_path>/<ID>/ticket.md
+def migrate(workspace, repo_id, checkout_root, dry_run=False):
+    """Move every live partition's ticket.json into docs/tickets/<ID>/ticket.md
     once, copy its design.md and legacy plan alongside, and leave a
     ticket.json.moved pointer where ticket.json was. Idempotent: a ticket
     already moved is reported under `already`; a ticket.md already in the
     tree is kept (it is the newer of the two by construction). Creating the
     tree root is what activates the tree for save_ticket. The archive is
-    never touched. Refuses (GateError) when opted out or when a partition
-    still to move is locked by a session."""
-    base = tickets_path(settings)
-    if not base:
-        raise GateError("artifacts.tickets_path is null — the docs tree is opted out, nothing to migrate")
+    never touched. Refuses (GateError) when a partition still to move is
+    locked by a session."""
+    base = TICKETS_PATH
     if not checkout_root:
         raise GateError("no checkout root to anchor %s to" % base)
     root = os.path.join(checkout_root, base)
@@ -715,12 +698,12 @@ def describe(ctx, ticket_id, tdir):
     if not isinstance(ticket, dict):
         raise GateError("no readable ticket for %s (looked for ticket.md in the docs folder, "
                         "ticket.json and %s under %s)" % (ticket_id, MOVED_POINTER_FILENAME, tdir))
-    settings, root = ctx.get("settings"), ctx.get("checkout_root")
+    root = ctx.get("checkout_root")
     found = {}
     for name in ARTIFACT_NAMES[1:]:
-        candidate = artifact_path(settings, root, tdir, ticket_id, name)
+        candidate = artifact_path(root, tdir, ticket_id, name)
         found[name] = candidate if os.path.isfile(candidate) else None
     return {"ticket_id": ticket_id, "partition": tdir,
-            "docs_dir": ticket_docs_dir(settings, root, ticket_id),
+            "docs_dir": ticket_docs_dir(root, ticket_id),
             "active": _tree_active(view), "source": kind, "source_path": path,
             "status": ticket.get("status"), "artifacts": found, "ticket": ticket}

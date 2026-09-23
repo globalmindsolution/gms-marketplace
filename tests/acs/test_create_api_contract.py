@@ -13,13 +13,16 @@ checks the claim against that layer:
     seven required sections, linted from the skill's own skeleton;
   * traceability: every item to an acceptance criterion AND a plan item, which
     is what `states.traced_acs` records and what /acs:create-test-docs reads;
-  * `contracts_path` modes — including the refusal to invent a contract format
-    a repo does not already keep;
+  * `contracts_mode` — contract files are found where the repo keeps them,
+    else `docs/api/` (ADR-0102 removed the `contracts_path` setting and its
+    `null` opt-out) — including the refusal to invent a contract format a
+    repo does not already keep;
   * the pair's shape (execute -> verify, no planner, artifacts, grounding).
 
 Run:  python3 -m unittest tests.acs.test_create_api_contract -v
 """
 
+import json
 import os
 import re
 import sys
@@ -278,22 +281,38 @@ class TestTraceability(unittest.TestCase):
 
 
 class TestContractsPathModes(unittest.TestCase):
-    """settings.contracts_path decides whether repo-level contract files move."""
+    """Where repo-level contract files live decides whether they move. Until
+    ADR-0102 that was `settings.contracts_path` (default `docs/api`, `null` =
+    the ticket folder only); now they are found where the repo keeps them,
+    else `docs/api/`, and no setting or opt-out exists."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
 
-    def test_the_default_and_the_null_opt_out_are_both_described(self):
-        self.assertIn("settings.contracts_path", self.body)
-        self.assertIn("`docs/api`", self.body)
-        self.assertRegex(self.body, r"`null` = the\s+ticket folder only")
+    def test_the_found_location_and_the_default_are_both_described(self):
+        norm = " ".join(self.body.split())
+        self.assertIn("live where the repo keeps them, else at `docs/api/`, "
+                      "the conventional default", norm)
+        self.assertIn("mode is the repo-relative directory that holds them "
+                      "(`<contracts_dir>`)", norm)
+        # Inverted: the setting and its `null` ticket-folder-only opt-out are gone.
+        self.assertNotIn("contracts_path", self.body)
+        self.assertNotRegex(self.body, r"`null` = the\s+ticket folder only")
+        self.assertNotIn("ticket-folder-only", self.body)
 
-    def test_the_settings_default_is_what_the_prose_claims(self):
-        self.assertEqual(lib.DEFAULT_SETTINGS["contracts_path"], "docs/api")
+    def test_no_setting_seeds_or_validates_a_contracts_location(self):
+        """Inverted from "the settings default is what the prose claims":
+        DEFAULT_SETTINGS no longer seeds `contracts_path`, and the schema no
+        longer declares it (ADR-0102)."""
+        self.assertNotIn("contracts_path", lib.DEFAULT_SETTINGS)
+        with open(os.path.join(PLUGIN, "schemas", "settings.schema.json"),
+                  encoding="utf-8") as fh:
+            schema = json.load(fh)
+        self.assertNotIn("contracts_path", schema.get("properties", {}))
 
     def test_it_refuses_to_invent_a_contract_format(self):
-        self.assertRegex(self.body, r"Do NOT invent the convention")
+        self.assertRegex(self.body, r"Do NOT invent the\s+convention")
         self.assertRegex(agent("executor"),
                          r"never propose introducing a contract format")
 

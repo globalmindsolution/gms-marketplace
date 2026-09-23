@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import claude_code_adapter as cc  # noqa: E402
 
 from ._common import GateError, _note, _warn, now_iso, read_json, write_json
-from .artifacts import ticket_docs_root, tickets_path
+from .artifacts import TICKETS_PATH, ticket_docs_root
 from .lifecycle import (BLOCK_LIMIT, active_agents, active_agents_dir,
     resolve_partition)
 from .step import record_guard_event
@@ -294,8 +294,9 @@ def _record_guard_denial(payload, tdir, ctx, skill, reason, target=None,
 
 def _recorded_target(target, ctx):
     """The denied path as the record carries it: repo-relative when it is under
-    the checkout, otherwise exactly as it was given (a control input lives in
-    the workspace, which has no repo-relative form)."""
+    the checkout -- the workspace included, since it is always the main
+    checkout's .acs/state-machine (ADR-0102) -- otherwise exactly as it was
+    given, since a path outside the checkout has no repo-relative form."""
     if target is None:
         return None
     root = (ctx or {}).get("checkout_root")
@@ -319,11 +320,9 @@ def _guard_control_input(target, tdir, ctx):
     and any iteration's file map (which says what it may touch): either one
     lets an executor answer the guard's own question, so neither is writable
     while the guard is armed. And the ticket docs tree,
-    <settings.artifacts.tickets_path>/<ID>/ (ticket.md, design.md, plan.md,
-    test-cases.md ...), which the coordinator and the ticket skills own: an
-    executor rewriting the plan it is being checked against is the same move
-    as rewriting the map. Opting out of the tree (tickets_path null) lifts
-    that third case, since the folder then means nothing to acs."""
+    docs/tickets/<ID>/ (ticket.md, design.md, plan.md, test-cases.md ...),
+    which the coordinator and the ticket skills own: an executor rewriting the
+    plan it is being checked against is the same move as rewriting the map."""
     own = "the file-map guard's own control input"
     if _under(target, active_agents_dir(tdir)):
         return own
@@ -334,10 +333,9 @@ def _guard_control_input(target, tdir, ctx):
     if (os.path.basename(normalized) == FILEMAP_FILENAME
             and _under(target, _step_dir_of(tdir, None))):
         return own
-    settings = (ctx or {}).get("settings")
-    docs_root = ticket_docs_root(settings, (ctx or {}).get("checkout_root"))
+    docs_root = ticket_docs_root((ctx or {}).get("checkout_root"))
     if docs_root:
-        rel = normalize_repo_path(tickets_path(settings))
+        rel = normalize_repo_path(TICKETS_PATH)
         if _under(target, docs_root) or normalized == rel or normalized.startswith(rel + "/"):
             return ("the ticket docs tree (%s/), a control input only the coordinator "
                     "and the ticket skills write" % rel)

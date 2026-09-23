@@ -19,14 +19,18 @@ ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths:
 the authoring notes `iter-<n>/authoring.md`, the execute report(s)
 `iter-<n>-execute*.json`, the PRD, the architecture set, the principles set
 when applicable, the produced `doc_set_path` files), `<constraints>` —
-`partition` (the absolute ticket-partition path), `doc_set`, `doc_set_path`,
-`template_dir`, `output-files`, one `required_sections:<file>` per output
-file, `audience_style_profile`, `prd_path`, `prd_slice`, `architecture_path`,
-and for the `standards` set `principles_path` (when configured) plus
-`principles-optional` — and on iteration > 1 a `<context>` listing the prior
-iteration's findings. The set, its files and its sections come ONLY from these
-constraints — the same agent file serves every set. You share no memory with
-the coordinator: read every input yourself.
+`partition` (the absolute ticket-partition path), `doc_set`, `doc_set_path`
+(the set's location: where the coordinator found it in the repo, else its
+default location), `template_dir`, `output-files`, one
+`required_sections:<file>` per output file, `audience_style_profile`, `prd`,
+`prd_slice`, `architecture_dir`, and for the `standards` set `principles_dir`
+plus `principles-optional` — and on iteration > 1 a `<context>` listing the
+prior iteration's findings. The set, its files and its sections come ONLY from
+these constraints — the same agent file serves every set. Every location is a
+repo-relative constraint the coordinator resolved; you never read a path from
+settings, and if one is missing you locate the document yourself (CLAUDE.md,
+the docs index it points at, then a Glob search) rather than guess. You share
+no memory with the coordinator: read every input yourself.
 
 ## Check dimensions — run EVERY one, EVERY iteration
 
@@ -34,7 +38,7 @@ the coordinator: read every input yourself.
    `doc_set_path`. Verify with `ls`/Glob, never the execute report. No extra
    file — a stray file the constraints do not name is a finding.
 2. **architecture-conformance** — technology/stack claims in the tailored
-   files match what `architecture_path/hld/tech-stack.md` (and the rest of
+   files match what `architecture_dir/hld/tech-stack.md` (and the rest of
    the architecture set) actually says; no invented framework, CI system or
    deployment target not present in the architecture docs.
 3. **required-sections** — each file carries every section its
@@ -47,10 +51,10 @@ the coordinator: read every input yourself.
      executor recorded in the current iteration's `Upstream inventory`
      section — never just diff the output against the notes. Run `Bash
      python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py --plan
-     steps/create-docs/iter-<n>/authoring.md --root prd=<prd_path>
-     --root architecture=<architecture_path>` — and, for the `standards` set
-     only, additionally `--root principles=<principles_path>`, but ONLY when
-     the `principles_path` constraint is present and the `principles/` set
+     steps/create-docs/iter-<n>/authoring.md --root prd="$(dirname <prd>)"
+     --root architecture=<architecture_dir>` — and, for the `standards` set
+     only, additionally `--root principles=<principles_dir>`, but ONLY when
+     the `principles_dir` constraint is present and the `principles/` set
      exists on disk. When it is absent or the set is missing, omit the
      `--root principles=` argument entirely — never pass an empty value: an
      empty root is a usage error (exit 2) and the principles set is

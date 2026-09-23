@@ -8,10 +8,8 @@ second worktree to keep apart, and no sibling run to isolate a failure from.
 ## Concurrency cap
 
 Never run every set at once: run **at most 2** sets concurrently. That cap is
-the ship workflow's `max_parallel` default (`DEFAULT_MAX_PARALLEL` in
-`acs_lib`), and this repo's `workflows/ship.yaml` — or its
-`.acs/workflows/ship.yaml` override — wins when it declares its own value,
-which the Start snippet resolves and prints as `max_parallel`. Walk each batch
+this skill's own — `ship.yaml` carries no `max_parallel` since ADR-0096 — and
+the Start snippet prints it as `max_parallel`. Walk each batch
 `fanout_batches` returns in **slices of at most `max_parallel`** sets,
 finishing one slice's sets before starting the next. Everything below that
 says "this slice" means those at-most-`max_parallel` sets.
@@ -50,5 +48,5 @@ set's run status, ticket, partition and lock are its own; every OTHER set's
 run, PR and ledger are never touched by it. Report each set's outcome
 independently, each with its own resume command
 (`/acs:create-docs <delivery-ticket-id>`). The one shared precondition, the
-architecture doc set, was checked by the pre-hook before any set started, so
-there is no shared failure left to carve out.
+architecture doc set, was checked at Start before any set started, so there
+is no shared failure left to carve out.

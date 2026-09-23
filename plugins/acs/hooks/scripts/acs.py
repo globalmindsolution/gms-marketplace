@@ -325,6 +325,8 @@ def build_parser():
     fanout = group("fanout", help="epic fan-out helpers")
     fanout_sub = fanout.add_subparsers(dest="cmd")
     batches = fanout_sub.add_parser("batches", help="fanout_batches")
+    batches.add_argument("--present", default="",
+                         help="comma-separated doc sets the repo already has")
     batches.set_defaults(func=cmd_fanout_batches)
 
     doctor = group("doctor", help="check_toolchain / missing_tools")

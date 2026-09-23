@@ -1,7 +1,8 @@
 """MAR-114 spec 04 — docs / eval / ADR / CHANGELOG consistency sweep.
 
 Prose-contract tests over every consumer-repo doc this spec touches: the
-`contracts.md` settings-key list, `configuration.md`'s Keys table, the
+`contracts.md` settings-key list (which, since ADR-0102, names no document
+path key), `configuration.md`'s Keys table, the
 `skills.md` count + new `/acs:test` section, one new routing probe, the
 CHANGELOG's durable MAR-114 entry, ADR 0011's status flip (with ADR 0012 left
 untouched as a regression guard), and the two new ADRs.
@@ -47,8 +48,9 @@ def section(body, heading):
 
 class ContractsMdSettingsKeyListTest(unittest.TestCase):
     """Approach item 1: contracts.md settings-key list gains suites +
-    e2e-deprecated-alias note, plus the boy-scout quality_path/operations_path
-    repair."""
+    e2e-deprecated-alias note. The boy-scout quality_path/operations_path
+    repair it also made is inverted: ADR-0102 removed those keys, so the list
+    must not name them and states that no key locates a document."""
 
     def _contracts(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md"))
@@ -65,15 +67,21 @@ class ContractsMdSettingsKeyListTest(unittest.TestCase):
             re.search(r"(?i)deprecated|alias", after),
             "contracts.md must note `e2e` is a deprecated alias near its mention")
 
-    def test_settings_key_list_boy_scout_repair(self):
-        """Boy-scout repair: quality_path/operations_path were missing from
-        this list (MAR-112/113 drift) — MAR-114 repairs the whole list."""
+    def test_settings_key_list_names_no_document_path_key(self):
+        """Boy-scout repair, inverted: MAR-114 added the missing
+        quality_path/operations_path (MAR-112/113 drift) so the list matched
+        the schema. ADR-0102 removed every document-locating key, so a list
+        that matches the schema names none of them and says why."""
         body = self._contracts()
         window = section(body, "## Settings (consumer repo)")
-        self.assertIn("quality_path", window,
-                      "contracts.md's settings-key list must gain `quality_path` (boy-scout repair)")
-        self.assertIn("operations_path", window,
-                      "contracts.md's settings-key list must gain `operations_path` (boy-scout repair)")
+        for key in ("quality_path", "operations_path", "principles_path", "standards_path",
+                    "prd_path", "architecture_path", "requirements_path", "adr_path",
+                    "contracts_path", "tickets_path", "workspace_path"):
+            with self.subTest(key=key):
+                self.assertNotIn(key, window,
+                                 "contracts.md's settings-key list must not name the removed "
+                                 "`%s` (ADR-0102)" % key)
+        self.assertIn("No key locates the workspace or a document", " ".join(window.split()))
 
 
 class ConfigurationMdKeysTableTest(unittest.TestCase):

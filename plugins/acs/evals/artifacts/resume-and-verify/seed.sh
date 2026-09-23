@@ -32,7 +32,7 @@ git config user.email eval@example.com
 git config user.name eval
 printf 'def health():\n    return "ok"\n' > app.py
 
-mkdir -p .acs .acs-workspace
+mkdir -p .acs
 cat > .acs/settings.json <<'JSON'
 {
   "ticket_prefix": "EVAL",
@@ -41,11 +41,10 @@ cat > .acs/settings.json <<'JSON'
   "tracker": { "provider": "none" }
 }
 JSON
-# acs keeps state OUTSIDE the repo by default; a grader can only read what
-# lands under the run directory. The fixed remote above makes the partition id
-# deterministically `example-shop`.
-echo '{ "workspace_path": "./.acs-workspace" }' > .acs/settings.local.json
-echo '.acs/settings.local.json' >> .gitignore
+# The run directory is the main checkout, so acs's workspace is
+# `.acs/state-machine/` inside it (ADR-0086), where a grader can read it. The
+# fixed remote above makes the partition id deterministically `example-shop`.
+echo '.acs/state-machine/' >> .gitignore
 git add -A && git commit -qm seed
 
 # A fresh partition refuses to allocate an id: acs's reconciliation guard will
@@ -53,14 +52,14 @@ git add -A && git commit -qm seed
 # already in the repo's history). A reconciled counters.json is the documented
 # fixture seam for that (MAR-402) -- without it the first mint blocks and asks
 # for `--seed-next`, which a "do not ask me anything" prompt cannot answer.
-mkdir -p .acs-workspace/example-shop
+mkdir -p .acs/state-machine/example-shop
 printf '{"next": 1, "reconciled": true, "seed_source": "explicit-user", "seeded_at": "%s"}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .acs-workspace/example-shop/counters.json
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .acs/state-machine/example-shop/counters.json
 
 python3 "$SCRIPTS/new-ticket.py" --title "Add a /health endpoint returning ok" \
   --type task --needs-design false > /dev/null
 
-T=.acs-workspace/example-shop/EVAL-1
+T=.acs/state-machine/example-shop/EVAL-1
 mkdir -p "$T/specs"
 cat > "$T/specs/01-health.md" <<'MD'
 # Spec 01 — GET /health

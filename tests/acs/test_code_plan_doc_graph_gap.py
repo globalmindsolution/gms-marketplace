@@ -120,7 +120,7 @@ def assert_edges_and_targets_present(testcase, text):
 class PlanPlannerItem4DocGraphGapTest(unittest.TestCase):
     """Assertion 1 + 8: the plan planner's item 4 names E1-E4 with target docs,
     the problems carrier, the touched-area bound, the explicit non-coverage
-    of requirements_path/adr_path edges, and the silent-degradation rule."""
+    of requirements_dir/adr_dir edges, and the silent-degradation rule."""
 
     @classmethod
     def setUpClass(cls):
@@ -141,8 +141,14 @@ class PlanPlannerItem4DocGraphGapTest(unittest.TestCase):
         self.assertRegex(self.item4_norm, r"(?i)touched-area only")
 
     def test_explicit_non_coverage_stated(self):
-        self.assertIn("requirements_path", self.item4)
-        self.assertIn("adr_path", self.item4)
+        # The two uncovered edge types are named by the constraints that
+        # carry their locations since ADR-0102 (formerly the
+        # `requirements_path` / `adr_path` settings).
+        self.assertIn(
+            "Explicitly NOT covered: `requirements_dir` edges and `adr_dir` edges",
+            self.item4_norm)
+        self.assertNotIn("requirements_path", self.item4)
+        self.assertNotIn("adr_path", self.item4)
         self.assertRegex(self.item4_norm, r"(?i)not\b.{0,60}covered")
 
     def test_silent_degradation_stated(self):
@@ -306,8 +312,13 @@ class SkillsReqCodeSectionAdr0012ClauseTest(unittest.TestCase):
             "explicit reference to code-planner.md's item-4 table")
 
     def test_non_coverage_bound_present(self):
-        self.assertIn("requirements_path", self.section)
-        self.assertIn("adr_path", self.section)
+        # Named by what they are rather than by the removed
+        # `requirements_path` / `adr_path` settings (ADR-0102).
+        self.assertIn(
+            "living-requirements edges and ADR edges are explicitly not covered",
+            self.section_norm)
+        self.assertNotIn("requirements_path", self.section)
+        self.assertNotIn("adr_path", self.section)
         self.assertRegex(self.section_norm, r"(?i)not\b.{0,60}covered")
 
     def test_no_new_create_spec_substring(self):

@@ -28,18 +28,18 @@ ground truth. Zero findings = pass. ALL findings block.
 4. `mechanics` — the commits are on the SAME ticket branch (no new branch),
    there is no new PR, and each commit message matches the `commit_message`
    format.
-5. `requirements-routing` — when the diff touches a `requirements_path`
-   file: the merge is classified correctly per the rubric (functional=
+5. `requirements-routing` — when the diff touches a file under
+   `requirements_dir`: the merge is classified correctly per the rubric (functional=
    behavior, non-functional=quality, tie-break defaults to functional) and
    lands in the resolved subfolder — a merge outside the
-   `requirements_layout.functional_subdir`/`.non_functional_subdir` resolved
-   paths (a wrong-subfolder merge) is a finding; an in-scope code-evidence
+   `functional_dir`/`non_functional_dir` resolved paths (a wrong-subfolder
+   merge) is a finding; an in-scope code-evidence
    citation embedded inline in the area file's body instead of routed to its
    `.evidence.md` sidecar is a finding. When the diff shows architectural
    impact (components/data model/integrations/deployment changed) or the
    design carries accepted decision records: the HLD under
-   `architecture_path`, the `lld/flows/` diagram set, and the ADRs under
-   `adr_path` are updated/committed accordingly — a gap is a finding.
+   `architecture_dir`, the `lld/flows/` diagram set, and the ADRs under
+   `adr_dir` are updated/committed accordingly — a gap is a finding.
 6. `authoring-conformance` — the committed changes are what the executor's
    authoring notes (`steps/docs-sync/iter-<n>/authoring.md`)
    listed: every doc-delta item is applied or its omission recorded, every

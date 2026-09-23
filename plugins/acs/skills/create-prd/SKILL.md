@@ -6,11 +6,11 @@ disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:create-prd. You produce or amend the PRD doc set
-(`prd.md` + `roadmap.md`) in the consumer repo at `settings.prd_path` (default
-`docs/product/`), under a fresh **delivery ticket**, and you ship it yourself as a
-docs-only PR — `/acs:code` and `/acs:create-pr` are NOT involved. You orchestrate
-executor/verifier subagents — execute -> verify, no planner (ADR-0092); you never
-write the PRD content yourself.
+(`prd.md` + `roadmap.md`) in the consumer repo — wherever the repo already keeps
+its PRD, else at `docs/product/` — under a fresh **delivery ticket**, and you ship
+it yourself as a docs-only PR — `/acs:code` and `/acs:create-pr` are NOT involved.
+You orchestrate executor/verifier subagents — execute -> verify, no planner
+(ADR-0092); you never write the PRD content yourself.
 
 ## Start
 
@@ -26,8 +26,13 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 - Otherwise (fresh PRD or amendment — every run gets a NEW delivery ticket):
 
   Before calling `acs step start --allocate`, detect whether this is an **amend** run
-  by checking if `prd.md` already exists at the resolved `settings.prd_path` (default
-  `docs/product/`). This mirrors the executor's amend definition (see Execute below).
+  by locating the repo's PRD the way any session finds a document: CLAUDE.md and
+  whatever docs index it or the repo points at (e.g. `docs/README.md`), then a
+  Glob/Grep for `prd.md` or a PRD by content. Found → amend; that file is `<prd>` and
+  its roadmap (located the same way, else `roadmap.md` beside it) is `<roadmap>`. Not
+  found → `<prd>` = `docs/product/prd.md`, `<roadmap>` = `docs/product/roadmap.md`,
+  the conventional default. This mirrors the executor's amend definition (see
+  Execute below).
 
   - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
 
@@ -50,7 +55,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
     free text of `$ARGUMENTS`. Example:
     `--title "Amend PRD: add org-level enforcement policy"`
 
-  - **All other cases** (greenfield/brownfield — no `prd.md` at `prd_path` — or an
+  - **All other cases** (greenfield/brownfield — no PRD found — or an
     amendment where `$ARGUMENTS` carries no usable request): pass no `--title`:
 
     ```bash
@@ -64,11 +69,12 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 If `acs step start` exits non-zero: STOP and surface its stderr verbatim.
 
 Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
-`settings` (`prd_path`, `formats`, `ticket_prefix`), `models` (per-role model/effort),
+`settings` (`formats`, `ticket_prefix`), `models` (per-role model/effort),
 `reconcile`, `handoff_summary`, `design`, `pipeline`, `post_hook`.
 
 Keep the free text of `$ARGUMENTS` (product notes, amendment request): it is executor
-input.
+input. `<prd>` and `<roadmap>` are the repo-relative paths every later section uses;
+on the resume form, locate them the same way right after `acs step start`.
 
 ## Resume & reconcile
 
@@ -77,7 +83,7 @@ continuing:
 
 1. Re-read `steps/create-prd/iter-*-*.xml` and
    `<partition>/create-prd-state.json` to see which phases completed.
-2. Re-read `<repo>/<settings.prd_path>/prd.md` and `roadmap.md` — does their content
+2. Re-read `<repo>/<prd>` and `<repo>/<roadmap>` — does their content
    match what the recorded executor results claim?
 3. Check delivery progress: does the delivery branch exist
    (`git branch --list "<branch>"` / `git ls-remote --heads origin "<branch>"`)? Was a
@@ -143,7 +149,7 @@ spawn subagents.
 
 The executor's first job on iteration 1 is mode classification:
 
-- **amend** — `<repo>/<settings.prd_path>/prd.md` already exists. Plan a surgical
+- **amend** — `<repo>/<prd>` already exists. Plan a surgical
   amendment: which sections change, which are preserved byte-for-byte.
 - **brownfield** — no `prd.md`, but the repo contains real code. Plan to
   reverse-engineer a baseline PRD from the codebase and existing docs, listing the
@@ -171,7 +177,8 @@ recorded clarification answers):
     <file>/abs/repo/README.md</file>
   </inputs>
   <constraints>
-    <constraint name="prd_path">docs/product</constraint>
+    <constraint name="prd">docs/product/prd.md</constraint>
+    <constraint name="roadmap">docs/product/roadmap.md</constraint>
     <constraint name="required_sections">Vision; Problem statement; Target users &amp; personas; Goals &amp; success metrics; Features (prioritized); Non-functional requirements; Constraints &amp; assumptions; Out of scope</constraint>
     <constraint name="audience_style_profile">product/business (plainer prose)</constraint>
     <constraint name="amend_rule">amendments preserve untouched sections exactly</constraint>
@@ -206,12 +213,12 @@ Re-run the executor (`phase="execute"`, same iteration) with the user's answers 
 the mode in `<context>`. On that pass the executor — the only role that mutates the
 repo — writes:
 
-- `<settings.prd_path>/prd.md` with EXACTLY these sections: **Vision**,
+- `<prd>` with EXACTLY these sections: **Vision**,
   **Problem statement**, **Target users & personas**, **Goals & success metrics**,
   **Features (prioritized)** (MoSCoW: Must/Should/Could/Won't, each feature traced to
   the goal(s) it serves), **Non-functional requirements**,
   **Constraints & assumptions**, **Out of scope**.
-- `<settings.prd_path>/roadmap.md` — milestones/phases mapped to intended epics, each
+- `<roadmap>` — milestones/phases mapped to intended epics, each
   milestone listing the PRD features it delivers.
   - Additionally, maintain a **"Release versions"** mapping table in
     `roadmap.md`: one row per release version, mapping it to the
@@ -224,7 +231,7 @@ repo — writes:
     readability and the coverage check below, and a gap in it can never break
     a release cut.
 - In amend mode: edit `prd.md` in place, preserving untouched sections exactly
-  (verify with `git diff -- <settings.prd_path>`); update `roadmap.md` only where the
+  (verify with `git diff -- "<prd>" "<roadmap>"`); update `roadmap.md` only where the
   amendment changes it.
 
 Typically ONE executor — `prd.md` and `roadmap.md` are tightly coupled. You MAY run
@@ -236,13 +243,13 @@ finish and judges the combined result.
 
 Spawn the verifier (`phase="verify"`) with ONLY artifact references (the two files,
 the ticket, the git diff) — never the executor's reasoning. Its `<inputs>` also carry
-`<partition>/clarifications.json`, and its `<constraints>` also carry
-`required_sections`, `audience_style_profile` (both declared above in the
+`<partition>/clarifications.json`, and its `<constraints>` also carry `prd`,
+`roadmap`, `required_sections`, `audience_style_profile` (all declared above in the
 execute task example — the same eight-section list the executor was instructed to write,
 so the structure gate has no second, driftable copy), and `repo_root` (the consumer
 repo root, for the plan-conformance code-evidence family). In amend mode, the
 verifier itself derives the `--added-heading` values its plan-conformance check
-needs from its own `git diff -- <settings.prd_path>` (already dimension 8's
+needs from its own `git diff -- "<prd>" "<roadmap>"` (already dimension 8's
 mechanism): every `+###`/`+####` heading line added to `roadmap.md`. It re-reads
 everything fresh and checks, all findings blocking:
 
@@ -271,7 +278,7 @@ status `failed`, findings recorded; go to Finish (no PR is opened).
 Only after the verifier passes:
 
 ```bash
-git add "<settings.prd_path>/prd.md" "<settings.prd_path>/roadmap.md"
+git add "<prd>" "<roadmap>"
 git commit -m "<rendered formats.commit_message>"      # default {ticket_id} {summary}, e.g. "SHOP-1 Add product requirements document and roadmap"
 git push -u origin "<branch>"
 ```
@@ -392,7 +399,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: PRD files written/amended at `prd_path` (`prd.md`, `roadmap.md`); delivery ticket id; PR number/URL
+- **Results**: PRD files written/amended (`<prd>`, `<roadmap>`); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>

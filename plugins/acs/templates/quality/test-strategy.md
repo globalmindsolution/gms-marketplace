@@ -1,6 +1,6 @@
 <!--
   test-strategy — built-in quality doc-set template (used by /acs:create-quality).
-  Bootstrapped verbatim into the consumer's quality_path, then lightly tailored
+  Bootstrapped verbatim into the consumer's quality/ doc set, then lightly tailored
   to the detected tech stack. No runtime placeholders — tailoring is an
   in-place prose edit, not a string substitution.
 -->

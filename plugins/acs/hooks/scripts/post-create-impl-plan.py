@@ -4,7 +4,7 @@ updates pipeline-state.json, tickets-index.json, and metrics.json.
 
 Result-document `states` this run records for the steps that follow it:
   * plan_path      str  — where plan.md was written (the ticket docs folder, or
-    the partition when artifacts.tickets_path is null). The /acs:code gate
+    the partition when docs/tickets/ is not in use). The /acs:code gate
     resolves the file itself; this records which path the run chose.
   * plan_approved  bool — whether plan approval ran and passed (STANDARD/COMPLEX
     lanes only; TRIVIAL/SMALL plans are coordinator-authored and unapproved).

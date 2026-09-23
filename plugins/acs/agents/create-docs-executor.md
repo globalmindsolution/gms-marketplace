@@ -17,33 +17,39 @@ work — a verifier does that from the artifacts alone.
 
 Your prompt contains an XML `<task skill="create-docs" phase="execute"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths:
-`prd.md` under `prd_path`, the full `architecture_path` set, the
-`principles_path` set when applicable, any existing `doc_set_path` files),
-`<constraints>` — `partition` (the absolute ticket-partition path), `doc_set`,
-`doc_set_path`, `template_dir`, `output-files`, one `required_sections:<file>`
-per output file, `audience_style_profile`, `prd_path`, `prd_slice`,
-`architecture_path`, and for the `standards` set `principles_path` (when
-configured) plus `principles-optional` — and, on iteration >= 2, a `<context>`
-carrying the prior iteration's verifier findings verbatim, plus any recorded
-clarification answers. The set, its files and its sections come ONLY from
-these constraints — the same agent file serves every set. You share no memory
-with the coordinator: read every input file yourself before writing anything.
+the `prd` file, the full `architecture_dir` set, the `principles_dir` set when
+applicable, any existing `doc_set_path` files), `<constraints>` — `partition`
+(the absolute ticket-partition path), `doc_set`, `doc_set_path` (the set's
+location: where the coordinator found it in the repo, else its default
+location), `template_dir`, `output-files`, one `required_sections:<file>`
+per output file, `audience_style_profile`, `prd`, `prd_slice`,
+`architecture_dir`, and for the `standards` set `principles_dir` plus
+`principles-optional` — and, on iteration >= 2, a `<context>` carrying the
+prior iteration's verifier findings verbatim, plus any recorded clarification
+answers. The set, its files and its sections come ONLY from these
+constraints — the same agent file serves every set. Every location is a
+repo-relative constraint the coordinator resolved; you never read a path from
+settings, and if one is missing you locate the document yourself (CLAUDE.md,
+the docs index it points at, then a Glob search) rather than guess. You share
+no memory with the coordinator: read every input file yourself before writing
+anything.
 
 ## Analysis you must perform (iteration 1)
 
-1. Read `<prd_path>/prd.md` — the slice `prd_slice` names (the Non-functional
+1. Read the `prd` file — the slice `prd_slice` names (the Non-functional
    requirements section for `quality` and `operations`; the PRD generally for
    `principles` and `standards`).
-2. Read the full `<architecture_path>/` set (HLD and LLD) — the detected tech
+2. Read the full `<architecture_dir>/` set (HLD and LLD) — the detected tech
    stack, deployment topology, and components the templates must be tailored
    against.
-3. **Read `<principles_path>/` WHEN the constraint is present AND a
+3. **Read `<principles_dir>/` WHEN the constraint is present AND a
    `principles/` doc set exists there** (the `standards` set only) — the
    stated engineering principles the standards should realize concretely.
-   **When `principles_path` is absent, or set but no `principles/` doc set
-   exists yet, note this explicitly in the Upstream inventory as N/A and
-   proceed** — never treat a missing principles set as a reason to stop
-   (graceful degradation; the `principles-optional` constraint says so).
+   **When no `principles/` doc set exists there yet (or, with the constraint
+   absent, none turns up when you look), note this explicitly in the Upstream
+   inventory as N/A and proceed** — never treat a missing principles set as a
+   reason to stop (graceful degradation; the `principles-optional` constraint
+   says so).
 4. Classify **bootstrap** (no doc set exists yet at `doc_set_path`) vs
    **re-run/amend** (the set exists — regenerate/tailor in place, preserving
    still-accurate content). The disk decides; record the evidence.
@@ -99,7 +105,7 @@ sections:
 - **Upstream inventory** — the PRD facts and architecture-set facts the doc
   set must reflect, with file/line citations, PLUS the principles-set facts
   when present — and an explicit "principles/ N/A: <why>" note for the
-  `standards` set when `principles_path` is absent or the set is missing.
+  `standards` set when the principles set is missing.
   Each citation is one line of the shape
 
   ```

@@ -16,10 +16,11 @@ every fallback is recorded, nothing is silently dropped.
   there is no network call.
 - **Single repo.** They aggregate only the current repo's workspace partition
   (active tickets plus `archive/`). Multi-repo aggregation is out of scope.
-- **No new config.** They consume the existing `.acs/settings.json` only (to
-  resolve the state root — either an explicit `workspace_path` override or the
-  derived in-repo `.acs/state-machine` default) and introduce **no new config
-  keys**. Nothing about the dashboards needs configuring.
+- **No new config.** They consume the existing `.acs/settings.json` only and
+  introduce **no new config keys**; the state root they read is always the
+  derived in-repo `.acs/state-machine` — no setting relocates it
+  ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)). Nothing
+  about the dashboards needs configuring.
 - **Every panel of the requested view is always present.** Each skill presents
   every panel of its view. Missing or partial state renders as a **"no data"**
   marker for that panel — never a missing panel, never a crash (see

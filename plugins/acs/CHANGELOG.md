@@ -346,6 +346,34 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **Documents are found, not configured: every path setting is removed**
+  (ADR-0102). `prd_path`, `architecture_path`, `requirements_path`,
+  `requirements_layout`, `adr_path`, `quality_path`, `operations_path`,
+  `principles_path`, `standards_path`, `artifacts.tickets_path`,
+  `contracts_path` and `workspace_path` are gone from the schema,
+  `DEFAULT_SETTINGS`, `/acs:setup` and every skill and agent. A skill finds
+  the repo's documents the way any Claude Code session does: through
+  `CLAUDE.md`, a docs index, then a search. It creates a missing one at its
+  `docs/` convention (`docs/product/`, `docs/architecture/`,
+  `docs/requirements/{functional,non-functional}/`, `docs/adr/`,
+  `docs/quality/`, `docs/operations/`, `docs/principles/`, `docs/standards/`,
+  `docs/api/`). Coordinators hand the located paths to subagents as
+  constraints (`prd`, `architecture_dir`, `requirements_dir`, …). Two
+  locations stay fixed because the hooks own them: ticket documents at
+  `docs/tickets/<ID>/` (`acs_lib.artifacts.TICKETS_PATH`), and the workspace
+  at `<main-checkout>/.acs/state-machine`. The PRD and architecture-set
+  preconditions move from the pre-hook (`PRD_GATED`, `ARCHITECTURE_GATED`,
+  both deleted) into the Start of `/acs:create-architecture`,
+  `/acs:create-project`, `/acs:standardize-project` and `/acs:create-docs`,
+  with the same refusal messages. `fanout_batches(tickets_index, candidates,
+  present)` takes the doc sets the coordinator found, instead of probing
+  configured paths, and `doc_set_present_on_disk` is removed. **Migration:**
+  a stale key in a settings file is ignored (unknown keys are legal). A repo
+  whose `workspace_path` pointed outside the checkout moves its state once
+  with `migrate_workspace.py`. The `null` opt-outs (`tickets_path`,
+  `adr_path`, `contracts_path`) no longer exist; say what the repo wants in
+  its `CLAUDE.md`.
+
 - **The `size` × `stakes` lane grid is retired; rigor is a delivery path judged
   once, from the plan** (ADR-0095, superseding ADRs 0030, 0031, 0032, 0033,
   0034, 0042 and 0074). The grid asked `/acs:create-ticket` to classify a change
@@ -732,6 +760,12 @@ JSON validated by JSON Schema, one central envelope plus a
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.
 
 ### Fixed
+
+- **`/acs:create-docs` no longer crashes at Start** on every fresh run. Its
+  Start snippet read `lib.DEFAULT_MAX_PARALLEL`, which went away when
+  `ship.yaml` lost `max_parallel` (ADR-0096); the resulting `AttributeError`
+  was not the `WorkflowError` the snippet caught. The cap is now the skill's
+  own constant, 2, which is what the README always said.
 
 - **The coordinator's lens merge pass is the adversarial merge pass, not a
   "confidence-scoring" one** (MAR-584). Three live documents —

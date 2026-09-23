@@ -14,9 +14,9 @@ reality BEFORE continuing:
 - Read `steps/create-docs/` — the persisted
   `iter-<n>-<phase>.xml` files tell you the last completed phase and iteration.
 - Re-read the actual artifacts: which of the set's files under
-  `<checkout_root>/<path>/` exist and are complete; whether the ticket branch
-  exists (`git branch --list`), is committed, pushed, or already has a PR
-  (`gh pr list --head <branch>`).
+  `<checkout_root>/<location>/` (the set's location, found at Start) exist
+  and are complete; whether the ticket branch exists (`git branch --list`),
+  is committed, pushed, or already has a PR (`gh pr list --head <branch>`).
 - Distrust the record where it is cheap to re-check (a doc "written" but
   missing or truncated counts as not done).
 - Continue from the first unfinished phase of the recorded iteration: an

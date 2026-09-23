@@ -7,8 +7,8 @@ Result-document `states` this run records for the steps that follow it:
   * items          int  — endpoints/commands/messages the contract declares.
   * traced_acs     list — the acceptance-criteria ids each item traces to.
 
-The machine-readable contract files under settings.contracts_path (when the
-repo keeps them) are committed on the ticket branch, not recorded here.
+The repo's machine-readable contract files (when it keeps them) are committed
+on the ticket branch, not recorded here.
 
 Invoked by the skill's coordinator as its mandatory final step:
   python3 post-create-api-contract.py --result-file <result.json>     # or JSON on stdin

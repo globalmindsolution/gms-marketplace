@@ -1,23 +1,36 @@
 ---
 name: standardize-project
-description: Once dispatched it audits the repo against its principles_path/standards_path doc sets, hld/project-structure.md and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds ONLY the missing docs/config/tooling as one reviewed PR -- never moving, renaming, deleting, or rewriting existing source. Structural gaps surface as recommended follow-up tickets, never auto-minted. The brownfield counterpart to the greenfield-only create-project leg.
+description: Once dispatched it audits the repo against its principles/standards doc sets, hld/project-structure.md and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds ONLY the missing docs/config/tooling as one reviewed PR -- never moving, renaming, deleting, or rewriting existing source. Structural gaps surface as recommended follow-up tickets, never auto-minted. The brownfield counterpart to the greenfield-only create-project leg.
 when_to_use: Internal leg of /acs:project (standardize mode) -- never the answer to a user request, even one that asks to audit an existing repo against its standards or to scaffold whatever tooling is missing. Route every such request to /acs:project, which detects greenfield vs existing from declared on-disk evidence and dispatches here itself with an explicit Skill call; do not invoke this leg directly.
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:standardize-project. On an EXISTING repo, you audit it
-against `settings.principles_path`, `settings.standards_path`,
-`<architecture_path>/hld/project-structure.md`, and acs-readiness tooling, then
+against its principles and standards doc sets,
+`<architecture_dir>/hld/project-structure.md`, and acs-readiness tooling, then
 ADDITIVELY scaffold only what is missing as one reviewed PR — you never move, rename,
 delete, or rewrite existing source. This is the brownfield counterpart to the
 greenfield-only `/acs:create-project`; it is a dedicated triad-keeping workflow skill,
-not a `<set>_path` doc-set producer (D5 Option B). You orchestrate subagents; you never
+not a doc-set producer (D5 Option B). You orchestrate subagents; you never
 scaffold anything yourself.
 
 ## Start
 
-MANDATORY first action — run exactly one of:
+MANDATORY first action — locate the documents this run audits against, before anything
+is allocated. Documents are found, not configured: read CLAUDE.md and whatever docs index
+it or the repo points at (e.g. `docs/README.md`), then Glob/Grep by file name or content.
+
+- **The architecture set** — the directory holding `hld/tech-stack.md` is
+  `<architecture_dir>`. None found (a directory without `hld/tech-stack.md` does not
+  count) → STOP and tell the user: "no architecture doc set found (expected
+  hld/tech-stack.md) — run /acs:create-architecture first."
+- **The principles and standards sets** — found → that directory is `<principles_dir>` /
+  `<standards_dir>`; not found → the conventional `docs/principles/` /
+  `docs/standards/`, where `/acs:create-docs principles` / `/acs:create-docs
+  standards` would create it. Not finding either is never a stop (see below).
+
+Then run exactly one of:
 
 - Fresh run (the normal case; each run gets its own delivery ticket):
 
@@ -34,9 +47,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardi
 
 If `acs step start` exits non-zero: stop immediately and surface its stderr to the user
 verbatim — do not improvise. Otherwise parse the printed context JSON; the fields you
-need: `partition`, `ticket_id`, `ticket`, `settings` (`principles_path`,
-`standards_path`, `architecture_path`, `test_coverage_percent`, `e2e`, `formats`,
-`tracker`), `models`, `reconcile`, `handoff_summary`, `post_hook`, `pipeline`,
+need: `partition`, `ticket_id`, `ticket`, `settings` (`test_coverage_percent`, `e2e`,
+`formats`, `tracker`), `models`, `reconcile`, `handoff_summary`, `post_hook`, `pipeline`,
 `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled **"Brownfield project standardization"**
@@ -45,12 +57,12 @@ partition, ticket.json, the lock, the session pointer, and the `in_progress` run
 If `settings.tracker.provider` is `github` or `jira`, sync the ticket out via `gh`/`acli`
 per the tracker config.
 
-**No refusal guard on this skill's own set.** Unlike every product-level producer
-(`create-standards/SKILL.md:45-48`, keyed to `standards_path == null`),
-`standardize-project` has no `<set>_path` of its own to be null: it is not a doc-set
-producer. The Start phase never blocks on `principles_path` or `standards_path` — the
-audit always proceeds (see Brownfield orientation below); a missing or unset doc set is
-a grounding-input condition handled in Inputs & mode, not a Start-time concern.
+**No refusal guard on the principles or standards set.** `standardize-project` owns no
+doc set of its own: it is not a doc-set producer. The Start phase never blocks on a
+missing principles or standards set — the audit always proceeds (see Brownfield
+orientation below); a set the repo does not have is a grounding-input condition handled
+in Inputs & mode, not a Start-time concern. Only the architecture set is a Start-time
+precondition.
 
 ## Resume & reconcile
 
@@ -90,15 +102,15 @@ extension of `create-project` could not host (D5 Option C's rejection,
 
 The audit inputs, read before spawning the executor:
 
-- `<architecture_path>/hld/project-structure.md` — the structural target (D4, MAR-120's
+- `<architecture_dir>/hld/project-structure.md` — the structural target (D4, MAR-120's
   `/acs:create-architecture` output). **May not exist** on a given consumer repo. When
   absent, note it explicitly as N/A for the structural-gap dimension and surface "run
   `/acs:create-architecture`" as a `recommended_follow_ups` entry — never a block, never
   invoked inline (mirrors the graceful-degradation NFR, `prd.md:611-616`).
-- `<principles_path>/` and `<standards_path>/` — read WHEN each is set (non-null) AND a
-  doc set actually exists at that path. **Graceful degradation (mandatory):** when a
-  path is `null`, OR set but no doc set exists there yet, note this explicitly in the
-  plan's audit inventory as N/A and PROCEED — this grounding step is N/A for this run,
+- `<principles_dir>/` and `<standards_dir>/` — read WHEN a doc set actually exists
+  there (Start found it). **Graceful degradation (mandatory):** when no such set exists
+  in the repo yet, note this explicitly in the plan's audit inventory as N/A and
+  PROCEED — this grounding step is N/A for this run,
   never a hard block. A missing/absent set surfaces as a `recommended_follow_ups` entry
   ("run `/acs:create-principles`" / "run `/acs:create-standards`") — see
   Additive-surface contract below for why this skill never authors that content itself.
@@ -175,10 +187,10 @@ against the two categories above every iteration, and closing the gap mechanical
 a named future follow-up, not built by this ticket.
 
 **Deviation from the design's broader allowlist — resolved report-only.** The design's
-own allowlist text additionally lists `<principles_path>/**` and `<standards_path>/**`
+own allowlist text additionally lists `<principles_dir>/**` and `<standards_dir>/**`
 (new files only, or invoking the producer skill) as scaffold-able categories. This spec
 DROPS both from the executor's allowlist entirely — the executor NEVER writes into
-`<principles_path>/**` or `<standards_path>/**`, under either mechanism: it cannot
+`<principles_dir>/**` or `<standards_dir>/**`, under either mechanism: it cannot
 invoke a producer skill inline (subagents never spawn subagents; the executor's
 `disallowedTools: Agent, Skill`), and it does not author doc-set content directly either
 (ADR 0011's one-skill-per-set invariant). A missing/absent `principles/` or `standards/`
@@ -233,7 +245,7 @@ narrowed allowlist together):
 
 ```xml
 <task skill="standardize-project" phase="execute" ticket-id="SHOP-9" iteration="1">
-  <objective>Audit this repo against principles_path, standards_path, hld/project-structure.md, and acs-readiness tooling; record in the authoring notes a gap list, an additive-surface allowlist scoped to CI/tooling config only, and structural-gap candidates as recommended follow-ups; then scaffold the allowlisted gaps.</objective>
+  <objective>Audit this repo against the principles and standards sets, hld/project-structure.md, and acs-readiness tooling; record in the authoring notes a gap list, an additive-surface allowlist scoped to CI/tooling config only, and structural-gap candidates as recommended follow-ups; then scaffold the allowlisted gaps.</objective>
   <inputs>
     <file>docs/architecture/hld/project-structure.md</file>
     <file>docs/principles/</file>
@@ -242,8 +254,11 @@ narrowed allowlist together):
     <file>.pre-commit-config.yaml</file>
   </inputs>
   <constraints>
+    <constraint name="architecture_dir">docs/architecture</constraint>
+    <constraint name="principles_dir">docs/principles</constraint>
+    <constraint name="standards_dir">docs/standards</constraint>
     <constraint name="coverage_target">90</constraint>
-    <constraint name="no-doc-set-authorship">principles_path/standards_path content is never a scaffold target — a missing set is always a recommended_follow_ups entry, never authored or invoked inline.</constraint>
+    <constraint name="no-doc-set-authorship">principles_dir/standards_dir content is never a scaffold target — a missing set is always a recommended_follow_ups entry, never authored or invoked inline.</constraint>
     <constraint name="e2e-opt-in">settings.e2e unset means the e2e readiness dimension is N/A — no e2e scaffold, no gate.</constraint>
   </constraints>
 </task>
@@ -260,13 +275,15 @@ Phases:
    `recommended_follow_ups` candidates. That allowlist is frozen for the whole run (see
    Additive-surface contract). Then the executor writes ONLY the allowlisted new files
    and named additive config appends — never edits, renames, or deletes any
-   pre-existing source file, and never writes under `<principles_path>/**` or
-   `<standards_path>/**`. Decomposition is the coordinator's alone; subagents never
+   pre-existing source file, and never writes under `<principles_dir>/**` or
+   `<standards_dir>/**`. Decomposition is the coordinator's alone; subagents never
    spawn subagents. On iterations 2-3 the verifier's findings go verbatim into the
    executor's `<task>` `<context>`, with no plan phase in between, and every later
    executor reads the frozen iteration-1 notes.
 2. **Verify** — after all executors finish, spawn the verifier on the combined result.
-   It judges fresh from artifacts only — never the executors' reasoning — and re-runs,
+   Its `<constraints>` carry `principles_dir` and `standards_dir` (the same values the
+   executor got) for the doc-set-authorship boundary. It judges fresh from artifacts
+   only — never the executors' reasoning — and re-runs,
    itself, EVERY iteration (never reusing a prior iteration's result, never trusting the
    execute report's `files_changed` list as a substitute):
 
@@ -405,7 +422,7 @@ MANDATORY final step — never skipped, also on failure:
     "pr": {"number": 14, "url": "https://github.com/owner/repo/pull/14", "branch": "task/SHOP-9-brownfield-project-standardization"}
   },
   "recommended_follow_ups": [
-    {"title": "Bootstrap the principles/ doc set", "rationale": "principles_path is set to docs/principles but no doc set exists there yet", "target_path": "/acs:create-principles"}
+    {"title": "Bootstrap the principles/ doc set", "rationale": "no principles doc set found in the repo (CLAUDE.md, docs/README.md, search)", "target_path": "/acs:create-principles"}
   ],
   "findings": [],
   "errors": []
@@ -413,8 +430,8 @@ MANDATORY final step — never skipped, also on failure:
 ```
 
    `states.audit.*` values for `principles`/`standards`/`project_structure` are one of
-   `"present" | "absent" | "n/a"` (`"n/a"` when the corresponding `<set>_path` setting is
-   unset); `readiness_tooling.e2e` is boolean OR the literal string `"n/a"` when
+   `"present" | "absent"` (`"absent"` when the repo has no such set or file yet);
+   `readiness_tooling.e2e` is boolean OR the literal string `"n/a"` when
    `settings.e2e` is unset. On failure: `status: "failed"`, blocking findings in
    `findings`, reason in `summary`, keep whatever is true in `states`,
    `recommended_follow_ups` still reflects whatever the last passing plan found. On

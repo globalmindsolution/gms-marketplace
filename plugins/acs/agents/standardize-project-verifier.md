@@ -20,7 +20,8 @@ authoring notes, read at their literal frozen path `iter-1-authoring.md` every
 iteration — the audit and its allowlist are authored exactly once, on iteration 1, and
 never rewritten, so this is never a per-iteration filename — the execute report(s)
 `iter-<n>-execute*.json`, `default_branch`),
-`<constraints>` (at minimum `partition` and `default_branch`), and on iteration >= 2 a
+`<constraints>` (at minimum `partition`, `default_branch`, `principles_dir` and
+`standards_dir`), and on iteration >= 2 a
 `<context>` listing the prior iteration's findings. You share no memory with the
 coordinator: read every input yourself.
 
@@ -47,8 +48,8 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
    change, not a file diff — it is invisible to this `git diff --name-status` check and
    is never performed within `/acs:standardize-project`; that stays exclusively with
    `/acs:setup` Step 3.
-2. **doc-set-authorship boundary** — no path under `<principles_path>/` or
-   `<standards_path>/` appears anywhere in the diff, regardless of status (closes the gap
+2. **doc-set-authorship boundary** — no path under `<principles_dir>/` or
+   `<standards_dir>/` appears anywhere in the diff, regardless of status (closes the gap
    the generic `A`-always-passes rule would otherwise leave open for these two specific
    paths).
 3. **recommended-follow-ups-only** — every gap the notes classified as

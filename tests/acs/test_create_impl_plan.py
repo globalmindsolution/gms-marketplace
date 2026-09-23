@@ -257,8 +257,8 @@ class PublishTest(unittest.TestCase):
             self.norm,
             r"(?i)docs_dir.{0,120}plan\.md|plan\.md.{0,120}docs_dir")
         self.assertIn("<partition>/plan.md", self.body,
-                      "the opted-out (artifacts.tickets_path null) write "
-                      "target must be named")
+                      "the fallback write target (no docs_dir to anchor the "
+                      "ticket docs folder to) must be named")
 
     def test_coordinator_is_the_only_writer_of_the_published_plan(self):
         section = slice_between(self.body, "### Publish", "### Plan approval")
@@ -568,8 +568,14 @@ class DocGraphGapTest(unittest.TestCase):
         self.assertRegex(self.item4_norm, r"(?i)touched-area only")
 
     def test_explicit_non_coverage_stated(self):
-        self.assertIn("requirements_path", self.item4)
-        self.assertIn("adr_path", self.item4)
+        # The two uncovered edge types are named by the constraints that
+        # carry their locations since ADR-0102 (formerly the
+        # `requirements_path` / `adr_path` settings).
+        self.assertIn(
+            "Explicitly NOT covered: `requirements_dir` edges and `adr_dir` edges",
+            self.item4_norm)
+        self.assertNotIn("requirements_path", self.item4)
+        self.assertNotIn("adr_path", self.item4)
         self.assertRegex(self.item4_norm, r"(?i)not\b.{0,60}covered")
 
     def test_silent_degradation_stated(self):

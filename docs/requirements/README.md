@@ -28,7 +28,7 @@ behavior; the decision log records how each conflict was settled.
 Implementation conventions live in `plugins/acs/docs/` (INTERNALS, AUTHORING).
 
 This is the doc set acs mandates for every consumer repo as the **living
-requirements** (`requirements_path`, default `docs/requirements/`): the
+requirements** (found in the repo, else `docs/requirements/` — ADR-0102): the
 current behavioral contract, accumulated ticket by ticket by the pipeline
 itself — or bootstrapped via `/acs:create-requirements`
 ([functional/workflow.md](functional/workflow.md#living-requirements))
@@ -40,15 +40,13 @@ ticket-driven requirement changes land in these files.
 ## The functional/non-functional model
 
 Each requirement is one of two types, and lives under a matching subfolder
-of `requirements_path` (MAR-145): **functional** — a behavior/feature the
+of the requirements set (MAR-145): **functional** — a behavior/feature the
 software DOES, one file per feature under `functional/`; **non-functional**
 — a quality/constraint the software operates WITHIN (performance, security,
 reliability, portability, operability, …), one file per NFR item under
-`non-functional/`. The two subfolder names default to `functional` and
-`non-functional` and resolve via the additive `requirements_layout` settings
-key (`requirements_layout.functional_subdir` /
-`requirements_layout.non_functional_subdir`) — see
-[functional/configuration.md](functional/configuration.md). `/acs:code`'s
+`non-functional/`. A new set uses `functional` and `non-functional`; an
+existing set's own subfolder names are followed — no setting names them
+(ADR-0102, [functional/configuration.md](functional/configuration.md)). `/acs:code`'s
 living-requirements merge step classifies each merged requirement against the
 same functional-vs-non-functional rubric and routes it into the matching
 subfolder, preserving the existing additive, per-area, no-overwrite
@@ -65,8 +63,8 @@ acs works on **any consumer repository**. All durable state lives in a
 **workspace folder** that by default lives in-repo, anchored to the repo's
 main checkout (`.acs/state-machine/`, gitignored) so every linked worktree
 resolves to the same physical location — the mechanism that enables
-git-worktree-based parallel work; an explicit `workspace_path` override can
-still point anywhere (ADR-0086).
+git-worktree-based parallel work (ADR-0086). No setting relocates it
+(ADR-0102).
 
 ## Goals
 
@@ -137,8 +135,8 @@ diagrams as code).
 ## Documents
 
 One file per behavioral feature under `functional/`, one file per
-quality/NFR item under `non-functional/` (MAR-145; subfolder names resolve
-via `requirements_layout`, defaults shown).
+quality/NFR item under `non-functional/` (MAR-145; a set that already uses
+other subfolder names keeps them).
 
 ### functional/
 
@@ -170,6 +168,7 @@ Resolved questions, newest first. Details live in the linked docs.
 
 | Date | Decision |
 |------|----------|
+| 2026-09-23 | **Documents are found, not configured** (MAR-592, ADR 0102). The path settings are removed: `prd_path`, `architecture_path`, `requirements_path`, `requirements_layout`, `adr_path`, `quality_path`, `operations_path`, `principles_path`, `standards_path`, `artifacts.tickets_path`, `contracts_path` and `workspace_path`. A skill finds the repo's documents through `CLAUDE.md`, a docs index and a search, and creates a missing set at its `docs/` convention. Ticket documents are fixed at `docs/tickets/<ID>/`, and the workspace at `<main-checkout>/.acs/state-machine` with no override. The PRD and architecture-set preconditions are checked by the skills at Start, not by `ARCHITECTURE_GATED`/`PRD_GATED`, which are deleted. `fanout_batches` takes the doc sets the coordinator found (`present`) in place of probing configured paths. See [functional/configuration.md](functional/configuration.md), [../adr/0102-documents-are-found-not-configured.md](../adr/0102-documents-are-found-not-configured.md). |
 | 2026-09-22 | **A branch stacked on a squash-merged base is detected and reported before the PR opens; the merge policy is unchanged** (MAR-590, child of epic MAR-589 — amends, without rewriting, the 2026-06-12 reserved-delivery-id row below, whose *"Still valid from this decision"* clause "`/code` creates the ticket branch, `/create-pr` pushes it and opens the PR" now reads: `/create-pr` first runs a stacked-base pre-flight in step 1, and on a stacked-base verdict it stops BEFORE the push, so a `/create-pr` run can end with no PR. That row is left unedited). A squash merge replaces a base PR's commits with one new commit, so the originals never become ancestors of the base; a branch stacked on that base still carries them, and the conventions gate fails on subjects the author cannot fix by renaming them. `/acs:create-pr` gains a read-only, network-free pre-flight that recognises the shape before anything is pushed and hands the author a replay (`git rebase --onto origin/<base> <old-base>`) with real values substituted, plus the warning that every commit SHA changes and any SHA recorded elsewhere goes stale. Detection is deliberately incomplete — a miss degrades to today's red gate with no replay advice, never to a false alarm — and every outcome but the stacked verdict is advisory, including a not-stacked report carrying a non-empty `notes`, which is never read as proof that the failing subjects are the branch's own. Two alternatives were considered and rejected: **allowing merge commits** (the repository disallows them, and enabling them admits merge commits to `main` generally) and **forbidding stacking** (it serialises work that is currently parallel). **Stacking stays permitted and the repository's merge strategy is unchanged — this is a report, not a policy change.** No ADR is opened: the change adds one stdlib-only helper CLI to the existing deterministic layer (ADR 0001) and no settings key, schema, state shape, agent, gate or hook; the one durable decision, that no patch-id based detection can work here, is already recorded with its measured evidence in the module's own docstring and in the create-pr reference. The SHA-resync half of the epic is MAR-591 and has not landed. See [functional/skills.md](functional/skills.md), [../architecture/lld/flows/create-pr-stacked-base-preflight.md](../architecture/lld/flows/create-pr-stacked-base-preflight.md), [../architecture/lld/contracts.md](../architecture/lld/contracts.md), [../architecture/hld/c4-component.md](../architecture/hld/c4-component.md). |
 | 2026-09-21 | **Three pre-hook gates that had gone silent come back, in a table the workflow cannot switch off, and `acs gate` answers what the hook answers** (MAR-586, ADR 0101 — amends, without rewriting, the 2026-09-12 skills-independence row below, whose "`_require_completed` is deleted from the gate layer: no pre-hook refuses a skill because another skill has not completed" now reads: no pre-hook refuses a skill for another skill's **position**, and one brake reads a predecessor's recorded state for the artifact inside it — `/merge-pr` accepts a PR reference only from a step recorded `completed`, because a reference written by a step that never finished is not evidence that a PR exists. The deletion of `_require_completed` itself stands, and that row is left unedited). `/acs:merge-pr` and `/acs:create-design` are not steps of `ship.yaml` v3, and the gate returns before its brakes for any skill the resolved workflow does not name, so both exited 0 on every profile: a merge with no PR reference recorded anywhere was reachable, and so was a design for a ticket never flagged for one. They live in `gates.SUBJECT_GATES` now — a third table beside `ARCHITECTURE_GATED` and `PRD_GATED`, consulted unconditionally BEFORE the workflow is read, so a safety brake is not switchable off by editing `ship.yaml`. A row there resolves a ticket through path joins and `read_json` alone: it opens no run, takes no lock and settles nothing, which is what lets `acs gate` reach it too. The PR-reference lookup is re-expressed over run-keyed state — a completed step carrying `states.pr` on any of the ticket's runs — rather than the retired `flow: ticket|product` split. And **`acs gate --skill <name>` MUST answer exactly what the pre-hook would answer, and MUST NOT write anything doing it**: no run created, no lock taken, no step opened, no no-op settled — with no current run it judges the run the subject *would* open, projected in memory and never persisted. See [functional/hooks.md](functional/hooks.md), [../adr/0101-gating-skills-that-are-not-workflow-steps.md](../adr/0101-gating-skills-that-are-not-workflow-steps.md). |
 | 2026-09-20 | **The implementation pipeline is re-cut: the workflow is a list, state is two machines keyed by the run, the review is its own step, and the delivery path is the plan's** (v0.5.0 redesign; ADR 0096, 0097, 0098, 0099 — amends, without rewriting, the 2026-09-12 skills-independence row and the 2026-09-14 message-contract row below). `workflows/ship.yaml` is version 3: a version, a flat list of skill names and one `loops:` entry, with every conditional key rejected — a predicate in the workflow makes a skill untrustworthy standalone, so each skill decides for itself and a step that owes nothing records an evidenced no-op from the plan's `## Contract` block. `workflows/phases.yaml` is removed; each skill declares its own `skills/<name>/acs.yaml` and the order is VALIDATED against those declarations. State is `runs/<run-id>/run.json` (the run) plus `steps/<skill>/state.json` (the step), separate so a skill the workflow does not name can keep state and take no position; the cursor is DERIVED, `handed_off` and `skipped` are retired, and a `stop_reason` belongs to an `interrupted` step only. The review leaves `/acs:code` for the new `/acs:review-code` — five lenses, one fresh-context adjudicator per finding, and the only full-suite run in the pipeline. `/acs:create-impl-plan` works the way Claude Code's plan mode works and judges the delivery path into the plan's `## Contract` block. `/acs:analyze-ticket` is `/acs:analyze-requirements`; the `/acs:test` alias, the XSD message layer, `skill-start.py` and `pipeline-step.py` are removed. See [functional/workflow.md](functional/workflow.md), [functional/hooks.md](functional/hooks.md), [functional/skills.md](functional/skills.md), [functional/workspace-and-state.md](functional/workspace-and-state.md), [../adr/0096-workflow-is-a-list-not-a-graph.md](../adr/0096-workflow-is-a-list-not-a-graph.md), [../adr/0097-two-state-machines-keyed-by-run.md](../adr/0097-two-state-machines-keyed-by-run.md), [../adr/0098-delivery-path-recorded-on-the-plan.md](../adr/0098-delivery-path-recorded-on-the-plan.md), [../adr/0099-review-is-a-step-not-a-phase.md](../adr/0099-review-is-a-step-not-a-phase.md). |
@@ -280,7 +279,7 @@ Resolved questions, newest first. Details live in the linked docs.
 | **Marketplace** | The Claude Code plugin marketplace (`gms-marketplace`) this repo publishes, through which `acs` is distributed. |
 | **`acs` plugin** | The plugin implementing the delivery workflow these requirements describe. |
 | **Consumer repo** | Any user repository where the `acs` plugin is installed and used. |
-| **Workspace** | A folder where all skills and hooks read/write state, partitioned per repo and then per RUN. By default it lives *inside* the consumer repo, gitignored and anchored to the repo's main checkout (`.acs/state-machine/`); an explicit `workspace_path` override can still point outside the repo (ADR-0086). |
+| **Workspace** | A folder where all skills and hooks read/write state, partitioned per repo and then per RUN. By default it lives *inside* the consumer repo, gitignored and anchored to the repo's main checkout (`.acs/state-machine/`, ADR-0086); no setting relocates it (ADR-0102). |
 | **Coordinator** | The main agent that orchestrates a skill's subagents. |
 | **Subagent** | An executor, verifier, lens or adjudicator agent spawned by the coordinator for one phase of a skill. No skill has a planner (ADR-0092). |
 | **Step state file** | `runs/<run-id>/steps/<skill>/state.json` — one step's own record, with an append-only `invocations` history. THE STEP MACHINE. |

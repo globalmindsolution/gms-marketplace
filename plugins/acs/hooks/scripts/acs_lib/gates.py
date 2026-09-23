@@ -129,21 +129,22 @@ def design_requirement(ctx, tdir, ticket):
 # `acs workflow validate` checks a step list's order against. One declaration,
 # two enforcers, and they cannot disagree.
 #
-# What stayed per-skill is only what is genuinely a SAFETY BRAKE, and it sits
-# in three tables consulted BEFORE the workflow is resolved: ARCHITECTURE_GATED
-# and PRD_GATED for a repo DOCUMENT precondition, SUBJECT_GATES for one about
-# the subject TICKET. All three gate skills that are legitimately not steps of
-# `ship` (§2.4), which is why none of them may sit behind the `has_step`
-# return -- a safety brake must not be switchable off by a workflow edit.
+# What stayed per-skill is only what is genuinely a SAFETY BRAKE. The one
+# consulted BEFORE the workflow is resolved is SUBJECT_GATES, for a
+# precondition about the subject TICKET: it gates skills that are legitimately
+# not steps of `ship` (§2.4), which is why it may not sit behind the
+# `has_step` return -- a safety brake must not be switchable off by a workflow
+# edit. No gate checks for a repo DOCUMENT (a PRD, an architecture set): no
+# setting says where one lives, so the skill that needs it finds it, the way
+# any session does, and stops when there is none (ADR-0102).
 # ---------------------------------------------------------------------------
 
 # The brakes themselves live in `acs_lib.brakes` (one layer down: they read
 # the run and the repo, and resolve nothing). Re-exported here because every
 # caller reaches them through `gates`.
-from .brakes import (ARCHITECTURE_GATED, BRAKES, PRD_GATED,  # noqa: E402,F401
+from .brakes import (BRAKES,  # noqa: E402,F401
                      _brake_code, _brake_create_pr, _brake_no_epics,
-                     _EPIC_VERBS, _merge_pr_arg_text, _require_prd,
-                     _require_architecture_doc_set, _sha256_file)
+                     _EPIC_VERBS, _merge_pr_arg_text, _sha256_file)
 
 
 def _run_dirs_for_ticket(repo, ticket_id):
@@ -264,9 +265,8 @@ def gate_merge_pr(ctx, payload):
 
 
 #: skill -> gate, for a skill whose precondition is about the SUBJECT TICKET.
-#: The third table beside ARCHITECTURE_GATED and PRD_GATED, and there for the
-#: same reason they are: neither skill is a step of `ship` (§2.4), so neither
-#: has a run to read its precondition from. A row here resolves a ticket
+#: Consulted before the workflow is read: neither skill is a step of `ship`
+#: (§2.4), so neither has a run to read its precondition from. A row here resolves a ticket
 #: through path joins and `read_json` alone -- it opens no run, takes no lock
 #: and settles nothing, which is what keeps `acs gate` inert.
 SUBJECT_GATES = {
@@ -286,8 +286,8 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
     """The whole pre-hook gate for one skill, as a GateOutcome.
 
     Order of business, and each line is load-bearing:
-      1. the three non-step tables, then: a skill that is not a step has
-         nothing further here to check
+      1. the non-step table (SUBJECT_GATES), then: a skill that is not a
+         step has nothing further here to check
       2. the run: this checkout's current one, or a new one over the subject
       3. the invariants, BEFORE any write (§4.3) -- a drifted ledger is
          refused here rather than discovered three steps later
@@ -304,10 +304,6 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
     so the query reaches every check below and still writes nothing.
     """
     manifests = skills_registry.load_manifests()
-    if skill in ARCHITECTURE_GATED:
-        _require_architecture_doc_set(ctx)
-    if skill in PRD_GATED:
-        _require_prd(ctx)
     subject_gate = SUBJECT_GATES.get(skill)
     if subject_gate:
         subject_gate(ctx, payload)

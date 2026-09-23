@@ -31,7 +31,7 @@ alone.
    sections named, nothing beyond what the notes cover. Match the existing
    style of each file.
 
-   **When the notes name a `requirements_path` doc-delta item:** classify
+   **When the notes name a `requirements_dir` doc-delta item:** classify
    each merged requirement against the rubric below, then merge the ticket's
    acceptance criteria and behavior-defining clarifications into the touched
    feature area's file under the resolved subfolder — additive, per-area,
@@ -43,16 +43,16 @@ alone.
      performs: a command/skill's steps and outputs, a gate's pass/fail
      condition, an input→output contract, a state transition, a produced
      artifact. "The system DOES X." →
-     `<requirements_path>/<functional_subdir>/<feature>.md`
-     (`settings.requirements_layout.functional_subdir`, default `"functional"`).
+     `<functional_dir>/<feature>.md`
+     (`functional/` in a new set; an existing set's own subfolder name otherwise).
    - **NON-FUNCTIONAL** — a requirement constraining a QUALITY of how the
      software behaves rather than a new behavior: performance/cost bounds,
      security/secret handling, reliability/resumability, portability/
      consumer-generality, operability, packaging/distribution. "The system
      does it WITHIN/UNDER constraint Y." →
-     `<requirements_path>/<non_functional_subdir>/<item>.md`
-     (`settings.requirements_layout.non_functional_subdir`, default
-     `"non-functional"`).
+     `<non_functional_dir>/<item>.md`
+     (`non-functional/` in a new set; an existing set's own subfolder name
+     otherwise).
    - **Tie-break** — a requirement that is genuinely BOTH (e.g. a
      configurable behavior that is also a portability constraint) defaults
      to **functional**, with a one-line cross-reference from the paired
@@ -68,20 +68,20 @@ alone.
    forked. A target area file with zero in-scope citations from this merge
    gets no sidecar.
 
-   **When the notes name an `architecture_path`/`adr_path` doc-delta item:**
+   **When the notes name an `architecture_dir`/`adr_dir` doc-delta item:**
 
    - **HLD** — when the diff adds/removes components or alters the data
      model, integrations, or deployment: update the HLD under
-     `settings.architecture_path` (C4 views, data model, deployment). Fully
+     `<architecture_dir>` (C4 views, data model, deployment). Fully
      diff-derivable, so it needs no new input.
    - **`lld/flows/` sequence diagrams** — when the changeset adds or changes
-     a cross-component flow, ensure `<architecture_path>/lld/flows/` carries
+     a cross-component flow, ensure `<architecture_dir>/lld/flows/` carries
      a current sequence diagram for it; when the ticket's binding design
      carries a new/changed Mermaid sequence diagram for that flow, merge
      that diagram rather than authoring a new one.
-   - **ADR commit** — when `settings.adr_path` is set and the ticket has a
-     binding design carrying accepted decision records, commit those
-     records as ADRs there.
+   - **ADR commit** — when the ticket has a binding design carrying
+     accepted decision records, commit those records as ADRs under
+     `<adr_dir>`.
 4. Commit the doc changes on the ticket branch — one or a few coherent
    commits, each message rendered from the `commit_message` format `/code`
    already uses (e.g. `SHOP-123 sync API doc for the new 409 response`).
@@ -156,7 +156,11 @@ After committing, write
 
 Your prompt contains an XML `<task skill="docs-sync" phase="execute"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>`,
-`<constraints>` (e.g. `commit_message`, `branch`), and optional `<context>`.
+`<constraints>` (e.g. `commit_message`, `branch`, and the document
+locations the charter reads — `requirements_dir`, `functional_dir`,
+`non_functional_dir`, `architecture_dir`, `adr_dir`; one that is absent you
+locate yourself from CLAUDE.md and the docs it points at, then Glob/Grep),
+and optional `<context>`.
 You share NO memory with
 the coordinator — every fact comes
 from the files in `<inputs>` or the `<context>` text.

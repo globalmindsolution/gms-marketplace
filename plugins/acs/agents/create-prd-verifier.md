@@ -18,12 +18,13 @@ Your prompt contains one `<task skill="create-prd" phase="verify" ticket-id="SHO
 iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — verify this iteration's PRD doc set;
-- `<inputs>` — absolute paths: `<prd_path>/prd.md`, `<prd_path>/roadmap.md`, the
+- `<inputs>` — absolute paths: the PRD and roadmap (`<prd>`, `<roadmap>`), the
   executor's authoring notes (`steps/create-prd/iter-<n>/authoring.md`),
   the delivery
   `ticket.json` (derive `<partition>` from its directory), `<partition>/clarifications.json`,
   and the execute report. READ EVERY ONE — you share no memory with anyone;
-- `<constraints>` — at least `prd_path`, `required_sections`, `audience_style_profile`,
+- `<constraints>` — at least `prd`, `roadmap` (the repo-relative PRD and roadmap
+  files), `required_sections`, `audience_style_profile`,
   `amend_rule`, `repo_root` (the consumer repo root), and the mode
   (greenfield/brownfield/amend);
 - `<context>` — on iteration 2+, the prior findings whose fixes you must re-verify.
@@ -57,14 +58,14 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
    deterministic floor
    yourself, never take the execute report's word:
    - In amend mode, compute `--added-heading` values yourself from your own
-     `git diff -- <prd_path>` (dimension 8's mechanism, below): extract every
-     `+###`/`+####` heading line added to `roadmap.md` and pass each as its
+     `git diff -- "<prd>" "<roadmap>"` (dimension 8's mechanism, below): extract
+     every `+###`/`+####` heading line added to `roadmap.md` and pass each as its
      own `--added-heading` flag; omit the flag entirely outside amend mode.
    - Run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py
      --plan steps/create-prd/iter-<n>/authoring.md --mode
      <greenfield|brownfield|amend> --repo-root <repo_root> --clarifications
-     <partition>/clarifications.json --prd <prd_path>/prd.md --roadmap
-     <prd_path>/roadmap.md [--added-heading "<heading>" ...]`. It
+     <partition>/clarifications.json --prd <prd> --roadmap
+     <roadmap> [--added-heading "<heading>" ...]`. It
      independently and deterministically re-checks three families: the notes'
      `## Code evidence` citations (family `code-evidence`; brownfield/amend
      only — N/A in greenfield, never a block there), the notes' `## Answer
@@ -90,8 +91,8 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
      carve-out applies to this check — every mapped or judged finding here is
      `severity="blocking"`, with no lesser severity ever emitted.
 8. **Amend-mode diff discipline** (amend mode only) — run
-   `git diff -- <prd_path>` yourself and confirm ONLY the intended sections changed;
-   any byte changed in a section the notes marked "preserved" is a finding.
+   `git diff -- "<prd>" "<roadmap>"` yourself and confirm ONLY the intended sections
+   changed; any byte changed in a section the notes marked "preserved" is a finding.
 9. **Iteration 2+ regression check** — every prior finding from `<context>` is
    actually fixed; verify each one directly, never from the execute report's word.
 10. **structure** — deterministic section-conformance floor over `prd.md` only

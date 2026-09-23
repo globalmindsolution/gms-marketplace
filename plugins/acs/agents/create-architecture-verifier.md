@@ -19,14 +19,14 @@ ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: t
 authoring notes `iter-<n>/authoring.md`, the execute report(s) `iter-<n>-execute*.json`,
 the PRD docs, the
 produced doc files), `<constraints>` (at minimum `partition` — the absolute
-ticket-partition path — plus `architecture_path`, `prd_path`, each in-scope file's
+ticket-partition path — plus `architecture_dir`, `prd`, each in-scope file's
 `required_sections:<file>`, and `audience_style_profile`), and on iteration > 1 a
 `<context>` listing the prior iteration's findings. You share no memory with the
 coordinator: read every input yourself.
 
 ## Check dimensions — run EVERY one, EVERY iteration
 
-1. **doc-set-completeness** — all planned files exist under `architecture_path`:
+1. **doc-set-completeness** — all planned files exist under `architecture_dir`:
    `hld/overview.md`, `hld/c4-context.md`, `hld/c4-container.md`, `hld/c4-component.md`,
    `hld/data-model.md`, `hld/deployment.md`, `hld/tech-stack.md`,
    `hld/project-structure.md`, every planned `lld/flows/<flow>.md`,
@@ -69,7 +69,7 @@ coordinator: read every input yourself.
    (or vice versa) is a finding.
 7. **hld-lld-consistency** — the signature check: extract every `participant` and
    `actor` from every `sequenceDiagram` in `lld/flows/*.md` (e.g.
-   `grep -h -E '^\s*(participant|actor) ' docs/architecture/lld/flows/*.md`) and confirm
+   `grep -h -E '^\s*(participant|actor) ' <architecture_dir>/lld/flows/*.md`) and confirm
    each one names a container or component that exists in `hld/c4-container.md` or
    `hld/c4-component.md`; every interface in `lld/contracts.md` belongs to an existing
    component. Any orphan participant is a blocking finding.
@@ -79,7 +79,7 @@ coordinator: read every input yourself.
    inventory cites a file you can open and that says what the entry claims. Missing
    notes are a blocking finding on their own.
 9. **docs-only-changeset** — `git status --porcelain` and `git diff --stat`: every
-   change sits under `architecture_path`; no source files, configs, or stray files
+   change sits under `architecture_dir`; no source files, configs, or stray files
    touched. The delivery is a docs-only PR.
 10. **structure** — deterministic section-conformance floor over the in-scope
     prose-structured files (`hld/overview.md`, `hld/tech-stack.md`,

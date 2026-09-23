@@ -1,10 +1,5 @@
 {
   "ticket_prefix": "MAR",
-  "requirements_layout": {
-    "functional_subdir": "functional",
-    "non_functional_subdir": "non-functional"
-  },
-  "principles_path": "docs/principles",
   "tracker": {
     "provider": "github",
     "github": {

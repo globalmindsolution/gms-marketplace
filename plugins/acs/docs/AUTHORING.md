@@ -50,8 +50,11 @@ win — change them first, then the implementation.
    `workflow.ticket_artifact_path(...)` from a predicate), which looks in the
    docs folder, then the partition, then the legacy location, and which returns
    the correct WRITE target when nothing exists yet — that one helper is what
-   makes `artifacts.tickets_path: null` a supported opt-out instead of a
-   breakage.
+   keeps a partition built before the move working instead of broken. A repo
+   document (the PRD, the architecture set, the ADR folder) has no setting
+   either: find it the way any session does — `CLAUDE.md`, the docs index it
+   points at, then a search — and create a missing one at its `docs/`
+   convention (ADR-0102).
 6. **Say what your skill READS, not what ran before it.** A gate checks inputs
    and safety brakes only; "X has not completed" is not a reason to refuse, and
    a SKILL.md must not claim its pre-hook enforces an order. Write the Start
@@ -226,7 +229,9 @@ registry is `skills/<name>/acs.yaml`. In order:
 5. **Write the gate as INPUTS, not order.** Check the artifacts and settings
    the skill reads, and the safety brakes that make running now unrecoverable.
    Never check that another skill completed — that is what the `needs` in
-   `ship.yaml` and the pre-hook advisory are for.
+   `ship.yaml` and the pre-hook advisory are for. A repo document the skill
+   needs is not a gate input — no setting says where it lives — so the skill
+   finds it at Start and stops without it (ADR-0102).
 6. **Add the skill-surface tests.** Several modules enumerate the inventory
    (skills on disk, agent files, hooks entries, README rows, INTERNALS
    sections, the schema enums); grep for an existing skill's name to find them

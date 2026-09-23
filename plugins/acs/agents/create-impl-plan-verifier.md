@@ -29,8 +29,10 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   ONE. Derive `<partition>` from the directory containing the run ledger named
   in `<inputs>`;
 - `<constraints>` — at least `coverage_target`, `branch`, plus
-  `architecture_path`, `standards_path`, `docs_only` and
-  `audience_style_profile` when set;
+  `architecture_dir`, `standards_dir`, `docs_only` and
+  `audience_style_profile` when set (the coordinator located the two
+  directories; when one is absent, locate it yourself from CLAUDE.md, the
+  repo's docs index, then a Glob/Grep — none found means the repo has none);
 - `<context>` — on iteration 2+, the previous findings: confirm each one is
   actually resolved, not merely claimed resolved.
 
@@ -81,7 +83,7 @@ findings:
 6. **Design and architecture conformance** — when `design.md` applies, the
    approach the draft describes realizes it; when it does not, say so with the
    citation. Unapproved new components or integrations, or an approach that
-   contradicts the architecture doc set under `architecture_path`, are
+   contradicts the architecture doc set under `architecture_dir`, are
    findings.
 7. **Scope** — the draft plans the ticket and nothing else. Speculative
    features, refactors nobody asked for, and files in the map that trace to no

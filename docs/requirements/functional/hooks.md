@@ -39,17 +39,20 @@ A pre-hook runs before its skill and checks two things, and only these two:
 **1. Inputs** — the artifacts and configuration the skill itself reads:
 
 - Baseline checks shared by all pre-hooks: `settings.json` exists (else
-  "run /setup"), `workspace_path` is resolvable (explicit override or
-  derived default) and consistent across worktrees, and the `<ticket-id>`
-  partition can be resolved.
-- Skill-specific inputs — e.g. `pre-create-architecture.py` requires the PRD
-  doc set; `pre-code.py` requires an approved `plan.md`;
+  "run /setup"), the workspace (always `<main-checkout>/.acs/state-machine`,
+  no override) can be derived and is consistent across worktrees, and the
+  `<ticket-id>` partition can be resolved.
+- Skill-specific inputs — e.g. `pre-code.py` requires an approved `plan.md`;
   `pre-create-api-contract.py` requires `plan.md` **and** an `analysis.md`
   declaring `api_surface: true`; `pre-create-e2e-tests.py` requires a
   configured e2e suite **and** at least one e2e-typed case in
   `test-cases.md`.
 - A missing input MUST be reported by naming the artifact, where it was
   looked for, and the skill that produces it.
+- A repo **document** (the PRD, the architecture set) is not a pre-hook
+  input: no setting says where one lives, so the skill that needs it finds
+  it at Start and stops, naming the skill that produces it, when there is
+  none ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 
 **2. Safety brakes** — refusals that protect correctness rather than
 sequence:
@@ -190,10 +193,10 @@ Every row is an **input** (the skill cannot do its work without it) or a
 | `/create-prd` | `/setup` done (settings exist) | — |
 | `/create-requirements` | `/setup` done | — |
 | `/create-ticket` | `/setup` done | — |
-| `/create-architecture` | PRD doc set exists (`prd_path`) | — |
-| `/create-project` | architecture doc set exists (`hld/tech-stack.md`) | — |
-| `/acs:create-docs` | architecture doc set exists (one gate for every doc set) | — |
-| `/standardize-project` | architecture doc set exists | — |
+| `/create-architecture` | `/setup` done (the skill itself checks for a PRD at Start) | — |
+| `/create-project` | `/setup` done (the skill itself checks for the architecture set's `hld/tech-stack.md` at Start) | — |
+| `/acs:create-docs` | `/setup` done (the skill itself checks for the architecture set at Start, once for every doc set) | — |
+| `/standardize-project` | `/setup` done (the skill itself checks for the architecture set at Start) | — |
 | `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
 | `/analyze-requirements` | ticket resolves | not an epic; lock free |
 | `/create-impl-plan` | ticket resolves | not an epic; lock free |

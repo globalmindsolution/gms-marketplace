@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Initialize or update the acs configuration for the current repo — settings scope, workspace path, ticket prefix, coverage target, merge strategy, tracker, doc paths, formats, subagent models, and optional CI enforcement of PR/branch/commit conventions. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:setup first", when the user wants to enforce acs conventions in CI or stop the pipeline being bypassed, or when changing any acs setting.
+description: Initialize or update the acs configuration for the current repo — settings scope, ticket prefix, coverage target, merge strategy, tracker, formats, subagent models, and optional CI enforcement of PR/branch/commit conventions. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:setup first", when the user wants to enforce acs conventions in CI or stop the pipeline being bypassed, or when changing any acs setting.
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
@@ -61,18 +61,10 @@ not choose — a default the user did not pick is a default, not a value to reco
 
 | Key | Default | Consumed by |
 |---|---|---|
-| `workspace_path` | `<repo>/.acs/state-machine` (in-repo, gitignored) | every skill; always written to `settings.local.json` |
 | `test_coverage_percent` | `90` | `/acs:code`'s coverage hard fail, the CI tests gate |
 | `merge_strategy` | `squash` | `/acs:merge-pr` |
-| `prd_path` | `docs/product` | `/acs:create-prd` |
-| `architecture_path` | `docs/architecture` | `/acs:create-architecture` |
-| `adr_path` | `docs/adr` | `/acs:create-architecture` |
-| `quality_path` | `docs/quality` | `/acs:create-docs quality` |
-| `operations_path` | `docs/operations` | `/acs:create-docs operations` |
-| `principles_path` | `docs/principles` | `/acs:create-docs principles` |
-| `standards_path` | `docs/standards` | `/acs:create-docs standards` |
 | `suites` | `{}` | `/acs:run-e2e-tests` runs each named suite; the reserved name `e2e` is auto-populated from the `e2e` key below — never hand-duplicate it |
-| `artifacts.tickets_path`, `contracts_path`, `workflow.advisories` | `docs/tickets`, `docs/api`, `true` | where the ticket's own documents (`ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`) and the machine-readable API contracts live IN THE REPO — `null` on either keeps them in the workspace partition / the ticket folder, and an existing repo moves its artifacts across once with `acs.py artifacts migrate` — plus whether a pre-hook prints the one-line "normally follows … in ship.yaml" notice when a skill runs out of the declared order (`false` silences it; it never blocks either way) |
+| `workflow.advisories` | `true` | whether a pre-hook prints the one-line "normally follows … in ship.yaml" notice when a skill runs out of the declared order (`false` silences it; it never blocks either way) |
 | `tracker` | `{"provider": "local"}` | `/acs:create-ticket`, `/acs:create-pr`; `github`/`jira` need their own block and a working CLI (`detect`'s `toolchain`) |
 | `formats` | built-ins | branch / PR title / commit naming, and the CI conventions gate. `pr_title` is provider-aware: it renders the **tracker's native reference when synced**, and the local id when unsynced. `branch_name` and `commit_message` stay id-based and unconditional in every case. |
 
@@ -141,9 +133,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup apply --answers answe
 ```
 
 The answers document carries only what the user chose — `settings` (to the
-chosen scope), `workspace_path` (always to the gitignored
-`settings.local.json`), `ci` (any of `conventions`, `tests`, `e2e`),
-`claude_md`, and `status_line`:
+chosen scope), `ci` (any of `conventions`, `tests`, `e2e`), `claude_md`, and
+`status_line`:
 
 ```json
 {"scope": "project", "settings": {"ticket_prefix": "SHOP"},
@@ -206,8 +197,10 @@ Repeat any unmet toolchain install hint, and confirm the workflow is ready:
 `/acs:project` → `/acs:create-ticket` → `/acs:create-design` → `/acs:code`
 is no longer one fixed chain: Build/Test/Ship order is declared in
 `workflows/ship.yaml` (`acs.py workflow show` prints it) and walked by
-`/acs:ship <ticket-id>` to the PR, then `/acs:merge-pr <id>`. Offer the workspace
-migration when `detect` shows an external `workspace_path` moved in-repo (`migrate_workspace.py --help`).
+`/acs:ship <ticket-id>` to the PR, then `/acs:merge-pr <id>`. When `detect`'s
+`scopes` show a `workspace_path` key, say it is ignored now (the workspace is
+always `.acs/state-machine`, ADR-0102); if it pointed outside the repo, offer the
+one-shot migration of the state it holds (`migrate_workspace.py --help`).
 
 ## Completion report (normative)
 

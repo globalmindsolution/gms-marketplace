@@ -212,11 +212,11 @@ class PluginInternalDocReconciliationTest(unittest.TestCase):
         body = read(README)
         self.assertNotIn("updates affected docs and the architecture doc set", body)
 
-    def test_readme_adr_path_names_docs_sync_as_committer(self):
+    def test_readme_no_longer_configures_an_adr_path(self):
+        """ADR-0102 retired the adr_path row with the key: ADRs go where the
+        repo keeps them, found rather than configured."""
         body = read(README)
-        self.assertIsNotNone(
-            re.search(r"adr_path.{0,120}`/acs:docs-sync`.{0,80}commits", body, re.DOTALL),
-            "README.md's adr_path config row must name /acs:docs-sync as the committer")
+        self.assertNotIn("adr_path", body)
 
     def test_internals_inductive_step_names_docs_sync(self):
         body = read(INTERNALS)

@@ -47,19 +47,28 @@ Parse the printed context JSON. Fields you will use:
   tickets plan against the parent epic's design); its basename is that
   ticket's id. When `design.required` is true, resolve the design document
   with `acs.py artifacts show --ticket <that id>` and read
-  `artifacts["design.md"]` — the design ticket's docs folder, or
-  `<design.dir>/design.md` when the tree is opted out. Call it `<design_doc>`;
-  the plan is judged against it.
+  `artifacts["design.md"]` — the design ticket's docs folder
+  (`docs/tickets/<that id>/`), or `<design.dir>/design.md` when an older design
+  still lives in the partition. Call it `<design_doc>`; the plan is judged
+  against it.
 - `settings` — you need `test_coverage_percent` (the coverage target the plan
-  states), `architecture_path`, `requirements_path`, `adr_path`,
-  `standards_path`, `artifacts.tickets_path` (where the plan is published),
-  `formats.branch_name`, `formats.commit_message`, and `e2e` when set.
+  states), `formats.branch_name`, `formats.commit_message`, and `e2e` when set.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see
   `references/not-a-first-run.md`.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+
+Locate the repo's documents once, here, the way any session finds them:
+CLAUDE.md and whatever docs index it or the repo points at (e.g.
+`docs/README.md`), then a Glob/Grep by file name or content. You need the
+architecture doc set (its `hld/tech-stack.md`), the requirements set, the ADR
+folder and the standards set. Record each one found as a repo-relative
+directory and hand it to the subagents as a `<constraint>` of that name — the
+executor takes `architecture_dir`, `requirements_dir` and `adr_dir`, the
+verifier `architecture_dir` and `standards_dir`. One the repo does not have is
+simply absent: this skill creates none of them.
 
 **Epics are refused by the gate.** Every ticket that reaches this step has
 `ticket.type != "epic"`. If an epic reaches it anyway (a bypassed or
@@ -70,9 +79,9 @@ child.
 
 ## Branch — the plan is a repo file
 
-When the ticket docs tree is active (`settings.artifacts.tickets_path` is not
-null), `plan.md` is a file in the consumer repo and belongs on the ticket
-branch with every other change for this ticket. Render
+`plan.md` is a file in the consumer repo — the ticket's docs folder,
+`docs/tickets/<id>/` — and belongs on the ticket branch with every other
+change for this ticket. Render
 `settings.formats.branch_name` (default `"{type}/{ticket_id}-{slug}"`) with
 `{ticket_id}`, `{type}` (`ticket.type`), `{slug}` (the slugified ticket title —
 `acs.py slug --text "<title>"`), and `{external_key}`, then create or reuse it:
@@ -85,10 +94,10 @@ On resume the branch usually already exists — reuse it, never recreate or rese
 it. Commit the published plan with `settings.formats.commit_message` (default
 `"{ticket_id} {summary}"`). Do NOT push — `/acs:create-pr` pushes.
 
-When the tree is opted out (`artifacts.tickets_path: null`) the plan is written
-to the workspace partition instead, nothing enters the repo, and this step is a
-no-op beyond staying on (or creating) the ticket branch for the skills that
-follow.
+When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the
+docs folder to) the plan is written to the workspace partition instead, nothing
+enters the repo, and this step is a no-op beyond staying on (or creating) the
+ticket branch for the skills that follow.
 
 ### Plan artifact resolution
 
@@ -147,7 +156,7 @@ inline a file body):
    the dependency order). Absent or empty activates the spec authoring fold
    below.
 5. The consumer repo: the source, tests and docs the change touches, plus the
-   architecture doc set under `settings.architecture_path` when it exists.
+   architecture doc set (`architecture_dir`) when the repo has one.
 
 `api-contract.md` is NOT an input: `/acs:create-api-contract` runs AFTER this
 skill and covers the API surface this plan declares.
@@ -382,7 +391,7 @@ mkdir -p "$(dirname "<plan_path>")" && cp "$draft" "<plan_path>"
 ```
 
 Then commit `<plan_path>` on the ticket branch when it is inside the repo
-(the docs tree active); the run's own copy is workspace state and is never
+(the ticket docs folder); the run's own copy is workspace state and is never
 committed.
 
 ### Plan approval happens later, not here
@@ -513,8 +522,9 @@ MANDATORY final step — never skipped, also on failure:
    Canonical `states` keys — EXACT names; `acs step finish` documents
    them and the next steps read them:
    - `plan_path`: where `plan.md` was published (the ticket docs folder, or
-     the partition when `artifacts.tickets_path` is null). `/acs:code`'s gate
-     resolves the file itself; this records which path this run chose.
+     the partition when there is no checkout to anchor the docs folder to).
+     `/acs:code`'s gate resolves the file itself; this records which path
+     this run chose.
    - `plan_approved`: always `false` here. Approval is judged per delivery
      path, and the path does not exist yet when this skill runs — the
      `code-standard` and `code-complex` legs establish it at their own Start

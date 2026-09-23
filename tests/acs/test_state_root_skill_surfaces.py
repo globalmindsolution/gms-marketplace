@@ -164,10 +164,10 @@ class HandoffScopeClaimCase(unittest.TestCase):
 
     def test_scope_names_the_in_repo_default(self):
         """The corrected Scope bullet names the in-repo, main-checkout-anchored
-        default, with the override as the named exception."""
+        workspace -- and no override, since ADR-0102 removed it."""
         bullet = self.scope_bullet()
         self.assertIn(".acs/state-machine", bullet)
-        self.assertIn("override", bullet.lower())
+        self.assertNotIn("override", bullet.lower())
 
 
 class UpdateWorkspaceReachableCase(unittest.TestCase):
@@ -348,18 +348,15 @@ class PluginReadmeCase(unittest.TestCase):
             msg="Quick start must name the in-repo .acs/state-machine default (AC6)",
         )
 
-    def test_configuration_table_workspace_path_row_describes_in_repo_default(self):
+    def test_configuration_names_the_in_repo_workspace_and_no_key_for_it(self):
+        """ADR-0102: the workspace_path row is gone with the key; the section
+        still names where the workspace is."""
         config = section(self.body, "## Configuration")
-        self.assertIn("workspace_path", config)
-        self.assertNotIn(
-            "outside the repo", config,
-            msg="the workspace_path settings-table row must no longer say "
-                "'outside the repo' (AC6)",
-        )
+        self.assertNotIn("workspace_path", config)
+        self.assertNotIn("outside the repo", config)
         self.assertIn(
             ".acs/state-machine", config,
-            msg="the workspace_path settings-table row must name the in-repo "
-                "default (AC6)",
+            msg="the Configuration section must name the in-repo workspace (AC6)",
         )
 
     def test_has_a_migration_section(self):
@@ -377,8 +374,8 @@ class PluginReadmeCase(unittest.TestCase):
             )
         self.assertIn(
             "workspace_path", migration,
-            msg="the migration section must mention removing the "
-                "workspace_path key from settings.local.json as the follow-up (AC6)",
+            msg="the migration section must name the retired workspace_path key "
+                "left in settings.local.json as ignored (AC6, ADR-0102)",
         )
 
 

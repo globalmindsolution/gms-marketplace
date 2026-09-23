@@ -66,8 +66,8 @@ Every **workflow** skill MUST:
 - have its inputs checked by a pre-hook and its outcome persisted by a
   post-hook ([hooks.md](hooks.md)) — neither hook enforces pipeline order;
 - write state **only** inside `<workspace>/<repo>/<ticket-id>/`, and write
-  the ticket's human-facing documents only under
-  `<settings.artifacts.tickets_path>/<ticket-id>/` (the consumer repo is
+  the ticket's human-facing documents only under the fixed
+  `docs/tickets/<ticket-id>/` (the consumer repo is
   otherwise touched only where the skill's job requires it, e.g. `/code`
   edits source files);
 - read configuration from the `.acs` `settings.json`
@@ -112,13 +112,12 @@ configuration.
 - MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)
   or **project scope** (`<repo>/.acs/settings.json`); the user chooses the
   scope at setup time.
-- `workspace_path` derives silently to `<main-checkout>/.acs/state-machine`
-  when the user does not set it — no prompt, no required input; an explicit
-  override is optional (ADR-0086).
+- The workspace derives silently to `<main-checkout>/.acs/state-machine` —
+  no prompt, no required input, and no override (ADR-0086,
+  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 - MUST prompt for **`ticket_prefix`**, suggesting one derived from the
   repo/product name (e.g. `SHOP`) — ticket ids are per-repo; there is no
-  global default prefix. This prompt is unaffected by the `workspace_path`
-  default change.
+  global default prefix.
 - MUST set `test_coverage_percent` with a default of **90** (user may
   override).
 - SHOULD create the workspace folder if it does not exist, and verify it is
@@ -129,9 +128,9 @@ configuration.
   with `git check-ignore -v`, and MUST warn (never silently proceed) when
   the ignore is not actually in effect, or when a broad `.acs/` rule would
   also hide `.acs/settings.json`/`.acs/ci/*` from CI (ADR-0086).
-- When an existing external workspace for the repo is detected, SHOULD offer
-  a user-confirmed, one-shot migration into the in-repo state root;
-  declining leaves the old workspace and `workspace_path` unchanged
+- When an external workspace left by an older acs is detected for the repo,
+  SHOULD offer a user-confirmed, one-shot migration into the in-repo state
+  root; declining leaves the old workspace untouched — acs no longer reads it
   (ADR-0086).
 - `/setup` is not part of the gated pipeline (no executor/verifier
   subagents); it is a simple setup skill.
@@ -402,13 +401,15 @@ Purpose: define the product — the **PRD** is the root document everything
 else is verified against.
 
 - Product-level and ticket-independent. Runs before `/create-architecture`
-  (whose pre-hook requires the PRD). Re-running **amends the PRD in
+  (which checks for the PRD at Start). Re-running **amends the PRD in
   place**, preserving sections it does not touch.
 - For a **greenfield** product: elicits the definition from the user. For
   an **existing** product: reverse-engineers a baseline PRD from the
   codebase and docs, confirming open points with the user.
-- Produces the PRD doc set in the consumer repo at `prd_path` (default
-  `docs/product/` — [configuration.md](configuration.md)):
+- Produces the PRD doc set in the consumer repo wherever the repo already
+  keeps its PRD — found through `CLAUDE.md` and the repo, not a setting
+  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)) — else at `docs/product/`
+  ([configuration.md](configuration.md#document-and-workspace-locations)):
   - `prd.md` — vision, problem statement, target users & personas, goals
     with **measurable success metrics**, prioritized features (e.g.
     MoSCoW), product-level NFRs, constraints & assumptions, out-of-scope;
@@ -464,14 +465,17 @@ living system documentation the whole pipeline designs and verifies against.
 - Product-level and **ticket-independent**: not part of the per-ticket
   pipeline. Run once when starting a product (or onboarding `acs` onto an
   existing repo); re-run to regenerate after major shifts.
-- MUST take the **PRD** (`prd_path`) as its primary input — its pre-hook
-  requires the PRD to exist (run `/create-prd` first; it also baselines
-  existing products). For an **existing codebase** it additionally
+- MUST take the **PRD** as its primary input — the skill locates it at
+  Start and stops when none is found: "no PRD found — run /acs:create-prd
+  first (it also baselines existing products)"
+  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)). For an
+  **existing codebase** it additionally
   reverse-engineers the current architecture from the code and docs,
   confirming open points with the user; for a **greenfield** product it
   designs the system to satisfy the PRD.
-- Produces the doc set in the **consumer repo** at `architecture_path`
-  (default `docs/architecture/` — [configuration.md](configuration.md)),
+- Produces the doc set in the **consumer repo** wherever the repo already
+  keeps it, else at `docs/architecture/`
+  ([configuration.md](configuration.md#document-and-workspace-locations)),
   split into **high-level design (HLD)** and **low-level design (LLD)**:
   - `hld/overview.md` — system context, goals, quality attributes,
     constraints;
@@ -531,30 +535,34 @@ internal leg skills that differed only in a table row, and that table,
   set after its policy changes. Takes `all`, a comma-separated list of sets
   (`quality` or the former leg name `create-quality`), or a delivery-ticket
   id to resume one set; a token naming no set refuses the whole run.
-- **Declared, not inferred**: `DOC_SETS` declares, per set, its settings key
-  (`quality_path`, `operations_path`, `principles_path`, `standards_path` —
-  unset means acs does not maintain that set for the repo, and the set is
-  reported ineligible, never run), its delivery-ticket title, its template
+- **Declared, not inferred**: `DOC_SETS` declares, per set, the directory a
+  new set is created in when the repo has none (`docs/quality/`,
+  `docs/operations/`, `docs/principles/`, `docs/standards/` — an existing
+  set is found through `CLAUDE.md` and the repo, not configured,
+  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)), its
+  delivery-ticket title, its template
   directory, its output files with the sections each must carry (the first
   file is the sentinel that says the set has shipped), its audience
   register, its upstream inputs and its dependency edges. Adding a fifth set
-  is a row plus its templates. `fanout_batches()` reads the derived views
-  (`DOC_BOOTSTRAP_DEPENDENCIES`, `DOC_BOOTSTRAP_SETTINGS_KEY`,
-  `DOC_BOOTSTRAP_SENTINEL`, keyed by set name) to decide eligibility and
+  is a row plus its templates. `fanout_batches()` reads the derived view
+  `DOC_BOOTSTRAP_DEPENDENCIES` (keyed by set name) and the sets the
+  coordinator found already present in the repo to decide eligibility and
   batching; `parse_doc_set_arg()` is the argument contract.
 - MUST take the **PRD** (its Non-functional requirements section for
   `quality` and `operations`; the PRD generally for `principles` and
-  `standards`) and the full `architecture_path` set as upstream inputs —
+  `standards`) and the full architecture set as upstream inputs —
   architecture is upstream of every set. `standards` additionally reads the
-  `principles_path` set **when it is set and present** (the conformance
-  chain `architecture → principles → standards`); when `principles_path` is
-  unset or the set is absent the executor notes the grounding step as not
+  principles set **when the repo has one** (the conformance
+  chain `architecture → principles → standards`); when the set is absent
+  the executor notes the grounding step as not
   applicable and proceeds — never a block. `principles` has no cross-read on
   `standards/`. That soft edge is why `principles` lands in an earlier
   fan-out batch than `standards`.
-- **One gate for every set**: the pre-hook (`pre-create-docs.py`) refuses the
-  Skill call when the architecture doc set (`hld/tech-stack.md`) is missing,
-  once, before any delivery ticket is minted.
+- **One precondition for every set**: the skill checks for the architecture
+  doc set (its `hld/tech-stack.md`, not merely a directory) at Start and
+  stops when none is found — "no architecture doc set found (expected
+  hld/tech-stack.md) — run /acs:create-architecture first." — once, before
+  any delivery ticket is minted ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 - **One delivery ticket per set**: `acs.py step start --step create-docs
   --doc-set <set> --allocate` mints a `task` ticket titled from `DOC_SETS`
   that records its `doc_set`; each set runs in its own worktree on its own
@@ -587,12 +595,12 @@ internal leg skills that differed only in a table row, and that table,
   `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
   verbatim and mandatory. The verifier's `authoring-conformance` dimension
   MUST independently re-open and check every such citation: it runs the
-  shared deterministic `citation_check.py` floor over `prd_path` +
-  `architecture_path` (plus `principles_path` for `standards`, when
-  non-null and present), then itself judges substantiation for every
+  shared deterministic `citation_check.py` floor over the located PRD +
+  architecture set (plus the principles set for `standards`, when
+  present), then itself judges substantiation for every
   citation the script resolves. Every such finding — mechanical or semantic —
   and an exit 2 from the script are `severity="blocking"`; there is **no**
-  `severity="info"` carve-out. `prd_path` is a declared verify-task
+  `severity="info"` carve-out. The located PRD is a declared verify-task
   constraint.
 - The executor also runs the shared ADR-0012 design-time doc-consistency
   step, surfacing gap/staleness findings through the existing clarification
@@ -617,8 +625,8 @@ and one file per NFR item under `non-functional/`.
   pipeline. Run once to bootstrap a repo's requirements set, or re-run to
   amend it; either way `/acs:code`'s documentation step keeps accreting into
   the same files afterward.
-- **Three modes**, classified by the executor's survey from the resolved
-  `requirements_path` content and the codebase:
+- **Three modes**, classified by the executor's survey from the located
+  requirements set's content and the codebase:
   - **brownfield** — reverse-engineer the set from an existing codebase
     (architecture-aware feature-area enumeration, codebase-inventory
     fallback; each requirement DRAFT / code-cited);
@@ -631,13 +639,13 @@ and one file per NFR item under `non-functional/`.
 - **Standalone but architecture-aware**: uses the architecture doc set's
   container/component views (`c4-container.md`/`c4-component.md`/
   `project-structure.md`) when present, degrades to a codebase inventory
-  when absent; no hard PRD/architecture dependency (no
-  `_require_architecture_doc_set` gate).
-- Produces the doc set in the consumer repo at `requirements_path` (default
-  `docs/requirements` — [configuration.md](configuration.md)), resolved into
-  `<functional_subdir>`/`<non_functional_subdir>` via `requirements_layout`
-  (defaults `functional`/`non-functional`). Unset `requirements_path`
-  (`null`) means acs does not maintain this set for the repo.
+  when absent; no hard PRD/architecture dependency (the skill checks for
+  neither at Start).
+- Produces the doc set in the consumer repo wherever the repo already keeps
+  it, else at `docs/requirements/`
+  ([configuration.md](configuration.md#document-and-workspace-locations)),
+  with `functional/` and `non-functional/` subfolders — or the subfolder
+  names an existing set already uses.
 - Runs the Reflection cycle as execute → verify (no planner — ADR-0092) —
   `create-requirements-executor`, `create-requirements-verifier` —
   including a deterministic `structure` floor over each produced area file
@@ -666,9 +674,10 @@ Purpose: scaffold a fresh product's repo skeleton from the approved
 architecture, so the ticket pipeline works from the very first ticket.
 
 - Product-level, ticket-independent, and **greenfield-only** — existing
-  codebases never need it. Runs once, after `/create-architecture`: its
-  pre-hook requires the architecture doc set to exist (the tech stack and
-  structure must be settled before scaffolding).
+  codebases never need it. Runs once, after `/create-architecture`: the
+  skill checks for the architecture doc set (its `hld/tech-stack.md`) at
+  Start and stops when none is found (the tech stack and structure must be
+  settled before scaffolding).
 - Scaffolds, per `hld/tech-stack.md` and the HLD structure:
   - directory layout matching the container/component views;
   - package/build configuration;
@@ -704,12 +713,16 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
 
 - Its own reflection-loop workflow skill with its own delivery ticket per run
   (type `task`, titled "Brownfield project standardization") — **not** a
-  `<set>_path` doc-set producer and adds no new settings key (D5 Option B);
+  doc-set producer and adds no new settings key (D5 Option B);
   distinct from the product-level doc-set skills listed above.
-- Audits `principles_path`, `standards_path`, `hld/project-structure.md`
+- Needs the architecture doc set: the skill checks for its
+  `hld/tech-stack.md` at Start and stops when none is found
+  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+- Audits the repo's principles and standards sets (located through
+  `CLAUDE.md` and the repo), `hld/project-structure.md`
   (MAR-120), and acs-readiness tooling (coverage/CI/pre-commit/e2e) against
   the repo on disk. No refusal guard on its own set — it has none; a
-  missing or unset `principles_path`/`standards_path` gracefully degrades
+  missing principles or standards set gracefully degrades
   to fewer audit inputs, never a hard block.
 - Scaffolds **additively only**: it may add missing docs/config/CI/tooling
   files, but never moves, renames, deletes, or rewrites existing source —
@@ -780,7 +793,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   prompt**, the **codebase**, and existing **docs**.
 - MUST consult the **PRD** when present: tickets SHOULD trace to PRD
   features/goals, and epics SHOULD derive from the roadmap. MUST also read
-  the touched areas' **living requirements** files (`requirements_path`) as
+  the touched areas' **living requirements** files (found in the repo) as
   the current behavior and flag any contradiction the request implies
   (deliberate behavior change vs. mistake). When a requested
   capability goes beyond the PRD, `/create-ticket` MUST flag the divergence
@@ -917,13 +930,13 @@ tickets where the change is architecturally significant.
 - MUST analyze the ticket, the codebase, and existing docs; MUST evaluate
   **multiple options with trade-offs** and interact with the user on the
   genuinely open decision points before settling.
-- MUST take the product architecture doc set (`architecture_path`) as
+- MUST take the product architecture doc set (found in the repo) as
   primary input when it exists: the design either **conforms to the
   documented architecture** or explicitly lists the architecture changes it
   requires — which `/code` then applies to the doc set as part of the
   change.
-- Produces **`design.md`** in the ticket's docs folder (the workspace
-  partition when `artifacts.tickets_path` is `null`) — the executor drafts it
+- Produces **`design.md`** in the ticket's docs folder
+  (`docs/tickets/<ID>/`) — the executor drafts it
   under `phases/create-design/` and the coordinator publishes the verified
   bytes — with required sections:
   **context & constraints (incl. NFRs such as security and performance),
@@ -935,7 +948,7 @@ tickets where the change is architecturally significant.
   [workspace-and-state.md](workspace-and-state.md)).
 - The `create-design-verifier` checks: alternatives genuinely weighed,
   consistency with the existing codebase and docs (including conformance
-  with the `standards/` doc set at `standards_path` when configured),
+  with the repo's `standards/` doc set when it has one),
   feasibility, NFR coverage, and a deterministic `structure` floor
   (declared `required_sections`, **configurable** via
   `formats.design_template` / `enforcement.design_sections` — byte-identical
@@ -948,9 +961,10 @@ tickets where the change is architecturally significant.
 - The executor's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
-- When `adr_path` is configured ([configuration.md](configuration.md)),
-  the design's accepted decision records are committed into the consumer
-  repo by `/code` as part of its documentation updates.
+- The design's accepted decision records are committed into the consumer
+  repo's ADR folder (found in the repo, else `docs/adr/` —
+  [configuration.md](configuration.md#document-and-workspace-locations)) by
+  `/code` as part of its documentation updates.
 
 > **Section numbering.** The numbers below are stable identifiers for these
 > per-skill blocks, not the run order. The order the Build/Test/Ship steps
@@ -1006,8 +1020,8 @@ an approved `plan.md`.
   ADR-0092), the spec fold, the executor file map, plan approval
   (`standard`/`complex` only, run by those legs) and the plan-revocation path
   (`plan-superseded-<k>.md` in the workspace).
-- MUST write `plan.md` to the ticket's docs folder (the partition when
-  `artifacts.tickets_path` is `null`). It is always authored by the executor:
+- MUST write `plan.md` to the ticket's docs folder (`docs/tickets/<ID>/`).
+  It is always authored by the executor:
   the ADR-0074 fast path, on which the coordinator authored the plan itself
   with no executor spawn, went with the lanes it forked on (ADR-0095). The
   verifier judges every draft, and on blocking findings the executor authors
@@ -1035,8 +1049,8 @@ Purpose: pin the API surface a ticket changes before it is implemented, so
 it.
 
 - Input: `plan.md`, `analysis.md`, the ticket, the architecture doc set, and
-  the repo's existing contract files under `contracts_path` (default
-  `docs/api`; `null` = the ticket folder only). Pre-hook input checks:
+  the repo's existing contract files, wherever the repo keeps them (else
+  `docs/api/`). Pre-hook input checks:
   `plan.md` exists **and** `analysis.md` declares `api_surface: true` —
   otherwise the skill is refused with a pointer at `/create-impl-plan` or
   `/analyze-requirements`.
@@ -1044,8 +1058,9 @@ it.
   or changes, request/response shapes, error codes, compatibility and
   versioning notes, and examples — each traced to an acceptance criterion
   **and** to a plan item.
-- MUST update the repo's machine-readable contract files under
-  `contracts_path` when the repo keeps them, committed on the ticket branch.
+- MUST update the repo's machine-readable contract files where the repo
+  keeps them (else create them under `docs/api/`), committed on the ticket
+  branch.
 - Subagents: `create-api-contract-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
 - State file: `create-api-contract-state.json`; states `contract_path`,
   `items`, `traced_acs`.
@@ -1192,13 +1207,13 @@ are stated here because `/code`'s execute phase anchors on their outputs:
 - MUST update the consumer repo's **documentation affected by the change**
   as part of the implementation: README, API/usage docs, code comments, the
   changelog where the repo keeps one — and the **product architecture doc
-  set** (`architecture_path`) whenever the change adds or removes
+  set** (found in the repo) whenever the change adds or removes
   components, or alters the data model, integrations, or deployment: HLD
   (C4 views, data model, deployment) updated accordingly, and the ticket
   design's new/changed **sequence diagrams merged into `lld/flows/`** —
   following the repo's existing conventions. MUST also merge the ticket's
   acceptance criteria and behavior-defining clarifications into the touched
-  feature area's file under `requirements_path` (the living requirements —
+  feature area's file in the requirements set (the living requirements —
   [workflow.md](workflow.md#living-requirements)). Docs work is part
   of the change, not a follow-up.
 - **ADR-0012 participation (bounded, touched-area, post-plan — third
@@ -1211,7 +1226,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   capability missing a PRD goal or roadmap row — carried on the SAME
   `problems` field the Boy-scout drift item already uses into
   `/acs:docs-sync`. This is **not** the full ADR-0012 design-time
-  step: `requirements_path` edges and `adr_path` edges are explicitly
+  step: living-requirements edges and ADR edges are explicitly
   not covered by it and remain the responsibility of
   `/acs:create-design`'s full step (for `needs_design: true` tickets)
   and `/acs:docs-sync`'s diff-grounded re-derivation.
@@ -1327,7 +1342,7 @@ full unit suite runs.
        else**), **C** contracts and architecture (`api-contract.md`,
        `design.md`, architecture docs, the plan), **D** history and regression
        (`git log --follow -p`, bounded lookback), **E** craft and scope
-       (`standards/` at `standards_path`, the diff; **Simplicity & scope** —
+       (the repo's `standards/` set, the diff; **Simplicity & scope** —
        overcomplication and out-of-scope edits — is blocking and lives here).
        Lens B fans out across the diff when the diff warrants it, measured
        from the changeset rather than passed in; lens D runs on **every** run.
@@ -1344,9 +1359,9 @@ full unit suite runs.
        `kind: gate` with the failing command as its evidence.
 - `/acs:review-code` MUST review the changeset — **business logic**,
   **features** (does it satisfy the ticket and the plan), **quality**,
-  **technical standards** (conformant with the `standards/` doc set at
-  `standards_path` when configured; falls back to documented architecture
-  when unset), **architecture**, **system design**, **security**,
+  **technical standards** (conformant with the repo's `standards/` doc set
+  when it has one; falls back to documented architecture when it has
+  none), **architecture**, **system design**, **security**,
   **documentation** (affected docs updated and consistent with the code),
   **Simplicity & scope** (overcomplication and out-of-scope edits are
   blocking), and **plan conformance** (blocking when active, N/A otherwise;

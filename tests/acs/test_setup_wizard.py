@@ -49,8 +49,7 @@ class WizardCase(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def answers(self, **over):
-        doc = {"scope": "project", "settings": {"ticket_prefix": "SHOP"},
-               "workspace_path": os.path.join(self.tmp, "ws")}
+        doc = {"scope": "project", "settings": {"ticket_prefix": "SHOP"}}
         doc.update(over)
         return doc
 
@@ -83,7 +82,7 @@ class DetectTest(WizardCase):
         out = setup_wizard.detect(self.repo)
         self.assertTrue(out["scopes"]["project"]["exists"])
         self.assertIn("ticket_prefix", out["scopes"]["project"]["keys"])
-        self.assertIn("workspace_path", out["scopes"]["local"]["keys"])
+        self.assertFalse(out["scopes"]["local"]["exists"])
 
     def test_it_reports_the_ignore_state_before_anything_is_written(self):
         out = setup_wizard.detect(self.repo)
@@ -207,21 +206,20 @@ class RefusalTest(WizardCase):
 
 class SettingsWriteTest(WizardCase):
 
-    def test_the_split_puts_machine_specific_keys_in_the_local_file(self):
+    def test_settings_land_in_the_chosen_scope_and_nothing_in_the_local_file(self):
+        """No key is machine-specific any more (ADR-0102 removed workspace_path),
+        so apply never writes settings.local.json."""
         out = self.apply()
         self.assertTrue(out["ok"], out["errors"])
         project = json.loads(self.read(".acs", "settings.json"))
-        local = json.loads(self.read(".acs", "settings.local.json"))
         self.assertEqual(project["ticket_prefix"], "SHOP")
-        self.assertNotIn("workspace_path", project)
-        self.assertEqual(local["workspace_path"], os.path.join(self.tmp, "ws"))
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".acs", "settings.local.json")))
 
-    def test_user_scope_still_keeps_the_local_file_in_the_repo(self):
-        self.apply(self.answers(scope="user"))
-        user = json.loads(open(os.path.join(self.home, ".acs", "settings.json"),
-                               encoding="utf-8").read())
-        self.assertEqual(user["ticket_prefix"], "SHOP")
-        self.assertTrue(os.path.exists(os.path.join(self.repo, ".acs", "settings.local.json")))
+    def test_a_workspace_path_answer_is_ignored(self):
+        out = self.apply(self.answers(workspace_path=os.path.join(self.tmp, "ws")))
+        self.assertTrue(out["ok"], out["errors"])
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".acs", "settings.local.json")))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "ws")))
 
     def test_a_re_run_preserves_untouched_and_unknown_keys(self):
         """Forward compatibility: an unknown key is legal and is never dropped."""
@@ -426,8 +424,9 @@ class StatusLineTest(WizardCase):
 class WorkspaceTest(WizardCase):
 
     def test_the_partition_is_created_at_the_resolved_root(self):
-        self.apply()
-        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "ws", "acme-shop")))
+        out = self.apply()
+        self.assertEqual(out["workspace"], os.path.join(self.repo, ".acs", "state-machine"))
+        self.assertTrue(os.path.isdir(os.path.join(out["workspace"], "acme-shop")))
 
     def test_a_re_run_reports_it_as_already_there(self):
         self.apply()

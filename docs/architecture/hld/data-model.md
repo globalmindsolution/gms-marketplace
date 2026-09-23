@@ -336,10 +336,10 @@ for the runs already recorded. Zero migration: no new state key, no new
 schema field; the retired path is simply never written again.
 
 **Amendment (ADR-0086).** The physical root each `REPO_PARTITION` resolves
-under is now `<main-checkout>/.acs/state-machine/<repo-id>/` by default —
+under is now `<main-checkout>/.acs/state-machine/<repo-id>/` —
 gitignored, anchored to the repo's main checkout (`git rev-parse
 --git-common-dir`) so every linked worktree resolves to the same on-disk
-tree — or an explicit `workspace_path` override pointing elsewhere. No
+tree, with no override ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)). No
 entity, field, or relationship change (D6): only what `workspace` (the
 string) resolves to is different.
 

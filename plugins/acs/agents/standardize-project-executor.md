@@ -19,11 +19,13 @@ Your prompt contains an XML `<task skill="standardize-project" phase="execute"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the audit
 inputs on iteration 1; the frozen iteration-1 notes `iter-1-authoring.md` and the
 specific config/CI files being added or appended on later iterations),
-`<constraints>` (at minimum `partition` — the absolute ticket-partition path — plus, on
-iterations >= 2, the allowlist entries this executor's slice owns), and, on iteration
->= 2, a `<context>` carrying the prior iteration's verifier findings verbatim (no plan
-phase happens in between — the notes you read are the same `iter-1-authoring.md` every
-iteration). The coordinator may run several executors in parallel on iterations >= 2;
+`<constraints>` (at minimum `partition` — the absolute ticket-partition path — and
+`architecture_dir`, `principles_dir`, `standards_dir`, the repo-relative locations the
+coordinator resolved, a set the repo lacks given at the conventional default where it
+would be created; plus, on iterations >= 2, the allowlist entries this executor's slice
+owns), and, on iteration >= 2, a `<context>` carrying the prior iteration's verifier
+findings verbatim (no plan phase happens in between — the notes you read are the same
+`iter-1-authoring.md` every iteration). The coordinator may run several executors in parallel on iterations >= 2;
 when it does, your task names your slice and an executor index `k`. You share no memory
 with the coordinator: read the notes and every input file yourself before writing
 anything.
@@ -43,21 +45,20 @@ context.
 
 Audit each of the four categories independently — none gates the others:
 
-1. **`hld/project-structure.md`** — the structural target. **May not exist** on this
-   repo; when absent, note it explicitly as N/A for the structural-gap dimension and add
-   "run `/acs:create-architecture`" as a `recommended_follow_ups` candidate — never a
-   block. When present, compare the actual repo layout against it and classify any
+1. **`<architecture_dir>/hld/project-structure.md`** — the structural target. **May not
+   exist** on this repo; when absent, note it explicitly as N/A for the structural-gap
+   dimension and add "run `/acs:create-architecture`" as a `recommended_follow_ups`
+   candidate — never a block. When present, compare the actual repo layout against it and classify any
    mismatch as a structural gap (recommended-follow-up-only, never a scaffold target).
-2. **`principles_path`** — read WHEN `settings.principles_path` is set (non-null) AND a
-   `principles/` doc set actually exists there. **Graceful degradation (mandatory):**
-   when `principles_path` is `null`, OR set but no doc set exists there yet, note this
-   explicitly in your notes' audit inventory as N/A and PROCEED — this grounding step is
-   N/A for this run, never a hard block. Add "run `/acs:create-principles`" as a
-   `recommended_follow_ups` candidate when absent — never a scaffold target for this
-   skill's own executor.
-3. **`standards_path`** — the identical treatment as `principles_path` above: read when
-   set AND present; when `standards_path` is `null`, OR set but no doc set exists there
-   yet, note this explicitly as N/A and PROCEED — never a hard block. Add "run
+2. **`principles_dir`** — read WHEN a `principles/` doc set actually exists at
+   `<principles_dir>`. **Graceful degradation (mandatory):** when no doc set exists
+   there yet, note this explicitly in your notes' audit inventory as N/A and PROCEED —
+   this grounding step is N/A for this run, never a hard block. Add "run
+   `/acs:create-principles`" as a `recommended_follow_ups` candidate when absent —
+   never a scaffold target for this skill's own executor.
+3. **`standards_dir`** — the identical treatment as `principles_dir` above: read when
+   a doc set exists at `<standards_dir>`; when none exists there yet, note this
+   explicitly as N/A and PROCEED — never a hard block. Add "run
    `/acs:create-standards`" as a `recommended_follow_ups` candidate when absent.
 4. **acs-readiness tooling** — four independently-graded checks:
    - CI workflow presence.
@@ -92,7 +93,7 @@ addressed** in `iter-<n>/execute.json` instead.
 Sections: Repo-readiness inventory (the four audit dimensions, each cited, with an
 explicit "N/A: <why>" for every unset/absent input); Additive-surface allowlist
 (frozen the moment you write it — CI workflow files and named tooling-config
-append targets only, NEVER `<principles_path>/**` or `<standards_path>/**`);
+append targets only, NEVER `<principles_dir>/**` or `<standards_dir>/**`);
 Recommended follow-up candidates (`{title, rationale, target_path}`); Task list
 (exact output paths, drawn only from the allowlist); Risks & open decisions;
 Verifier checklist. Every entry cites the file (and line or heading) you read —
@@ -129,7 +130,7 @@ finding to what you changed.
    protection** — it does not call the GitHub API to add or change required status
    checks on any branch; wiring the `E2E suite` (or any) required check into branch
    protection stays exclusively with `/acs:setup` Step 3 (D1).
-5. **NEVER write under `<principles_path>/**` or `<standards_path>/**`**, under any
+5. **NEVER write under `<principles_dir>/**` or `<standards_dir>/**`**, under any
    circumstance, even when the notes' Recommended follow-up candidates name a missing
    principles or standards set — that is a report-only finding this executor never acts
    on. Doc-set content authorship belongs exclusively to `/acs:create-principles` and
@@ -182,8 +183,8 @@ Your FINAL message is ONLY a `<result>` element valid against
   tooling-config appends, the git branch/commits/PR when your task includes the delivery
   step, and your own artifacts in the partition (the authoring notes on iteration 1 and
   the execute artifact). No other repo files, ever —
-  never a pre-existing source file, never anything under `principles_path`/
-  `standards_path`.
+  never a pre-existing source file, never anything under `principles_dir`/
+  `standards_dir`.
 - Follow the frozen notes; deviations are a `failed` result with `<errors>`, not silent fixes.
 - Read everything from the file paths in `<inputs>`; never assume coordinator context.
 

@@ -10,12 +10,12 @@ folder.
 |-------|------|-----|-----|
 | User | `~/.acs/settings.json` | n/a | Defaults shared across all of a user's repos. |
 | Project (shared) | `<repo>/.acs/settings.json` | **committed** | Team-shared, repo-specific settings (formats, tracker, coverage, merge strategy). |
-| Project (local) | `<repo>/.acs/settings.local.json` | **gitignored** | Machine-specific keys — notably `workspace_path`. |
+| Project (local) | `<repo>/.acs/settings.local.json` | **gitignored** | Machine-specific overrides of any key. |
 
 - `/setup` MUST let the user choose the scope (user or project) at setup time.
-- Machine-specific keys are **split into the gitignored
-  `settings.local.json`**; `/setup` writes `workspace_path` there and ensures
-  the file is listed in the repo's `.gitignore`.
+- Machine-specific keys belong in the **gitignored `settings.local.json`**;
+  `/setup` writes no key there, but ensures the file is listed in the repo's
+  `.gitignore`.
 - Resolution order (per-key merge, most specific wins):
   **`settings.local.json` → `settings.json` → `~/.acs/settings.json`**.
 - Re-running `/setup` **updates the existing files in place**, preserving
@@ -25,18 +25,9 @@ folder.
 
 | Key | Type | Default | Required | Description |
 |-----|------|---------|----------|-------------|
-| `workspace_path` | string (absolute path) | derived (`<main-checkout>/.acs/state-machine`) | No — optional override | Folder where all skills and hooks read/write ticket state. Unset derives the default: a gitignored `.acs/state-machine/` folder anchored to the repo's main checkout (`git rev-parse --git-common-dir`), so every worktree resolves to the same physical location without state being duplicated/dirtied per worktree (ADR-0086). Set it only to point somewhere else. Lives in `settings.local.json` (machine-specific). |
 | `test_coverage_percent` | number | `90` | No | Coverage target used by `/code` when generating unit tests and running them in the TDD cycle. Missing the target is a hard fail. |
 | `merge_strategy` | string | `"squash"` | No | How `/merge-pr` merges: `squash` \| `merge` \| `rebase`. |
 | `ticket_prefix` | string | — | **Yes — user input at setup time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/setup` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |
-| `prd_path` | string (repo-relative path) | `"docs/product"` | No | Location of the PRD doc set (`prd.md`, `roadmap.md`) in the consumer repo — bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |
-| `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |
-| `requirements_path` | string (repo-relative path) | `"docs/requirements"` | No | Location of the **living requirements** doc set — the standing behavioral contract, one file per feature area, accumulated ticket by ticket: `/code` merges each ticket's acceptance criteria and behavior-defining clarifications into the touched area's file as part of its documentation work; `/create-ticket` reads it as the area's current behavior and flags contradictions. Grows organically — no bootstrap skill required. |
-| `adr_path` | string (repo-relative path) or `null` | `"docs/adr"` | No | `/code` commits the accepted decision records from the ticket's `design.md` to this path as part of its documentation updates — on by default so decisions outlive archived ticket partitions. Explicit `null` disables (designs then stay workspace-only). |
-| `quality_path` | string (repo-relative path) or `null` | `"docs/quality"` | No | Location of the `quality/` doc set (test strategy, coverage policy) bootstrapped and maintained by `/acs:create-docs quality`. Unset = acs does not maintain this set for this repo. |
-| `operations_path` | string (repo-relative path) or `null` | `"docs/operations"` | No | Location of the `operations/` doc set (release process, runbooks, observability, incident response) bootstrapped and maintained by `/acs:create-docs operations`. Unset = acs does not maintain this set for this repo. |
-| `principles_path` | string (repo-relative path) or `null` | `"docs/principles"` | No | Location of the `principles/` doc set (engineering principles + rationale) bootstrapped and maintained by `/acs:create-docs principles`. Unset = acs does not maintain this set for this repo. |
-| `standards_path` | string (repo-relative path) or `null` | `"docs/standards"` | No | Location of the `standards/` doc set (coding standards & conventions — `coding-standards.md`, `conventions.md`, `review-checklist.md`) bootstrapped and maintained by `/acs:create-docs standards`, which also reads `principles_path` (when set) as an upstream grounding input. Unset = acs does not maintain this set for this repo. |
 | `e2e` | object | unset | No | **Deprecated compatibility alias** for `suites.e2e`: `{ "command", "setup"?, "teardown"?, "per_iteration"? }`. Still accepted and validated exactly as before, but normalized at load time into `suites["e2e"]` — new configuration should prefer `suites.e2e` directly; `/acs:setup` offers a one-time migration on re-run. Unset = no e2e suite. When configured: spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and `/acs:review-code`'s final gate runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict; `per_iteration: false` (default) defers the run past iterations that already have other blocking findings. `/create-project` scaffolds the harness and proposes this block for greenfield repos with a user-facing surface. This same `e2e`/`suites.e2e` configuration is also the **single opt-in signal** for the CI required merge gate — no dedicated `e2e.ci`/`suites.e2e.ci` enable key exists, or is ever introduced (see the `/acs:setup` Step 3 note below). |
 | `suites` | object | `{}` | No | The single source of truth for named test commands: `{ "<name>": { "command", "setup"?, "teardown"?, "per_iteration"? } }`. The reserved name `e2e` is auto-populated at load from a configured `e2e` key (see above). `/acs:test` is the consumer — it runs all configured suites, or a `--suite`-selected subset, capturing pass/fail results to an auditable workspace artifact. |
 | `tests` | object | unset | No | Unit/integration suite for the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 3, opt-in): `{ "command", "setup"? }`. `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`); acs exports `ACS_COVERAGE` (= `test_coverage_percent`) into the environment. Installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install). A merge gate once made a required status check (`Tests & coverage`) on a protected default branch. |
@@ -66,6 +57,33 @@ introduced by any of this.
 
 More keys are expected as requirements grow — the file format MUST tolerate
 unknown keys for forward compatibility.
+
+### Document and workspace locations
+
+No key locates a document or the workspace
+([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)). A skill
+finds a repo document the way any Claude Code session does: `CLAUDE.md`
+(project instructions, loaded in every session) and whatever docs index it or
+the repo points at (e.g. `docs/README.md`), then a Glob/Grep search by file
+name or content. Found → it uses that location. Not found → it creates the
+document at the conventional default:
+
+| Document | Default location | Produced / consumed by |
+|----------|------------------|------------------------|
+| PRD | `docs/product/prd.md` + `docs/product/roadmap.md` | Bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |
+| Architecture set | `docs/architecture/` (`hld/tech-stack.md` is its sentinel file) | **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |
+| Living requirements | `docs/requirements/` with `functional/` and `non-functional/` subfolders (an existing set's own subfolder names are followed) | The standing behavioral contract, one file per feature area: `/code` merges each ticket's acceptance criteria and behavior-defining clarifications into the touched area's file; `/create-ticket` reads it as the area's current behavior and flags contradictions. |
+| ADRs | `docs/adr/` | `/code` commits the accepted decision records from the ticket's `design.md` here, so decisions outlive archived ticket partitions. |
+| Quality / operations / principles / standards sets | `docs/quality/`, `docs/operations/`, `docs/principles/`, `docs/standards/` | Bootstrapped and maintained by `/acs:create-docs <set>`; `standards` also reads the principles set, when the repo has one, as an upstream grounding input. |
+| Machine-readable API contract files | `docs/api/` | Written by `create-api-contract` when the plan adds or changes an interface. |
+
+Two locations are **fixed, never discovered**: a ticket's own documents live
+at `docs/tickets/<ID>/`, and the workspace — the folder where all skills and
+hooks read/write ticket state — is always `<main-checkout>/.acs/state-machine`,
+a gitignored folder anchored to the repo's main checkout
+(`git rev-parse --git-common-dir`), so every worktree resolves to the same
+physical location without state being duplicated/dirtied per worktree
+(ADR-0086). Neither has an override.
 
 ### Format placeholders
 
@@ -180,16 +198,15 @@ Code transcript, not the statusLine payload
 
 ## Validation rules
 
-- `/setup` no longer requires `workspace_path`: when unset, it derives
-  the default (`<main-checkout>/.acs/state-machine`) and MUST hard-fail with
-  a `GateError` only when the layout cannot resolve a normal main-checkout
-  root (bare repo, submodule) — an explicit `workspace_path` remains a valid
-  way to point elsewhere.
+- `/setup` derives the workspace (`<main-checkout>/.acs/state-machine`) —
+  no key sets it — and MUST hard-fail with a `GateError` when the layout
+  cannot resolve a normal main-checkout root (bare repo, submodule): acs must
+  be run from a regular git checkout.
 - `/setup` SHOULD create the workspace folder if missing and verify it is
   writable.
 - Every pre-hook MUST fail (exit 2) with a "run /setup first" message if no
-  `settings.json` can be resolved, and fail clearly if `workspace_path` is
-  set but invalid, or if the derived default cannot be resolved.
+  `settings.json` can be resolved, and fail clearly if the workspace cannot
+  be derived.
 - `test_coverage_percent` MUST be a number in `(0, 100]`; absent → `90`.
 - `ticket_prefix` is required at setup time (suggested from the repo name)
   and MUST be a non-empty uppercase identifier — ticket ids are
@@ -202,18 +219,9 @@ Code transcript, not the statusLine payload
 
 ## Example
 
-Default case — `workspace_path` unset, so the workspace derives to
-`<main-checkout>/.acs/state-machine` (ADR-0086): no `settings.local.json`
-entry is needed at all.
-
-Explicit-override case — `<repo>/.acs/settings.local.json` (gitignored,
-machine-specific), for anyone who wants the workspace somewhere else:
-
-```json
-{
-  "workspace_path": "/Users/jane/acs-workspace"
-}
-```
+The workspace always derives to `<main-checkout>/.acs/state-machine`
+(ADR-0086), and documents are found rather than configured (ADR-0102): no
+`settings.local.json` entry is needed at all.
 
 `<repo>/.acs/settings.json` (committed, team-shared):
 

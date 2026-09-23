@@ -3,8 +3,7 @@
 A gate's INPUT is a document a producer skill wrote: plan.md (create-impl-plan),
 analysis.md (analyze-ticket), test-cases.md (create-test-docs). This module
 resolves where such a document lives -- the docs-tree ticket folder first
-(<checkout_root>/<settings.artifacts.tickets_path>/<ID>/, skipped when
-tickets_path is null), then the workspace partition, then the legacy location
+(<checkout_root>/docs/tickets/<ID>/), then the workspace partition, then the legacy location
 /acs:code's old plan phase wrote -- and renders the refusal that points at the
 producer. Private to the gates: acs_lib.artifacts owns the public resolver.
 """
@@ -34,8 +33,7 @@ LEGACY_ARTIFACT_PATHS = {"plan.md": (os.path.join("phases", "code", "plan.md"),)
 
 def _ticket_artifact(ctx, ticket_id, tdir, ticket, name):
     """The first existing copy of a ticket artifact: the docs-tree folder
-    (<checkout_root>/<settings.artifacts.tickets_path>/<ID>/<name>, skipped
-    when tickets_path is null), then the partition (<tdir>/<name>), then the
+    (<checkout_root>/docs/tickets/<ID>/<name>), then the partition (<tdir>/<name>), then the
     legacy partition location. None when nowhere. Private to the gates:
     acs_lib.artifacts owns the public resolver."""
     found = workflow.ticket_artifact_path(_ticket_wctx(ctx, ticket_id, tdir, ticket), name)

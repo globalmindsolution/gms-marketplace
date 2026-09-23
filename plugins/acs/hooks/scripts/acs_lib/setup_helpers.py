@@ -15,8 +15,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import (DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
-                      DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, DOC_SET_TITLES,
+from ._common import (DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1, DOC_SET_TITLES,
                       PROJECT_MODE_SENTINEL, PROJECT_MODE_SETTINGS_KEY, TICKET_ID_RE)
 from .settings import enforcement_value
 from .repo import ticket_id_from_text
@@ -24,27 +23,15 @@ from .repo import ticket_id_from_text
 
 
 def _sentinel_present(checkout_root, base, sentinel):
-    """The settings-path + sentinel-file presence primitive, shared by every
-    caller that asks "has this already shipped?" of the disk.
+    """The base + sentinel-file presence primitive `project_mode` reads.
 
     `base` is the directory the evidence lives in, relative to the checkout
     root ("" for the root itself); `sentinel` is the file whose existence IS
-    the evidence. A `base` of None -- a settings key that is not configured --
-    is ABSENT, never root-relative: an unconfigured path must not silently
-    widen the check to the whole repo."""
+    the evidence. A `base` of None is ABSENT, never root-relative: an unset
+    base must not silently widen the check to the whole repo."""
     if base is None:
         return False
     return os.path.isfile(os.path.join(checkout_root, base, sentinel))
-
-
-def doc_set_present_on_disk(checkout_root, settings, doc_set):
-    """D4.2(a): a doc set counts as shipped only when its own first output
-    file (DOC_SETS[<set>]["files"][0]) exists at its configured path -- a
-    populated but otherwise-produced directory does not count (fails toward
-    re-bootstrapping)."""
-    return _sentinel_present(checkout_root,
-                             settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[doc_set]) or None,
-                             DOC_BOOTSTRAP_SENTINEL[doc_set])
 
 
 def project_mode(settings, checkout_root):
@@ -53,8 +40,8 @@ def project_mode(settings, checkout_root):
     The declared-data counterpart of `fanout_batches` for the design-phase
     entry-point fold: `PROJECT_MODE_SETTINGS_KEY` / `PROJECT_MODE_SENTINEL`
     (`_common`) declare the evidence that this repo ALREADY has a project, and
-    this reads each row off disk through `_sentinel_present` -- the same
-    mechanism `doc_set_present_on_disk` uses. No prose inference, no git scan,
+    this reads each row off disk through `_sentinel_present`. No prose
+    inference, no git scan,
     no heuristics: the umbrella states the mode and cites these rows, and a
     test pins every direction.
 
@@ -112,15 +99,22 @@ def _soft_peers(candidate, eligible):
     return (declared | reverse) & set(eligible)
 
 
-def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
-    """D4.1 eligibility (configured, not-shipped, no open delivery ticket, hard
-    deps clear) plus D4.3 batching: group eligible candidates so a soft
+def fanout_batches(tickets_index, candidates=None, present=()):
+    """D4.1 eligibility (not already in the repo, no open delivery ticket,
+    hard deps present) plus D4.3 batching: group eligible candidates so a soft
     dependency edge never shares a batch with its eligible peer, in either
     direction. candidates defaults to the declared fan-out set
-    (DOC_BOOTSTRAP_FANOUT_V1, every declared doc set); an explicit candidates argument exists so a narrower
-    request (`/acs:create-docs quality,operations`) and the general-case N-way
-    semantics stay unit-testable. Names not present in
-    DOC_BOOTSTRAP_DEPENDENCIES are skipped, never raised."""
+    (DOC_BOOTSTRAP_FANOUT_V1, every declared doc set); an explicit candidates
+    argument exists so a narrower request (`/acs:create-docs
+    quality,operations`) and the general-case N-way semantics stay
+    unit-testable. Names not present in DOC_BOOTSTRAP_DEPENDENCIES are
+    skipped, never raised.
+
+    `present` names the sets the repo already has. It is the coordinator's
+    finding, not a disk probe: no setting says where a doc set lives, so the
+    coordinator looks for one the way any session would (ADR-0102) and this
+    function stays the deterministic half -- eligibility and batching."""
+    present = set(present or ())
     tickets = (tickets_index or {}).get("tickets") or {}
 
     def _open_ticket(doc_set):
@@ -138,15 +132,10 @@ def fanout_batches(settings, tickets_index, checkout_root, candidates=None):
         if candidate not in DOC_BOOTSTRAP_DEPENDENCIES:
             continue  # unknown/non-doc-bootstrap name: never eligible, never raises
         deps = DOC_BOOTSTRAP_DEPENDENCIES[candidate]
-        configured = settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[candidate]) is not None
-        not_shipped = not doc_set_present_on_disk(checkout_root, settings, candidate)
+        not_shipped = candidate not in present
         not_open = not _open_ticket(candidate)
-        hard_deps_clear = all(
-            settings.get(DOC_BOOTSTRAP_SETTINGS_KEY[dep]) is None
-            or doc_set_present_on_disk(checkout_root, settings, dep)
-            for dep in deps["hard"]
-        )
-        if configured and not_shipped and not_open and hard_deps_clear:
+        hard_deps_clear = all(dep in present for dep in deps["hard"])
+        if not_shipped and not_open and hard_deps_clear:
             eligible.append(candidate)
 
     batches = []

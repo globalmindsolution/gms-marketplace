@@ -1,7 +1,7 @@
 <!--
   principles — built-in principles doc-set template (used by
   /acs:create-principles). Bootstrapped verbatim into the consumer's
-  principles_path, then lightly tailored to the product. No runtime
+  principles/ doc set, then lightly tailored to the product. No runtime
   placeholders — tailoring is an in-place prose edit, not a string
   substitution.
 -->

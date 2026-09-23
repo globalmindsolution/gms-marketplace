@@ -10,8 +10,7 @@ in the sibling files; this doc adds no new rules, it shows them in action.
 cd acme-shop
 /setup
   → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
-  → workspace_path?   (default: derives to <main-checkout>/.acs/state-machine — no answer needed;
-                        set it only to point somewhere else)
+                      (workspace: always <main-checkout>/.acs/state-machine — nothing to answer)
   → ticket_prefix?    SHOP               (suggested from the repo name)
   → coverage 90, merge_strategy squash, tracker local  (defaults, editable)
 ```

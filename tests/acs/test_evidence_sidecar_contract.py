@@ -252,9 +252,9 @@ class DocsSyncExecutorRequirementsMergeSidecarContractTest(unittest.TestCase):
 
 
 class DocsSyncVerifierRequirementsRoutingSidecarContractTest(unittest.TestCase):
-    """AC-3, at its current home: the verifier of the merge blocks a
-    requirements_path merge that leaves an inline in-scope citation instead
-    of routing it to the sidecar.
+    """AC-3, at its current home: the verifier of the merge blocks a merge
+    into the requirements set (`requirements_dir`) that leaves an inline
+    in-scope citation instead of routing it to the sidecar.
 
     MAR-162 demoted the equivalent `code-verifier` sub-check to advisory
     precisely because docs-sync's own verifier re-derives and BLOCKS on the
@@ -270,8 +270,12 @@ class DocsSyncVerifierRequirementsRoutingSidecarContractTest(unittest.TestCase):
 
     def test_wrong_subfolder_language_preserved(self):
         self.assertRegex(self.block, r"wrong subfolder|wrong-subfolder")
-        self.assertRegex(
-            self.block, re.compile(r"requirements_layout", re.DOTALL))
+        # ADR-0102: the subfolders are the resolved `functional_dir` /
+        # `non_functional_dir` constraints, no longer the removed
+        # `requirements_layout` setting.
+        self.assertIn("`functional_dir`", self.block)
+        self.assertIn("`non_functional_dir`", self.block)
+        self.assertNotIn("requirements_layout", self.block)
 
     def test_dimension_mentions_evidence_sidecar(self):
         self.assertRegex(self.block, SIDECAR_TOKEN_RE)

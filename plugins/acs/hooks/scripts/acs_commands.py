@@ -427,7 +427,8 @@ def cmd_slug(args):
 def cmd_fanout_batches(args):
     ctx = context_or_die("fanout batches")
     index = lib.read_json(lib.index_path(ctx["workspace"], ctx["repo_id"])) or {}
-    emit({"batches": lib.fanout_batches(ctx["settings"], index, ctx["checkout_root"])})
+    present = [name.strip() for name in (args.present or "").split(",") if name.strip()]
+    emit({"batches": lib.fanout_batches(index, present=present)})
 
 
 def cmd_doctor(args):
@@ -504,12 +505,12 @@ def cmd_workflow_validate(args):
 
 def cmd_artifacts_migrate(args):
     """Move every live partition's ticket.json (plus design.md and the legacy
-    plan) into <tickets_path>/<ID>/ once -- idempotent, archive untouched, a
+    plan) into docs/tickets/<ID>/ once -- idempotent, archive untouched, a
     ticket.json.moved pointer left behind. --dry-run lists the moves only."""
     ctx = context_or_die("artifacts migrate")
     try:
-        report = lib.migrate_artifacts(ctx["workspace"], ctx["repo_id"], ctx["settings"],
-                                       ctx["checkout_root"], dry_run=args.dry_run)
+        report = lib.migrate_artifacts(ctx["workspace"], ctx["repo_id"], ctx["checkout_root"],
+                                       dry_run=args.dry_run)
     except lib.GateError as exc:
         die("artifacts migrate", str(exc))
     emit(dict(report, ok=True))

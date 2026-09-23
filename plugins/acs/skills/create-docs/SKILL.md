@@ -8,12 +8,12 @@ disallowed-tools: Edit, NotebookEdit
 
 You are the coordinator of /acs:create-docs, the product skill that bootstraps
 or maintains the consumer's product doc sets — `quality`, `operations`,
-`principles`, `standards` — in the consumer repo, each at its configured path
-(`settings.quality_path`, `settings.operations_path`, …), grounded in the PRD
-and the `architecture/` set, and shipped as a docs-only PR on a fresh delivery
-ticket **per set**. This is a product-level skill: it is ticket-independent
-until it mints its own delivery tickets. You orchestrate subagents; you never
-write a doc file yourself.
+`principles`, `standards` — in the consumer repo, each where the repo already
+keeps it, else at its default location (`docs/quality/`, `docs/operations/`,
+…), grounded in the PRD and the `architecture/` set, and shipped as a
+docs-only PR on a fresh delivery ticket **per set**. This is a product-level
+skill: it is ticket-independent until it mints its own delivery tickets. You
+orchestrate subagents; you never write a doc file yourself.
 
 One skill, four sets (ADR-0094). The sets used to be four internal leg skills
 with a planner/executor/verifier trio each; they differed only in the row of
@@ -25,8 +25,9 @@ template, a plan to write it is a second copy of the writing.
 
 Ground rules, non-negotiable:
 
-- This is a hooked skill: `pre-create-docs.py` gates the Skill call on the
-  architecture doc set, once, for every set you go on to run; each set's own
+- This is a hooked skill: `pre-create-docs.py` fires on the Skill call, and
+  you check the architecture doc set yourself at Start, once, for every set
+  you go on to run; each set's own
   `acs step start --step create-docs --doc-set <set> --allocate` mints its
   delivery ticket, and each set's own `acs step finish` finalizes it.
   You never bypass, simulate, or duplicate a hook.
@@ -35,7 +36,7 @@ Ground rules, non-negotiable:
   `<constraints>`. Decomposition is YOURS alone: subagents never spawn
   subagents.
 - The sets are declared, not inferred: `acs_lib.DOC_SETS` is the one table
-  that says what a set is (settings key, delivery-ticket title, template
+  that says what a set is (default location, delivery-ticket title, template
   directory, output files with their required sections, audience register,
   upstream inputs, dependency edges). Adding a fifth set is a row there plus
   its templates — never an edit to this prose.
@@ -74,18 +75,37 @@ exactly one kind of run — so they live in references rather than inline:
 | `${CLAUDE_PLUGIN_ROOT}/skills/create-docs/references/fan-out.md` | The eligible batch Start hands you holds MORE THAN ONE set. It defines **slice** and what `max_parallel` does with it, the worktree-per-set rule, and per-set failure isolation — so open it before the Reflection loop, which drives a slice. A single-set run and every resume run one set in the session checkout and skip it. |
 | `${CLAUDE_PLUGIN_ROOT}/skills/create-docs/references/resume-and-handoff.md` | `context.reconcile` is true for a set, the argument was a delivery-ticket id, or your own context is running low. It carries the reconcile procedure and the handoff it reconciles against. A fresh run that finishes in one session skips it. |
 
-## Start — the argument, the table, and the eligible batch
+## Start — locate the sets, then the argument, the table, and the eligible batch
 
-MANDATORY first action — resolve settings, the argument, the doc-set table
-and the eligible batch:
+MANDATORY first action — locate the documents this run reads and writes. No
+setting says where they live: find them the way any session does — CLAUDE.md
+(project instructions, loaded in every session) and whatever docs index it or
+the repo points at (e.g. `docs/README.md`), then a Glob/Grep search by file
+name from the checkout root (see Checkout root, below). Record each location
+repo-relative:
+
+- **The architecture set** — the directory holding `hld/tech-stack.md`; a
+  directory without that file is not the set. None found → STOP: "no
+  architecture doc set found (expected hld/tech-stack.md) — run
+  /acs:create-architecture first." This is the one precondition every set
+  shares, checked here once for the whole run.
+- **The PRD** — the product `prd.md` (conventionally `docs/product/prd.md`).
+- **Each declared set** — present when its sentinel file (the first file in
+  its row of the table under "The doc sets") exists; record the directory
+  holding it, or that the set is absent. A set's **location** is where you
+  found it, else its default location (`default_dirs` in the Start output).
+
+Then resolve settings, the argument, the doc-set table and the eligible
+batch, passing the present set names comma-separated (empty when none):
 
 ```bash
-python3 - "$ARGUMENTS" <<'PY'
+python3 - "$ARGUMENTS" "<comma-separated present sets>" <<'PY'
 import json, os, sys
 sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
 import acs_lib as lib
 cwd = os.getcwd()
 args_text = sys.argv[1] if len(sys.argv) > 1 else ""
+present = [s for s in (sys.argv[2] if len(sys.argv) > 2 else "").split(",") if s]
 settings, _sources = lib.load_settings(cwd)
 try:
     workspace = lib.validate_settings(settings, cwd)
@@ -100,20 +120,15 @@ for note in request.notices:
     sys.stderr.write(note + "\n")
 if request.rejected or request.candidates == []:
     sys.exit(2)
-try:
-    max_parallel = lib.resolve_workflow(root)["workflow"].get(
-        "max_parallel", lib.DEFAULT_MAX_PARALLEL)
-except lib.WorkflowError:
-    max_parallel = lib.DEFAULT_MAX_PARALLEL
+max_parallel = 2  # this skill's own cap; ship.yaml carries no max_parallel (ADR-0096)
 batches = ([] if request.resume else
-           lib.fanout_batches(settings, tickets_index, root, candidates=request.candidates))
+           lib.fanout_batches(tickets_index, candidates=request.candidates, present=present))
 print(json.dumps({"workspace": workspace, "repo_id": repo_id, "checkout_root": root,
                   "requested": request.candidates, "rejected": request.rejected,
                   "notices": request.notices, "resume": request.resume,
                   "max_parallel": max_parallel, "batches": batches,
                   "doc_sets": lib.DOC_SETS,
-                  "paths": {name: settings.get(row["settings_key"])
-                            for name, row in lib.DOC_SETS.items()}}, indent=2))
+                  "default_dirs": lib.DOC_SET_DEFAULT_DIR}, indent=2))
 PY
 ```
 
@@ -124,37 +139,37 @@ settings are invalid or acs is not initialized here.
 **`resume` set** → skip eligibility entirely and go to "Per-set Start", resume
 form, for that one ticket.
 
-**Eligibility.** `acs_lib.fanout_batches(settings, tickets_index, checkout_root,
-candidates)` is the **declared, not inferred** eligibility predicate: a set is
-eligible only when its settings path is configured (a `null` path is the
-consumer's opt-out — report it, never run it), its doc set has not already
-shipped on disk (`doc_set_present_on_disk`: the set's first output file, the
-sentinel, exists at its path), it has no open (non-`done`) delivery ticket
-already in flight, and every **hard** dependency is unconfigured or already
-shipped. A **soft** dependency (today, exactly `standards` → `principles`)
+**Eligibility.** `acs_lib.fanout_batches(tickets_index, candidates, present)`
+is the **declared, not inferred** eligibility predicate, and `present` is
+what you found at Start: a set is eligible only when it is not already in the
+repo (not in `present` — its sentinel was not found), it has no open
+(non-`done`) delivery ticket already in flight, and every **hard** dependency
+is present. A **soft** dependency (today, exactly `standards` → `principles`)
 never makes a set ineligible on its own — it only keeps the two out of the
 **same batch**, so `principles` lands in an earlier batch than `standards` on
 the default request. Do not reorder, re-derive or hard-code the batches you
 are handed. A named but ineligible set is reported with its reason (already
-shipped / already in flight / unconfigured / blocked by an unshipped hard
-dependency), never silently dropped. If the eligible batch is empty: report
+in the repo / already in flight / blocked by a hard dependency the repo does
+not have yet), never silently dropped. If the eligible batch is empty: report
 why, per candidate, and stop.
 
-**Checkout root.** `fanout_batches` is given `lib.checkout_root(cwd)`, never
-the raw `cwd`, so a run started from a repo subdirectory (or from a set's own
+**Checkout root.** The Start search runs from the checkout root (`git
+rev-parse --show-toplevel`, the Start output's `checkout_root`), never a
+subdirectory, so a run started from a repo subdirectory (or from a set's own
 worktree on resume) does not read an already-shipped doc set as absent.
+`fanout_batches` reads no disk itself: `present` is all it knows of the repo.
 
 ## The doc sets
 
 `doc_sets` in the Start output is `acs_lib.DOC_SETS`, the single declaration.
 For reading, the rows are:
 
-| Set | Settings key | Files (first = sentinel) | Audience |
-|-----|--------------|--------------------------|----------|
-| `quality` | `quality_path` | `test-strategy.md`, `coverage-policy.md` | QA (test/verification runbook register) |
-| `operations` | `operations_path` | `release-process.md`, `runbooks.md`, `observability.md`, `incident-response.md`, `test-scheduling.md` | ops/SRE (runbook register) |
-| `principles` | `principles_path` | `principles.md` | engineers (concise normative rules) |
-| `standards` | `standards_path` | `coding-standards.md`, `conventions.md`, `review-checklist.md` | engineers (concise normative rules) |
+| Set | Default location | Files (first = sentinel) | Audience |
+|-----|------------------|--------------------------|----------|
+| `quality` | `docs/quality` | `test-strategy.md`, `coverage-policy.md` | QA (test/verification runbook register) |
+| `operations` | `docs/operations` | `release-process.md`, `runbooks.md`, `observability.md`, `incident-response.md`, `test-scheduling.md` | ops/SRE (runbook register) |
+| `principles` | `docs/principles` | `principles.md` | engineers (concise normative rules) |
+| `standards` | `docs/standards` | `coding-standards.md`, `conventions.md`, `review-checklist.md` | engineers (concise normative rules) |
 
 Each file's required sections are `doc_sets[<set>].files[<file>]`; each set's
 template directory is `${CLAUDE_PLUGIN_ROOT}/templates/<doc_sets[<set>].template_dir>/`;
@@ -193,8 +208,7 @@ Starts proceed normally.
 
 Otherwise parse the printed context JSON; the fields you need: `partition`,
 `ticket_id`, `ticket` (its `doc_set` names the set; its title is
-`doc_sets[<set>].title`), `settings` (`prd_path`, `architecture_path`, the
-set's path key, `principles_path`, `formats`, `tracker`), `models`,
+`doc_sets[<set>].title`), `settings` (`formats`, `tracker`), `models`,
 `reconcile`, `handoff_summary`, `post_hook`, `pipeline`, `checkout_root`. The
 delivery ticket is type `task`; `acs step start` has already created the
 partition, ticket.json, the lock, the session pointer, and the `in_progress`
@@ -214,28 +228,28 @@ explicitly.
 
 The upstream inputs are declared per set in `doc_sets[<set>].upstream`:
 
-- `prd`: `<prd_path>/prd.md` — the named slice (`quality` and `operations`
-  read its Non-functional requirements section specifically; `principles` and
-  `standards` read the PRD generally).
-- `architecture`: the full `<architecture_path>/` set — always; architecture
-  is upstream of every set.
+- `prd`: the PRD you located at Start — the named slice (`quality` and
+  `operations` read its Non-functional requirements section specifically;
+  `principles` and `standards` read the PRD generally).
+- `architecture`: the full architecture set you located at Start — always;
+  architecture is upstream of every set.
 - `principles`: `true` for `standards` only — read the `principles/` set
-  **when `settings.principles_path` is set (non-null) AND a `principles/` doc
-  set actually exists at that path**. The conformance chain is `architecture
-  → principles → standards`, an altitude gradient where an abstract principle
-  is realized by a concrete standard. **Graceful degradation (mandatory):**
-  when `principles_path` is `null`, or set but no set exists there yet, the
-  executor notes this explicitly and PROCEEDS — grounding N/A for the run,
-  never a block. `principles` itself has NO cross-read on `standards/` or any
-  downstream set.
+  **when a `principles/` doc set actually exists at the principles set's
+  location**. The conformance chain is `architecture → principles →
+  standards`, an altitude gradient where an abstract principle is realized by
+  a concrete standard. **Graceful degradation (mandatory):** when no
+  principles set exists there yet, the executor notes this explicitly and
+  PROCEEDS — grounding N/A for the run, never a block. `principles` itself
+  has NO cross-read on `standards/` or any downstream set.
 
-**The only refusal keyed to a settings path is the set's own.** A set whose
-own path is `null` is ineligible (reported at Start, above) — the consumer
-opted out. A `null` `principles_path` never stops a `standards` run.
+**There is no per-set opt-out, and only a missing architecture set refuses
+a run.** A set is skipped only for a reason Start reports (already in the
+repo, already in flight, a missing hard dependency). A repo with no
+principles set never stops a `standards` run.
 
-Mode is a two-way split, keyed to the set's own path only:
+Mode is a two-way split, keyed to the set's own location only:
 
-- **bootstrap** — no doc set exists yet at the path.
+- **bootstrap** — no doc set exists yet at the location.
 - **re-run/amend** — the set exists — regenerate/tailor in place, preserving
   still-accurate content.
 
@@ -246,8 +260,8 @@ pre-decide it.
 
 For each set, the executor writes EXACTLY the files `doc_sets[<set>].files`
 lists, bootstrapped from `templates/<template_dir>/` into
-`<checkout_root>/<path>/` (no other repo file is touched). It bootstraps each
-file from its template verbatim, then lightly tailors it to the consumer's
+`<checkout_root>/<location>/` (no other repo file is touched). It bootstraps
+each file from its template verbatim, then lightly tailors it to the consumer's
 detected stack (read from the `architecture/` set) and, for `standards`, to
 the stated principles when available — the same bootstrap-then-tailor shape
 `/acs:create-project` uses for its scaffold templates. Living parts (a
@@ -274,8 +288,8 @@ one:
 Spawn this slice's executors (`acs:create-docs-executor`, one per set, at
 most `max_parallel`) in ONE message. Every executor writes in its own set's
 worktree on the branch that set's Branch step created, to that set's own
-configured directory — disjoint by construction. Iteration 1 authors;
-iteration 2+ remediates the findings in `<context>`.
+location — disjoint by construction. Iteration 1 authors; iteration 2+
+remediates the findings in `<context>`.
 
 ### Verify
 
@@ -296,8 +310,8 @@ iteration 3 with findings remaining: stop that set, final status `failed`,
 findings recorded in its result document; commit whatever was written to its
 local ticket branch so nothing is lost, but do NOT push or open the PR.
 
-The verify task's `<constraints>` also carry `prd_path`, `architecture_path`,
-`principles_path` when applicable, each file's `required_sections:<file>`
+The verify task's `<constraints>` also carry `prd`, `architecture_dir`,
+`principles_dir` when applicable, each file's `required_sections:<file>`
 and the `audience_style_profile` — exactly the execute task's constraints,
 so the two phases judge the same contract.
 
@@ -318,8 +332,9 @@ sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 Communicate in XML per `the SubagentStop hook's message check`. The set rides in the
-constraints; compose them from `doc_sets[<set>]` and the resolved settings,
-never from memory. Example execute task for `quality`:
+constraints; compose them from `doc_sets[<set>]` and the locations you
+recorded at Start (`doc_set_path` is the set's own location), never from
+memory. Example execute task for `quality`:
 
 ```xml
 <task skill="create-docs" phase="execute" ticket-id="SHOP-2" iteration="1">
@@ -338,17 +353,17 @@ never from memory. Example execute task for `quality`:
     <constraint name="required_sections:test-strategy.md">Testing philosophy; Coverage policy; Suite inventory; CI gates; Flaky-test policy</constraint>
     <constraint name="required_sections:coverage-policy.md">Target and hard-fail rule; Exclusions; Measurement per stack; Escalation</constraint>
     <constraint name="audience_style_profile">QA (test/verification runbook register)</constraint>
-    <constraint name="prd_path">docs/product</constraint>
+    <constraint name="prd">docs/product/prd.md</constraint>
     <constraint name="prd_slice">Non-functional requirements</constraint>
-    <constraint name="architecture_path">docs/architecture</constraint>
+    <constraint name="architecture_dir">docs/architecture</constraint>
   </constraints>
 </task>
 ```
 
-For `standards`, add `<constraint name="principles_path">docs/principles</constraint>`
-when `settings.principles_path` is non-null (the executor and verifier check
-the set exists on disk themselves), and
-`<constraint name="principles-optional">principles_path may be null, or the principles/ set may be absent — treat as grounding N/A for this iteration, never a block.</constraint>`.
+For `standards`, add `<constraint name="principles_dir">docs/principles</constraint>`
+naming the principles set's location (the executor and verifier check the
+set exists on disk themselves), and
+`<constraint name="principles-optional">the principles/ set may be absent — treat as grounding N/A for this iteration, never a block.</constraint>`.
 The verify task carries the same constraints, and its `<inputs>` name the
 authoring notes and execute report(s) of the iteration under review.
 
@@ -413,9 +428,9 @@ The delivery-ticket pattern, done by you, inside that set's worktree
    `{type}/{ticket_id}-{slug}`) with `type=task`, the ticket id, and the
    slugified title — e.g. `task/SHOP-2-product-quality-doc-set` — and
    `git checkout -b` it from the default branch.
-2. **Commit** (after the verifier passes): stage ONLY `<path>/` and verify
+2. **Commit** (after the verifier passes): stage ONLY `<location>/` and verify
    the diff is docs-only (`git diff --cached --name-only` — every path under
-   the set's path). Commit with `settings.formats.commit_message` (default
+   the set's location). Commit with `settings.formats.commit_message` (default
    `{ticket_id} {summary}`), e.g. `SHOP-2 Add product quality doc set` (or
    `Regenerate …` on re-run).
 3. **Push & PR**: `git push -u origin <branch>`, then follow
@@ -433,7 +448,8 @@ MANDATORY final step for every set started — never skipped, also on failure:
 
 1. Write `steps/create-docs/result.json` per the
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
-   names): `doc_set` and `pr`. `files` entries are paths relative to `path`:
+   names): `doc_set` and `pr`. `path` is the set's location; `files` entries
+   are paths relative to it:
 
 ```json
 {

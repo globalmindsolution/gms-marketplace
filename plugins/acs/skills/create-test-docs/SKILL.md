@@ -53,17 +53,23 @@ Parse the printed context JSON. Fields you will use:
   ticket whose design applies and its basename is that ticket's id. When
   `design.required`, resolve the design document with `acs.py artifacts show
   --ticket <that id>` (`artifacts["design.md"]` — its docs folder, or
-  `<design.dir>/design.md` when the tree is opted out) and read it for the
-  behaviour the design already settled. Call it `<design_doc>`.
-- `settings` — you need `artifacts.tickets_path` (where `test-cases.md` is
-  published), `suites` (the configured suites a case's target may name, with the
-  reserved `e2e` entry), `quality_path` (the repo's test strategy and coverage
-  policy), `contracts_path`, `formats.branch_name`, `formats.commit_message`.
+  `<design.dir>/design.md` when an older design still lives in the partition)
+  and read it for the behaviour the design already settled. Call it
+  `<design_doc>`.
+- `settings` — you need `suites` (the configured suites a case's target may
+  name, with the reserved `e2e` entry), `formats.branch_name`,
+  `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+
+Locate the repo's quality doc set (its test strategy and coverage policy) once,
+here, the way any session finds a document: CLAUDE.md and whatever docs index
+it or the repo points at (e.g. `docs/README.md`), then a Glob/Grep by file name
+or content. Found → its repo-relative directory is `<quality_dir>`. Not found →
+the repo has none; this skill does not create one.
 
 **Epics.** The gate does not refuse an epic here, but an epic's criteria belong
 to its children: if `ticket.type == "epic"`, STOP and tell the user to fan the
@@ -72,9 +78,9 @@ child. Do not write cases against an epic.
 
 ## Branch — the test cases are a repo file
 
-When the ticket docs tree is active (`settings.artifacts.tickets_path` is not
-null), `test-cases.md` is a file in the consumer repo and belongs on the ticket
-branch with every other change for this ticket. Render
+`test-cases.md` is a file in the consumer repo — the ticket's docs folder,
+`docs/tickets/<id>/` — and belongs on the ticket branch with every other change
+for this ticket. Render
 `settings.formats.branch_name` (default `"{type}/{ticket_id}-{slug}"`) with
 `{ticket_id}`, `{type}` (`ticket.type`), `{slug}` (the slugified ticket title —
 `acs.py slug --text "<title>"`) and `{external_key}`, then create or reuse it:
@@ -88,8 +94,9 @@ it; never recreate or reset it. Commit the published document with
 `settings.formats.commit_message` (default `"{ticket_id} {summary}"`). Do NOT
 push — `/acs:create-pr` pushes.
 
-When the tree is opted out (`artifacts.tickets_path: null`) the document is
-written to the workspace partition instead and nothing enters the repo.
+When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the
+docs folder to) the document is written to the workspace partition instead and
+nothing enters the repo.
 
 ### Test-case artifact resolution
 
@@ -165,7 +172,7 @@ inline a file body):
    ambiguous or untestable as written.
 5. `<design_doc>` when `design.required`.
 6. The repo's test strategy and coverage policy under
-   `<checkout_root>/<settings.quality_path>/` when it exists — it decides what
+   `<checkout_root>/<quality_dir>/` when the repo has one — it decides what
    belongs at unit level versus integration versus e2e in THIS repo, and this
    document follows it rather than inventing a pyramid of its own.
 7. The consumer repo's existing tests: the suites configured in
@@ -195,7 +202,7 @@ Messaging rules (`the SubagentStop hook's message check`):
 - Every phase's `<constraints>` carry `required_sections` (the four headings
   below) and `<constraint name="audience_style_profile">implementers and
   reviewers (precise, executable cases)</constraint>`, plus `suites` (the
-  configured suite names) and `quality_path` when set.
+  configured suite names) and `quality_dir` when the repo has one.
 - Validate EVERY message you send and receive:
 
   ```bash
@@ -339,7 +346,7 @@ cp "<partition>/steps/create-test-docs/test-cases.md" "<cases_path>"
 ```
 
 Then commit `<cases_path>` on the ticket branch when it is inside the repo (the
-docs tree active); the partition draft is workspace state and is never
+ticket docs folder); the partition draft is workspace state and is never
 committed.
 
 ## User interaction

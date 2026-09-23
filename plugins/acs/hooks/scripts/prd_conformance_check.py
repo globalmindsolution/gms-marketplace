@@ -53,7 +53,7 @@ Usage:
       --plan <iter-n-plan.md> --mode {greenfield|brownfield|amend} \\
       --repo-root <repo-root> \\
       --clarifications <partition>/clarifications.json \\
-      --prd <prd_path>/prd.md --roadmap <prd_path>/roadmap.md \\
+      --prd <the PRD file> --roadmap <the roadmap file> \\
       [--added-heading "<verbatim milestone heading>" ...]
 Importable:
   from prd_conformance_check import (

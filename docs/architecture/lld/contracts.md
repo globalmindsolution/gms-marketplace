@@ -76,7 +76,7 @@ becomes invalid.
 | `mermaid_lint.py FILE.md [FILE.md ...]` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; also importable — `lint_text(text, source="<text>")`, `lint_file(path)`, `Finding(source, line, rule, message)` |
 | `structure_lint.py --sections "A; B; C" [--ordered] DOC.md` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; `--sections` is `;`-delimited (a name containing `&` is not split); also importable — `lint_structure(text, sections, ordered=True, source="<text>")`, `lint_file(path, sections, ordered=True)`, `Finding(source, line, rule, message)` (same 4-field shape as `mermaid_lint.Finding`) |
 | `citation_check.py --plan <plan.md> --root <name>=<path> [--root …]` | stdout: one JSON line per resolved citation — `{claim, path, line, excerpt}`, where `line` is the citation's line in the **plan** file, never a locus in the cited file; stderr: `source:line: [rule] message` per finding (`citation-unresolved`, `citation-excerpt-not-found`, `citation-inventory-empty`); exit 1 on any finding, exit 0 clean (≥ 1 citation, all resolved and excerpt-matched), exit 2 on usage error or an unreadable plan file; also importable — `extract_citations(text, heading=…)`, `resolve_and_check(citations, roots, plan_path)`, `Finding(source, line, rule, message)` (same 4-field shape as `structure_lint.Finding`) |
-| `prd_conformance_check.py --plan <iter-n-plan.md> --mode {greenfield\|brownfield\|amend} --repo-root <repo-root> --clarifications <partition>/clarifications.json --prd <prd_path>/prd.md --roadmap <prd_path>/roadmap.md [--added-heading "<verbatim milestone heading>" ...]` | stdout: one JSON line per manifest entry, each carrying a `"family"` key (`code-evidence`\|`answer-fidelity`\|`roadmap-outline`) alongside the `citation_check`-shaped fields for its family; stderr: `source:line: [rule] message` per finding (`code-citation-unresolved`, `code-citation-excerpt-not-found`, `code-evidence-empty`, `answer-not-dispositioned`, `answer-anchor-not-found`, `answer-anchor-file-unknown`, `roadmap-milestone-not-found`, `roadmap-milestone-unplanned`); exit 1 on any finding, exit 0 clean, exit 2 on usage error or an unreadable `--plan`/`--clarifications`/`--prd`/`--roadmap` file; also importable — `check_code_evidence(text, repo_root, plan_path)`, `check_answer_fidelity(text, clarifications, prd_text, roadmap_text, plan_path)`, `check_roadmap_milestones(text, roadmap_text, mode, added_headings, plan_path)`, each returning `(findings, manifest_entries)` in `citation_check`'s `Finding`/dict shapes; imports `citation_check.extract_citations`/`resolve_and_check` unchanged — zero re-implementation of path containment |
+| `prd_conformance_check.py --plan <iter-n-plan.md> --mode {greenfield\|brownfield\|amend} --repo-root <repo-root> --clarifications <partition>/clarifications.json --prd <prd> --roadmap <roadmap> [--added-heading "<verbatim milestone heading>" ...]` | stdout: one JSON line per manifest entry, each carrying a `"family"` key (`code-evidence`\|`answer-fidelity`\|`roadmap-outline`) alongside the `citation_check`-shaped fields for its family; stderr: `source:line: [rule] message` per finding (`code-citation-unresolved`, `code-citation-excerpt-not-found`, `code-evidence-empty`, `answer-not-dispositioned`, `answer-anchor-not-found`, `answer-anchor-file-unknown`, `roadmap-milestone-not-found`, `roadmap-milestone-unplanned`); exit 1 on any finding, exit 0 clean, exit 2 on usage error or an unreadable `--plan`/`--clarifications`/`--prd`/`--roadmap` file; also importable — `check_code_evidence(text, repo_root, plan_path)`, `check_answer_fidelity(text, clarifications, prd_text, roadmap_text, plan_path)`, `check_roadmap_milestones(text, roadmap_text, mode, added_headings, plan_path)`, each returning `(findings, manifest_entries)` in `citation_check`'s `Finding`/dict shapes; imports `citation_check.extract_citations`/`resolve_and_check` unchanged — zero re-implementation of path containment |
 | `release_notes.py status\|draft\|bump --version X.Y.Z --repo-root P [--workspace W] [--dry-run] [--ticket-prefix PFX] --release-config <json>` | stdout JSON per subcommand — `status`: four idempotency signals (manifests/changelog/branch-PR/tag), now resolved against the block's `version_locations`/`changelog_path`/`tag_format`/`release_branch_format`; `draft`: authoritative `draft_section` + `{merged,covered,missing}` coverage report, each `tickets[]` entry carrying an additive `source` of `"archive"` or `"git-log"` — the merged-ticket archive is enumerated first and always wins on a duplicate id, and a `git log` fallback over `<since_tag>..<base_branch>` recovers tickets with no archive entry; `bump`: `files_changed[]` per the block's `version_locations`+`extra_refs`+`changelog_path`, atomic per-file write (temp-file + rename); `--ticket-prefix` is accepted by `draft`/`bump` only, never `status`; exit 0 on all data outcomes (incl. nothing-to-release), exit 2 on malformed invocation, unreadable/missing CHANGELOG/manifest, or a malformed/absent `--release-config` block |
 | `migrate_workspace.py --from <old-workspace-root> --to <new-state-root> --repo-root <main-checkout-root> [--dry-run]` | stdout: one line per planned action (`copy-ticket`/`keep-existing`/`copy-file`/`skip-identical` `<rel-path>`), plus a final status line; exit 0 on success, "already migrated" (old root absent), or `--dry-run` (no writes); exit 2 on an unresolvable `--repo-root`, a `--from`/`--to` overlap, a preflight abort — a live `.lock` or an `in_progress` last run anywhere under `<old>/<repo-id>/` — a repo-level-file conflict where source and destination differ, or a post-copy verification failure |
 | `plan-approval.py [path] [--run R] [--plan P]` | default verb `check`: stdout JSON — `{ok, eligible, plan_approved, delivery_path, failures[]}`, or `{ok, skipped:"delivery_path", …}` on `trivial`/`small`, `{ok, skipped:"unclassified", …}` on a plan with no judged path, or `{ok, skipped:"already-approved", …}` on an unchanged approved digest; writes `steps/create-impl-plan/plan-approval.json` (sole writer) and mirrors `states.plan_approved` into the plan step's state. Verb `path`: prints `{ok, run_dir, plan, delivery_path, owes{api_contract,test_cases,e2e}, contract_errors[]}` from the plan's `## Contract` block and **writes nothing** — the CLI `/acs:code` reads the path through (ADR 0001, ADR-0098). **exit 0 on every data outcome including ineligible**; **exit 2** on an unresolvable run, or a `--plan` whose realpath escapes `steps/create-impl-plan/` |
@@ -197,10 +197,8 @@ true` (unchanged; MAR-73, slice 3 of MAR-69).
 
 `.acs/settings.json` (+ gitignored `settings.local.json`, user-scope file);
 per-key merge local → project → user; validated by every pre-hook
-(`settings.schema.json`): `workspace_path`, `ticket_prefix`,
-`test_coverage_percent`, `merge_strategy`, `prd_path`, `architecture_path`,
-`requirements_path?`, `requirements_layout?`, `adr_path?`, `principles_path?`,
-`standards_path?`, `quality_path?`, `operations_path?`, `e2e?`, `suites?`,
+(`settings.schema.json`): `ticket_prefix`,
+`test_coverage_percent`, `merge_strategy`, `e2e?`, `suites?`,
 `tests?`, `enforcement?`, `models`, `tracker`, `formats`
 (array of glob strings; absent key resolves to the seed default
 `["auth/**","payments/**","migrations/**","public-api/**","security/**"]`).
@@ -212,13 +210,14 @@ and `acs-tests.yml`+`run-tests.py` (`tests`). The e2e CI-gate artifact family
 (Step 3's e2e install) is the same shape: `acs-e2e.yml` + `run-e2e.py` (the committed
 template pair), built from `e2e?`/`suites?` — no dedicated settings key of
 its own — and wired as the `E2E suite` required-check context.
-`workspace_path` is optional: when unset it derives to
-`<main-checkout>/.acs/state-machine` (anchored via `git rev-parse
---git-common-dir`, gitignored); an explicit value overrides that default and
-may point anywhere, in- or outside the repo (ADR-0086). `release_notes.py
---workspace` (above) is unaffected in shape — still an absolute path
-argument — but its caller now passes this resolved value instead of a
-mandatory outside-repo one.
+No key locates the workspace or a document ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)): the
+workspace is always `<main-checkout>/.acs/state-machine` (anchored via
+`git rev-parse --git-common-dir`, gitignored; ADR-0086), ticket documents are
+fixed at `docs/tickets/<ID>/`, and a skill finds every other repo document
+through `CLAUDE.md` and the repo, creating a missing one at its `docs/`
+convention. `release_notes.py --workspace` (above) is unaffected in shape —
+still an absolute path argument — and its caller passes this resolved
+value.
 `formats.design_template` (default `design-default`) resolves identically to
 `formats.pr_description_template` (built-in name → `.acs/templates/<name>.md`
 → absolute path); its section companion `enforcement.design_sections`
@@ -226,11 +225,11 @@ defaults from the configured template — the built-in default encodes today's
 exact required-section list, so an absent key is byte-identical to the prior
 hardcoded gate (ADR 0065). create-design's verifier enforces the resolved
 list as a blocking `structure` dimension via `structure_lint.py`.
-`requirements_path` resolves a **functional** and a **non-functional**
-subfolder via `requirements_layout` (`functional_subdir`/
-`non_functional_subdir`, default `"functional"`/`"non-functional"`).
+The requirements set (found in the repo, else `docs/requirements/`) has a
+**functional** and a **non-functional** subfolder (`functional/` and
+`non-functional/` by default; an existing set's own names are followed).
 `/acs:create-requirements` is the producer skill that bootstraps or amends
-the requirements set at that path in one of three modes — brownfield
+the requirements set there in one of three modes — brownfield
 reverse-engineer (architecture-aware feature-area enumeration with a
 codebase-inventory fallback, DRAFT/code-cited; ADR 0061), greenfield elicit
 (elicits behavior/quality from the user, DRAFT/answer-cited; ADR 0062), and
@@ -245,7 +244,7 @@ marker (the sidecar convention, Decision B / ADR 0064).
 
 Conformance chain: `PRD → architecture → principles → standards → design → code`, each level verified against the one above it.
 
-Requirements (`requirements_path`, `functional/`+`non-functional/` subfolders) is a **living behavioral contract** that travels ALONGSIDE this chain — bootstrapped or amended by `/acs:create-requirements`, accreted by `/acs:code`'s documentation step, read by `/acs:create-ticket` as current behavior — but it is **not a verified conformance level**: no code review dimension checks a ticket's conformance against the requirements set the way each chain level is verified against the one above it (D1; ADR 0060/0061/0062). The chain line is unchanged; this note only clarifies where requirements sits relative to it.
+Requirements (`docs/requirements/` by default, `functional/`+`non-functional/` subfolders) is a **living behavioral contract** that travels ALONGSIDE this chain — bootstrapped or amended by `/acs:create-requirements`, accreted by `/acs:code`'s documentation step, read by `/acs:create-ticket` as current behavior — but it is **not a verified conformance level**: no code review dimension checks a ticket's conformance against the requirements set the way each chain level is verified against the one above it (D1; ADR 0060/0061/0062). The chain line is unchanged; this note only clarifies where requirements sits relative to it.
 
 `/create-prd`'s output contract now additionally includes the **"Release
 versions"** mapping table in `roadmap.md` (one row per release version →
@@ -253,19 +252,20 @@ milestone/wave + epic(s) delivered), verified by the create-prd verifier's
 0-orphan-milestone coverage sub-check (ADR 0053).
 
 The `standards` chain level has a documentary counterpart in this repo at
-`docs/standards/standards.md` (e.g. the test-file-naming standard); with
-`standards_path` unset, these standards are enforced by guard tests and pipeline
-guidance rather than as a runtime-verified conformance level.
+`docs/standards/standards.md` (e.g. the test-file-naming standard); these
+standards are enforced by guard tests and pipeline guidance rather than as a
+runtime-verified conformance level.
 
 `DOC_BOOTSTRAP_DEPENDENCIES` (`acs_lib`, declared in `acs_lib/_common.py`)
 declares, per doc set, which upstream doc sets it depends on — a derived view
-of `acs_lib.DOC_SETS`, the one table that says what a set is (settings key,
-delivery-ticket title, template directory, output files with their required
+of `acs_lib.DOC_SETS`, the one table that says what a set is (the directory
+a new set is created in, delivery-ticket title, template directory, output files with their required
 sections, audience, upstream inputs, dependency edges; ADR-0094). Its sibling
-views `DOC_BOOTSTRAP_SETTINGS_KEY` and `DOC_BOOTSTRAP_SENTINEL` are keyed by
+views `DOC_SET_DEFAULT_DIR` and `DOC_BOOTSTRAP_SENTINEL` are keyed by
 set name too, and `fanout_batches()` (`acs_lib/setup_helpers.py`) is the pure
-helper `/acs:create-docs` calls against them to compute its eligible batches
-(MAR-1). The default eligible set is `DOC_BOOTSTRAP_FANOUT_V1` — every
+helper `/acs:create-docs` calls, passing the sets it found already present in
+the repo, to compute its eligible batches (MAR-1; the presence finding is the
+coordinator's, not a disk probe — ADR-0102). The default eligible set is `DOC_BOOTSTRAP_FANOUT_V1` — every
 declared set, `quality`, `operations`, `principles`, `standards` — so the
 N-way case is the default path and the `candidates` argument carries a
 *narrowing* request (the skill's `<set|all>` argument). Adding a fifth set is
@@ -274,7 +274,8 @@ one `DOC_SETS` row plus its templates, never a code or prose change.
 Each declared dependency is either **hard** (an existing gate already enforces
 it) or **soft** (prose-only, ungated) — the principles→standards edge above is
 the soft case: the `standards` set degrades gracefully when `principles/` is
-absent and the one gate every set shares requires only the architecture set,
+absent and the one precondition every set shares (checked by the skill at
+Start) requires only the architecture set,
 so the conformance chain's "each level verified against the one above it"
 holds as a hard property everywhere except this one declared-soft edge. With
 four sets, that edge is load-bearing on the default path: it is what splits
@@ -302,8 +303,8 @@ declared-data counterpart for the other half of the design-phase fold (ADR
 reads `PROJECT_MODE_SETTINGS_KEY` / `PROJECT_MODE_SENTINEL` (ten
 packaging/build/tooling files: `pyproject.toml`, `setup.py`, `package.json`,
 `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`, `build.gradle.kts`,
-`.pre-commit-config.yaml`, `.coveragerc`) off disk through the same
-`_sentinel_present` primitive `doc_set_present_on_disk` uses — no git scan, no
+`.pre-commit-config.yaml`, `.coveragerc`) off disk through the
+`_sentinel_present` primitive — no git scan, no
 heuristic, no prose inference — and returns the chosen `mode`
 (`"bootstrap"` | `"standardize"`), the full `evidence` list, `present`/`absent`
 names, and a one-sentence `reason` the skill states back to the user. The

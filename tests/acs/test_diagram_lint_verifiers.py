@@ -141,10 +141,14 @@ class DesignCompletenessDiagramSubCheckTest(unittest.TestCase):
         self.assertIn("an ER diagram exists", block)
         self.assertIn("when the data model changes", block)
         self.assertIn("`### Decision records` is", block)
+        # The one sub-check ADR-0102 rewrote: with the `adr_path: null`
+        # opt-out gone, Decision records is always required and names the
+        # located ADR folder the task constraints carry (`adr_dir`).
         self.assertIn(
-            "present if and only if the task constraints say `adr_path` is configured.",
-            block,
+            "present and names the `adr_dir` the task constraints carry.",
+            " ".join(block.split()),
         )
+        self.assertNotIn("adr_path", block)
 
 
 class DimensionListRegressionTest(unittest.TestCase):

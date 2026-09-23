@@ -2,8 +2,9 @@
 
 A first-class, documentary record of the coding and testing standards this
 repository holds itself to. It states what the codebase does today; it is not a
-runtime-enforced settings surface (`standards_path` is intentionally left unset)
-— the guard test and the pipeline guidance are the live enforcers.
+runtime-enforced settings surface (no acs setting points at it —
+[ADR-0102](../adr/0102-documents-are-found-not-configured.md)) — the guard test
+and the pipeline guidance are the live enforcers.
 
 ## Naming conventions
 

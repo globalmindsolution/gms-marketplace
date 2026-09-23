@@ -100,14 +100,13 @@ class Mar4InitStateRootCase(unittest.TestCase):
         return setup_wizard.apply(cwd, answers or {"settings": {"ticket_prefix": "SHOP"}})
 
     def test_the_default_state_root_is_in_repo_and_never_asked_for(self):
-        """AC: `workspace_path` is an OPTIONAL override with an in-repo
-        default, not a must-ask key with an outside-the-repo validator."""
+        """AC: the in-repo state root is never asked for. ADR-0102 went further
+        than the optional override this pinned: there is no `workspace_path`
+        at all, so setup offers no row for it."""
         self.assertNotIn("MUST be outside the consumer repo", self.body)
-        row = re.search(r"(?m)^\| `workspace_path` \|.*\|$", self.body)
-        self.assertIsNotNone(row, "the optional-settings batch must offer workspace_path")
-        self.assertIn(".acs/state-machine", row.group(0))
-        self.assertIn("settings.local.json", row.group(0),
-                      "the key is machine-specific and always lands in the local file")
+        self.assertIsNone(re.search(r"(?m)^\| `workspace_path` \|", self.body),
+                          "setup must not offer a workspace_path row")
+        self.assertIn(".acs/state-machine", self.body)
 
     def test_both_ignore_layers_are_written(self):
         """AC: the tracked `.gitignore` entry AND the untracked

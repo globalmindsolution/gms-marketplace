@@ -16,7 +16,7 @@ Unlike `/acs:test`, which still writes a workspace artifact
 (`test-runs/<run-id>/results.json`), `/acs:release` writes **no** workspace
 artifact at all — the durable record is the release PR itself.
 `build_context()`'s `workspace` is used only as a **read** input to
-`release_notes.py draft --workspace <workspace_path>` (so it can enumerate
+`release_notes.py draft --workspace <workspace>` (so it can enumerate
 the merged-ticket archive, plus a `base_branch` git-history fallback for
 tickets merged without an archive entry) — never as a write target.
 
@@ -144,7 +144,7 @@ Only reached when Step 2 found no in-flight/done cut.
 1. **Draft:**
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" draft --version <version> --repo-root <checkout_root> --workspace <workspace_path> --release-config <release_config_json> --ticket-prefix <settings.ticket_prefix>
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" draft --version <version> --repo-root <checkout_root> --workspace <workspace> --release-config <release_config_json> --ticket-prefix <settings.ticket_prefix>
    ```
 
    `--ticket-prefix <settings.ticket_prefix>` is `ctx["settings"]["ticket_prefix"]`
@@ -165,7 +165,7 @@ Only reached when Step 2 found no in-flight/done cut.
 2. **Bump:**
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" bump --version <version> --repo-root <checkout_root> --workspace <workspace_path> --release-config <release_config_json> --ticket-prefix <settings.ticket_prefix> [--unreleased promote|replace]
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/release_notes.py" bump --version <version> --repo-root <checkout_root> --workspace <workspace> --release-config <release_config_json> --ticket-prefix <settings.ticket_prefix> [--unreleased promote|replace]
    ```
 
    **`--unreleased` is required when `## [Unreleased]` has a body**, and the
@@ -179,7 +179,7 @@ Only reached when Step 2 found no in-flight/done cut.
    flag. Step 1's `unreleased_missing[]` is what tells you `promote` will be
    accepted before you run it.
 
-   `--workspace <workspace_path>` and `--ticket-prefix <settings.ticket_prefix>`
+   `--workspace <workspace>` and `--ticket-prefix <settings.ticket_prefix>`
    here MUST be the same values passed to `draft` in step 1 above — `bump`
    regenerates the same `draft_section` internally before writing it, so
    this call needs the same archive input and fallback scope

@@ -21,21 +21,21 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's mes
   notes (`steps/create-requirements/iter-<n>/authoring.md`), the delivery
   `ticket.json` (derive `<partition>` from its directory), and the execute report.
   READ EVERY ONE — you share no memory with anyone;
-- `<constraints>` — at least `requirements_path`, `functional_subdir`,
-  `non_functional_subdir`, `required_sections`, `audience_style_profile`, and the
+- `<constraints>` — at least `requirements_dir`, `functional_dir`,
+  `non_functional_dir`, `required_sections`, `audience_style_profile`, and the
   mode (brownfield/amend/greenfield);
 - `<context>` — on iteration 2+, the prior findings whose fixes you must re-verify.
 
 ## Check dimensions — run ALL of them, every iteration
 
 1. **Required-file-presence** — every area file the notes named exists at its
-   resolved `<functional_subdir>`/`<non_functional_subdir>` path and is non-empty;
+   resolved `<functional_dir>`/`<non_functional_dir>` path and is non-empty;
    no unplanned extra file. Check mechanically: `ls`/Glob the resolved
    directories, never the execute report.
 2. **Mode-conformance** — the produced set matches the classified mode:
    brownfield/amend produced only the notes-named new/augmented files;
-   greenfield produced the notes-named `<functional_subdir>`/
-   `<non_functional_subdir>` files, DRAFT-marked and grounded in the user's
+   greenfield produced the notes-named `<functional_dir>`/
+   `<non_functional_dir>` files, DRAFT-marked and grounded in the user's
    elicited answers (not code).
 3. **Authoring-conformance** — every file, section, and classification the
    notes promised exists; no missing area, no unplanned extra file; and every
@@ -92,7 +92,7 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's mes
    `create-requirements-executor.md` (verbatim from
    `plugins/acs/skills/code/SKILL.md`); a misrouted requirement (e.g. a
    behavioral clause filed under non-functional) is a blocking finding.
-10. **Augment-only-absent / no-overwrite** — run `git diff -- <requirements_path>`
+10. **Augment-only-absent / no-overwrite** — run `git diff -- <requirements_dir>`
     yourself and confirm no file the notes marked "human-authored present,
     preserve" changed a single byte. Any byte changed in such a file is a
     blocking finding.

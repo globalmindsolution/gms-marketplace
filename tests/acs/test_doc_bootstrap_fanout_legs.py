@@ -2,9 +2,10 @@
 
 Drives the REAL hook CLIs (dispatch.py pre, acs.py step start --allocate
 --doc-set, post-create-docs.py) against a throwaway consumer repo
-(AcsWorkspaceCase): one gate for every set (AC-2), failure isolation between
-two sets' delivery tickets (AC-3), and each set's own run.json as
-its resume record (AC-4). The skill's own prose is not directly executable by
+(AcsWorkspaceCase): the one precondition every set shares (AC-2, now the
+skill's own Start check -- ADR-0102), failure isolation between two sets'
+delivery tickets (AC-3), and each set's own run.json as its resume record
+(AC-4). The skill's own prose is not directly executable by
 a unit test -- this proves the primitives it describes behave as claimed.
 
 Run:  python3 -m unittest tests.acs.test_doc_bootstrap_fanout_legs -v
@@ -12,12 +13,14 @@ Run:  python3 -m unittest tests.acs.test_doc_bootstrap_fanout_legs -v
 
 import json
 import os
+import re
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+SKILL_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-docs", "SKILL.md")
 
 import acs_lib as lib  # noqa: E402
 from acs_case import AcsWorkspaceCase  # noqa: E402
@@ -31,12 +34,19 @@ def _write_architecture_doc_set(repo):
 
 
 class GateIntegrityTest(AcsWorkspaceCase):
-    """AC-2: the one gate every set shares -- the architecture doc set."""
+    """AC-2: the one precondition every set shares -- the architecture doc set.
 
-    def test_gate_blocks_without_architecture_doc_set(self):
+    ADR-0102 moved it out of the pre-hook: no setting says where the set
+    lives, so the hook cannot look for it. The skill finds it at Start and
+    states the refusal itself; the hook passes either way."""
+
+    def test_the_hook_no_longer_refuses_and_the_skill_start_does(self):
         result = self.pre("create-docs")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("create-architecture", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(SKILL_PATH, encoding="utf-8") as fh:
+            body = re.sub(r"\s+", " ", fh.read())
+        self.assertIn("no architecture doc set found (expected hld/tech-stack.md) — run "
+                      "/acs:create-architecture first.", body)
 
     def test_gate_passes_with_architecture_doc_set(self):
         _write_architecture_doc_set(self.repo)
@@ -160,11 +170,19 @@ class LedgerTest(AcsWorkspaceCase):
             self.assertEqual(len(state["invocations"]), 1)
             self.assertEqual(lib.load_ticket(self.tdir(ticket))["doc_set"], doc_set)
 
+    def _present(self):
+        """The coordinator's Start finding, reduced to the fixture's layout:
+        a set is present when its sentinel sits at its default location.
+        `fanout_batches` reads no disk itself (ADR-0102)."""
+        return [name for name, sentinel in lib.DOC_BOOTSTRAP_SENTINEL.items()
+                if os.path.isfile(os.path.join(self.repo, lib.DOC_SET_DEFAULT_DIR[name], sentinel))]
+
     def test_an_in_flight_set_is_not_re_offered(self):
         self._allocate("quality")
-        settings, _ = lib.load_settings(self.repo)
         tickets_index = lib.read_json(lib.index_path(self.ws, "acme-shop"))
-        flat = [s for batch in lib.fanout_batches(settings, tickets_index, self.repo) for s in batch]
+        self.assertEqual(self._present(), [], "no set is on disk: only the ticket keeps it out")
+        flat = [s for batch in lib.fanout_batches(tickets_index, present=self._present())
+                for s in batch]
         self.assertNotIn("quality", flat)
         self.assertIn("operations", flat)
 
@@ -177,9 +195,10 @@ class LedgerTest(AcsWorkspaceCase):
         self.post("create-docs", q,
                   {"status": "completed",
                    "states": {"pr": {"number": 1, "url": "https://example.invalid/pull/1"}}})
-        settings, _ = lib.load_settings(self.repo)
         tickets_index = lib.read_json(lib.index_path(self.ws, "acme-shop"))
-        flat = [s for batch in lib.fanout_batches(settings, tickets_index, self.repo) for s in batch]
+        self.assertEqual(self._present(), ["quality"])
+        flat = [s for batch in lib.fanout_batches(tickets_index, present=self._present())
+                for s in batch]
         self.assertNotIn("quality", flat)
         self.assertIn("operations", flat)
 

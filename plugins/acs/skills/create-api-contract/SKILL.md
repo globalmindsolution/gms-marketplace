@@ -70,23 +70,28 @@ Parse the printed context JSON. Fields you will use:
   ticket whose design applies and its basename is that ticket's id. When
   `design.required`, resolve the design document with `acs.py artifacts show
   --ticket <that id>` (`artifacts["design.md"]` — its docs folder, or
-  `<design.dir>/design.md` when the tree is opted out) and read it for the
-  interface decisions it already settled. Call it `<design_doc>`.
-- `settings` — you need `contracts_path` (default `docs/api`; `null` = the
-  ticket folder only), `artifacts.tickets_path` (where `api-contract.md` is
-  published), `architecture_path` (`lld/contracts.md` is the existing contract
-  narrative), `formats.branch_name`, `formats.commit_message`.
+  `<design.dir>/design.md` when an older design still lives in the partition)
+  and read it for the interface decisions it already settled. Call it
+  `<design_doc>`.
+- `settings` — you need `formats.branch_name`, `formats.commit_message`.
 - `models` — per-role `{model, effort}` for executor/verifier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
 
+Locate the repo's architecture doc set (its `hld/tech-stack.md`; its
+`lld/contracts.md` is the existing contract narrative) once, here, the way any
+session finds a document: CLAUDE.md and whatever docs index it or the repo
+points at (e.g. `docs/README.md`), then a Glob/Grep by file name or content.
+Its repo-relative directory is `<architecture_dir>` below. A repo without one
+simply has none; this skill does not create it.
+
 ## Branch — the contract is a repo file
 
-`api-contract.md` (when the ticket docs tree is active) and every
-machine-readable contract file belong on the ticket branch with the rest of the
-change. Render `settings.formats.branch_name` (default
+`api-contract.md` (in the ticket's docs folder, `docs/tickets/<id>/`) and
+every machine-readable contract file belong on the ticket branch with the rest
+of the change. Render `settings.formats.branch_name` (default
 `"{type}/{ticket_id}-{slug}"`) with `{ticket_id}`, `{type}` (`ticket.type`),
 `{slug}` (`acs.py slug --text "<title>"`) and `{external_key}`, then create or
 reuse it:
@@ -123,24 +128,26 @@ a copy of those exact bytes (see Publish).
 
 ### Machine-readable contract files
 
-`settings.contracts_path` (default `docs/api`) is where the repo keeps its
-machine-readable contracts — an OpenAPI document, JSON Schemas, `.proto` files,
-a GraphQL SDL, a CLI reference generated from the parser, whatever this repo
-already uses. Resolve the mode ONCE, before planning, and state it in the
-plan's `<constraints>`:
+The repo's machine-readable contracts — an OpenAPI document, JSON Schemas,
+`.proto` files, a GraphQL SDL, a CLI reference generated from the parser,
+whatever this repo already uses — live where the repo keeps them, else at
+`docs/api/`, the conventional default. Locate them the way any session finds a
+document: CLAUDE.md and whatever docs index it or the repo points at (e.g.
+`docs/README.md`), then a Glob/Grep by file name or content, and `docs/api/`.
+Resolve the mode ONCE, before planning, and state it in the plan's
+`<constraints>`:
 
-- `contracts_path` is `null` → mode `ticket-folder-only`. `api-contract.md` is
-  the whole deliverable; touch no repo-level contract file.
-- `<checkout_root>/<contracts_path>/` does not exist → mode
-  `no-machine-readable-contracts`. Do NOT invent the convention: record that in
-  `## Contract files` and leave the tree absent. Introducing a contract format
-  a repo has never used is an architecture decision, not this skill's call —
-  raise it as a question if it matters.
-- the directory exists → mode is that resolved path. Identify the files that
-  describe the touched surface (by reading them, not by guessing filenames) and
-  update them as part of this run, in the format they already use.
+- none found → mode `no-machine-readable-contracts`. Do NOT invent the
+  convention: record that in `## Contract files` and leave the tree absent.
+  Introducing a contract format a repo has never used is an architecture
+  decision, not this skill's call — raise it as a question if it matters; a
+  format the user adopts goes in `docs/api/`.
+- found → mode is the repo-relative directory that holds them
+  (`<contracts_dir>`). Identify the files that describe the touched surface (by
+  reading them, not by guessing filenames) and update them as part of this run,
+  in the format they already use.
 
-Those three token values are what `<constraint name="contracts_mode">` carries
+Those two token values are what `<constraint name="contracts_mode">` carries
 into every phase, so the executor and the verifier judge against the same
 resolution.
 
@@ -180,12 +187,12 @@ Name these by path in the executor's `<inputs>` (never inline a file body):
 4. `<design_doc>` when `design.required` — interface decisions the
    design already settled are binding; the contract renders them, never
    re-opens them.
-5. The architecture doc set when it exists: `<architecture_path>/lld/contracts.md`
+5. The architecture doc set when it exists: `<architecture_dir>/lld/contracts.md`
    and the `lld/flows/` diagrams for the touched flows.
-6. The existing contract files under `<checkout_root>/<contracts_path>/` when
-   the tree exists, plus the code that implements today's surface (the handler,
-   the parser, the emitter) — the current shape is what "changed" is measured
-   against.
+6. The existing contract files under `<checkout_root>/<contracts_dir>/` when
+   the repo keeps them, plus the code that implements today's surface (the
+   handler, the parser, the emitter) — the current shape is what "changed" is
+   measured against.
 
 ## Reflection loop — execute → verify, no planner
 
@@ -403,7 +410,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    Canonical `states` keys — EXACT names; `acs step finish`
    documents them and the next steps read them:
    - `contract_path`: where `api-contract.md` was published (the ticket docs
-     folder, or the partition when `artifacts.tickets_path` is null).
+     folder, or the partition when there is no checkout to anchor the docs
+     folder to).
    - `items` (int): how many endpoints/commands/messages the contract
      declares — the same number as the front matter's `items` and as the
      `### ` subsections under `## Surface`.

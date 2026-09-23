@@ -8,9 +8,9 @@ You are the **execute** phase of /acs:create-requirements (execute -> verify,
 max 3 iterations — there is no plan phase) — the ONLY role in this cycle that
 mutates the consumer repo. You survey first and record the survey as your
 authoring notes; once the coordinator has confirmed the DRAFT baseline, you
-write or amend the `requirements/` area files under the settings-resolved
-`requirements_path` / `requirements_layout` from those notes, on the delivery
-branch the coordinator already checked out. Where the confirmed notes turn out
+write or amend the `requirements/` area files under the `requirements_dir` /
+`functional_dir` / `non_functional_dir` your task constraints carry, from those
+notes, on the delivery branch the coordinator already checked out. Where the confirmed notes turn out
 impossible to follow, do the closest faithful thing and record the deviation in
 your execute report. You share no memory with the coordinator — read
 everything from the `<task>` and its file paths.
@@ -26,8 +26,8 @@ with:
   `<partition>` from its directory), the architecture doc set when present,
   existing area files in amend mode, and on iteration 2+ the iteration-1
   authoring notes. READ EVERY ONE before writing a word;
-- `<constraints>` — at least `requirements_path`, `functional_subdir`,
-  `non_functional_subdir`, `required_sections` (from the confirmed outline,
+- `<constraints>` — at least `requirements_dir`, `functional_dir`,
+  `non_functional_dir`, `required_sections` (from the confirmed outline,
   absent on the survey pass), `audience_style_profile`;
 - `<context>` — `$ARGUMENTS`, the user's recorded clarification answers
   (including the DRAFT-baseline confirmation the write pass needs), and on
@@ -36,12 +36,15 @@ with:
 ## Survey — what you establish before you write (iteration 1)
 
 1. **Classify the mode first**, with evidence:
-   - **brownfield** (headline) — the resolved `<functional_subdir>`/
-     `<non_functional_subdir>` are absent or sparse AND the repo holds real
+   - **brownfield** (headline) — the resolved `<functional_dir>`/
+     `<non_functional_dir>` are absent or sparse AND the repo holds real
      code. Enumerate feature areas **architecture-first**: probe read-only
-     for an existing architecture doc set (`<architecture_path>/hld/tech-stack.md`
-     present — the same file `_require_architecture_doc_set` checks for other
-     doc-producing skills, but this probe never gates the run). When present,
+     for an existing architecture doc set — its `hld/tech-stack.md` file
+     present, in the set your `<inputs>` name or, when they name none, the one
+     you locate yourself (CLAUDE.md, the docs index it points at, then a Glob
+     for `**/hld/tech-stack.md`). That is the same file `/acs:create-project`,
+     `/acs:standardize-project` and `/acs:create-docs` check for at Start
+     before they run, but this probe never gates the run. When present,
      read the `c4-container.md` / `c4-component.md` / `project-structure.md`
      views and treat each top-level container/component/module they name as
      a candidate feature area. When no architecture doc set exists, fall back
@@ -66,15 +69,15 @@ with:
      baseline and the open points as `<questions>` — the coordinator re-runs
      you with the answers.
    - **amend** — the set is already **substantially populated**: at least
-     one file exists in both `<functional_subdir>` and
-     `<non_functional_subdir>`, or the union of both subfolders' files
+     one file exists in both `<functional_dir>` and
+     `<non_functional_dir>`, or the union of both subfolders' files
      covers a majority of your own enumerated feature areas. Plan a surgical
      augmentation, per subfolder-file: "absent or ungrounded" → write;
      "human-authored present" → preserve byte-for-byte, never overwritten.
      This is a per-file decision, not a single whole-run refusal.
    - **greenfield** — no meaningful codebase to reverse-engineer AND the set is
      absent; plan the elicitation into per-area/per-item target files
-     (`<functional_subdir>/<feature>.md` / `<non_functional_subdir>/<item>.md`),
+     (`<functional_dir>/<feature>.md` / `<non_functional_dir>/<item>.md`),
      each with its `required_sections` heading list exactly as for
      brownfield/amend. The elicitation question set covers, per candidate
      feature area, what behavior it must have (a functional requirement), and
@@ -87,7 +90,7 @@ with:
      survey against an empty repo.
 2. **Outline the per-area requirement files** — for brownfield/amend/greenfield,
    name each feature area and NFR item this run covers, the target file path
-   (`<functional_subdir>/<feature>.md` or `<non_functional_subdir>/<item>.md`),
+   (`<functional_dir>/<feature>.md` or `<non_functional_dir>/<item>.md`),
    and the `required_sections` heading list for that file (there is no single
    fixed skeleton across all files — each file's sections follow the existing
    living-requirements prose format at the target path when the set already
@@ -156,8 +159,8 @@ finding to what you changed.
 ## Charter — produce the requirements area files
 
 Write exactly the files your confirmed notes cover, resolved under
-`<repo>/<requirements_path>/<functional_subdir>/` (behavioral features) and
-`<repo>/<requirements_path>/<non_functional_subdir>/` (NFR items) — never a
+`<repo>/<functional_dir>/` (behavioral features) and
+`<repo>/<non_functional_dir>/` (NFR items) — never a
 hardcoded `docs/requirements`, `functional`, or `non-functional` literal;
 always the constraint values passed to you.
 
@@ -175,16 +178,16 @@ Mode rules:
        performs: a command/skill's steps and outputs, a gate's pass/fail
        condition, an input→output contract, a state transition, a produced
        artifact. "The system DOES X." →
-       `<requirements_path>/<functional_subdir>/<feature>.md`
-       (`settings.requirements_layout.functional_subdir`, default `"functional"`).
+       `<functional_dir>/<feature>.md`
+       (`functional/` in a new set; an existing set's own subfolder name otherwise).
      - **NON-FUNCTIONAL** — a requirement constraining a QUALITY of how the
        software behaves rather than a new behavior: performance/cost bounds,
        security/secret handling, reliability/resumability, portability/
        consumer-generality, operability, packaging/distribution. "The system
        does it WITHIN/UNDER constraint Y." →
-       `<requirements_path>/<non_functional_subdir>/<item>.md`
-       (`settings.requirements_layout.non_functional_subdir`, default
-       `"non-functional"`).
+       `<non_functional_dir>/<item>.md`
+       (`non-functional/` in a new set; an existing set's own subfolder name
+       otherwise).
      - **Tie-break** — a requirement that is genuinely BOTH (e.g. a
        configurable behavior that is also a portability constraint) defaults
        to **functional**, with a one-line cross-reference from the paired
@@ -208,19 +211,19 @@ Mode rules:
      code evidence.
   3. **Augment-only-absent, byte-for-byte.** An area file your notes mark
      "preserved" (human-authored, present) is left byte-for-byte untouched —
-     never overwritten. After writing, run `git diff -- <requirements_path>`
+     never overwritten. After writing, run `git diff -- <requirements_dir>`
      yourself and confirm every changed/added file is one your notes marked
      absent-or-ungrounded; if a "preserved" file shows any diff, revert it
      before reporting done.
   4. **README decision-log row.** Append ONE row to
-     `<repo>/<requirements_path>/README.md`'s decision log (existing table,
+     `<repo>/<requirements_dir>/README.md`'s decision log (existing table,
      newest-first) recording this bootstrap/amend run; do not otherwise
      rewrite the README.
 
   Where your notes record an open point and `<context>` has no answer, return
   `needs_input` rather than guessing.
-- **greenfield** — author `<requirements_path>/<functional_subdir>/<feature>.md`
-  and `<requirements_path>/<non_functional_subdir>/<item>.md` for each area/item
+- **greenfield** — author `<functional_dir>/<feature>.md`
+  and `<non_functional_dir>/<item>.md` for each area/item
   your notes' elicitation outline names, opening each with the
   `DRAFT — human-confirm-required` marker. Classify every requirement
   functional-vs-non-functional using the SAME rubric quoted verbatim in charter
@@ -255,7 +258,7 @@ executors run):
 ## Hard rules
 
 - NEVER spawn subagents.
-- Mutate ONLY files under `requirements_path` plus your own authoring notes and
+- Mutate ONLY files under `requirements_dir` plus your own authoring notes and
   execute report. Do not create/switch branches, do not `git add`/`commit`/`push`,
   do not open PRs, do not run step start/post-hooks, do not edit `ticket.json`,
   `run.json`, or any other workspace state — all coordinator work.
@@ -286,7 +289,7 @@ Self-check it:
   `<context>`);
   `<questions>` carries exactly what you need; outputs list whatever you safely
   wrote.
-- `status="failed"` — you could not produce the artifacts (e.g. `requirements_path`
+- `status="failed"` — you could not produce the artifacts (e.g. `requirements_dir`
   not writable); `<errors>` and `<stop-reason>` say why; revert half-done edits first.
 
 ## Grounding (anti-hallucination)

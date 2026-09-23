@@ -37,7 +37,7 @@ from . import (_common, settings, repo, hostgates, planrules, lock, tickets, met
 
 from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
-    DOC_BOOTSTRAP_SENTINEL, DOC_BOOTSTRAP_SETTINGS_KEY, DOC_SET_TITLES, DOC_SETS,
+    DOC_BOOTSTRAP_SENTINEL, DOC_SET_DEFAULT_DIR, DOC_SET_TITLES, DOC_SETS,
     CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
     PIPELINE_STEP_ORDER, PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
     PRODUCT_TICKET_TITLES, PROJECT_MODE_LEG, PROJECT_MODE_SENTINEL,
@@ -47,7 +47,7 @@ from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
 
 from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, ENFORCEMENT_DEFAULTS,
     FORMAT_PLACEHOLDERS, MODEL_EFFORTS, MODEL_OVERRIDE_SKILLS, MODEL_ROLES,
-    RECOMMENDED_MODELS, _model_override_skills, _normalize_e2e_into_suites,
+    RECOMMENDED_MODELS, RETIRED_SETTINGS_KEYS, _model_override_skills, _normalize_e2e_into_suites,
     enforcement_value, load_settings, render_format, resolve_role_model,
     resolve_template, settings_files, validate_formats, validate_models,
     validate_settings)  # noqa: F401
@@ -98,7 +98,7 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetR
     _managed_body, _pr_labels, _short_doc_set, _unknown_doc_set_note,
     _sentinel_present, _soft_peers, _strip_stray_markers, _tool_version,
     canonical_doc_set, check_toolchain,
-    classify_merge_pr_arg, doc_set_present_on_disk, doc_set_spellings, fanout_batches,
+    classify_merge_pr_arg, doc_set_spellings, fanout_batches,
     managed_block_is_malformed, managed_body_from_template, missing_tools,
     parse_doc_set_arg, parse_fanout_for_arg, project_mode, render_managed_block,
     tracker_cli_warning,
@@ -106,8 +106,8 @@ from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetR
 
 from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
 from .gates import _workflow_for as workflow_for  # noqa: F401
-from .gates import (ARCHITECTURE_GATED, BRAKES, NothingOwed,  # noqa: F401
-    SUBJECT_GATES, _merge_pr_arg_text, _require_architecture_doc_set,
+from .gates import (BRAKES, NothingOwed,  # noqa: F401
+    SUBJECT_GATES, _merge_pr_arg_text,
     build_context, design_requirement, gate_create_design, gate_merge_pr,
     gate_outcome, parent_epic_dir, resolve_run_for,
     run_post_exempt_pr, run_pre, run_pre_payload, session_end,

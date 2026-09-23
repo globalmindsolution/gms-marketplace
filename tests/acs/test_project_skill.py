@@ -80,15 +80,18 @@ class UnhookedUmbrellaTest(unittest.TestCase):
         self.assertNotIn("project", acs_lib.PLANNING_SKILLS)
 
     def test_no_gate_is_registered(self):
-        """`SUBJECT_GATES` is the third per-skill table consulted before the
-        workflow is read, beside `ARCHITECTURE_GATED` and `PRD_GATED`, and it
-        has two rows; `BRAKES` is consulted after `gate_outcome`'s `has_step`
-        return. `gate_outcome` otherwise gates a step of the resolved
-        workflow, and the umbrella is not one. Not being hooked IS not being
-        gated, and the three lists that could still name it must not."""
+        """`SUBJECT_GATES` is the one per-skill table consulted before the
+        workflow is read -- ADR-0102 removed `ARCHITECTURE_GATED` and
+        `PRD_GATED` from beside it -- and it has two rows; `BRAKES` is
+        consulted after `gate_outcome`'s `has_step` return. `gate_outcome`
+        otherwise gates a step of the resolved workflow, and the umbrella is
+        not one. Not being hooked IS not being gated, and the three lists that
+        could still name it must not; the two removed tables stay removed."""
         self.assertNotIn("project", acs_lib.HOOKED_SKILLS)
-        self.assertNotIn("project", acs_lib.ARCHITECTURE_GATED)
+        self.assertNotIn("project", acs_lib.SUBJECT_GATES)
         self.assertNotIn("project", acs_lib.BRAKES)
+        for gone in ("ARCHITECTURE_GATED", "PRD_GATED"):
+            self.assertFalse(hasattr(acs_lib, gone), "%s was removed by ADR-0102" % gone)
 
     def test_no_pre_or_post_hook_script_on_disk(self):
         for name in ("pre-project.py", "post-project.py"):
@@ -219,12 +222,20 @@ class InternalLegFrontmatterTest(unittest.TestCase):
                 self.assertRegex(description, expectations[leg])
 
     def test_the_legs_keep_their_hooks_gate_agents_and_start(self):
-        """The fold is an ENTRY-POINT fold: nothing else about a leg moves."""
+        """The fold is an ENTRY-POINT fold: nothing else about a leg moves.
+
+        Each leg keeps its architecture precondition; ADR-0102 (not the fold)
+        moved that check from the pre-hook into the leg's own Start, which
+        finds the set and states the refusal."""
         for leg in LEGS:
             with self.subTest(leg=leg):
                 self.assertIn(leg, acs_lib.HOOKED_SKILLS)
-                self.assertIn(leg, acs_lib.ARCHITECTURE_GATED,
-                              "%s keeps its architecture precondition" % leg)
+                body = read(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
+                start = re.search(r"(?ms)^## Start\b.*?(?=^## )", body)
+                self.assertIsNotNone(start, "%s/SKILL.md needs a ## Start section" % leg)
+                self.assertIn("no architecture doc set found (expected hld/tech-stack.md) — "
+                              "run /acs:create-architecture first.", norm(start.group(0)),
+                              "%s keeps its architecture precondition, at its own Start" % leg)
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "pre-%s.py" % leg)))
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "post-%s.py" % leg)))
                 for role in ("executor", "verifier"):
@@ -234,7 +245,6 @@ class InternalLegFrontmatterTest(unittest.TestCase):
                 self.assertFalse(
                     os.path.exists(os.path.join(AGENTS_DIR, "%s-planner.md" % leg)),
                     "%s lost its planner under ADR-0092, not the fold" % leg)
-                body = read(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
                 self.assertIn("acs.py\" step start", body)
                 self.assertIn("--step %s" % leg, body)
 

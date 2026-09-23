@@ -21,7 +21,7 @@ sequenceDiagram
     CC->>SP: PreToolUse(Skill) gate fires, skill-start allocates ticket
 
     loop execute -> verify, up to 3 iterations
-        SP->>EX: <task phase="execute"> iteration 1: audit standards_path, principles_path,<br/>hld/project-structure.md and readiness tooling, then scaffold —<br/>iteration >= 2 carries prior findings verbatim in <context>
+        SP->>EX: <task phase="execute"> iteration 1: audit the located standards and principles sets,<br/>hld/project-structure.md and readiness tooling, then scaffold —<br/>iteration >= 2 carries prior findings verbatim in <context>
         EX->>Repo: iteration 1 only: write iter-1-authoring.md — gap list (docs/config/tooling missing),<br/>structural-gap candidates, frozen iteration-1 additive-surface allowlist (never rewritten later)
         EX->>Repo: add missing docs/config/CI files ONLY inside the frozen allowlist (never edit/rename/delete existing source)
         EX-->>SP: execute report — files added, structural gaps deferred to report,<br/>or a failed result when a finding names a path outside the frozen allowlist

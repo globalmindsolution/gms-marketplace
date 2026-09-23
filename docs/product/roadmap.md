@@ -405,8 +405,8 @@ order — `/acs:test` is last because it needs the `suites` generalization of
   `/acs:create-operations` (test strategy + release/ops runbooks, from
   templates), and adds **`/acs:test`** — a standing, schedulable skill that runs
   the product's suites, triages regressions, and opens a ticket per failure
-  (closed loop). `settings.schema.json` gains `quality_path`/`operations_path`
-  and a `suites` map; `/acs:setup` defaults them. Skill count 16 → 19. Traces
+  (closed loop). `settings.schema.json` gains a path key per set (removed
+  again by [ADR-0102](../adr/0102-documents-are-found-not-configured.md)) and a `suites` map; `/acs:setup` defaults them. Skill count 16 → 19. Traces
   **G8**. Design: [ADR 0011](../adr/0011-sdlc-doc-sets-quality-and-operations.md).
   All design skills also gain a shared **design-time consistency step** — detect
   doc gaps/staleness across the graph and recommend adjustments in-session, no
@@ -437,8 +437,8 @@ ships as its own **v0.4.1** release — see the e2e-integrity section below.
   tooling, then **additively** sets up the missing docs/config/tooling as one
   reviewed PR — **never moving or renaming existing source**; structural gaps
   become recommended follow-up tickets (additive-only guardrail, C-2). Maps to
-  PRD G10 and the acs Could-have features. `settings.schema.json` gains
-  `principles_path`/`standards_path`; `/acs:setup` defaults them. Skill count grows
+  PRD G10 and the acs Could-have features. `settings.schema.json` gains a
+  path key per set (removed again by ADR-0102); `/acs:setup` defaults them. Skill count grows
   accordingly. Traces **G10** (+ the Tech-lead persona).
 
 #### e2e integrity — v0.4.1 (shipped)
@@ -578,14 +578,15 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   gallery on top.
 - **Epic: documentation site** — rendered architecture doc set + usage
   walkthroughs.
-- **Epic: configurable doc-set storage location** — each acs doc set
+- **Epic: configurable doc-set storage location** *(superseded by ADR-0102,
+  which removed the per-set path keys: documents are found through
+  `CLAUDE.md` and the repo, not configured)* — each acs doc set
   (`prd`, `architecture`, `requirements`, `adr`, and future `standards`/`principles`/
   `quality`/`operations`) is independently relocatable to an external/absolute
   filesystem path outside the consumer repo via configuration; one doc-set
-  storage-location config surface generalizes the existing `*_path` keys; producer
+  storage-location config surface generalizes the per-set path keys; producer
   skills resolve the configured location and preserve a reviewable diff there. Same
-  family as the `principles_path`/`standards_path`/`quality_path`/`operations_path`
-  path-config work above. Maps to PRD extended G6 and the acs Could-have
+  family as the per-set path-config work above. Maps to PRD extended G6 and the acs Could-have
   configurable-doc-set-storage-location feature.
 - **Epic: invoker-scoped merge governance + out-of-band reconciliation (G26)** —
   scopes ADR-0028's approved-review mandate (m6) by invoker: agent-invoked merges
@@ -616,7 +617,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   config key shape, baseline storage) is settled in this epic's design phase.
 - **Epic: brownfield requirements extraction (G37)** — a new producer skill,
   `/acs:create-requirements` (create-* family, with greenfield/brownfield/amend
-  modes like `create-prd`), reverse-engineers the `requirements_path`
+  modes like `create-prd`), reverse-engineers the
   living-requirements doc set from an existing codebase — the requirements-layer
   analog of create-prd's brownfield PRD mode and create-architecture's brownfield
   architecture mode. Full-codebase reverse-engineer with interactive-confirm;

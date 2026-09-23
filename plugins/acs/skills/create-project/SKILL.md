@@ -17,7 +17,16 @@ never need this skill.
 
 ## Start
 
-MANDATORY first action — run before anything else:
+MANDATORY first action — locate the architecture doc set, before anything is
+allocated. Documents are found, not configured: read CLAUDE.md and whatever docs
+index it or the repo points at (e.g. `docs/README.md`), then Glob/Grep for
+`hld/tech-stack.md`. Found → the directory holding it is `<architecture_dir>`. None
+found (a directory without `hld/tech-stack.md` does not count) → STOP and tell the
+user: "no architecture doc set found (expected hld/tech-stack.md) — run
+/acs:create-architecture first." Locate the PRD the same way (`<prd>`, a
+secondary input; none found → leave it out of the executor's inputs).
+
+Then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-project --allocate
@@ -29,7 +38,7 @@ entry. Parse the printed context JSON; the fields you will use:
 
 - `ticket_id`, `ticket`, `partition` — the delivery ticket and its workspace partition
 - `checkout_root` — the consumer repo root (the only tree executors mutate)
-- `settings` — `test_coverage_percent`, `architecture_path`, `prd_path`, `formats`, `tracker`
+- `settings` — `test_coverage_percent`, `formats`, `tracker`
 - `models` — per-role `{model, effort}` resolved from settings
 - `reconcile`, `handoff_summary`, `prior_run_status`, `pipeline`
 
@@ -67,8 +76,8 @@ Three cases:
 
 ## Greenfield gate
 
-The pre-hook already verified the architecture doc set exists
-(`<architecture_path>/hld/tech-stack.md`). YOU verify the repo is actually
+Start already confirmed the architecture doc set exists
+(`<architecture_dir>/hld/tech-stack.md`). YOU verify the repo is actually
 greenfield before any planning:
 
 ```bash
@@ -76,7 +85,8 @@ git -C <checkout_root> ls-files | grep -vE '^(docs/|\.acs/|\.claude/|\.gitignore
 ```
 
 Any output (source trees, package manifests, lockfiles, CI workflows) means
-substantive sources already exist. When resuming a prior scaffold ticket, run the
+substantive sources already exist; `<architecture_dir>` and `<prd>` count as docs
+even when they sit outside `docs/`. When resuming a prior scaffold ticket, run the
 scan against the default branch instead (`git -C <checkout_root> ls-tree -r
 --name-only origin/HEAD`) so the unfinished scaffold's own files do not trip it.
 
@@ -139,9 +149,9 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 ### Execute — iteration 1 pins the scaffold before it builds
 
-Spawn the executor. Resolve doc paths from `settings.architecture_path` and
-`settings.prd_path` (defaults shown); put `settings.test_coverage_percent` in the
-constraints. Example (iteration 1, repo-relative input paths):
+Spawn the executor. Build the input paths from the `<architecture_dir>` and
+`<prd>` you located at Start (defaults shown); put `settings.test_coverage_percent`
+in the constraints. Example (iteration 1, repo-relative input paths):
 
 ```xml
 <task skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1">

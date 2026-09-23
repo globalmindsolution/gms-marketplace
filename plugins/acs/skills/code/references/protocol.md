@@ -49,8 +49,8 @@ Parse the printed context JSON. Fields you will use:
   leg's SKILL.md.
 - `design` — `{required, dir, source}` when a design document applies.
 - `settings` — you need `formats.branch_name`, `formats.commit_message`, and
-  `e2e` when set. `standards_path` and `test_coverage_percent` are the
-  **reviewer's** inputs, not yours.
+  `e2e` when set. The repo's standards set and `test_coverage_percent` are
+  the **reviewer's** inputs, not yours.
 - `models` — per-role `{model, effort}` for the executor.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 

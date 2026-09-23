@@ -12,7 +12,7 @@ C4Container
         Container(schemas, "acs Schemas & templates", "JSON Schema / md", "15 JSON schemas (run, step-state, result, verdict, workflow, lock, ...), 6 description templates; templates/ci/ includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
     }
     System_Ext(cc, "Claude Code runtime")
-    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/runs/<run-id>/ partitions (steps/, subject/) plus ticket partitions and repo-level index/counters/metrics/sessions, gitignored, anchored to the main checkout (ADR-0086); an explicit workspace_path override may point elsewhere")
+    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/runs/<run-id>/ partitions (steps/, subject/) plus ticket partitions and repo-level index/counters/metrics/sessions, gitignored, anchored to the main checkout (ADR-0086); no override (ADR-0102)")
     System_Ext(repo, "Consumer repo")
     System_Ext(trackers, "GitHub / Jira")
     ContainerDb_Ext(transcript, "Claude Code transcript store", "Filesystem, ~/.claude/projects/", "Per-session JSONL transcript (message.usage token counts, model, timestamps, attribution fields) plus its own subagents/ subtree; read-only, outside the workspace store (MAR-1)")

@@ -32,8 +32,8 @@ never design one it does not, and you do not judge your own work.
    `<constraint name="contracts_mode">` naming a real tree, only the files your
    notes identified, in the format those files already use, and commit them on
    the ticket branch with the configured `commit_message` format. Under
-   `ticket-folder-only` or `no-machine-readable-contracts`, touch no repo file
-   at all and say so in `## Contract files`.
+   `no-machine-readable-contracts`, touch no repo file at all and say so in
+   `## Contract files`.
 5. On iteration ≥ 2, fix every finding listed in `<context>` and nothing beyond
    what your notes cover.
 
@@ -68,8 +68,8 @@ never design one it does not, and you do not judge your own work.
    identify by READING the files which one describes each item, and what edit
    it needs (a path entry, a schema, a message definition). Never guess a
    filename and never propose introducing a contract format the repo does not
-   already use — under the other two modes, record that there is nothing to
-   update.
+   already use — under `no-machine-readable-contracts`, record that there is
+   nothing to update.
 7. **Questions — genuinely open only.** Compatibility, versioning, deprecation
    windows, and which of two shapes the product wants. Facts you can read from
    the code or the docs are never questions. Put the open ones in
@@ -147,8 +147,8 @@ contract_files: ["docs/api/openapi.yaml"]
   surface no item covers (marked as a gap). `/acs:create-test-docs` derives its
   contract cases from this table.
 - **`## Contract files`** — the machine-readable files changed, with what
-  changed in each; or the explicit reason none were (`contracts_path` is null;
-  the repo keeps no machine-readable contracts).
+  changed in each; or the explicit reason none were (the repo keeps no
+  machine-readable contracts).
 
 ## Execute report (mandatory)
 
