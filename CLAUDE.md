@@ -38,11 +38,11 @@ the hook CLIs through `subprocess.run` with `cwd=mkdtemp()`. Run coverage withou
 to any relative path introduced into that file.
 
 ```bash
-# Evaluation suite (see "Three grading layers")
-make -C evals help          # every target
-make -C evals eval-source   # deterministic tier against this checkout's plugins/acs
-make -C evals eval          # same tier against the newest INSTALLED build
-make -C evals verify-self   # byte-compile the runner, parse the dataset, self-test
+# Evaluation suite (see "Two grading layers")
+make -C evals help            # every target
+make -C evals check           # free: fail if the case tree is stale against the dataset
+make -C evals generate        # re-render the case tree from dataset/routing.json
+make -C evals routing-cases   # PAID: run the suite (~$0.12/run; 40 cases x 3 runs ~ $15)
 
 # Behavioural scenarios — free tier is deterministic and $0; paid spawns real sessions
 python3 evals/behavioural/run_evals.py --plugin acs
@@ -70,22 +70,35 @@ for the `.claude-plugin/plugin.json` marker rather than reading `path` from the 
 CI lint steps need the source *in this tree*, which is a different question from where an
 install fetches it.
 
-### Three grading layers, deliberately separate
+### Two grading layers, deliberately separate
 
 | Layer | Asserts | Runs |
 |---|---|---|
 | `tests/` | a **function** does what its author intended | every PR, in CI |
-| `evals/behavioural/` | a **real session** reaches the right skill and leaves the right artifacts | free tier on every commit via the `acs-free-evals` pre-commit hook; paid tier on demand |
-| `evals/` (dataset + runner) | a **shipped build's observable surface** hasn't moved — exit codes, JSON, refusal messages, schemas, skill frontmatter | the release gate, `release.pre_release_gate` in `.acs/settings.json` |
+| `plugins/acs/evals/` | a **real session** routes to the skill the prompt calls for | the release gate, `release.pre_release_gate` in `.acs/settings.json` |
+
+The second layer is `claude plugin eval` in the format
+<https://code.claude.com/docs/en/plugin-evals> specifies: one case directory per probe,
+holding `prompt.md` and `graders/*.md`. Cases are rendered from `evals/dataset/routing.json`
+by `evals/runner/gen_plugin_eval.py`, so the dataset is what gets reviewed and a hand edit in
+the tree is lost on the next render. `make -C evals check` catches a stale tree, free, in CI.
+
+`evals/behavioural/` still holds eight real-session scenarios in a bespoke Python harness,
+kept for what it asserts about artifacts and hook behaviour. It is the next thing to migrate.
+
+**There used to be a third layer** — a 355-case deterministic golden suite asserting a shipped
+build's observable surface, with its own runner, schema-constraint generator, mutation sweeps
+and a tier-3 session measurer. It ran no model, so it was a contract suite rather than an eval,
+and routing was measured three separate times across the tiers. It was removed in favour of the
+documented format; git history has it. Two things went with it, and are worth knowing before
+you look for them: **packaging drift** is no longer caught by an installed-build run, and
+**explicit `/acs:<skill>` invocation** is no longer measurable — it is decided by the session's
+registration list before any model turn, which no grader in the guide can observe.
 
 **Behavioural and LLM evals never run in CI** (ADR-0022). The invariant is enforced by a grep
-that must keep returning nothing: `grep -rn "run_evals\|evals/behavioural/" .github/workflows/`.
+that must keep returning nothing:
+`grep -rn "run_evals\|evals/behavioural/\|plugin eval" .github/workflows/`.
 Keeping them out of `tests/` is also what stops `unittest discover` from collecting them.
-
-**Source vs installed build** is a first-class distinction, not a detail. `make -C evals eval`
-resolves the newest *installed* build under `~/.claude/plugins/cache/*/acs/*/` — what a consumer
-actually executes — so it catches packaging drift a source-tree run cannot. `eval-source` points
-at this checkout instead. Run both before a release.
 
 ### Inside the plugin
 

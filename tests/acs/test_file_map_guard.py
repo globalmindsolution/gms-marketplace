@@ -375,10 +375,11 @@ class FilemapCliTest(FileMapGuardCase):
 class RefusalTextTest(FileMapGuardCase):
     """The whole stderr of each of the three refusals, in both partition shapes.
 
-    acs-evals' GUARD-* golden cases capture no state file and match their
-    `stderr_contains` fragments by CONTAINMENT (`runner/run_golden.py:163`), so
-    what actually keeps them green is two things, and neither is "the stderr is
-    unchanged". First, the three refusal texts themselves are untouched by
+    The eval suite's GUARD-* golden cases used to capture no state file and
+    matched their `stderr_contains` fragments by CONTAINMENT, so what kept them
+    green was two things and neither was "the stderr is unchanged". Those cases
+    are gone with the no-model tier, which leaves the arms below as the only
+    thing pinning these texts -- so they matter more now, not less. First, the three refusal texts themselves are untouched by
     MAR-578 -- the arms below pin them whole. Second, the recording is allowed
     to ADD exactly one line, the AC-3 "not recorded" note, and only when the
     append does not land; a containment match tolerates it, and nothing else

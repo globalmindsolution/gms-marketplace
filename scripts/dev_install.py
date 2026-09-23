@@ -38,8 +38,8 @@ ONLY -- `plugin.json`'s version is rewritten in the staged copy, never here.
 `--cache-root` points the whole thing at a throwaway directory, which is how
 its own tests run without touching a real Claude install.
 
-Note for the eval suite: it does not need this. `measure_skills.py` passes
-`--plugin-dir` and never reads the cache at all. This is for hands-on
+Note for the eval suite: it does not need this. `claude plugin eval` loads the
+plugin from the path it is given and never reads the cache at all. This is for hands-on
 sessions, where the plugin has to be genuinely installed.
 """
 

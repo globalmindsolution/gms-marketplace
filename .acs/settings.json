@@ -111,11 +111,8 @@
       ]
     },
     "pre_release_gate": [
-      "make -C evals eval-source",
       "make -C evals check",
-      "make -C evals mutation",
-      "make -C evals measure",
-      "make -C evals perf"
+      "make -C evals routing-cases"
     ]
   },
   "tests": {

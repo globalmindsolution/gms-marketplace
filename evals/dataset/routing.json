@@ -1,11 +1,11 @@
 {
-  "description": "Routing probes for all 32 acs skills. Every skill is model-invocable, so routing is measurable for all of them. 24 get one natural-language request that must route to them without naming them. `install-hooks` and `update` are user actions rather than pipeline steps, so each gets two positives: the explicit command and the natural-language request. The six INTERNAL legs -- `workflows/phases.yaml`'s `internal` map: `create-project`, `standardize-project`, and the four ADR-0095 delivery-path legs `code-trivial`, `code-small`, `code-standard` and `code-complex` -- get a pair each: an explicit invocation that MUST route, because a leg is dispatched and resumed by name, and a bare description of its intent that must NOT, because only its entry point (`/acs:project`, `/acs:code`) may answer that.\n\nThis file is the curated data. runner/gen_plugin_eval.py renders it into evals/**/case.yaml for `claude plugin eval`; dataset/cases/10-skills.json pins the routing SURFACE (each skill's shipped description and invocation flag) deterministically, with no model.\n\nThree CONTROL probes test the instrument rather than the plugin: a registration canary that must hit, an unregistered command that must miss, and an off-domain request that must route nowhere. Without them a suite where nothing can pass and one where nothing can fail are indistinguishable from a pass count. Controls are not rendered into `claude plugin eval` cases. A probe may name the sandbox `profile` it runs in (default `ticketed`) and deterministic `setup` shell steps run once before its first session, so the prompt's presupposition holds — a prompt about \"this existing codebase\" is no test of a description on an empty seeded repo.",
+  "description": "Routing probes for all 32 acs skills. Every skill is model-invocable, so routing is measurable for all of them. 24 get one natural-language request that must route to them without naming them. `install-hooks` and `update` are user actions rather than pipeline steps, so each gets two positives: the explicit command and the natural-language request. The six INTERNAL legs -- `workflows/phases.yaml`'s `internal` map: `create-project`, `standardize-project`, and the four ADR-0095 delivery-path legs `code-trivial`, `code-small`, `code-standard` and `code-complex` -- get a pair each: an explicit invocation that MUST route, because a leg is dispatched and resumed by name, and a bare description of its intent that must NOT, because only its entry point (`/acs:project`, `/acs:code`) may answer that.\n\nThis file is the curated data. runner/gen_plugin_eval.py renders it into plugins/acs/evals/routing/<case>/ as prompt.md plus graders/*.md, the format https://code.claude.com/docs/en/plugin-evals specifies. Nothing pins the routing SURFACE deterministically any more: dataset/cases/10-skills.json did, and went with the rest of the no-model tier.\n\nThree CONTROL probes test the instrument rather than the plugin: a registration canary that must hit, an unregistered command that must miss, and an off-domain request that must route nowhere. Without them a suite where nothing can pass and one where nothing can fail are indistinguishable from a pass count. Controls are not rendered into `claude plugin eval` cases. A probe may name the sandbox `profile` it runs in (default `ticketed`) and deterministic `setup` shell steps run once before its first session, so the prompt's presupposition holds — a prompt about \"this existing codebase\" is no test of a description on an empty seeded repo.",
   "skill_count": 32,
   "probe_count": 43,
   "probes": [
     {
-      "id": "ROUTE-analyze-ticket",
-      "skill": "acs:analyze-ticket",
+      "id": "ROUTE-analyze-requirements",
+      "skill": "acs:analyze-requirements",
       "kind": "positive",
       "prompt": "Before we plan anything for TKT-1, work out what it really asks for: what breaks, what is unclear, and what we are assuming.",
       "must_route": true,
@@ -300,14 +300,6 @@
       "why": "A plain description of the leg's own subject must NOT reach the leg: /acs:project is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION (\"Internal leg of /acs:project, not a user-facing command\"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:project dispatches this leg with a real Skill(acs:standardize-project) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is."
     },
     {
-      "id": "ROUTE-test-explicit",
-      "skill": "acs:test",
-      "kind": "positive",
-      "prompt": "/acs:test",
-      "must_route": true,
-      "why": "acs:test is a DEPRECATED ALIAS for acs:run-e2e-tests, retained for one release so existing invocations, scripts and habits keep working. Registration, not routing, is the whole guarantee, so this probe asserts it the way the other explicit probes do — at the session's init event. The natural-language half of the domain belongs to ROUTE-run-e2e-tests and is measured there. The 1.5.0 form asked in prose (\"Run our test suites and tell me whether anything broke\") and must_route'd to the alias; it routed nowhere on 5/5 runs of the 2026-09-13 measurement — what a description reading \"Deprecated alias ... Prefer /acs:run-e2e-tests\" should produce."
-    },
-    {
       "id": "ROUTE-update-explicit",
       "skill": "acs:update",
       "kind": "positive",
@@ -345,7 +337,7 @@
       "kind": "control",
       "prompt": "/acs:setup",
       "must_route": true,
-      "why": "Deterministic canary, decided at the init event with no model turn: the CLI must list the plugin's commands. If this misses, the session cannot see the plugin at all and every paid probe would be measuring an absence — the failure that hid all 22 routes for three paid runs in September 2026. measure_skills runs it before spending anything."
+      "why": "Deterministic canary, decided at the init event with no model turn: the CLI must list the plugin's commands. If this misses, the session cannot see the plugin at all and every paid probe would be measuring an absence — the failure that hid all 22 routes for three paid runs in September 2026. It is a control: it tests the instrument, not the plugin, so it is not rendered into a case."
     },
     {
       "id": "CONTROL-unregistered-command",
@@ -354,6 +346,14 @@
       "prompt": "/acs:no-such-skill",
       "must_route": false,
       "why": "A detector that reported every explicit probe as registered would pass the canary and both explicit probes alike. This command does not exist, so it must miss; a hit here means the instrument is lying, not that the plugin grew a skill."
+    },
+    {
+      "id": "ROUTE-review-code",
+      "skill": "acs:review-code",
+      "kind": "positive",
+      "prompt": "Go over the changes on this branch and tell me what's wrong with them before I put it up for review — build, lint and tests included.",
+      "must_route": true,
+      "why": "A natural-language request in the skill's domain, never naming the skill. review-code carried no probe at all until the guide-format migration compared the probed set against the skills on disk."
     }
   ],
   "control_count": 3

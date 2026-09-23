@@ -97,7 +97,7 @@ undecidable probe as "a miss, never a pass". Same default here.
 
 ## Severity, when one fails
 
-The same three levels `evals/docs/RUBRIC.md` defines, asking its same
+The same three levels the retired eval rubric defined, asking its same
 question — *if this failed on a released build, what can go wrong for a
 consumer?* — applied to artifacts rather than CLI output:
 

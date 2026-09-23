@@ -108,9 +108,17 @@ setting for exactly this shape -- a "must not invoke the skill" check with
 `min: 0` and `max: 0`. That assertion IS meaningful without the plugin, and
 scoring it in both arms keeps it honest under either ablation mode.
 
-Tier 3 (`measure_skills.py`, which reads the Skill tool_use out of the
-`claude -p` stream and kills the run at the first one) still exists and still
-measures routing; the two now agree by construction rather than by luck.
+Routing used to be measured three times over: by a tier-3 session measurer, by
+`behavioural/.../s04_skill_triggers.py` off its own hard-coded list, and here.
+The first two are gone; this tree is the one measurement.
+
+What went with them is worth knowing rather than rediscovering: an explicit
+`/acs:<skill>` invocation is decided by the session's REGISTRATION LIST, before
+any model turn, so no grader in the guide can observe it -- `tool_used: Skill`
+reports zero calls for a probe that routed perfectly well. The nine explicit
+probes in the dataset are rendered anyway, because the two that name real
+top-level skills do score, but read a failure there as an instrument limit
+until you have checked it against the registration list by hand.
 """
 
 import argparse
