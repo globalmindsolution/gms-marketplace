@@ -45,7 +45,7 @@ ROUTING_MAX_USD ?= 20
 ROUTING_ABLATION ?= none
 
 .DEFAULT_GOAL := help
-.PHONY: help check generate routing-cases routing-cases-installed behavioural behavioural-paid verify-self clean
+.PHONY: help check generate routing-cases routing-cases-installed artifact-cases behavioural behavioural-paid verify-self clean
 
 help: ## Show this help
 	@printf '\nacs evals — evaluation process\n\n'
@@ -88,6 +88,19 @@ routing-cases: ## Run the generated routing cases against the plugin (~$0.12/run
 routing-cases-installed: ## Run the suite against the newest INSTALLED build, not this checkout
 	claude plugin eval acs@gms-marketplace \
 	  --case 'route-*' --runs $(ROUTING_RUNS) --ablation $(ROUTING_ABLATION) \
+	  --threshold $(ROUTING_THRESHOLD) $(if $(ROUTING_MODEL),--model $(ROUTING_MODEL)) \
+	  -j $(ROUTING_JOBS) --max-cost-usd $(ROUTING_MAX_USD) \
+	  --trust-plugin --no-publish
+
+#: NOT in routing-cases, which filters --case 'route-*'. These need --scaffold
+#: (to seed a repo + acs workspace) and a Write/Edit/Bash grant, because an acs
+#: skill's hooks and CLIs are shell. Granting Bash puts every command under the
+#: OS sandbox, and a host whose sandbox cannot initialise refuses each run --
+#: see plugins/acs/evals/artifacts/README.md for the container blocker.
+artifact-cases: ## Run the artifact-level cases (PAID; needs a working sandbox backend)
+	cd .. && claude plugin eval plugins/acs \
+	  --case 'create-*' --runs $(ROUTING_RUNS) --ablation $(ROUTING_ABLATION) \
+	  --scaffold --allow-tools Write Edit Bash \
 	  --threshold $(ROUTING_THRESHOLD) $(if $(ROUTING_MODEL),--model $(ROUTING_MODEL)) \
 	  -j $(ROUTING_JOBS) --max-cost-usd $(ROUTING_MAX_USD) \
 	  --trust-plugin --no-publish
