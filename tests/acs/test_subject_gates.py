@@ -32,7 +32,14 @@ import acs_case  # noqa: E402
 
 lib = acs_case.lib
 
-GOLDENS = os.path.join(REPO_ROOT, "evals", "dataset", "cases", "06-gates.json")
+#: The refusal wording these gates emit, recorded verbatim. This used to be
+#: read out of the eval suite's `dataset/cases/06-gates.json`, a 355-case
+#: no-model tier that asserted the plugin's observable surface. That tier was
+#: replaced by `claude plugin eval`, whose format grades an agent session and
+#: cannot express a CLI's exact stderr -- so the five strings these tests need
+#: moved HERE, to the layer that was always the right home for them.
+GOLDENS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "subject_gate_goldens.json")
 
 #: The prefix the golden sandbox mints under, the one this fixture does, and
 #: the ticket id every recorded ticketed/epic case names.
@@ -45,15 +52,13 @@ def golden_messages(case_id, ticket=None):
     sandbox's ticket ids rewritten to this fixture's."""
     with open(GOLDENS, encoding="utf-8") as fh:
         doc = json.load(fh)
-    cases = doc["cases"] if isinstance(doc, dict) else doc
-    for case in cases:
-        if case.get("id") == case_id:
-            out = []
-            for text in (case.get("expect") or {}).get("stderr_contains") or []:
-                text = text.replace(GOLDEN_PREFIX + "-123", FIXTURE_PREFIX + "-123")
-                out.append(text.replace(GOLDEN_SUBJECT, ticket) if ticket else text)
-            return out
-    raise AssertionError("no case %s in %s" % (case_id, GOLDENS))
+    if case_id not in doc:
+        raise AssertionError("no case %s in %s" % (case_id, GOLDENS))
+    out = []
+    for text in doc[case_id]:
+        text = text.replace(GOLDEN_PREFIX + "-123", FIXTURE_PREFIX + "-123")
+        out.append(text.replace(GOLDEN_SUBJECT, ticket) if ticket else text)
+    return out
 
 
 class MergePrGateTest(acs_case.AcsWorkspaceCase):
