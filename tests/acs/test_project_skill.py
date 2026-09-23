@@ -188,15 +188,24 @@ class InternalLegFrontmatterTest(unittest.TestCase):
                 self.assertIn("Skill(acs:%s)" % leg, body)
 
     def test_each_leg_description_names_the_project_entry_point(self):
+        """The ROUTING TEXT must point at the entry point — description + when_to_use.
+
+        Reads both fields, not `description` alone. Claude Code appends
+        `when_to_use` to `description` when it builds the skill listing, so the
+        pair is what a routing decision actually sees; asserting on `description`
+        alone would pass or fail on which half a sentence happens to sit in.
+        The guarantee is unchanged: a leg must name the entry point that
+        dispatches it, and must say it is an internal leg."""
         for leg in LEGS:
             with self.subTest(leg=leg):
                 fm = frontmatter(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
                 m = re.search(r"(?m)^description: (.+)$", fm)
                 self.assertIsNotNone(m)
-                description = m.group(1)
-                self.assertIn("/acs:project", description,
-                              "the description must point a reader at the entry point")
-                self.assertRegex(description, r"(?i)internal leg")
+                w = re.search(r"(?m)^when_to_use: (.+)$", fm)
+                routing_text = m.group(1) + (" " + w.group(1) if w else "")
+                self.assertIn("/acs:project", routing_text,
+                              "the routing text must point a reader at the entry point")
+                self.assertRegex(routing_text, r"(?i)internal leg")
 
     def test_each_leg_description_still_describes_the_work(self):
         """The routing evals read these: still a real description, not a stub."""
