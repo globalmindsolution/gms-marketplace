@@ -451,7 +451,6 @@ T2_T3_SETUP_PATHS = (
     "evals/behavioural/acs/README.md",
     "evals/behavioural/acs/harness.py",
     "evals/behavioural/acs/scenarios/s01_install_gate_smoke.py",
-    "evals/behavioural/acs/scenarios/s04_skill_triggers.py",
     "evals/behavioural/acs/scenarios/s06_update_migration.py",
 )
 
@@ -654,17 +653,23 @@ class ChangelogAddOnlyTest(unittest.TestCase):
 
 
 class EvalTriggerCaseTest(unittest.TestCase):
-    """AC-5: s04_skill_triggers.py's CASES list names no "init" expected skill."""
+    """AC-5: no routing probe expects the stale skill literal "init".
+
+    The probe set moved out of s04_skill_triggers.py's CASES list and into
+    evals/dataset/routing.json when routing consolidated onto the
+    `claude plugin eval` tree. The assertion is unchanged: `init` was renamed
+    to `setup`, and a probe still naming the old literal asserts a skill that
+    does not ship."""
 
     def test_eval_trigger_case_expects_setup(self):
-        s04_path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
-        body = read(s04_path)
-        m = re.search(r"CASES\s*=\s*\[(.*?)\n\]\n", body, re.S)
-        self.assertIsNotNone(m, "CASES list not found in %s" % s04_path)
-        expected_skills = re.findall(r'"([a-z0-9-]+)"\),', m.group(1))
+        routing = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
+        with open(routing, encoding="utf-8") as fh:
+            probes = json.load(fh)["probes"]
+        expected_skills = sorted({p["skill"].split(":", 1)[1]
+                                  for p in probes if p.get("skill")})
         self.assertNotIn(
             "init", expected_skills,
-            "CASES must not expect the stale skill literal \"init\" -- expected "
+            "a probe expects the stale skill literal \"init\" -- expected "
             "\"setup\" (got expected-skill values: %s)" % expected_skills)
 
 

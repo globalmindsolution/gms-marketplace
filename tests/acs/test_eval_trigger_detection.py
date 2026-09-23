@@ -9,10 +9,15 @@ prompt is decided by the first `Skill` tool_use, an explicit prompt by the
 `init` event's `slash_commands` registration list, and an explicit prompt whose
 stream never reports that list is `unmeasured`, never a pass.
 
-Also pins s04's probe set: one case per shipped skill bar the `test` alias,
-with no new description prompt naming a skill, and every assertion label
-stating which rule decided it. The counts are derived from the registry rather
-than written down here, so a new skill or a new leg moves them by itself.
+Also pins the PROBE SET, which now lives in `evals/dataset/routing.json` and is
+rendered into `claude plugin eval` cases: every shipped skill carries a probe,
+no description prompt names a skill, and only the skills a user types directly
+are probed explicitly. The sets are derived from the registry and the dataset
+rather than written down here, so a new skill or a new leg moves them by itself.
+
+This guard found two defects the moment it was pointed at the dataset:
+`acs:test` was probed after skills/test was deleted, and `review-code` had no
+probe at all.
 
 Pure: synthetic stream-json lines and fake sandboxes -- no `claude`, no
 network, no cost.
@@ -22,18 +27,19 @@ Run:  python3 -m unittest tests.acs.test_eval_trigger_detection -v
 
 import json
 import os
+import re
 import sys
 import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
+ROUTING = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "evals", "behavioural", "acs"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402  (the registry is the single source for legs)
 import harness  # noqa: E402  (path-inserted, same resolution run_evals.py uses)
-from scenarios import s04_skill_triggers as s04  # noqa: E402
 
 
 def _init(commands=("acs:install-hooks", "acs:update", "acs:code"),
@@ -243,25 +249,34 @@ def internal_legs():
     return set(lib.skill_legs())
 
 
-class S04ProbeSetTest(unittest.TestCase):
-    """AC-3: every shipped skill has a probe unless UNPROBED records why, and
-    no new description prompt names a skill. MAR-575 asserted plain equality
-    with the shipped set; the skills-independence refactor and the ADR 0091
-    fold then added seven unprobed directories, so the guard carries an
-    explicit exclusion list instead of a false completeness claim. The list is
-    now down to the one entry that can never have its own probe."""
+class ProbeSetTest(unittest.TestCase):
+    """Every shipped skill is probed, and the probes stay honest.
 
+    The probe set used to live in a behavioural scenario's hard-coded lists.
+    It is now `evals/dataset/routing.json`, the curated data the
+    `claude plugin eval` cases are rendered from, so this reads the dataset."""
+
+    #: Skills whose probes were added by the docs-set fold and must expect
+    #: themselves rather than the entry point that used to answer for them.
     NEW_CASES = {"create-docs", "create-requirements", "docs-sync"}
 
-    # Shipped skill directories with no probe, each for a stated reason.
-    # v0.5.0 retired the `test` alias directory, which was the only entry
-    # here: every shipped skill now has a probe, so a missing one is a defect
-    # this test catches with no exclusions at all.
+    #: Shipped skill directories with no probe, each for a stated reason.
+    #: Empty, and it should stay empty: every shipped skill has a probe, so a
+    #: missing one is a defect this test catches with no exclusions at all.
     UNPROBED = set()
 
+    @staticmethod
+    def _probes():
+        with open(ROUTING, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        return [p for p in doc["probes"] if p.get("kind") != "control"]
+
+    @classmethod
+    def _skill(cls, probe):
+        return probe["skill"].split(":", 1)[1]
+
     def test_every_shipped_skill_has_a_probe_or_a_recorded_reason(self):
-        probed = {expected for _, _, _, expected in s04.CASES}
-        probed |= {forbidden for _, _, _, forbidden in s04.NEGATIVE}
+        probed = {self._skill(p) for p in self._probes()}
         shipped = set(shipped_skills())
         self.assertEqual(
             probed, shipped - self.UNPROBED,
@@ -271,103 +286,68 @@ class S04ProbeSetTest(unittest.TestCase):
             self.UNPROBED & shipped, self.UNPROBED,
             "UNPROBED names a skill that no longer ships — drop it from the set")
 
-    def test_case_counts(self):
-        """Derived, not pinned: one positive per probed skill, one negative per
-        user-only skill."""
-        probed = set(shipped_skills()) - self.UNPROBED
-        self.assertEqual(len(s04.CASES), len(probed))
-        self.assertEqual(len({e for _, _, _, e in s04.CASES}), len(probed))
-        self.assertEqual({f for _, _, _, f in s04.NEGATIVE}, internal_legs())
+    def test_no_probe_names_a_skill_that_is_not_shipped(self):
+        """The failure mode this caught: a renamed skill leaves its old name
+        asserted, and the probe reads as a routing failure forever."""
+        missing = sorted({self._skill(p) for p in self._probes()}
+                         - set(shipped_skills()))
+        self.assertEqual(missing, [], "probed skills with no directory on disk")
+
+    def test_every_skill_carries_a_positive_probe(self):
+        """Derived, not pinned: a negative alone proves nothing routes there."""
+        positive = {self._skill(p) for p in self._probes() if p["must_route"]}
+        self.assertEqual(positive, set(shipped_skills()) - self.UNPROBED)
+
+    def test_only_the_internal_legs_are_probed_negatively(self):
+        negative = {self._skill(p) for p in self._probes() if not p["must_route"]}
+        self.assertEqual(negative, internal_legs())
 
     def test_the_three_new_cases_expect_their_own_skill(self):
-        by_label = {label: expected for label, _, _, expected in s04.CASES}
+        positive = {self._skill(p) for p in self._probes() if p["must_route"]}
         for name in sorted(self.NEW_CASES):
-            self.assertEqual(by_label.get(name), name)
+            self.assertIn(name, positive)
 
-    def test_new_prompts_name_no_skill(self):
-        names = shipped_skills()
-        forms = [n for n in names] + [n.replace("-", " ") for n in names]
-        for label, _, request, _ in s04.CASES:
-            if label not in self.NEW_CASES:
+    def test_new_prompts_do_not_name_their_own_skill(self):
+        """A description probe must describe the intent, never name the skill
+        it should reach -- otherwise it grades the prompt, not the description.
+
+        Scoped to the probe's OWN skill, deliberately. Testing every prompt
+        against every skill name fails on ordinary English: the docs-sync probe
+        opens "The code change is done", which names no skill but contains the
+        word `code`. The hyphen-spaced form is checked too, so "create ticket"
+        is caught as readily as "create-ticket"."""
+        for probe in self._probes():
+            name = self._skill(probe)
+            if name not in self.NEW_CASES or not probe["must_route"]:
                 continue
-            text = request.lower()
-            for form in forms:
-                self.assertNotIn(form, text,
-                                 "%s prompt names the skill %r" % (label, form))
+            text = probe["prompt"].lower()
+            for form in (name, name.replace("-", " ")):
+                self.assertIsNone(
+                    re.search(r"\b%s\b" % re.escape(form), text),
+                    "%s prompt names its own skill as %r" % (name, form))
 
-    def test_only_the_internal_legs_are_probed_explicitly(self):
-        explicit = {label for label, _, request, _ in s04.CASES
-                    if request.startswith("/")}
-        self.assertEqual(explicit, internal_legs())
-
-
-class _FakeSandbox:
-    """Scripted stand-in for `harness.Sandbox` in a scenario run."""
-
-    def __init__(self, answers):
-        self.answers = answers
-
-    def __call__(self, **kwargs):
-        return self
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-    def trigger_detail(self, request, **kwargs):
-        return self.answers(request)
+    def test_only_directly_typed_skills_are_probed_explicitly(self):
+        """An explicit probe sends `/acs:<skill>`. Two kinds earn one: the
+        internal legs, which a user types to resume a run already judged onto
+        that path, and the two user actions (`install-hooks`, `update`) that
+        are commands rather than pipeline steps."""
+        explicit = {self._skill(p) for p in self._probes()
+                    if p["prompt"].strip().startswith("/")}
+        self.assertEqual(explicit, internal_legs() | {"install-hooks", "update"})
 
 
-class S04DetectionIsReportedTest(unittest.TestCase):
-    """AC-2: each case's assertion output states which rule decided it."""
-
-    def _run(self, answers):
-        with mock.patch.object(s04, "Sandbox", _FakeSandbox(answers)):
-            return s04.run()
-
-    def _all_right(self, request):
-        """The answer that makes every probe pass: explicit probes registered,
-        description probes routed to their skill, negative probes routed
-        nowhere."""
-        if request.startswith("/"):
-            return harness.explicit_skill(request), "registered"
-        expected = {req: exp for _, _, req, exp in s04.CASES}.get(request)
-        if expected is None:  # a NEGATIVE probe: no auto-route is the pass
-            return None, "skill_tool_use"
-        return "acs:" + expected, "skill_tool_use"
-
-    def test_every_label_states_the_deciding_rule(self):
-        check = self._run(lambda request: (None, "skill_tool_use")
-                          if not request.startswith("/")
-                          else (harness.explicit_skill(request), "registered"))
-        labels = [label for label, _, _ in check.results]
-        self.assertEqual(len(labels), len(s04.CASES) + len(s04.NEGATIVE))
-        for label in labels:
-            self.assertTrue(label.endswith("[registered]")
-                            or label.endswith("[skill_tool_use]")
-                            or label.endswith("[unmeasured]"), label)
-
-    def test_explicit_cases_pass_on_a_registration_decision(self):
-        check = self._run(self._all_right)
-        self.assertTrue(check.passed)
-        explicit = [label for label, _, _ in check.results if "[registered]" in label]
-        self.assertEqual(len(explicit), len(internal_legs()))
-
-    def test_an_unmeasured_explicit_probe_is_never_a_pass(self):
-        def answers(request):
-            if request.startswith("/"):
-                return None, "unmeasured"
-            return self._all_right(request)
-
-        check = self._run(answers)
-        self.assertFalse(check.passed)
-        failed = [label for label, ok, _ in check.results if not ok]
-        self.assertEqual(len(failed), len(internal_legs()))
-        for label in failed:
-            self.assertIn("[unmeasured]", label)
-
+# `_FakeSandbox` and `S04DetectionIsReportedTest` stood here. They drove
+# s04_skill_triggers' own run() against a scripted sandbox and pinned how it
+# REPORTED a routing decision -- that an unmeasured explicit probe is never
+# scored a pass, and that every assertion label names the rule that decided it.
+#
+# That scenario is gone: routing is measured once, by the `claude plugin eval`
+# tree rendered from evals/dataset/routing.json. Its reporting is the CLI's,
+# not ours, so there is nothing here left to pin. The property those tests
+# protected -- an explicit probe that could not be measured must not read as a
+# pass -- has no enforcement in the new format, because a grader cannot observe
+# an explicit invocation at all. That limit is recorded in CLAUDE.md and
+# plugins/acs/evals/README.md rather than silently dropped here.
 
 if __name__ == "__main__":
     unittest.main()
