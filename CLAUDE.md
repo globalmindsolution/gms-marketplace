@@ -38,15 +38,11 @@ the hook CLIs through `subprocess.run` with `cwd=mkdtemp()`. Run coverage withou
 to any relative path introduced into that file.
 
 ```bash
-# Evaluation suite (see "Two grading layers")
-make -C evals help            # every target
-make -C evals check           # free: fail if the case tree is stale against the dataset
-make -C evals generate        # re-render the case tree from dataset/routing.json
-make -C evals routing-cases   # PAID: run the suite (~$0.12/run; 40 cases x 3 runs ~ $15)
-
-# Behavioural scenarios — free tier is deterministic and $0; paid spawns real sessions
-python3 evals/behavioural/run_evals.py --plugin acs
-python3 evals/behavioural/run_evals.py --plugin acs --paid   # costs money, local only
+# Eval suite (see "Two grading layers") — free structural check, then paid runs
+python3 -m unittest tests.acs.test_eval_cases                  # $0: every case well-formed, every skill covered
+cd plugins/acs && claude plugin eval . --tag routing --ablation none --runs 1   # PAID smoke (~$5)
+cd plugins/acs && claude plugin eval . --tag routing --ablation none            # PAID, 3 runs each (~$15)
+claude plugin eval acs@gms-marketplace --tag routing --ablation none           # the INSTALLED build
 ```
 
 ## Architecture
@@ -75,39 +71,39 @@ install fetches it.
 | Layer | Asserts | Runs |
 |---|---|---|
 | `tests/` | a **function** does what its author intended | every PR, in CI |
-| `plugins/acs/evals/` | a **real session** routes to the skill the prompt calls for | the release gate, `release.pre_release_gate` in `.acs/settings.json` |
+| `plugins/acs/evals/` | a **real session** routes to the right skill, or writes the right workspace state | the release gate, `release.pre_release_gate` in `.acs/settings.json` |
 
-The second layer is `claude plugin eval` in the format
-<https://code.claude.com/docs/en/plugin-evals> specifies: one case directory per probe,
-holding `prompt.md` and `graders/*.md`. Cases are rendered from `evals/dataset/routing.json`
-by `evals/runner/gen_plugin_eval.py`, so the dataset is what gets reviewed and a hand edit in
-the tree is lost on the next render. `make -C evals check` catches a stale tree, free, in CI.
+The eval suite is `claude plugin eval` case files in the layout
+<https://code.claude.com/docs/en/plugin-evals> specifies — one directory per case,
+holding `prompt.md` and `graders/*.md`, grouped under `routing/` and `artifacts/`. **The case
+files are the source of truth**: there is no dataset they are rendered from and no generator.
+Edit a case by editing its files. `plugins/acs/evals/README.md` is the reference for tags,
+grading, and the suite's known limits — read it before quoting a number.
 
-`evals/behavioural/` still holds eight real-session scenarios in a bespoke Python harness,
-kept for what it asserts about artifacts and hook behaviour. It is the next thing to migrate.
+Because the CLI never runs in CI, `tests/acs/test_eval_cases.py` is the only thing that catches
+a malformed case before a paid run does. It parses every case (through the strict reader in
+`tests/acs/eval_cases.py`) and fails on an undocumented key, a bad grader type, a `max: 0`
+without `min: 0`, an `input_match` that doesn't match its own skill's tool input or does match
+a neighbour's, and any shipped skill without a routing case. The release gate runs it first,
+so a broken case fails for free before any session is paid for.
 
-**There used to be a third layer** — a 355-case deterministic golden suite asserting a shipped
-build's observable surface, with its own runner, schema-constraint generator, mutation sweeps
-and a tier-3 session measurer. It ran no model, so it was a contract suite rather than an eval,
-and routing was measured three separate times across the tiers. It was removed in favour of the
-documented format; git history has it.
+**Source vs installed build** is a first-class distinction. A *path* target
+(`claude plugin eval plugins/acs`) grades this checkout; the *named* target
+`acs@gms-marketplace` grades the installed copy with the installed copy loaded — what a
+consumer actually executes — so it catches packaging drift a source run cannot. Until a release
+ships `plugins/acs/evals/`, the named target reports "No eval cases found": that is the
+packaging answer, not a broken command.
 
-One capability went with it and has no replacement: **explicit `/acs:<skill>` invocation** is no
-longer measurable. It is decided by the session's registration list before any model turn, so
-`tool_used: Skill` reports zero calls for a probe that routed perfectly well — seven of the nine
-explicit probes read as failures for that reason alone.
+**There used to be much more here.** A root `evals/` folder held a 355-case deterministic
+golden suite, a schema-constraint generator, mutation sweeps, a tier-3 session measurer, a JSON
+routing dataset with a renderer, and a Python behavioural harness. All of it was retired in
+favour of the documented format; git history has it. Two limits came with that, both recorded in
+the suite README: an explicit `/acs:<skill>` invocation is not reliably observable (it can be
+expanded before any model turn, so no `Skill` call happens), and three routing prompts presuppose
+context the empty eval workspace lacks.
 
-**Source vs installed build survives**, and is a first-class distinction rather than a detail.
-`make -C evals routing-cases-installed` passes the *named* target `acs@gms-marketplace`, which
-the guide resolves to the cases in the INSTALLED copy's eval directory with the installed copy
-loaded — what a consumer actually executes, so it catches packaging drift a source-tree run
-cannot. Until a release ships `plugins/acs/evals/`, it reports "No eval cases found": that is
-the packaging answer, not a broken command.
-
-**Behavioural and LLM evals never run in CI** (ADR-0022). The invariant is enforced by a grep
-that must keep returning nothing:
-`grep -rn "run_evals\|evals/behavioural/\|plugin eval" .github/workflows/`.
-Keeping them out of `tests/` is also what stops `unittest discover` from collecting them.
+**Behavioural and LLM evals never run in CI** (ADR-0022). The invariant is a grep that must keep
+returning nothing: `grep -rn "run_evals\|evals/behavioural/\|plugin eval" .github/workflows/`.
 
 ### Inside the plugin
 

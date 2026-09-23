@@ -42,6 +42,9 @@ SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
 SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
+
 import acs_lib as lib  # noqa: E402
 
 PRD_PATH = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
@@ -183,19 +186,16 @@ class SettingsShapeTest(unittest.TestCase):
 
 
 def _routing_probed_skills():
-    """The set of skills the routing dataset probes.
+    """The set of skills the routing cases probe.
 
-    Was parsed out of s04_skill_triggers.py's CASES/NEGATIVE lists; routing
-    consolidated onto the `claude plugin eval` tree, so the source is
-    evals/dataset/routing.json. Derived rather than pinned so that adding a
-    skill's probe cannot leave the roadmap's claim behind -- the rot this
-    assertion existed to catch, twice.
+    Parsed out of s04_skill_triggers.py once, then read from a routing dataset;
+    both are gone, and the case files under plugins/acs/evals/ are the probe set.
+    Derived rather than pinned so that adding a skill's case cannot leave the
+    roadmap's claim behind -- the rot this assertion existed to catch, twice.
     """
-    path = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
-    with open(path, encoding="utf-8") as fh:
-        probes = json.load(fh)["probes"]
-    return {p["skill"].split(":", 1)[1] for p in probes
-            if p.get("kind") != "control"}
+    return {p["skill"].split(":", 1)[1] for p in eval_cases.probe_dicts()}
+
+
 
 def _base_ref():
     """`origin/main` first, then a local `main`; a shallow CI checkout has neither."""

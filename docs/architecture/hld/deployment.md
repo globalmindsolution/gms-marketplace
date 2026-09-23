@@ -6,7 +6,7 @@ flowchart LR
         MR["globalmindsolution/gms-marketplace<br/>(marketplace repo)"]
         ACT["GitHub Actions<br/>CI: tests/acs/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump (via /acs:release's release/* PR + human merge)"]
         PRS["Consumer-repo PRs"]
-        EVALS["evals/behavioural/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
+        EVALS["plugins/&lt;plugin&gt;/evals/<br/>claude plugin eval cases<br/>(local + release gate — NOT in CI)"]
         subgraph gates["Consumer-repo required-check gates (opt-in, /acs:setup-installed)"]
             G_CONV["acs-conventions.yml<br/>Branch / PR / commit conventions"]
             G_TEST["acs-tests.yml<br/>Tests & coverage"]
@@ -67,9 +67,12 @@ Key facts:
   measurement is a separate, single-interpreter run of that same suite,
   gated by its own **`Tests & coverage`** required check
   (`.github/workflows/acs-tests.yml`, run via `.acs/ci/run-tests.py`) —
-  graded repo-wide against the 90% floor. Behavioral evals
-  (`evals/behavioural/<plugin>/`) run **locally only** — they make LLM calls and are not
-  coupled to CI.
+  graded repo-wide against the 90% floor. The plugin's eval suite
+  (`plugins/<plugin>/evals/`, `claude plugin eval` case files) runs **locally
+  and at the release gate only** — every case spawns a real session and costs
+  money, so it is not coupled to CI. What CI does run is a free structural check
+  of those case files (`tests/acs/test_eval_cases.py`), because otherwise the
+  first sign of a malformed case would be a paid run scoring it zero.
 - **Consumer-repo required-check gates**: `/acs:setup` can opt-in scaffold up
   to three independent GitHub Actions checks per consumer repo — conventions
   (`acs-conventions.yml`), tests+coverage (`acs-tests.yml`), and e2e

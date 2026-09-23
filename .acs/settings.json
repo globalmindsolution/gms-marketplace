@@ -111,8 +111,8 @@
       ]
     },
     "pre_release_gate": [
-      "make -C evals check",
-      "make -C evals routing-cases"
+      "python3 -m unittest tests.acs.test_eval_cases",
+      "claude plugin eval plugins/acs --tag routing --ablation none --trust-plugin --no-publish --max-cost-usd 20"
     ]
   },
   "tests": {

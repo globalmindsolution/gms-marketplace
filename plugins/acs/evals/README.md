@@ -1,59 +1,59 @@
-# acs plugin evals
+# acs eval suite
 
-`claude plugin eval` cases for the acs plugin, laid out the way the
-[reference](https://code.claude.com/docs/en/plugin-evals) specifies: one
-directory per case, grouped under the non-case directory `routing/`.
+`claude plugin eval` cases for the acs plugin, in the layout
+<https://code.claude.com/docs/en/plugin-evals> specifies. The case files **are**
+the suite: there is no dataset they are rendered from and no generator to run.
+Edit a case by editing its files.
 
 ```
-plugins/acs/evals/
-└── routing/<case>/
-    ├── prompt.md            # frontmatter: max_turns, allowed_tools; body: the prompt
-    └── graders/<name>.md    # one grader per file
-```
-
-## This tree is generated. Do not edit it by hand.
-
-The prompts and the skill each one must (or must not) route to are curated in
-`evals/dataset/routing.json` at the repo root, and rendered from there by
-`evals/runner/gen_plugin_eval.py`. A hand edit is lost on the next render, and
-`make -C evals check` fails on a stale or orphaned file. Change the JSON.
-
-```bash
-make -C evals generate      # re-render
-make -C evals check         # fail if stale (runs in the gate)
+evals/
+├── routing/                  # 41 cases: does a prompt reach the right skill?
+│   └── <case>/
+│       ├── prompt.md         # frontmatter: description, expected_outcome, tags, limits; body: the prompt
+│       └── graders/<name>.md # one grader per file
+├── artifacts/                # 2 cases: did the skill WRITE the right workspace state?
+│   └── <case>/               # + case.yaml (scaffold) + a seed script
+└── results/                  # written by each run; gitignored
 ```
 
 ## Running it
 
+From the plugin root (`plugins/acs/`), or with `plugins/acs` as the target from
+the repo root:
+
 ```bash
-make -C evals routing-cases                               # ~$15: 40 cases x 3 runs
-make -C evals routing-cases ROUTING_RUNS=1                # smoke test, not a rate
-make -C evals routing-cases ROUTING_ABLATION=with-without # buy the no-plugin baseline arm
-make -C evals routing-cases ROUTING_MODEL=claude-sonnet-5 # pin the model (see below)
+claude plugin eval . --tag routing --ablation none              # every routing case, 3 runs each
+claude plugin eval . --tag routing --ablation none --runs 1     # smoke test, not a rate
+claude plugin eval . --case route-code --runs 1 --ablation none # one case, while iterating
+claude plugin eval acs@gms-marketplace --tag routing --ablation none   # the INSTALLED build
+claude plugin eval . --tag artifacts --scaffold --allow-tools Write Edit Bash   # see artifacts/README.md
 ```
 
-`ROUTING_MAX_USD` (default 20) is the cost ceiling — the reference is explicit
-that this, not a tight `max_turns`, is the lever for cost. Hitting it exits 2
-with `partial: true`; leave partial documents out of any trend.
+Pin `--model` before recording a number you mean to compare with a later run:
+unpinned, a model rollout is indistinguishable from a plugin regression.
+`--max-cost-usd` is the cost lever, not a tight `max_turns`. A full routing run
+is 41 cases × 3 runs at roughly $0.12 a run.
 
-**Pin `ROUTING_MODEL` before recording a number you mean to compare later.**
-Unpinned, a model rollout is indistinguishable from a plugin regression, which
-is the one thing these tiers exist to tell apart.
+## Tags
 
-Every run writes `aggregate-result.json` and `report.html` to this directory's
-gitignored `results/<timestamp>/`. `ROUTING_JSON` is empty by default on
-purpose: `--json` makes the run *quiet* — no progress lines, no summary table —
-and the aggregate JSON is written either way, so passing it interactively costs
-every signal and buys nothing. Set it for an archived, scriptable copy.
+| Tag | Cases | Asserts |
+|---|---|---|
+| `routing` | all 41 routing cases | a prompt reaches (or avoids) a skill |
+| `description` | 26 | a natural-language request, never naming the skill, reaches it |
+| `explicit` | 8 | a typed `/acs:<skill>` reaches it — see the limit below |
+| `negative` | 6 | a description of an internal leg's subject does NOT reach the leg |
+| `control` | 1 | an off-domain request invokes no skill at all |
+| `artifacts` | 2 | the skill wrote the expected workspace state |
 
-## What these cases assert, and what they do not
+`--tag` keeps a case if ANY of its tags match, so `--tag description --tag
+negative --tag control` runs the routing cases that are fully measurable.
 
-Each probe renders exactly one grader, so a case score **is** the routing
-verdict: 1.00 routed as asserted, 0.00 did not. Nothing here grades whether a
-skill's own work was any good.
+## How routing is graded
 
-The grader is the reference's canonical routing check — `tool_used` on the
-`Skill` tool with an `input_match` regex naming the skill:
+Every routing case carries exactly one free, deterministic grader, so a case
+score **is** the verdict: 1.00 routed as asserted, 0.00 did not. It is the
+reference's canonical routing grader — `tool_used` on the `Skill` tool, with an
+`input_match` regex naming the skill:
 
 ```yaml
 type: tool_used
@@ -62,30 +62,50 @@ input_match: '"skill"\s*:\s*"(?:[\w-]+:)?code"'
 min: 1
 ```
 
-It reads the tool call rather than the final message, which is why a skill
-whose precondition gate refuses for want of an `.acs/` workspace still counts
-as a route — the call happens before any gate runs. No scaffold, no seeded
-sandbox, no `--scaffold`.
+`input_match` narrows the count to calls naming that skill, bare or
+plugin-qualified, and the closing quote keeps `code` from matching `code-small`.
+It reads the tool call rather than the reply, so a skill whose precondition gate
+refuses AFTER it routed still counts as a route — which is what routing means.
 
-Negative probes are the same grader with `min: 0`, `max: 0` and `arm: both`.
-Both bounds are deliberate: `min` defaults to 1, so a lone `max: 0` asserts the
+A negative is the same grader with `min: 0`, `max: 0` and `arm: both`. Both
+bounds are deliberate: `min` defaults to 1, so a lone `max: 0` asserts the
 impossible range `1..0`.
 
-## Why this is not in CI
+## Why `--ablation none`
 
-ADR-0022: behavioural and LLM evals never run in CI. These cases spawn real
-sessions and cost money, so they stay out, and the invariant is enforced by a
-grep that must keep returning nothing:
+It halves the spend, and for routing the baseline arm answers nothing: baseline
+Claude has no acs skills, so it structurally never routes to one. It is a cost
+choice, not a correctness one — `tool_used: Skill` graders are excluded from a
+two-arm score, but only when a case has other graders to score, and every
+routing case here has exactly one.
+
+## Known limits — read before quoting a number
+
+- **Explicit invocation is not reliably observable.** A typed `/acs:<skill>` can
+  be expanded by the CLI before any model turn, in which case no `Skill` call
+  happens and the grader reads 0x for a probe that routed. In the first full run
+  `install-hooks` and `update` scored 1.00 and all six internal legs scored
+  0.00. No invocation flag in the skills' frontmatter explains the split; it is
+  unexplained, not diagnosed. Hence the `explicit` tag.
+- **Three prompts presuppose context the empty workspace lacks** —
+  `route-create-design` (an epic ticket), `route-create-requirements` (an
+  existing codebase), `route-docs-sync` (a finished change). Each case's
+  `description` records the measured history. A miss on these is a confound
+  until the context is seeded.
+- **Registration is not observable at all.** Whether the session lists the
+  plugin's commands is decided before any model turn. There is no case for it.
+
+## Not in CI
+
+ADR-0022: behavioural and LLM evals never run in CI, and these cases spawn real
+sessions that cost money. The invariant is a grep that must return nothing:
 
 ```bash
 grep -rn "run_evals\|evals/behavioural/\|plugin eval" .github/workflows/
 ```
 
-The reference's CI guidance is written for suites without that constraint. What
-*does* gate every PR is `make -C evals check`, which is free: it proves this
-tree still matches the dataset it is rendered from.
-
-## Related
-
-- `evals/` at the repo root — the dataset, the renderer, and tiers 1 and 3.
-- `CLAUDE.md` — "Three grading layers, deliberately separate".
+What does run free on every PR is `tests/acs/test_eval_cases.py`, which parses
+these files and checks their shape and coverage: every shipped skill has a
+case, no case names a skill that is not shipped, every grader is well-formed.
+The CLI itself never runs in CI, so that test is the only thing that catches a
+malformed case before someone pays to discover it.

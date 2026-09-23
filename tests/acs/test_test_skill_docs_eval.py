@@ -16,6 +16,10 @@ import json
 import os
 import re
 import unittest
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -155,10 +159,7 @@ class RoutingProbeCaseTest(unittest.TestCase):
 
     @staticmethod
     def _probes():
-        path = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
-        with open(path, encoding="utf-8") as fh:
-            return [p for p in json.load(fh)["probes"]
-                    if p.get("kind") != "control"]
+        return eval_cases.probe_dicts()
 
     @staticmethod
     def _skill(probe):
@@ -167,7 +168,7 @@ class RoutingProbeCaseTest(unittest.TestCase):
     def test_suite_runner_case_present_and_internally_consistent(self):
         probed = [self._skill(p) for p in self._probes()]
         self.assertIn("run-e2e-tests", probed,
-                      "routing.json must carry a run-e2e-tests probe")
+                      "the suite must carry a run-e2e-tests routing case")
         self.assertNotIn("test", probed,
                          "no probe may name the deleted `test` alias directory")
 

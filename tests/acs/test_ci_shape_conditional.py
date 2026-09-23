@@ -40,9 +40,17 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 CI_YML = os.path.join(REPO_ROOT, ".github", "workflows", "ci.yml")
 PRECOMMIT_YAML = os.path.join(REPO_ROOT, ".pre-commit-config.yaml")
 
-#: The acs-free-evals `files:` glob, in one place so the assertion below and any
-#: future move both read the same string.
-PRECOMMIT_EVAL_GLOB = "^(plugins/acs/|evals/behavioural/)"
+#: Every `files:` glob the retired acs-free-evals hook ever carried, oldest
+#: first. History: NOT rewritten when anything moves. The hook ran the
+#: behavioural harness's free tier on commit; the harness was retired when the
+#: eval suite moved to `claude plugin eval` case files, whose free check is a
+#: unit test (tests/acs/test_eval_cases.py) that CI already runs.
+RETIRED_EVAL_GLOBS = (
+    "^(evals/|plugins/)",
+    "^(evals/|src/acs/)",
+    "^(src/acs/|src/acs-evals/behavioural/)",
+    "^(plugins/acs/|evals/behavioural/)",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -868,50 +876,23 @@ class TestCIStructural(unittest.TestCase):
         self.assertEqual(openers, closers,
                          f"Heredoc openers ({openers}) must equal 10-space EOF closers ({closers})")
 
-    def test_precommit_glob_names_every_tree_the_hook_guards(self):
-        """T-PRECOMMIT-glob: the acs-free-evals `files:` glob must name each tree
-        whose change the free evals are supposed to catch (AC-7).
+    def test_the_retired_eval_hook_is_gone(self):
+        """T-PRECOMMIT-retired: the acs-free-evals hook and every glob it ever
+        carried stay out of .pre-commit-config.yaml.
 
-        The hook runs the gate + SessionEnd smoke against the source being
-        committed, so the glob has to name that source. Three moves have
-        invalidated it in place, each time silently: `plugins/acs` ->
-        `src/acs` left the glob matching only tabp under `plugins/`, `evals/`
-        -> `src/acs-evals/behavioural/` would have left the harness itself
-        unguarded, and the marketplace restructure then moved both trees at
-        once (`src/acs` -> `plugins/acs`, `src/acs-evals/behavioural/` ->
-        `evals/behavioural/`). None of them failed anything -- the hook simply
-        stopped firing -- which is why this asserts the whole glob rather than
-        one alternative. `plugins/` is back in the glob, but only as the
-        `plugins/acs/` prefix; tabp, its last bare occupant, is gone.
+        This test used to assert the hook's glob named every tree it guarded --
+        three moves had each invalidated it in place, silently, because a stale
+        glob does not fail: the hook just stops firing. The harness it ran is
+        gone now, and so is the hook. What is left to guard is that neither
+        comes back half-wired: a hook entry pointing at a deleted runner would
+        fail every commit, and a stale glob would be the first sign of one.
         """
         with open(PRECOMMIT_YAML, encoding="utf-8") as fh:
             content = fh.read()
-        self.assertIn(
-            "files: " + PRECOMMIT_EVAL_GLOB,
-            content,
-            "acs-free-evals files: glob must be %r" % PRECOMMIT_EVAL_GLOB,
-        )
-        for tree in ("plugins/acs/", "evals/behavioural/"):
-            self.assertIn(tree, PRECOMMIT_EVAL_GLOB,
-                          "the glob must name %s" % tree)
-        # The pre-move globs must be gone, not merely shadowed. These are the
-        # literal strings the file carried before each move, so they are
-        # history and are NOT rewritten when a tree moves -- the newest entry
-        # is the glob that the marketplace restructure retired.
-        for stale in ("^(evals/|plugins/)", "^(evals/|src/acs/)",
-                      "^(src/acs/|src/acs-evals/behavioural/)"):
-            self.assertNotIn(stale, content,
-                             "stale acs-free-evals glob %r must be removed" % stale)
-
-    def test_precommit_entry_has_plugin_acs(self):
-        """T-PRECOMMIT-entry: .pre-commit-config.yaml acs-free-evals entry contains '--plugin acs' (AC-7)."""
-        with open(PRECOMMIT_YAML, encoding="utf-8") as fh:
-            content = fh.read()
-        self.assertIn(
-            "--plugin acs",
-            content,
-            "acs-free-evals entry must contain '--plugin acs' after MAR-30"
-        )
+        self.assertNotIn("acs-free-evals", content)
+        self.assertNotIn("run_evals.py", content)
+        for stale in RETIRED_EVAL_GLOBS:
+            self.assertNotIn(stale, content, "a retired eval glob is back: %r" % stale)
 
 
 # ---------------------------------------------------------------------------

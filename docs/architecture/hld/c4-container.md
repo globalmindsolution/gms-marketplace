@@ -19,7 +19,7 @@ C4Container
     System_Ext(statusline_src, "statusLine cost payload", "Opt-in Claude Code stdin feed to statusline.py — a shape-agnostic total_cost_usd figure, sampled and persisted into the workspace store, never read back from Claude Code directly (MAR-1)")
 
     Container(tests_plugin, "tests/<plugin>/", "Python unittest", "Per-plugin deterministic tests; discovered by unittest discover -s tests")
-    Container(evals_plugin, "evals/behavioural/<plugin>/", "Python, run_evals.py", "Per-plugin behavioral evals; run locally only, NOT in CI")
+    Container(evals_plugin, "plugins/<plugin>/evals/", "Markdown + YAML case files, run by claude plugin eval", "Per-plugin eval cases (routing, artifacts); run locally and at the release gate, NOT in CI")
 
     Rel(dev, cc, "/acs:*")
     Rel(cc, skills, "expands skill, runs coordinator")
@@ -41,8 +41,11 @@ Container responsibilities are deliberately asymmetric: **skills/agents decide,
 the hook layer records and gates** — no prose can unlock a gate, and no script
 makes a judgment call. The marketplace boundary holds heterogeneous plugin
 shapes (ADR 0021); acs (full-shape) is the one plugin published today.
-Tooling containers (`tests/<plugin>/`, `evals/behavioural/<plugin>/`)
-are developer/CI support and sit outside the runtime boundary.
+Tooling containers (`tests/<plugin>/`, `plugins/<plugin>/evals/`)
+are developer/CI support and sit outside the runtime boundary. The eval
+cases ship inside the plugin directory — so an installed build carries
+its own suite, and `claude plugin eval <plugin>@<marketplace>` can grade
+what a consumer received — but nothing at runtime reads them.
 
 **Transcript store and statusLine payload (MAR-1, ADR 0082).** Both new
 external data sources are read-only from the hook layer's side — the hook

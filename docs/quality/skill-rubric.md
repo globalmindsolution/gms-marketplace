@@ -1,8 +1,8 @@
 # Skill rubric
 
-How good is a skill? Every other document in this set, and every document in
-[acs-evals](../../evals/README.md) — this repo's golden dataset, at
-`evals/` — deliberately refuses to answer that.
+How good is a skill? Every other document in this set, and the eval suite at
+[`plugins/acs/evals/`](../../plugins/acs/evals/README.md), deliberately refuse
+to answer that. (So did the golden dataset that preceded it at `evals/`.)
 The eval suite ranked *the consequence of a case failing*, and
 says so outright: "whether acs should behave that way in the
 first place is a design judgement this dataset deliberately does not make."
@@ -31,8 +31,11 @@ skill. The dimension asks whether it is *discriminating*, not whether it is
 well written: a description that wins its own probe but also wins its
 neighbour's is worse than a plain one that wins only its own.
 
-- **Evidence**: the skill's probe in `evals/behavioural/acs/scenarios/s04_skill_triggers.py`
-  and `evals/dataset/routing.json`, measured over 5 runs.
+- **Evidence**: the skill's routing case under `plugins/acs/evals/routing/`,
+  run with `claude plugin eval . --tag routing` — 3 runs a case by default.
+  Read the suite README's known limits first: an `explicit` case can read zero
+  for a probe that routed, and three prompts presuppose context the empty
+  workspace lacks.
 - **Blocks** when reliability is below 100%. Routing is an absolute floor —
   the suite's performance tier already treated it as one, and a skill that
   routes 4 times in 5 fails one user in five.
@@ -72,8 +75,9 @@ coordinator's prose.
 
 ### 4. Structure — is the document itself conformant?
 
-- **Evidence**: the routing probe for the skill in `evals/dataset/routing.json`
-  (frontmatter: `name`, a non-empty `description`, the invocation flag), and
+- **Evidence**: the skill's own `SKILL.md` frontmatter (`name`, a non-empty
+  `description`, the invocation flag), which `tests/acs/test_skill_contracts.py`
+  pins, and
   `structure_lint.py` against the skill's own declared `required_sections`
   (ADR 0056 — the list the executor is told to write IS the list the verifier
   checks, so there is no second copy to drift).
@@ -154,8 +158,9 @@ skill that refuses to route is not offset by thirty-one that do.
 
 ## Using it before a release
 
-1. Run the deterministic tier and the routing measurement. Both are described
-   in `evals/behavioural/README.md`; the routing half costs money, the rest does not.
+1. Run the release gate: the free eval-structure check, then the routing
+   suite. Both are described in `plugins/acs/evals/README.md`; the routing
+   suite costs money, the check does not.
 2. Fill the matrix in
    [`testing-strategy.md`](testing-strategy.md) — it already carries a
    per-skill row per layer, and those layers map onto dimensions 1, 2, 3 and 4.
@@ -177,5 +182,7 @@ and with the user, not by grading.
 It also inherits the limit its sibling states plainly: evidence is only as good
 as the build it was measured against. A dimension that passed against an
 installed build older than the source under review is not evidence about the
-source. See `evals/dataset/manifest.json` for which build the current
-figures describe.
+source. A path target (`claude plugin eval plugins/acs`) measures this
+checkout; the named target `acs@gms-marketplace` measures the installed build —
+say which one a figure came from, and pin `--model` so a later figure is
+comparable.

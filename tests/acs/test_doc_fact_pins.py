@@ -20,6 +20,8 @@ SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
 SKILLS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 REFLECTION_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
 sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
 
 import acs_lib as lib  # noqa: E402
 
@@ -165,11 +167,16 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
     def test_the_re_derivation_hint_is_real_not_a_placeholder(self):
         """The Trigger bullet tells a reader to re-derive its two figures. An
         elided `python3 -c "...; ..."` stub is not a command anyone can run --
-        the hint must name the module that actually derives them."""
+        the hint must name the module that actually derives them. That module
+        was test_eval_trigger_detection.py until the eval suite moved to
+        `claude plugin eval` case files; it is now test_eval_cases.py, whose
+        CoverageTest carries the same UNPROBED allowlist."""
         body = _read(self.STRATEGY)
         self.assertNotRegex(body, r"python3 -c \"[^\"]*\.\.\.")
-        self.assertIn("test_eval_trigger_detection.py", body)
+        self.assertIn("test_eval_cases.py", body)
         self.assertIn("UNPROBED", body)
+        self.assertNotIn("test_eval_trigger_detection.py", body,
+                         "the doc still names the retired module as the check")
 
     def test_strategy_states_why_the_legs_are_probed_explicitly(self):
         body = _read(self.STRATEGY)
@@ -320,10 +327,20 @@ class SkillCountDenominatorPinTest(unittest.TestCase):
                                     + "\n  ".join(wrong))
 
     def test_the_three_coverage_claims_are_each_present(self):
-        """Pins the numerators too, so a claim cannot quietly vanish."""
+        """Pins the numerators too, so a claim cannot quietly vanish.
+
+        The artifact numerator is DERIVED from the eval suite -- the distinct
+        skills its artifact cases invoke -- rather than written here. It was
+        the literal "only 3 of" until the forge-tier create-pr scenario was
+        retired with the behavioural harness; a literal would have gone on
+        asserting that stale count."""
+        artifact_skills = {g.skill() for c in eval_cases.all_cases()
+                           if "artifacts" in c.tags for g in c.graders
+                           if g.skill()}
+        self.assertTrue(artifact_skills, "found no artifact case to count")
         for needle in ("%d of %d" % (self.skills, self.skills),
                        "%d of %d hooked" % (self.hooked, self.hooked),
-                       "only 3 of %d" % self.skills):
+                       "%d of %d skills" % (len(artifact_skills), self.skills)):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.text)
 

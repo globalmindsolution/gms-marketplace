@@ -27,6 +27,9 @@ import sys
 import re
 import unittest
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
@@ -88,19 +91,15 @@ def _load_acs_lib():
 
 
 def _routing_positive_skills():
-    """How many skills carry a positive routing probe.
+    """How many skills carry a positive routing case.
 
-    Was `len(s04_skill_triggers.CASES)`, parsed out of that scenario's AST --
-    one entry per shipped skill. Routing consolidated onto the
-    `claude plugin eval` tree, so the data is evals/dataset/routing.json, and
-    the equivalent is the number of DISTINCT skills with a must-route probe:
-    two skills carry two positives each (an explicit command and a description),
-    which a raw probe count would double-count."""
-    path = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
-    with open(path, encoding="utf-8") as fh:
-        probes = json.load(fh)["probes"]
-    return len({p["skill"] for p in probes
-                if p.get("kind") != "control" and p["must_route"]})
+    Was `len(s04_skill_triggers.CASES)` -- one entry per shipped skill -- and
+    then a count over a routing dataset; both are gone, and the case files are
+    the probe set. The equivalent is DISTINCT skills with a must-route case:
+    two skills carry two positives each (an explicit command and a
+    description), which a raw case count would double-count."""
+    return len({p["skill"] for p in eval_cases.probe_dicts() if p["must_route"]})
+
 
 
 def derive():

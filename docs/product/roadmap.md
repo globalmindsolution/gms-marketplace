@@ -109,7 +109,7 @@ the docs. Step-by-step runbook with per-step assertions:
 Traces G1, G3, G4, G5. The regression net that makes dogfooding and every
 future change safe; built on what M2-0 learns by hand.
 
-All four sub-epics are implemented in [`evals/behavioural/`](../../evals/behavioural/README.md): a tiered
+All four sub-epics were implemented in `evals/behavioural/` (since retired — the suite is now `claude plugin eval` case files at [`plugins/acs/evals/`](../../plugins/acs/evals/README.md)): a tiered
 runner (free deterministic checks + paid `claude -p`), a `Sandbox`/`Check`
 harness asserting on workspace artifacts, and 8 scenarios covering G1–G4,
 G8+G9, G11, plus cleanup. The 6 free/paid scenarios (`s01`–`s06`) validated
@@ -156,8 +156,8 @@ configured and have not yet been validated against a live remote.
   here are gated by the plugin's unit suite, the coverage hard-fail and the free
   pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic) becomes
   this repo's per-PR CI brake once a workflow is wired to run it. The suite
-  itself has now been **imported into this repository** at
-  [`evals/`](../../evals/README.md), so the brake no longer
+  itself was then **imported into this repository** at `evals/` (since
+  retired for [`plugins/acs/evals/`](../../plugins/acs/evals/README.md)), so the brake no longer
   waits on a sibling checkout at a pinned ref — only the
   workflow is decided, not yet landed, and `.github/workflows/` still carries
   no eval job. Paid measurement runs at release cadence from that same suite.

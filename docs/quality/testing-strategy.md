@@ -17,20 +17,27 @@ deterministic at the base, most expensive and least deterministic at the top.
 | 1 | Structural / contract | every skill & agent is wired right — frontmatter, lifecycle-script calls, completion reports, tool restrictions, grounding, phase artifacts | free, deterministic | [test_skill_contracts.py](../../tests/acs/test_skill_contracts.py) | every PR |
 | 2 | Deterministic layer | gates block/advance, state/locks/counters/metrics, helper CLIs | free, deterministic | Every module that imports the shared `acs_case` fixture (`tests/acs/acs_case.py`) — **23** modules; re-derive with `grep -lE "^(import|from) acs_case" tests/acs/*.py` (a bare `grep -l acs_case` over-counts: `test_testing_conventions_guard.py` and `test_coverage_measurement_config.py` mention the fixture in prose without importing it): [`test_acs_case_fixture.py`](../../tests/acs/test_acs_case_fixture.py), [`test_acs_lib_gates.py`](../../tests/acs/test_acs_lib_gates.py), [`test_acs_lib_hook_entrypoints.py`](../../tests/acs/test_acs_lib_hook_entrypoints.py), [`test_acs_lib_settings.py`](../../tests/acs/test_acs_lib_settings.py), [`test_acs_lib_state_locks.py`](../../tests/acs/test_acs_lib_state_locks.py), [`test_acs_plugin.py`](../../tests/acs/test_acs_plugin.py), [`test_clarify.py`](../../tests/acs/test_clarify.py), [`test_codeowners.py`](../../tests/acs/test_codeowners.py), [`test_cost_sampler.py`](../../tests/acs/test_cost_sampler.py), [`test_doc_bootstrap_fanout_legs.py`](../../tests/acs/test_doc_bootstrap_fanout_legs.py), [`test_epic_fan_out_mode.py`](../../tests/acs/test_epic_fan_out_mode.py), [`test_handoff.py`](../../tests/acs/test_handoff.py), [`test_metrics_self_estimate_removed.py`](../../tests/acs/test_metrics_self_estimate_removed.py), [`test_needs_design_epic_only.py`](../../tests/acs/test_needs_design_epic_only.py), [`test_new_ticket.py`](../../tests/acs/test_new_ticket.py), [`test_plan_approval.py`](../../tests/acs/test_plan_approval.py), [`test_planning_skills_registry.py`](../../tests/acs/test_planning_skills_registry.py), [`test_session_marker.py`](../../tests/acs/test_session_marker.py), [`test_skill_start.py`](../../tests/acs/test_skill_start.py), [`test_statusline.py`](../../tests/acs/test_statusline.py), [`test_subagent_statusline.py`](../../tests/acs/test_subagent_statusline.py), [`test_ticket_id_reconciliation.py`](../../tests/acs/test_ticket_id_reconciliation.py), [`test_workspace_migrator.py`](../../tests/acs/test_workspace_migrator.py) (`test_testing_conventions_guard.py` deliberately does not import it — see its own docstring). `AcsWorkspaceCase.setUp` seeds a *reconciled* `counters.json` (MAR-402); a test that needs the reconciliation refusal calls `unreconcile()` first. | every PR |
 | 3 | Static validation | JSON / JSON-Schema / XSD parse, byte-compile, version consistency | free, deterministic | [ci.yml](../../.github/workflows/ci.yml) | every PR |
-| 4 | Free eval smoke | the *shipped build* still installs & gates; SessionEnd cleanup | free, deterministic | `evals/behavioural/` (`install_gate_smoke`, `session_end_safety_net`) | pre-commit + CI |
-| 5 | Trigger evals | the *right skill fires* for a natural-language request | paid (cheap), ~deterministic w/ re-probe | acs-evals (`evals/`) `make measure` — `routing.json`, 43 probes × 5 runs vs a promoted baseline; `evals/behavioural/skill_triggers` superseded, on demand | per release, in acs-evals |
-| 6 | Artifact / behavioral evals | a *real run* produces correct workspace artifacts | paid (costly), non-deterministic | acs-evals (`evals/`) PIPE-* fixture-app scenarios; `evals/behavioural/` (`create_ticket_artifacts`, `resume_and_verify`) superseded, on demand | per release, in acs-evals |
+| 4 | Eval-suite structure | every eval case is well-formed and every shipped skill has a routing case — caught before a paid run discovers it | free, deterministic | [`test_eval_cases.py`](../../tests/acs/test_eval_cases.py) | every PR |
+| 5 | Routing evals | the *right skill fires* for a natural-language request, and internal legs do not | paid (~$0.12 a run), non-deterministic — 3 runs a case | [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) — 41 `claude plugin eval` cases, `--tag routing` | pre-release gate |
+| 6 | Artifact evals | a *real run* writes the right workspace state | paid (costly), non-deterministic | [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md) — 2 cases, `--tag artifacts --scaffold` | on demand |
 | 7 | Runtime reflection verifier | each individual run's output is correct (in-band, per-run) | part of normal use | the plan→execute→verify cycle inside every skill | every real invocation |
 | 8 | Dogfooding (E3) | end-to-end quality under real use | the cost of using acs | shipping acs changes via `/acs:ship` | ongoing |
 | 9 | LLM-as-judge *(not built)* | subjective quality — is the PRD/design *sound*? | paid + noisy | future | pre-release for product skills |
 
-Layers 1–4 are free and gate every PR (and, for layer 4, every commit via the
-`acs-free-evals` pre-commit hook). Layers 5–6 are the paid tier, measured per
-release in **[acs-evals](../../evals/README.md)**, which lives in this
-repo at `evals/`. It is a different suite from the
-[behavioural harness](../../evals/behavioural/README.md) that now sits
-beside it under the same directory — the latter is kept as an on-demand tool
-for the forge-tier scenarios. Layer 7 is a *runtime control*, not a test.
+Layers 1–4 are free and gate every PR. Layers 5–6 are `claude plugin eval`
+case files inside the plugin, at
+[`plugins/acs/evals/`](../../plugins/acs/evals/README.md), in the layout the
+[reference](https://code.claude.com/docs/en/plugin-evals) specifies; the
+pre-release gate runs layer 4 and then layer 5, so a malformed case fails for
+free before a paid run. Layer 4 exists because the eval CLI never runs in CI:
+without it, the first sign of a broken case would be a paid run scoring it
+zero. Layer 7 is a *runtime control*, not a test.
+
+Until the eval-suite migration, layers 4–6 were a bespoke golden dataset, a
+tier-3 session measurer and a Python behavioural harness under a root `evals/`
+folder. What that harness caught that nothing now does is recorded in the
+suite's README; the short version is live-GitHub (forge) coverage for
+`create-pr`, and explicit `/acs:<skill>` invocations.
 
 ## Coverage today (per skill)
 
@@ -75,25 +82,18 @@ never hand-picked:
   `GATES` ⊇ the 19 hooked skills, an equal count pins it to exactly that
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
-- **Trigger (5)** — the skill has a case in
-  `evals/behavioural/acs/scenarios/s04_skill_triggers.py`'s `CASES` → 27 of 32. One skill
-  directory carries no probe, recorded with its reason in
-  `test_eval_trigger_detection.py`'s `UNPROBED`: `test`, the alias the
-  skills-independence refactor added (`analyze-requirements`, `create-impl-plan`,
-  `create-api-contract`, `create-test-docs`, `create-e2e-tests`), the `test`
-  alias directory (deliberately unprobed — its probe targets the name it
-  forwards to, `run-e2e-tests`), and the design-phase fold's `project`
-  umbrella. Re-derive both figures rather than trusting this
-  sentence — nothing in this document pins them.
-  `tests/acs/test_eval_trigger_detection.py`'s `S04ProbeSetTest` already
-  derives exactly this comparison (the distinct `expected` skills in
-  `s04.CASES` versus the `plugins/acs/skills/*/` directories minus its
-  `UNPROBED` allowlist) and fails when the two drift, so running that module
-  IS the check; `UNPROBED` is the list of reasons above, in code.
-  A case is decided one of two ways: by the first `Skill` tool_use its
-  description probe provokes, or — for a probe written as the explicit
-  `/acs:<skill>` command — by the session's registration list, which is why
-  such a case can carry a ✅ in a column otherwise defined by model routing.
+- **Trigger (5)** — the skill has a routing case under
+  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 32 of 32.
+  This column is no longer maintained by hand: `tests/acs/test_eval_cases.py`'s
+  `CoverageTest` fails when any shipped skill lacks a routing case, or any case
+  names a skill that does not ship, so running that module IS the check. Its
+  `UNPROBED` allowlist is empty. A case is decided by the first `Skill` tool call
+  its prompt provokes, read by a `tool_used` grader with an `input_match` naming
+  the skill. A case written as the explicit `/acs:<skill>` command is tagged
+  `explicit` and is **not reliably observable**: the CLI can expand a typed
+  command before any model turn, so no `Skill` call happens and the grader reads
+  zero for a probe that routed. The old harness decided those from the session's
+  registration list; nothing in the `claude plugin eval` format can see that.
   **Every shipped skill is model-invocable**: none sets
   `disable-model-invocation`. That flag is enforced by the CLI, which refuses
   the `Skill` call outright while leaving the slash command working, so it
@@ -109,21 +109,18 @@ never hand-picked:
   interrupted delivery ticket, so that command must keep resolving. What
   steers a plain description to the entry point instead is the leg's
   **description** ("Internal leg of /acs:<entry>, not a user-facing
-  command"), and s04's `NEGATIVE` cases measure exactly that.
+  command"), and the `negative` routing cases measure exactly that.
   `tests/acs/test_skill_contracts.py` now fails if any skill a `Skill(acs:…)`
   call names is made non-invocable again.
-- **Artifact (6)** — a layer-6 eval asserts that skill's own workspace
-  artifacts → 3 of 32: `create-ticket`
-  ([`s02_create_ticket_artifacts.py`](../../evals/behavioural/acs/scenarios/s02_create_ticket_artifacts.py),
-  forge-tier
-  [`s07_fanout_tracker_sync.py`](../../evals/behavioural/acs/scenarios/s07_fanout_tracker_sync.py)),
-  `code`
-  ([`s03_resume_and_verify.py`](../../evals/behavioural/acs/scenarios/s03_resume_and_verify.py)),
-  and `create-pr` (forge-tier
-  [`s08_create_pr_forge.py`](../../evals/behavioural/acs/scenarios/s08_create_pr_forge.py) —
-  runs its real title/label/section assertions once a forge target is
-  configured; skips cleanly otherwise, so this repo's own run of it is a skip,
-  not live coverage).
+- **Artifact (6)** — an artifact case under
+  [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md)
+  asserts that skill's own workspace state → 2 of 32: `create-ticket`
+  (`create-ticket-artifacts`) and `code` (`resume-and-verify`). Both are marked
+  † below: their seeds are verified by hand, but neither case has yet completed
+  end to end — in the container this suite was built in, Bash is non-functional
+  inside an eval run. `create-pr` used to carry a forge-tier scenario against a
+  live GitHub remote; it went with the behavioural harness, and the eval
+  sandbox's network rules cannot reach GitHub, so it has no replacement.
 
 **Hooked (12)**
 
@@ -134,17 +131,23 @@ never hand-picked:
 | `create-project` | ✅ | ✅ | ✅ | — |
 | `create-docs` | ✅ | ✅ | ✅ | — |
 | `create-requirements` | ✅ | ✅ | ✅ | — |
-| `create-ticket` | ✅ | ✅ | ✅ | ✅ |
+| `create-ticket` | ✅ | ✅ | ✅ | ✅† |
 | `create-design` | ✅ | ✅ | ✅ | — |
-| `code` | ✅ | ✅ | ✅ | ✅ |
+| `code` | ✅ | ✅ | ✅ | ✅† |
 | `docs-sync` | ✅ | ✅ | ✅ | — |
-| `create-pr` | ✅ | ✅ | ✅ | ✅* |
+| `create-pr` | ✅ | ✅ | ✅ | — |
 | `merge-pr` | ✅ | ✅ | ✅ | — |
 | `standardize-project` | ✅ | ✅ | ✅ | — |
 
-\* shipped but never run: `create_pr_forge` skips without a configured forge
-target, so this repo's own run of it is a skip, not live coverage (see
-"Artifact (6)" above).
+† the case exists and its seed is verified, but it has not yet completed end to
+end (see "Artifact (6)" above).
+
+The row set in these two tables predates several skill additions and removals
+(it lists the deleted `test` alias, lists `create-docs` twice, and omits
+`analyze-requirements`, `review-code`, `create-impl-plan` and others). That drift
+is older than the eval-suite change and is not fixed here. For the Trigger
+column, trust `tests/acs/test_eval_cases.py`, which is mechanical, over the
+rows, which are not.
 
 **Unhooked (10)**
 
@@ -161,17 +164,11 @@ target, so this repo's own run of it is a skip, not live coverage (see
 | `release` | ✅ | n/a (unhooked) | ✅ | — |
 | `create-docs` | ✅ | n/a (unhooked) | ✅ | — |
 
-The `create-pr` Artifact cell above is `✅*` and the remaining `merge-pr`
-Artifact `—` cell carries a specific reason rather than being open gap; both
-share the same **forge tier** (a live GitHub remote) foundation, shipped in
-MAR-67 (`ForgeSandbox` + `evals.forge_repo`/`ACS_FORGE_REPO` + non-production
-guards + branch-per-run teardown, `evals/behavioural/README.md:61`), but are not blocked
-on the same remaining thing. `create-pr`'s forge-tier eval itself shipped
-(`create_pr_forge`) — it is blocked only on an onboarded target repo before
-its real assertions run. `merge-pr` has no scenario at all yet, so it is
-blocked on both its scenario (`merge_pr_forge`, MAR-69) *and* the onboarded
-target repo — see "Roadmap to close the gap" item 3. The other 21 `—` cells
-are the gap itself.
+`create-pr` and `merge-pr` have no artifact case, and no route to one in the
+current format: both act on a live GitHub remote, which the eval sandbox's
+network rules do not reach. They were covered — `create-pr` partly, since its
+scenario skipped without an onboarded target — by a forge tier in the retired
+behavioural harness. The other `—` cells are the gap itself.
 
 **Structure is complete: 32 of 32** (`test_skill_contracts.py:141` pins the
 on-disk set against the `ALL_SKILLS` literal at
@@ -179,15 +176,14 @@ on-disk set against the `ALL_SKILLS` literal at
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 **Gating is complete for what can be gated: 19 of 19 hooked skills**; the other
 11 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 27 of 32** — 31 probes in all (25 by
-description, 2 by explicit command, 2 negative, plus the two controls); only
-the `test` alias is unprobed, because `run-e2e-tests` carries the probe for
-it. **The gap is behavioral (artifact) coverage: only 3 of 32
-skills** (`create-ticket`,
-`code`, `create-pr`) are verified at the output level (`create-pr`'s eval
-skips without a configured forge target) — so the *common* skill bugs (a
-missing script reference, a malformed completion report, a broken gate, the
-wrong skill firing) are already caught cheaply for nearly the whole surface.
+none should. **Routing covers 32 of 32** — 40 routing cases in all (26 by
+description, 8 by explicit command, 6 negative) plus one off-domain control,
+and `tests/acs/test_eval_cases.py` fails the build if a shipped skill loses its
+case. **The gap is behavioral (artifact) coverage: 2 of 32 skills**
+(`create-ticket`, `code`), and neither has yet completed end to end — so the
+*common* skill bugs (a missing script reference, a malformed completion report,
+a broken gate, the wrong skill firing) are already caught cheaply for nearly the
+whole surface, while whether a skill produced the *right* output mostly is not.
 
 ## Principles
 
@@ -203,12 +199,11 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
 4. **The verifier is the runtime gate; tests are the regression net.** The
    reflection verifier catches a bad run in the moment; evals catch a regression
    in the skill across changes. They are complementary, not redundant.
-5. **Cost-aware tiering.** Free tiers gate every commit/PR; the **pre-release
-   gate is acs-evals** in `evals/` (`make eval-source`, then
-   `make measure` / `make perf` against the release candidate), and the
-   in-repo `evals/behavioural/` paid suite is an on-demand tool —
-   no longer a per-ticket or pre-release gate. Never put paid evals on a
-   per-commit or scheduled path.
+5. **Cost-aware tiering.** Free tiers gate every commit/PR; the
+   **pre-release gate** runs the free eval-structure check and then the paid
+   routing suite, in that order, with a `--max-cost-usd` ceiling. Artifact
+   cases are an on-demand tool. Never put paid evals on a per-commit or
+   scheduled path.
 6. **Never assert equality or ordering on an `updated_at` value.**
    `acs_lib.now_iso()` is second-resolution (`acs_lib/_common.py`); such an
    assertion survived an injected mutant in 17 of 20 runs in MAR-169.
@@ -245,13 +240,12 @@ wrong skill firing) are already caught cheaply for nearly the whole surface.
    trigger eval, so coverage cannot silently regress — the Trigger column is
    complete today (MAR-575 closed its last three gaps), which is exactly the
    state a guardrail exists to hold.
-3. **Fill critical-path artifact evals** *(paid, pre-release).* In order:
-   `docs-sync`/`code` (real run), a **forge tier** for `create-pr` + `merge-pr`
-   (throwaway GitHub repo — foundation delivered by MAR-67: harness + config +
-   guards + teardown; `create-pr`'s scenario shipped in MAR-68
-   (`create_pr_forge`), so one scenario (`merge_pr_forge`, MAR-69) and the
-   onboarded target repo remain), then `ship` end-to-end — covering the
-   delivery spine.
+3. **Fill critical-path artifact evals** *(paid, pre-release).* First,
+   validate the two artifact cases that exist on a host where an eval run's
+   Bash works. Then `docs-sync`, then `ship` end-to-end — covering the delivery
+   spine. `create-pr` and `merge-pr` act on a live GitHub remote, which the
+   eval sandbox cannot reach; the retired harness's forge tier (MAR-67/68) was
+   the only route, and it has no equivalent in the current format.
 4. **LLM-as-judge for subjective skills** *(paid).* Rubric-scored evals for
    `create-prd` / `create-architecture` / `create-design`, whose quality is
    about content soundness rather than artifact shape.
@@ -288,6 +282,6 @@ G13's line in [prd.md](../product/prd.md).
 
 ## See also
 
-- [evals/behavioural/README.md](../../evals/behavioural/README.md) — the harness, cost tiers, how to add a scenario
+- [plugins/acs/evals/README.md](../../plugins/acs/evals/README.md) — the eval suite: running it, tags, grading, known limits
 - [tests/](../../tests/) — the deterministic + contract suites
 - [docs/product/roadmap.md](../product/roadmap.md) — Epic **E1** (eval harness) and **E3** (dogfood)

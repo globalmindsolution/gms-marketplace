@@ -24,6 +24,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
+
 import acs_lib  # noqa: E402
 
 SETS = ("quality", "operations", "principles", "standards")
@@ -163,14 +166,12 @@ class RoutingProbeCaseTest(unittest.TestCase):
 
     The probe set used to live in s04_skill_triggers.py's CASES list, parsed
     out of its AST. Routing consolidated onto the `claude plugin eval` tree, so
-    the data is evals/dataset/routing.json and this reads it directly."""
+    the probe set is the case files under plugins/acs/evals/, read through
+    tests/acs/eval_cases.py."""
 
     @staticmethod
     def _probes(positive=None):
-        path = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
-        with open(path, encoding="utf-8") as fh:
-            probes = [p for p in json.load(fh)["probes"]
-                      if p.get("kind") != "control"]
+        probes = eval_cases.probe_dicts()
         if positive is not None:
             probes = [p for p in probes if p["must_route"] is positive]
         return probes

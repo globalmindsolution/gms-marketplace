@@ -63,7 +63,7 @@ jobs:
               echo "::error file=$f::invalid JSON"
               status=1
             fi
-          done < <(find .claude-plugin .devin-plugin plugins evals -name '*.json' -not -path '*/__pycache__/*' -print0 | sort -z)
+          done < <(find .claude-plugin .devin-plugin plugins -name '*.json' -not -path '*/__pycache__/*' -print0 | sort -z)
           exit "$status"
 
       - name: Validate marketplace/plugin version consistency

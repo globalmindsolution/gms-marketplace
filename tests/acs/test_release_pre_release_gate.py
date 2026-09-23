@@ -137,18 +137,36 @@ class TheGateBlocksTheCutTest(unittest.TestCase):
 
 class ThisRepoDeclaresItsOwnGateTest(unittest.TestCase):
 
-    def test_the_dogfood_repo_names_the_acs_evals_commands(self):
+    def test_the_dogfood_repo_gates_on_the_plugin_eval_suite(self):
         gate = json.load(open(SETTINGS))["release"]["pre_release_gate"]
         self.assertTrue(gate, "this repo has a gate; it must declare it")
         joined = " ".join(gate)
-        # Pinned as the whole `make -C <tree>` invocation: a bare "evals"
-        # substring would also match the product name "acs-evals" and pass
-        # without the gate naming the tree at all.
-        self.assertIn("make -C evals", joined,
-                      "the gate runs out of the evals/ tree since the restructure")
+        # The suite is `claude plugin eval` case files inside the plugin, so
+        # the gate runs the documented CLI against THIS repo's plugin source.
+        self.assertIn("claude plugin eval plugins/acs", joined)
+        # The retired bespoke tooling must not come back as the gate.
+        self.assertNotIn("make -C evals", joined,
+                         "root evals/ was retired with its Makefile")
         self.assertNotIn("run_evals.py", joined,
-                         "the in-repo paid tier is an on-demand tool, not the gate")
+                         "the behavioural harness was retired")
 
+    def test_the_free_check_runs_before_the_paid_one(self):
+        """The skill stops at the first non-zero exit, so ORDER is the cost
+        control: a malformed case must fail the free validator before the
+        gate spends anything on sessions that would only discover it."""
+        gate = json.load(open(SETTINGS))["release"]["pre_release_gate"]
+        free = [i for i, c in enumerate(gate) if "test_eval_cases" in c]
+        paid = [i for i, c in enumerate(gate) if "claude plugin eval" in c]
+        self.assertTrue(free and paid, gate)
+        self.assertLess(free[0], paid[0])
+
+    def test_the_paid_step_carries_a_cost_ceiling(self):
+        gate = json.load(open(SETTINGS))["release"]["pre_release_gate"]
+        paid = [c for c in gate if "claude plugin eval" in c]
+        for command in paid:
+            self.assertRegex(command, r"--max-cost-usd \d")
+            self.assertIn("--trust-plugin", command,
+                          "a gate cannot stop at the first-run trust prompt")
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,5 +34,14 @@ JSON
 echo '.acs/settings.local.json' >> .gitignore
 mkdir -p .acs-workspace
 
+# A fresh partition refuses to allocate an id: acs's reconciliation guard will
+# not restart a sequence it has no evidence for (it could collide with ids
+# already in the repo's history). A reconciled counters.json is the documented
+# fixture seam for that (MAR-402) -- without it the first mint blocks and asks
+# for `--seed-next`, which a "do not ask me anything" prompt cannot answer.
+mkdir -p .acs-workspace/example-shop
+printf '{"next": 1, "reconciled": true, "seed_source": "explicit-user", "seeded_at": "%s"}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .acs-workspace/example-shop/counters.json
+
 git add -A
 git commit -qm seed

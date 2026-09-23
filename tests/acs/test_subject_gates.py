@@ -125,6 +125,41 @@ class MergePrGateTest(acs_case.AcsWorkspaceCase):
                 self.assertNotIn("blocked", out.stderr)
 
 
+class CodeSubjectGateTest(acs_case.AcsWorkspaceCase):
+    """/acs:code refuses a ticket reference that names no ticket.
+
+    A `<PREFIX>-<n>` token is a ticket REFERENCE, and a run over a reference to
+    nothing is a run whose subject cannot be read -- so the gate refuses it up
+    front rather than letting the first step that needs ticket.json discover it.
+
+    Ported from the behavioural harness's s01 install-gate smoke when that
+    harness was retired: s01 was the ONLY thing asserting this refusal. Its
+    other gate checks were already pinned on the source tree here; this one was
+    not, and a coverage audit against the real gate's message found no test
+    carrying it. s01 ran it against the INSTALLED build -- that angle now
+    belongs to `claude plugin eval acs@gms-marketplace`, which no unit test can
+    stand in for."""
+
+    def test_code_is_refused_for_a_ticket_that_does_not_exist(self):
+        out = self.pre("code", "SHOP-1")
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("acs pre-code: blocked", out.stderr)
+        self.assertIn(
+            "no ticket SHOP-1 in this repo's workspace — run /acs:create-ticket "
+            "to make one, or give /acs:code a prompt or a document instead.",
+            out.stderr)
+
+    def test_the_same_reference_opens_once_the_ticket_exists(self):
+        """The refusal is about the missing SUBJECT, nothing else: mint the
+        ticket and the identical invocation passes."""
+        minted = self.run_script("new-ticket.py", "--title", "Add a /health endpoint",
+                                 "--type", "task", "--needs-design", "false")
+        self.assertEqual(minted.returncode, 0, minted.stderr)
+        self.assertEqual(json.loads(minted.stdout)["ticket_id"], "SHOP-1")
+        out = self.pre("code", "SHOP-1")
+        self.assertEqual(out.returncode, 0, out.stderr)
+
+
 class CreateDesignGateTest(acs_case.AcsWorkspaceCase):
     """/acs:create-design only runs for a design-significant ticket."""
 

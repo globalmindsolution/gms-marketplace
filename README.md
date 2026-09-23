@@ -107,37 +107,29 @@ when the entry declares one — today's `acs` entry declares none) against the
 plugin's own `plugin.json`.
 
 **Before cutting a release** (before bumping `version`), run the pre-release
-quality gate — **[acs-evals](evals/README.md)** at [`evals/`](evals/). The gate
-is the golden dataset there, not the behavioural scenarios that share the tree
-under [`evals/behavioural/`](evals/behavioural/README.md). Run the commands
-`release.pre_release_gate` in [`.acs/settings.json`](.acs/settings.json) lists:
+gate — the commands `release.pre_release_gate` in
+[`.acs/settings.json`](.acs/settings.json) lists, which `/acs:release` runs in
+order and stops at the first failure:
 
 ```bash
-make -C evals eval-source   # deterministic golden cases against ./plugins/acs — the gate
-make -C evals check         # fail if a generated tree is stale against the plugin source
-make -C evals mutation      # schema constraint coverage (must stay >= 90%)
-make -C evals measure       # routing / behavioral measurement vs the promoted baseline
-make -C evals perf          # performance measurement
+python3 -m unittest tests.acs.test_eval_cases   # free: every eval case well-formed, every skill covered
+claude plugin eval plugins/acs --tag routing --ablation none \
+  --trust-plugin --no-publish --max-cost-usd 20  # PAID: does each prompt reach the right skill?
 ```
 
-`eval-source` pre-spells `ACS_PLUGIN_ROOT` for this checkout's `plugins/acs`;
-`measure` and `perf` read it from the environment, so export it
-(`export ACS_PLUGIN_ROOT=$PWD/plugins/acs`) to point those two at the release
-candidate. Plain `make -C evals eval` resolves the newest *installed* acs build
-instead, which is what a consumer actually runs. Run it **both ways**: the
-installed run is the only one that catches packaging drift, and it is red by
-construction whenever source is ahead of the last release.
+The second command is the plugin's eval suite — `claude plugin eval` case files
+at [`plugins/acs/evals/`](plugins/acs/evals/README.md), in the layout the
+[reference](https://code.claude.com/docs/en/plugin-evals) specifies. The free
+check runs first on purpose: a malformed case fails it for $0 instead of being
+discovered by a paid run.
 
-Treat a clean `make -C evals eval-source` as the gate; investigate any failing
-case, and any regression `make -C evals measure` / `make -C evals perf`
-reports, before tagging — the step-by-step is the
-[release runbook](docs/operations/release-runbook.md). The in-repo **paid**
-tier (`python3 evals/behavioural/run_evals.py --plugin acs --paid`, which
-spawns real `claude -p` sessions and needs an authenticated claude CLI) is an
-**on-demand tool** kept for the forge-tier scenarios — not a gate on any ticket,
-PR or release. The free tier alone (gate + cleanup smoke) already runs on every
-commit via the `acs-free-evals` pre-commit hook — see
-[evals/behavioural/README.md](evals/behavioural/README.md).
+Run the suite against the **installed** build too —
+`claude plugin eval acs@gms-marketplace --tag routing --ablation none` grades
+the installed copy with the installed copy loaded, which is what a consumer
+actually runs, and is the only run that catches packaging drift. Read the
+suite's README before quoting a number: it records which cases are known to be
+confounded, and why. The step-by-step is the
+[release runbook](docs/operations/release-runbook.md).
 
 - **Pinned consumers** (recommended) never receive an update without an
   explicit re-pin: upgrade by re-adding the marketplace at a newer tag
@@ -192,24 +184,20 @@ The marketplace currently ships one plugin:
 
 | Path | What lives there |
 |------|------------------|
-| [`plugins/acs/`](plugins/acs/README.md) | The shipped plugin. `marketplace.json` resolves `acs` from `./plugins/acs`, in this tree. |
+| [`plugins/acs/`](plugins/acs/README.md) | The shipped plugin. `marketplace.json` resolves `acs` from `./plugins/acs`, in this tree. Its eval suite lives inside it, at [`plugins/acs/evals/`](plugins/acs/evals/README.md) — `claude plugin eval` case files, and the pre-release gate. |
 | [`tests/`](tests/) | Deterministic unit + contract suites for the plugin (`python3 -m unittest discover -s tests`). |
-| [`evals/`](evals/README.md) | The **golden dataset** — the pre-release gate. Replays recorded CLI invocations against a *built* plugin and fails on any drift. Folded in from `globalmindsolution/acs-evals` (squash-merged; see below). |
-| [`evals/behavioural/`](evals/behavioural/README.md) | Behavioural scenarios that spawn real `claude -p` sessions. Free tier gates every commit; paid tier is on demand. Was a top-level tree of its own before the fold. |
 | [`docs/`](docs/README.md) | Product, requirements, architecture, ADRs, quality and operations docs for this repo. |
 | [`scripts/`](scripts/) | Repo tooling — `dev_install.py` installs this checkout as a plugin without hitting the released version's cache. |
 | [`security/`](security/policy.md) | The security reporting policy, alongside the root [`SECURITY.md`](SECURITY.md). |
 | [`.github/`](.github/workflows/) | CI: tests, the acs convention gate, security scans, and the release workflow that cuts the tag. |
 | [`.acs/`](.acs/) | This repo's own acs configuration, CI convention gate, and run ledger. |
 
-`evals/` keeps its own `Makefile`, `README.md` and `docs/` — read those
-before running it. It arrived by squash merge, so
-`git log -- evals/ src/acs-evals/` — both of its in-repo paths, since it was
-folded in at `src/acs-evals/` and moved to `evals/` when the repo was
-restructured — shows a single commit; the history that built it stays in
-[`globalmindsolution/acs-evals`](https://github.com/globalmindsolution/acs-evals)
-under the old repo-root-relative paths. [`evals/README.md`](evals/README.md)
-has the two commands for reading it.
+There is no root `evals/` folder any more. It held a golden dataset folded in
+from [`globalmindsolution/acs-evals`](https://github.com/globalmindsolution/acs-evals),
+a behavioural harness, and the tooling around both; all of it was retired when
+the suite moved to the documented `claude plugin eval` format inside the plugin.
+`git log --diff-filter=D -- evals/` finds the commit that removed it, and the
+history that built the dataset stays in that repository.
 
 ## Where to read more
 
@@ -218,4 +206,4 @@ has the two commands for reading it.
 | [docs/](docs/README.md) | Product docs: [product/](docs/product/) (PRD, roadmap), [requirements/](docs/requirements/) (behavioral contract), [architecture/](docs/architecture/) (HLD/LLD), [adr/](docs/adr/) |
 | [plugins/acs/README.md](plugins/acs/README.md) | acs plugin usage: install, quick start, skill reference, configuration, troubleshooting |
 | [plugins/acs/docs/INTERNALS.md](plugins/acs/docs/INTERNALS.md) | acs implementation contract for contributors (lifecycle, helper CLIs, state shapes, XML rules) |
-| [evals/README.md](evals/README.md) | The evaluation suites: golden dataset (release gate) and behavioural scenarios |
+| [plugins/acs/evals/README.md](plugins/acs/evals/README.md) | The eval suite: how to run it, its tags, how routing is graded, and its known limits |

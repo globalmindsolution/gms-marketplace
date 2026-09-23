@@ -24,6 +24,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
 import mermaid_lint  # noqa: E402
 
 FLOW_DOC = os.path.join(
@@ -285,26 +287,22 @@ class C4CountAndListFilesTest(unittest.TestCase):
 
 
 class RoutingProbeCaseTest(unittest.TestCase):
-    """AC-9: standardize-project's routing probes, read from the curated
-    dataset (no paid model call).
+    """AC-9: standardize-project's routing cases (no paid model call).
 
-    These used to parse s04_skill_triggers.py's CASES/NEGATIVE lists out of its
-    AST and cross-check them against that file's own docstring prose. Routing
-    consolidated onto the `claude plugin eval` tree, so the data is
-    evals/dataset/routing.json -- and the same rule applies to it: the counts
-    it states about itself are DERIVED here and never pinned as literals, so a
-    case-list change cascades to zero test edits. Pointing this at the dataset
-    immediately found its description claiming 24 natural-language probes when
-    it carried 26."""
+    These parsed s04_skill_triggers.py's CASES/NEGATIVE lists, then read a
+    routing dataset; both are gone, and the case files under plugins/acs/evals/
+    are the probe set, read through tests/acs/eval_cases.py. The rule carried
+    through every move: counts the suite states about itself are DERIVED here
+    and never pinned, so a case change cascades to zero test edits. Applied to
+    the old dataset it found the description claiming 24 natural-language
+    probes when there were 26; the suite's README is where those counts live
+    now, so that is what is held to them."""
 
-    ROUTING = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
+    README = os.path.join(PLUGIN, "evals", "README.md")
 
-    def _doc(self):
-        with open(self.ROUTING, encoding="utf-8") as fh:
-            return json.load(fh)
-
-    def _probes(self):
-        return [p for p in self._doc()["probes"] if p.get("kind") != "control"]
+    @staticmethod
+    def _probes():
+        return eval_cases.probe_dicts()
 
     @staticmethod
     def _skill(probe):
@@ -314,8 +312,7 @@ class RoutingProbeCaseTest(unittest.TestCase):
         probes = self._probes()
         positives = [p for p in probes
                      if p["must_route"] and self._skill(p) == "standardize-project"]
-        self.assertTrue(positives,
-                        "routing.json must carry a standardize-project positive")
+        self.assertTrue(positives, "the suite must carry a standardize-project positive")
         # ADR 0091 made this an internal leg, so its positive probe is the
         # explicit command, and the description that used to be the positive is
         # now the NEGATIVE -- the one that must NOT auto-route. The no-naming
@@ -325,8 +322,7 @@ class RoutingProbeCaseTest(unittest.TestCase):
             "an internal leg's positive probe is the explicit command")
         negatives = [p for p in probes
                      if not p["must_route"] and self._skill(p) == "standardize-project"]
-        self.assertTrue(negatives,
-                        "an internal leg needs a no-auto-route negative probe")
+        self.assertTrue(negatives, "an internal leg needs a no-auto-route negative case")
         self.assertNotIn(
             "standardize", negatives[0]["prompt"],
             "the probe request must describe brownfield audit intent "
@@ -335,55 +331,39 @@ class RoutingProbeCaseTest(unittest.TestCase):
     def test_no_create_spec_routing_case(self):
         for probe in self._probes():
             self.assertNotEqual(self._skill(probe), "create-spec",
-                                "no probe may route to the deleted create-spec")
-        with open(self.ROUTING, encoding="utf-8") as fh:
-            self.assertNotIn(
-                "create-spec", fh.read(),
-                "routing.json must not mention the deleted create-spec skill")
+                                "no case may route to the deleted create-spec")
+        # Nothing anywhere in the eval suite may mention the deleted skill
+        # (AC-1, scope extension): scan every file of it, not just the graders.
+        for dirpath, dirnames, filenames in os.walk(eval_cases.EVALS):
+            dirnames[:] = [d for d in dirnames if d != "results"]
+            for name in filenames:
+                path = os.path.join(dirpath, name)
+                with open(path, encoding="utf-8") as fh:
+                    self.assertNotIn(
+                        "create-spec", fh.read(),
+                        "%s references the deleted create-spec skill"
+                        % os.path.relpath(path, REPO_ROOT))
 
-        # No eval scenario anywhere references the deleted skill (AC-1,
-        # scope extension): scan the whole scenarios package.
-        scenarios_dir = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios")
-        for name in sorted(os.listdir(scenarios_dir)):
-            if not name.endswith(".py"):
-                continue
-            with open(os.path.join(scenarios_dir, name), encoding="utf-8") as fh:
-                body = fh.read()
-            self.assertNotIn(
-                "create-spec", body,
-                "%s still references the deleted create-spec skill" % name)
+    def test_readme_tag_counts_match_the_cases(self):
+        """The README's tag table is part of the suite: a stale count there is
+        how a reader forms a wrong belief about what it covers."""
+        with open(self.README, encoding="utf-8") as fh:
+            readme = fh.read()
+        cases = eval_cases.all_cases()
+        for tag in ("routing", "description", "explicit", "negative", "control",
+                    "artifacts"):
+            n = len([c for c in cases if tag in c.tags])
+            with self.subTest(tag=tag):
+                self.assertRegex(
+                    readme, r"\| `%s` \| [^|]*?\b%d\b" % (re.escape(tag), n),
+                    "README's %r row does not state the real count %d" % (tag, n))
 
-    def test_dataset_counts_match_its_own_probes(self):
-        """The dataset states counts about itself. Derived, never pinned."""
-        doc = self._doc()
-        renderable = self._probes()
-        self.assertEqual(doc["probe_count"], len(doc["probes"]))
-        self.assertEqual(doc["control_count"], len(doc["probes"]) - len(renderable))
-        self.assertEqual(doc["skill_count"],
-                         len({self._skill(p) for p in renderable}))
-
-    def test_description_counts_match_its_own_probes(self):
-        """The prose is part of the data: a stale count here is how a reader
-        forms a wrong belief about what the suite covers."""
-        doc = self._doc()
-        renderable = self._probes()
-        shipped = len([
-            name for name in os.listdir(os.path.join(PLUGIN, "skills"))
-            if os.path.isfile(os.path.join(PLUGIN, "skills", name, "SKILL.md"))
-        ])
-        skills = len({self._skill(p) for p in renderable})
-        self.assertEqual(
-            skills, shipped,
-            "every shipped skill must be probed before the description may "
-            "claim to cover them all")
-        self.assertIn("for all %d acs skills" % shipped, doc["description"])
-
-        described = [p for p in renderable
-                     if p["must_route"] and not p["prompt"].strip().startswith("/")]
-        self.assertIn(
-            "%d get one natural-language request" % len(described),
-            doc["description"],
-            "the description's natural-language probe count is stale")
+    def test_readme_does_not_claim_more_coverage_than_the_cases_carry(self):
+        shipped = set(eval_cases.shipped_skills())
+        probed = {self._skill(p) for p in self._probes()}
+        self.assertEqual(probed, shipped,
+                         "every shipped skill must have a case before the "
+                         "suite may be described as covering them")
 
 
 class ChangelogMar121EntryTest(unittest.TestCase):

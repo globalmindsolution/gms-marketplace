@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: resume-and-verify
+description: >-
+  A fresh /acs:code session told ONLY the ticket id must discover the work from
+  workspace state and implement it. The prompt never names /health, so an
+  implementation that wires /health can only have come from reading the seeded
+  spec. Migrated from the behavioural harness's s03 scenario.
+tags: [artifacts]
+context:
+  scaffold_script: seed.sh
+execution:
+  max_turns: 80
+  timeout_seconds: 1800
+  allowed_tools: [Read, Glob, Grep, Skill]
