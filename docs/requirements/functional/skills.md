@@ -127,7 +127,9 @@ validated against `settings.schema.json`.
   `formats.commit_message`, `formats.pr_title` — with their built-in
   defaults, and ask whether to keep or customize them.
 - MUST offer each CI gate explicitly, never installing one silently: the
-  convention check, the tests + coverage gate (which needs `tests.command`),
+  convention check (the PR description names its ticket,
+  [ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)), the tests +
+  coverage gate (which needs `tests.command`),
   and the e2e merge gate — the last offered only when `e2e`/`suites.e2e` is
   already configured. When a gate is installed, SHOULD then offer the
   one-time branch protection and labels (on admin rights and consent;
@@ -1408,14 +1410,21 @@ Purpose: ship the implementation as a pull request.
   `pr_title` is `{title}` — the plain ticket title, e.g. `Add wishlist
   support` — because the description's `## Ticket` section links the ticket
   (ADR-0105).
+- Before the PR is opened, the filled description MUST pass
+  `pr-conventions.py check` — exactly what CI will check, that the
+  description names its ticket
+  ([ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)), plus two
+  template-hygiene scans (no unrendered `{placeholder}`, no leftover
+  `<!-- -->` comment).
 - The PR targets the repo's **default branch** and MUST carry the **`ACS`**
-  label.
+  label — the label `/merge-pr --pr` reads to tell a pipeline PR from an
+  exempt one; CI does not require it (ADR-0106).
 - **[ASSUMPTION]** PRs are created ready-for-review (not draft).
 - **GitHub-native issue linking (standing behavior, MAR-75):** for a ticket
   synced to GitHub the PR body carries a `Closes #<external.key>` reference (a
   distinct bullet in the `## Ticket` section) so GitHub auto-links and
   auto-closes the issue on merge, in addition to the tracker line. The PR also
-  carries the required `ACS` label and the milestone when one is used. The
+  carries the `ACS` label and the milestone when one is used. The
   link bullet is omitted entirely for `local`/unsynced tickets. Independently,
   a `pr_title` that uses `{ticket_ref}` renders the tracker's native reference
   when the ticket is synced (MAR-80); the default `{title}` carries no
@@ -1424,7 +1433,7 @@ Purpose: ship the implementation as a pull request.
   sync (i.e. `ticket.external.provider == "github"` and the ticket is synced),
   an acs-opened/updated PR carries assignee = PR author (the authenticated
   `gh` user, resolved via `@me`) on both the create and edit paths; the
-  ticket-type label alongside the required `ACS` label, both created
+  ticket-type label alongside the `ACS` label, both created
   idempotently; and Project membership with its Status field set — any
   Project-schema-undefined field is surfaced as an info finding rather than
   silently skipped (mirroring the create-ticket standing behavior above).
@@ -1465,8 +1474,10 @@ Purpose: ship the implementation as a pull request.
   a report as evidence that the non-conforming subjects are the branch's own —
   it surfaces that `message` as an `info` finding and continues. Detection is
   deliberately incomplete and never authoritative: it reports before the push
-  rather than preventing the conventions-gate failure, a miss degrades to the
-  ordinary red gate with no replay advice rather than to a false alarm, one
+  rather than preventing the `commit_message` check's failure (since ADR-0106
+  that check runs only in the local `pre-push` hook, not in CI), a miss
+  degrades to that ordinary failure with no replay advice rather than to a
+  false alarm, one
   false positive is accepted deliberately, and a degraded run can add a second
   that the report announces. The skill never runs the rebase or the force-push;
   the author does. Stacking remains permitted and the repository's merge

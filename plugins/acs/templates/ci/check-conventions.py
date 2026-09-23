@@ -3,11 +3,13 @@
 acs convention checker — self-contained (Python stdlib only).
 
 /acs:setup copies this file into the consumer repo at `.acs/ci/check-conventions.py`
-and wires it into a GitHub Actions workflow (and, optionally, a local pre-push
-hook). It enforces that branch names, PR titles, PR descriptions, labels, and
-commit messages match the *same* format strings the acs pipeline renders from
-(`formats.*` in `.acs/settings.json`) — so a hand-made PR that never went through
-`/acs:create-pr` is held to the identical convention before it can merge.
+and wires it into a GitHub Actions workflow (and, optionally, local git hooks).
+
+In CI it checks ONE thing: that the PR description names its ticket -- the acs
+id (`ACS-12`), a `#<n>` issue reference, or an issue link (ADR-0106). The
+description is where a PR is linked to its ticket (ADR-0105); branch names and
+titles are free in CI, and no label is required. The optional local hooks still
+hold branch names and commit subjects to the `formats.*` the pipeline renders.
 
 No acs plugin install is required on the runner: the formats and ticket prefix
 are read from the committed `.acs/settings.json`, and every key it leaves out
@@ -16,12 +18,12 @@ file at all is checked against the defaults, ticket prefix `ACS` included. A
 settings file that is present but malformed fails the check.
 
 Modes:
-  --mode pr        CI: validate a pull request (branch, title, body, labels,
-                   commit subjects). Inputs come from ACS_PR_* env vars set by
-                   the workflow from the `pull_request` event payload.
-  --mode pre-push  local git hook: validate the branch name + commit subjects of
-                   the range being pushed (PR title/body/labels do not exist yet,
-                   so those checks are CI's job).
+  --mode pr         CI: the PR description names a ticket. Inputs come from
+                    ACS_PR_* env vars set by the workflow from the
+                    `pull_request` event payload.
+  --mode pre-push   local git hook: the branch name + commit subjects of the
+                    range being pushed, against `formats.*`.
+  --mode commit-msg local git hook: one commit subject, against `formats.*`.
 
 Exit code 0 = conforms or exempt; 1 = one or more violations (or fail-closed).
 """
@@ -44,22 +46,19 @@ DEFAULT_TICKET_PREFIX = "ACS"
 FORMAT_DEFAULTS = {
     "branch_name": "{type}/{ticket_id}-{slug}",
     "commit_message": "{ticket_id} {summary}",
-    "pr_title": "{title}",
 }
 
+#: The local-hook checks and whether each runs by default. The CI check, the
+#: ticket link, is not a toggle: a repo that does not want it does not install
+#: the workflow.
 CHECK_DEFAULTS = {
     "branch_name": True,
-    "pr_title": True,
-    "pr_description": True,
-    "acs_label": True,
     "commit_message": False,  # noisy under squash-merge; setup turns it on per repo
 }
 
 ENFORCEMENT_DEFAULTS = {
     "exempt_branches": ["release/*", "dependabot/*", "renovate/*"],
     "exempt_label": "acs-exempt",
-    "require_label": "ACS",
-    "pr_description_sections": ["Summary", "Ticket", "Changes", "Test plan"],
 }
 
 TICKET_TYPES = ("epic", "story", "task")
@@ -156,6 +155,8 @@ class Result:
 
 
 def _enabled(settings, check):
+    if check not in CHECK_DEFAULTS:
+        return True
     checks = (settings.get("enforcement") or {}).get("checks") or {}
     return bool(checks.get(check, CHECK_DEFAULTS[check]))
 
@@ -179,15 +180,22 @@ def is_exempt(settings, branch, labels):
     return None
 
 
-# Which checks each mode runs, further gated by enforcement.checks.*. PR title,
-# label, and description only exist once a PR is open, so the local hooks
-# (pre-push at push time, commit-msg at commit time) check only what is knowable
-# locally — branch name and commit subjects — against the configured formats.
+# Which checks each mode runs; the local ones are further gated by
+# enforcement.checks.*. CI checks only the ticket link (ADR-0106): branch names,
+# titles and labels no longer decide whether a PR may merge. The local hooks
+# (pre-push at push time, commit-msg at commit time) still check what is
+# knowable locally -- branch name and commit subjects -- against the formats.
 MODE_CHECKS = {
-    "pr":         ["branch_name", "commit_message", "pr_title", "acs_label", "pr_description"],
+    "pr":         ["ticket_link"],
     "pre-push":   ["branch_name", "commit_message"],
     "commit-msg": ["commit_message"],
 }
+
+
+def ticket_link_re(prefix):
+    """What names a ticket in a PR description: its acs id (`ACS-12`), a
+    `#<n>` issue reference, or a link to an issue."""
+    return re.compile(r"\b%s-\d+\b|(?<![\w/&])#\d+\b|/issues/\d+\b" % re.escape(prefix))
 
 
 def _check_branch_name(settings, ctx, prefix, res):
@@ -210,50 +218,26 @@ def _check_commit_message(settings, ctx, prefix, res):
                 "commit subject %r does not match required format '%s'" % (subject, template)))
 
 
-def _check_pr_title(settings, ctx, prefix, res):
-    template = _fmt(settings, "pr_title")
-    title = (ctx.get("title") or "").strip()
-    if not title:
-        res.errors.append(("pr_title", "PR has no title"))
-    elif not format_to_regex(template, prefix).match(title):
-        res.errors.append(("pr_title",
-            "PR title '%s' does not match required format '%s' (e.g. %s)"
-            % (title, template, _example(template, prefix))))
-
-
-def _check_acs_label(settings, ctx, prefix, res):
-    required = _enf(settings, "require_label")
-    if required and required not in (ctx.get("labels") or []):
-        res.errors.append(("acs_label",
-            "PR is missing the required '%s' label (added by /acs:create-pr). "
-            "Apply it, or add the '%s' label to exempt a non-ticket PR."
-            % (required, _enf(settings, "exempt_label"))))
-
-
-def _check_pr_description(settings, ctx, prefix, res):
-    body = ctx.get("body") or ""
-    for section in _enf(settings, "pr_description_sections") or []:
-        if not _has_heading(body, section):
-            res.errors.append(("pr_description",
-                "PR description is missing a '## %s' section" % section))
+def _check_ticket_link(settings, ctx, prefix, res):
+    if not ticket_link_re(prefix).search(ctx.get("body") or ""):
+        res.errors.append(("ticket_link",
+            "PR description names no ticket: add its id (e.g. %s-12), a #<issue> "
+            "reference or an issue link." % prefix))
 
 
 _CHECKERS = {
     "branch_name": _check_branch_name,
     "commit_message": _check_commit_message,
-    "pr_title": _check_pr_title,
-    "acs_label": _check_acs_label,
-    "pr_description": _check_pr_description,
+    "ticket_link": _check_ticket_link,
 }
 
 
 def evaluate(settings, ctx, mode):
-    """ctx keys: branch, title, body, labels (list), commit_subjects (list).
+    """ctx keys: branch, body, labels (list), commit_subjects (list).
 
-    The checks that run are MODE_CHECKS[mode] intersected with the
-    enforcement.checks.* toggles. Every check reads the user-configured
-    formats.* / enforcement.* from .acs/settings.json, over the same defaults the
-    plugin uses, so local hooks and CI stay in lockstep.
+    The checks that run are MODE_CHECKS[mode], the local ones intersected with
+    the enforcement.checks.* toggles. Every check reads .acs/settings.json over
+    the same defaults the plugin uses, so local hooks and CI stay in lockstep.
     """
     res = Result()
     prefix = settings.get("ticket_prefix", DEFAULT_TICKET_PREFIX)
@@ -284,11 +268,6 @@ def _is_ignorable_commit(subject):
     return s.startswith("Merge ") or s.startswith("Revert ") or s.startswith("fixup!") or s.startswith("squash!")
 
 
-def _has_heading(body, section):
-    pattern = re.compile(r"^#{1,6}\s*%s\s*:?\s*$" % re.escape(section), re.IGNORECASE | re.MULTILINE)
-    return bool(pattern.search(body or ""))
-
-
 def _example(template, prefix):
     return (template
             .replace("{ticket_id}", "%s-12" % prefix)
@@ -312,18 +291,6 @@ def _git(args, cwd):
         return None
 
 
-def _commit_subjects_pr(repo_root, base_ref):
-    if not base_ref:
-        return []
-    for rng in ("origin/%s..HEAD" % base_ref, "%s..HEAD" % base_ref):
-        out = _git(["log", "--no-merges", "--format=%s", rng], repo_root)
-        if out is not None:
-            return [line for line in out.splitlines() if line.strip()]
-    sys.stderr.write("warning: could not compute commit range against '%s' — "
-                     "commit-message check skipped (need fetch-depth: 0)\n" % base_ref)
-    return []
-
-
 def _commit_subjects_prepush(repo_root):
     """Parse git's pre-push stdin (`<localref> <localsha> <remoteref> <remotesha>`)."""
     zero = "0" * 40
@@ -336,8 +303,15 @@ def _commit_subjects_prepush(repo_root):
         _, local_sha, _, remote_sha = parts
         if local_sha.startswith("0000000"):  # branch deletion
             continue
-        rng = local_sha if remote_sha.startswith("0000000") else "%s..%s" % (remote_sha, local_sha)
-        out = _git(["log", "--no-merges", "--format=%s", rng], repo_root)
+        if remote_sha.startswith("0000000"):
+            # A branch the remote does not have yet: only the commits no remote
+            # has. `git log <sha>` alone walks the whole history, and main's
+            # squash-merge subjects carry no ticket id (ADR-0105), so every
+            # first push of a branch was refused.
+            rng = [local_sha, "--not", "--remotes"]
+        else:
+            rng = ["%s..%s" % (remote_sha, local_sha)]
+        out = _git(["log", "--no-merges", "--format=%s"] + rng, repo_root)
         if out:
             subjects.extend(s for s in out.splitlines() if s.strip())
     if not saw_stdin:  # invoked manually, not by git — fall back to upstream range
@@ -389,7 +363,7 @@ def _emit(res, mode):
     if not in_actions:
         sys.stderr.write(
             "\nFix the above, or add the exempt label for a legitimate non-ticket PR.\n"
-            "These conventions come from .acs/settings.json over acs's defaults — run /acs:setup to change them.\n")
+            "The formats come from .acs/settings.json over acs's defaults — run /acs:setup to change them.\n")
     return 1
 
 
@@ -436,12 +410,11 @@ def main(argv=None):
             "commit_subjects": _commit_subjects_prepush(repo_root),
         }
     else:
+        # The branch and labels only decide an exemption; the body is checked.
         ctx = {
             "branch": os.environ.get("ACS_PR_BRANCH", ""),
-            "title": os.environ.get("ACS_PR_TITLE", ""),
             "body": os.environ.get("ACS_PR_BODY", ""),
             "labels": _env_labels(),
-            "commit_subjects": _commit_subjects_pr(repo_root, os.environ.get("ACS_BASE_REF", "")),
         }
 
     res = evaluate(settings, ctx, mode)

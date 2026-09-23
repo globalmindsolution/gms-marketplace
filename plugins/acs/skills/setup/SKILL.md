@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Optionally configure acs for the current repo — keep or change the branch/commit/PR conventions, and install the CI that enforces them. Use when setting up acs on a new repo, when changing an acs convention format, or when the user wants acs conventions enforced in CI or the pipeline protected from being bypassed.
+description: Optionally configure acs for the current repo — keep or change the branch/commit/PR conventions, and install the CI check that every PR names its ticket. Use when setting up acs on a new repo, when changing an acs convention format, or when the user wants acs conventions enforced in CI or the pipeline protected from being bypassed.
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
@@ -12,7 +12,7 @@ runs: no settings file is required, and tickets take the default prefix `ACS`
 (`ACS-1`, `ACS-2`, …). No other skill needs setup first.
 
 Setup configures two things: **conventions** (the branch/commit/PR formats)
-and the **CI** that enforces them. Nothing else. Every other setting has a
+and the **CI** gates on pull requests. Nothing else. Every other setting has a
 working default, and no setting locates a document or the workspace
 (ADR-0102). A user who wants to change one — ticket prefix, tracker, models,
 merge strategy, coverage target, test suites — edits `.acs/settings.json`
@@ -84,7 +84,7 @@ asking again.
 
    | Offer | What declining costs |
    |---|---|
-   | **Convention check** (`conventions`) | branch/PR/commit conventions stay advisory; a hand-made PR can bypass the pipeline. Required check: `Branch / PR / commit conventions`. By default it checks the branch name, PR title, PR description sections and the `ACS` label; the commit-message check is off under squash merges — ask whether to turn it on (`enforcement.checks.commit_message: true`). |
+   | **Convention check** (`conventions`) | a PR can merge without naming its ticket. Required check: `Branch / PR / commit conventions`. It fails a PR whose description names no ticket — its id, a `#<n>` reference or an issue link; the `acs-exempt` label or a `release/*`, `dependabot/*` or `renovate/*` branch skips it. Branch names and commit subjects are checked only by the local hooks it also copies in, which each clone turns on with `/acs:install-hooks`; their commit-message check is off under squash merges — ask whether to turn it on (`enforcement.checks.commit_message: true`). |
    | **Tests + coverage gate** (`tests`) | the suite and the coverage target are not enforced on PRs. Needs `tests.command` — lead with `test_command_candidates` — which must run the suite and fail below `$ACS_COVERAGE` (the coverage target, default 90); `apply` refuses the gate without one. Required check: `Tests & coverage`. |
    | **e2e merge gate** (`e2e`) — offered only when `e2e`/`suites.e2e` is already configured | e2e failures do not block a merge. Required check: `E2E suite`. |
 

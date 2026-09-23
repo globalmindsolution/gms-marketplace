@@ -362,6 +362,26 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **The CI convention check enforces one rule: the PR description names its
+  ticket** (ADR-0106). `acs-conventions.yml` passes a PR whose description
+  names the acs id (`<prefix>-<n>`), a `#<n>` issue reference, or an issue
+  link. `acs-exempt` or an exempt branch still skips it. Branch name, title,
+  description sections, the `ACS` label and commit subjects are no longer
+  checked in CI; the optional local `pre-push` and `commit-msg` hooks still
+  check branch names and commit subjects. `enforcement.checks.pr_title`,
+  `checks.pr_description`, `checks.acs_label` and `pr_description_sections`
+  are retired: accepted and ignored. `pr-conventions.py check` now verifies
+  exactly what CI will, and its title, label, format and section flags are
+  accepted and ignored. The workflow needs no git history and only
+  `contents: read`. The job keeps the name `Branch / PR / commit conventions`,
+  so branch protection that requires it keeps working. `/acs:create-pr`'s
+  stacked-base pre-flight now stops the run only when `checks.commit_message`
+  is on; otherwise its replay advice is a warning. The local `pre-push` hook
+  reads only a new branch's own commits, where it used to walk the whole
+  history and refuse every first push once `main` held plain squash subjects.
+  Re-run `/acs:setup`, or re-copy the workflow and
+  `.acs/ci/check-conventions.py`, to pick it up.
+
 - **acs runs without `/acs:setup`, and the PR title carries no ticket id**
   (ADR-0105). `ticket_prefix` is optional and defaults to `ACS`, so tickets
   are `ACS-1`, `ACS-2`, …; a repo that wants its own prefix sets it by hand.

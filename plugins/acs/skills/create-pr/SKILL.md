@@ -141,14 +141,20 @@ exact error — no silent fallback.
      `message` VERBATIM as one `info` finding, record it, and CONTINUE, the same
      shape as exit 2.
    - **Exit 1** (`verdict` `stacked_base`): the branch is stacked on a base that
-     was squash-merged, and the conventions gate will fail on subjects the
-     author cannot fix by renaming them. Do NOT push, and do NOT run `gh pr
-     create` / `gh pr edit`. Surface the report's `message` VERBATIM as a
-     blocking problem — it names the offending subjects and carries the replay
-     command with real SHAs, which a paraphrase would drop — write it into the
-     phase artifact and follow the Finish failure path (`states.pr` omitted when
-     no PR exists). The author runs the replay; this skill never rewrites their
-     branch. The remedy in full, with the rejected `--cherry-pick` record:
+     was squash-merged and still carries that PR's commits, whose
+     non-conforming subjects the author cannot fix by renaming them. CI no
+     longer reads commit subjects (ADR-0106), so whether this stops the run
+     turns on `settings.enforcement.checks.commit_message`. **On**, the local
+     pre-push hook refuses those subjects: do NOT push, and do NOT run
+     `gh pr create` / `gh pr edit`. Surface the report's `message` VERBATIM as
+     a blocking problem — it names the offending subjects and carries the
+     replay command with real SHAs, which a paraphrase would drop — write it
+     into the phase artifact and follow the Finish failure path (`states.pr`
+     omitted when no PR exists). **Off** (the default), nothing refuses the PR,
+     which would only carry the merged base's commits into review: surface the
+     `message` VERBATIM as one `warning` finding, record it, and CONTINUE. The
+     author runs the replay; this skill never rewrites their branch. The remedy
+     in full, with the rejected `--cherry-pick` record:
      `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md`.
    - **Exit 2** (unevaluable — `acs stacked-base: <reason>` on stderr: the base
      ref does not resolve, or the histories share no merge base): one `info`
@@ -210,44 +216,41 @@ exact error — no silent fallback.
    local acs ticket id being unique across contributors (AC-7).
 
 4. **Pre-open self-check.** Before either branch of step 5 runs `gh pr
-   create`/`gh pr edit`, self-check the rendered title and filled body
-   against the configured conventions with the helper's `check` subcommand —
-   a deterministic CLI call, never a spawned subagent and never a
-   plan/execute/verify triad — no new subagent role is introduced by this
-   step:
+   create`/`gh pr edit`, self-check the filled body against exactly what CI
+   will check, with the helper's `check` subcommand — a deterministic CLI
+   call, never a spawned subagent and never a plan/execute/verify triad — no
+   new subagent role is introduced by this step:
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-     --title "<rendered title>" --body-file steps/create-pr/pr-body.md \
-     --require-label ACS --pr-title-format "<settings.formats.pr_title>" \
-     --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
-     --ticket-prefix <settings.ticket_prefix>
+     --body-file steps/create-pr/pr-body.md --ticket-prefix <settings.ticket_prefix>
    ```
 
-   `--pr-title-format` here resolves the SAME committed `settings.formats.pr_title`
-   value that step 2's `--template` used to render the title — one
-   settings-sourced format string, never a hardcoded literal and never
-   re-derived independently for the self-check, identical to the value
-   `check-conventions.py` reads in CI. This is what keeps producer-render,
-   self-check, and CI enforcement from drifting.
+   CI checks one thing (ADR-0106): the description names its ticket — the id
+   (`<prefix>-<n>`), a `#<n>` reference or an issue link. `check` runs
+   `check-conventions.py`'s own rule rather than a copy of it, which is what
+   keeps the self-check and CI enforcement from drifting, and adds two
+   hygiene scans: an unrendered `{placeholder}` and a leftover `<!-- -->`
+   comment. The title and the `ACS` label are how acs writes the PR, not
+   rules CI checks, so neither is self-checked.
 
    - **On pass** (exit 0 / `passed: true`): proceed to step 5 unchanged.
    - **On failure** (exit 1 / `passed: false`): this reports structured
      findings from a deterministic call. Perform a bounded local retry: if
-     the failing heading is `pr_title`, re-run `render-title`; if it is
-     `pr_description`, `unrendered_placeholder`, or
-     `leftover_template_comment`, re-fill the specific missing section or
-     delete the surviving placeholder/HTML comment in `pr-body.md`, then
-     re-run `check`. Cap the retry at a small bounded number of attempts
-     (up to 2 re-renders) — this is a tight fix-and-recheck loop around one
-     deterministic call, NOT a new plan/execute/verify iteration. If `check`
-     still fails after the bounded retries, STOP: do NOT call `gh pr
-     create`/`gh pr edit`; surface a blocking problem naming the exact
-     failing heading(s)/detail(s) from the helper's `errors`, write it into
-     the phase artifact, and follow the Finish failure path — `states.pr` is
-     omitted if no PR exists yet, or kept as the last-known-good object if
-     updating an existing PR that could not be re-validated. Never open or
-     leave in place a PR known to be non-conforming as a result of this run.
+     the failing heading is `ticket_link`, re-fill the Ticket section so the
+     body names the ticket id; if it is `unrendered_placeholder` or
+     `leftover_template_comment`, delete the surviving placeholder/HTML
+     comment in `pr-body.md`, then re-run `check`. Cap the retry at a small
+     bounded number of attempts (up to 2 re-fills) — this is a tight
+     fix-and-recheck loop around one deterministic call, NOT a new
+     plan/execute/verify iteration. If `check` still fails after the bounded
+     retries, STOP: do NOT call `gh pr create`/`gh pr edit`; surface a
+     blocking problem naming the exact failing heading(s)/detail(s) from the
+     helper's `errors`, write it into the phase artifact, and follow the
+     Finish failure path — `states.pr` is omitted if no PR exists yet, or kept
+     as the last-known-good object if updating an existing PR that could not
+     be re-validated. Never open or leave in place a PR known to be
+     non-conforming as a result of this run.
    - Apply this identical self-check on BOTH the create path and the edit
      path below — one `check` call before whichever `gh pr` command ends up
      running.

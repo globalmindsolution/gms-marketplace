@@ -1185,18 +1185,20 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   delivery pipeline itself is NOT a settings key: it is the resolved
   `workflows/ship.yaml`, overridden wholesale at `<repo>/.acs/workflows/ship.yaml`
   when a repo ships one.
-- `enforcement` (opt-in, /setup Step 2): repo-side CI that holds *every* PR to
-  the same conventions, so the pipeline can't be silently bypassed. /setup copies
+- `enforcement` (opt-in, /setup Step 2): repo-side CI that fails *every* PR
+  whose description names no ticket — its id (`PREFIX-\d+`), a `#<n>`
+  reference or an issue link (ADR-0106). /setup copies
   `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
   `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
   is intentionally **standalone (stdlib only, no `acs_lib` import)** because it
-  runs on a CI runner with no acs install — it re-derives the conventions by
-  compiling the committed `formats.*` strings to regexes ({ticket_id} ->
+  runs on a CI runner with no acs install — it reads `ticket_prefix` +
+  `formats` from the committed project `settings.json` over its own copy of the
+  plugin's defaults (ADR-0105), so a repo with no settings file is checked
+  against the defaults, and for the local hooks it re-derives the conventions by
+  compiling the `formats.*` strings to regexes ({ticket_id} ->
   `PREFIX-\d+`, {type} -> `epic|story|task`, {slug} -> lower-kebab, free text ->
-  `.+`), reading `ticket_prefix` + `formats` from the committed project
-  `settings.json` over its own copy of the plugin's defaults (ADR-0105), so a
-  repo with no settings file is checked against the defaults. A present but
-  malformed value fails closed; tested by `tests/test_conventions_check.py`.
+  `.+`). A present but malformed value fails closed; tested by
+  `tests/test_conventions_check.py`.
   The CI check is necessary-but-not-sufficient (workspace proof lives off-repo),
   so the real gate is a required status check on a protected default branch;
   `exempt_branches`/`exempt_label` are the escape hatch for non-ticket PRs.
@@ -1207,14 +1209,19 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   validates the PR carries the `exempt_label` (or an `exempt_branches` head) and
   refuses + redirects to `/acs:merge-pr <ticket-id>` when the PR looks
   ticket-backed. acs writes nothing into a consumer's `CLAUDE.md`: that file is
-  the repo's own project instructions, and the enforcement above is what keeps
-  a hand-made PR from bypassing the pipeline.
-  The same checker runs three modes off one config: `--mode pr` (CI: branch,
-  commit, pr_title, acs_label, pr_description), `--mode pre-push` (local hook:
-  branch + commit subjects of the push range), `--mode commit-msg` (local hook:
-  the commit subject as written). Each mode's checks are `MODE_CHECKS[mode]`
-  intersected with the `enforcement.checks.*` toggles, so local hooks and CI
-  enforce identical, user-configured `formats.*` — laptop and runner never drift.
+  the repo's own project instructions, and the enforcement above is what holds
+  a hand-made PR to naming its ticket.
+  The same checker runs three modes off one config: `--mode pr` (CI: the
+  ticket link, and nothing else), `--mode pre-push` (local hook: branch +
+  commit subjects of the push range), `--mode commit-msg` (local hook: the
+  commit subject as written). Each mode's checks are `MODE_CHECKS[mode]`; the
+  local ones are further intersected with the `enforcement.checks.*` toggles
+  (`branch_name`, `commit_message`), so the local hooks enforce the same
+  user-configured `formats.*` the pipeline renders. The CI check is not a
+  toggle. `enforcement.checks.pr_title` / `pr_description` / `acs_label` and
+  `enforcement.pr_description_sections` are retired: accepted and ignored.
+  `require_label` (default `ACS`) stays live as the label `/acs:create-pr`
+  applies and `/acs:merge-pr --pr` reads; CI does not require it.
   Local hooks install via the pre-commit framework (tracked/shared) or raw
   `.git/hooks/*` (per-clone), both `--no-verify`-bypassable. The per-clone
   install is the unhooked, user-invoked skill `/acs:install-hooks` (wrapping the

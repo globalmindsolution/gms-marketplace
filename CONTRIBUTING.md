@@ -80,6 +80,9 @@ above:
 
 - Branch off `main`; never commit directly to `main` (it's protected).
 - Keep commit subjects imperative; reference the ticket id when there is one.
+- Name the ticket in the PR description (`MAR-<n>`, `#<n>` or an issue link):
+  it is the one rule the required `Branch / PR / commit conventions` check
+  enforces. A PR no ticket stands behind carries the `acs-exempt` label.
 - CI must be green (tests on 3.9 + 3.12, pre-commit, gitleaks, version
   consistency). PRs merge **squash**.
 - The repo ships one shared version across four manifests:

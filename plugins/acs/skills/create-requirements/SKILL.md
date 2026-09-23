@@ -338,20 +338,19 @@ gh label create ACS 2>/dev/null || true                # create the label if mis
   amended; Test plan = the verifier dimensions checked; mark TDD/coverage checklist
   items `N/A (docs-only PR)`. Write the filled body to
   `steps/create-requirements/pr-body.md` before the self-check below.
-- **Pre-open self-check** — before `gh pr create`, self-check the rendered
-  title and filled body with the helper's `check` subcommand (a deterministic
-  CLI call, never a spawned subagent):
+- **Pre-open self-check** — before `gh pr create`, self-check the filled
+  body with the helper's `check` subcommand (a deterministic CLI call, never
+  a spawned subagent). It checks exactly what CI will — that the body names
+  its ticket (ADR-0106) — plus two hygiene scans, for an unrendered
+  `{placeholder}` and a leftover `<!-- -->` comment:
 
   ```bash
   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-    --title "<rendered title>" --body-file "steps/create-requirements/pr-body.md" \
-    --require-label ACS --pr-title-format "<settings.formats.pr_title>" \
-    --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
-    --ticket-prefix <settings.ticket_prefix>
+    --body-file "steps/create-requirements/pr-body.md" --ticket-prefix <settings.ticket_prefix>
   ```
 
   On pass, proceed to `gh pr create` unchanged. On failure, this check
-  blocks/retries: apply a bounded local re-render/re-check (up to 2
+  blocks/retries: apply a bounded local re-fill/re-check (up to 2
   attempts) rather than opening a non-conforming PR; if still failing after
   the bounded retries, STOP — do not call `gh pr create` — surface the
   blocking finding with the failing heading(s)/detail(s) in the result

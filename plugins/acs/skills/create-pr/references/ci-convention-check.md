@@ -1,10 +1,12 @@
 # /acs:create-pr — reading a red convention check before believing it
 
 Open this when the "Branch / PR / commit conventions" check reports failing
-after the PR is open. A run whose check comes back green never needs it, and
+after the PR is open. That check fails a PR whose description names no ticket
+(ADR-0106). A run whose check comes back green never needs this file, and
 a run that acts on a red one WITHOUT it is likely to act on a stale result:
-the check reads a webhook payload frozen at the triggering event, so a label
-or title fixed a moment later is invisible to the run that fired before it.
+the check reads a webhook payload frozen at the triggering event, so a
+description or label fixed a moment later is invisible to the run that fired
+before it.
 
 Open it also when step 1's stacked-base pre-flight exits 1 — the last section
 carries that remedy, which applies before the PR is ever opened.
@@ -15,22 +17,22 @@ failure policy"; the rule below is the one thing that policy does not cover.
 
 ### CI convention-check troubleshooting (frozen-payload gotcha)
 
-`.github/workflows/acs-conventions.yml` reads `ACS_PR_TITLE`, `ACS_PR_BODY`,
-`ACS_PR_BRANCH`, `ACS_BASE_REF`, and `ACS_PR_LABELS` from
-`github.event.pull_request.*` in its `env:` block — the webhook payload as it
-was FROZEN at the moment that specific triggering event fired, never a live
-`gh pr view`/API call. A label, title, or body change applied via a separate
-call AFTER a given event fired is invisible to that event's own check run;
-only a later event (its own `edited`/`labeled`/`synchronize` run) observes it.
+`.github/workflows/acs-conventions.yml` reads `ACS_PR_BODY`, `ACS_PR_BRANCH`,
+and `ACS_PR_LABELS` from `github.event.pull_request.*` in its `env:` block —
+the webhook payload as it was FROZEN at the moment that specific triggering
+event fired, never a live `gh pr view`/API call. A body or label change
+applied via a separate call AFTER a given event fired is invisible to that
+event's own check run; only a later event (its own
+`edited`/`labeled`/`synchronize` run) observes it.
 
 Re-running a completed workflow run (e.g. `rerun_workflow_run`) replays that
-run's ORIGINAL frozen payload — it can never pick up a label, title, or body
-change made afterward. Rerunning an `opened`-triggered run that failed for
-missing-label reasons will fail again every time, no matter how many times
-it's rerun. Worse, if that rerun finishes AFTER a separate, correctly-passing
-run (e.g. the `labeled` run), its stale failing conclusion can become the
-"latest" one GitHub reports for the check, shadowing the real, already-green
-result. **Never treat a rerun of a stale/superseded run as a valid re-check.**
+run's ORIGINAL frozen payload — it can never pick up a body or label change
+made afterward. Rerunning an `opened`-triggered run that failed because the
+description named no ticket will fail again every time, no matter how many
+times it's rerun. Worse, if that rerun finishes AFTER a separate,
+correctly-passing run (e.g. the `edited` run), its stale failing conclusion
+can become the "latest" one GitHub reports for the check, shadowing the real,
+already-green result. **Never treat a rerun of a stale/superseded run as a valid re-check.**
 
 Before treating a failing "Branch / PR / commit conventions" check as real:
 
@@ -52,13 +54,15 @@ Before treating a failing "Branch / PR / commit conventions" check as real:
 
 ### A branch stacked on a squash-merged base (the step-1 pre-flight)
 
-This is the other way the "Branch / PR / commit conventions" check goes red, and
-the only one the author cannot fix by renaming anything. It is caught before the
-push by step 1's pre-flight,
+CI no longer reads commit subjects (ADR-0106), so this condition does not turn
+the "Branch / PR / commit conventions" check red. Its subjects fail
+`formats.commit_message`, and the author cannot fix them by renaming anything —
+the local `pre-push` hook, when its `commit_message` check is on, refuses them.
+It is caught before the push by step 1's pre-flight,
 `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stacked-base.py" check`, so the
-usual sighting is that report rather than a red check on an open PR.
+usual sighting is that report.
 
-**The condition.** `.acs/ci/check-conventions.py` collects a PR's commits with
+**The condition.** The pre-flight lists the branch's commits with
 `git log --no-merges origin/<base>..HEAD` — pure SHA ancestry. A squash merge
 replaces the base PR's commits with ONE new commit, so the originals never
 become ancestors of the base. A branch stacked on that base still carries them,

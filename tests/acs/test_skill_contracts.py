@@ -943,16 +943,17 @@ class TestCreatePrConventionWiring(unittest.TestCase):
             re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
             "MAR-80 [create-pr]: render-title must co-occur with --provider within a bounded window")
 
-    def test_pre_open_check_and_render_share_same_pr_title_format(self):
-        """MAR-80 spec 03: step 4's --pr-title-format and step 2's --template
-        must be documented as resolving the SAME committed
-        settings.formats.pr_title value -- no per-provider template
-        branching, no independently-hardcoded literal."""
+    def test_the_pre_open_check_verifies_what_ci_checks(self):
+        """ADR-0106: CI checks only that the description names its ticket, so
+        the pre-open self-check takes the body and the prefix and nothing else.
+        It used to pass --pr-title-format, pinned by MAR-80 spec 03 to the same
+        settings.formats.pr_title that render-title uses; the title is no longer
+        a CI rule, so there is nothing left for the check to match it against."""
         body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?s)--pr-title-format.{0,600}(SAME|same).{0,200}settings\.formats\.pr_title", body),
-            "MAR-80 [create-pr]: step 4 narrative must state --pr-title-format "
-            "resolves the SAME settings.formats.pr_title value step 2's --template uses")
+        self.assertRegex(body, r"pr-conventions\.py\" check \\\n\s*--body-file \S+ "
+                               r"--ticket-prefix <settings\.ticket_prefix>")
+        for retired in ("--pr-title-format", "--require-label", "--sections"):
+            self.assertNotIn(retired, body)
 
     def test_r4_closes_linkage_fence_untouched(self):
         """MAR-80 R4 fence: the Closes #{external_key} body-fill mechanism

@@ -179,8 +179,14 @@ every pre-hook, which still refuses a malformed value
 `tests?` and `enforcement?` back the opt-in CI gates `/acs:setup` can scaffold
 (offered at Step 2, installed by Step 3's `setup apply`):
 `acs-conventions.yml`+`check-conventions.py` (`enforcement`)
-and `acs-tests.yml`+`run-tests.py` (`tests`). The e2e CI-gate artifact family
-(the same install, offered only when an e2e suite is configured) is the same
+and `acs-tests.yml`+`run-tests.py` (`tests`). In CI the conventions gate
+checks one rule, that the PR description names its ticket
+([ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md));
+`enforcement.checks.branch_name`/`commit_message` gate only the local git
+hooks, and `checks.pr_title`, `checks.pr_description`, `checks.acs_label` and
+`pr_description_sections` are retired (accepted and ignored). The e2e
+CI-gate artifact family (the same install, offered only when an e2e suite is
+configured) is the same
 shape: `acs-e2e.yml` + `run-e2e.py` (the committed
 template pair), built from `e2e?`/`suites?` — no dedicated settings key of
 its own — and wired as the `E2E suite` required-check context.
@@ -190,8 +196,9 @@ its own — and wired as the `E2E suite` required-check context.
 answer equal to its built-in default and removes one an earlier run wrote.
 Every other key, `ticket_prefix` included, is edited by hand. The default
 `formats.pr_title` is `{title}`; `templates/ci/check-conventions.py` runs
-without the plugin, so it holds its own copy of these defaults (a test fails
-when the copies differ) and checks a repo with no settings file against them.
+without the plugin, so it holds its own copy of the defaults it checks against
+(a test fails when the copies differ) and checks a repo with no settings file
+against them.
 No key locates the workspace or a document ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)): the
 workspace is always `<main-checkout>/.acs/state-machine` (anchored via
 `git rev-parse --git-common-dir`, ADR-0086; ignored by its own `.gitignore`

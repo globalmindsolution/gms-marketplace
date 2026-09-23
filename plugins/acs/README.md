@@ -225,7 +225,7 @@ different.
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
-| `/acs:setup` | — (optional; no skill needs it first) | Configures conventions and the CI that enforces them: the branch/commit/PR formats, and the optional convention and tests gates. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
+| `/acs:setup` | — (optional; no skill needs it first) | Configures conventions and CI: the branch/commit/PR formats, and the optional convention gate (every PR names its ticket) and tests gate. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |

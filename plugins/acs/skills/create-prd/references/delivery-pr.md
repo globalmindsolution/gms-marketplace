@@ -50,26 +50,25 @@ re-derived later, so a body filled from it is a body nobody can check.
 
 ## 3. Pre-open self-check
 
-Before `gh pr create`, self-check the rendered title and filled body with the
-helper's `check` subcommand (a deterministic CLI call, never a spawned
-subagent):
+Before `gh pr create`, self-check the filled body with the helper's `check`
+subcommand (a deterministic CLI call, never a spawned subagent). It checks
+exactly what CI will — that the body names its ticket (ADR-0106) — plus two
+hygiene scans, for an unrendered `{placeholder}` and a leftover `<!-- -->`
+comment:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-  --title "<rendered title>" --body-file <body.md> --require-label ACS \
-  --pr-title-format "<settings.formats.pr_title>" \
-  --sections "<settings.enforcement.pr_description_sections, comma-joined>" \
-  --ticket-prefix <settings.ticket_prefix>
+  --body-file <body.md> --ticket-prefix <settings.ticket_prefix>
 ```
 
 On pass, proceed to `gh pr create` unchanged. On failure, this check
-blocks/retries: apply a bounded local re-render/re-check (up to 2 attempts)
+blocks/retries: apply a bounded local re-fill/re-check (up to 2 attempts)
 rather than opening a non-conforming PR; if still failing after the bounded
 retries, STOP — do not call `gh pr create` — surface the blocking finding with
 the failing heading(s)/detail(s) in the result document.
 
-The self-check exists because the CI convention gate runs the same rules
-against the opened PR. Failing here costs a re-render; failing there costs a
+The self-check exists because the CI convention gate runs the same rule
+against the opened PR. Failing here costs a re-fill; failing there costs a
 red check on a PR a reviewer is already looking at.
 
 ## 4. Open it

@@ -66,11 +66,14 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    ownership from it: record the report's `message` VERBATIM as one `info`
    finding and CONTINUE, the same shape as exit 2.
    Exit 1 (`verdict` `stacked_base`) — the branch is stacked on a base that
-   was squash-merged: do NOT push and do NOT create or edit a PR; stop and
-   return `needs_input` carrying the report's `message` VERBATIM (it names the
-   offending subjects and the replay command with real SHAs — a paraphrase drops
-   exactly what the author needs), and record it in your execute report. The
-   author replays the branch; you never rewrite it. Exit 2 (unevaluable — the base ref does not
+   was squash-merged. With `settings.enforcement.checks.commit_message` on, the
+   local pre-push hook refuses those subjects: do NOT push and do NOT create or
+   edit a PR; stop and return `needs_input` carrying the report's `message`
+   VERBATIM (it names the offending subjects and the replay command with real
+   SHAs — a paraphrase drops exactly what the author needs), and record it in
+   your execute report. With it off (the default) CI refuses nothing here
+   (ADR-0106): record the `message` VERBATIM as one `warning` finding and
+   CONTINUE. The author replays the branch; you never rewrite it. Exit 2 (unevaluable — the base ref does not
    resolve, or the histories share no merge base; `acs stacked-base: <reason>`
    on stderr) — one `info` finding, then CONTINUE, and treat a failed
    `git fetch` the same way; an advisory pre-flight never fails a good PR.

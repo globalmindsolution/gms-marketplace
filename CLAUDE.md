@@ -151,11 +151,14 @@ changing the plugin itself.
 
 ## Conventions enforced in CI
 
-`.acs/ci/check-conventions.py` validates branch names, commit messages and PR shape against
-`.acs/settings.json` over acs's built-in defaults, which this repo keeps (branch
-`{type}/{ticket_id}-{slug}`, commit `{ticket_id} {summary}` with the `MAR` prefix, a plain PR
-title, required PR sections including the Ticket link, the `ACS` label). Work not backed by a
-ticket needs the `acs-exempt` label. Toggles live under `enforcement.checks.*`. The checker is a
-copy of `plugins/acs/templates/ci/check-conventions.py`: re-copy it, never edit it in place.
+The required `Branch / PR / commit conventions` check runs `.acs/ci/check-conventions.py --mode pr`
+and enforces one rule: the PR description names its ticket — `MAR-<n>`, a `#<n>` issue reference,
+or an issue link (ADR-0106). CI does not check the branch name, PR title, description sections or
+the `ACS` label. Work not backed by a ticket needs the `acs-exempt` label. The same checker runs as
+this repo's local git hooks (`.pre-commit-config.yaml`) against acs's built-in formats: `commit-msg`
+holds each subject to `{ticket_id} {summary}` with the `MAR` prefix (`enforcement.checks.commit_message`
+is on here), and `pre-push` checks the branch name (`{type}/{ticket_id}-{slug}`) and the pushed
+subjects. The checker is a copy of `plugins/acs/templates/ci/check-conventions.py`: re-copy it,
+never edit it in place.
 
 `main` is protected — branch off it, never commit to it directly.

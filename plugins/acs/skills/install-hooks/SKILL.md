@@ -12,14 +12,15 @@ The job: install this clone's local git hooks so the repo's conventions
 (`formats.branch_name`, `formats.commit_message` — acs's defaults unless changed
 with `/acs:setup` or by hand) are enforced **before push** — `commit-msg`
 validates the commit subject as it is written, `pre-push` validates the branch
-name and the push range's commit subjects. Both run the same
-`.acs/ci/check-conventions.py` against the same committed `.acs/settings.json`
-(over the same defaults) as CI, so laptop and runner never drift. PR title
-and description can only be checked once a PR exists, so those stay CI-only.
+name and the push range's commit subjects. Both run
+`.acs/ci/check-conventions.py`, the checker CI runs, against the committed
+`.acs/settings.json` (over the same defaults). CI checks only that a PR's
+description names its ticket (ADR-0106), so branch names and commit subjects
+are checked here and nowhere else.
 
 Git hooks are **per-clone** — that is why this is a command each teammate runs
 once after cloning, exactly like `pre-commit install`. The hooks are
-`--no-verify`-bypassable; CI is the real backstop.
+`--no-verify`-bypassable, and CI does not re-check what they check.
 
 ## Step 0 — Preflight
 
@@ -150,8 +151,9 @@ Tell the user, concisely:
 - Each teammate runs `/acs:install-hooks` (or `sh .acs/ci/install-hooks.sh`)
   once per clone — hooks are per-clone, like `pre-commit install`.
 - The hooks enforce the configured `formats.*`; change them with `/acs:setup`.
-- They are `--no-verify`-bypassable, so the required CI check (if configured) is
-  the real gate.
+- They are `--no-verify`-bypassable, and CI does not re-check branch names or
+  commit subjects: the required CI check (if configured) gates only that a PR
+  names its ticket.
 - Commit any newly created `.acs/ci/*` (and `.pre-commit-config.yaml` if edited).
 
 ## Completion report (normative)
@@ -170,5 +172,5 @@ Ticket line with **Scope** (no ticket):
 - **Findings**: <malformed conventions / pre-existing non-acs hooks / clarifications, or "none">
 - **Artifacts**: `.acs/ci/` files, this clone's `.git/hooks/*`, edited `.pre-commit-config.yaml`
 - **Metrics**: <wall time>
-- **Next**: have teammates run `/acs:install-hooks` per clone; configure the required CI check via `/acs:setup` for a true gate
+- **Next**: have teammates run `/acs:install-hooks` per clone; configure the required CI check via `/acs:setup` to gate every PR on naming its ticket
 ```

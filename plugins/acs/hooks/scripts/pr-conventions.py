@@ -9,13 +9,13 @@ Gives /acs:create-pr and the three product-level skills (/acs:create-prd,
                 to stdout for the caller to pass straight to
                 `gh pr create/edit --title`.
 
-  check         Self-check a rendered title + a filled PR body against the
-                repo's configured PR conventions BEFORE a PR is opened, by
-                driving check-conventions.py's evaluate() (single source of
-                truth) — this module never re-implements the convention rules.
-                Two additional producer-only hygiene scans (unrendered
-                {placeholder} tokens, leftover <!-- --> template comments) run
-                on top of, never instead of, evaluate().
+  check         Self-check a filled PR body BEFORE the PR is opened against
+                exactly what CI will check -- that it names its ticket
+                (ADR-0106) -- by driving check-conventions.py's evaluate()
+                (single source of truth); this module never re-implements the
+                rule. Two producer-only hygiene scans (unrendered {placeholder}
+                tokens, leftover <!-- --> template comments) run on top of,
+                never instead of, evaluate().
 
 Stdlib-only, runtime-agnostic. Shape mirrors clarify.py / new-ticket.py:
 argparse with subparsers, JSON to stdout, sys.exit non-zero on failure.
@@ -25,10 +25,7 @@ Usage:
       --ticket-id MAR-72 --type task --title "Fix thing" \\
       --summary "..." --external-key "" --provider ""
 
-  pr-conventions.py check --title "[MAR-72] Fix thing" \\
-      --body-file pr-body.md --require-label ACS \\
-      --pr-title-format "[{ticket_id}] {title}" \\
-      --sections "Summary,Ticket,Changes,Test plan" --ticket-prefix MAR
+  pr-conventions.py check --body-file pr-body.md --ticket-prefix MAR
 """
 
 import argparse
@@ -103,36 +100,18 @@ def _hygiene_errors(body):
     return errors
 
 
-def run_check(title, body, require_label, pr_title_format, sections, ticket_prefix):
-    """Drive cc.evaluate(settings, ctx, "pr") scoped to pr_title + pr_description
-    (+ acs_label when --require-label is supplied), plus the two hygiene scans.
+def run_check(body, ticket_prefix):
+    """Drive cc.evaluate(settings, ctx, "pr") -- the CI check, which is now only
+    the ticket link (ADR-0106) -- plus the two hygiene scans.
 
-    Scoping (AC-3, no fork of evaluate's logic): branch_name and commit_message
-    are routed to res.skipped via evaluate's OWN _enabled() disable gate —
-    this helper never derives a branch name or commit history itself.
-    """
-    settings = {
-        "ticket_prefix": ticket_prefix,
-        "formats": {"pr_title": pr_title_format},
-        "enforcement": {
-            "checks": {"branch_name": False, "commit_message": False},
-            "pr_description_sections": list(sections or []),
-        },
-    }
-    ctx = {
-        "title": title,
-        "body": body,
-        "labels": [require_label] if require_label else [],
-        "branch": "",
-        "commit_subjects": [],
-    }
-
+    No branch, labels or commit history are passed: CI no longer reads them for
+    anything but an exemption, and a PR about to be opened is never exempt."""
+    settings = {"ticket_prefix": ticket_prefix}
+    ctx = {"body": body, "branch": "", "labels": []}
     res = cc.evaluate(settings, ctx, "pr")
     errors = [{"heading": heading, "detail": detail} for heading, detail in res.errors]
     errors.extend(_hygiene_errors(body))
-    skipped = list(res.skipped)
-
-    return {"passed": not errors, "errors": errors, "skipped": skipped}
+    return {"passed": not errors, "errors": errors, "skipped": list(res.skipped)}
 
 
 # ---------------------------------------------------------------------------
@@ -153,24 +132,14 @@ def _add_render_title_parser(sub):
 
 def _add_check_parser(sub):
     p = sub.add_parser("check")
-    p.add_argument("--title", required=True)
     p.add_argument("--body-file", required=True)
-    p.add_argument("--require-label", default="")
-    p.add_argument("--pr-title-format", required=True)
-    p.add_argument("--sections", default=None, action="append",
-                    help="repeatable, or a single comma-separated flag")
     p.add_argument("--ticket-prefix", required=True)
+    # Accepted and ignored, so an older skill invocation still runs: CI no
+    # longer checks the title, a label or the description's sections (ADR-0106).
+    for legacy in ("--title", "--require-label", "--pr-title-format"):
+        p.add_argument(legacy, default=None, help=argparse.SUPPRESS)
+    p.add_argument("--sections", default=None, action="append", help=argparse.SUPPRESS)
     return p
-
-
-def _parse_sections(raw_list):
-    sections = []
-    for raw in raw_list or []:
-        for part in str(raw).split(","):
-            part = part.strip()
-            if part:
-                sections.append(part)
-    return sections
 
 
 def main(argv=None):
@@ -203,14 +172,7 @@ def main(argv=None):
                                            "detail": "could not read --body-file: %s" % exc}],
                                "skipped": []}))
             sys.exit(1)
-        result = run_check(
-            title=args.title,
-            body=body,
-            require_label=args.require_label,
-            pr_title_format=args.pr_title_format,
-            sections=_parse_sections(args.sections),
-            ticket_prefix=args.ticket_prefix,
-        )
+        result = run_check(body=body, ticket_prefix=args.ticket_prefix)
         print(json.dumps(result))
         sys.exit(0 if result["passed"] else 1)
 

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """stacked-base.py — detect a branch stacked on a squash-merged base.
 
-`.acs/ci/check-conventions.py` collects a PR's commits with
-`git log --no-merges origin/<base>..HEAD` — pure SHA ancestry. A squash merge
+A branch's commits are `<base>..HEAD` — pure SHA ancestry. A squash merge
 replaces the base PR's commits with ONE new commit, so the originals never
 become ancestors of the base. A branch stacked on that base still carries them,
-the range still lists them, and the commit_message check fails on subjects the
-author cannot fix by renaming them.
+the range still lists them, and a commit_message check fails on subjects the
+author cannot fix by renaming them. CI stopped checking commit subjects with
+ADR-0106; the local pre-push hook still does when `checks.commit_message` is
+on, and a stacked PR still carries the merged base's commits into review.
 
   check   Decide whether `<base_ref>..HEAD` is that shape and, if it is, name
           the offending subjects and emit a replay command proven lossless.

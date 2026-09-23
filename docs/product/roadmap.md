@@ -216,7 +216,11 @@ features.
   `require_label`, `exempt_label` default `acs-exempt`, `exempt_branches`,
   `pr_description_sections`). Observed live on this repo: ruleset 17602044 is
   `active` on `main` with "Branch / PR / commit conventions" among the required status-check
-  contexts (`gh api repos/:owner/:repo/rulesets/17602044`).
+  contexts (`gh api repos/:owner/:repo/rulesets/17602044`). **Narrowed (MAR-592,
+  ADR 0106): the CI check now enforces one rule, that the PR description names
+  its ticket; `checks.pr_title`, `checks.pr_description`, `checks.acs_label` and
+  `pr_description_sections` are retired (accepted and ignored), and the local
+  hooks keep the branch-name and commit-subject checks.** The job keeps its name.
 - **E5.2 — `/acs:install-hooks` skill** + committed `.acs/ci/install-hooks.sh`.
   The per-clone `pre-commit install` equivalent for acs; the committed script
   lets teammates install the local hooks without the plugin.

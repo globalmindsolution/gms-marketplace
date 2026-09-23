@@ -23,25 +23,8 @@
   },
   "enforcement": {
     "checks": {
-      "branch_name": true,
-      "pr_title": true,
-      "pr_description": true,
-      "acs_label": true,
       "commit_message": true
-    },
-    "exempt_branches": [
-      "release/*",
-      "dependabot/*",
-      "renovate/*"
-    ],
-    "exempt_label": "acs-exempt",
-    "require_label": "ACS",
-    "pr_description_sections": [
-      "Summary",
-      "Ticket",
-      "Changes",
-      "Test plan"
-    ]
+    }
   },
   "release": {
     "version_locations": [

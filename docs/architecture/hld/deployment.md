@@ -74,7 +74,8 @@ Key facts:
   first sign of a malformed case would be a paid run scoring it zero.
 - **Consumer-repo required-check gates**: `/acs:setup` can opt-in scaffold up
   to three independent GitHub Actions checks per consumer repo — conventions
-  (`acs-conventions.yml`), tests+coverage (`acs-tests.yml`), and e2e
+  (`acs-conventions.yml`, which since ADR-0106 checks one rule: the PR
+  description names its ticket), tests+coverage (`acs-tests.yml`), and e2e
   (`acs-e2e.yml`, this ticket) — each backed by a stdlib-only runner reading
   the committed `.acs/settings.json`. A committed workflow file is advisory
   until a repo admin makes its check a **required status check** on the
