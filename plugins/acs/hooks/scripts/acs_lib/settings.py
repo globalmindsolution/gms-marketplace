@@ -219,10 +219,10 @@ def validate_formats(formats):
             check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
 
 
-#: The per-role models /acs:setup recommends, and the single source of truth for
-#: that recommendation: the setup prose (skills/setup/SKILL.md) is asserted
-#: against it, so a new model generation is a change to this constant and that
-#: prose together.
+#: The per-role models acs recommends, and the single source of truth for that
+#: recommendation. /acs:setup no longer offers models -- it configures
+#: conventions and CI only -- so a repo that wants them pinned copies these
+#: into its `models` block by hand; a new model generation is a change here.
 #:
 #: A consumer repo's own choice never edits this constant -- what acs recommends
 #: is not what any one repo happens to run. Nothing in the runtime reads it

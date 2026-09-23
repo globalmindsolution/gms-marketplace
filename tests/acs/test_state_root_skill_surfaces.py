@@ -28,7 +28,7 @@ Prose-contract unit test covering every shipped surface outside
     workspace" section naming the exact migrate_workspace.py CLI shape.
 
 Stdlib-only (json, os, re, unittest), mirroring
-tests/acs/test_setup_offers.py (REPO_ROOT/PLUGIN + read helper +
+the retired tests/acs/test_setup_offers.py (REPO_ROOT/PLUGIN + read helper +
 bounded-window section-scoped assertions) so a too-loose match cannot pass
 vacuously.
 

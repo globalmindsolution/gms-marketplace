@@ -346,6 +346,24 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **`/acs:setup` configures conventions and the CI that enforces them, and
+  nothing else.** It asks for the ticket prefix, the three `formats.*`
+  strings, and the convention, tests and (when an e2e suite is configured) e2e
+  gates, then offers branch protection. It never writes a value equal to its
+  built-in default, and it removes one an earlier run wrote (`defaulted` in
+  `setup apply`'s result), so `.acs/settings.json` carries only choices.
+  Settings always go to the project file. `setup detect` names any retired
+  path key (ADR-0102) still sitting in a settings file.
+  **Removed:**
+  - The `CLAUDE.md` acs-managed guidance block. acs writes nothing into a
+    consumer's `CLAUDE.md` any more, and `templates/CLAUDE.acs.md`,
+    `upsert_managed_block` and the other managed-block helpers are deleted.
+  - The status-line offer. `statusline.py` and `subagent-statusline.py`
+    still ship; configure `statusLine` / `subagentStatusLine` by hand.
+  - The scope question, the models offer, and the optional-settings batch
+    (coverage, merge strategy, tracker, suites, advisories). Those settings
+    keep working defaults and are edited in `.acs/settings.json` by hand.
+
 - **Documents are found, not configured: every path setting is removed**
   (ADR-0102). `prd_path`, `architecture_path`, `requirements_path`,
   `requirements_layout`, `adr_path`, `quality_path`, `operations_path`,

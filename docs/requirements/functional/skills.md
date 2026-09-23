@@ -106,20 +106,31 @@ table; none of its runtime obligations changed.
 
 ## `/setup` (bootstrap)
 
-Purpose: make the `acs` plugin work on any consumer repo by generating its
-configuration.
+Purpose: make the `acs` plugin work on any consumer repo by configuring its
+conventions and the CI that enforces them — nothing else. Every other setting
+(coverage target, merge strategy, tracker, models, suites, advisories) keeps a
+working default and is edited by hand in `.acs/settings.json`, validated
+against `settings.schema.json`.
 
-- MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)
-  or **project scope** (`<repo>/.acs/settings.json`); the user chooses the
-  scope at setup time.
+- MUST write only the project settings file (`<repo>/.acs/settings.json`,
+  committed — conventions are the team's); there is no scope question. MUST
+  NOT write a value equal to its built-in default, and MUST remove one an
+  earlier run wrote, so the file carries only choices.
 - The workspace derives silently to `<main-checkout>/.acs/state-machine` —
   no prompt, no required input, and no override (ADR-0086,
   [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 - MUST prompt for **`ticket_prefix`**, suggesting one derived from the
   repo/product name (e.g. `SHOP`) — ticket ids are per-repo; there is no
   global default prefix.
-- MUST set `test_coverage_percent` with a default of **90** (user may
-  override).
+- MUST show the three conventions — `formats.branch_name`,
+  `formats.commit_message`, `formats.pr_title` — with their built-in
+  defaults, and ask whether to keep or customize them.
+- MUST offer each CI gate explicitly, never installing one silently: the
+  convention check, the tests + coverage gate (which needs `tests.command`),
+  and the e2e merge gate — the last offered only when `e2e`/`suites.e2e` is
+  already configured. When a gate is installed, SHOULD then offer the
+  one-time branch protection and labels (on admin rights and consent;
+  otherwise print the command once and continue).
 - SHOULD create the workspace folder if it does not exist, and verify it is
   writable.
 - MUST ensure the derived in-repo state root is ignored by git through two
@@ -128,16 +139,21 @@ configuration.
   with `git check-ignore -v`, and MUST warn (never silently proceed) when
   the ignore is not actually in effect, or when a broad `.acs/` rule would
   also hide `.acs/settings.json`/`.acs/ci/*` from CI (ADR-0086).
-- When an external workspace left by an older acs is detected for the repo,
-  SHOULD offer a user-confirmed, one-shot migration into the in-repo state
-  root; declining leaves the old workspace untouched — acs no longer reads it
+- MUST name every retired settings key (ADR-0102) still in a settings file
+  and say it is ignored. When that key is a `workspace_path` pointing at an
+  external workspace left by an older acs, SHOULD offer a user-confirmed,
+  one-shot migration into the in-repo state root (`migrate_workspace.py`);
+  declining leaves the old workspace untouched — acs no longer reads it
   (ADR-0086).
 - `/setup` is not part of the gated pipeline (no executor/verifier
   subagents); it is a simple setup skill.
 - All other skills' pre-hooks fail fast (exit 2) with a "run /setup first"
   message when no `settings.json` can be found.
-- Re-running `/setup` on an initialized repo/user scope **updates the
-  existing settings in place** (preserving keys it does not touch).
+- Re-running `/setup` on an initialized repo **updates the existing settings
+  in place** (preserving keys it does not touch) and refreshes the CI copies.
+- MUST NOT write into the repo's `CLAUDE.md` (the repo's own project
+  instructions) or into the user's Claude Code settings: the status lines are
+  wired by hand ([configuration.md](configuration.md#status-lines-optional)).
 
 ## `/ship` (umbrella)
 
@@ -210,7 +226,8 @@ this skill owns the workflow around it.
   when the plugin's `version` bumps (semver; automated release tagging).
 - Runs post-update migration checks: settings valid against the new schema,
   status-line paths still resolve (they hold absolute install paths —
-  re-run `/setup` Step 3 when the install moved), workspace reachable.
+  re-point them by hand when the install moved; `/setup` does not write
+  them), workspace reachable.
 - Reloading is the user's action (`/reload-plugins` or a new session); the
   skill states this explicitly — the current session keeps the old version.
 - Not part of the gated pipeline; no executor/verifier subagents.
@@ -1390,8 +1407,8 @@ test cases, so the post-code e2e run has something ticket-specific to run.
 - Input: the e2e-typed rows of `test-cases.md` and the repo's e2e
   configuration (`settings.e2e` / `settings.suites.e2e`). Pre-hook input
   checks: an e2e suite is configured **and** `test-cases.md` lists at least
-  one e2e case — a repo with no e2e layer is refused with a pointer at
-  `/acs:setup`, and `ship.yaml` skips the step for it entirely
+  one e2e case — a repo with no e2e layer is refused with a pointer at adding
+  `suites.e2e` to `.acs/settings.json`, and `ship.yaml` skips the step for it entirely
   (`when: e2e_configured`).
 - MUST write the suites at the repo's configured e2e location, named after
   the ticket, committed on the ticket branch.

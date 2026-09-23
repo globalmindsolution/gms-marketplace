@@ -13,7 +13,7 @@ it always did. In dependency order:
   lock           the run lock and its audit ledger
   tickets        ticket.json, the id counter and tickets-index.json
   metrics        token/cost apportionment and the metrics ledger
-  setup_helpers  CLAUDE.md managed block, toolchain probing, exempt-PR classifier
+  setup_helpers  doc-set fan-out, toolchain probing, exempt-PR classifier
   forge          PR-metadata fill and tracker sync against gh (MAR-525)
   gate_inputs    the ticket-artifact input checks the Build/Test gates share
   gates          context resolution, the input/brake gates, post-hook persistence
@@ -92,17 +92,15 @@ from .metrics import (_EMPTY_MEASURED_TOKENS, _TOKEN_TOTAL_FIELDS, _measure_run_
     _sum_role_tokens, _update_metrics_body, backfill_distinct_pr_count,
     compute_ticket_totals, elapsed_seconds, metrics_path, run_seconds, update_metrics)  # noqa: F401
 
-from .setup_helpers import (ACS_BLOCK_BEGIN, ACS_BLOCK_END, DOC_SET_ALL, DocSetRequest,
+from .setup_helpers import (DOC_SET_ALL, DocSetRequest,
     TOOLCHAIN, _BARE_INT_RE,
     _FANOUT_FOR_RE, _LEGACY_FOR_NOTE, _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
-    _managed_body, _pr_labels, _short_doc_set, _unknown_doc_set_note,
-    _sentinel_present, _soft_peers, _strip_stray_markers, _tool_version,
+    _pr_labels, _short_doc_set, _unknown_doc_set_note,
+    _sentinel_present, _soft_peers, _tool_version,
     canonical_doc_set, check_toolchain,
-    classify_merge_pr_arg, doc_set_spellings, fanout_batches,
-    managed_block_is_malformed, managed_body_from_template, missing_tools,
-    parse_doc_set_arg, parse_fanout_for_arg, project_mode, render_managed_block,
-    tracker_cli_warning,
-    upsert_managed_block, validate_exempt_pr)  # noqa: F401
+    classify_merge_pr_arg, doc_set_spellings, fanout_batches, missing_tools,
+    parse_doc_set_arg, parse_fanout_for_arg, project_mode,
+    tracker_cli_warning, validate_exempt_pr)  # noqa: F401
 
 from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
 from .gates import _workflow_for as workflow_for  # noqa: F401

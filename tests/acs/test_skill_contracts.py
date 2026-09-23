@@ -397,10 +397,11 @@ class TestCrossReferences(unittest.TestCase):
 
 
 class TestExemptPrDocs(unittest.TestCase):
-    """MAR-9 (spec 04): the exempt --pr merge path and the /acs:setup CLAUDE.md
-    managed block must stay surfaced in the merge-pr skill prose and the docs.
-    Additive existence/section assertions only — they pin the new prose so a
-    later edit that drops it fails CI. No existing assertion is modified."""
+    """MAR-9 (spec 04): the exempt --pr merge path must stay surfaced in the
+    merge-pr skill prose and the docs. The /acs:setup CLAUDE.md managed block
+    MAR-9 also pinned is gone: setup configures conventions and CI only and
+    writes nothing into a consumer's CLAUDE.md, so those two assertions are
+    inverted into guards that it stays gone."""
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -420,15 +421,18 @@ class TestExemptPrDocs(unittest.TestCase):
         body = read_skill_contract("merge-pr")
         self.assertIn("Exempt non-ticket PR mode", body)
 
-    def test_setup_documents_claude_md_managed_block(self):
+    def test_setup_writes_no_claude_md_managed_block(self):
         body = read(self.skill_path("setup"))
-        self.assertIn("CLAUDE.acs.md", body)
-        self.assertIn("upsert_managed_block", body)
+        self.assertNotIn("CLAUDE.acs.md", body)
+        self.assertNotIn("upsert_managed_block", body)
+        self.assertFalse(os.path.exists(os.path.join(PLUGIN, "templates", "CLAUDE.acs.md")))
 
     def test_internals_mentions_exempt_pr_merge(self):
         body = read(self.doc_path("docs", "INTERNALS.md"))
         self.assertIn("--pr", body)
-        self.assertIn("CLAUDE.acs.md", body)
+        self.assertNotIn("CLAUDE.acs.md", body)
+        self.assertIn("acs writes nothing into a consumer's `CLAUDE.md`",
+                      " ".join(body.split()))
 
     def test_readme_mentions_exempt_pr_merge(self):
         body = read(self.doc_path("README.md"))

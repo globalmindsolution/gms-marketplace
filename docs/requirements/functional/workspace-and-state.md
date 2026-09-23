@@ -45,7 +45,9 @@ unmigrated
 
 ## Migrating an existing external workspace
 
-- When an external workspace left by an older acs is detected for a repo,
+- When an external workspace left by an older acs is detected for a repo
+  (a retired `workspace_path` key still in a settings file, which
+  `setup detect` reports under `retired_keys`),
   `/acs:setup` MUST detect it and SHOULD offer a user-confirmed
   migration into the in-repo default on the next re-run (ADR-0086; the
   MUST/SHOULD split for `/setup` itself is specified in
@@ -63,7 +65,7 @@ unmigrated
 - No setting points at the old location: every run resolves the in-repo
   workspace, so the old tree is no longer read once the migration succeeds.
   A leftover key for it in `.acs/settings.local.json` is an unknown key —
-  ignored, and safe to delete.
+  ignored (named by `/acs:setup` as retired), and safe to delete.
 
 ## Migrating ticket documents into the repo
 

@@ -16,11 +16,11 @@ component follows.
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 32 files, all reachable (13 executor + verifier pairs — the twelve authoring skills plus `create-docs` — 4 apply-work executors, and `review-code`'s lens and adjudicator; no skill has a planner since ADR-0092, and `code` lost its verifier to `/acs:review-code`). Each skill declares the roles it owns under `agents` in `skills/<name>/acs.yaml`; the files on disk are exactly that set |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,stacked-base,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 19 |
-| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — offered by /setup Step 3; `statusLine`/`subagentStatusLine` stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
+| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — configured by hand in the user's Claude Code settings (`statusLine` / `subagentStatusLine`, each a `command` running `python3 <plugin-root>/hooks/scripts/<script>`); /setup no longer offers them, since it configures conventions and CI only. They stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
 | Workflow files | `plugins/acs/workflows/{phases,ship}.yaml` | 2 (the skill registry and the default delivery pipeline; a consumer may override the latter at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 14 |
 | XML schema | `the SubagentStop hook` | 1 |
-| Templates | `plugins/acs/templates/*.md` | 6 (4 description templates — `pr-default`, `epic/story/task-default` — plus `design-default` and the `CLAUDE.acs` managed block) |
+| Templates | `plugins/acs/templates/*.md` | 5 (4 description templates — `pr-default`, `epic/story/task-default` — plus `design-default`) |
 
 Skills are invoked namespaced: `/acs:setup`, `/acs:ship`, `/acs:create-ticket`, …
 (The requirements docs write `/setup`, `/ship`, … — same skills, plugin-namespaced
@@ -1140,15 +1140,20 @@ what makes the arm reachable for a real ticket rather than only for a fixture.
 `setup/SKILL.md` was 1,003 lines, most of them mechanics. Since MAR-526 the
 skill asks and explains; `setup_wizard.py` writes, reached as two commands:
 
+Setup configures conventions and the CI that enforces them — the ticket
+prefix, the `formats.*` strings, and the convention and tests gates — and
+nothing else; every other setting keeps its default until someone edits
+`.acs/settings.json` by hand.
+
 - **`acs.py setup detect`** — read-only. Which settings exist and **in which
   scope**, the resolved workspace, whether both ignore layers are in place and
   whether a broad rule is swallowing `.acs/settings.json` or `.acs/ci/`, the
-  toolchain, plausible test commands, and which optional installs (CI,
-  `CLAUDE.md`, status line) are already present.
-- **`acs.py setup apply --answers FILE`** — the settings split across scopes
-  (machine-specific keys always to the gitignored `settings.local.json`), both
-  ignore layers, the workspace create-and-probe, the CI copies, the `CLAUDE.md`
-  managed block, and the status-line settings.
+  toolchain, plausible test commands, which CI installs are already present,
+  and which retired keys (ADR-0102) a settings file still carries.
+- **`acs.py setup apply --answers FILE`** — the project settings, both ignore
+  layers, the workspace create-and-probe, and the CI copies. An answer equal to
+  its built-in default is never written, and is removed when an earlier run
+  wrote it (`defaulted` in the result), so the file carries only choices.
 
 **Idempotence is the contract.** `/acs:setup` is re-run whenever a format
 changes, and a repo initialised by an older acs is expected to be *repaired* by
@@ -1184,7 +1189,7 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   delivery pipeline itself is NOT a settings key: it is the resolved
   `workflows/ship.yaml`, overridden wholesale at `<repo>/.acs/workflows/ship.yaml`
   when a repo ships one.
-- `enforcement` (opt-in, /setup Step 3): repo-side CI that holds *every* PR to
+- `enforcement` (opt-in, /setup Step 2): repo-side CI that holds *every* PR to
   the same conventions, so the pipeline can't be silently bypassed. /setup copies
   `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
   `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
@@ -1203,18 +1208,9 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   partition/state, and skips tracker sync and archiving — `acs step start --pr`
   validates the PR carries the `exempt_label` (or an `exempt_branches` head) and
   refuses + redirects to `/acs:merge-pr <ticket-id>` when the PR looks
-  ticket-backed. `/acs:setup` Step 3 injects the guidance **body** from
-  `templates/CLAUDE.acs.md` (the template's maintainer header and its own markers
-  are dropped) into the repo's `CLAUDE.md`, wrapped by `upsert_managed_block` in
-  exactly one acs-managed marker pair — idempotent (byte-identical re-runs) and
-  self-healing (it reads the file first and, when `managed_block_is_malformed`
-  flags a block an earlier buggy run doubled or orphaned — marker counts other
-  than 1/1 — the upsert collapses the whole span from the FIRST BEGIN to the LAST
-  END to one clean pair, scrubs any stray surrounding marker, reports `repaired
-  malformed acs-managed block …`, and surfaces the repair in the completion
-  report, all while preserving user-owned content byte-for-byte) — to steer
-  everyday changes onto `/acs:ship` so the pipeline is the default, not just the
-  available, path.
+  ticket-backed. acs writes nothing into a consumer's `CLAUDE.md`: that file is
+  the repo's own project instructions, and the enforcement above is what keeps
+  a hand-made PR from bypassing the pipeline.
   The same checker runs three modes off one config: `--mode pr` (CI: branch,
   commit, pr_title, acs_label, pr_description), `--mode pre-push` (local hook:
   branch + commit subjects of the push range), `--mode commit-msg` (local hook:
@@ -1236,6 +1232,7 @@ one of them: the XSD and `validate_xml.py` are gone, and what a subagent
 returns is checked in-process (see Subagent messaging above), so nothing acs
 runs needs an external XML tool. `acs_lib.check_toolchain()` is
 the single source of truth for this list (kind = required | recommended |
-optional, with per-platform install commands); `/setup` Step 0b reports it and
-offers to install the missing required/recommended tools before configuring
-anything, so the full workflow is ready rather than failing mid-pipeline.
+optional, with per-platform install commands); `/setup` Step 1
+(`setup detect`) reports it and names each missing required/recommended tool
+with its install hint before configuring anything, so a gap surfaces up front
+rather than mid-pipeline.

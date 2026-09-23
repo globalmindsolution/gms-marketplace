@@ -151,10 +151,13 @@ class TestBuiltinTemplateFiles(unittest.TestCase):
 class TestArchitectureDocs(unittest.TestCase):
     """AC-5: c4 template count bump + contracts Settings-enumeration keys."""
 
-    def test_c4_container_template_count_bumped_to_six(self):
+    def test_c4_container_template_count_matches_disk(self):
+        """Derived, not pinned: the count was 6 until the CLAUDE.acs.md
+        managed-block template went away with setup's CLAUDE.md block."""
         text = read_text(C4_CONTAINER_PATH)
-        self.assertIn("6 description templates", text)
-        self.assertNotIn("4 description templates", text)
+        templates = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
+        count = len([n for n in os.listdir(templates) if n.endswith(".md")])
+        self.assertIn("%d description templates" % count, text)
 
     def test_contracts_lists_all_four_new_keys(self):
         """Narrowed to the two surviving keys (MAR-161/ADR-0066): MAR-156

@@ -5,10 +5,10 @@ Companion `.evidence.md` file for
 code-evidence citations, keyed by the body's own step identity ->
 `[path:line]`.
 
-- Default-vs-override collection (Step 4): `plugins/acs/skills/setup/SKILL.md:136-146`
-- Tracked `.gitignore` retrofit (Step 5, layer 1): `plugins/acs/skills/setup/SKILL.md:364-380`
-- Idempotent `info/exclude` append (Step 5, layer 2): `plugins/acs/skills/setup/SKILL.md:382-393`
-- Combined `git check-ignore -v` assertion (Step 5): `plugins/acs/skills/setup/SKILL.md:395-403`
-- Broad-`.acs/`-rule guard (Step 5): `plugins/acs/skills/setup/SKILL.md:405-415`
-- State-root mkdir + write-probe (Step 6): `plugins/acs/skills/setup/SKILL.md:419-447`
-- Migrator invocation (Step 6b): `plugins/acs/skills/setup/SKILL.md:453-470`
+- Retired-key detection + migration offer (Step 1): `plugins/acs/skills/setup/SKILL.md:42-46`, `plugins/acs/hooks/scripts/setup_wizard.py:210-223`
+- State root resolution, no override (Step 3): `plugins/acs/hooks/scripts/setup_wizard.py:110-117`
+- Tracked `.gitignore` retrofit (Step 3, layer 1): `plugins/acs/hooks/scripts/setup_wizard.py:392-397`
+- Idempotent `info/exclude` append (Step 3, layer 2): `plugins/acs/hooks/scripts/setup_wizard.py:387-390`, `plugins/acs/hooks/scripts/setup_wizard.py:398-402`
+- Combined `git check-ignore` re-check (Step 3): `plugins/acs/hooks/scripts/setup_wizard.py:404-407`
+- Broad-`.acs/`-rule guard (Step 3): `plugins/acs/hooks/scripts/setup_wizard.py:408-411`
+- State-root mkdir + writability check (Step 3): `plugins/acs/hooks/scripts/setup_wizard.py:485-507`

@@ -231,6 +231,25 @@ RETIRED_BY_DELIVERY_PATH_ROUTING = {
     ),
 }
 
+#: MAR-592 cut /acs:setup to conventions + CI: it writes the committed project
+#: file only, never a default value, and wires no optional extra. These clauses
+#: described setup CHOOSING a scope, SETTING the coverage target and WIRING the
+#: status line; the settings themselves survive with their defaults, edited by
+#: hand, so the guarantee each clause carried is not lost -- the act it
+#: assigned to setup no longer exists.
+RETIRED_BY_SETUP_SIMPLIFICATION = {
+    'skills.md': (
+        '- MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)',
+        '- MUST set `test_coverage_percent` with a default of **90** (user may',
+    ),
+    'configuration.md': (
+        '- `/setup` MUST let the user choose the scope (user or project) at setup time.',
+    ),
+    'overview.md(scoped:Packaging+Distribution+CorePrinciples)': (
+        '- MAY bundle optional extras wired by `/setup` on user consent — e.g. the',
+    ),
+}
+
 #: The v0.5.0 implementation-pipeline redesign REWORDED two clauses rather
 #: than retiring them: the guarantee each carried is still in the tree, under
 #: the name its carrier now has. That is a different fact from the four
@@ -345,7 +364,8 @@ def _retired():
     """Every allowlist, merged: a clause is exempt when any fold retired it."""
     merged = {}
     for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
-                  RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING):
+                  RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING,
+                  RETIRED_BY_SETUP_SIMPLIFICATION):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     for rewording in REWORDING_TABLES:

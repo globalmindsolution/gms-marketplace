@@ -243,7 +243,9 @@ features.
   `/acs:setup` Step 3 (opt-in, default-on) writes an idempotent, marker-delimited
   `CLAUDE.md` acs-managed block (from `templates/CLAUDE.acs.md`) steering in-repo
   Claude sessions to `/acs:ship` rather than a raw `gh pr create`. Pending merge in
-  PR #50; targeted for a v0.2.x release.
+  PR #50; targeted for a v0.2.x release. **The managed block is removed (MAR-592):
+  setup no longer writes into `CLAUDE.md`**, and the template is gone; the
+  `--pr` merge path is unaffected.
 
 #### Epic E3 — Dogfood acs on acs
 
@@ -299,6 +301,7 @@ A small, near-term interim release that closed the `/acs:setup` configuration-co
   1. **Per-role model at specific-version granularity** — the model prompt offers version-pinned choices (e.g. `claude-opus-4-8`, `claude-sonnet-5`) for all four roles, not only coarse tiers (`opus`/`sonnet`). (Strengthens the existing prompt at `setup/SKILL.md`; not a new prompt.)
   2. **Per-role reasoning effort** — a first-class per-role effort choice on a fresh init (previously effort was only an object-shape note, never surfaced as a choice).
   3. **Explicit e2e offer** — e2e is explicitly offered on a fresh init (candidate-detected), not left in the silently-defaultable optional batch.
+- **Superseded (MAR-592):** `/acs:setup` now configures only the conventions and the CI that enforces them. The model, effort and e2e offers, and the optional-settings batch, are gone; those settings keep a working default and are edited by hand in `.acs/settings.json`.
 - **Delivered the init-prompt slice of G21** and its metric (100% user-configurable keys reachable + the three named offers, verified by a fresh-init walkthrough on the dogfood repo within 1 release).
 - **Reconcile note (no duplication):** M3's model+effort polish epic (Wave 4 / v0.4.6+), onboarding polish epic (Wave 4 / v0.4.6+), and e2e integrity E2E-1 (v0.4.1, below in M3) build ON TOP of this init-prompt fix — those waves own only the up-front fail-closed model-id/effort validation, the docs, the broader guided flows, and the e2e CI merge gate; the init-PROMPT piece itself shipped in v0.3.4.
 - **Mechanism deferral:** the exact init UX (prompt shape, option ordering, version-pin catalog source) is settled in the implementing ticket's design/spec phase — mirrors the other epics' deferral convention.

@@ -103,15 +103,30 @@ class DetectTest(WizardCase):
         self.assertIn("python3 -m pytest -q", commands)
         self.assertIn("python3 -m unittest discover -s tests", commands)
 
-    def test_it_reports_which_optional_installs_are_already_present(self):
+    def test_it_reports_which_ci_installs_are_already_present(self):
         out = setup_wizard.detect(self.repo)
         self.assertFalse(out["ci"]["conventions"]["workflow"])
-        self.assertFalse(out["claude_md"]["exists"])
-        self.apply(self.answers(ci=["conventions"], claude_md=True))
+        self.apply(self.answers(ci=["conventions"]))
         out = setup_wizard.detect(self.repo)
         self.assertTrue(out["ci"]["conventions"]["workflow"])
-        self.assertTrue(out["claude_md"]["managed_block"])
-        self.assertFalse(out["claude_md"]["malformed"])
+
+    def test_it_reports_no_claude_md_or_status_line_state(self):
+        """Setup configures conventions and CI only: it neither writes a
+        CLAUDE.md block nor the status line, so it reports neither."""
+        out = setup_wizard.detect(self.repo)
+        self.assertNotIn("claude_md", out)
+        self.assertNotIn("status_line", out)
+
+    def test_it_names_retired_keys_a_settings_file_still_carries(self):
+        """ADR-0102: a stale key is ignored, which is exactly why it is named --
+        a workspace_path that pointed elsewhere means state no longer read."""
+        os.makedirs(os.path.join(self.repo, ".acs"))
+        with open(os.path.join(self.repo, ".acs", "settings.local.json"), "w") as fh:
+            json.dump({"workspace_path": "/elsewhere"}, fh)
+        with open(os.path.join(self.repo, ".acs", "settings.json"), "w") as fh:
+            json.dump({"ticket_prefix": "SHOP", "prd_path": "docs/prd"}, fh)
+        found = {row["scope"]: row["keys"] for row in setup_wizard.detect(self.repo)["retired_keys"]}
+        self.assertEqual(found, {"project": ["prd_path"], "local": ["workspace_path"]})
 
     def test_it_writes_nothing(self):
         before = sorted(os.listdir(self.repo))
@@ -183,10 +198,11 @@ class RefusalTest(WizardCase):
         skill's contract reads as success for a gate that never landed."""
         self.assertTrue(setup_wizard.validate_answers({"ci": "conventions"}))
         self.assertTrue(setup_wizard.validate_answers({"settings": "..."}))
-        self.assertTrue(setup_wizard.validate_answers({"status_line": "user"}))
-        self.assertTrue(setup_wizard.validate_answers({"scope": "PROJECT"}))
         self.assertEqual(setup_wizard.validate_answers(
-            {"ci": ["conventions"], "scope": "project", "claude_md": True}), [])
+            {"ci": ["conventions"], "settings": {"ticket_prefix": "SHOP"}}), [])
+        # Keys a retired offer used to take are ignored, as unknown keys are.
+        self.assertEqual(setup_wizard.validate_answers(
+            {"claude_md": True, "status_line": "user", "scope": "PROJECT"}), [])
 
     def test_a_re_run_adds_no_duplicate_to_either_layer(self):
         """The .gitignore write is guarded by git itself; the exclude append
@@ -240,10 +256,37 @@ class SettingsWriteTest(WizardCase):
         block a previous run wrote."""
         self.apply(self.answers(settings={"tracker": {"provider": "github",
                                                       "github": {"owner": "acme"}}}))
-        self.apply(self.answers(settings={"tracker": {"provider": "local"}}))
+        self.apply(self.answers(settings={"tracker": {"provider": "jira"}}))
         tracker = json.loads(self.read(".acs", "settings.json"))["tracker"]
-        self.assertEqual(tracker["provider"], "local")
+        self.assertEqual(tracker["provider"], "jira")
         self.assertEqual(tracker["github"], {"owner": "acme"})
+
+    def test_a_value_equal_to_its_default_is_never_written(self):
+        out = self.apply(self.answers(settings={
+            "ticket_prefix": "SHOP", "merge_strategy": "squash",
+            "formats": {"branch_name": lib.DEFAULT_SETTINGS["formats"]["branch_name"],
+                        "pr_title": "{ticket_id}: {title}"}}))
+        doc = json.loads(self.read(".acs", "settings.json"))
+        self.assertEqual(doc, {"ticket_prefix": "SHOP",
+                               "formats": {"pr_title": "{ticket_id}: {title}"}})
+        self.assertIn("merge_strategy", out["defaulted"])
+        self.assertIn("formats.branch_name", out["defaulted"])
+
+    def test_choosing_the_default_again_removes_an_earlier_value(self):
+        """Otherwise the stale value would silently override the choice just
+        made -- the file would say rebase while the user picked the default."""
+        self.apply(self.answers(settings={"ticket_prefix": "SHOP", "merge_strategy": "rebase",
+                                          "formats": {"pr_title": "{ticket_id}: {title}"}}))
+        self.apply(self.answers(settings={"merge_strategy": "squash",
+                                          "formats": {"pr_title": lib.DEFAULT_SETTINGS["formats"]["pr_title"]}}))
+        doc = json.loads(self.read(".acs", "settings.json"))
+        self.assertEqual(doc, {"ticket_prefix": "SHOP"})
+
+    def test_settings_always_go_to_the_project_file(self):
+        """Conventions are the team's: a retired `scope: user` answer is ignored."""
+        self.apply(self.answers(scope="user"))
+        self.assertTrue(os.path.exists(os.path.join(self.repo, ".acs", "settings.json")))
+        self.assertFalse(os.path.exists(os.path.join(self.home, ".acs", "settings.json")))
 
     def test_a_re_run_with_the_same_answers_writes_nothing(self):
         self.apply()
@@ -344,83 +387,6 @@ class CiInstallTest(WizardCase):
         self.assertTrue(any("unknown CI install" in w for w in out["warnings"]))
 
 
-class ClaudeMdTest(WizardCase):
-
-    def _body(self):
-        return self.read("CLAUDE.md")
-
-    def test_the_block_is_written_into_a_repo_with_no_claude_md(self):
-        self.apply(self.answers(claude_md=True))
-        self.assertIn(lib.ACS_BLOCK_BEGIN, self._body())
-        self.assertIn("SHOP", self._body())
-
-    def test_a_re_run_replaces_only_the_managed_span(self):
-        path = os.path.join(self.repo, "CLAUDE.md")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write("# Ours\n\nkeep this\n")
-        self.apply(self.answers(claude_md=True))
-        self.apply(self.answers(claude_md=True))
-        body = self._body()
-        self.assertIn("keep this", body)
-        self.assertEqual(body.count(lib.ACS_BLOCK_BEGIN), 1)
-        self.assertEqual(body.count(lib.ACS_BLOCK_END), 1)
-
-    def test_a_second_run_reports_the_block_as_already_current(self):
-        self.apply(self.answers(claude_md=True))
-        second = self.apply(self.answers(claude_md=True))
-        self.assertTrue([c for c in second["unchanged"] if "CLAUDE.md" in c])
-
-    def test_a_malformed_block_left_by_an_older_run_is_repaired(self):
-        path = os.path.join(self.repo, "CLAUDE.md")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write("# Ours\n%s\nstale\n%s\n%s\ndoubled\n%s\n"
-                     % (lib.ACS_BLOCK_BEGIN, lib.ACS_BLOCK_END,
-                        lib.ACS_BLOCK_BEGIN, lib.ACS_BLOCK_END))
-        out = self.apply(self.answers(claude_md=True))
-        self.assertTrue([c for c in out["changed"] if "repaired" in c], out["changed"])
-        self.assertEqual(self._body().count(lib.ACS_BLOCK_BEGIN), 1)
-
-    def test_it_is_not_written_when_the_user_declines(self):
-        self.apply(self.answers())
-        self.assertFalse(os.path.exists(os.path.join(self.repo, "CLAUDE.md")))
-
-
-class StatusLineTest(WizardCase):
-
-    def _user_settings(self):
-        path = os.path.join(self.home, ".claude", "settings.json")
-        return json.loads(open(path, encoding="utf-8").read())
-
-    def test_both_keys_are_written_at_the_chosen_scope(self):
-        self.apply(self.answers(status_line={"scope": "user", "statusLine": True,
-                                             "subagentStatusLine": True}))
-        settings = self._user_settings()
-        self.assertIn("statusline.py", settings["statusLine"]["command"])
-        self.assertIn("subagent-statusline.py", settings["subagentStatusLine"]["command"])
-
-    def test_an_existing_value_is_never_overwritten(self):
-        """`statusLine` is the USER's setting; acs is a guest in that file."""
-        path = os.path.join(self.home, ".claude", "settings.json")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump({"statusLine": {"type": "command", "command": "mine"}}, fh)
-        out = self.apply(self.answers(status_line={"scope": "user", "statusLine": True}))
-        self.assertEqual(self._user_settings()["statusLine"]["command"], "mine")
-        self.assertTrue([c for c in out["unchanged"] if "already set" in c])
-
-    def test_other_keys_in_that_file_survive(self):
-        path = os.path.join(self.home, ".claude", "settings.json")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump({"theme": "dark"}, fh)
-        self.apply(self.answers(status_line={"scope": "user", "statusLine": True}))
-        self.assertEqual(self._user_settings()["theme"], "dark")
-
-    def test_taking_neither_writes_nothing(self):
-        self.apply(self.answers(status_line={"scope": "user"}))
-        self.assertFalse(os.path.exists(os.path.join(self.home, ".claude", "settings.json")))
-
-
 class WorkspaceTest(WizardCase):
 
     def test_the_partition_is_created_at_the_resolved_root(self):
@@ -503,26 +469,29 @@ class SkillShapeTest(unittest.TestCase):
     def test_the_conversation_is_not(self):
         """Everything a user is told stays: the offers, their defaults, what
         declining costs, and the trade-offs no command can make."""
-        for kept in ("Present these as a batch", "### models", "Recommended (default)",
-                     "Reasoning effort per role", "always ask", "suites.e2e",
-                     "What declining costs", "Completion report (normative)"):
+        for kept in ("ticket_prefix", "formats.branch_name", "formats.commit_message",
+                     "formats.pr_title", "What declining costs", "suites.e2e",
+                     "Completion report (normative)"):
             self.assertIn(kept, self.body, kept)
 
-    #: AC-2's number. The file does not meet it, and this test says so out loud
-    #: rather than pinning a threshold the AC never contained.
+    def test_setup_configures_conventions_and_ci_only(self):
+        """What setup no longer does: write a CLAUDE.md block, set the status
+        line, pick a scope, or ask about models, tracker or doc locations.
+        Those keep their defaults until someone edits the file by hand."""
+        for gone in ("CLAUDE.acs.md", "claude_md", "status_line", "statusLine",
+                     "### models", "Recommended (default)", "### Optional settings",
+                     "| `workspace_path` |", "**Scope**"):
+            self.assertNotIn(gone, self.body, gone)
+        self.assertIn("a value equal to its default is never written",
+                      " ".join(self.body.split()))
+
+    #: AC-2's number. Met since setup was cut to conventions + CI: the offers
+    #: table, the per-key defaults and the models/status-line/CLAUDE.md offers
+    #: that kept it above budget are gone with the settings they configured.
     AC2_LINE_BUDGET = 200
 
-    #: What it actually is, after every piece of MECHANISM was moved into the
-    #: wizard. The review of this PR was right that the earlier overshoot was
-    #: mechanism, not conversation: branch protection, label creation and the
-    #: next-steps derivation are now `setup_wizard.py commands`, which also
-    #: removed the hand-written shell where a quoting regression had landed.
-    #: What remains above the budget is conversation OTHER acceptance criteria
-    #: require to exist -- the offers table and per-key defaults pinned by
-    #: MAR-89/112/113/114/117/118 and asserted by four sibling test modules --
-    #: plus the normative completion report. Cutting to 200 now means deleting
-    #: things a user is told, which is the opposite of the ticket.
-    CURRENT_CEILING = 230
+    #: The ceiling that stops drift back above the budget.
+    CURRENT_CEILING = 200
 
     def test_the_conversation_is_all_that_is_left_of_it(self):
         """The size AC, stated honestly: the gap to 200 is named, not hidden.

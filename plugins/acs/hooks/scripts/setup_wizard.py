@@ -2,23 +2,28 @@
 """setup_wizard.py — the deterministic half of /acs:setup (MAR-526).
 
 setup/SKILL.md was 1,003 lines, most of them a recipe: four shell blocks to add
-one `.gitignore` line, a heredoc to write a JSON dict, three near-identical
-"copy the workflow, chmod it" blocks, and a Python heredoc to upsert a managed
-`CLAUDE.md` block. None of that is conversation. All of it was being re-derived,
-in prose, on every setup run — the exact pattern ADR 0001 exists to prevent.
+one `.gitignore` line, a heredoc to write a JSON dict, and three near-identical
+"copy the workflow, chmod it" blocks. None of that is conversation. All of it
+was being re-derived, in prose, on every setup run — the exact pattern ADR 0001
+exists to prevent.
+
+Setup configures conventions and the CI that enforces them, nothing else: the
+ticket prefix, the branch/commit/PR formats, and the convention and tests
+gates. Every other setting has a working default the user edits by hand, and no
+setting locates a document or the workspace (ADR-0102).
 
 Two commands:
 
   detect   Everything the conversation needs to know before it asks anything:
            which settings already exist and in which scope, what the git
            checkout looks like, what the toolchain has, which test commands are
-           plausible, and which of the optional installs are already in place.
-           Reads only.
+           plausible, which CI installs are already in place, and which retired
+           settings keys a settings file still carries. Reads only.
 
-  apply    Everything the conversation decided, performed at once: the settings
-           split across scopes, the ignore entries in both layers, the workspace
-           create+probe, the CI copies, the CLAUDE.md managed block, and the
-           status-line settings. Writes only what the answers ask for.
+  apply    Everything the conversation decided, performed at once: the project
+           settings, the ignore entries in both layers, the workspace
+           create+probe, and the CI copies. Writes only what the answers ask
+           for, and never a value equal to its built-in default.
 
 **Idempotence is the contract, not a nicety.** /acs:setup is re-run whenever a
 format changes, and a repo initialised by an older acs is expected to be
@@ -63,10 +68,6 @@ CI_INSTALLS = {
     "tests": (("run-tests.py",), "acs-tests.yml", "Tests & coverage"),
     "e2e": (("run-e2e.py",), "acs-e2e.yml", "E2E suite"),
 }
-
-#: The two Claude Code status-line keys, and the script each points at.
-STATUS_LINES = {"statusLine": "statusline.py",
-                "subagentStatusLine": "subagent-statusline.py"}
 
 #: Ordered probes for a plausible test command: (marker file, command).
 TEST_COMMAND_CANDIDATES = (
@@ -163,32 +164,10 @@ def installed_ci(root):
     return out
 
 
-def claude_md_state(root):
-    path = os.path.join(root, "CLAUDE.md")
-    if not os.path.exists(path):
-        return {"path": path, "exists": False, "managed_block": False, "malformed": False}
-    with open(path, encoding="utf-8") as fh:
-        body = fh.read()
-    return {"path": path, "exists": True,
-            "managed_block": lib.ACS_BLOCK_BEGIN in body,
-            "malformed": bool(lib.managed_block_is_malformed(body))}
-
-
-def status_line_state():
-    out = {}
-    for scope, path in (("user", os.path.expanduser("~/.claude/settings.json")),
-                        ("project", os.path.join(os.getcwd(), ".claude", "settings.json"))):
-        data = lib.read_json(path)
-        out[scope] = {"path": path,
-                      "set": {key: bool(isinstance(data, dict) and data.get(key))
-                              for key in STATUS_LINES}}
-    return out
-
-
 def detect(cwd):
     # D2: detect roots on checkout_root while apply rooted on main_repo_root.
-    # In a LINKED WORKTREE those differ, so apply wrote settings, .gitignore,
-    # CLAUDE.md and workflows into a checkout detect never showed -- and a
+    # In a LINKED WORKTREE those differ, so apply wrote settings, .gitignore
+    # and workflows into a checkout detect never showed -- and a
     # configured repo entered from a worktree read as a fresh init. Both now
     # report BOTH roots explicitly, and `settings_root` names the one apply
     # will actually write to, so the conversation and the writes agree.
@@ -224,9 +203,24 @@ def detect(cwd):
         "missing_tools": lib.missing_tools(settings),
         "test_command_candidates": test_command_candidates(root),
         "ci": installed_ci(root),
-        "claude_md": claude_md_state(lib.main_repo_root(cwd) or root),
-        "status_line": status_line_state(),
+        "retired_keys": retired_keys(scope_files(cwd, settings_root)),
     }
+
+
+def retired_keys(scopes):
+    """Retired settings keys a settings file still carries, per file.
+
+    They are ignored (unknown keys are legal), which is exactly why they need
+    naming: a `workspace_path` that pointed outside the repo means state the
+    workspace no longer reads (ADR-0102)."""
+    out = []
+    for name in ("user", "project", "local"):
+        data = lib.read_json(scopes[name]["path"])
+        found = [k for k in lib.RETIRED_SETTINGS_KEYS
+                 if isinstance(data, dict) and k in data]
+        if found:
+            out.append({"scope": name, "path": scopes[name]["path"], "keys": found})
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +262,7 @@ class UnreadableSettings(Exception):
     """The file exists but is not readable JSON, so it cannot be merged into."""
 
 
-def merge_json_file(path, updates, dry_run=False):
+def merge_json_file(path, updates, dry_run=False, remove=()):
     """Read-update-write so a re-run preserves untouched and unknown keys.
 
     Nested objects are merged one level down rather than replaced, because a
@@ -281,7 +275,12 @@ def merge_json_file(path, updates, dry_run=False):
     .acs/settings.json and every other key -- ticket_prefix, coverage target,
     the whole tracker block -- was destroyed, with no backup and ok:true. The
     caller has to decide, and `detect` already computes `readable: false` for
-    exactly this."""
+    exactly this.
+
+    `remove` lists key paths (tuples) to delete: an answer equal to its default
+    is not written, and when an earlier run wrote it, keeping the stale value
+    would silently override the choice just made. An object emptied by a
+    removal is dropped with it."""
     current = lib.read_json(path)
     if current is None and os.path.exists(path):
         raise UnreadableSettings(path)
@@ -294,6 +293,8 @@ def merge_json_file(path, updates, dry_run=False):
             merged[key] = nested
         else:
             merged[key] = value
+    for key_path in remove:
+        _delete_path(merged, key_path)
     if merged == current and os.path.exists(path):
         return False, merged
     if not dry_run:
@@ -302,6 +303,47 @@ def merge_json_file(path, updates, dry_run=False):
             json.dump(merged, fh, indent=2)
             fh.write("\n")
     return True, merged
+
+
+def _delete_path(doc, key_path):
+    """Delete doc[k1][k2]... when present; drop parents it leaves empty."""
+    head, rest = key_path[0], tuple(key_path[1:])
+    if head not in doc:
+        return
+    if rest:
+        if isinstance(doc[head], dict):
+            doc[head] = dict(doc[head])
+            _delete_path(doc[head], rest)
+            if not doc[head]:
+                del doc[head]
+        return
+    del doc[head]
+
+
+def split_defaults(values, defaults=None, prefix=()):
+    """(to_write, defaulted): `values` without anything equal to its built-in
+    default, and the key paths that were. Nested objects are compared key by
+    key, so `{"formats": {"branch_name": <default>, "pr_title": "X"}}` writes
+    only `pr_title`. The defaults are DEFAULT_SETTINGS plus the enforcement
+    defaults, i.e. what every reader resolves an absent key to."""
+    if defaults is None:
+        defaults = dict(lib.DEFAULT_SETTINGS)
+        defaults["enforcement"] = dict(lib.ENFORCEMENT_DEFAULTS)
+    to_write, defaulted = {}, []
+    for key, value in values.items():
+        path = prefix + (key,)
+        if key not in defaults:
+            to_write[key] = value
+        elif isinstance(value, dict) and isinstance(defaults[key], dict):
+            sub, sub_defaulted = split_defaults(value, defaults[key], path)
+            defaulted.extend(sub_defaulted)
+            if sub:
+                to_write[key] = sub
+        elif value == defaults[key]:
+            defaulted.append(path)
+        else:
+            to_write[key] = value
+    return to_write, defaulted
 
 
 def _same_ignore_rule(a, b):
@@ -440,75 +482,6 @@ def _copy(src, dst, executable=False, dry_run=False):
     return True
 
 
-def apply_claude_md(root, settings, changes, dry_run=False):
-    """Upsert the marker-delimited managed block.
-
-    Marker-delimited so a re-run replaces only that span and never touches the
-    surrounding CLAUDE.md the user owns; self-healing, because an earlier buggy
-    run may have left doubled or orphaned markers."""
-    template = os.path.join(plugin_templates(), "CLAUDE.acs.md")
-    if not os.path.exists(template):
-        changes.warn("no CLAUDE.acs.md template at %s" % template)
-        return
-    with open(template, encoding="utf-8") as fh:
-        body = lib.managed_body_from_template(
-            fh.read(), (settings or {}).get("ticket_prefix", ""),
-            lib.enforcement_value(settings, "exempt_label") or "acs-exempt")
-    path = os.path.join(root, "CLAUDE.md")
-    existing = ""
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as fh:
-            existing = fh.read()
-    had_markers = lib.ACS_BLOCK_BEGIN in existing or lib.ACS_BLOCK_END in existing
-    repaired = had_markers and lib.managed_block_is_malformed(existing)
-    result = lib.upsert_managed_block(existing, body)
-    if result.count(lib.ACS_BLOCK_BEGIN) != 1 or result.count(lib.ACS_BLOCK_END) != 1:
-        changes.warn("the acs-managed CLAUDE.md block did not resolve to exactly one "
-                     "marker pair; left the file unchanged")
-        return
-    if result == existing:
-        changes.note(False, "CLAUDE.md's acs-managed block is already current")
-        return
-    if not dry_run:
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(result)
-    changes.note(True, "repaired a malformed acs-managed CLAUDE.md block" if repaired
-                 else "wrote CLAUDE.md's acs-managed block")
-
-
-def apply_status_line(root, request, changes, dry_run=False):
-    """Write the user's Claude Code status-line settings — never over an
-    existing value.
-
-    `statusLine` is the USER's setting: an existing one is shown, not replaced,
-    because acs is a guest in that file."""
-    scope = (request or {}).get("scope", "user")
-    keys = [k for k in STATUS_LINES if (request or {}).get(k)]
-    if not keys:
-        return
-    path = (os.path.expanduser("~/.claude/settings.json") if scope == "user"
-            else os.path.join(root, ".claude", "settings.json"))
-    current = lib.read_json(path)
-    current = current if isinstance(current, dict) else {}
-    scripts = os.path.join(lib.plugin_root(), "hooks", "scripts")
-    updates = {}
-    for key in keys:
-        if current.get(key):
-            changes.note(False, "%s is already set in %s; left as it is" % (key, path))
-            continue
-        updates[key] = {"type": "command",
-                        "command": "python3 %s" % os.path.join(scripts, STATUS_LINES[key])}
-    if not updates:
-        return
-    try:
-        wrote, _merged = merge_json_file(path, updates, dry_run=dry_run)
-    except UnreadableSettings:
-        changes.warn("%s exists but is not valid JSON; left untouched rather than "
-                     "overwritten. Fix or remove it, then re-run." % path)
-        return
-    changes.note(wrote, "set %s in %s" % (", ".join(sorted(updates)), path))
-
-
 def apply_workspace(cwd, changes, dry_run=False):
     """Create and probe the state root, resolved exactly as validate_settings
     does — so what setup creates is what every later run reads."""
@@ -538,24 +511,21 @@ def apply(cwd, answers, dry_run=False):
     root = lib.main_repo_root(cwd) or lib.checkout_root(cwd) or cwd
     changes = Changes()
 
-    scope = answers.get("scope", "project")
-    values = dict(answers.get("settings") or {})
-
-    scope_path = (os.path.expanduser(os.path.join("~", ".acs", "settings.json"))
-                  if scope == "user" else os.path.join(root, ".acs", "settings.json"))
-    for target, payload in ((scope_path, values),):
-        if not payload:
-            continue
+    # Conventions are the team's, so they go to the committed project file.
+    settings_path = os.path.join(root, ".acs", "settings.json")
+    values, defaulted = split_defaults(dict(answers.get("settings") or {}))
+    if values or (defaulted and os.path.exists(settings_path)):
         try:
-            wrote, _merged = merge_json_file(target, payload, dry_run=dry_run)
+            wrote, _merged = merge_json_file(settings_path, values, dry_run=dry_run,
+                                             remove=defaulted)
         except UnreadableSettings:
             # Refusing is the whole point: a settings file we cannot parse is
             # one we cannot merge into, and overwriting it destroys every key
             # the wizard did not set.
             changes.fail("%s exists but is not valid JSON. The wizard will not "
-                         "overwrite it -- fix or remove it, then re-run." % target)
-            continue
-        changes.note(wrote, "wrote %s" % target)
+                         "overwrite it -- fix or remove it, then re-run." % settings_path)
+        else:
+            changes.note(wrote, "wrote %s" % settings_path)
 
     apply_ignores(root, cwd, changes, dry_run=dry_run)
     workspace = apply_workspace(cwd, changes, dry_run=dry_run)
@@ -563,10 +533,6 @@ def apply(cwd, answers, dry_run=False):
                                     dry_run=dry_run)
 
     settings, _sources = lib.load_settings(cwd)
-    if answers.get("claude_md"):
-        apply_claude_md(root, settings, changes, dry_run=dry_run)
-    apply_status_line(root, answers.get("status_line"), changes, dry_run=dry_run)
-
     errors = list(changes.errors)
     try:
         lib.validate_settings(settings, cwd, require_workspace=False)
@@ -574,8 +540,9 @@ def apply(cwd, answers, dry_run=False):
         errors.append(str(exc))
 
     out = changes.as_dict()
-    out.update({"ok": not errors, "dry_run": dry_run, "scope": scope,
-                "settings_path": scope_path, "workspace": workspace,
+    out.update({"ok": not errors, "dry_run": dry_run,
+                "settings_path": settings_path, "workspace": workspace,
+                "defaulted": [".".join(p) for p in defaulted],
                 "stage_for_commit": staged, "errors": errors,
                 # Only the installs that ACTUALLY landed: a required check for
                 # a workflow that was never installed blocks every future PR.
@@ -651,11 +618,8 @@ def render_labels():
 #: only consumer and the whole point is a readable refusal -- but the same
 #: contract its ten sibling artifacts get from plugins/acs/schemas/.
 ANSWER_TYPES = {
-    "scope": (str, "\"project\" or \"user\""),
     "settings": (dict, "an object of setting keys"),
     "ci": (list, "a list of any of %s" % ", ".join(sorted(CI_INSTALLS))),
-    "claude_md": (bool, "true or false"),
-    "status_line": (dict, "an object"),
 }
 
 
@@ -680,9 +644,6 @@ def validate_answers(answers):
             continue
         errors.append("%r must be %s, got %s"
                       % (key, described, type(value).__name__))
-    scope = answers.get("scope")
-    if isinstance(scope, str) and scope not in ("project", "user"):
-        errors.append("'scope' must be \"project\" or \"user\", got %r" % scope)
     return errors
 
 

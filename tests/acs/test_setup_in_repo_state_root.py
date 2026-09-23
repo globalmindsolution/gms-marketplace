@@ -24,7 +24,7 @@ This module pins:
      `.acs/state-machine/` line (AC2 — regression pin, already satisfied by
      MAR-2's own merge).
 
-Stdlib-only (os, re, unittest), mirroring tests/acs/test_setup_offers.py
+Stdlib-only (os, re, unittest), mirroring the retired tests/acs/test_setup_offers.py
 (REPO_ROOT/PLUGIN + read + bounded-window `section()` helper). Assertions are
 bounded-window / co-occurrence anchored on real `## `/`### ` headings — never
 bare file-wide assertIn — so a too-loose match cannot pass vacuously.

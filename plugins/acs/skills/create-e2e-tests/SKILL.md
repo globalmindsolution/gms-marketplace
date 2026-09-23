@@ -50,7 +50,8 @@ inputs, and its refusals are the map of what must already be true:
 
 - the ticket resolves to a live, unlocked partition;
 - an e2e suite is configured (`settings.e2e` or `settings.suites.e2e`).
-  Missing → configure one with `/acs:setup`; `workflows/ship.yaml` skips this
+  Missing → add a `suites.e2e` entry to `.acs/settings.json` by hand
+  (`/acs:setup` no longer configures suites); `workflows/ship.yaml` skips this
   step entirely until then (`when: e2e_configured`), so a hand run without it
   has nothing to write INTO;
 - `test-cases.md` exists for the ticket. Missing → "run /acs:create-test-docs

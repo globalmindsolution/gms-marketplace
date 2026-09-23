@@ -413,7 +413,6 @@ T2_T3_SETUP_PATHS = (
     "plugins/acs/README.md",
     "plugins/acs/docs/INTERNALS.md",
     "plugins/acs/docs/AUTHORING.md",
-    "plugins/acs/templates/CLAUDE.acs.md",
     "plugins/acs/templates/ci/acs-conventions.yml",
     "plugins/acs/templates/ci/acs-tests.yml",
     "plugins/acs/templates/ci/acs-e2e.yml",
@@ -477,19 +476,18 @@ class PositiveReplacementTest(unittest.TestCase):
 
 
 class TestFilesRenamedTest(unittest.TestCase):
-    """AC-6: the 9 dedicated test_initialize_*.py modules are gone; all 9
-    renamed test_setup_*.py modules (the 8 prose-contract modules plus this
-    sweep module itself) exist."""
+    """AC-6: the 9 dedicated test_initialize_*.py modules are gone, and the
+    renamed test_setup_*.py modules exist -- less the two (offers, suites)
+    retired when setup was cut to conventions + CI, since they pinned offers
+    setup no longer makes."""
 
     SETUP_TEST_MODULES = (
         "test_setup_e2e_gate.py",
         "test_setup_in_repo_state_root.py",
-        "test_setup_offers.py",
         "test_setup_operations_path.py",
         "test_setup_principles_path.py",
         "test_setup_quality_path.py",
         "test_setup_standards_path.py",
-        "test_setup_suites.py",
         "test_setup_skill_reference_sweep.py",
     )
 
@@ -497,7 +495,7 @@ class TestFilesRenamedTest(unittest.TestCase):
         stray = glob.glob(os.path.join(REPO_ROOT, "tests", "acs", "test_initialize_*.py"))
         self.assertEqual(stray, [], "stray test_initialize_*.py module(s): %s" % stray)
 
-    def test_all_nine_setup_modules_present(self):
+    def test_every_setup_module_present(self):
         for name in self.SETUP_TEST_MODULES:
             path = os.path.join(REPO_ROOT, "tests", "acs", name)
             self.assertTrue(os.path.isfile(path), "%s must exist" % path)

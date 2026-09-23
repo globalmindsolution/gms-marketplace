@@ -5,8 +5,9 @@ Originating ticket: MAR-590 (child A of epic MAR-589). stacked-base.py detects
 a branch stacked on a squash-merged base; a detector nobody runs and a remedy
 nobody can find are worth nothing, so these assertions cover the delivery half:
 the check runs BEFORE the push on both create-pr surfaces, and the replay is
-documented in the managed-block template, this repo's rendered copy, and the
-create-pr skill's own reference.
+documented in the create-pr skill's own reference. (It was also documented in
+the CLAUDE.md managed-block template, which went away when /acs:setup stopped
+writing into a consumer's CLAUDE.md.)
 
 Two properties are load-bearing and easy to break silently:
 
@@ -14,10 +15,6 @@ Two properties are load-bearing and easy to break silently:
     stderr prefix quoted in the docs are checked against stacked-base.py's own
     source rather than against a copy of the plan, so documentation that drifts
     away from the code it describes fails here.
-  * The managed-block template must carry no placeholder beyond
-    {ticket_prefix} and {exempt_label}: render_managed_block
-    (acs_lib/setup_helpers.py) is a two-token str.replace, so any other brace
-    token would ship unrendered into every consumer repo.
 
 Assertions are whitespace-normalized substring/regex checks over file bodies,
 never line-number matches -- prose is revised, line numbers drift.
@@ -43,8 +40,6 @@ CREATE_PR_SKILL = os.path.join(PLUGIN, "skills", "create-pr", "SKILL.md")
 CREATE_PR_EXECUTOR = os.path.join(PLUGIN, "agents", "create-pr-executor.md")
 CI_REFERENCE = os.path.join(PLUGIN, "skills", "create-pr", "references",
                             "ci-convention-check.md")
-BLOCK_TEMPLATE = os.path.join(PLUGIN, "templates", "CLAUDE.acs.md")
-REPO_CLAUDE_MD = os.path.join(REPO_ROOT, "CLAUDE.md")
 DETECTOR = os.path.join(HOOKS_SCRIPTS, "stacked-base.py")
 REPO_SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
 
@@ -53,14 +48,11 @@ SHIPPED_DOCS = {
     "create-pr/SKILL.md": CREATE_PR_SKILL,
     "create-pr-executor.md": CREATE_PR_EXECUTOR,
     "ci-convention-check.md": CI_REFERENCE,
-    "CLAUDE.acs.md": BLOCK_TEMPLATE,
 }
 
-#: This repo's own CLAUDE.md is NOT in SHIPPED_DOCS. It carried the acs-managed
-#: block until that block was removed, and a file with no managed block has
-#: nothing for /acs:setup to overwrite and nothing to keep in step with the
-#: template. The block TEMPLATE above is still asserted in full, so what a
-#: consumer installs is unchanged; only the dogfood copy is gone.
+#: No CLAUDE.md is in SHIPPED_DOCS: acs writes nothing into a consumer's
+#: CLAUDE.md any more, so the managed-block template that used to carry the
+#: replay remedy is gone and the create-pr reference is where an author meets it.
 
 # The two surfaces that must run the check before pushing: SKILL.md may delegate
 # its whole numbered flow to the executor agent, so a pre-flight on one only is
@@ -285,7 +277,7 @@ class ProseMatchesModuleTest(unittest.TestCase):
 class ReplayDocumentedTest(unittest.TestCase):
     """AC-3: the remedy is written where an author actually meets it."""
 
-    SURFACES = ("CLAUDE.acs.md", "ci-convention-check.md")
+    SURFACES = ("ci-convention-check.md",)
 
     def test_every_author_surface_carries_the_replay_command(self):
         for name in self.SURFACES:
@@ -315,52 +307,6 @@ class ReplayDocumentedTest(unittest.TestCase):
         self.assertIn("references/ci-convention-check.md", table)
         self.assertRegex(table.lower(), r"stacked[- ]base",
                          "the references table never routes a stacked-base report anywhere")
-
-
-class ManagedBlockTest(unittest.TestCase):
-    """The template is rendered by a two-token str.replace — nothing else survives."""
-
-    def test_the_template_carries_no_placeholder_beyond_the_two_supported_ones(self):
-        tokens = set(re.findall(r"\{[^}\n]*\}", read(BLOCK_TEMPLATE)))
-        self.assertEqual(tokens, {"{ticket_prefix}", "{exempt_label}"},
-                         "a new brace token would ship unrendered into every consumer repo")
-
-    def test_the_rendered_block_has_no_brace_left_in_it(self):
-        rendered = acs_lib.render_managed_block(read(BLOCK_TEMPLATE), "MAR", "acs-exempt")
-        self.assertNotIn("{", rendered)
-        self.assertIn("MAR-N", rendered)
-        self.assertIn("acs-exempt", rendered)
-
-    def test_the_replay_bullet_uses_angle_brackets_for_its_two_values(self):
-        bullet = norm(block_containing(read(BLOCK_TEMPLATE), REPLAY_FORM))
-        self.assertIn("<base>", bullet)
-        self.assertIn("<old-base>", bullet)
-        self.assertNotRegex(bullet, r"\{[^}]*\}")
-
-    def test_the_repo_copy_carries_the_identical_bullet(self):
-        """If this repo installs the managed block, it must match the template.
-
-        Conditional rather than unconditional: the block was removed from this
-        repo's CLAUDE.md, and absent is a valid state — /acs:setup has nothing
-        to overwrite. Asserting presence would pin a choice the repo made the
-        other way. Asserting agreement WHEN PRESENT keeps the check live, so
-        re-adding the block through /acs:setup restores the guarantee instead
-        of silently landing a copy that has drifted from its template."""
-        if not os.path.exists(REPO_CLAUDE_MD):
-            self.skipTest("this repo carries no CLAUDE.md")
-        body = read(REPO_CLAUDE_MD)
-        if "BEGIN acs-managed" not in body:
-            self.skipTest("this repo's CLAUDE.md carries no acs-managed block")
-        template_bullet = norm(block_containing(read(BLOCK_TEMPLATE), REPLAY_FORM))
-        rendered = acs_lib.render_managed_block(template_bullet, "MAR", "acs-exempt")
-        self.assertEqual(rendered, norm(block_containing(body, REPLAY_FORM)),
-                         "this repo's managed block and its template disagree on the "
-                         "replay bullet — the rendered copy is the one /acs:setup overwrites")
-
-    def test_the_existing_pipeline_guidance_is_undisturbed(self):
-        template = read(BLOCK_TEMPLATE)
-        self.assertIn("/acs:ship", template)
-        self.assertIn("/acs:merge-pr --pr", template)
 
 
 class RejectedApproachTest(unittest.TestCase):
@@ -400,7 +346,7 @@ class ScopeHeldTest(unittest.TestCase):
         for name, path in SHIPPED_DOCS.items():
             self.assertNotIn("resync-shas", read(path),
                              "%s: names a subcommand that does not exist yet (MAR-591)" % name)
-        for name in ("CLAUDE.acs.md", "ci-convention-check.md"):
+        for name in ("ci-convention-check.md",):
             self.assertIn("stale", norm(read(SHIPPED_DOCS[name])).lower(),
                           "%s: the stale-SHA consequence is what stands in for that "
                           "command — it must be stated" % name)
@@ -413,7 +359,7 @@ class ScopeHeldTest(unittest.TestCase):
         self.assertEqual(acs_lib.DEFAULT_SETTINGS["merge_strategy"], "squash")
 
     def test_stacking_stays_permitted(self):
-        for name in ("CLAUDE.acs.md", "ci-convention-check.md"):
+        for name in ("ci-convention-check.md",):
             body = norm(read(SHIPPED_DOCS[name]))
             self.assertIn("stays permitted", body,
                           "%s: must say stacking remains allowed (AC-6, ledger C-1)" % name)

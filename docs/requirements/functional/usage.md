@@ -9,11 +9,16 @@ in the sibling files; this doc adds no new rules, it shows them in action.
 ```text
 cd acme-shop
 /setup
-  → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
-                      (workspace: always <main-checkout>/.acs/state-machine — nothing to answer)
   → ticket_prefix?    SHOP               (suggested from the repo name)
-  → coverage 90, merge_strategy squash, tracker local  (defaults, editable)
+  → conventions?      keep the defaults  (branch task/SHOP-12-slug, commit "SHOP-12 …", PR "[SHOP-12] …")
+  → CI?               conventions + tests gates   (optional; branch protection + labels offered after)
+                      (workspace: always <main-checkout>/.acs/state-machine — nothing to answer)
 ```
+
+Setup writes only what differs from a default, to the committed
+`.acs/settings.json`. Every other setting — coverage 90, merge strategy
+squash, tracker local, models inherited — keeps its default; change one by
+editing that file.
 
 ### Existing product (brownfield)
 
