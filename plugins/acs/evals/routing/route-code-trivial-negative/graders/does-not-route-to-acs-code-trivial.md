@@ -1,6 +1,7 @@
 ---
 type: tool_used
 weight: 1
+arm: both
 tool: Skill
 input_match: '"skill"\s*:\s*"(?:[\w-]+:)?code-trivial"'
 min: 0
@@ -15,6 +16,8 @@ The `acs:code-trivial` skill must NOT be invoked.
 `input_match` narrows the count to that one skill, so invoking a
 DIFFERENT skill is a PASS — this probe asserts only that `acs:code-trivial` did
 not fire. Both bounds are set deliberately: `min` defaults to 1, and
-a `max: 0` alone would assert the impossible range 1..0.
+a `max: 0` alone would assert the impossible range 1..0. `arm: both`
+keeps it scored against the no-plugin baseline, where it is a real
+assertion rather than a structural zero.
 
 Why this probe exists: A request to implement an approved plan must reach /acs:code, the entry point, even when the user's own wording names the trivial path: which leg runs is read from the ticket's recorded `delivery_path`, judged once from the plan (ADR-0095), never inferred from how the request is phrased. This probe deliberately plants the word a mis-grab would key on, so the leg's DESCRIPTION — dispatched by /acs:code, never chosen by hand — is what has to hold.

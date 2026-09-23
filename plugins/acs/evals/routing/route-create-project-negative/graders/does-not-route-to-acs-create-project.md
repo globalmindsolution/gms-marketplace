@@ -1,6 +1,7 @@
 ---
 type: tool_used
 weight: 1
+arm: both
 tool: Skill
 input_match: '"skill"\s*:\s*"(?:[\w-]+:)?create-project"'
 min: 0
@@ -15,6 +16,8 @@ The `acs:create-project` skill must NOT be invoked.
 `input_match` narrows the count to that one skill, so invoking a
 DIFFERENT skill is a PASS — this probe asserts only that `acs:create-project` did
 not fire. Both bounds are set deliberately: `min` defaults to 1, and
-a `max: 0` alone would assert the impossible range 1..0.
+a `max: 0` alone would assert the impossible range 1..0. `arm: both`
+keeps it scored against the no-plugin baseline, where it is a real
+assertion rather than a structural zero.
 
 Why this probe exists: A plain description of the leg's own subject must NOT reach the leg: /acs:project is the documented front door and is what should pick it up. What delivers that is the leg's DESCRIPTION ("Internal leg of /acs:project, not a user-facing command"), not a frontmatter flag. Until 2026-09-13 the leg set disable-model-invocation, which the CLI enforces by refusing the Skill call — and /acs:project dispatches this leg with a real Skill(acs:create-project) call, so the flag stopped the fold working at all. The probe is unchanged; only its justification is.

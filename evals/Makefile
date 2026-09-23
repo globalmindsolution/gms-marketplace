@@ -33,10 +33,12 @@ MEASURE ?= $(RESULTS)/measurements.json
 ROUTING_RUNS ?= 3
 ROUTING_JSON ?= $(RESULTS)/routing-cases.json
 #: Each job is a full `claude` child on one credential, so they share a rate
-#: limit; 4 is the point where wall-clock stops improving here. The ceiling is
-#: a guard, not a budget -- at ~$0.08 a run, 40 cases x 3 runs lands near $10.
+#: limit. The ceiling is a guard, not a budget: at ~$0.12 a run, 40 cases x 3
+#: runs lands near $15. The reference is explicit that --max-cost-usd is the
+#: right lever for cost, and a tight max_turns is not.
 ROUTING_JOBS ?= 4
-ROUTING_MAX_USD ?= 15
+ROUTING_MAX_USD ?= 20
+ROUTING_ABLATION ?= none
 
 .DEFAULT_GOAL := help
 .PHONY: help gate eval eval-source report check generate mutation list record clean verify-self \
@@ -143,18 +145,25 @@ generate: ## Re-render both generated trees (routing cases, schema constraint ca
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_plugin_eval.py
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_schema_cases.py
 
-#: --ablation none is load-bearing, not a preference. Every grader in the
-#: routing tree is `tool_used: Skill`, which the CLI auto-marks with-only: under
-#: the default --ablation with-without they all become a "the plugin fired"
-#: indicator and drop OUT of the score, so the run reports no routing number.
-#: The default is right in general -- baseline Claude has no acs skills, so its
-#: arm trivially never fires one -- and wrong for a tree where that IS the
-#: measurement. --trust-plugin is the CI answer to the first-run trust prompt;
-#: it grants nothing (no --scaffold, no --allow-tools), and these cases need
-#: nothing: `allowed_tools: [Skill]` is the whole tool surface, and the routing
-#: verdict is read off the tool call before any skill body or gate runs.
-routing-cases: ## TIER 2 -- run the generated routing cases against the plugin source (~$0.08/run)
-	cd .. && claude plugin eval plugins/acs --eval-dir evals 	  --case 'route-*' --runs $(ROUTING_RUNS) --ablation none 	  --trust-plugin --no-publish --json evals/$(ROUTING_JSON)
+#: --ablation none runs the with-arm only and halves the spend. It is a cost
+#: choice, NOT a correctness one -- an earlier revision of this file claimed the
+#: default two-arm mode would drop every grader here out of the score, because
+#: `tool_used: Skill` graders are auto-excluded from it. They are, but the rule
+#: ends "if every grader in a case is one of these, they are scored normally
+#: instead", and every case here has exactly one. Set ROUTING_ABLATION=with-without
+#: to buy the baseline arm; for "did acs:code fire" its answer is structurally
+#: zero, which is why it is not bought by default.
+#:
+#: --trust-plugin is the CI answer to the first-run trust prompt. It grants
+#: nothing -- no --scaffold, no --allow-tools -- and these cases need nothing:
+#: `allowed_tools: [Skill]` is the whole tool surface, and the routing verdict is
+#: read off the tool call before any skill body or gate runs. The eval dir is not
+#: passed: plugin.json sets no experimental.evals, so the default evals/ applies.
+routing-cases: ## TIER 2 -- run the generated routing cases against the plugin (~$0.12/run)
+	cd .. && claude plugin eval plugins/acs \
+	  --case 'route-*' --runs $(ROUTING_RUNS) --ablation $(ROUTING_ABLATION) \
+	  -j $(ROUTING_JOBS) --max-cost-usd $(ROUTING_MAX_USD) \
+	  --trust-plugin --no-publish --json evals/$(ROUTING_JSON)
 
 mutation-cli: ## Measure CLI-tier coverage by mutating the plugin's decision code (slow: ~10s per mutant)
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/mutation_cli.py --max-mutants $(MUTANTS)

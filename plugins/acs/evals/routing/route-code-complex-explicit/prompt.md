@@ -1,5 +1,5 @@
 ---
-max_turns: 2
+max_turns: 10
 allowed_tools: [Skill]
 ---
 
