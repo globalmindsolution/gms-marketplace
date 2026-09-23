@@ -40,8 +40,10 @@ whether a broad rule is swallowing files CI must read
 (`swallowed_by_a_broad_rule`), the `toolchain` and `missing_tools`, plausible
 test commands (`test_command_candidates`), which CI installs are already
 present (`ci`), retired settings keys still sitting in a settings file
-(`retired_keys`), and the git facts. No git repository → STOP. `missing_tools`
-non-empty → name each gap and its install hint now; nothing here blocks on it.
+(`retired_keys`), and the git facts — `default_branch` is the branch to
+protect (null when it cannot be told; never guess it from `current_branch`).
+No git repository → STOP. `missing_tools` non-empty → name each gap and its
+install hint now; nothing here blocks on it.
 
 **`retired_keys` non-empty** → name each key and the file it is in, and say it
 is ignored.
@@ -55,7 +57,9 @@ files.
 
 ## Step 2 — Ask
 
-Use AskUserQuestion, in this order.
+Use AskUserQuestion, in this order, for what the request has **not already
+answered**. "Keep the defaults, no CI" answers both questions: apply it without
+asking again.
 
 1. **Conventions** — show the three formats with their built-in defaults and
    ask whether to keep them:
@@ -81,23 +85,20 @@ Use AskUserQuestion, in this order.
    | Offer | What declining costs |
    |---|---|
    | **Convention check** (`conventions`) | branch/PR/commit conventions stay advisory; a hand-made PR can bypass the pipeline. Required check: `Branch / PR / commit conventions`. By default it checks the branch name, PR title, PR description sections and the `ACS` label; the commit-message check is off under squash merges — ask whether to turn it on (`enforcement.checks.commit_message: true`). |
-   | **Tests + coverage gate** (`tests`) | the suite and the coverage target are not enforced on PRs. Needs `tests.command` — lead with `test_command_candidates` — which must run the suite and fail below `$ACS_COVERAGE` (the coverage target, default 90). Required check: `Tests & coverage`. |
+   | **Tests + coverage gate** (`tests`) | the suite and the coverage target are not enforced on PRs. Needs `tests.command` — lead with `test_command_candidates` — which must run the suite and fail below `$ACS_COVERAGE` (the coverage target, default 90); `apply` refuses the gate without one. Required check: `Tests & coverage`. |
    | **e2e merge gate** (`e2e`) — offered only when `e2e`/`suites.e2e` is already configured | e2e failures do not block a merge. Required check: `E2E suite`. |
 
 ## Step 3 — Apply
 
-Write the answers to a file and run one command:
+Pass the answers on stdin — never as a file in the repo, where it would be
+left behind untracked. They carry only what the user chose — `settings` and
+`ci` (any of `conventions`, `tests`, `e2e`):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup apply --answers answers.json
-```
-
-The answers document carries only what the user chose — `settings` and `ci`
-(any of `conventions`, `tests`, `e2e`):
-
-```json
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup apply --answers - <<'JSON'
 {"settings": {"tests": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}},
  "ci": ["conventions", "tests"]}
+JSON
 ```
 
 `--dry-run` reports what would change and writes nothing.
@@ -108,7 +109,9 @@ lists answers that equal the built-in default and were therefore not written (or
 removed from the file, when an earlier run had written them). `warnings` is what
 you relay but must not fix for them — a conflicting `!.acs/` negation, or a broad
 rule swallowing `.acs/settings.json`, is their configuration to decide. `errors`
-non-empty means the settings do not validate: report and stop.
+non-empty means apply refused and **wrote nothing** — a format that does not
+validate, or a gate missing the command it runs: say why, settle the answer
+with the user, and apply again.
 `stage_for_commit` lists what to stage (never commit unless asked);
 `required_check_contexts` names the checks for branch protection.
 
@@ -124,6 +127,9 @@ returned:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/setup_wizard.py" commands \
   --cwd . --slug <owner/repo> --branch <default-branch> --context "<each context>"
 ```
+
+`--branch` is `detect`'s `default_branch`; when that is null, ask which branch
+to protect.
 
 `protect` is one call extending one `contexts` array; `labels` creates `ACS`
 and `acs-exempt` and is harmless when they exist. Do not hand-write either:
@@ -141,16 +147,17 @@ The judgement left to you:
   open a PR (or re-run the workflow) once so the check registers, then re-run.
 - **`gh` auth only.** Nothing is ever stored in settings for this.
 
-Then name the two linkage conventions reconciliation relies on, so a
-hand-edited issue or PR does not break it: every synced issue body carries an
-`acs-ticket: <id>` line, and every PR body a `Closes #<n>` reference. Both are
-written for you; neither survives being deleted by hand.
+When a tracker is configured (`tracker.provider` other than `local`), name the
+two linkage conventions reconciliation relies on: every synced issue body
+carries an `acs-ticket: <id>` line, and every PR body a `Closes #<n>`
+reference. Both are written for you; neither survives being deleted by hand.
 
 ## Step 5 — Summary and next steps
 
 Print a table of every convention setting, its value, and where it landed
-(`.acs/settings.json`, or "default — not written"). The next steps come from `commands` above —
-`next_steps` carries the greenfield/brownfield call, the ordered pipeline and
+(`.acs/settings.json`, or "default — not written"). The next steps come from
+`commands` — run it now (`--cwd .` is enough) if Step 4 did not: `next_steps`
+carries the greenfield/brownfield call, the pipeline read from `ship.yaml` and
 the solo-maintainer caveat, so you report them rather than re-deriving them.
 
 Repeat any unmet toolchain install hint, and confirm the workflow is ready:

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: 02-custom-pr-title
+context:
+  scaffold_script: scaffold.sh

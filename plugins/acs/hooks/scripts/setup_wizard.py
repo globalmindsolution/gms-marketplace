@@ -42,7 +42,8 @@ Reachable as `acs.py setup detect` / `acs.py setup apply`. Stdlib-only.
 import argparse
 import json
 import os
-import shlex
+import re
+import shlex  # noqa: F401 -- used by setup_wizard_commands; part of the pre-split surface
 import shutil
 import stat
 import subprocess
@@ -164,6 +165,22 @@ def installed_ci(root):
     return out
 
 
+def default_branch(cwd):
+    """The branch branch protection belongs on -- never simply the one checked
+    out. `detect` used to report `git symbolic-ref HEAD` under this name, so
+    setup run from a feature branch rendered a protection call for the feature
+    branch. The remote's HEAD decides; failing that, a `main` or `master` that
+    exists; failing that, None, and the skill asks rather than guesses."""
+    ref = _git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd)
+    if ref:
+        return ref.split("/", 1)[1] if "/" in ref else ref
+    for name in ("main", "master"):
+        for candidate in ("refs/remotes/origin/%s" % name, "refs/heads/%s" % name):
+            if _git(["rev-parse", "--verify", "--quiet", candidate], cwd):
+                return name
+    return None
+
+
 def detect(cwd):
     # D2: detect roots on checkout_root while apply rooted on main_repo_root.
     # In a LINKED WORKTREE those differ, so apply wrote settings, .gitignore
@@ -191,7 +208,8 @@ def detect(cwd):
         "repo_id": repo_id,
         "settings_root": settings_root,
         "in_linked_worktree": settings_root != root,
-        "default_branch": _git(["symbolic-ref", "--short", "HEAD"], cwd),
+        "default_branch": default_branch(cwd),
+        "current_branch": _git(["symbolic-ref", "--short", "HEAD"], cwd),
         "scopes": scope_files(cwd, settings_root),
         "settings_sources": sources,
         "merged_settings": settings,
@@ -507,25 +525,72 @@ def apply_workspace(cwd, changes, dry_run=False):
     return workspace
 
 
+def refusals(cwd, settings_path, raw_settings, values, defaulted, installs):
+    """Why apply must write NOTHING, or [] when it may go ahead.
+
+    Checked before the first write, because each of these used to be found
+    after it: an invalid format was written to .acs/settings.json and only then
+    validated, so the run reported ok:false and left behind a file that made
+    every other acs skill refuse to start. And a tests or e2e gate was
+    installed with no command for it to run, reported ok:true, and had its
+    required-check context handed to branch protection -- a check that then
+    fails on every PR. The CI runners read only the committed project file, so
+    the gate check reads what that file WILL hold, not the merged scopes."""
+    errors = []
+    resolved, _sources = lib.load_settings(cwd)
+    candidate = lib.deep_merge(resolved, raw_settings)
+    prefix = candidate.get("ticket_prefix")
+    if not isinstance(prefix, str) or not re.fullmatch(r"[A-Z][A-Z0-9]*", prefix):
+        errors.append("ticket_prefix %r is invalid (must be an uppercase identifier, "
+                      "e.g. SHOP)." % (prefix,))
+    try:
+        lib.validate_settings(candidate, cwd, require_workspace=False)
+    except lib.GateError as exc:
+        errors.append(str(exc))
+    try:
+        _wrote, project = merge_json_file(settings_path, values, dry_run=True, remove=defaulted)
+    except UnreadableSettings:
+        # Refusing is the whole point: a settings file we cannot parse is one
+        # we cannot merge into, and overwriting it destroys every key the
+        # wizard did not set.
+        return errors + ["%s exists but is not valid JSON. The wizard will not "
+                         "overwrite it -- fix or remove it, then re-run." % settings_path]
+    command = (project.get("tests") or {}).get("command") if isinstance(project.get("tests"), dict) else None
+    if "tests" in installs and not (isinstance(command, str) and command.strip()):
+        errors.append("the tests gate needs tests.command in .acs/settings.json -- the "
+                      "command that runs the suite and fails below $ACS_COVERAGE. CI reads "
+                      "only that file, so without it the gate fails on every PR.")
+    suites = project.get("suites") if isinstance(project.get("suites"), dict) else {}
+    e2e = suites.get("e2e") or project.get("e2e")
+    if "e2e" in installs and not (isinstance(e2e, dict) and e2e.get("command")):
+        errors.append("the e2e gate needs an e2e suite (suites.e2e.command) in "
+                      ".acs/settings.json. CI reads only that file, so without it the "
+                      "gate fails on every PR.")
+    return errors
+
+
 def apply(cwd, answers, dry_run=False):
     root = lib.main_repo_root(cwd) or lib.checkout_root(cwd) or cwd
     changes = Changes()
 
     # Conventions are the team's, so they go to the committed project file.
     settings_path = os.path.join(root, ".acs", "settings.json")
-    values, defaulted = split_defaults(dict(answers.get("settings") or {}))
+    raw_settings = dict(answers.get("settings") or {})
+    values, defaulted = split_defaults(raw_settings)
+    refused = refusals(cwd, settings_path, raw_settings, values, defaulted,
+                       list(answers.get("ci") or ()))
+    if refused:
+        out = changes.as_dict()
+        out.update({"ok": False, "dry_run": dry_run, "settings_path": settings_path,
+                    "workspace": None, "defaulted": [], "stage_for_commit": [],
+                    "errors": refused + ["Nothing was written."],
+                    "required_check_contexts": []})
+        return out
+
     if values or (defaulted and os.path.exists(settings_path)):
-        try:
-            wrote, _merged = merge_json_file(settings_path, values, dry_run=dry_run,
-                                             remove=defaulted)
-        except UnreadableSettings:
-            # Refusing is the whole point: a settings file we cannot parse is
-            # one we cannot merge into, and overwriting it destroys every key
-            # the wizard did not set.
-            changes.fail("%s exists but is not valid JSON. The wizard will not "
-                         "overwrite it -- fix or remove it, then re-run." % settings_path)
-        else:
-            changes.note(wrote, "wrote %s" % settings_path)
+        wrote, _merged = merge_json_file(settings_path, values, dry_run=dry_run,
+                                         remove=defaulted)
+        changes.note(wrote, "wrote %s" % settings_path)
 
     apply_ignores(root, cwd, changes, dry_run=dry_run)
     workspace = apply_workspace(cwd, changes, dry_run=dry_run)
@@ -551,67 +616,9 @@ def apply(cwd, answers, dry_run=False):
     return out
 
 
-#: The two labels the convention gate relies on: one marks a pipeline PR, the
-#: other exempts a legitimate non-ticket one.
-SETUP_LABELS = (
-    ("ACS", "Created/validated by the acs pipeline"),
-    ("acs-exempt", "Skip acs convention checks for this PR"),
-)
-
-
-def render_protect(slug, branch, contexts):
-    """The exact `gh api` call that makes the CI workflows a merge gate.
-
-    Rendered here, with shlex quoting, rather than written out in a SKILL.md:
-    the prose form used bare `<slug>`/`<branch>` placeholders inside an
-    executable bash block, which bash parses as REDIRECTIONS -- the command
-    lost its path argument and still exited 0."""
-    argv = ["gh", "api", "-X", "PUT",
-            "repos/%s/branches/%s/protection" % (slug, branch),
-            "-f", "required_status_checks[strict]=true"]
-    for context in contexts:
-        argv += ["-f", "required_status_checks[contexts][]=%s" % context]
-    return " ".join(shlex.quote(a) for a in argv)
-
-
-#: The pipeline, in order, for the completion report's Next line. Entry
-#: points only: `project` is the design-phase umbrella, and `create-project`
-#: is one of the two internal legs it dispatches to (workflows/phases.yaml's
-#: `internal` map) -- a user runs the entry point, never the leg.
-PIPELINE_ORDER = ("create-prd", "create-architecture", "project",
-                  "create-ticket", "create-design", "code", "test",
-                  "docs-sync", "create-pr", "merge-pr")
-
-
-def render_next_steps(greenfield):
-    """The next-steps list. Derived, because `git ls-files` decides it -- the
-    skill should not be re-deriving a branch it can be handed."""
-    steps = ["/acs:create-prd", "/acs:create-architecture"]
-    if greenfield:
-        # The entry point, not its `create-project` leg: /acs:project reads the
-        # same greenfield evidence off disk (acs_lib.project_mode) and
-        # dispatches to that leg itself.
-        steps.append("/acs:project")
-    return {
-        "kind": "greenfield" if greenfield else "brownfield",
-        "first": steps,
-        "then": "/acs:ship <prompt>, or step by step from /acs:create-ticket <prompt>",
-        "pipeline": ["/acs:%s" % name for name in PIPELINE_ORDER],
-        "note": ("merge each PR with /acs:merge-pr <ticket-id> after review; on a "
-                 "solo-maintainer repo that skill cannot merge (it requires an "
-                 "APPROVED review and GitHub forbids self-approval) -- merge in "
-                 "the GitHub UI instead"),
-    }
-
-
-def render_labels():
-    """The label-create calls, quoted. Idempotent by construction."""
-    return [
-        "%s 2>/dev/null || true" % " ".join(
-            shlex.quote(a) for a in
-            ["gh", "label", "create", name, "--description", description])
-        for name, description in SETUP_LABELS
-    ]
+from setup_wizard_commands import (PIPELINE_ORDER, SETUP_LABELS,  # noqa: E402,F401
+                                   delivery_steps, render_labels,
+                                   render_next_steps, render_protect)
 
 
 #: The answers document's shape. Not a JSON Schema file, because this is the
@@ -685,7 +692,7 @@ def main(argv=None):
             "ok": True,
             "protect": render_protect(slug, branch, args.context),
             "labels": render_labels(),
-            "next_steps": render_next_steps(greenfield),
+            "next_steps": render_next_steps(greenfield, lib.checkout_root(cwd)),
             "ready": bool(args.slug and args.branch and args.context),
         }, indent=2))
         sys.exit(0)

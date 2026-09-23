@@ -301,6 +301,15 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Added
 
+- **An eval suite for `/acs:setup`** (`evals/setup/`, tag `setup`): eight
+  `claude plugin eval` cases, six where setup should run and two where it
+  should not. Each starts from a scripted Python repo and is scored against
+  a no-plugin baseline on what setup wrote: the settings file, the ignore
+  entries and the CI copies, plus the reply. Run it with
+  `claude plugin eval . --tag setup --scaffold --allow-tools Bash Write Edit
+  --judge-model sonnet`. The free graders are calibrated offline against ideal
+  and bad runs; the suite has not been piloted end to end yet.
+
 - **`release.version_locations` takes a bare path.** An entry may be just the
   repo-relative file, e.g. `".claude-plugin/marketplace.json"`, which means
   `{"file": <path>, "pointer": "/version"}` — where a manifest's version
@@ -834,6 +843,23 @@ JSON validated by JSON Schema, one central envelope plus a
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.
 
 ### Fixed
+
+- **`/acs:setup` no longer leaves a repo broken or a gate that always fails.**
+  `apply` now checks what it is about to write before writing anything, and
+  on a refusal writes nothing at all: an invalid custom format used to land in
+  `.acs/settings.json` first and be validated after, which left every other
+  skill refusing to start; and the tests or e2e gate used to install with no
+  command to run, report `ok: true`, and hand its check to branch protection —
+  a required check that failed every PR. `detect`'s `default_branch` is now the
+  remote's default (else `main`/`master`, else null) rather than the branch
+  checked out, which had aimed the branch-protection call at a feature branch;
+  `current_branch` is reported beside it. The suggested next steps are read
+  from the repo's `ship.yaml` instead of a list that still named the retired
+  `/acs:test`. The skill passes its answers on stdin instead of leaving an
+  `answers.json` in the repo, skips questions the request already answered,
+  and mentions the tracker linkage conventions only when a tracker is set.
+  The `commands` renderers moved to `setup_wizard_commands.py` (re-exported)
+  to keep `setup_wizard.py` under the 800-line budget.
 
 - **`/acs:create-docs` no longer crashes at Start** on every fresh run. Its
   Start snippet read `lib.DEFAULT_MAX_PARALLEL`, which went away when

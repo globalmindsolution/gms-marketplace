@@ -14,7 +14,8 @@ is what it exists to protect.
 This module is the criterion as a test, so it cannot rot back into prose.
 
 ADR-0104 deleted `metrics_render` and `metrics_aggregate` with the dashboards
-they drew, so `release_notes` is the one split entry point left to guard.
+they drew. `release_notes` and `setup_wizard` are the split entry points left
+to guard.
 """
 
 import os
@@ -56,6 +57,7 @@ class ModuleLineBudgetTest(unittest.TestCase):
     #: rewrite the docstring claims to catch.
     EXPECTED_SIBLINGS = {
         "release_notes": ("config", "git", "tickets"),
+        "setup_wizard": ("commands",),
     }
 
     def test_the_split_modules_stay_split(self):
@@ -105,7 +107,7 @@ class ModuleLineBudgetTest(unittest.TestCase):
         it by path."""
         import importlib.util
         scripts = os.path.join(PLUGIN, "hooks", "scripts")
-        for name in ("release_notes.py",):
+        for name in ("release_notes.py", "setup_wizard.py"):
             path = os.path.join(scripts, name)
             with self.subTest(module=name):
                 self.assertTrue(os.path.isfile(path))
@@ -123,7 +125,7 @@ class ModuleLineBudgetTest(unittest.TestCase):
                 sys.path[:] = [p for p in sys.path
                                if os.path.abspath(p) != os.path.abspath(scripts)]
                 for mod in [m for m in list(sys.modules)
-                            if m.startswith(("release_notes", "acs_lib"))]:
+                            if m.startswith(("release_notes", "setup_wizard", "acs_lib"))]:
                     sys.modules.pop(mod, None)
                 try:
                     spec = importlib.util.spec_from_file_location(

@@ -75,8 +75,10 @@ install fetches it.
 
 The eval suite is `claude plugin eval` case files in the layout
 <https://code.claude.com/docs/en/plugin-evals> specifies — one directory per case,
-holding `prompt.md` and `graders/*.md`, grouped under `routing/` and `artifacts/`. **The case
-files are the source of truth**: there is no dataset they are rendered from and no generator.
+holding `prompt.md` and `graders/*.md`, grouped under `routing/`, `artifacts/` and `setup/`
+(the first per-skill behaviour suite: what `/acs:setup` writes, scored against a
+no-plugin baseline). **The case files are the source of truth**: there is no dataset
+they are rendered from and no generator.
 Edit a case by editing its files. `plugins/acs/evals/README.md` is the reference for tags,
 grading, and the suite's known limits — read it before quoting a number.
 

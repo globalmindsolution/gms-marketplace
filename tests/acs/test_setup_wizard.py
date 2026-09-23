@@ -128,6 +128,35 @@ class DetectTest(WizardCase):
         found = {row["scope"]: row["keys"] for row in setup_wizard.detect(self.repo)["retired_keys"]}
         self.assertEqual(found, {"project": ["prd_path"], "local": ["workspace_path"]})
 
+    def _commit(self, branch):
+        run = lambda *a: subprocess.run(["git", "-C", self.repo] + list(a),
+                                        check=True, capture_output=True)
+        run("checkout", "-q", "-b", branch)
+        run("-c", "user.email=e@x", "-c", "user.name=e", "commit", "-q",
+            "--allow-empty", "-m", "init")
+
+    def test_the_default_branch_is_not_the_checked_out_one(self):
+        """It was `git symbolic-ref HEAD`, so setup run on a feature branch
+        prepared a branch-protection call for the feature branch."""
+        self._commit("main")
+        subprocess.run(["git", "-C", self.repo, "checkout", "-q", "-b", "feature/x"],
+                       check=True, capture_output=True)
+        out = setup_wizard.detect(self.repo)
+        self.assertEqual(out["default_branch"], "main")
+        self.assertEqual(out["current_branch"], "feature/x")
+
+    def test_the_remote_head_decides_the_default_branch(self):
+        self._commit("trunk")
+        run = lambda *a: subprocess.run(["git", "-C", self.repo] + list(a),
+                                        check=True, capture_output=True)
+        run("update-ref", "refs/remotes/origin/trunk", "HEAD")
+        run("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+        self.assertEqual(setup_wizard.detect(self.repo)["default_branch"], "trunk")
+
+    def test_an_unknown_default_branch_is_null_not_a_guess(self):
+        self._commit("feature/y")
+        self.assertIsNone(setup_wizard.detect(self.repo)["default_branch"])
+
     def test_it_writes_nothing(self):
         before = sorted(os.listdir(self.repo))
         setup_wizard.detect(self.repo)
@@ -203,6 +232,58 @@ class RefusalTest(WizardCase):
         # Keys a retired offer used to take are ignored, as unknown keys are.
         self.assertEqual(setup_wizard.validate_answers(
             {"claude_md": True, "status_line": "user", "scope": "PROJECT"}), [])
+
+    def _nothing_written(self, out):
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["required_check_contexts"], [])
+        self.assertEqual(out["changed"], [])
+        for path in ((".acs", "settings.json"), (".gitignore",),
+                     (".github", "workflows"), (".acs", "ci"), (".acs", "state-machine")):
+            self.assertFalse(os.path.exists(os.path.join(self.repo, *path)), path)
+
+    def test_a_tests_gate_without_a_command_is_refused_and_nothing_is_written(self):
+        """It used to install acs-tests.yml, report ok:true and hand back
+        `Tests & coverage` for branch protection -- a required check whose
+        runner exits 1 on every PR because there is no command to run."""
+        out = self.apply({"settings": {}, "ci": ["tests"]})
+        self._nothing_written(out)
+        self.assertTrue(any("tests.command" in e for e in out["errors"]), out["errors"])
+
+    def test_an_e2e_gate_without_a_suite_is_refused(self):
+        out = self.apply({"settings": {}, "ci": ["e2e"]})
+        self._nothing_written(out)
+        self.assertTrue(any("suites.e2e.command" in e for e in out["errors"]), out["errors"])
+
+    def test_a_tests_command_ci_cannot_read_does_not_count(self):
+        """CI reads only the committed project file, so a command that lives
+        in settings.local.json satisfies the plugin and fails every PR."""
+        local = os.path.join(self.repo, ".acs", "settings.local.json")
+        os.makedirs(os.path.dirname(local))
+        with open(local, "w", encoding="utf-8") as fh:
+            json.dump({"tests": {"command": "pytest"}}, fh)
+        out = self.apply({"settings": {}, "ci": ["tests"]})
+        self.assertFalse(out["ok"])
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".github")))
+
+    def test_an_invalid_format_is_refused_before_anything_is_written(self):
+        """It was written to .acs/settings.json and only then validated, so
+        the run reported ok:false and left a file that made every other acs
+        skill refuse to start until someone edited it by hand."""
+        for formats in ({"branch_name": "{type}/{slug}"}, {"pr_title": "{nope} {title}"}):
+            with self.subTest(formats=formats):
+                out = self.apply({"settings": {"formats": formats}, "ci": ["conventions"]})
+                self._nothing_written(out)
+
+    def test_an_invalid_format_leaves_an_existing_file_untouched(self):
+        path = os.path.join(self.repo, ".acs", "settings.json")
+        os.makedirs(os.path.dirname(path))
+        original = '{\n  "ticket_prefix": "SHOP"\n}\n'
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(original)
+        out = self.apply({"settings": {"formats": {"branch_name": "{slug}"}}})
+        self.assertFalse(out["ok"])
+        with open(path, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), original)
 
     def test_a_re_run_adds_no_duplicate_to_either_layer(self):
         """The .gitignore write is guarded by git itself; the exclude append
@@ -345,8 +426,12 @@ class IgnoreTest(WizardCase):
 
 class CiInstallTest(WizardCase):
 
+    TESTS = {"tests": {"command": "python3 -m pytest -q --cov-fail-under=$ACS_COVERAGE"}}
+    E2E = {"suites": {"e2e": {"command": "npx playwright test"}}}
+
     def test_each_install_copies_its_files_and_its_workflow(self):
-        out = self.apply(self.answers(ci=["conventions", "tests"]))
+        out = self.apply(self.answers(ci=["conventions", "tests"],
+                                      settings=dict(self.TESTS, ticket_prefix="SHOP")))
         for name in ("check-conventions.py", "commit-msg", "pre-push",
                      "install-hooks.sh", "run-tests.py"):
             self.assertTrue(os.path.exists(os.path.join(self.repo, ".acs", "ci", name)), name)
@@ -378,7 +463,8 @@ class CiInstallTest(WizardCase):
         self.assertNotIn("# tampered", open(path, encoding="utf-8").read())
 
     def test_the_required_check_contexts_come_back_for_branch_protection(self):
-        out = self.apply(self.answers(ci=["conventions", "tests", "e2e"]))
+        settings = dict(self.TESTS, ticket_prefix="SHOP", **self.E2E)
+        out = self.apply(self.answers(ci=["conventions", "tests", "e2e"], settings=settings))
         self.assertEqual(out["required_check_contexts"],
                          ["Branch / PR / commit conventions", "Tests & coverage", "E2E suite"])
 
@@ -403,6 +489,32 @@ class WorkspaceTest(WizardCase):
         self.apply({"scope": "project", "settings": {"ticket_prefix": "SHOP"}})
         self.assertTrue(os.path.isdir(
             os.path.join(self.repo, ".acs", "state-machine", "acme-shop")))
+
+
+class NextStepsTest(WizardCase):
+    """The pipeline the summary hands the user is read from ship.yaml."""
+
+    def test_every_suggested_command_is_a_shipped_skill(self):
+        skills = set(os.listdir(os.path.join(REPO_ROOT, "plugins", "acs", "skills")))
+        pipeline = setup_wizard.render_next_steps(False, self.repo)["pipeline"]
+        for command in pipeline:
+            with self.subTest(command=command):
+                self.assertIn(command[len("/acs:"):], skills)
+        self.assertNotIn("/acs:test", pipeline, "the retired skill a hand-kept list named")
+
+    def test_the_delivery_steps_follow_the_workflow(self):
+        pipeline = setup_wizard.render_next_steps(False, self.repo)["pipeline"]
+        steps = ["/acs:%s" % s for s in setup_wizard.delivery_steps(self.repo)]
+        self.assertIn("/acs:review-code", steps)
+        self.assertEqual(pipeline[len(setup_wizard.PIPELINE_ORDER):-1], steps)
+        self.assertEqual(pipeline[-1], "/acs:merge-pr")
+
+    def test_a_repo_override_is_what_gets_suggested(self):
+        override = os.path.join(self.repo, ".acs", "workflows", "ship.yaml")
+        os.makedirs(os.path.dirname(override))
+        with open(override, "w", encoding="utf-8") as fh:
+            fh.write("version: 3\nsteps:\n  - code\n  - create-pr\n")
+        self.assertEqual(setup_wizard.delivery_steps(self.repo), ["code", "create-pr"])
 
 
 class CliTest(WizardCase):

@@ -13,6 +13,9 @@ evals/
 │       └── graders/<name>.md # one grader per file
 ├── artifacts/                # 2 cases: did the skill WRITE the right workspace state?
 │   └── <case>/               # + case.yaml (scaffold) + a seed script
+├── setup/                    # 8 cases: does /acs:setup configure exactly what was asked?
+│   ├── _fixtures/            # the repo every case starts from (not a case)
+│   └── <case>/               # prompt.md + case.yaml (scaffold.sh) + graders/
 └── results/                  # written by each run; gitignored
 ```
 
@@ -27,6 +30,7 @@ claude plugin eval . --tag routing --ablation none --runs 1     # smoke test, no
 claude plugin eval . --case route-code --runs 1 --ablation none # one case, while iterating
 claude plugin eval acs@gms-marketplace --tag routing --ablation none   # the INSTALLED build
 claude plugin eval . --tag artifacts --scaffold --allow-tools Write Edit Bash   # see artifacts/README.md
+claude plugin eval . --tag setup --scaffold --allow-tools Bash Write Edit --judge-model sonnet   # see below
 ```
 
 Pin `--model` before recording a number you mean to compare with a later run:
@@ -44,6 +48,7 @@ is 39 cases × 3 runs at roughly $0.12 a run.
 | `negative` | 6 | a description of an internal leg's subject does NOT reach the leg |
 | `control` | 1 | an off-domain request invokes no skill at all |
 | `artifacts` | 2 | the skill wrote the expected workspace state |
+| `setup` | 8 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
 
 `--tag` keeps a case if ANY of its tags match, so `--tag description --tag
 negative --tag control` runs the routing cases that are fully measurable.
@@ -78,6 +83,37 @@ Claude has no acs skills, so it structurally never routes to one. It is a cost
 choice, not a correctness one — `tool_used: Skill` graders are excluded from a
 two-arm score, but only when a case has other graders to score, and every
 routing case here has exactly one.
+
+## How the setup cases are graded
+
+The `setup/` cases follow the reference's authoring rules rather than the
+routing conventions: each is scored in both arms (with and without the plugin,
+so `Δ` is the plugin's contribution), runs three times, and carries at least
+one grader on what the run PRODUCED. The `tool_used: Skill` grader is there for
+display only. Every case starts from `_fixtures/python-repo.sh` — a small
+pytest project on `main` with a fixed remote — and `04-rerun` adds a setup run
+from before, made by the plugin's own wizard.
+
+| Case | Asks | Graded on |
+|---|---|---|
+| `01-keep-defaults` | keep the formats, no CI | no settings file, no CI files, the ignore entry written, no stray answers file, no re-asked question |
+| `02-custom-pr-title` | a bracketed-id PR title + the convention check, not an admin | only `pr_title` written, the convention workflow and checker installed, no other gate, no branch-protection PUT, the reply names the required check |
+| `03-tests-gate` | the tests-and-coverage gate | a pytest `tests.command` that enforces `$ACS_COVERAGE`, `acs-tests.yml` installed, nothing else |
+| `04-rerun` | run it again, change nothing | the custom format kept, no duplicate ignore line, no new gate, the reply reports nothing changed |
+| `05-no-choices` | "Set up acs for this repo." | nothing written; the reply asks about formats and CI |
+| `06-invalid-branch-format` | a branch format without `{ticket_id}` | no settings file left behind; the reply explains why and offers a working format |
+| `07-neg-github-actions`, `08-neg-pre-commit` | CI or tooling work that is not about acs | setup never fires, no acs file is created, the request itself is done |
+
+Every `llm` grader also fails a reply that asks for a ticket prefix or a
+workspace location, which setup no longer asks about. Use `--judge-model
+sonnet`: the default judge is a small model.
+
+**Calibrated offline, not yet piloted.** Every free grader (regex,
+`file_exists`) was run against the real scaffold plus an ideal run and a bad
+run: each passes on the ideal run and at least one fails on the bad run. The
+`llm` graders have not been piloted, and neither has any case end to end: that
+needs a host where `--allow-tools Bash` works (see artifacts/README.md). Pilot
+with `--runs 1 --no-publish` first.
 
 ## Known limits — read before quoting a number
 

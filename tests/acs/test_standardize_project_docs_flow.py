@@ -358,7 +358,7 @@ class RoutingProbeCaseTest(unittest.TestCase):
             readme = fh.read()
         cases = eval_cases.all_cases()
         for tag in ("routing", "description", "explicit", "negative", "control",
-                    "artifacts"):
+                    "artifacts", "setup"):
             n = len([c for c in cases if tag in c.tags])
             with self.subTest(tag=tag):
                 self.assertRegex(
