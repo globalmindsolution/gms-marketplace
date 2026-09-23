@@ -29,10 +29,18 @@ RESULTS ?= results
 JSON    ?= $(RESULTS)/latest.json
 REPORT  ?= $(RESULTS)/report
 MEASURE ?= $(RESULTS)/measurements.json
+#: Routing is stochastic; one run per case is a smoke test, not a rate.
+ROUTING_RUNS ?= 3
+ROUTING_JSON ?= $(RESULTS)/routing-cases.json
+#: Each job is a full `claude` child on one credential, so they share a rate
+#: limit; 4 is the point where wall-clock stops improving here. The ceiling is
+#: a guard, not a budget -- at ~$0.08 a run, 40 cases x 3 runs lands near $10.
+ROUTING_JOBS ?= 4
+ROUTING_MAX_USD ?= 15
 
 .DEFAULT_GOAL := help
 .PHONY: help gate eval eval-source report check generate mutation list record clean verify-self \
-        behavioural behavioural-paid
+        behavioural behavioural-paid routing-cases
 
 help: ## Show this help
 	@printf '\nacs-evals — evaluation process\n\n'
@@ -134,6 +142,19 @@ check: ## Fail if any generated tree is stale against the plugin source
 generate: ## Re-render both generated trees (routing cases, schema constraint cases)
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_plugin_eval.py
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/gen_schema_cases.py
+
+#: --ablation none is load-bearing, not a preference. Every grader in the
+#: routing tree is `tool_used: Skill`, which the CLI auto-marks with-only: under
+#: the default --ablation with-without they all become a "the plugin fired"
+#: indicator and drop OUT of the score, so the run reports no routing number.
+#: The default is right in general -- baseline Claude has no acs skills, so its
+#: arm trivially never fires one -- and wrong for a tree where that IS the
+#: measurement. --trust-plugin is the CI answer to the first-run trust prompt;
+#: it grants nothing (no --scaffold, no --allow-tools), and these cases need
+#: nothing: `allowed_tools: [Skill]` is the whole tool surface, and the routing
+#: verdict is read off the tool call before any skill body or gate runs.
+routing-cases: ## TIER 2 -- run the generated routing cases against the plugin source (~$0.08/run)
+	cd .. && claude plugin eval plugins/acs --eval-dir evals 	  --case 'route-*' --runs $(ROUTING_RUNS) --ablation none 	  --trust-plugin --no-publish --json evals/$(ROUTING_JSON)
 
 mutation-cli: ## Measure CLI-tier coverage by mutating the plugin's decision code (slow: ~10s per mutant)
 	ACS_PLUGIN_ROOT=$(ACS_PLUGIN_ROOT) $(PYTHON) runner/mutation_cli.py --max-mutants $(MUTANTS)

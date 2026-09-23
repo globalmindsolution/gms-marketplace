@@ -26,92 +26,85 @@ i.e. it graded "did this route to acs" with acs NOT LOADED. Pointing it at the
 plugin resolved acs correctly and found no cases. Writing here satisfies the
 lookup, and incidentally retires the `evals/evals/` path collision.
 
-THE CASE FORMAT, DERIVED BY RUNNING IT
---------------------------------------
-This file previously rendered `case.yaml` in a shape authored from
-`claude plugin eval --help`, which documents flags and not the case schema.
-None of it loaded. The format below was derived on 2026-09-23 by running the
-CLI and reading its validator, and every claim here was observed:
+THE CASE FORMAT
+---------------
+    <case>/prompt.md            --- max_turns, runs, allowed_tools ---  prompt
+    <case>/graders/<name>.md    --- type, tool, input_match, ... ---    docs
 
-    <case>/prompt.md            --- max_turns, allowed_tools ---  prompt text
-    <case>/graders/<name>.md    --- type, weight, ... ---         grader body
+Grader types are `regex | tool_order | tool_used | file_exists | llm |
+baseline`. The one that matters here is `tool_used`, whose `input_match` is a
+regex tested against the JSON-encoded tool input — which is how a routing probe
+is graded deterministically and for free:
 
-    regex       `target` accepts ONLY `last_message` — it cannot see tool
-                calls, so it cannot assert which skill was invoked
-    tool_used   `tool` is required; `min`/`max` bound the call count and `min`
-                defaults to 1. It proves a skill fired, never WHICH skill:
-                `input_contains` and friends are rejected as unknown keys
-    tool_order  requires `before` and `after` — sequencing, not identity
-    llm         judge; criteria in the body
-    file_exists, baseline — not applicable to routing
+    ---
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\\s*:\\s*"(?:[\\w-]+:)?code"'
+    min: 1
+    ---
 
-So a routing probe cannot be graded deterministically on today's schema. Every
-acs skill invocation goes through the same `Skill` tool, and no free grader can
-read its argument. Each probe therefore carries an `llm` grader naming the
-expected skill, and positive probes additionally carry a free `tool_used`
-grader proving a skill fired at all — a deterministic floor under the judge,
-which catches "routed nowhere" without paying for a verdict.
+Every acs skill invocation goes through the same `Skill` tool, and the skill it
+was asked for is in that tool's input as `{"skill": "acs:code", ...}`. The
+optional `(?:[\\w-]+:)?` prefix accepts the bare and plugin-qualified spellings
+alike, and the closing quote anchors the name so `code` cannot match
+`code-small`. A negative probe is the same grader with `min: 0` and `max: 0` —
+`min` defaults to 1, so a negative MUST set both bounds or it asserts the
+opposite of what it means.
 
-THE TREE RUNS. THE RESULTS ARE NOT YET VALID ROUTING MEASUREMENTS.
-------------------------------------------------------------------
-First full execution, 2026-09-23: 40 cases, $3.87, and the numbers cannot be
-read as routing health. Two instrument defects, both in THIS file, both proven
-from a kept trace rather than inferred:
+RETRACTION: THIS FILE PREVIOUSLY RECORDED A FALSE FINDING
+---------------------------------------------------------
+Between 2026-09-23 commits f6f658f and dff2341 this docstring asserted, as a
+proven result, that NO grader type can observe which skill was invoked, and
+therefore that positive routing probes are ungradeable in tier 2 at any
+wording. That is wrong, and it was wrong when it was written.
 
-1. THE SANDBOX HAS NO ACS WORKSPACE. `route-code` scored 0.50, and its trace
-   shows `{"skill": "acs:code", "args": "TKT-1"}` — it routed EXACTLY as the
-   probe asserts. Its final message is then "the acs plugin isn't set up in
-   this repo yet — /acs:code requires .acs/settings.json, which doesn't
-   exist". The skill routed and its precondition gate refused, and the judge,
-   which reads the last message, scored the GATE REFUSAL as a routing failure.
-   Every gated skill is mis-scored this way. The CLI supports `scaffold_script`
-   (`--scaffold`) for exactly this; tier 3 already solved the same problem with
-   routing.json's `profile`/`setup` keys, which this renderer ignores.
+It was reached by probing key names invented rather than looked up: the probe
+tried `input_contains`, got "unrecognized key", and generalised a missing
+feature from a misspelling. The real key is `input_match`, it is the documented
+canonical routing grader, and it is accepted by the CLI shipped here
+(2.1.280 — the feature needs 2.1.269+). Two smaller claims fell with it: the
+`target`/`focus` enum is not `last_message` only (it also takes `trace`,
+`files`, `{source: file, path: ...}` and `mock_calls`; the earlier probe tried
+`transcript` and never tried `trace`), and `max_turns` defaults to 10, not 3.
 
-2. MAX_TURNS IS TOO LOW. At 3, many runs are truncated before any conclusive
-   final message, so the judge grades a fragment. `route-metrics` is ungated
-   and still scored 0.50 for this reason alone, while `route-usage` — ungated
-   AND short enough to finish — is the one positive that scored 1.00.
+The consequence for this tier is the opposite of what was recorded: routing is
+graded deterministically, at $0 per grader, by a free `tool_used` grader — and
+the two instrument defects that made the first full run (40 cases, $3.87)
+unreadable are both retired by that same change, not worked around:
 
-Negative probes are unaffected by both defects and look sound: all five scored
-1.00, and a gate refusal is a legitimate PASS for "this must not route here".
+1. THE GATE-REFUSAL MIS-SCORE IS GONE. `route-code` had scored 0.50 with a
+   trace plainly showing `{"skill": "acs:code"}`, because the skill's
+   precondition gate refused for want of an `.acs/` workspace and the llm judge
+   graded that refusal — it reads the final message, not the tool calls. A
+   `tool_used` grader reads the tool call, which happens BEFORE any gate runs.
+   No `scaffold_script`, no seeded sandbox, no `--scaffold` needed to measure
+   routing.
+2. TRUNCATION NO LONGER BIASES THE VERDICT. The old ceiling of 3 turns cut runs
+   off before a conclusive final message, so the judge graded a fragment. A
+   truncated run still carries every tool call it made, so the ceiling now
+   costs coverage only if a probe routes late, never correctness.
 
-Do not re-record a baseline from this run.
+Judge graders are gone from this tier as a result; it is free apart from the
+agent runs themselves.
 
-WHY THE POSITIVE PROBES CANNOT BE GRADED AT ALL (proven 2026-09-23)
--------------------------------------------------------------------
-Chasing those two defects ran into a harder wall, and the wall is the tool, not
-the sandbox: NO GRADER TYPE CAN OBSERVE WHICH SKILL WAS INVOKED.
+RUN IT WITH --ablation none
+---------------------------
+`tool_used: Skill` graders are auto-marked with-only, so under the default
+`--ablation with-without` they become a "the plugin fired" indicator and drop
+OUT of the score — the tier would report no routing number at all. That default
+is right in general (baseline Claude has no acs skills, so it trivially never
+fires one, and scoring the baseline arm would measure nothing) and wrong here,
+where every grader is of that kind. `make -C evals` passes `--ablation none`.
 
-  regex       `target` enum is `last_message` only. And the evidence is not
-              reliably there: on a run whose trace.jsonl plainly contains
-              {"skill": "acs:code"} and whose final assistant text says "the
-              acs:code skill requires .acs/settings.json", a free regex grader
-              for `acs:code` against last_message reported PATTERN NOT FOUND.
-              What graders receive as last_message is narrower than the final
-              text.
-  tool_used   proves the Skill tool fired, never with which argument
-  tool_order  before/after sequencing
-  llm         reads the response, not the tool calls. Its criteria plumbing is
-              fine - a grader saying "always pass" returns PASS PASS PASS and
-              one saying "always fail" returns FAIL FAIL FAIL - so the FAILs on
-              positive probes are a visibility limit, not a wording problem.
-              Rewording a grader to accept a gate refusal as proof of routing
-              did not change the verdict.
-
-So tier 2 can deterministically answer "did SOME skill fire" and "did NO skill
-fire", and cannot answer "did acs:code fire". Positive routing probes are not
-gradeable here today, at any wording, with or without a seeded sandbox.
-
-This is what tier 3 already does correctly and why it exists: measure_skills.py
-reads the Skill tool_use out of the `claude -p` stream directly and kills the
-run at the first one. Keep routing measurement there. Tier 2 remains useful for
-its ablation support and for assertions about whether a skill fired at all.
+Tier 3 (`measure_skills.py`, which reads the Skill tool_use out of the
+`claude -p` stream and kills the run at the first one) still exists and still
+measures routing; the two now agree by construction rather than by luck.
 """
 
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 
@@ -128,9 +121,26 @@ CASES = os.path.join(REPO_ROOT, "plugins", "acs", "evals", "routing")
 HEADER = ("<!-- GENERATED by evals/runner/gen_plugin_eval.py from\n"
           "     evals/dataset/routing.json. Edit the JSON, not this file. -->\n\n")
 
-#: Routing is decided in the first turn or two. A higher ceiling only pays for
-#: the skill body to run, which no probe here asserts on.
-MAX_TURNS = 3
+#: Well below the CLI default of 10, and deliberately: the grader reads the
+#: Skill tool call rather than the final message, so a run cut off here still
+#: carries the evidence — `route-usage` scores 1.00 on a run that exits with
+#: "Reached maximum number of turns". Every turn past the routing decision is
+#: paid for and graded on nothing. With `allowed_tools: [Skill]` there is no
+#: file to read first, so a probe that has not routed by turn 2 has not routed.
+MAX_TURNS = 2
+
+
+def skill_input_pattern(skill):
+    """Regex matching the Skill tool's input for exactly `skill`.
+
+    The tool input carries the skill as `{"skill": "acs:code", ...}`. The
+    optional prefix group accepts the bare name too, and the closing quote
+    anchors the end so `code` does not also match `code-small`.
+    """
+    bare = skill.split(":", 1)[-1]
+    if not re.match(r"^[\w-]+$", bare):
+        raise ValueError("skill name is not regex-safe verbatim: %r" % skill)
+    return r'"skill"\s*:\s*"(?:[\w-]+:)?%s"' % bare
 
 
 def renderable(probe):
@@ -148,37 +158,37 @@ def files_for(probe):
     skill = probe["skill"]
     positive = probe["must_route"]
     slug = skill.replace(":", "-")
+    why = probe["why"].strip()
     out = {}
 
     out["prompt.md"] = (
         "---\nmax_turns: %d\nallowed_tools: [Skill]\n---\n\n%s%s\n"
         % (MAX_TURNS, HEADER, probe["prompt"].strip()))
 
+    # One grader per probe, so the case score IS the routing verdict: 1.00
+    # routed as asserted, 0.00 did not. A second "some skill fired" grader
+    # would read well in the report and turn every wrong route into a 0.50.
     if positive:
-        # Free, deterministic floor: SOMETHING routed. Cannot name the skill —
-        # see the module docstring on why no free grader can.
-        out["graders/a-skill-fired.md"] = (
-            "---\ntype: tool_used\nweight: 1\ntool: Skill\nmin: 1\n---\n\n%s"
-            "Some skill must be invoked. This does not check WHICH skill; the\n"
-            "judge below does that. It exists so a run that routed nowhere at\n"
-            "all fails on a free grader rather than on a paid verdict.\n" % HEADER)
         out["graders/routes-to-%s.md" % slug] = (
-            "---\ntype: llm\nweight: 1\n---\n\n%s"
-            "PASS only if the assistant invoked the `%s` skill.\n\n"
-            "FAIL if it invoked a different skill, or answered without invoking one.\n"
-            "Judge only which skill was invoked — not whether the skill's own work\n"
-            "was correct, and not the quality of any prose.\n\n"
-            "Why this probe exists: %s\n" % (HEADER, skill, probe["why"].strip()))
-    else:
-        # A negative probe asserts one skill stayed silent; another skill firing
-        # is not a failure, so there is no tool_used floor here.
-        out["graders/does-not-route-to-%s.md" % slug] = (
-            "---\ntype: llm\nweight: 1\n---\n\n%s"
-            "PASS unless the assistant invoked the `%s` skill.\n\n"
-            "Invoking a DIFFERENT skill is a PASS — this probe asserts only that\n"
-            "`%s` did not fire. Answering without invoking anything is a PASS.\n\n"
+            "---\ntype: tool_used\nweight: 1\ntool: Skill\n"
+            "input_match: '%s'\nmin: 1\n---\n\n%s"
+            "The `%s` skill must be invoked at least once.\n\n"
+            "Deterministic and free: this reads the Skill tool call, not the\n"
+            "assistant's prose, so a precondition gate refusing AFTER the skill\n"
+            "routed still counts as a route — which is what this probe asserts.\n\n"
             "Why this probe exists: %s\n"
-            % (HEADER, skill, skill, probe["why"].strip()))
+            % (skill_input_pattern(skill), HEADER, skill, why))
+    else:
+        out["graders/does-not-route-to-%s.md" % slug] = (
+            "---\ntype: tool_used\nweight: 1\ntool: Skill\n"
+            "input_match: '%s'\nmin: 0\nmax: 0\n---\n\n%s"
+            "The `%s` skill must NOT be invoked.\n\n"
+            "`input_match` narrows the count to that one skill, so invoking a\n"
+            "DIFFERENT skill is a PASS — this probe asserts only that `%s` did\n"
+            "not fire. Both bounds are set deliberately: `min` defaults to 1, and\n"
+            "a `max: 0` alone would assert the impossible range 1..0.\n\n"
+            "Why this probe exists: %s\n"
+            % (skill_input_pattern(skill), HEADER, skill, skill, why))
     return out
 
 
@@ -198,7 +208,8 @@ def main():
             continue
         case = probe["id"].lower()
         expected.add(case)
-        for rel, body in files_for(probe).items():
+        rendered = files_for(probe)
+        for rel, body in rendered.items():
             path = os.path.join(CASES, case, rel)
             current = None
             if os.path.isfile(path):
@@ -213,6 +224,20 @@ def main():
             with open(path, "w") as fh:
                 fh.write(body)
             written += 1
+        # A grader renamed or retyped leaves its predecessor behind, and a
+        # stale grader keeps scoring: the tree is the CLI's whole input.
+        gdir = os.path.join(CASES, case, "graders")
+        keep = {os.path.basename(r) for r in rendered if r.startswith("graders/")}
+        if os.path.isdir(gdir):
+            for name in sorted(os.listdir(gdir)):
+                if name in keep:
+                    continue
+                rel = os.path.relpath(os.path.join(gdir, name), REPO_ROOT)
+                if args.check:
+                    stale.append("%s (orphan grader)" % rel)
+                else:
+                    os.remove(os.path.join(gdir, name))
+                    written += 1
 
     orphans = []
     if os.path.isdir(CASES):
@@ -229,8 +254,8 @@ def main():
             sys.stderr.write("%s is out of date with dataset/routing.json:\n  %s\n"
                              % (rel_cases, "\n  ".join(problems)))
             return 1
-        print("%s is up to date with dataset/routing.json (%d probes)"
-              % (rel_cases, len(routing["probes"])))
+        print("%s is up to date with dataset/routing.json (%d renderable probe(s))"
+              % (rel_cases, len(expected)))
         return 0
 
     print("rendered %d probe(s), %d file(s) changed, %d orphan(s) removed, into %s"
