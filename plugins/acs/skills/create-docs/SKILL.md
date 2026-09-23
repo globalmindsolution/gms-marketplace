@@ -1,6 +1,7 @@
 ---
 name: create-docs
-description: Bootstrap or maintain the product doc sets — quality (test strategy, coverage policy), operations (release process, runbooks, observability, incident response, test scheduling), principles (engineering principles + rationale) and standards (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set, each set delivered as its own docs-only PR on its own delivery ticket. Takes `all` or a comma-separated list of sets, runs the eligible ones in capped parallel, and resumes an interrupted set from its delivery-ticket id. Use when asked to create, bootstrap, generate, regenerate or maintain any of those doc sets; requires the architecture doc set (/acs:create-architecture) first.
+description: Bootstrap or maintain the product doc sets — quality (test strategy, coverage policy), operations (release process, runbooks, observability, incident response, test scheduling), principles (engineering principles + rationale) and standards (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set, each set delivered as its own docs-only PR on its own delivery ticket.
+when_to_use: Takes `all` or a comma-separated list of sets, runs the eligible ones in capped parallel, and resumes an interrupted set from its delivery-ticket id. Use when asked to create, bootstrap, generate, regenerate or maintain any of those doc sets; requires the architecture doc set (/acs:create-architecture) first.
 argument-hint: "[all | <set>[,<set>...] | <delivery-ticket-id to resume>]"
 disallowed-tools: Edit, NotebookEdit
 ---

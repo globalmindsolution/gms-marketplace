@@ -1,6 +1,7 @@
 ---
 name: usage
-description: Render a read-only, in-session dashboard of acs tool usage and spend for the current repo — usage summary, cost and working time per ticket by pipeline step, the four per-ticket and per-PR averages (avg working time / ticket, avg working time / merged PR, avg cost / ticket, avg cost / merged PR), and token burn by role (planner / executor / verifier / coordinator) — all derived from existing workspace state. Use when asked to see, audit, or report this repo's AI spend, token consumption, working time, cost per ticket, or averages, not delivery throughput or pipeline coverage.
+description: Render a read-only, in-session dashboard of acs tool usage and spend for the current repo — usage summary, cost and working time per ticket by pipeline step, the four per-ticket and per-PR averages (avg working time / ticket, avg working time / merged PR, avg cost / ticket, avg cost / merged PR), and token burn by role (planner / executor / verifier / coordinator) — all derived from existing workspace state.
+when_to_use: Use when asked to see, audit, or report this repo's AI spend, token consumption, working time, cost per ticket, or averages, not delivery throughput or pipeline coverage.
 ---
 
 You are the coordinator of `/acs:usage`, the acs tool-usage and spend dashboard.

@@ -1,6 +1,7 @@
 ---
 name: install-hooks
-description: Write this clone's .git/hooks/commit-msg and .git/hooks/pre-push so the branch-name and commit-message formats configured at /acs:setup are checked locally as you commit and before you push. Git hooks are per-clone, so each teammate runs this once per clone and nothing else installs them. Use when asked to install, set up, add or repair the local git hooks for this repository or clone; not for configuring what the conventions ARE (/acs:setup), and not for scaffolding a repo's missing tooling (/acs:project).
+description: Write this clone's .git/hooks/commit-msg and .git/hooks/pre-push so the branch-name and commit-message formats configured at /acs:setup are checked locally as you commit and before you push. Git hooks are per-clone, so each teammate runs this once per clone and nothing else installs them.
+when_to_use: Use when asked to install, set up, add or repair the local git hooks for this repository or clone; not for configuring what the conventions ARE (/acs:setup), and not for scaffolding a repo's missing tooling (/acs:project).
 ---
 
 You are the coordinator of `/acs:install-hooks`. This is NOT a hooked pipeline
