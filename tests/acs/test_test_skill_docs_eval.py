@@ -2,7 +2,7 @@
 
 Prose-contract tests over every consumer-repo doc this spec touches: the
 `contracts.md` settings-key list, `configuration.md`'s Keys table, the
-`skills.md` count + new `/acs:test` section, one new `s04` routing CASE, the
+`skills.md` count + new `/acs:test` section, one new routing probe, the
 CHANGELOG's durable MAR-114 entry, ADR 0011's status flip (with ADR 0012 left
 untouched as a regression guard), and the two new ADRs.
 
@@ -12,6 +12,7 @@ Stdlib-only (ast, os, re, unittest). Run:
 
 import ast
 import glob
+import json
 import os
 import re
 import unittest
@@ -141,39 +142,34 @@ class SkillsMdCountAndTestSectionTest(unittest.TestCase):
                       "the suite-runner section must reference the suites map")
 
 
-class S04SkillTriggersCaseTest(unittest.TestCase):
-    """Approach item 4: one suite-runner routing CASE, structurally parsed
-    (no paid model call).
+class RoutingProbeCaseTest(unittest.TestCase):
+    """Approach item 4: one suite-runner routing probe, read from the curated
+    dataset (no paid model call).
 
     MAR-114 added it as `test`; the skills-independence refactor renamed that
     skill to `run-e2e-tests` and left `test` behind as a deprecated alias
-    directory whose description points at the new name, so the probe must now
-    expect `run-e2e-tests` — pinning `test` would pin the alias, not the
-    skill that carries the prose."""
+    directory, which v0.5.0 then deleted. The probe must expect
+    `run-e2e-tests` — pinning `test` would pin an alias that no longer ships,
+    which is exactly the stale assertion the guide-format migration found and
+    removed from this dataset."""
 
-    def _cases(self):
-        path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
-        tree = ast.parse(read(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "CASES" for t in node.targets
-            ):
-                return ast.literal_eval(node.value)
-        raise AssertionError("CASES list not found in s04_skill_triggers.py")
+    @staticmethod
+    def _probes():
+        path = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
+        with open(path, encoding="utf-8") as fh:
+            return [p for p in json.load(fh)["probes"]
+                    if p.get("kind") != "control"]
+
+    @staticmethod
+    def _skill(probe):
+        return probe["skill"].split(":", 1)[1]
 
     def test_suite_runner_case_present_and_internally_consistent(self):
-        cases = self._cases()
-        matches = [c for c in cases if c[0] == "run-e2e-tests"]
-        self.assertTrue(
-            matches, "s04 CASES must contain an entry labeled 'run-e2e-tests'")
-        case = matches[0]
-        self.assertEqual(
-            case[-1], "run-e2e-tests",
-            "the suite-runner CASE's expected-skill (last element) must be "
-            "'run-e2e-tests'")
-        self.assertEqual(
-            [c for c in cases if c[0] == "test"], [],
-            "s04 must not probe the deprecated `test` alias directory")
+        probed = [self._skill(p) for p in self._probes()]
+        self.assertIn("run-e2e-tests", probed,
+                      "routing.json must carry a run-e2e-tests probe")
+        self.assertNotIn("test", probed,
+                         "no probe may name the deleted `test` alias directory")
 
 
 class ChangelogMar114EntryTest(unittest.TestCase):

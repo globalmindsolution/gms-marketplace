@@ -5,7 +5,7 @@ Prose-contract tests over the new standing Flow-1 doc
 architecture/requirements file this epic's final increment touches (repaired
 to the post-121 totals 22 skills / 42 agent files / 36 reachable / eleven
 triad-keeping skills; the skill total later advances 22->23 as MAR-129 adds
-the unhooked /acs:release skill, agent counts unchanged), the `s04`
+the unhooked /acs:release skill, agent counts unchanged), the routing
 routing-eval case, and the durable CHANGELOG
 entries (per-child MAR-121 + the epic-wide G10 summary line).
 
@@ -14,6 +14,7 @@ Stdlib-only (ast, os, re, unittest). Run:
 """
 
 import ast
+import json
 import os
 import re
 import sys
@@ -283,77 +284,65 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertIn("standardize-project", hook_gated)
 
 
-class S04SkillTriggersCaseTest(unittest.TestCase):
-    """AC-9: one new standardize-project routing CASE, structurally parsed
-    (no paid model call); the pre-existing 18/16-vs-21-entries drift is
-    repaired straight to 22/20, later advanced to 23/21 by the /acs:release
-    routing case, then back to 22/20 as the create-spec case is retired.
-    Header/summary/prose count slots are asserted by deriving the expected
-    values from the live CASES/NEGATIVE lists rather than pinning literals,
-    so a future case-list change cascades to zero test edits here."""
+class RoutingProbeCaseTest(unittest.TestCase):
+    """AC-9: standardize-project's routing probes, read from the curated
+    dataset (no paid model call).
 
-    def _source(self):
-        path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
-        return read(path)
+    These used to parse s04_skill_triggers.py's CASES/NEGATIVE lists out of its
+    AST and cross-check them against that file's own docstring prose. Routing
+    consolidated onto the `claude plugin eval` tree, so the data is
+    evals/dataset/routing.json -- and the same rule applies to it: the counts
+    it states about itself are DERIVED here and never pinned as literals, so a
+    case-list change cascades to zero test edits. Pointing this at the dataset
+    immediately found its description claiming 24 natural-language probes when
+    it carried 26."""
 
-    def _list(self, name):
-        tree = ast.parse(self._source())
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == name for t in node.targets
-            ):
-                return ast.literal_eval(node.value)
-        raise AssertionError("%s list not found in s04_skill_triggers.py" % name)
+    ROUTING = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
 
-    def _cases(self):
-        return self._list("CASES")
+    def _doc(self):
+        with open(self.ROUTING, encoding="utf-8") as fh:
+            return json.load(fh)
 
-    def _negative(self):
-        return self._list("NEGATIVE")
+    def _probes(self):
+        return [p for p in self._doc()["probes"] if p.get("kind") != "control"]
+
+    @staticmethod
+    def _skill(probe):
+        return probe["skill"].split(":", 1)[1]
 
     def test_standardize_project_case_present_and_internally_consistent(self):
-        cases = self._cases()
-        matches = [c for c in cases if c[0] == "standardize-project"]
-        self.assertTrue(
-            matches,
-            "s04 CASES must contain an entry labeled 'standardize-project'")
-        case = matches[0]
+        probes = self._probes()
+        positives = [p for p in probes
+                     if p["must_route"] and self._skill(p) == "standardize-project"]
+        self.assertTrue(positives,
+                        "routing.json must carry a standardize-project positive")
+        # ADR 0091 made this an internal leg, so its positive probe is the
+        # explicit command, and the description that used to be the positive is
+        # now the NEGATIVE -- the one that must NOT auto-route. The no-naming
+        # rule follows the description to where it lives.
         self.assertEqual(
-            case[-1], "standardize-project",
-            "the 'standardize-project' CASE's expected-skill (last element) "
-            "must be 'standardize-project'")
-        # ADR 0091 made this an internal leg, so disable-model-invocation: true.
-        # Its positive probe is therefore the explicit command, and the
-        # description that used to be the positive is now the NEGATIVE probe --
-        # the one that must NOT auto-route. The no-naming rule follows the
-        # description to where it lives.
-        self.assertEqual(
-            case[2], "/acs:standardize-project",
-            "a user-only skill's positive probe is the explicit command")
-        negatives = [c for c in self._negative() if c[0] == "standardize-project"]
-        self.assertTrue(
-            negatives,
-            "a user-only skill needs a no-auto-route negative probe")
+            positives[0]["prompt"].strip(), "/acs:standardize-project",
+            "an internal leg's positive probe is the explicit command")
+        negatives = [p for p in probes
+                     if not p["must_route"] and self._skill(p) == "standardize-project"]
+        self.assertTrue(negatives,
+                        "an internal leg needs a no-auto-route negative probe")
         self.assertNotIn(
-            "standardize", negatives[0][2],
+            "standardize", negatives[0]["prompt"],
             "the probe request must describe brownfield audit intent "
             "without naming the skill")
 
     def test_no_create_spec_routing_case(self):
-        for case in self._cases():
-            self.assertNotEqual(case[0], "create-spec",
-                                "s04 CASES must not carry a create-spec label")
-            self.assertNotEqual(case[-1], "create-spec",
-                                "s04 CASES must not route to create-spec")
-        for case in self._negative():
-            self.assertNotEqual(case[0], "create-spec")
-            self.assertNotEqual(case[-1], "create-spec")
-        self.assertNotIn(
-            "create-spec", self._source(),
-            "s04 source must not mention the deleted create-spec skill")
+        for probe in self._probes():
+            self.assertNotEqual(self._skill(probe), "create-spec",
+                                "no probe may route to the deleted create-spec")
+        with open(self.ROUTING, encoding="utf-8") as fh:
+            self.assertNotIn(
+                "create-spec", fh.read(),
+                "routing.json must not mention the deleted create-spec skill")
 
         # No eval scenario anywhere references the deleted skill (AC-1,
-        # scope extension): scan the whole scenarios package, not just s04.
+        # scope extension): scan the whole scenarios package.
         scenarios_dir = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios")
         for name in sorted(os.listdir(scenarios_dir)):
             if not name.endswith(".py"):
@@ -364,76 +353,37 @@ class S04SkillTriggersCaseTest(unittest.TestCase):
                 "create-spec", body,
                 "%s still references the deleted create-spec skill" % name)
 
-    def test_header_and_summary_counts_match_case_lists(self):
-        source = self._source()
-        total = len(self._cases())
-        user_only = len(self._negative())
-        described = total - user_only
+    def test_dataset_counts_match_its_own_probes(self):
+        """The dataset states counts about itself. Derived, never pinned."""
+        doc = self._doc()
+        renderable = self._probes()
+        self.assertEqual(doc["probe_count"], len(doc["probes"]))
+        self.assertEqual(doc["control_count"], len(doc["probes"]) - len(renderable))
+        self.assertEqual(doc["skill_count"],
+                         len({self._skill(p) for p in renderable}))
 
+    def test_description_counts_match_its_own_probes(self):
+        """The prose is part of the data: a stale count here is how a reader
+        forms a wrong belief about what the suite covers."""
+        doc = self._doc()
+        renderable = self._probes()
         shipped = len([
             name for name in os.listdir(os.path.join(PLUGIN, "skills"))
             if os.path.isfile(os.path.join(PLUGIN, "skills", name, "SKILL.md"))
         ])
+        skills = len({self._skill(p) for p in renderable})
+        self.assertEqual(
+            skills, shipped,
+            "every shipped skill must be probed before the description may "
+            "claim to cover them all")
+        self.assertIn("for all %d acs skills" % shipped, doc["description"])
 
-        # Two forms, and which one is correct is DERIVED: while the probe set
-        # covers every shipped skill it says so outright ("for all N skills"),
-        # and the moment it does not it must state both counts. Accepting only
-        # the second form would force a doc to understate a complete set;
-        # accepting only the first would let an incomplete one claim
-        # completeness. v0.5.0 retired the `test` alias, the one unprobed
-        # directory, so today the complete form is the correct one.
-        header = source.split("\n")[0]
-        if total == shipped:
-            self.assertIn("for all %d skills" % total, header,
-                          "the probe set covers every shipped skill, so the "
-                          "header must say so rather than stating N of M")
-        else:
-            m = re.search(r"for (\d+) of the (\d+) skills", header)
-            self.assertIsNotNone(
-                m, "the probe set does not cover every skill directory, so "
-                   "the header must state both counts")
-            self.assertEqual((int(m.group(1)), int(m.group(2))), (total, shipped))
-
-        m = re.search(r'"summary":\s*"([^"]*)"', source)
-        self.assertIsNotNone(m, "META[\"summary\"] must be present")
-        summary = m.group(1)
-        if total == shipped:
-            m2 = re.search(
-                r"all (\d+) \((\d+) by description, (\d+) internal legs", summary)
-            self.assertIsNotNone(
-                m2, "summary must state 'all N (D by description, K internal legs'")
-            self.assertEqual(
-                (int(m2.group(1)), int(m2.group(2)), int(m2.group(3))),
-                (total, described, user_only))
-        else:
-            m2 = re.search(
-                r"(\d+) of (\d+) \((\d+) by description, (\d+) internal legs", summary)
-            self.assertIsNotNone(
-                m2, "summary must state 'N of M (D by description, K internal legs'")
-            self.assertEqual(
-                (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)), int(m2.group(4))),
-                (total, shipped, described, user_only))
-
-    def test_docstring_prose_counts_match_case_lists(self):
-        source = self._source()
-        total = len(self._cases())
-        user_only = len(self._negative())
-        described = total - user_only
-
-        # "model-invocable" stopped distinguishing anything once every skill
-        # became so; the split that remains is how a skill is PROBED.
-        described_hits = re.findall(r"(\d+) skills are probed by description",
-                                    source)
-        self.assertTrue(described_hits,
-                        "s04 prose must state 'N skills are probed by description'")
-        for value in described_hits:
-            self.assertEqual(int(value), described)
-
-        user_only_hits = re.findall(r"(\d+) internal legs", source)
-        self.assertTrue(user_only_hits,
-                        "s04 prose must state 'N internal legs'")
-        for value in user_only_hits:
-            self.assertEqual(int(value), user_only)
+        described = [p for p in renderable
+                     if p["must_route"] and not p["prompt"].strip().startswith("/")]
+        self.assertIn(
+            "%d get one natural-language request" % len(described),
+            doc["description"],
+            "the description's natural-language probe count is stale")
 
 
 class ChangelogMar121EntryTest(unittest.TestCase):

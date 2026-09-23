@@ -6,7 +6,7 @@ Replaces the MAR-117 (`/acs:create-principles`) and MAR-118
 set — the fold retired. What survives the fold is pinned here for every
 set at once: the `configuration.md` `<set>_path` rows, the `skills.md`
 `/acs:create-docs` section, the C4/architecture files naming the fold and
-not the retired legs as live skills, the `s04` routing CASE, and the two
+not the retired legs as live skills, the routing probe, and the two
 tickets' durable CHANGELOG entries.
 
 Stdlib-only (ast, os, re, unittest). Run:
@@ -14,6 +14,7 @@ Stdlib-only (ast, os, re, unittest). Run:
 """
 
 import ast
+import json
 import os
 import re
 import sys
@@ -155,39 +156,45 @@ class ArchitectureDocsTest(unittest.TestCase):
                                  "%s names retired leg %s" % (name, retired))
 
 
-class S04SkillTriggersCaseTest(unittest.TestCase):
-    """One routing CASE for the fold, structurally parsed (no paid call): a
-    description-shaped probe that names two sets and routes to
-    create-docs; no CASE survives for a retired leg."""
+class RoutingProbeCaseTest(unittest.TestCase):
+    """One routing probe for the fold, read from the curated dataset (no paid
+    call): a description-shaped probe that names two sets and routes to
+    create-docs; no probe survives for a retired leg.
 
-    def _assign(self, name):
-        path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
-        tree = ast.parse(read(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == name for t in node.targets
-            ):
-                return ast.literal_eval(node.value)
-        raise AssertionError("%s list not found in s04_skill_triggers.py" % name)
+    The probe set used to live in s04_skill_triggers.py's CASES list, parsed
+    out of its AST. Routing consolidated onto the `claude plugin eval` tree, so
+    the data is evals/dataset/routing.json and this reads it directly."""
+
+    @staticmethod
+    def _probes(positive=None):
+        path = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
+        with open(path, encoding="utf-8") as fh:
+            probes = [p for p in json.load(fh)["probes"]
+                      if p.get("kind") != "control"]
+        if positive is not None:
+            probes = [p for p in probes if p["must_route"] is positive]
+        return probes
+
+    @staticmethod
+    def _skill(probe):
+        return probe["skill"].split(":", 1)[1]
 
     def test_create_docs_case_present_and_internally_consistent(self):
-        cases = self._assign("CASES")
-        matches = [c for c in cases if c[0] == "create-docs"]
-        self.assertEqual(len(matches), 1, "exactly one create-docs CASE")
-        case = matches[0]
-        self.assertEqual(case[-1], "create-docs")
-        self.assertNotIn("create-docs", case[2],
+        matches = [p for p in self._probes(positive=True)
+                   if self._skill(p) == "create-docs"]
+        self.assertEqual(len(matches), 1, "exactly one create-docs probe")
+        prompt = matches[0]["prompt"]
+        self.assertNotIn("create-docs", prompt,
                          "the probe describes intent without naming the skill")
-        named = [s for s in SETS if s in case[2]]
+        named = [x for x in SETS if x in prompt]
         self.assertGreaterEqual(len(named), 2,
                                 "the probe should name more than one set, so "
                                 "routing must reach the umbrella and not a leg")
 
     def test_no_case_survives_for_a_retired_leg(self):
-        labels = {c[0] for c in self._assign("CASES")}
-        labels |= {c[0] for c in self._assign("NEGATIVE")}
+        probed = {self._skill(p) for p in self._probes()}
         for retired in RETIRED:
-            self.assertNotIn(retired, labels)
+            self.assertNotIn(retired, probed)
 
 
 class ChangelogEntriesTest(unittest.TestCase):

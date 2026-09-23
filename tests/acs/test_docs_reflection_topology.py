@@ -21,6 +21,7 @@ Stdlib-only (ast, glob, importlib, os, re, unittest). Run:
 import ast
 import glob
 import importlib.util
+import json
 import os
 import sys
 import re
@@ -86,15 +87,20 @@ def _load_acs_lib():
     return mod
 
 
-def _s04_cases():
-    path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
-    tree = ast.parse(read(path))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and any(
-            isinstance(t, ast.Name) and t.id == "CASES" for t in node.targets
-        ):
-            return len(ast.literal_eval(node.value))
-    raise AssertionError("CASES list not found in s04_skill_triggers.py")
+def _routing_positive_skills():
+    """How many skills carry a positive routing probe.
+
+    Was `len(s04_skill_triggers.CASES)`, parsed out of that scenario's AST --
+    one entry per shipped skill. Routing consolidated onto the
+    `claude plugin eval` tree, so the data is evals/dataset/routing.json, and
+    the equivalent is the number of DISTINCT skills with a must-route probe:
+    two skills carry two positives each (an explicit command and a description),
+    which a raw probe count would double-count."""
+    path = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
+    with open(path, encoding="utf-8") as fh:
+        probes = json.load(fh)["probes"]
+    return len({p["skill"] for p in probes
+                if p.get("kind") != "control" and p["must_route"]})
 
 
 def derive():
@@ -131,7 +137,7 @@ def derive():
         "reachable": reachable,
         "declared_roles": declared_roles,
         "orphaned": orphaned,
-        "s04_cases": _s04_cases(),
+        "s04_cases": _routing_positive_skills(),
     }
 
 

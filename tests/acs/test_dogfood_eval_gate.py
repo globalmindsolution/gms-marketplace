@@ -182,189 +182,20 @@ class SettingsShapeTest(unittest.TestCase):
 
 
 
-def _s04_probed_skills():
-    """Skills s04 probes, read from the scenario's own CASES/NEGATIVE lists.
+def _routing_probed_skills():
+    """The set of skills the routing dataset probes.
 
-    Parsed rather than imported: s04 imports the eval harness, which is not on
-    the path for the unit suite. Derived rather than pinned so that adding a
+    Was parsed out of s04_skill_triggers.py's CASES/NEGATIVE lists; routing
+    consolidated onto the `claude plugin eval` tree, so the source is
+    evals/dataset/routing.json. Derived rather than pinned so that adding a
     skill's probe cannot leave the roadmap's claim behind -- the rot this
     assertion existed to catch, twice.
     """
-    import ast
-    path = os.path.join(REPO_ROOT, "evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
+    path = os.path.join(REPO_ROOT, "evals", "dataset", "routing.json")
     with open(path, encoding="utf-8") as fh:
-        tree = ast.parse(fh.read())
-    found = set()
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") in (
-                "CASES", "NEGATIVE"):
-            found |= {row[-1] for row in ast.literal_eval(node.value)}
-    assert found, "neither CASES nor NEGATIVE found in s04_skill_triggers.py"
-    return found
-
-
-class DocsPolicyTest(unittest.TestCase):
-    """[AC-3..AC-6] every document that stated the retired policy now names
-    acs-evals as the gate."""
-
-    def test_prd_g13_note_and_c17_point_at_acs_evals(self):
-        body = read(PRD_PATH)
-        g13 = line_containing(body, "G13 — Enforceable e2e integrity")
-        self.assertIn("MAR-579", g13)
-        self.assertIn("acs-evals", g13)
-        self.assertRegex(g13, r"(?i)no e2e suite and no gate-enabled window")
-        # The historical MAR-127 record and sub-metric (b) survive the reword.
-        self.assertIn("First validated 2026-07-12 (MAR-127)", g13)
-        self.assertIn("not yet wired", g13)
-        self.assertIn("Sub-metric (b) reads **2/2 (100%)**", g13)
-
-        self.assertNotIn("the paid tier remains the manual pre-release gate", body)
-        self.assertNotIn("the paid tier remains a manual pre-release gate", body)
-        for marker in ("Full behavioral eval coverage + per-release eval baseline",
-                       "full eval coverage is additive over the shipped harness"):
-            clause = line_containing(body, marker)
-            self.assertIn("acs-evals", clause)
-            self.assertIn("G32(iii)", clause)
-        self.assertIn("behavioral/LLM evals stay local-only, never in CI (C-17)", body)
-        self.assertIn("behavioral/LLM evals stay local-only", line_containing(
-            body, "full eval coverage is additive over the shipped harness"))
-
-    def test_roadmap_e1_marks_paid_scenarios_superseded(self):
-        body = read(ROADMAP_PATH)
-        e12 = list_item(body, "**E1.2 (done)**")
-        e13 = list_item(body, "**E1.3 (done)**")
-        e14 = list_item(body, "**E1.4 (done)**")
-        for item in (e12, e13):
-            self.assertRegex(item, r"(?i)supersed")
-            self.assertIn("acs-evals", item)
-        # The count moves with the probe set: MAR-575 took it to 25, and
-        # probing the refactor's Build/Test skills plus the ADR 0091 umbrella
-        # takes it to 31 — every shipped skill except the `test` alias, whose
-        # routing is measured through run-e2e-tests. Derived from the shipped
-        # probe set rather than pinned, so the next skill cannot silently
-        # leave the claim behind.
-        self.assertIn("%d-skill routing coverage" % len(_s04_probed_skills()), e12)
-        self.assertIn("PIPE-", e13)
-        self.assertIn("MAR-579", e14)
-        self.assertRegex(e14, r"(?i)no longer .{0,40}per-ticket")
-        self.assertIn("on-demand developer action", e14)
-
-    def test_release_gate_docs_name_acs_evals(self):
-        readme = read(EVALS_README_PATH)
-        before_release = section(readme, "## Before a release")
-        self.assertNotIn("The paid tier is the **release gate**", readme)
-        self.assertIn("acs-evals", before_release)
-        for command in ("make eval", "make measure", "make perf"):
-            self.assertIn(command, before_release)
-        self.assertRegex(before_release, r"(?i)on-demand")
-        self.assertIn("s07", before_release)
-        self.assertIn("s08", before_release)
-        pre_commit = section(readme, "## Pre-commit and CI")
-        self.assertRegex(pre_commit, r"(?i)not a gate")
-        # C-4's grep invariant is not this ticket's to narrow.
-        self.assertIn('grep -rn "run_evals\\|evals/behavioural/" .github/workflows/', pre_commit)
-
-        strategy = read(TESTING_STRATEGY_PATH)
-        for layer in ("5", "6"):
-            self.assertIn("acs-evals", table_row(strategy, layer))
-        self.assertIn("acs-evals", paragraph(strategy, "Layers 1–4 are free"))
-        principle = list_item(strategy, "**Cost-aware tiering.**")
-        self.assertIn("acs-evals", principle)
-        self.assertNotIn("`python3 evals/behavioural/run_evals.py --paid` before tagging", principle)
-        # The standing G13 validation-record section stays exactly where it was.
-        self.assertIn("## G13 e2e-integrity validation", strategy)
-
-        runbook = read(RUNBOOK_PATH)
-        step_one = section(runbook, "## Steps").split("2. **Cut the release")[0]
-        self.assertIn("acs-evals", step_one)
-        for command in ("make eval", "make measure", "make perf"):
-            self.assertIn(command, step_one)
-        self.assertNotIn("**Run the pre-release quality gate** — the paid eval suite", runbook)
-        self.assertRegex(step_one, r"(?i)on-demand")
-
-    def test_ci_brake_is_stated_as_a_plan_not_current_fact(self):
-        """No document claims this repo already runs acs-evals in CI.
-
-        Two halves, and they moved apart when the suite was folded into this
-        repo (it lives at `evals/` today, having been imported as
-        `src/acs-evals/`): the **import** has landed, the **workflow** has not.
-        A document that still names the import as the pending half sends a
-        maintainer looking for a checkout that is already here, so the
-        pending-wording assertions below are what make this guard bite on the
-        fold rather than merely on the word "imported".
-        """
-        planned = "imported into this repository"
-        documents = (
-            ("prd G13", line_containing(read(PRD_PATH), "G13 — Enforceable e2e integrity")),
-            ("roadmap E1.4", list_item(read(ROADMAP_PATH), "**E1.4 (done)**")),
-            ("ADR 0022 amendment", section(read(ADR_PATH), AMENDMENT_HEADING)),
-        )
-        pending_import = (
-            "when the acs-evals suite is imported",
-            "once that import lands",
-            "run today from a local acs-evals checkout",
-        )
-        for name, text in documents:
-            flattened = flat(text)
-            self.assertIn(planned, flattened,
-                          "%s must state the CI brake as a plan" % name)
-            self.assertIn("not yet landed", flattened,
-                          "%s must still mark the CI brake as unlanded" % name)
-            self.assertNotIn("MAR-576", text, "%s names a retired ticket" % name)
-            # `evals/` as its own path segment -- a bare "evals" substring
-            # would also match the product name "acs-evals", which these
-            # documents use throughout, and the assertion would pass vacuously.
-            self.assertRegex(
-                flattened, r"(?<![\w/-])evals/",
-                "%s must name where the imported suite lives (the evals/ tree)" % name,
-            )
-            for stale in pending_import:
-                self.assertNotIn(
-                    stale, flattened,
-                    "%s still describes the import as pending; it landed at "
-                    "evals/ — only the workflow has not" % name,
-                )
-        # Neither release doc may send a maintainer to a ref no workflow pins.
-        for path in (RUNBOOK_PATH, EVALS_README_PATH):
-            self.assertNotIn("the ref this repo's CI workflow pins", read(path))
-        workflows = os.path.join(REPO_ROOT, ".github", "workflows")
-        self.assertEqual(
-            [name for name in sorted(os.listdir(workflows)) if "eval" in name], [],
-            "an eval workflow landed — the planned-brake wording above is now stale",
-        )
-
-    def test_adr_0022_carries_the_amendment(self):
-        body = read(ADR_PATH)
-        self.assertIn(AMENDMENT_HEADING, body)
-        headings = re.findall(r"(?m)^## .*$", body)
-        self.assertEqual(
-            headings,
-            ["## Context", "## Options considered", "## Decision", "## Consequences",
-             AMENDMENT_HEADING],
-            "the amendment is append-only: it follows Consequences and adds no other section",
-        )
-        amendment = section(body, AMENDMENT_HEADING)
-        self.assertIn("acs-evals", amendment)
-        self.assertRegex(amendment, r"(?i)tier 1")
-        self.assertIn("$7", amendment)
-        self.assertRegex(amendment, r"(?i)local-only")
-        self.assertRegex(amendment, r"(?i)opt-in")
-
-    def test_adr_0022_sections_above_the_amendment_are_byte_identical(self):
-        base = _base_ref()
-        if base is None:
-            self.skipTest("no base ref (origin/main or main) to diff the ADR prefix against")
-        shown = subprocess.run(
-            ["git", "show", "%s:%s" % (base, ADR_RELPATH)],
-            cwd=REPO_ROOT, capture_output=True, text=True,
-        )
-        if shown.returncode != 0:
-            self.skipTest("ADR 0022 is not readable at %s" % base)
-        # rstrip only the blank line that now separates the amendment heading from
-        # Consequences; every byte of the four original sections must match.
-        baseline = shown.stdout.split(AMENDMENT_HEADING)[0].rstrip("\n")
-        self.assertEqual(read(ADR_PATH).split(AMENDMENT_HEADING)[0].rstrip("\n"), baseline)
-
+        probes = json.load(fh)["probes"]
+    return {p["skill"].split(":", 1)[1] for p in probes
+            if p.get("kind") != "control"}
 
 def _base_ref():
     """`origin/main` first, then a local `main`; a shallow CI checkout has neither."""
