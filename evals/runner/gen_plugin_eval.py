@@ -55,6 +55,11 @@ def render(probe):
     skill = probe["skill"]
     positive = probe["must_route"]
     lines = [HEADER,
+             # REQUIRED by `claude plugin eval`. Its absence is why none of these
+             # cases could be loaded until 2026-09-23: the schema was authored from
+             # `--help`, which documents flags and not the case-file shape, so the
+             # field nothing advertised was the field nothing supplied.
+             "schema_version: \"1.0\"",
              "name: %s" % probe["id"].lower(),
              "description: >-",
              block("%s must %sroute to %s."
