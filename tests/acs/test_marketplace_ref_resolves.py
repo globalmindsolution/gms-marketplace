@@ -411,7 +411,8 @@ class TheReleaseCutLeavesTheSourceAloneTest(unittest.TestCase):
         bumps the marketplace and not that file ships a catalog whose entry
         resolves to a stale plugin.
         """
-        files = {loc.get("file") for loc in (self.release.get("version_locations") or [])}
+        files = {loc if isinstance(loc, str) else loc.get("file")
+                 for loc in (self.release.get("version_locations") or [])}
         self.assertIn(".claude-plugin/marketplace.json", files,
                       "the cut must bump the marketplace's own version")
         for entry in relative_entries():

@@ -646,6 +646,61 @@ class BumpAtomicityTest(unittest.TestCase):
             self.assertEqual(_read_text(market_path), before)
 
 
+class VersionLocationShorthandTest(unittest.TestCase):
+    """A bare path in `version_locations` means `{file: <path>, pointer: "/version"}`."""
+
+    SHORTHAND_CONFIG = dict(PROFILE1_CONFIG, version_locations=[
+        ".claude-plugin/marketplace.json",
+        "plugins/acs/.claude-plugin/plugin.json",
+    ])
+
+    def test_a_bare_path_expands_to_the_version_pointer(self):
+        config = {"version_locations": ["a.json", {"file": "b.json", "pointer": "/meta/version"}]}
+        expanded = release_notes.expand_version_locations(config)
+        self.assertEqual(expanded["version_locations"], [
+            {"file": "a.json", "pointer": "/version"},
+            {"file": "b.json", "pointer": "/meta/version"},
+        ])
+        self.assertEqual(config["version_locations"][0], "a.json",
+                         "the caller's config must not be mutated")
+
+    def test_the_object_form_is_returned_unchanged(self):
+        self.assertIs(release_notes.expand_version_locations(PROFILE1_CONFIG), PROFILE1_CONFIG)
+
+    def test_bump_writes_the_same_bytes_as_the_object_form(self):
+        written = []
+        for config in (PROFILE1_CONFIG, self.SHORTHAND_CONFIG):
+            with TemporaryDirectory() as tmp:
+                root = make_repo(os.path.join(tmp, "repo"))
+                workspace = os.path.join(tmp, "ws")
+                write_archive_ticket(workspace, "MAR-1", title="Add thing")
+                with mock_gh(None):
+                    result = release_notes.bump(
+                        "0.4.2", root, workspace, config, today="2026-07-19")
+                self.assertTrue(result["ok"])
+                written.append({f: _read_text(os.path.join(root, f))
+                                for f in sorted(result["files_changed"])})
+        self.assertEqual(written[0], written[1])
+
+    def test_the_cli_accepts_bare_paths(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            with mock_gh(None):
+                code, out, err = run_cli([
+                    "status", "--version", "0.4.2", "--repo-root", root,
+                ] + rc_args(self.SHORTHAND_CONFIG))
+            self.assertEqual(code, 0, err)
+            self.assertFalse(json.loads(out)["manifests_at_target"])
+
+    def test_an_entry_that_is_neither_a_path_nor_an_object_is_refused(self):
+        with TemporaryDirectory() as tmp:
+            for bad in (42, "", "/etc/version.json", "../outside.json"):
+                with self.subTest(entry=bad):
+                    config = dict(PROFILE1_CONFIG, version_locations=[bad])
+                    with self.assertRaises(release_notes.ReleaseNotesError):
+                        release_notes.validate_release_config(config, tmp)
+
+
 # ---------------------------------------------------------------------------
 # R-A2 (REQUIRED) — byte-equal profile-#1 regression (design.md:1291-1298)
 # ---------------------------------------------------------------------------

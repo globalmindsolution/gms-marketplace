@@ -65,22 +65,10 @@
   },
   "release": {
     "version_locations": [
-      {
-        "file": ".claude-plugin/marketplace.json",
-        "pointer": "/version"
-      },
-      {
-        "file": "plugins/acs/.claude-plugin/plugin.json",
-        "pointer": "/version"
-      },
-      {
-        "file": "plugins/acs/.devin-plugin/plugin.json",
-        "pointer": "/version"
-      },
-      {
-        "file": ".devin-plugin/plugin.json",
-        "pointer": "/version"
-      }
+      ".claude-plugin/marketplace.json",
+      "plugins/acs/.claude-plugin/plugin.json",
+      "plugins/acs/.devin-plugin/plugin.json",
+      ".devin-plugin/plugin.json"
     ],
     "extra_refs": [
       {

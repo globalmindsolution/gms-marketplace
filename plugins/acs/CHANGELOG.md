@@ -301,6 +301,13 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Added
 
+- **`release.version_locations` takes a bare path.** An entry may be just the
+  repo-relative file, e.g. `".claude-plugin/marketplace.json"`, which means
+  `{"file": <path>, "pointer": "/version"}` — where a manifest's version
+  almost always sits. The object form is unchanged and still needed for any
+  other pointer, and the two forms can be mixed. This repo's own release block
+  now lists its four manifests that way.
+
 - **One delivery path, judged once, from the plan** (ADR-0095). `workflows/ship.yaml` v2 declares a `delivery:` block — `classify_after` (the step after which the judgement is made; `create-impl-plan` in the shipped workflow) and `paths` (the vocabulary, cheapest first: `trivial`, `small`, `standard`, `complex`). After that step is satisfied, `/acs:ship` reads `plan.md`, judges the ticket onto ONE path using the rubric in `skills/code/references/classify.md`, and records `delivery_path` plus a one-sentence `delivery_path_reason` on `pipeline-state.json` via `acs.py path set`. Every later read takes the recorded value; the writer REFUSES to move a ticket already on a path, which is what keeps a resumed run from splitting one pipeline across two rigors.
 
 - **Two new per-step keys, and per-path values for two existing ones.** A step may carry `paths: [...]` and is recorded `skipped` on any other path — exactly as a false `when` is, so it already satisfies a `needs` edge and the four paths reconverge without a single extra edge. `skill` and `boundary` may each be given as a mapping keyed by path instead of a scalar. In the shipped workflow that is what makes `trivial` skip `create-test-docs` and both e2e steps, and what gives only `standard` and `complex` the `full_verify_stop` boundary.

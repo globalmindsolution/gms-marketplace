@@ -103,17 +103,43 @@ def _validate_repo_relative(rel_path, repo_root, field_label):
             "release config: %s %r escapes --repo-root" % (field_label, rel_path))
 
 
+#: The pointer a bare-path `version_locations` entry stands for.
+DEFAULT_VERSION_POINTER = "/version"
+
+
+def expand_version_locations(config):
+    """`config` with each bare-path `version_locations` entry written as
+    `{file, pointer: "/version"}`.
+
+    A manifest's version almost always sits at the top-level `version` key, so
+    the block may name just the file. Every entry point calls this first, so
+    the code past it reads the object form only. Returns a shallow copy when an
+    entry changes and never mutates the caller's dict; anything that is not a
+    list of entries is left for validate_release_config to reject.
+    """
+    locations = config.get("version_locations") if isinstance(config, dict) else None
+    if not isinstance(locations, list) or not any(isinstance(e, str) for e in locations):
+        return config
+    return dict(config, version_locations=[
+        {"file": entry, "pointer": DEFAULT_VERSION_POINTER} if isinstance(entry, str) else entry
+        for entry in locations])
+
+
 def validate_release_config(config, repo_root):
-    """Hand-rolled structural/type check over the release block (Security NFR (v)) — no read/write yet."""
+    """Hand-rolled structural/type check over the release block (Security NFR (v)) — no read/write yet.
+
+    A bare-path `version_locations` entry is checked in its expanded form.
+    """
     if not isinstance(config, dict):
         raise ReleaseNotesError("--release-config must resolve to a JSON object")
 
-    locations = config.get("version_locations")
+    locations = expand_version_locations(config).get("version_locations")
     if not isinstance(locations, list) or not locations:
         raise ReleaseNotesError("release config: 'version_locations' must be a non-empty list")
     for entry in locations:
         if not isinstance(entry, dict):
-            raise ReleaseNotesError("release config: version_locations entry must be an object")
+            raise ReleaseNotesError(
+                "release config: version_locations entry must be a file path or an object")
         _validate_repo_relative(entry.get("file"), repo_root, "version_locations[].file")
         pointer = entry.get("pointer")
         if not isinstance(pointer, str) or not pointer:
@@ -167,7 +193,7 @@ def validate_release_config(config, repo_root):
 
 def load_and_validate_release_config(value, repo_root):
     """Resolve + validate --release-config, before any manifest/CHANGELOG file is opened."""
-    config = _resolve_release_config_value(value)
+    config = expand_version_locations(_resolve_release_config_value(value))
     validate_release_config(config, repo_root)
     return config
 

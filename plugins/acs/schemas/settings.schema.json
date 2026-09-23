@@ -438,35 +438,44 @@
           ],
           "properties": {
             "version_locations": {
-              "description": "Files + JSON pointers holding the version string, bumped to the same value on every cut.",
+              "description": "Where the version string lives, bumped to the same value on every cut: a bare repo-relative path (version at '/version') or a {file, pointer} object.",
               "type": "array",
               "minItems": 1,
               "items": {
-                "type": "object",
-                "required": [
-                  "file",
-                  "pointer"
-                ],
-                "properties": {
-                  "file": {
+                "oneOf": [
+                  {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Repo-relative path, e.g. '.claude-plugin/marketplace.json'."
+                    "description": "Shorthand: a repo-relative file whose version is at '/version'. Same as {\"file\": <path>, \"pointer\": \"/version\"}."
                   },
-                  "pointer": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "RFC 6901 JSON pointer, e.g. '/version'."
-                  },
-                  "kind": {
-                    "enum": [
-                      "json-pointer"
+                  {
+                    "type": "object",
+                    "required": [
+                      "file",
+                      "pointer"
                     ],
-                    "default": "json-pointer",
-                    "description": "Resolution strategy for this entry. Only json-pointer is supported this pass; an OPTIONAL forward-compat seam \u2014 a future PR may widen this enum (e.g. regex, line) as a strictly additive extension, never a schema rewrite."
+                    "properties": {
+                      "file": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Repo-relative path, e.g. '.claude-plugin/marketplace.json'."
+                      },
+                      "pointer": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "RFC 6901 JSON pointer, e.g. '/version'."
+                      },
+                      "kind": {
+                        "enum": [
+                          "json-pointer"
+                        ],
+                        "default": "json-pointer",
+                        "description": "Resolution strategy for this entry. Only json-pointer is supported this pass; an OPTIONAL forward-compat seam \u2014 a future PR may widen this enum (e.g. regex, line) as a strictly additive extension, never a schema rewrite."
+                      }
+                    },
+                    "additionalProperties": true
                   }
-                },
-                "additionalProperties": true
+                ]
               }
             },
             "extra_refs": {

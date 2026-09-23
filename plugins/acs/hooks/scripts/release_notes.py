@@ -50,12 +50,12 @@ import tempfile
 # or loading this file by absolute path raises ModuleNotFoundError.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from release_notes_config import (ReleaseNotesError, _distinct_manifest_files,
-    _find_selector_match, _is_list_index,
+    DEFAULT_VERSION_POINTER, _find_selector_match, _is_list_index,
     _pointer_navigate_to_container, _pointer_segments,
     _read_json_or_none, _read_json_or_raise,
     _read_text_or_raise, _render_format,
     _resolve_release_config_value, _validate_repo_relative,
-    atomic_write_json, atomic_write_text,
+    atomic_write_json, atomic_write_text, expand_version_locations,
     load_and_validate_release_config, pointer_get,
     pointer_set, relative_pointer_set,
     validate_release_config)  # noqa: F401
@@ -95,6 +95,7 @@ def _preflight_version_locations(config, repo_root):
 
 def compute_status(version, repo_root, config):
     """The four AC-6 idempotency signals for `version`, resolved from `config` (settings-driven)."""
+    config = expand_version_locations(config)
     manifests, changelog_text = _preflight_version_locations(config, repo_root)
 
     manifests_at_target = True
@@ -163,6 +164,7 @@ def _extract_unreleased_body(text):
 
 def build_draft(version, repo_root, workspace, config, today=None, ticket_prefix=None):
     """Authoritatively assemble the dated CHANGELOG section + coverage report (AC-3)."""
+    config = expand_version_locations(config)
     _manifests, changelog_text = _preflight_version_locations(config, repo_root)
     unreleased_text = _extract_unreleased_body(changelog_text)
 
@@ -284,6 +286,7 @@ def bump(version, repo_root, workspace, config, dry_run=False, today=None, ticke
     gets a section it did not mean. An empty body needs no choice; the
     generated section is the only candidate.
     """
+    config = expand_version_locations(config)
     status = compute_status(version, repo_root, config)
     if status["manifests_at_target"] and status["changelog_section_dated"]:
         return {"ok": True, "files_changed": [], "already_at_target": True}
