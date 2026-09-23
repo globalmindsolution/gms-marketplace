@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Post-hook for /acs:create-requirements — finalizes the run entry in
-create-requirements-state.json and updates pipeline-state.json,
-tickets-index.json, and metrics.json.
+create-requirements-state.json and updates run.json and
+tickets-index.json.
 
 Invoked by the skill's coordinator as its mandatory final step:
   python3 post-create-requirements.py --result-file <result.json>     # or JSON on stdin

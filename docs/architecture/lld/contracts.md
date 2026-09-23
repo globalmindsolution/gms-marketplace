@@ -15,62 +15,28 @@ Canonical detail: `plugins/acs/docs/INTERNALS.md`.
 `acs-messages.xsd` and the `validate_xml.py` that enforced it — is removed in
 v0.5.0: a second schema language bought nothing the first one did not already
 carry, and the in-process XML validator existed only to avoid a subprocess per
-message. The contract's declarations are now the fifteen JSON Schemas under
+message. The contract's declarations are now the fourteen JSON Schemas under
 `plugins/acs/schemas/`, `result.schema.json` among them, and `acs.py result
 validate` checks a step's result document before its post-hook consumes it.
 Constraint names stay typed — a misspelled delegation key fails at the
 coordinator rather than arriving at the subagent as an absent value.
 
-**`<metrics>` removed (MAR-1, ADR 0082).** The self-estimated
-`<metrics tokens-input=".." tokens-output=".." cost-usd="..">` element is
-gone from the result document's shape — `result.schema.json` does not declare
-it, so a stray `<metrics>` element is rejected as an undeclared property (the
-flat `tokens`, `cost_usd`, `cost_basis` and `api_duration_ms` keys stay
-accepted and ignored, ADR 0103). Token
-figures are no longer part of the
-subagent-to-coordinator message contract at all; they are measured from the
-run's own transcript at `finalize_run` time (see the Run-entry / totals
-contract below). No dollar figure is recorded anywhere
-([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
-
-## Run-entry / totals contract (MAR-1, ADR 0082)
-
-`finalize_run` no longer trusts a coordinator-supplied `tokens`
-self-estimate. A `<skill>-state.json` `runs[]` item now carries, additive to
-the existing `started_at`/`ended_at`/`status`/`stop_reason`/`handoff_summary`
-shape:
-
-| Field | Shape | Meaning |
-|---|---|---|
-| `session_id`, `transcript_path` | nullable string | Captured off the `PreToolUse(Skill)` envelope by the session marker, threaded on at `acs.py step start`; `null` when no marker was accepted |
-| `checkout_id` | nullable string | The checkout the invocation ran in, off the session marker |
-| `tokens.{input,output,cache_creation,cache_read}` | integers | Raw measured token counts (`tokens` widens its explicit allow-list under `additionalProperties: false`) |
-| `role_usage` | array | Per-role `{role, input, output, cache_creation, cache_read}` buckets, including a first-class `coordinator` bucket and an `unattributed` bucket for same-window tokens no role claims (C-8 — never redistributed onto attributed roles) |
-| `model_usage` | array | Per-model `{model, input, output, cache_creation, cache_read}` buckets — parallel to `role_usage`, unattributed-inclusive (D1.1 Option B) |
-
-The `cost_usd`/`cost_basis`/`cost_scope`/`excluded_cost_usd`/`excluded_token_share`
-and `api_duration_*` fields this table carried went with the status line
-([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)). A run entry
-written before that keeps them, and nothing reads them.
-
-`run.json`/`metrics.json` `totals` gain two additive counters —
-`runs_timed`/`runs_untimed` — incremented for every run regardless of whether
-it contributes to the `working_seconds` sum; a run with a `None`-elapsed
-interval is excluded from that sum but still counted, so averages never
-divide by the wrong denominator. The `cost_usd` and `api_duration_ms` sums and
-their counters went with ADR 0103. `totals.tokens` also widens
-the same way as the run-entry `tokens` field above — from `{input, output}`
-to `{input, output, cache_creation, cache_read}` — summed by
-`compute_ticket_totals`/`update_metrics` across all four classes. All of this
-is schema-additive — no previously valid state/pipeline/metrics document
-becomes invalid.
+**No usage in the message contract.** The self-estimated `<metrics>`
+element is gone from the result document's shape — `result.schema.json` does
+not declare it, so a stray `<metrics>` element is rejected as an undeclared
+property. The flat `tokens`, `role_usage`, `model_usage`, `cost_usd`,
+`cost_basis` and `api_duration_ms` keys are legacy: accepted so an older
+coordinator's result still validates, and ignored. Nothing measures usage in
+their place either — acs records no token count, no dollar figure and no
+`run.json` `totals`
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 ## Coordinator ↔ deterministic layer (CLI)
 
 | Helper | Contract |
 |--------|----------|
 | `acs.py step start --step S [--ticket\|--args\|--allocate [--seed-next N]]` | stdout: context JSON (settings, run dir, subject, models, reconcile/handoff, post_hook path); records the step `in_progress`, takes the lock, writes the checkout pointer. `--step` is validated against the resolved workflow, not a closed enum. `--allocate` on a fresh/unreconciled `(repo_id, prefix)` partition (MAR-402): `allocate_ticket_id`'s fail-closed reconciliation gate refuses with **exit 2** and actionable stderr naming the ranked local-evidence proposal and the exact `--seed-next <n>` recovery command — no id minted, no lock/pointer/run-entry left behind. `--seed-next N` confirms the proposal (or repairs a wrong/stuck reconciliation) and mints `<PREFIX>-N`; `--seed-next` without `--allocate` is a malformed invocation, exit 2 per the file's existing stderr idiom |
-| `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors, tokens[, handoff_summary]}`; finalizes run + ledger + index + metrics, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate. **MAR-1/ADR 0082**: `tokens` on this input is vestigial — `finalize_run` measures tokens from the run's transcript instead and silently ignores a coordinator-supplied value, a soft landing rather than a rejection. `cost_usd` is no longer accepted: ADR 0103 dropped it from the result schema, which rejects it as an undeclared property |
+| `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors[, handoff_summary]}`; finalizes run + ledger + index, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate. `tokens`, `role_usage`, `model_usage`, `cost_usd`, `cost_basis` and `api_duration_ms` on this input are legacy — accepted so an older coordinator's result still validates, and ignored: no usage is recorded (ADR 0104) |
 | `new-ticket.py --title --type [--parent --needs-design --docs-only --size --stakes … --seed-next N]` | mints id + partition + mint-time create-ticket state; epic backlinks; --size {trivial,small,standard,large} and --stakes {low,normal,high} write classification axes + derived lane. On a fresh/unreconciled `(repo_id, prefix)` partition (MAR-402): the same `allocate_ticket_id` fail-closed reconciliation gate refuses with **exit 2** and actionable stderr naming the local-evidence proposal and the exact `--seed-next <n>` recovery command — no ticket, partition, or `ticket.json` written. `--seed-next N` confirms/repairs the floor and mints `<PREFIX>-N` |
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
 | `handoff.py --summary` | finalizes the in-flight step `interrupted` with `stop_reason: context_pressure`, releases the lock, prints `continue_with` |

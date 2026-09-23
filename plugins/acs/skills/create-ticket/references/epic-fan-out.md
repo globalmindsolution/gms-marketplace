@@ -66,5 +66,5 @@ epic, after that epic's own design is approved. Resulting precedence:
    `prd_trace` (the epic's), then `acs step finish`. Never leave the
    epic's `create-ticket` run non-`completed`: no gate refuses on it any more
    (order lives in `workflows/ship.yaml`), but the ledger is what
-   `acs.py run next`, `/acs:metrics` and the derived ticket status read,
+   `acs.py run next` and the derived ticket status read,
    and a run left `in_progress` reports the epic as mid-flight for ever.

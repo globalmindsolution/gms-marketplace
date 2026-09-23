@@ -31,7 +31,7 @@ release_notes = importlib.import_module("release_notes")
 
 
 # ---------------------------------------------------------------------------
-# Fixture builders — mirror test_metrics_aggregate.py's synthesis style
+# Fixture builders
 # ---------------------------------------------------------------------------
 
 MARKETPLACE = {

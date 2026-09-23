@@ -61,30 +61,33 @@
       "type": "array"
     },
     "tokens": {
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no usage (ADR-0103, ADR-0104).",
       "type": "object"
     },
     "cost_usd": {
-      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no cost or API duration (ADR-0103).",
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no usage (ADR-0103, ADR-0104).",
       "type": [
         "number",
         "null"
       ]
     },
     "cost_basis": {
-      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no cost or API duration (ADR-0103).",
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no usage (ADR-0103, ADR-0104).",
       "type": [
         "string",
         "null"
       ]
     },
     "role_usage": {
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no usage (ADR-0103, ADR-0104).",
       "type": "object"
     },
     "model_usage": {
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no usage (ADR-0103, ADR-0104).",
       "type": "object"
     },
     "api_duration_ms": {
-      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no cost or API duration (ADR-0103).",
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no usage (ADR-0103, ADR-0104).",
       "type": [
         "number",
         "null"

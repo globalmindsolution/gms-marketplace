@@ -248,12 +248,12 @@ class SkillNameMirrorsTest(unittest.TestCase):
 
     def test_every_skill_name_mirror_says_setup(self):
         """The XSD and the two schema enums are gone: a skill name validates
-        against the skill DIRECTORIES now (§4.3 I5), so there are two mirrors
-        left instead of five and neither can drift from a list."""
+        against the skill DIRECTORIES now (§4.3 I5), and ATTRIBUTION_SKILL_MAP
+        went with usage measurement (ADR-0104), so two mirrors are left instead
+        of five and neither can drift from a list."""
         sources = {
             "skills/ (the tree itself)": list(acs_lib.registered_skills()),
             "acs_lib.UNHOOKED_SKILLS": list(acs_lib.UNHOOKED_SKILLS),
-            "acs_lib.ATTRIBUTION_SKILL_MAP values": list(acs_lib.ATTRIBUTION_SKILL_MAP.values()),
         }
         for label, values in sources.items():
             with self.subTest(source=label):
@@ -503,10 +503,9 @@ class TestFilesRenamedTest(unittest.TestCase):
     def test_no_dangling_test_initialize_filename_reference(self):
         """F5: no docstring or comment still points at a deleted
         test_initialize_*.py filename. This regex requires the literal
-        `.py` suffix, so it does not match test_session_marker.py's
-        legitimate method name test_initialize_overrides_to_setup (no .py
-        suffix) nor this module's own test_initialize_*.py glob literal
-        (`*`, not `[a-z_]+`)."""
+        `.py` suffix, so it does not match a legitimate method name such as
+        test_initialize_overrides_to_setup (no .py suffix) nor this module's
+        own test_initialize_*.py glob literal (`*`, not `[a-z_]+`)."""
         hits = []
         for path in glob.glob(os.path.join(REPO_ROOT, "tests", "acs", "*.py")):
             if os.path.realpath(path) == THIS_FILE:

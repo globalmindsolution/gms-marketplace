@@ -168,7 +168,6 @@ def empty_run(run_id, workflow, workflow_version, subject):
         "cursor": None,
         "steps": {},
         "loops": {},
-        "totals": {},
     }
 
 

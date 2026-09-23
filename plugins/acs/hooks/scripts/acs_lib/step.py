@@ -5,7 +5,6 @@ progress; this tracks one skill's progress inside it.
 
 The shape carried over from `<skill>-state.json` because it was sound: a
 `states` object, `findings`, `errors`, and one record per invocation with its
-session id, transcript path, checkout id, tokens, role/model usage,
 guard events, gate enforcement, status and stop reason. Four things changed:
 
   1. **`runs[]` became `invocations[]`.** Once the partition is
@@ -110,23 +109,21 @@ def last_status(rdir, step):
 # Writing
 # ---------------------------------------------------------------------------
 
-def append_invocation(rdir, step, run_id, session=None, gate=None):
+def append_invocation(rdir, step, run_id, gate=None):
     """Open a new invocation, or enrich the one this attempt already opened.
 
     One session's attempt at this step -- a resumed step gets a second entry
-    rather than overwriting the first, so the cost and the session trail of an
-    interrupted attempt survive it.
+    rather than overwriting the first, so an interrupted attempt's trail
+    survives it.
 
     **An attempt is one invocation, whoever recorded it.** Two writers open a
     step: the PreToolUse gate (`_mark_step_started`) for a Skill call, and
     `acs step start` for a hand or CLI run. A hooked run goes through BOTH, and
     appending unconditionally gave every step two entries -- of which
     `finalize_invocation` closes only the last, leaving the first
-    `in_progress` for ever, double-counting the step in `compute_ticket_totals`
-    and `_accumulate_burn`, and inflating `totals.runs_untimed` by one per step
-    per run. So an already-open invocation for this step is UPDATED with
-    whatever the second writer knows (the session marker, the gate verdict)
-    rather than duplicated.
+    `in_progress` for ever. So an already-open invocation for this step is
+    UPDATED with whatever the second writer knows (the gate verdict) rather
+    than duplicated.
     """
     doc = load_state(rdir, step, run_id)
     invocations = doc.setdefault("invocations", [])
@@ -134,10 +131,6 @@ def append_invocation(rdir, step, run_id, session=None, gate=None):
     if not (isinstance(open_entry, dict) and open_entry.get("status") == "in_progress"):
         open_entry = {"started_at": now_iso(), "status": "in_progress"}
         invocations.append(open_entry)
-    if session:
-        for key in ("session_id", "transcript_path", "checkout_id"):
-            if session.get(key):
-                open_entry[key] = session[key]
     if gate:
         open_entry["gate_enforcement"] = gate
     return save_state(rdir, step, doc)
@@ -147,16 +140,14 @@ def finalize_invocation(rdir, step, run_id, result):
     """Close the open invocation from the step's result document; returns
     (state, entry).
 
-    Both, because every caller wants the entry it just closed -- to stamp the
-    derived-states provenance on it, or to hand it to the metrics roll-up --
-    and re-finding it through `invocations[-1]` is an invitation to find the
-    wrong one after a concurrent append.
+    Both, because a caller wants the entry it just closed -- to stamp the
+    derived-states provenance on it -- and re-finding it through
+    `invocations[-1]` is an invitation to find the wrong one after a
+    concurrent append.
 
     Appends an invocation when the coordinator never registered a start, so a
     step that crashed before its pre-hook still leaves a record rather than a
     silence."""
-    from .metrics import _measure_run_usage
-
     # No default: this writes the status the next pre-hook reads, so a result
     # document that never stated one must fail here rather than silently
     # finalize the invocation as completed. Refusing only at the CLI boundary
@@ -180,11 +171,8 @@ def finalize_invocation(rdir, step, run_id, result):
         entry["handoff_summary"] = result["handoff_summary"]
     if "guard_events" in result:
         entry["guard_events"] = result["guard_events"]
-    # Tokens are MEASURED from this invocation's own recorded transcript,
-    # never taken from `result`. A coordinator reporting its own spend is the
-    # same category of claim as one reporting its own verdict. There is no
-    # dollar cost to record (ADR-0103).
-    _measure_run_usage(entry, rdir, step)
+    # No usage is recorded (ADR-0104): a `tokens` or cost figure in `result`
+    # is legacy and ignored.
     if result.get("states"):
         doc.setdefault("states", {}).update(result["states"])
     for key in ("findings", "errors"):

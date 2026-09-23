@@ -30,7 +30,7 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 |---|---|---|---|
 | v0.1.0–v0.1.2 | M1 — Foundation | marketplace/plugin skeleton; deterministic layer; skills+agents; quality systems; test suites | shipped |
 | v0.2.0 | M2 — Hardening (exit) | E1 behavioral eval harness; E5 convention enforcement & repo hardening | shipped |
-| v0.3.0 | M2 exit — dogfood + metrics + complexity-adaptive | E3 dogfood; E4 acs:metrics dashboard; complexity-adaptive delivery G14/G15/G16 | shipped |
+| v0.3.0 | M2 exit — dogfood + metrics + complexity-adaptive | E3 dogfood; E4 acs:metrics dashboard *(removed by ADR 0104)*; complexity-adaptive delivery G14/G15/G16 | shipped |
 | v0.3.4 | M2.5 | `/acs:setup` init-prompt configuration-completeness — G21 slice | shipped |
 | v0.3.5 | M2.6 — Group A core | PR metadata acs sets on create/update — G22 | shipped |
 | v0.3.6 | M2.6 — status + remaining fields | full-lifecycle ticket Status + reviewers/priority/points/parent — G22 | shipped |
@@ -57,8 +57,8 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
-- Deterministic layer: hooks, gates, workspace/state, locks, metrics, helper CLIs.
-- 32 skills + 32 agent files on disk (verified `ls plugins/acs/skills` = 32,
+- Deterministic layer: hooks, gates, workspace/state, locks, metrics *(removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md))*, helper CLIs.
+- 30 skills + 32 agent files on disk (verified `ls plugins/acs/skills` = 30,
   `ls plugins/acs/agents` = 32; ADR-0095 added `/acs:code`'s four delivery-path
   legs, which own no agents of their own and spawn `code`'s pair); the reflection (execute→verify) protocol is
   active on the fourteen skills that run a loop — the twelve authoring
@@ -121,10 +121,11 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 32 green across 38 probes (matches
-  `s04_skill_triggers.py`'s 32-skill routing coverage, up from the original 12,
-  which is 31 of the 32 shipped skill directories: only the `test` alias is
-  unprobed, since `run-e2e-tests` carries its probe. The six internal legs —
+  routes to the right skill — target all 30 green across 38 probes (matches
+  `s04_skill_triggers.py`'s 30-skill routing coverage, up from the original 12,
+  which is every one of the 30 shipped skill directories: the `test` alias, once
+  the one unprobed directory, is gone, and `/acs:metrics` and `/acs:usage` left
+  with their probes by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md). The six internal legs —
   `/acs:project`'s two (ADR 0091) and `/acs:code`'s four delivery-path legs
   (ADR-0095) — are probed by explicit invocation plus a negative saying a
   description of the leg's subject must reach its entry point; the four doc-set
@@ -238,8 +239,8 @@ features.
   rather than only the gate. `/acs:merge-pr --pr <n>` (also `#n` / a PR URL) lands a
   legitimate non-ticket `acs-exempt` PR — same four readiness dimensions and
   branch/worktree cleanup as the ticket path, but resolving no ticket, writing no
-  partition/state, and skipping tracker sync and archiving (bumping only the repo
-  `pr_merged` metric); it refuses and redirects when the PR is actually ticket-backed.
+  partition/state, and skipping tracker sync and archiving (it once bumped a repo
+  `pr_merged` metric, removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)); it refuses and redirects when the PR is actually ticket-backed.
   `/acs:setup` Step 3 (opt-in, default-on) writes an idempotent, marker-delimited
   `CLAUDE.md` acs-managed block (from `templates/CLAUDE.acs.md`) steering in-repo
   Claude sessions to `/acs:ship` rather than a raw `gh pr create`. Pending merge in
@@ -256,7 +257,7 @@ safety net.
   `/acs:create-ticket` (the plan defines the epics; acs assigns the ids).
 - **E3.2** — Every change to this repo ships via `/acs:ship`; PRD/architecture
   amendments via skill re-runs.
-- **E3.3** — `acs:metrics` skill delivery: implement the dashboard skill reading workspace artifacts; render the six panels (throughput, funnel, cost/time per step, coverage vs target, review iterations, token burn by role); ship as a new skill in the `acs` plugin. Traces G5, G7. *(The cost half of cost/time per step was removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md).)*
+- **E3.3** *(the skill it delivered was removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md))* — `acs:metrics` skill delivery: implement the dashboard skill reading workspace artifacts; render the six panels (throughput, funnel, cost/time per step, coverage vs target, review iterations, token burn by role); ship as a new skill in the `acs` plugin. Traces G5, G7. *(The cost half of cost/time per step was removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md).)*
 - **E3.4** *(removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md) — acs no longer ships a status line)* — Status-line refinement (dogfood-driven): both the prompt line and the reflection agent-panel compose with Claude Code's default status line and add acs state on top (default context + acs pipeline/subagent state) instead of replacing it; ships as a maturing refinement to the v0.1 Should-have status-line feature. Traces G7.
 
 #### Epic E4 — `acs:metrics` dashboard *(gates on E1)*
@@ -268,6 +269,10 @@ shipped alongside a separate `acs:usage` skill (AI spend/tokens/time — its dol
 figures since removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md)), splitting
 delivery-metrics from AI-spend tracking; both verified on disk
 (`plugins/acs/skills/metrics/SKILL.md`, `plugins/acs/skills/usage/SKILL.md`).
+**Removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md):** both skills were deleted, together with the usage
+recording that fed them (`metrics.json`, per-invocation token counts, the
+transcript read); acs records no usage, and tokens, spend and time are Claude
+Code's to report.
 
 - **E4.1** — Skill skeleton + data-source wiring (`metrics.json`, `tickets-index.json`, `pipeline-state.json`, `code-state.json`, `create-pr-state.json`).
 - **E4.2** — Six dashboard panels implemented and rendered via `show_widget` inline in the Claude Code session.
@@ -513,7 +518,8 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   context lifecycle" feature. **Traces G28 (+ the Org/Platform-admin persona).** The
   MECHANISM (versioning/pinning format, drift-detection transport) is settled in this
   epic's design phase.
-- **Epic: department metrics rollups** — extends the `acs:metrics`/`acs:usage`
+- **Epic: department metrics rollups** *(retired by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md) — acs records no
+  usage and ships no dashboard to roll up)* — extends the `acs:metrics`/`acs:usage`
   dashboard surface with project → department → org rollups of delivery
   throughput/cost metrics (token and time figures — acs records no dollar figure
   since [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md)), read-only from existing workspace artifacts (same
@@ -597,10 +603,10 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   scopes ADR-0028's approved-review mandate (m6) by invoker: agent-invoked merges
   keep the APPROVED requirement; human-invoked merges defer to the repo's own
   branch protection. Detects an out-of-band-merged PR whose ticket is still
-  `in_review` and reconciles state (ticket→done, archive partition, update
-  metrics) instead of leaving it stranded, and surfaces bypass-rate as a new
+  `in_review` and reconciles state (ticket→done, archive partition) instead of
+  leaving it stranded, and surfaces bypass-rate as a new
   failure signal on the failure-mode/pipeline-health observability epic's
-  dashboard (below, this wave) — a direct tie-in with G19. Preserves ADR-0028's core safety
+  view (below, this wave) — a direct tie-in with G19. Preserves ADR-0028's core safety
   guarantee (readiness gate + branch protection remain the two independent
   brakes); narrows ONLY the require-APPROVED-for-ALL fallback to
   require-APPROVED-for-AGENT, exactly the narrowing ADR-0028 line 47
@@ -645,21 +651,20 @@ inside Wave 4 is uncommitted, its version home is left open-ended
 - Semver stability promise for state-file schemas (migration notes per minor).
 - **Epic: per-role model + effort configuration polish (up-front validation + docs)** — matures the already-shipped per-role model/effort capability (all four roles at the time — `planner`, `executor`, `verifier`, `coordinator` — plus `models.overrides.<skill>.<role>` in `.acs/settings.json`; `coordinator` was since retired from the contract and `planner` is inert since ADR 0092). (i) the init prompt itself — actively offering specific-version per-role model + per-role effort on a fresh init — ships in **v0.3.4** (see M2.5); this epic adds only the up-front validation and docs on top of it. (ii) Add up-front, fail-closed validation of supported model ids + effort values with a helpful error, replacing today's late spawn-time failure (effort values are validated fail-closed by the runtime gate as of MAR-516; model-id validation is still absent). (iii) Documentation: the settings reference + init walkthrough cover per-role model+effort and version pinning. Maps to PRD acs Should-have (per-role model + effort configuration bullet). Traces G7 (config surface) — the init-prompt completeness metric (G21) is delivered in v0.3.4. The MECHANISM (the supported-model/effort source-of-truth and the exact init UX) is settled in the implementing ticket's design/spec phase, mirroring this milestone's other epics.
 - **Epic: guided architecture selection (curated catalog, select-not-author)** — a curated acs-shipped catalog of tech stacks, NFR templates, and architecture/design patterns — all FOUR categories — **pre-filtered/ranked** by the PRD + codebase, so `/acs:create-architecture` lets the user **select/refine** rather than author from scratch. Enhances the existing skill; **adds no new doc set**. Maps to PRD **G18** and the acs Should-have "Guided architecture selection" feature. **Traces G18 (+ the Tech-lead persona).** The MECHANISM (catalog source-of-truth, ranking heuristics, selection UX) is settled in this epic's design phase, mirroring this milestone's other deferrals.
-- **Epic: failure-mode / pipeline-health observability** — extends the
-  `acs:metrics`/`acs:usage` dashboard surfaces, which today are strictly
-  success/throughput oriented, with a failure-signal view: verifier cap-hits,
-  gate-block counts, coverage hard-fail incidents, stale locks, and
-  abandoned/handed-off tickets — read-only from existing workspace artifacts (same
-  discipline as G7). Alongside the verify-&-operate epic (Wave 1). Maps to PRD **G19**
-  and the acs Should-have "Failure-mode / pipeline-health observability" feature.
-  **Traces G19 (extends G7).** The MECHANISM (standalone panel vs a new
-  `acs:metrics` section) is settled in this epic's design/spec phase.
+- **Epic: failure-mode / pipeline-health observability** — a failure-signal view:
+  verifier cap-hits, gate-block counts, coverage hard-fail incidents, stale locks,
+  and abandoned/handed-off tickets — read-only from existing workspace artifacts.
+  It was to extend the `acs:metrics`/`acs:usage` dashboard surfaces; those were
+  removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md), so the MECHANISM — including whether acs renders
+  anything at all — is open, settled in this epic's design/spec phase. Alongside
+  the verify-&-operate epic (Wave 1). Maps to PRD **G19** and the acs Should-have
+  "Failure-mode / pipeline-health observability" feature. **Traces G19.**
 - **Epic: skill-quality coverage closeout (behavioral evals for dashboards +
   orphaned-agent cleanup)** — closes two gaps in G8's "100% skill quality
   coverage" claim: (i) extends the eval harness (E1) with **behavioral
-  (artifact-level)** evals for the dashboard skills — `metrics`, `usage`, and
-  `handoff` — which today have only trigger-level coverage (`s04_skill_triggers.py`
-  / E1.2), asserting rendered panels/totals from a seeded workspace; (ii) retires
+  (artifact-level)** evals for `handoff`, which today has only trigger-level
+  coverage (`s04_skill_triggers.py` / E1.2) — the `metrics` and `usage`
+  dashboard skills it also named were removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md); (ii) retires
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
@@ -668,7 +673,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   it owns. Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic
   extends the eval harness to **all** currently-uncovered acs skills — not only
-  the three dashboards — adding behavioral (artifact-level) scenarios for the
+  `handoff` — adding behavioral (artifact-level) scenarios for the
   four product-producer skills (`create-prd`, `create-architecture`,
   `create-project`, `create-design`) and for `create-pr`, `merge-pr`, `ship`,
   and reports a **per-plugin behavioral-coverage ratio** (skills-with-a-runnable-
@@ -861,7 +866,7 @@ tracker sync shipped in M2.6.
 
 - **Epic: team-shared delivery state (G23)** — a configurable shared workspace (or a
   shared allocation authority / tracker-issued identity) so a team on one repo shares
-  tickets/ids/locks/index/metrics with **0 cross-engineer id collisions** and
+  tickets/ids/locks/index with **0 cross-engineer id collisions** and
   cross-engineer lock visibility. Builds on Epic E2 (tracker-sync depth) and
   generalizes the M6 "cross-machine handoff (shared workspace)" Could-have from
   *handoff* (one engineer, different machines) to *concurrent team delivery* (multiple

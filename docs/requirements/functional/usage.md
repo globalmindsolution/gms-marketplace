@@ -161,61 +161,14 @@ the tests for specs marked implemented) before continuing.
 | Location | Contents |
 |----------|----------|
 | Consumer repo | Code, `docs/product/` (PRD), `docs/architecture/` (HLD/LLD), ADRs, scaffold |
-| `<workspace>/<repo>/` | `tickets-index.json`, `counters.json`, `metrics.json`, `sessions/`, `archive/`, one partition per ticket (states, specs, designs, runs with time/tokens) |
+| `<workspace>/<repo>/` | `tickets-index.json`, `counters.json`, `sessions/`, `archive/`, one partition per ticket (states, specs, designs, runs with their timestamps and statuses) |
 
-Inspect progress and usage anytime: `tickets-index.json` for status across
-tickets, `metrics.json` for per-repo totals, a ticket's
-`acs.py run show` / `acs.py run next` for where it stands in the pipeline.
+Inspect progress anytime: `tickets-index.json` for status across tickets, a
+ticket's `acs.py run show` / `acs.py run next` for where it stands in the
+pipeline.
 
-Or run the two read-only in-session dashboards — both write nothing and make
-no network call:
-
-- **`/metrics`** (PM view) — delivery summary (including an additive G25
-  escalation line: event count, fast-lane-escalated count, de-escalation
-  count, silent-reversal count), throughput by status/type,
-  pipeline funnel + distinct PRs, ISSUES, PROGRESS (per-epic burn-up),
-  DEADLINE (on-track/overdue derived from `due_date`; degrades to "not set" when
-  no ticket has a parseable `due_date` — B1),
-  coverage achieved vs target, review iterations before the verifier passed,
-  and lead + cycle time per ticket.
-- **`/usage`** (usage view) — usage summary (total tokens, working time and
-  runs, and two averages: avg working time per ticket and per merged PR), and
-  time per ticket by pipeline step. Each ticket row lists its steps in
-  pipeline order (`step_order`) with each step's wall-clock **step span**.
-  Plus token burn by
-  role (coordinator/planner/executor/verifier/other, plus an `unattributed`
-  bucket for same-window tokens with no attribution or attributed to a
-  different acs skill than the run's own — `coordinator` is always rendered,
-  `other`/`unattributed` appear whenever the ticket has any such tokens),
-  each bucket additionally showing its repo-scope **token-share**
-  percentage of panel 6's own totals (`token_share_pct`, computed once after
-  all runs are summed),
-  and usage by model — input/output/cache-write/cache-read tokens
-  per model, at both repo and per-ticket scope.
-  Plus usage by ticket — input/output/cache-write/cache-read tokens
-  per role, per ticket, each role additionally showing its **token-share**
-  percentage of that ticket's own totals (ticket-scoped,
-  distinct from panel 6's repo-scope shares above — a different denominator
-  over the same underlying data, not a conflicting figure). Each ticket also
-  carries a `skills[]` breakdown — one row per hooked skill the ticket ever
-  ran, its own summed run time plus per-run detail — that degrades
-  independently of the role table above: a skill with run entries but no
-  timed run still gets a row (null run time) rather than being dropped, and
-  the list is empty only when the ticket has zero run entries for every
-  hooked skill.
-  The view reports tokens and wall-clock time only: no dollar figure and no
-  API duration ([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
-  acs owns no price table (MAR-1, ADR 0082) and no longer
-  samples Claude Code's status line, so a team that needs spend reads it
-  where Claude Code reports it — its own `/cost`, the console, or its usage
-  exports.
-- **Accepted timestamp forms.** A transcript record is counted only
-  when its timestamp parses as an ISO-8601 *instant*: a date and a time with
-  the `T` separator, optionally fractional seconds of any precision, and
-  optionally `Z` or a `±HH:MM` / `±HHMM` offset. A value with no timezone is
-  read as UTC; an offset is normalised to UTC. A **bare date does not parse**
-  — the panel-7 lead/cycle callers read that as "no data" and degrade rather
-  than anchoring to midnight (ADR 0020). Acceptance MUST NOT vary by Python
-  version: the set above holds identically on every interpreter in the CI
-  matrix, so a record counted on one is never silently dropped on another
-  (MAR-520).
+acs reports no usage: it records no tokens, spend or time totals and ships
+no dashboard for them
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+Tokens, spend and time per ticket are Claude Code's to report — its own
+`/cost`, the console, or its usage exports.

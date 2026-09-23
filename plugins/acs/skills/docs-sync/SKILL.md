@@ -319,6 +319,6 @@ invocations:
 - **Results**: doc files committed; commits made; review iterations and open findings
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
+- **Metrics**: iterations <n>/<cap> · <wall time>
 - **Next**: `/acs:create-pr <ticket-id>`
 ```

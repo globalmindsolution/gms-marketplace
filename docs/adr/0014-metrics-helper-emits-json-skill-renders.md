@@ -1,6 +1,6 @@
 # 0014 — metrics helper emits aggregate JSON; the skill renders show_widget
 
-**Status**: Accepted · **Date**: 2026-06-16
+**Status**: Superseded — by [0104](0104-no-usage-dashboards-no-usage-recording.md) (`/acs:metrics` and `/acs:usage` are removed) · **Date**: 2026-06-16
 
 ## Context
 

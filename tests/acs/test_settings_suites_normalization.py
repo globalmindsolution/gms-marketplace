@@ -9,8 +9,7 @@ GateError (e2e wins); a no-e2e fixture invents no suites["e2e"].
 AC-4: validate_settings validates every suites entry with the same per-entry
 rules as e2e; DEFAULT_SETTINGS["suites"] == {}.
 
-The helper module lives beside the acs_lib package; add that scripts dir to sys.path,
-mirroring tests/acs/test_metrics_aggregate.py.
+The helper module lives beside the acs_lib package; add that scripts dir to sys.path.
 
 Run:  python3 -m unittest tests.acs.test_mar114_suites_normalization -v
 """

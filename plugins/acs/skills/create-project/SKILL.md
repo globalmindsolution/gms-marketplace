@@ -369,8 +369,9 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --result-file "<the result.json you just wrote>"
 ```
 
-   It finalizes the run entry, updates pipeline-state/index/metrics, marks the
-   delivery ticket `in_review` when a PR exists, and releases the lock.
+   It finalizes the run entry, updates `run.json` and `tickets-index.json`,
+   marks the delivery ticket `in_review` when a PR exists, and releases the
+   lock.
 
 3. Report a compact summary: ticket id, PR url, the four scaffold booleans, the
    wired commands (build / lint / test / coverage plus the threshold), and the next
@@ -395,6 +396,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: scaffold summary — layout, build, test framework + coverage tooling, lint, CI, green vertical slice (build/lint/tests verified passing); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
+- **Metrics**: iterations <n>/<cap> · <wall time>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the bootstrap PR (CI runs on it); then `/acs:create-ticket` for the MVP epic
 ```

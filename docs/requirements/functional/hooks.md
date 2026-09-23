@@ -23,7 +23,7 @@ one advisory stderr line, never a refusal.
   (`<workspace>/<repo>/…`), resolved via the `.acs` `settings.json`
   (see [configuration.md](configuration.md)). Most access stays inside the
   run's own directory (`runs/<run-id>/`), but hooks also maintain the
-  repo-level files (`tickets-index.json`, `runs-index.json`, `metrics.json`,
+  repo-level files (`tickets-index.json`, `runs-index.json`,
   `sessions/`), and `acs step start` MAY read the parent epic's run to
   resolve its design state ([workspace-and-state.md](workspace-and-state.md)).
 - A pre-hook MAY additionally **read** (never write) the ticket's documents
@@ -88,15 +88,15 @@ workflow, and whenever anything it needs cannot be read — it is best-effort
 by construction and MUST never turn into a blocked gate. A refusal path never
 carries it.
 
-A pre-hook is also not purely a check: it **records** the
-ticket-independent session-correlation marker (`session_id`,
-`transcript_path`, `cwd`, `skill`) off the genuine `PreToolUse(Skill)` hook
-envelope into `sessions/<checkout-id>-session.json`, inside its own
-fail-open guard so a marker-write failure can never turn into a blocked
-gate. The next skill's start step reads that marker (rejecting a foreign
-`checkout_id` or one older than 15 minutes) to correlate token
-measurement with this run (MAR-1,
-[workspace-and-state.md](workspace-and-state.md)).
+A pre-hook is also not purely a check: before the gate passes or blocks, it
+**records** that it fired — the skill and the time, into
+`sessions/<checkout-id>-gate.json` — inside its own fail-open guard so a
+write failure can never turn into a blocked gate. The next skill's start
+step spends that evidence once (rejecting a foreign `checkout_id` or one
+older than 15 minutes) to tell a gated run from one on a host that never
+fired acs's hooks ([workspace-and-state.md](workspace-and-state.md)). It
+records no session or transcript field: acs measures no usage
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 **Exit code contract:**
 
@@ -127,7 +127,7 @@ file in the workspace partition:
   `<workspace>/<repo>/runs/<run-id>/`.
 - The state file MUST record at least: the states, findings, and error
   details produced during the step, plus a new entry in the append-only
-  **`invocations`** array (timestamps, tokens, status, stop reason).
+  **`invocations`** array (timestamps, status, stop reason).
   The array is `invocations`, not `runs`, because a RUN is the whole pass
   over the workflow and a step is invoked within it. The **last invocation is
   the current state** — the derived cursor, the subject's derived status and
@@ -140,9 +140,9 @@ file in the workspace partition:
   context_pressure`; a completed or failed step's narrative goes in
   `summary`. `handed_off` and `skipped` are not statuses.
 - Post-hooks also update **`run.json`**, and the repo-level
-  **`tickets-index.json`**, **`runs-index.json`** and **`metrics.json`**
-  (working time and tokens per invocation — see
-  [workspace-and-state.md](workspace-and-state.md)).
+  **`tickets-index.json`** and **`runs-index.json`** (see
+  [workspace-and-state.md](workspace-and-state.md)). They record no usage
+  figure.
 - If the skill ends abnormally (crash, interruption), the post-hook MUST
   still write a state with status `failed` or `interrupted` — never leave
   the previous state in place silently.
@@ -178,7 +178,7 @@ Twenty hooked skills, each with one pre-hook and one post-hook:
 | `/merge-pr` | `pre-merge-pr.py` | `post-merge-pr.py` | `merge-pr-state.json` |
 
 The utility skills (`/setup`, `/ship`, `/handoff`, `/update`,
-`/install-hooks`, `/metrics`, `/usage`, `/release`) are **unhooked**: they
+`/install-hooks`, `/release`) are **unhooked**: they
 have no pre- or post-hook and take no position in a run. The `/test` alias is
 removed — `/run-e2e-tests` is the skill, and it is hooked like any other
 step.
@@ -249,9 +249,8 @@ worth stating explicitly, because each used to be an order gate:
   pointer exists. Product-level skills create their **delivery ticket** at
   start, so their hooks resolve a normal ticket partition like any other
   skill ([skills.md](skills.md#product-level-delivery-tickets)). Skills themselves resolve via argument → session context →
-  branch name ([workflow.md](workflow.md#ticket-context)). Since MAR-1, the
-  `sessions/` directory holds more than this pointer per checkout — see the
-  session-correlation marker in
+  branch name ([workflow.md](workflow.md#ticket-context)). The
+  `sessions/` directory also holds each checkout's gate evidence — see
   [workspace-and-state.md](workspace-and-state.md).
 - **Python runtime**: hooks MUST be **stdlib-only Python 3** — no pip
   installs required on consumer machines.

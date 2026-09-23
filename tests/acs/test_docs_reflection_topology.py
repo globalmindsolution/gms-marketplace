@@ -435,12 +435,13 @@ class SkillsMdUnchangedTest(unittest.TestCase):
 
     def test_skill_count_word_present(self):
         """The count in words, level with the directories on disk. It reached
-        32 by adding `/acs:review-code` and dropping the `test` alias, and the
-        word is pinned here because prose is where a count goes stale."""
+        32 by adding `/acs:review-code` and dropping the `test` alias, then 30
+        when ADR-0104 removed `/acs:metrics` and `/acs:usage`; the word is
+        pinned here because prose is where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Thirty-two skills", body)
-        self.assertEqual(D["n_skills"], 32)
-        for stale in ("Twenty-three skills", "Twenty-seven skills"):
+        self.assertIn("Thirty skills", body)
+        self.assertEqual(D["n_skills"], 30)
+        for stale in ("Twenty-three skills", "Twenty-seven skills", "Thirty-two skills"):
             self.assertNotIn(stale, body)
         self.assertNotIn("Twenty-five skills", body)
 

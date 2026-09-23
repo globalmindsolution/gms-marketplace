@@ -6,8 +6,8 @@ everything here runs after a coordinator has finished, from the post-hook's
 argv down to the archive a merged ticket leaves behind, and none of it is
 reachable from the PreToolUse path.
 
-`gates` re-exports every public name, so `lib.run_post` and
-`lib.run_post_exempt_pr` resolve exactly as before.
+`gates` re-exports every public name, so `lib.run_post` resolves exactly as
+before.
 """
 
 import json
@@ -21,7 +21,6 @@ from .repo import (GuardTimeout, archive_dir, current_branch,
                    find_ticket_partition, index_path, repo_dir, sessions_dir)
 from .artifacts import load_ticket, save_ticket
 from .tickets import update_index
-from .metrics import update_metrics
 from .lock import release_lock
 from .step import STEP_STATUSES, STOP_REASONS
 from .derive import DERIVED_KEYS, derive_states, disagreements
@@ -218,9 +217,9 @@ def run_post(skill):
          on the invocation record, which is append-only and audited.
       2. finalize the INVOCATION (the step machine), then transition the
          STEP (the run machine). One writer owns each.
-      3. the ticket, the metrics and the lock last, because they are
-         repo-level and a guard timeout there must leave the run's own record
-         durable rather than stranded.
+      3. the ticket and the lock last, because they are repo-level and a
+         guard timeout there must leave the run's own record durable rather
+         than stranded.
     """
     result, explicit_run = _read_result_from_argv()
     cwd = os.getcwd()
@@ -318,9 +317,9 @@ def run_post(skill):
     if recorded_pr is not None and not isinstance(recorded_pr, dict):
         # Unraisable, or this warning becomes the leak it exists to prevent.
         _warn_unraisably(
-            "acs post-%s: states.pr is not an object (it is a %s), so no PR number "
-            "was recorded in metrics.json. The step is finalized either way; correct "
-            "the reference and the next gate will accept it.\n"
+            "acs post-%s: states.pr is not an object (it is a %s). The step is "
+            "finalized either way; correct the reference and the next gate will "
+            "accept it.\n"
             % (skill, type(recorded_pr).__name__))
     try:
         ticket = load_ticket(tdir) if tdir and os.path.isdir(tdir) else None
@@ -341,15 +340,6 @@ def run_post(skill):
                     ticket["status"] = "done"
                     save_ticket(tdir, ticket)
             update_index(ctx["workspace"], ctx["repo_id"], ticket)
-
-        pr_number = recorded_pr.get("number") if isinstance(recorded_pr, dict) else None
-        update_metrics(
-            ctx["workspace"], ctx["repo_id"], run_entry=entry,
-            pr_created=(status == "completed" and bool(recorded_pr)
-                        and skill in (["create-pr"] + list(DELIVERY_TICKET_SKILLS))),
-            pr_merged=(skill == "merge-pr" and status == "completed"),
-            pr_number=pr_number,
-        )
         release_lock(rdir, cwd)
 
         if doc.get("status") in run_machine.TERMINAL_RUN_STATUSES:
@@ -377,8 +367,8 @@ def run_post(skill):
         sys.stderr.write(
             "acs post-%s: %s\n"
             "%s's invocation, result and run.json ARE written and the lock is "
-            "released; the repo-level writes (tickets-index.json, metrics.json%s) "
-            "are not. %s This run's tokens are lost from metrics.json. "
+            "released; the repo-level writes (tickets-index.json%s) "
+            "are not. %s "
             "Do NOT re-run this hook to repair it -- the step is already "
             "finalized, so a second call appends a second invocation.\n"
             % (skill, exc, run_id,

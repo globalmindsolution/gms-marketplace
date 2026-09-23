@@ -122,7 +122,7 @@ Ties go to the higher level, for the reason the sibling rubric gives:
 over-classifying costs a conversation, under-classifying is how a real defect
 ships green.
 
-## Which twenty-nine to write first
+## Which twenty-eight to write first
 
 Not alphabetically, and not cheapest-first. Order by what a wrong artifact
 would cost:
@@ -134,8 +134,8 @@ would cost:
 2. **Skills that write to the consumer's repo.** The doc-bootstrap legs,
    `project`, `docs-sync`. Their output is what the user actually keeps.
 3. **Skills that mutate shared state.** `merge-pr`, `release`.
-4. **Read-only dashboards.** `metrics`, `usage`, `handoff` — named in PRD G8
-   as today's trigger-only gap, and genuinely the lowest risk of the four.
+4. **Session bookkeeping.** `handoff` — named in PRD G8 as today's
+   trigger-only gap, and genuinely the lowest risk of the four.
 
 Where the skill needs a real codebase, have the case's `scaffold_script`
 build one rather than prompting against an empty workspace, so that

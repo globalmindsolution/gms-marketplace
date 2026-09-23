@@ -7,7 +7,7 @@ Edit a case by editing its files.
 
 ```
 evals/
-├── routing/                  # 41 cases: does a prompt reach the right skill?
+├── routing/                  # 39 cases: does a prompt reach the right skill?
 │   └── <case>/
 │       ├── prompt.md         # frontmatter: description, expected_outcome, tags, limits; body: the prompt
 │       └── graders/<name>.md # one grader per file
@@ -32,14 +32,14 @@ claude plugin eval . --tag artifacts --scaffold --allow-tools Write Edit Bash   
 Pin `--model` before recording a number you mean to compare with a later run:
 unpinned, a model rollout is indistinguishable from a plugin regression.
 `--max-cost-usd` is the cost lever, not a tight `max_turns`. A full routing run
-is 41 cases × 3 runs at roughly $0.12 a run.
+is 39 cases × 3 runs at roughly $0.12 a run.
 
 ## Tags
 
 | Tag | Cases | Asserts |
 |---|---|---|
-| `routing` | all 41 routing cases | a prompt reaches (or avoids) a skill |
-| `description` | 26 | a natural-language request, never naming the skill, reaches it |
+| `routing` | all 39 routing cases | a prompt reaches (or avoids) a skill |
+| `description` | 24 | a natural-language request, never naming the skill, reaches it |
 | `explicit` | 8 | a typed `/acs:<skill>` reaches it — see the limit below |
 | `negative` | 6 | a description of an internal leg's subject does NOT reach the leg |
 | `control` | 1 | an off-domain request invokes no skill at all |

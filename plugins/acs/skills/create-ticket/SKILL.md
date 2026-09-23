@@ -446,6 +446,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: ticket id, type, title; `needs_design`; children created (ids) (none on an epic's own creation run); PRD trace or flagged divergence; tracker key when synced
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: <wall time> · ~<tokens in/out>
+- **Metrics**: <wall time>
 - **Next**: `/acs:create-design <id>` when `needs_design` is true, else `/acs:code <id>`; for an epic, each child continues with `/acs:code <child-id>` after the epic's design; a not-yet-fanned-out epic runs `/acs:create-ticket <id> --fan-out` after its design
 ```

@@ -151,8 +151,8 @@ class SelfDescriptionTest(unittest.TestCase):
         self.assertRegex(head, r"(?i)standing command")
 
     def test_it_is_honest_that_it_writes(self):
-        """Unlike /acs:metrics and /acs:usage, it mutates state -- and the
-        prose says so up front rather than leaving a reader to discover it."""
+        """It mutates state -- and the prose says so up front rather than
+        leaving a reader to discover it."""
         head = self._head()
         self.assertRegex(head, r"(?i)not read-only")
 

@@ -466,8 +466,8 @@ MANDATORY final step — never skipped, also on failure:
    ```
 
    If it exits non-zero, surface its stderr verbatim — the pipeline gate stays
-   closed until it succeeds. On success it finalizes the run, moves the ticket
-   to `in_review`, and counts the PR in metrics.
+   closed until it succeeds. On success it finalizes the run and moves the
+   ticket to `in_review`.
 
 3. Report a compact summary to the user: PR number + URL, branch -> base, ACS
    label confirmed, tracker sync result (or n/a), created vs updated,
@@ -493,7 +493,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: PR number and URL; base branch; head branch; `ACS` label applied
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: <wall time> · ~<tokens in/out>
+- **Metrics**: <wall time>
 - **Next**: review the PR, then `/acs:merge-pr <ticket-id>` — a separate, reviewed step
 ```
 </content>

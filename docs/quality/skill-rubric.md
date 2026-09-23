@@ -69,8 +69,8 @@ coordinator's prose.
   artifacts.
 - **Blocks** when the skill claims a key it does not write, or writes one the
   post-hook is supposed to derive.
-- **Today this is the weakest dimension in the set**: 3 of 32 skills have any
-  artifact-level assertion (`create-ticket`, `code`, `create-pr`). Every other
+- **Today this is the weakest dimension in the set**: 2 of 30 skills have any
+  artifact-level assertion (`create-ticket`, `code`). Every other
   skill is unmeasured here, which is exactly what PRD **G31** tracks.
 
 ### 4. Structure — is the document itself conformant?
@@ -97,7 +97,7 @@ pick the work up, and whether the interrupted one let go of what it held.
   standing rule in `code/SKILL.md`; a skill whose resume path merely reads the
   state file does not satisfy this dimension.
 - A skill with no reconcile path because it cannot be interrupted mid-flight
-  (a read-only dashboard) is n/a.
+  is n/a.
 
 ### 6. Prose — can a coordinator follow it without guessing?
 

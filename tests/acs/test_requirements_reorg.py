@@ -357,12 +357,15 @@ REWORDED_BY_ADR_0102 = {
 
 #: Every rewording table: each maps pre-reorg wording to a successor that
 #: must be live in the tree.
-#: ADR-0103 removed dollar-cost metering: a run records time and tokens, no
-#: cost. The workspace-layout row lost its "/cost" and nothing else.
+#: ADR-0103 removed dollar-cost metering and ADR-0104 the usage recording
+#: behind it: a run records its timestamps and statuses, no tokens or cost, and
+#: there is no `metrics.json`. The workspace-layout row lost those and nothing
+#: else.
 REWORDED_BY_ADR_0103 = {
     'usage.md': {
         '| `<workspace>/<repo>/` | `tickets-index.json`, `counters.json`, `metrics.json`, `sessions/`, `archive/`, one partition per ticket (states, specs, designs, runs with time/tokens/cost) |':
-            "one partition per ticket (states, specs, designs, runs with time/tokens) |",
+            "one partition per ticket (states, specs, designs, runs with their "
+            "timestamps and statuses) |",
     },
 }
 

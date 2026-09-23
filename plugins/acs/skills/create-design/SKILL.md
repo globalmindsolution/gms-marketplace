@@ -460,7 +460,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: `design.md` (the published `<design_path>`); the decision in one line; architecture changes required (or "conforms")
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
+- **Metrics**: iterations <n>/<cap> · <wall time>
 - **Next**: `/acs:code <ticket-id>` for a non-epic ticket; for an epic,
   `/acs:create-ticket <ticket-id>` (epic fan-out), then `/acs:code` on a
   child

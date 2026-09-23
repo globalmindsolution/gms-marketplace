@@ -39,12 +39,6 @@ distinct anchors (MAR-528 added Surface #6's three).
 - Entry-point anchor verification record — `LIFECYCLE_MODES` + `def run_lifecycle(mode, payload)` (fails OPEN): `dispatch.py:119-142`
 - Entry-point anchor verification record — `subagent_start` / `subagent_stop` / `stop` / `pre_compact`: `acs_lib/lifecycle.py:397-584`
 
-## Runtime-coupled surfaces — Surface #5 (Token sourcing, MAR-1)
-
-- Surface #5 — Token sourcing — transcript read entry point
-  `def read_transcript_usage(transcript_path, started_at, ended_at, skill)`: `usage_reader.py:193`
-- Surface #5 — Token sourcing — the invocation's measured `tokens` /
-  `role_usage` / `model_usage` fields: `step-state.schema.json:80-88`
-
-The `cost_basis` enum and the `statusline.py` split note that were recorded
-here went with the status line (ADR 0103).
+Surface #5 (token sourcing) is retired with usage recording (ADR 0104), so
+its entries are gone with it; the transcript read and the invocation usage
+fields they cited no longer exist.

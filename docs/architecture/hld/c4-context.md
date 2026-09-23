@@ -10,14 +10,14 @@ C4Context
 
     System_Ext(cc, "Claude Code", "Runtime: executes skills/agents, fires hook events, spawns subagents (acs targets Claude Code)")
     System_Ext(repo, "Consumer repository", "Any git repo: source, tests, docs/product, docs/architecture")
-    System_Ext(ws, "Workspace folder", "In-repo (.acs/state-machine, gitignored, main-checkout-anchored, no override) — per-repo/ticket pipeline state, locks, metrics")
+    System_Ext(ws, "Workspace folder", "In-repo (.acs/state-machine, gitignored, main-checkout-anchored, no override) — per-repo/ticket pipeline state, locks")
     System_Ext(gh, "GitHub", "PRs (gh CLI, acs's sole GitHub transport -- ADR-0088), optional Projects v2 tracker, marketplace distribution")
     System_Ext(jira, "Jira", "Optional tracker (acli CLI), two-way ticket sync")
 
     Rel(dev, cc, "types /acs:* commands, answers questions")
     Rel(cc, mkt, "loads skills/agents, fires PreToolUse / SessionEnd hooks")
     Rel(mkt, repo, "reads code/docs; /code edits source on ticket branches")
-    Rel(mkt, ws, "all pipeline state: tickets, states, ledger, locks, metrics")
+    Rel(mkt, ws, "all pipeline state: tickets, states, ledger, locks")
     Rel(mkt, gh, "push branch, open/merge PR; sync issues/Projects")
     Rel(mkt, jira, "two-way ticket sync (optional)")
 ```

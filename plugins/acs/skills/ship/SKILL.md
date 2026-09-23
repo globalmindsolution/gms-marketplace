@@ -251,6 +251,6 @@ interrupted — ends your final message with the standard block (INTERNALS.md
 - **Results**: per-step status from `run.json` (one line per step); the PR reference when the run reached its last step
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <run-directory files, ticket docs folder, branch, PR URL>
-- **Metrics**: <wall time> · ~<tokens in/out>
+- **Metrics**: <wall time>
 - **Next**: review the PR yourself, then `/acs:merge-pr <ticket-id>`; on a failed step: the resume command (`/acs:ship <ticket-id>` or `/acs:<skill> <ticket-id>`)
 ```

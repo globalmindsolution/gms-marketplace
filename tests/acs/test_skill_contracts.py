@@ -112,8 +112,8 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 # skills/code/references/.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 ALL_SKILLS = (HOOKED_SKILLS + CODE_PATH_LEGS
-              + ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
-                 "usage", "release", "project"])
+              + ["setup", "ship", "handoff", "update", "install-hooks", "release",
+                 "project"])
 #: The roles an agent file may carry. `lens` and `adjudicator` came with
 #: /acs:review-code; they are not a triad and the triad assertions skip them.
 ROLES = list(lib.AGENT_ROLES)
@@ -165,7 +165,7 @@ class TestSkillContracts(unittest.TestCase):
             body = read_skill_contract(name)
             self.assertIn("acs.py\" step start", body, name)
             self.assertRegex(body, r"--step %s\b" % re.escape(name), name)
-            # the post-hook, not `acs step finish`: `run_post` is a SUPERSET -- it calls finish_step AND derives states, writes the index and metrics, and releases the lock. `acs step finish` does only the run half, so a skill that ends there leaves verifier_passed underived (which shuts the create-pr brake for ever), metrics unwritten and the lock held.
+            # the post-hook, not `acs step finish`: `run_post` is a SUPERSET -- it calls finish_step AND derives states, writes the index, and releases the lock. `acs step finish` does only the run half, so a skill that ends there leaves verifier_passed underived (which shuts the create-pr brake for ever), the index unwritten and the lock held.
             if name == "code":
                 # `/acs:code` is a DISPATCHER: it invokes a delivery-path leg
                 # and the leg runs the lifecycle, under `code`'s own hooks and

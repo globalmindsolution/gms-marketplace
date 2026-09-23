@@ -68,24 +68,6 @@
             "null"
           ]
         },
-        "session_id": {
-          "type": "string"
-        },
-        "transcript_path": {
-          "type": "string"
-        },
-        "checkout_id": {
-          "type": "string"
-        },
-        "tokens": {
-          "type": "object"
-        },
-        "role_usage": {
-          "type": "object"
-        },
-        "model_usage": {
-          "type": "object"
-        },
         "guard_events": {
           "description": "One entry per file-map guard denial during this invocation (MAR-578). The guard already refused the write; this is the durable record that it did. Absent, never 0-length-by-convention: a run that never tripped the guard carries no key.",
           "type": "array",

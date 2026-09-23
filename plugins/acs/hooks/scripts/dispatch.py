@@ -81,7 +81,7 @@ class GateTimeout(BaseException):
     Deliberately a BaseException, not TimeoutError. TimeoutError subclasses
     OSError, and the gate path is full of `except OSError` / `except Exception`
     handlers that legitimately swallow their own errors -- acs_lib._git returns
-    None on OSError, record_session_marker passes on Exception. Either would
+    None on OSError, the gate-evidence write warns on Exception. Either would
     absorb the alarm and let an unbounded gate run on to return 0, which reads
     as "not blocked". Nothing catches a bare BaseException by accident.
     """

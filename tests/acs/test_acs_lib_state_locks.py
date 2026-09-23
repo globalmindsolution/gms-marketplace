@@ -4,8 +4,7 @@ context-resolution helpers.
 Originating ticket: MAR-173. resolve_ticket_id's pointer-file and branch-name
 fallback arms, last_run_status's absent/empty/non-list-runs arm, finalize_run's
 invalid-status guard and no-in-progress-run synthesis and findings/errors
-persistence, record_escalation_event's no-run-entry guard, compute_ticket_totals's
-non-dict-entry skip, allocate_ticket_id's stale-guard removal / live-guard wait /
+persistence, record_escalation_event's no-run-entry guard, allocate_ticket_id's stale-guard removal / live-guard wait /
 own-guard-release OSError swallow, lock_is_stale's PermissionError and
 foreign-host-age arms, check_lock's re-entrant arm, release_lock's
 refuse-another-checkout arm, and build_context's two GateError arms were
@@ -133,162 +132,18 @@ class TestFinalizeRun(unittest.TestCase):
         self.assertEqual(state["errors"], ["boom"])
         self.assertEqual(entry["status"], "completed")
 
-    def test_persists_measured_tokens_and_role_usage_not_coordinator_self_report(self):
-        """AC-3: a coordinator-supplied tokens/cost_usd self-estimate in
-        `result` is ignored; the persisted figures come from usage_reader,
-        and no cost is recorded at all (ADR-0103)."""
-        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
-            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
+    def test_records_no_usage_even_when_the_result_reports_some(self):
+        """ADR-0104: nothing measures usage any more, and a coordinator's own
+        `tokens`/`cost_usd` in `result` is legacy and ignored."""
+        lib.append_invocation(self.tdir, "code", "SHOP-1")
+        _state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {
+            "status": "completed",
+            "tokens": {"input": 999999, "output": 999999},
+            "cost_usd": 123.45,
         })
-        measured_role_usage = [
-            {"role": "coordinator", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0},
-        ]
-        measured_model_usage = [
-            {"model": "claude-opus", "input": 10, "output": 20, "cache_creation": 0, "cache_read": 0},
-        ]
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            read_usage.return_value = {
-                "degraded": False, "reason": None, "role_usage": measured_role_usage,
-                "model_usage": measured_model_usage,
-            }
-            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {
-                "status": "completed",
-                "tokens": {"input": 999999, "output": 999999},
-                "cost_usd": 123.45,
-            })
-        read_usage.assert_called_once_with(
-            "/fake/sess-1.jsonl", entry["started_at"], entry["ended_at"], "code")
-        self.assertEqual(entry["tokens"], {"input": 10, "output": 20, "cache_creation": 0, "cache_read": 0})
-        self.assertEqual(entry["role_usage"], measured_role_usage)
-        self.assertEqual(entry["model_usage"], measured_model_usage)
-        for key in ("cost_usd", "cost_basis", "cost_scope", "api_duration_ms", "api_duration_basis"):
+        for key in ("tokens", "role_usage", "model_usage", "cost_usd",
+                    "session_id", "transcript_path"):
             self.assertNotIn(key, entry)
-
-    def test_own_skill_is_threaded_through_to_usage_reader_not_hardcoded(self):
-        """finalize_run's own `skill` argument -- not a fixed constant -- is
-        what reaches usage_reader.read_transcript_usage, so a run's own-skill
-        filter always matches this run's own skill, whichever skill it is."""
-        lib.append_invocation(self.tdir, "create-design", "SHOP-1", session={
-            "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
-        })
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            read_usage.return_value = {
-                "degraded": False, "reason": None, "role_usage": [], "model_usage": [],
-            }
-            state, entry = lib.finalize_invocation(self.tdir, "create-design", "SHOP-1", {"status": "completed"})
-        read_usage.assert_called_once_with(
-            "/fake/sess-2.jsonl", entry["started_at"], entry["ended_at"], "create-design")
-
-    def test_no_session_id_finalizes_completed_with_empty_tokens_and_no_transcript_io(self):
-        """Required short-circuit (Risk R-N): a run entry with no session_id/
-        transcript_path (e.g. new-ticket.py's synthetic create-ticket runs)
-        performs NO transcript I/O and finalizes as completed, tokens empty."""
-        lib.append_invocation(self.tdir, "code", "SHOP-1")
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
-        read_usage.assert_not_called()
-        self.assertEqual(entry["status"], "completed")
-        self.assertNotIn("cost_usd", entry)
-        self.assertEqual(entry["tokens"], {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
-        self.assertEqual(entry["model_usage"], [])
-
-    def test_degraded_transcript_read_records_empty_usage(self):
-        """FIX 2: a degraded usage_reader result (unreadable file, cap
-        breach, no tokens in window, ...) must never look like a successful
-        measurement -- tokens, role_usage and model_usage stay empty."""
-        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
-            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
-        })
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            read_usage.return_value = {
-                "degraded": True, "reason": "cap_exceeded", "role_usage": [], "model_usage": [],
-            }
-            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
-        self.assertEqual(entry["tokens"], {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
-        self.assertEqual(entry["role_usage"], [])
-        self.assertEqual(entry["model_usage"], [])
-
-    def test_without_a_checkout_id_tokens_are_still_measured(self):
-        """The checkout id only ever located the cost cursor. With cost gone
-        (ADR-0103) an entry without one is measured like any other."""
-        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
-            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl",
-        })
-        measured_model_usage = [
-            {"model": "claude-opus", "input": 5, "output": 5, "cache_creation": 0, "cache_read": 0},
-        ]
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            read_usage.return_value = {
-                "degraded": False, "reason": None, "role_usage": [], "model_usage": measured_model_usage,
-            }
-            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
-        self.assertEqual(entry["model_usage"], measured_model_usage)
-        for item in entry["model_usage"]:
-            self.assertNotIn("cost_usd", item)
-            self.assertNotIn("cost_basis", item)
-
-    def test_no_session_marker_and_degraded_branches_emit_empty_model_usage(self):
-        """No session_id/transcript_path, and a degraded transcript read,
-        both persist model_usage=[] -- same rule as role_usage's own
-        empty-list branches (acs_lib/step.py)."""
-        lib.append_invocation(self.tdir, "code", "SHOP-1")
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
-        read_usage.assert_not_called()
-        self.assertEqual(entry["model_usage"], [])
-
-        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
-            "session_id": "sess-2", "transcript_path": "/fake/sess-2.jsonl", "checkout_id": "ck-2",
-        })
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            read_usage.return_value = {
-                "degraded": True, "reason": "unreadable_transcript", "role_usage": [], "model_usage": [],
-            }
-            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
-        self.assertEqual(entry["model_usage"], [])
-
-    def test_model_usage_is_a_sibling_of_tokens_never_inside_it(self):
-        """F10 guard at the persistence layer: model_usage must be a
-        top-level key on the run entry, never nested inside entry['tokens']
-        (step-state.schema.json's tokens object is additionalProperties:
-        false and must stay that way)."""
-        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
-            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
-        })
-        measured_model_usage = [
-            {"model": "claude-opus", "input": 1, "output": 1, "cache_creation": 0, "cache_read": 0},
-        ]
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            read_usage.return_value = {
-                "degraded": False, "reason": None, "role_usage": [], "model_usage": measured_model_usage,
-            }
-            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
-        self.assertIn("model_usage", entry)
-        self.assertNotIn("model_usage", entry["tokens"])
-        self.assertEqual(set(entry["tokens"]), {"input", "output", "cache_creation", "cache_read"})
-
-    def test_sum_role_tokens_unchanged_by_model_usage(self):
-        """Inverse obligation: entry['tokens'] still equals the role-sum
-        result (acs_lib._sum_role_tokens) on a mixed-model fixture --
-        model_usage introduces no new total."""
-        lib.append_invocation(self.tdir, "code", "SHOP-1", session={
-            "session_id": "sess-1", "transcript_path": "/fake/sess-1.jsonl", "checkout_id": "ck-1",
-        })
-        measured_role_usage = [
-            {"role": "executor", "input": 10, "output": 5, "cache_creation": 0, "cache_read": 0},
-        ]
-        measured_model_usage = [
-            {"model": "claude-opus", "input": 6, "output": 3, "cache_creation": 0, "cache_read": 0},
-            {"model": "claude-sonnet", "input": 4, "output": 2, "cache_creation": 0, "cache_read": 0},
-        ]
-        with mock.patch("usage_reader.read_transcript_usage") as read_usage:
-            read_usage.return_value = {
-                "degraded": False, "reason": None, "role_usage": measured_role_usage,
-                "model_usage": measured_model_usage,
-            }
-            state, entry = lib.finalize_invocation(self.tdir, "code", "SHOP-1", {"status": "completed"})
-        self.assertEqual(entry["tokens"], lib._sum_role_tokens(measured_role_usage))
-        self.assertEqual(entry["tokens"], {"input": 10, "output": 5, "cache_creation": 0, "cache_read": 0})
 
 
 class TestRecordGuardEventWithoutARunTest(unittest.TestCase):
@@ -310,136 +165,6 @@ class TestRecordGuardEventWithoutARunTest(unittest.TestCase):
 
     def test_the_retired_escalation_recorder_is_gone(self):
         self.assertFalse(hasattr(lib, "record_escalation_event"))
-
-
-class TestComputeTicketTotals(unittest.TestCase):
-    """1225: skips a non-dict entry inside a state file's runs list."""
-
-    def test_skips_non_dict_run_entries(self):
-        tdir = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
-            None,
-            "oops",
-            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
-             "ended_at": "2026-01-01T00:05:00Z",
-             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
-        ]})
-        totals = lib.compute_ticket_totals(tdir)
-        self.assertEqual(totals["invocations"], 1)
-        self.assertEqual(totals["tokens"], {"input": 1, "output": 2, "cache_creation": 0, "cache_read": 0})
-
-    def test_none_elapsed_run_excluded_from_working_seconds_not_zeroed(self):
-        """AC-1: a completed run plus an in-progress (no ended_at) run yields
-        runs==2, runs_timed==1, runs_untimed==1, and working_seconds equal to
-        the completed run's seconds alone — excluded, not counted as zero."""
-        tdir = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
-            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
-             "ended_at": "2026-01-01T00:05:00Z",
-             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5},
-            {"status": "in_progress", "started_at": "2026-01-01T01:00:00Z"},
-        ]})
-        totals = lib.compute_ticket_totals(tdir)
-        self.assertEqual(totals["invocations"], 2)
-        self.assertEqual(totals["runs_timed"], 1)
-        self.assertEqual(totals["runs_untimed"], 1)
-        self.assertEqual(totals["working_seconds"], 300)
-
-    def test_cache_tokens_summed_into_ticket_totals_not_dropped(self):
-        """FIX 3: cache_creation/cache_read are the dominant token volume --
-        compute_ticket_totals must accumulate all four token fields from each
-        run entry's tokens dict, not silently drop the cache pair."""
-        tdir = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
-            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
-             "ended_at": "2026-01-01T00:05:00Z",
-             "tokens": {"input": 10, "output": 20, "cache_creation": 1000, "cache_read": 2000},
-             "cost_usd": 0.5, "cost_basis": "measured"},
-            {"status": "completed", "started_at": "2026-01-01T01:00:00Z",
-             "ended_at": "2026-01-01T01:05:00Z",
-             "tokens": {"input": 5, "output": 7, "cache_creation": 300, "cache_read": 400},
-             "cost_usd": 0.25, "cost_basis": "measured"},
-        ]})
-        totals = lib.compute_ticket_totals(tdir)
-        self.assertEqual(totals["tokens"], {"input": 15, "output": 27, "cache_creation": 1300, "cache_read": 2400})
-
-    def test_a_legacy_entrys_cost_fields_are_ignored(self):
-        """ADR-0103: an entry written before cost metering was removed keeps its
-        cost and API-duration fields; the roll-up neither reads nor reports
-        them."""
-        tdir = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, tdir, True)
-        lib.write_json(lib.state_path(tdir, "code"), {"invocations": [
-            {"status": "completed", "started_at": "2026-01-01T00:00:00Z",
-             "ended_at": "2026-01-01T00:05:00Z",
-             "tokens": {"input": 1, "output": 2}, "cost_usd": 0.5, "cost_basis": "measured",
-             "api_duration_ms": 1500.0, "api_duration_basis": "measured"},
-        ]})
-        totals = lib.compute_ticket_totals(tdir)
-        self.assertEqual(set(totals), {"invocations", "working_seconds", "tokens",
-                                       "runs_timed", "runs_untimed"})
-
-
-class TestUpdateMetricsTotals(unittest.TestCase):
-    """Repo-level totals: runs, working time and tokens. A run entry's cost
-    fields, when an old one carries them, are ignored (ADR-0103)."""
-
-    def test_a_run_entrys_cost_is_never_accumulated(self):
-        workspace = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, workspace, True)
-        data = lib.update_metrics(workspace, "acme-shop", run_entry={
-            "started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:05:00Z",
-            "tokens": {"input": 3, "output": 4}, "cost_usd": 0.75, "cost_basis": "measured",
-        })
-        self.assertEqual(data["totals"]["runs"], 1)
-        for key in ("cost_usd", "runs_cost_measured", "runs_cost_unavailable",
-                    "api_duration_ms", "runs_api_duration_measured"):
-            self.assertNotIn(key, data["totals"])
-
-    def test_cache_tokens_summed_into_repo_totals_not_dropped(self):
-        """FIX 3: repo-level totals must accumulate cache_creation/cache_read
-        from each run entry, same as the ticket-level rollup."""
-        workspace = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, workspace, True)
-        lib.update_metrics(workspace, "acme-shop", run_entry={
-            "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
-            "tokens": {"input": 1, "output": 2, "cache_creation": 100, "cache_read": 200},
-            "cost_usd": 0.5, "cost_basis": "measured",
-        })
-        data = lib.update_metrics(workspace, "acme-shop", run_entry={
-            "started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:05:00Z",
-            "tokens": {"input": 3, "output": 4, "cache_creation": 50, "cache_read": 75},
-            "cost_usd": 0.75, "cost_basis": "measured",
-        })
-        self.assertEqual(data["totals"]["tokens"],
-                          {"input": 4, "output": 6, "cache_creation": 150, "cache_read": 275})
-
-    def test_an_older_metrics_file_keeps_its_cost_totals_frozen(self):
-        """A metrics.json written before ADR-0103 carries cost totals; they are
-        left as they are and no new run adds to them."""
-        workspace = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, workspace, True)
-        lib.write_json(lib.metrics_path(workspace, "acme-shop"), {
-            "tickets": {}, "prs": {"created": 0, "merged": 0, "created_pr_numbers": []},
-            "totals": {
-                "runs": 1, "working_seconds": 300,
-                "tokens": {"input": 1, "output": 2, "cache_creation": 0, "cache_read": 0},
-                "cost_usd": 0.5, "runs_timed": 1, "runs_untimed": 0,
-                "runs_cost_measured": 1, "runs_cost_unavailable": 0,
-            },
-        })
-        data = lib.update_metrics(workspace, "acme-shop", run_entry={
-            "started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:05:00Z",
-            "tokens": {"input": 3, "output": 4}, "cost_usd": 0.75, "cost_basis": "measured",
-            "api_duration_ms": 250.0, "api_duration_basis": "measured",
-        })
-        self.assertEqual(data["totals"]["runs"], 2)
-        self.assertEqual(data["totals"]["cost_usd"], 0.5)
-        self.assertEqual(data["totals"]["runs_cost_measured"], 1)
-        self.assertNotIn("api_duration_ms", data["totals"])
 
 
 class TestAllocateTicketId(unittest.TestCase):

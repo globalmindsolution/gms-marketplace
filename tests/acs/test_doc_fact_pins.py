@@ -388,6 +388,17 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
         ("docs/adr/0034-light-verify-one-iteration-cap.md", "acs_lib/lanes.py"):
             "same: superseded by ADR-0095, kept verbatim as the record of the "
             "verify-depth decision it made",
+        ("plugins/acs/CHANGELOG.md", "acs_lib/metrics.py"):
+            "records metrics.py's removal with the usage dashboards (ADR-0104); the "
+            "retired path is the fact being reported",
+        ("docs/adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md",
+         "acs_lib/metrics.py"):
+            "a superseded ADR records where its decision lived AT THE TIME; ADR-0104 "
+            "removed the module, and rewriting the record would falsify it",
+        ("docs/adr/0104-no-usage-dashboards-no-usage-recording.md", "acs_lib/metrics.py"):
+            "the ADR that removes metrics.py has to name what it removes",
+        ("tests/acs/test_doc_fact_pins.py", "acs_lib/metrics.py"):
+            "self-exemption for the metrics.py entries above, same recursion as lanes.py",
         ("tests/acs/acs_case.py", "acs_lib.py"):
             "describes the MAR-522 split itself (what reading acs_lib.py used to give)",
         ("tests/acs/test_evidence_sidecar_topology.py", "acs_lib.py"):

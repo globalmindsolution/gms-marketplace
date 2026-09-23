@@ -178,8 +178,9 @@ configured under `models`:
   subagents — the hooked skills. An unknown skill name (`ship`, say, which
   spawns none of its own) is a settings error.
 - Model choice is team-shareable (committed `settings.json`) and can be
-  overridden per scope like any other key. Its effect on token usage is visible
-  in the per-run metrics ([workspace-and-state.md](workspace-and-state.md)).
+  overridden per scope like any other key. acs records no token usage, so its
+  effect on spend is read where Claude Code reports it
+  ([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 ## Validation rules
 

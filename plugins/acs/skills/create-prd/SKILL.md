@@ -376,9 +376,9 @@ MANDATORY final step — never skipped, also on failure.
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-prd.py" --result-file "<the result.json you just wrote>"
    ```
 
-   It finalizes the run entry, updates `run.json` / `tickets-index.json` /
-   `metrics.json`, flips the delivery ticket to `in_review` (PR recorded), and
-   releases the `.lock`.
+   It finalizes the run entry, updates `run.json` / `tickets-index.json`,
+   flips the delivery ticket to `in_review` (PR recorded), and releases the
+   `.lock`.
 
 3. Report a compact summary to the user: delivery ticket id, mode
    (greenfield/brownfield/amend), files written, PR URL — and tell them to review the
@@ -402,6 +402,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: PRD files written/amended (`<prd>`, `<roadmap>`); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
+- **Metrics**: iterations <n>/<cap> · <wall time>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:create-architecture`
 ```

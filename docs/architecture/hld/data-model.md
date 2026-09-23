@@ -9,9 +9,7 @@ erDiagram
     REPO_PARTITION ||--o{ TICKET : contains
     REPO_PARTITION ||--|| TICKETS_INDEX : "indexes all tickets"
     REPO_PARTITION ||--|| COUNTERS : "id sequence"
-    REPO_PARTITION ||--|| METRICS : "aggregates"
     REPO_PARTITION ||--o{ SESSION_POINTER : "one per checkout/worktree"
-    REPO_PARTITION ||--o| SESSION_MARKER : "one per checkout, ticket-independent (MAR-1)"
     TICKET ||--o{ SKILL_STATE : "one per skill that ran"
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
@@ -19,9 +17,6 @@ erDiagram
     TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration, each with its authoring notes; no plan artifact (ADR-0092)"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
-    RUN_ENTRY ||--o{ ROLE_USAGE : "measured token breakdown by role (MAR-1)"
-    RUN_ENTRY ||--o{ MODEL_USAGE : "measured token breakdown by model (MAR-3)"
-    SESSION_MARKER ||--o| RUN_ENTRY : "read at skill-start, threaded onto the new entry (MAR-1)"
     TICKET ||--o| PLAN_APPROVAL : "at most one per approved plan digest, /acs:code STANDARD/COMPLEX only, written solely by plan-approval.py"
     TICKET ||--o| PLAN : "exactly one phases/code/plan.md, authored once per run before the loop"
     PLAN ||--o{ PLAN_SUPERSEDED : "one plan-superseded-<k>.md per revocation; byte-identical copy, never deleted"
@@ -70,44 +65,16 @@ erDiagram
     RUN_ENTRY {
         datetime started_at
         datetime ended_at
-        string session_id "captured off the PreToolUse envelope via the session marker; null when no marker was accepted (MAR-1)"
-        string transcript_path "exact recorded path, never a constructed slug (MAR-1)"
-        string checkout_id "the checkout the invocation ran in, off the session marker (MAR-1)"
-        json tokens "input/output/cache_creation/cache_read -- raw measured counts, MAR-1 widened the allow-list"
         array guard_events "file-map guard denials appended by acs_lib/filemap.py on a deny only -- reasons outside_map/control_input/unreadable_payload, optional and forward-only (MAR-578)"
         enum status "in_progress|completed|failed|interrupted"
         enum stop_reason "session_end|needs_input|context_pressure -- an INTERRUPTED step only; a completed or failed step's narrative goes in summary (ADR-0097)"
         string summary "the step's own narrative, on any terminal status"
         string handoff_summary "when interrupted"
     }
-    ROLE_USAGE {
-        string role "coordinator|planner|executor|verifier|other|unattributed (MAR-1)"
-        int input
-        int output
-        int cache_creation
-        int cache_read
-    }
-    MODEL_USAGE {
-        string model "message.model, or the literal string unknown (MAR-3)"
-        int input
-        int output
-        int cache_creation
-        int cache_read
-    }
-    SESSION_MARKER {
-        string checkout_id PK "sessions/<checkout_id>-session.json, sibling of SESSION_POINTER (MAR-1)"
-        string session_id
-        string transcript_path
-        string cwd
-        string hook_event_name
-        string skill "off tool_input.skill, raw acs:<name> value"
-        datetime updated_at "staleness guard: rejected if > 15 min old or checkout_id mismatches"
-    }
     PIPELINE_STATE {
         string ticket_id PK
         enum flow "ticket|product"
         json steps "per-skill status/timestamps/summary, plus any caller-merged fields (e.g. /acs:ship's `fix_loops`) written through `update_pipeline`'s `extra` channel"
-        json totals "runs, runs_timed, runs_untimed, seconds, tokens (input/output/cache_creation/cache_read) -- the cost and API-duration sums and counters went with ADR 0103"
         string lane "TRIVIAL|SMALL|STANDARD|COMPLEX (mirror of ticket.lane; written by update_pipeline; not declared in schema, allowed via additionalProperties)"
     }
     CLARIFICATIONS {
@@ -338,6 +305,20 @@ still surface as the `unattributed` role) and wall-clock time.
 measurement still needs them. Nothing is migrated: the schemas tolerate
 unknown keys, so a run entry or `metrics.json` written before this change
 keeps its cost fields, and nothing reads them.
+
+**Amendment (ADR 0104) — supersedes the MAR-1 and MAR-3 amendments above,
+and the tokens the ADR 0103 amendment kept.** acs records no usage
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)), so
+the diagram no longer draws `METRICS` (`metrics.json`), `SESSION_MARKER`
+(`sessions/<checkout_id>/session.json`), `ROLE_USAGE` or `MODEL_USAGE`, nor
+`RUN_ENTRY`'s `session_id`/`transcript_path`/`checkout_id`/`tokens` or
+`PIPELINE_STATE.totals`. A run entry keeps what the pipeline itself needs:
+timestamps, status, stop reason, summary, handoff summary and guard events.
+Nothing is migrated: a `metrics.json`, a `session.json`, a run entry's
+`tokens` or a `totals` object written earlier is ignored — the step-state
+schema tolerates unknown keys and the run schema still accepts a legacy
+`totals`. The per-checkout gate evidence (`sessions/<checkout_id>-gate.json`)
+was always a separate file and is unaffected.
 
 Invariants (enforced by `acs_lib` + schemas + tests):
 

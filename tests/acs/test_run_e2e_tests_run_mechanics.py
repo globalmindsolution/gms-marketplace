@@ -23,7 +23,6 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "run-e2e-tests", "SKILL.md")
-METRICS_SKILL_PATH = os.path.join(PLUGIN, "skills", "metrics", "SKILL.md")
 
 
 def read(path):
@@ -114,18 +113,10 @@ class RunE2eTestsRunMechanicsCase(unittest.TestCase):
         self.assertIn("spawns no subagents", self.opening)
 
     def test_opening_does_not_claim_read_only(self):
-        metrics_body = read(METRICS_SKILL_PATH)
-        # The exact read-only claim sentence from metrics/SKILL.md must not
-        # be copied verbatim into the test skill's opening.
-        readonly_sentence = "this skill is **read-only**"
-        self.assertIn(
-            readonly_sentence, metrics_body,
-            msg="fixture check: metrics/SKILL.md's read-only sentence moved or changed",
-        )
         self.assertNotIn(
-            readonly_sentence, self.opening,
-            msg="the suite runner must NOT copy the metrics/usage read-only "
-                "claim verbatim — it writes a results artifact",
+            "**read-only**", self.opening,
+            msg="the suite runner must NOT claim to be read-only -- it writes "
+                "a results artifact",
         )
 
     def test_opening_states_it_writes_results_artifact(self):

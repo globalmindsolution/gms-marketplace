@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Post-hook for /acs:create-api-contract — finalizes the run entry in create-api-contract-state.json and
-updates pipeline-state.json, tickets-index.json, and metrics.json.
+updates run.json and tickets-index.json.
 
 Result-document `states` this run records for the steps that follow it:
   * contract_path  str  — where api-contract.md was written.

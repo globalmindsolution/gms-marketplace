@@ -123,7 +123,7 @@ sequenceDiagram
         end
         CO->>WS: phases/<skill>/result.json
         CO->>POST: --result-file result.json
-        POST->>WS: finalize run, ledger, index, metrics, release lock
+        POST->>WS: finalize run, ledger, index, release lock
         CO-->>Dev: standard completion report
     end
 ```
@@ -139,17 +139,14 @@ and no `<result>` is returned, so there is no execute XML to validate and no
 `iter-<n>-execute.xml` snapshot to persist — the verify XML persistence in
 the `loop reflection` block above is unaffected in every lane.
 
-**Token/time metering (MAR-1, ADR 0082).** Two of the diagram's steps carry
-additional, undrawn responsibility, detailed in full in the dedicated
-`acs-cost-metering.md` flow: the `PRE` participant's gate check now also
-writes a ticket-independent session-correlation marker (`session_id`/
-`transcript_path` off the real `PreToolUse(Skill)` envelope), in its own
-fail-open `try/except` so a marker bug can never turn into a blocked gate;
-and the `POST` participant's `finalize_run` no longer trusts a
-coordinator-supplied `tokens` estimate — it measures real token counts from
-the run's recorded transcript, failing open to empty counts rather than a
-fabricated number. No dollar figure is recorded
-([ADR 0103](../../../adr/0103-no-status-line-no-cost-metering.md)).
+**Gate evidence.** One of the diagram's steps carries an undrawn
+responsibility: the `PRE` participant's gate check also records that it fired
+(the skill and the time, in `sessions/<checkout>-gate.json`) before it passes
+or blocks, in its own fail-open `try/except` so a write failure can never turn
+into a blocked gate, and `SS` spends that evidence once to record whether the
+run was gated. Neither step measures usage: `POST` records no token count and
+no dollar figure, and nothing reads a transcript
+([ADR 0104](../../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 **File-map guard denials (MAR-578).** The `PreToolUse` write-tool guard is not
 a participant in this diagram at all — it runs per write tool call inside the

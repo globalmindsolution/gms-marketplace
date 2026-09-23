@@ -164,6 +164,6 @@ Ticket line with **Scope** (no ticket):
 - **Results**: install path (pre-commit framework / raw git hooks); hooks installed (commit-msg, pre-push) or skipped (with reason); files copied into `.acs/ci/` (and whether they still need committing); verification outcome
 - **Findings**: <missing conventions / pre-existing non-acs hooks / clarifications, or "none">
 - **Artifacts**: `.acs/ci/` files, this clone's `.git/hooks/*`, edited `.pre-commit-config.yaml`
-- **Metrics**: <wall time> · ~<tokens in/out>
+- **Metrics**: <wall time>
 - **Next**: have teammates run `/acs:install-hooks` per clone; configure the required CI check via `/acs:setup` for a true gate
 ```

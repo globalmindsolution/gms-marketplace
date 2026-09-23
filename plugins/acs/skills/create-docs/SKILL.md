@@ -218,11 +218,10 @@ ticket out via `gh`/`acli` per the tracker config.
 **Where `acs step start` runs.** Every step through a set's Start runs from
 the **session checkout** (`cwd` unchanged), never from its worktree: running
 it from the worktree would resolve a different `checkout_id` than the one the
-pre-hook's `PreToolUse(Skill)` envelope used for its session marker, and
-degrade the run to zeroed tokens on every set. The session pointer and marker
-are therefore shared between the slice's sets
-— display-level only; every downstream consumer is given the ticket id
-explicitly.
+pre-hook's `PreToolUse(Skill)` envelope recorded its gate evidence under, and
+report the run's enforcement as unconfirmed. The session pointer is therefore
+shared between the slice's sets — display-level only; every downstream
+consumer is given the ticket id explicitly.
 
 ## Inputs & mode
 
@@ -480,9 +479,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-docs.py" --result-file 
 ```
 
    It finalizes that set's run entry, its own `run.json` (`flow:
-   "product"`, step `create-docs`), its `tickets-index.json` entry and the
-   metrics, and moves the delivery ticket to `in_review` when a PR was
-   recorded — exactly once per set.
+   "product"`, step `create-docs`) and its `tickets-index.json` entry, and
+   moves the delivery ticket to `in_review` when a PR was recorded — exactly
+   once per set.
 
 3. Remove each set's worktree once its Delivery is done (`git worktree
    remove <path>`); a failed set keeps its worktree and branch so a resume
@@ -502,6 +501,6 @@ post-hook succeeded. Same labels, same order, `none` where empty:
 - **Batch**: <eligible sets this pass, in slices of <max_parallel>, or "none — see reasons">
 - **<set>**: <ticket-id> — <status> — <PR url, or reason>
 - **Findings**: <open findings / clarifications / ineligible sets with reasons, or "none">
-- **Metrics**: per set — iterations <n>/<cap> · <wall time> · ~<tokens in/out>
+- **Metrics**: per set — iterations <n>/<cap> · <wall time>
 - **Next**: `/acs:merge-pr <ticket-id>` per completed set after reviewing its docs PR; `/acs:create-docs <ticket-id>` for any set that did not complete
 ```

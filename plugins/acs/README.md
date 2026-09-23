@@ -115,15 +115,15 @@ The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 32 skills
+## The 30 skills
 
 Each skill declares its own phase — Design, Build, Test, Ship or Utility — in
 `skills/<name>/acs.yaml`, beside the artifacts it reads and writes. There is no
-registry file: the surfaces that used to derive from one (this table,
-`/acs:metrics` grouping, the set of nameable steps) read the skill directories
-instead, so adding a skill is adding a directory. The order steps actually RUN
-in is declared separately, in `workflows/ship.yaml`, and `acs.py workflow
-validate` checks that order against each skill's declared reads and writes.
+registry file: the surfaces that used to derive from one (this table, the
+set of nameable steps) read the skill directories instead, so adding a skill
+is adding a directory. The order steps actually RUN in is declared
+separately, in `workflows/ship.yaml`, and `acs.py workflow validate` checks
+that order against each skill's declared reads and writes.
 
 Not every skill is a command you run. Six **legs** — the project-scaffold
 skills behind `/acs:project` and the four delivery paths behind `/acs:code` —
@@ -220,7 +220,7 @@ different.
 | `/acs:merge-pr` | Brake: a completed run recorded a PR reference | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 
-### Utility — setup, orchestration, reporting
+### Utility — setup and orchestration
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
@@ -228,8 +228,6 @@ different.
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
-| `/acs:metrics` | — (utility) | Read-only in-session dashboard: renders the PM delivery view: delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS, DEADLINE, coverage, review iterations, lead/cycle time — from workspace state. Writes nothing. |
-| `/acs:usage` | — (utility) | Read-only in-session usage dashboard: renders the usage view — usage summary, working time per ticket by step, the per-ticket/per-PR working-time averages, token burn by role and by model — from workspace state. Tokens and wall-clock time only; no dollar figures. Writes nothing. |
 | `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step, then asks again, until the list is done. Never merges. |
 
 ## How gating works
@@ -280,10 +278,9 @@ workspace.
   design.md  analysis.md  api-contract.md  plan.md  test-cases.md
 
 <workspace>/<repo-id>/                  # repo-id from git remote: owner-name
-  tickets-index.json  runs-index.json  counters.json  metrics.json
+  tickets-index.json  runs-index.json  counters.json
   sessions/<checkout-id>/               # one directory per worktree
     pointer.json                        # the run and step this checkout is on
-    session.json                        # the session-correlation marker
   archive/<run-id>/                     # moved here by post-merge-pr
   runs/<run-id>/                        # the run id is derived from the subject
     run.json                            # THE RUN MACHINE
@@ -314,10 +311,9 @@ artifacts actually resolved.
 Executors may not write inside the ticket docs tree — it is a control input the
 file-map guard denies, like the guard's own records.
 
-Inspect progress and usage anytime: `tickets-index.json` for status across
-tickets, `runs-index.json` for every run, `metrics.json` for per-repo totals,
-`acs.py run show` for where a run stands, and `acs.py run next` for what runs
-next.
+Inspect progress anytime: `tickets-index.json` for status across tickets,
+`runs-index.json` for every run, `acs.py run show` for where a run stands,
+and `acs.py run next` for what runs next.
 
 ## Configuration
 

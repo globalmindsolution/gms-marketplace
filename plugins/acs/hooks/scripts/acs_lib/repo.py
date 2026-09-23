@@ -14,7 +14,6 @@ import tempfile
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-import claude_code_adapter as cc  # noqa: E402
 
 from ._common import GateError, TICKET_ID_RE, _git, now_iso, read_json, write_json
 
@@ -297,43 +296,6 @@ def pointer_path(workspace, repo_id, ckid):
     the (workspace, repo_id, ckid) spelling every caller here already uses."""
     from .sessions import pointer_path as _pointer_path
     return _pointer_path(os.path.join(workspace, repo_id), ckid)
-
-
-def session_marker_path(workspace, repo_id, ckid):
-    """Subject-independent session-correlation marker, beside pointer.json."""
-    from .sessions import session_path
-    return session_path(os.path.join(workspace, repo_id), ckid)
-
-
-def record_session_marker(ctx, payload):
-    """Persist the PreToolUse(Skill) envelope's session-correlation fields so
-    `acs step start` can thread them onto the new run entry without guessing.
-    Fields come straight off the envelope; a missing one is written as null,
-    never constructed (e.g. never a cwd-derived guess)."""
-    path = session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
-    marker = {
-        "session_id": cc.hook_session_id(payload),
-        "transcript_path": cc.hook_transcript_path(payload),
-        # Same shared probe order, but default=None: this record never
-        # constructs a value, so an envelope with no cwd persists null
-        # rather than the process cwd.
-        "cwd": cc.payload_cwd(payload, default=None),
-        "checkout_id": ctx["checkout_id"],
-        "hook_event_name": cc.hook_event_name(payload),
-        "skill": cc.hook_tool_input(payload).get("skill"),
-        "updated_at": now_iso(),
-    }
-    # A payload with no session_id carries nothing to correlate, and writing its
-    # nulls OVER a marker that has a real one costs the next run its cost/usage
-    # attribution. Writing those nulls into a fresh marker is still correct (the
-    # field is genuinely absent and is never guessed) -- only clobbering a good
-    # one is refused, so no caller can destroy attribution by forgetting a flag.
-    if marker["session_id"] is None:
-        existing = read_json(path)
-        if isinstance(existing, dict) and existing.get("session_id") is not None:
-            return existing
-    write_json(path, marker)
-    return marker
 
 
 def lock_path(rdir):

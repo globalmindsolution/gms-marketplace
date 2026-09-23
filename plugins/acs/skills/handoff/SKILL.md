@@ -176,11 +176,6 @@ If it exits non-zero, surface its stderr verbatim and stop. Known cases:
 - `no run recorded at <path>` — the run never started, or the id is wrong;
   nothing to hand off.
 
-A metrics failure is the one non-zero exit that still handed off: it prints
-the JSON first and says explicitly that the step IS finalized and the lock IS
-released, and that only `metrics.json` went unwritten. Report it that way —
-the run is resumable.
-
 ## Step 5 — Report
 
 Tell the user, compactly:
@@ -223,6 +218,6 @@ same order, `none` where empty:
 - **Results**: what was flushed to the run directory (soft context, decisions, partial findings); the in-flight invocation and step finalized `interrupted`; lock released
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <run-directory files, repo paths, branch, PR URL>
-- **Metrics**: <wall time> · ~<tokens in/out>
+- **Metrics**: <wall time>
 - **Next**: the exact `continue_with` command printed by `handoff.py`, e.g. `/acs:code SHOP-123` in a fresh session
 ```

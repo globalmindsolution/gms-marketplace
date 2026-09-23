@@ -1,34 +1,27 @@
 """Behavior tests for claude_code_adapter.py -- the single module encoding
 what acs assumes about Claude Code's undocumented interfaces (MAR-520).
 
-Two things are under test here:
-
-1. Every accessor is TOTAL. A malformed, absent, or wrong-typed value yields
-   None (or the documented default), never an exception -- measurement code
-   must not have to validate Claude Code's output at each call site.
-2. The degradation switch logs its reason and returns it, and never raises
-   even when the log destination is unusable.
+Under test: every accessor is TOTAL. A malformed, absent, or wrong-typed value
+yields None (or the documented default), never an exception -- a hook must not
+have to validate Claude Code's output at each call site.
 
 Plus a structural guard (`TestInterfaceLiteralsLiveInTheAdapter`) that fails
-if any of the interfaces' distinctive field names reappear in another plugin
-module -- the enforceable half of this ticket's "every interface assumption
-lives in one adapter module". (The statusLine payload keys and the
-`claude_version` probe went with the status line -- ADR-0103.)
+if the envelope's distinctive field names reappear in another plugin module --
+the enforceable half of "every interface assumption lives in one adapter
+module". (The transcript, attribution, subagent-layout and statusLine
+interfaces went with the usage measurement and status line that read them --
+ADR-0103, ADR-0104.)
 """
 
 import ast
-import json
 import os
-import shutil
 import sys
-import tempfile
 import unittest
-from unittest import mock
 
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TESTS_ACS)
 
-import acs_case  # noqa: E402
+import acs_case  # noqa: E402,F401  (puts the plugin scripts on sys.path)
 import claude_code_adapter as cc  # noqa: E402
 
 PLUGIN_SCRIPTS = os.path.join(
@@ -38,37 +31,36 @@ PLUGIN_SCRIPTS = os.path.join(
 class TestHookEnvelope(unittest.TestCase):
     """Interface 1: the JSON a hook receives on stdin."""
 
-    ENVELOPE = {"session_id": "s-1", "transcript_path": "/t/s-1.jsonl",
-                "cwd": "/repo", "hook_event_name": "PreToolUse",
-                "tool_input": {"skill": "acs:code"}}
+    ENVELOPE = {"session_id": "s-1", "cwd": "/repo", "agent_id": "a-1",
+                "agent_type": "acs:code-executor",
+                "last_assistant_message": "<result/>"}
 
     def test_reads_each_field(self):
         self.assertEqual(cc.hook_session_id(self.ENVELOPE), "s-1")
-        self.assertEqual(cc.hook_transcript_path(self.ENVELOPE), "/t/s-1.jsonl")
-        self.assertEqual(cc.hook_event_name(self.ENVELOPE), "PreToolUse")
-        self.assertEqual(cc.hook_tool_input(self.ENVELOPE), {"skill": "acs:code"})
+        self.assertEqual(cc.hook_agent_id(self.ENVELOPE), "a-1")
+        self.assertEqual(cc.hook_agent_type(self.ENVELOPE), "acs:code-executor")
+        self.assertEqual(cc.hook_last_assistant_message(self.ENVELOPE), "<result/>")
 
     def test_absent_fields_are_none_never_constructed(self):
-        for accessor in (cc.hook_session_id, cc.hook_transcript_path, cc.hook_event_name):
+        for accessor in (cc.hook_session_id, cc.hook_agent_id, cc.hook_agent_type,
+                         cc.hook_last_assistant_message):
             self.assertIsNone(accessor({}))
-        self.assertEqual(cc.hook_tool_input({}), {})
 
     def test_wrong_typed_fields_are_none(self):
-        bad = {"session_id": 7, "transcript_path": "", "hook_event_name": [],
-               "tool_input": "not-an-object"}
-        self.assertIsNone(cc.hook_session_id(bad))
-        self.assertIsNone(cc.hook_transcript_path(bad))
-        self.assertIsNone(cc.hook_event_name(bad))
-        self.assertEqual(cc.hook_tool_input(bad), {})
+        bad = {"session_id": 7, "agent_id": "", "agent_type": [],
+               "last_assistant_message": {}}
+        for accessor in (cc.hook_session_id, cc.hook_agent_id, cc.hook_agent_type,
+                         cc.hook_last_assistant_message):
+            self.assertIsNone(accessor(bad))
 
     def test_a_non_dict_payload_never_raises(self):
         for payload in ([], "x", None, 3):
             self.assertIsNone(cc.hook_session_id(payload))
-            self.assertEqual(cc.hook_tool_input(payload), {})
+            self.assertIsNone(cc.hook_agent_id(payload))
 
 
 class TestPayloadCwd(unittest.TestCase):
-    """The cwd probe order shared by hook envelopes and statusLine payloads."""
+    """The cwd probe order every payload shape shares."""
 
     def test_workspace_current_dir_wins(self):
         payload = {"workspace": {"current_dir": "/ws"}, "cwd": "/other"}
@@ -86,151 +78,6 @@ class TestPayloadCwd(unittest.TestCase):
         self.assertEqual(cc.payload_cwd({"workspace": {"current_dir": ""}, "cwd": "/c"}), "/c")
 
 
-class TestTranscriptRecords(unittest.TestCase):
-    """Interface 2: the transcript JSONL record shape."""
-
-    RECORD = {"timestamp": "2026-09-03T10:00:00Z",
-              "message": {"model": "claude-opus-5",
-                          "usage": {"input_tokens": 10, "output_tokens": 2},
-                          "content": "SECRET PROMPT TEXT"}}
-
-    def test_reads_timestamp_usage_and_model(self):
-        self.assertEqual(cc.record_timestamp(self.RECORD), "2026-09-03T10:00:00Z")
-        self.assertEqual(cc.record_usage(self.RECORD), {"input_tokens": 10, "output_tokens": 2})
-        self.assertEqual(cc.record_model(self.RECORD), "claude-opus-5")
-
-    def test_usage_is_the_only_door_into_message(self):
-        """Privacy boundary: no accessor here returns message.content."""
-        returned = [cc.record_usage(self.RECORD), cc.record_model(self.RECORD),
-                    cc.record_timestamp(self.RECORD)]
-        self.assertNotIn("SECRET PROMPT TEXT", json.dumps(returned))
-
-    def test_missing_or_malformed_pieces_are_none(self):
-        self.assertIsNone(cc.record_usage({}))
-        self.assertIsNone(cc.record_usage({"message": "not-an-object"}))
-        self.assertIsNone(cc.record_usage({"message": {"usage": []}}))
-        self.assertIsNone(cc.record_model({"message": {}}))
-        self.assertIsNone(cc.record_timestamp({"timestamp": 12345}))
-        self.assertIsNone(cc.record_usage([]))
-
-    def test_the_four_token_classes_pair_positionally_with_acs_buckets(self):
-        self.assertEqual(len(cc.USAGE_FIELDS), 4)
-        self.assertEqual(len(cc.BUCKET_KEYS), 4)
-        self.assertEqual(cc.USAGE_FIELDS[0], "input_tokens")
-        self.assertEqual(cc.BUCKET_KEYS[0], "input")
-
-
-class TestAttribution(unittest.TestCase):
-    """Interface 3: attributionSkill / attributionAgent."""
-
-    def test_reads_both_attribution_fields(self):
-        self.assertEqual(cc.record_attribution_skill({"attributionSkill": "acs:code"}), "acs:code")
-        self.assertEqual(
-            cc.record_attribution_agent({"attributionAgent": "acs:code-verifier"}),
-            "acs:code-verifier")
-
-    def test_absent_or_empty_attribution_is_none(self):
-        self.assertIsNone(cc.record_attribution_skill({}))
-        self.assertIsNone(cc.record_attribution_skill({"attributionSkill": ""}))
-        self.assertIsNone(cc.record_attribution_agent({"attributionAgent": 5}))
-
-    def test_strip_skill_prefix(self):
-        self.assertEqual(cc.strip_skill_prefix("acs:code"), "code")
-        self.assertEqual(cc.strip_skill_prefix("code"), "code")
-        self.assertIsNone(cc.strip_skill_prefix(""))
-        self.assertIsNone(cc.strip_skill_prefix(None))
-
-    def test_agent_role_maps_each_observed_suffix(self):
-        # `-planner` is no suffix acs emits (ADR-0092); an old transcript's
-        # planner rows attribute as `other`, like any non-acs agent.
-        self.assertEqual(cc.agent_role("acs:code-planner"), "other")
-        self.assertEqual(cc.agent_role("acs:code-executor"), "executor")
-        self.assertEqual(cc.agent_role("acs:docs-sync-verifier"), "verifier")
-
-    def test_an_unmatched_agent_is_attributed_not_dropped(self):
-        self.assertEqual(cc.agent_role("Explore"), "other")
-        self.assertEqual(cc.agent_role("Explore", default="something-else"), "something-else")
-
-    def test_an_absent_agent_is_none(self):
-        self.assertIsNone(cc.agent_role(None))
-        self.assertIsNone(cc.agent_role(""))
-        self.assertIsNone(cc.agent_role(42))
-
-
-class TestSubagentLayout(unittest.TestCase):
-    """Interface 4: where a session's subagent transcripts live."""
-
-    def test_session_id_comes_from_the_transcripts_own_basename(self):
-        self.assertEqual(cc.session_id_from_transcript("/p/abc-123.jsonl"), "abc-123")
-
-    def test_subagents_dir_is_sibling_session_dir(self):
-        self.assertEqual(cc.subagents_dir("/p/abc-123.jsonl"),
-                         os.path.join("/p", "abc-123", "subagents"))
-
-    def test_absent_transcript_path_yields_none_not_a_constructed_slug(self):
-        self.assertIsNone(cc.session_id_from_transcript(None))
-        self.assertIsNone(cc.session_id_from_transcript(""))
-        self.assertIsNone(cc.subagents_dir(None))
-        self.assertIsNone(cc.subagents_dir("/p/"))
-
-    def test_only_jsonl_transcripts_match_the_privacy_boundary(self):
-        self.assertTrue(cc.is_transcript_file("a.jsonl"))
-        self.assertFalse(cc.is_transcript_file("a.meta.json"))
-        self.assertFalse(cc.is_transcript_file("a.json"))
-        self.assertFalse(cc.is_transcript_file(None))
-
-
-class TestDegradationSwitch(unittest.TestCase):
-    """The one switch: it returns the reason and logs it, and never raises."""
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="acs-degrade-")
-        self.addCleanup(shutil.rmtree, self.tmp, True)
-        self.log = os.path.join(self.tmp, "nested", "degradations.jsonl")
-
-    def test_returns_the_reason_it_was_given(self):
-        with mock.patch.dict(os.environ, {cc.DEGRADATION_LOG_ENV: self.log}):
-            self.assertEqual(cc.unavailable("cap_exceeded"), "cap_exceeded")
-
-    def test_logs_the_reason_creating_the_destination(self):
-        with mock.patch.dict(os.environ, {cc.DEGRADATION_LOG_ENV: self.log}):
-            cc.unavailable("no_tokens_in_window", detail="run 3", source="usage_reader")
-        with open(self.log) as fh:
-            entry = json.loads(fh.readline())
-        self.assertEqual(entry["reason"], "no_tokens_in_window")
-        self.assertEqual(entry["detail"], "run 3")
-        self.assertEqual(entry["source"], "usage_reader")
-
-    def test_rotates_past_the_cap(self):
-        with mock.patch.dict(os.environ, {cc.DEGRADATION_LOG_ENV: self.log}):
-            os.makedirs(os.path.dirname(self.log))
-            with open(self.log, "w") as fh:
-                fh.write("x" * (cc.MAX_DEGRADATION_LOG_BYTES + 1))
-            cc.unavailable("cap_exceeded")
-        self.assertTrue(os.path.exists(self.log + ".1"))
-        with open(self.log) as fh:
-            self.assertEqual(json.loads(fh.readline())["reason"], "cap_exceeded")
-
-    def test_an_unusable_log_destination_never_costs_the_caller_its_reason(self):
-        unwritable = os.path.join(self.tmp, "a-file")
-        with open(unwritable, "w") as fh:
-            fh.write("")
-        with mock.patch.dict(os.environ,
-                             {cc.DEGRADATION_LOG_ENV: os.path.join(unwritable, "nope.jsonl")}):
-            self.assertEqual(cc.unavailable("unreadable_transcript"), "unreadable_transcript")
-
-    def test_quiet_on_stderr_unless_debugging(self):
-        env = {k: v for k, v in os.environ.items()
-               if k not in (cc.DEGRADATION_LOG_ENV, cc.DEBUG_ENV)}
-        with mock.patch.dict(os.environ, env, clear=True), \
-                mock.patch.object(cc.sys, "stderr") as stderr:
-            cc.unavailable("empty_window")
-        stderr.write.assert_not_called()
-
-    def test_the_unavailable_constant_is_what_callers_write(self):
-        self.assertEqual(cc.UNAVAILABLE, "unavailable")
-
-
 class TestInterfaceLiteralsLiveInTheAdapter(unittest.TestCase):
     """The enforceable half of "every interface assumption lives in one
     adapter module": these field names are Claude Code's, not acs's, so a
@@ -238,10 +85,7 @@ class TestInterfaceLiteralsLiveInTheAdapter(unittest.TestCase):
     ticket removed. Docstrings and comments are exempt -- prose may name a
     field; executable code may not re-derive it."""
 
-    ADAPTER_ONLY = ("attributionSkill", "attributionAgent",
-                    "input_tokens", "output_tokens",
-                    "cache_creation_input_tokens", "cache_read_input_tokens",
-                    "current_dir")
+    ADAPTER_ONLY = ("current_dir", "last_assistant_message")
 
     def _code_strings(self, path):
         """Every string constant in `path` that is not a docstring."""

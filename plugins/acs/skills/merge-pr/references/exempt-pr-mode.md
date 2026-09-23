@@ -30,8 +30,8 @@ sanctioned exempt PR, or is ticket-backed) STOP and surface its stderr
 verbatim — including its `/acs:merge-pr <TICKET-ID>` redirect when the PR looks
 ticket-backed. Do not improvise a workaround. On success it prints a context
 JSON with `mode: "exempt-pr"`, the resolved `pr` (`number`, `url`, `branch`,
-`base`, `labels`), `exempt_reason`, `settings`, and `post_hook` — and it
-resolves **no** ticket and writes **no** partition, lock, pointer, or state.
+`base`, `labels`), `exempt_reason` and `settings` — and it resolves **no**
+ticket and writes **no** partition, lock, pointer, or state.
 
 When `mode` is `exempt-pr`, run this trimmed flow yourself (no
 planner/executor/verifier subagents — there is no partition to persist phase
@@ -82,16 +82,9 @@ artifacts to):
    `git rev-parse --git-common-dir`), remove the worktree if one holds
    `pr.branch` (`git worktree remove <path>`) and delete the local branch if it
    still exists (`git branch -D <pr.branch>`).
-4. **Post step — metrics only** — run the post-hook in its exempt form, which
-   bumps ONLY the repo `pr_merged` metric and writes no ticket state, index,
-   pipeline, or archive:
 
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-pr.py" --pr <pr.number>
-   ```
-
-   Surface its stderr verbatim if it exits non-zero; on success it prints
-   `{"ok": true, "mode": "exempt-pr", "pr_merged": true}`.
+There is no post step: with no ticket there is nothing to record, and acs keeps
+no repo-level metrics (ADR-0104).
 
 **Explicitly NOT done in exempt mode** (there is no ticket): NO partition
 artifacts (no phase files, no `result.json` — there is no partition), NO

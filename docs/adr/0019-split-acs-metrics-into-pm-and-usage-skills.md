@@ -1,6 +1,6 @@
 # 0019 — Split `/acs:metrics` into two narrowly-scoped skills: PM delivery and tool usage
 
-**Status**: Accepted · **Date**: 2026-06-18
+**Status**: Superseded — by [0104](0104-no-usage-dashboards-no-usage-recording.md) (`/acs:metrics` and `/acs:usage` are removed) · **Date**: 2026-06-18
 
 ## Context
 

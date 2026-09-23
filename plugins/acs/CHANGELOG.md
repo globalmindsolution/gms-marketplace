@@ -346,6 +346,22 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **`/acs:metrics` and `/acs:usage` are removed, and acs records no usage**
+  (ADR-0104, superseding ADR-0082 and amending ADR-0103). Both skills go, with
+  everything that existed only to feed them: `metrics_aggregate*.py`,
+  `metrics_render*.py`, `usage_reader.py`, `acs_lib/metrics.py`
+  (`update_metrics`, `compute_ticket_totals`, `backfill_distinct_pr_count`),
+  `metrics.json` and `metrics.schema.json`; the session-correlation marker
+  (`sessions/<checkout>/session.json`); per-invocation `tokens`, `role_usage`
+  and `model_usage`; the transcript sections of `claude_code_adapter.py`; and
+  `run.json`'s `totals`. Completion reports' Metrics line is now iterations and
+  wall time. `/acs:merge-pr --pr` (exempt mode) has no post step, since the
+  merged-PR count was all it recorded. Spend and tokens are Claude Code's to
+  report (`/cost`, the console, usage exports). Old `metrics.json`,
+  `session.json` and invocation `tokens` are ignored, and a result document's
+  legacy usage fields are accepted and ignored. The hook-gate evidence file is
+  unaffected.
+
 - **No status line, no dollar-cost metering** (ADR-0103, superseding in part
   ADR-0082). `statusline.py`, `subagent-statusline.py` and `cost_sampler.py`
   are removed. So are the statusLine payload probes and the `claude_version`

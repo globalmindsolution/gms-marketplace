@@ -295,7 +295,7 @@ MANDATORY final step — never skipped, also on failure:
    The POST-HOOK, not `acs step finish`. The two are not alternatives:
    `step finish` closes the run's view of the step and stops there, while the
    post-hook does that AND derives the states from the artifacts, writes the
-   index and the metrics, and releases the run lock. A step that ends at
+   index, and releases the run lock. A step that ends at
    `step finish` leaves `verifier_passed` underived — which shuts
    `/acs:create-pr`'s brake permanently — and the lock held.
 
@@ -322,7 +322,7 @@ AFTER the post-hook succeeded. Same labels, same order, `none` where empty:
 - **Results**: branch; what was implemented; targeted tests passed/failed; docs updated
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <run files, repo paths, branch>
-- **Metrics**: iteration <n>/<cap> · <wall time> · ~<tokens in/out>
+- **Metrics**: iteration <n>/<cap> · <wall time>
 - **Next**: `/acs:review-code` on success; on `needs_input`, answer the questions and re-run; on a plan failure, `/acs:create-impl-plan`
 ```
 

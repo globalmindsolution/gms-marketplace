@@ -12,6 +12,9 @@ true by construction and say nothing about the plugin's maintainability, which
 is what it exists to protect.
 
 This module is the criterion as a test, so it cannot rot back into prose.
+
+ADR-0104 deleted `metrics_render` and `metrics_aggregate` with the dashboards
+they drew, so `release_notes` is the one split entry point left to guard.
 """
 
 import os
@@ -52,12 +55,10 @@ class ModuleLineBudgetTest(unittest.TestCase):
     #: a recombination that leaves a single stub behind, which is exactly the
     #: rewrite the docstring claims to catch.
     EXPECTED_SIBLINGS = {
-        "metrics_render": ("common", "terminal", "html", "panels", "tables"),
-        "metrics_aggregate": ("common", "panels", "usage", "rows"),
         "release_notes": ("config", "git", "tickets"),
     }
 
-    def test_the_three_modules_the_ticket_names_are_split(self):
+    def test_the_split_modules_stay_split(self):
         """Named explicitly so a future rewrite that recombines them fails here
         rather than quietly re-crossing the budget."""
         for name, parts in self.EXPECTED_SIBLINGS.items():
@@ -100,11 +101,11 @@ class ModuleLineBudgetTest(unittest.TestCase):
 
     def test_the_entry_points_stay_runnable_as_files(self):
         """The split kept sibling modules rather than making packages precisely
-        so `python3 .../metrics_render.py` keeps working — three SKILL.md files
-        invoke these by path."""
+        so `python3 .../release_notes.py` keeps working — SKILL.md files invoke
+        it by path."""
         import importlib.util
         scripts = os.path.join(PLUGIN, "hooks", "scripts")
-        for name in ("metrics_render.py", "metrics_aggregate.py", "release_notes.py"):
+        for name in ("release_notes.py",):
             path = os.path.join(scripts, name)
             with self.subTest(module=name):
                 self.assertTrue(os.path.isfile(path))
@@ -122,7 +123,7 @@ class ModuleLineBudgetTest(unittest.TestCase):
                 sys.path[:] = [p for p in sys.path
                                if os.path.abspath(p) != os.path.abspath(scripts)]
                 for mod in [m for m in list(sys.modules)
-                            if m.startswith(("metrics_", "release_notes", "acs_lib"))]:
+                            if m.startswith(("release_notes", "acs_lib"))]:
                     sys.modules.pop(mod, None)
                 try:
                     spec = importlib.util.spec_from_file_location(

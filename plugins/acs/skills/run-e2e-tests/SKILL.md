@@ -1,6 +1,6 @@
 ---
 name: run-e2e-tests
-description: Run this product's configured test suites (all of them, a --suite-selected subset, or the suites one run's test cases name), capture pass/fail results to an auditable run artifact, and on a failure triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke — not for reading delivery or usage metrics (see /acs:metrics, /acs:usage).
+description: Run this product's configured test suites (all of them, a --suite-selected subset, or the suites one run's test cases name), capture pass/fail results to an auditable run artifact, and on a failure triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke.
 argument-hint: "[ticket-id | prompt | document] [--suite <name>]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -21,8 +21,7 @@ reading their output, which is what the coordinator is already for.
 
 Scope honesty up front: this skill is **not read-only**. Every run **writes** a
 results artifact (see Step 3), and on a failure path it **mutates** ticket
-state (regression tickets minted, commented, or linked) — unlike
-`/acs:metrics` and `/acs:usage`, which only read.
+state (regression tickets minted, commented, or linked).
 
 ## Start
 
@@ -110,7 +109,7 @@ After all selected suites have run (or immediately, in the zero-suites case),
 write JSON to `<workspace>/<repo_id>/test-runs/<run-id>/results.json`, where
 `<workspace>` and `<repo_id>` are exactly what `build_context()` resolved
 (the same repo-level directory `acs_lib.repo_dir(workspace, repo_id)`
-returns — sibling to `tickets-index.json` and `metrics.json`, NOT inside any
+returns — sibling to `tickets-index.json`, NOT inside any
 ticket partition, since `/acs:run-e2e-tests` is unticketed). `<run-id>` is
 `run-<ISO8601>` (an ISO-8601 UTC timestamp with filesystem-path-safe
 characters — colons replaced or omitted). Create the `test-runs/<run-id>/`
@@ -314,7 +313,7 @@ Print a run summary: suites run (count and names), pass/fail counts, and
 tickets minted/bumped/linked (on an all-green run, this line is simply "0
 tickets minted/bumped/linked" since `regressions` is always `[]` on that
 path). State explicitly that the results artifact is left in place on disk
-after the run — it is not cleaned up — so `/acs:metrics` can read it later.
+after the run — it is not cleaned up — so it can be read later.
 
 **Under `/acs:ship`.** Replace the tickets-minted/bumped/linked line with the
 verdict (`pass` / `fail`) and name the run, so the caller can read the outcome

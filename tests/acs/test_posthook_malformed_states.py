@@ -13,8 +13,8 @@ The PRE side refuses the same value (the `_pr_recorded_for` brake in gates.py)
 and is right to: exit 2 blocks BEFORE any work is done. A post hook is the other
 side of the pipeline -- it runs after the work, and the run entry it finalises
 is the audit trail -- so here the value degrades to "no number recorded" with
-the reason on stderr, which is how metrics.py's roll-up and this hook's own
-derivation block already treat a result document they cannot use. Nothing is
+the reason on stderr, which is how this hook's own derivation block already
+treats a result document it cannot use. Nothing is
 swallowed: the pre-side brake still refuses the mis-shaped value at the next
 gate, so the operator is still made to correct it.
 """
@@ -49,8 +49,6 @@ class MalformedPrReferenceCase(AcsWorkspaceCase):
         return self.post("create-pr", self.ticket,
                          {"status": "completed", "states": {"pr": pr}})
 
-    def metrics(self):
-        return lib.read_json(lib.metrics_path(self.ws, "acme-shop")) or {}
 
 
 class MalformedPrReferenceTest(MalformedPrReferenceCase):
@@ -92,14 +90,12 @@ class MalformedPrReferenceTest(MalformedPrReferenceCase):
         self.post_pr("https://github.com/acme/shop/pull/7")
         self.assertFalse(os.path.exists(lib.lock_path(self.rdir_path)))
 
-    def test_no_pr_number_is_recorded_for_a_reference_that_carries_none(self):
-        self.post_pr("https://github.com/acme/shop/pull/7")
-        self.assertEqual(self.metrics().get("prs", {}).get("created_pr_numbers"), [])
-
-    def test_a_well_formed_reference_still_records_its_number(self):
-        """The guard must not cost the working path its number."""
-        self.post_pr({"number": 7, "url": "https://github.com/acme/shop/pull/7"})
-        self.assertEqual(self.metrics().get("prs", {}).get("created_pr_numbers"), [7])
+    def test_a_well_formed_reference_moves_the_ticket_to_review(self):
+        """The guard must not cost the working path its effect."""
+        out = self.post_pr({"number": 7, "url": "https://github.com/acme/shop/pull/7"})
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("states.pr", out.stderr)
+        self.assertEqual(lib.load_ticket(self.tdir(self.ticket))["status"], "in_review")
 
     def test_an_absent_pr_reference_is_still_silent(self):
         """None was already handled; the guard must not start warning about it."""

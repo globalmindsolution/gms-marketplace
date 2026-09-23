@@ -163,16 +163,6 @@ def main():
         lib.save_ticket(parent_dir, parent_ticket)
         lib.update_index(workspace, repo_id, parent_ticket)
 
-    try:
-        lib.update_metrics(workspace, repo_id)
-    except lib.GuardTimeout as exc:
-        print(json.dumps({"ticket_id": ticket_id, "partition": tdir,
-                          "metrics_updated": False, "error": str(exc)}, indent=2))
-        sys.stderr.write(
-            "acs new-ticket: %s\nThe ticket %s IS created and its partition "
-            "written; only metrics.json was not updated. Do NOT re-run -- a "
-            "second call mints a second id.\n" % (exc, ticket_id))
-        sys.exit(2)
     print(json.dumps({"ticket_id": ticket_id, "partition": tdir,
                       "ticket_document": document}, indent=2))
 

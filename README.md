@@ -150,7 +150,7 @@ The marketplace currently ships one plugin:
   through product definition (PRD), architecture, ticketing, design,
   requirements analysis, an implementation plan, an API contract and test
   cases, TDD implementation, a five-lens code review, end-to-end tests, doc
-  sync, pull request, and merge. Thirty-two skills (`/acs:setup`,
+  sync, pull request, and merge. Thirty skills (`/acs:setup`,
   `/acs:ship`, `/acs:code`, …), each declaring its own phase — Design, Build,
   Test, Ship or Utility — and the artifacts it reads and writes in its
   `skills/<name>/acs.yaml`; each runs an execute → verify reflection cycle

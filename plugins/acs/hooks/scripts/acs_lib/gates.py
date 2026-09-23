@@ -24,11 +24,10 @@ import claude_code_adapter as cc  # noqa: E402
 from ._common import (DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS,
                       now_iso, plugin_root, read_json, write_json)
 from .settings import load_settings, validate_settings
-from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, record_session_marker, repo_partition_id, resolve_ticket_id, sessions_dir
+from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, repo_partition_id, resolve_ticket_id, sessions_dir
 from .hostgates import record_gate_evidence
 from .lock import acquire_lock, check_lock, read_lock, release_lock
 from .tickets import load_ticket, save_ticket, update_index
-from .metrics import update_metrics
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
 from .derive import derive_states, disagreements
 from . import workflow
@@ -52,16 +51,6 @@ def _workflow_for(ctx, with_path=False):
     resolved = workflow.resolve_workflow(ctx.get("checkout_root"))
     wf = workflow.validate_workflow_file(resolved["path"])
     return (wf, resolved["path"]) if with_path else wf
-
-
-def run_post_exempt_pr(cwd):
-    """Metrics-only post-hook for /acs:merge-pr --pr: bump the repo pr_merged
-    metric via the existing update_metrics pr_merged path and touch nothing else —
-    no ticket state, index write, pipeline, archive, lock, or pointer. Returns the
-    confirmation dict; raises GateError if the context cannot be built."""
-    ctx = build_context(cwd)
-    update_metrics(ctx["workspace"], ctx["repo_id"], pr_merged=True)
-    return {"ok": True, "mode": "exempt-pr", "pr_merged": True}
 
 
 # ---------------------------------------------------------------------------
@@ -479,11 +468,8 @@ def run_pre_payload(skill, payload, record_marker=True, mutate=True):
     with it, and anything other than 2 lets the skill run.
 
     `record_marker=False` is for a caller that is NOT a hook event -- `acs.py
-    gate`, which answers "would this gate pass?" without a PreToolUse envelope.
-    Such a payload carries no session_id or transcript_path, and
-    record_session_marker faithfully persists those as null (deliberately: it
-    never guesses), which would overwrite the real marker and cost the next run
-    its usage attribution.
+    gate`, which answers "would this gate pass?" without a PreToolUse envelope,
+    and so must not forge the gate evidence only a real hook fire may write.
 
     Once a ticket-scoped gate passes, the out-of-order advisory (one stderr
     line, exit still 0) is printed when the skill's ship.yaml needs are not
@@ -491,11 +477,6 @@ def run_pre_payload(skill, payload, record_marker=True, mutate=True):
     cwd = cc.payload_cwd(payload)
     try:
         ctx = build_context(cwd)
-        try:
-            if record_marker:
-                record_session_marker(ctx, payload)
-        except Exception:  # a marker-write bug must never block a gated skill
-            pass
         try:
             if record_marker:
                 record_gate_evidence(ctx, skill)
@@ -618,21 +599,13 @@ def session_end(payload):
         step = run_machine.in_progress_step(doc)
         if step:
             wf = _workflow_for(ctx)
-            _state, entry = step_machine.finalize_invocation(rdir, step, run_id, {
+            step_machine.finalize_invocation(rdir, step, run_id, {
                 "status": "interrupted",
                 "stop_reason": "session_end",
             })
             run_machine.finish_step(rdir, step, wf, status="interrupted",
                                     stop_reason="session_end",
                                     summary="session ended mid-step")
-            # keep repo-level metrics consistent with the run ledger: an
-            # interrupted invocation still spent time and tokens.
-            update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
-    except GuardTimeout as exc:
-        sys.stderr.write(
-            "acs session-end: %s\n%s's step is finalized as interrupted and the "
-            "lock is released; metrics.json was not updated, so this step's tokens "
-            "are lost from it.\n" % (exc, run_id))
     finally:
         sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id, step=None)
         release_lock(rdir, cwd)

@@ -261,7 +261,7 @@ is:
   self-approval — this skill cannot merge at all, and a human merges in the
   GitHub UI instead. That is a known tooling gap, not the intended path: an
   out-of-band merge strands the ticket at `in_review` (never archived, no
-  tracker Status→Done transition, metrics never bumped). There is **no settings
+  tracker Status→Done transition). There is **no settings
   kill-switch** (ADR-0028); the tracked resolution is PRD **G26**, which narrows
   m6 to agent invocations so a human-invoked merge defers to the repo's own
   branch protection. It is not relaxed by configuration in the meantime.
@@ -488,6 +488,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, partition archived, epic auto-done when last child)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: <wall time> · ~<tokens in/out>
+- **Metrics**: <wall time>
 - **Next**: nothing on success (ticket archived); when readiness failed this is report-only — fix what is listed and re-run `/acs:merge-pr <ticket-id>`
 ```

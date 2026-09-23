@@ -31,8 +31,7 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create
 # join here rather than in a sixth list: they are ticket-scoped like the rest,
 # so `flow = "product" if skill in PRODUCT_SKILLS else "ticket"` stays right,
 # and HOOKED_SKILLS keeps its three-way shape. Their ORDER lives in
-# workflows/ship.yaml, never in this list -- what a list position buys is the
-# metrics funnel's column order, nothing else.
+# workflows/ship.yaml, never in this list -- a list position buys nothing.
 WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
                    "create-api-contract", "create-test-docs", "code", "review-code",
                    "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
@@ -68,32 +67,8 @@ LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
 # pipeline skill in its default mode" framing it carried while it was the
 # `test` alias. That alias went with it (§6): the directory is deleted, and a
 # name in a list with no directory behind it is a name nothing can resolve.
-UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
-                   "usage", "release", "project"]
-
-# A DISPLAY order for the metrics funnel's columns, and nothing else. It is
-# not the pipeline's order, which lives in workflows/ship.yaml and is that
-# file's to change, and it no longer mirrors a schema enum: run.schema.json's
-# `steps` is OPEN (§4.3), because a new workflow is a YAML file and a new
-# skill is a directory -- neither should touch a schema. What binds this list
-# is only that every name in it is a real skill and every hooked skill is in
-# it, so no funnel column goes missing; a step it does not name still renders,
-# sorted after the ones it does. Nothing branches on it.
-PIPELINE_STEP_ORDER = ["create-prd", "create-architecture", "create-project", "create-docs",
-                        "create-requirements", "create-ticket", "create-design",
-                        "analyze-requirements", "create-impl-plan", "create-api-contract",
-                        "create-test-docs", "code", "review-code", "docs-sync",
-                        "create-e2e-tests", "run-e2e-tests", "create-pr", "merge-pr",
-                        "standardize-project"]
-
-# Explicit override for observed attributionSkill values (transcript records
-# carry "acs:<value>") that do not literally match a skill name once the
-# "acs:" prefix is stripped -- e.g. the setup skill's own attribution value
-# is observed as "acs:init" or "acs:initialize", not "acs:setup" (its two
-# historical names, from before MAR-184 and MAR-1 respectively). Covers both
-# HOOKED_SKILLS and UNHOOKED_SKILLS, since unhooked skills (ship, setup)
-# are observed as attributionSkill values even though they write no run entry.
-ATTRIBUTION_SKILL_MAP = {"init": "setup", "initialize": "setup"}
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks",
+                   "release", "project"]
 
 #: A step's states (§4.3). `skipped` never existed here; `handed_off` did, and
 #: it is gone -- it named a REASON rather than a state, and the reason is now
@@ -373,17 +348,16 @@ _ISO_INSTANT = re.compile(
 def parse_iso(value):
     """Parse an ISO-8601 instant as an aware UTC datetime, else None.
 
-    acs writes the strict `%Y-%m-%dT%H:%M:%SZ` form, but this also reads
-    timestamps produced elsewhere -- Claude Code transcript records above all,
-    where fractional seconds and explicit offsets both occur. Rejecting those
-    silently drops every such usage record.
+    acs writes the strict `%Y-%m-%dT%H:%M:%SZ` form, but a timestamp it reads
+    back may have been written by something else -- another tool or a hand
+    edit -- where fractional seconds and explicit offsets both occur. Rejecting
+    those would silently read a real instant as "no data".
 
     Two invariants bound that tolerance:
 
-    * A bare date returns None. ADR 0020 requires it: the panel-7 lead/cycle
-      callers read None as "no data" and degrade, and a date parsed as midnight
-      would render a real-looking number instead. `metrics_aggregate` carries
-      the same directive in code.
+    * A bare date returns None. ADR 0020 requires it: a caller reads None as
+      "no data" and degrades, where a date parsed as midnight would pass for a
+      real instant.
     * Acceptance does not vary by interpreter. `datetime.fromisoformat` gained
       most of this leniency in CPython 3.11, so leaning on it would accept
       records on 3.12 that are silently dropped on 3.9 -- this repo's support

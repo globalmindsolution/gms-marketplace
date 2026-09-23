@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Post-hook for /acs:analyze-requirements — finalizes the run entry in analyze-requirements-state.json and
-updates pipeline-state.json, tickets-index.json, and metrics.json.
+updates run.json and tickets-index.json.
 
 Result-document `states` this run records for the steps that follow it:
   * ready_for_planning  bool — the analysis is complete enough to plan from;

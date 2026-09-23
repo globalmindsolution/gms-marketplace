@@ -376,7 +376,7 @@ class FannedOutChildNeverRerunsCreateTicketCase(acs_case.AcsWorkspaceCase):
 class FanOutRunLeavesEpicCreateTicketStepCompletedCase(acs_case.AcsWorkspaceCase):
     """AC-1: after a second start + post-create-ticket.py cycle on the epic
     (the fan-out run), the epic's `create-ticket` INVOCATION is recorded
-    completed -- the record /acs:metrics reads.
+    completed.
 
     On the STEP machine, not the run ledger: `create-ticket` is not a step of
     `ship.yaml`, and I5 refuses a `steps` entry the workflow does not name.

@@ -74,16 +74,12 @@ def main():
     step = lib.in_flight_step(rdir, ctx, run_id)
 
     handed = None
-    metrics_error = None
     # Releasing the lock IS the handoff (see this file's docstring): the next
-    # session cannot pick the run up while it is held. update_metrics is
-    # repo-guarded and refuses rather than writing unguarded, so it runs inside
-    # a try -- a refused metrics write must not interrupt the step and then
-    # strand the lock, which is the one outcome that makes the handoff
-    # undeliverable.
+    # session cannot pick the run up while it is held, so it is released
+    # whatever the writes above it do.
     try:
         if step:
-            _state, entry = lib.finalize_invocation(rdir, step, run_id, {
+            lib.finalize_invocation(rdir, step, run_id, {
                 "status": "interrupted",
                 "stop_reason": args.stop_reason,
                 "handoff_summary": summary,
@@ -98,13 +94,7 @@ def main():
             if lib.has_step(wf, step):
                 lib.finish_step(rdir, step, wf, status="interrupted",
                                 stop_reason=args.stop_reason, summary=summary)
-            # a handed-off invocation still spent time and tokens -- keep repo
-            # metrics consistent with the run ledger
-            lib.update_metrics(ctx["workspace"], ctx["repo_id"], run_entry=entry)
             handed = step
-    except lib.GuardTimeout as exc:
-        metrics_error = str(exc)
-        handed = handed or step
     finally:
         lib.point_checkout_at(ctx, run_id, None)
         lib.release_lock(rdir, cwd)
@@ -121,16 +111,7 @@ def main():
         "lock_released": True,
         "continue_with": resume,
     }
-    if metrics_error:
-        out.update({"metrics_updated": False, "error": metrics_error})
     print(json.dumps(out, indent=2))
-    if metrics_error:
-        sys.stderr.write(
-            "acs handoff: %s\nThe step is finalized as interrupted and the lock IS "
-            "released, so %s can be resumed; only metrics.json was not updated, "
-            "so this invocation's tokens are lost from it.\n"
-            % (metrics_error, run_id))
-        sys.exit(2)
 
 
 if __name__ == "__main__":

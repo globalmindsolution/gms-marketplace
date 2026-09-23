@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Post-hook for /acs:create-e2e-tests — finalizes the run entry in create-e2e-tests-state.json and
-updates pipeline-state.json, tickets-index.json, and metrics.json.
+updates run.json and tickets-index.json.
 
 Result-document `states` this run records for the steps that follow it:
   * suites_written  list — the e2e suite files written under the repo's

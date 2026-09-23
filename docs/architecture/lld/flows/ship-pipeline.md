@@ -133,8 +133,7 @@ mechanism this document used to describe at length:
 - **The delivery path is judged by `/acs:create-impl-plan` and recorded in
   the plan's `## Contract` block** (ADR-0098), not by `/acs:ship` and not on
   the run ledger. `/acs:code` reads it with `acs.py plan path` and dispatches
-  to the matching leg. The path and its one-sentence reason are also what the
-  metrics layer slices by (G14/G15), in place of the retired `lane`.
+  to the matching leg.
 - **`create-api-contract`, `create-test-docs`, `create-e2e-tests` and
   `run-e2e-tests` are unconditional steps that may cost nothing.** Each reads
   the Contract's `owes` flags in its own pre-hook and records an evidenced

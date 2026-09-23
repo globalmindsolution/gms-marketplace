@@ -21,7 +21,6 @@ WORKFLOW_PATH = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "w
 ADR_PATH = os.path.join(REPO_ROOT, "docs", "adr",
                         "0049-e2e-3-read-only-g13-metric-validation.md")
 ADR_README_PATH = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
-METRICS_AGGREGATE_PATH = os.path.join(PLUGIN, "hooks", "scripts", "metrics_aggregate.py")
 SETTINGS_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 ARCHITECTURE_DIR = os.path.join(REPO_ROOT, "docs", "architecture")
@@ -138,10 +137,6 @@ class TestNoNewMechanism(unittest.TestCase):
             self.skipTest(
                 "no-new-mechanism guard is scoped to MAR-127's own branch; "
                 "this branch does not introduce ADR 0049")
-
-    def test_metrics_aggregate_unchanged(self):
-        self.assertEqual(range_diff_names(METRICS_AGGREGATE_PATH), "",
-                          "metrics_aggregate.py must be unchanged (E2 rejected)")
 
     def test_settings_schema_unchanged(self):
         self.assertEqual(range_diff_names(SETTINGS_SCHEMA_PATH), "",

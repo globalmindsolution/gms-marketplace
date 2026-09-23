@@ -384,11 +384,10 @@ class TestConcurrencyAndRecovery(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("locked", result.stderr)
 
-    def test_session_end_interrupts_the_step_and_counts_metrics(self):
+    def test_session_end_interrupts_the_step(self):
         """`interrupted` is the one resumable state, and `session_end` is the
-        stop_reason that says which kind of ending it was (§4.3)."""
-        with open(lib.metrics_path(self.ws, "acme-shop")) as fh:
-            before = json.load(fh).get("totals", {}).get("runs", 0)
+        stop_reason that says which kind of ending it was (§4.3). No
+        metrics.json is written (ADR-0104)."""
         result = self.run_script("dispatch.py", "session-end",
                                  stdin=json.dumps({"cwd": self.repo}))
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -399,9 +398,7 @@ class TestConcurrencyAndRecovery(AcsWorkspaceCase):
         self.assertEqual(entry["status"], "interrupted")
         self.assertEqual(entry["stop_reason"], "session_end")
         self.assertFalse(os.path.exists(os.path.join(rdir, ".lock")))
-        with open(lib.metrics_path(self.ws, "acme-shop")) as fh:
-            after = json.load(fh)["totals"]["runs"]
-        self.assertEqual(after, before + 1)
+        self.assertFalse(os.path.exists(os.path.join(self.ws, "acme-shop", "metrics.json")))
 
     def test_handoff_and_resume(self):
         out = self.run_script("handoff.py", "--run", self.ticket,
@@ -504,143 +501,6 @@ class ToolchainTests(unittest.TestCase):
 
 TEMPLATE_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
 
-
-class TestBackfillDistinctPRCount(AcsWorkspaceCase):
-    """AC-4: idempotent backfill of inflated prs.created."""
-
-    def _write_create_pr_state(self, ws, repo_id, ticket_id, pr_number, archived=False):
-        """Seed one run's create-pr step state. A ticket's PRs are its RUNS'
-        PRs, and a ticket-subject run's id IS the ticket id (§4.2), which is
-        what keeps the bridge a path join."""
-        repo = os.path.join(ws, repo_id)
-        rdir = (os.path.join(repo, "archive", ticket_id) if archived
-                else lib.run_dir(repo, ticket_id))
-        os.makedirs(rdir, exist_ok=True)
-        lib.write_json(lib.state_path(rdir, "create-pr"), {
-            "skill": "create-pr", "run_id": ticket_id, "invocations": [],
-            "findings": [], "errors": [],
-            "states": {"pr": {"number": pr_number,
-                              "url": "https://example.com/pull/%d" % pr_number}},
-        })
-        return rdir
-
-    def _seed_workspace(self):
-        """Build a workspace with two ticket partitions (one active, one archived)
-        and an inflated metrics.json (created=99).  Returns (ws, repo_id)."""
-        ws = self.ws
-        repo_id = "acme-shop"
-        os.makedirs(os.path.join(ws, repo_id), exist_ok=True)
-        # tickets-index with two entries
-        lib.write_json(lib.index_path(ws, repo_id), {
-            "tickets": {
-                "SHOP-1": {"id": "SHOP-1", "status": "done", "type": "story"},
-                "SHOP-2": {"id": "SHOP-2", "status": "done", "type": "story"},
-            }
-        })
-        # active partition: SHOP-1 → PR 7
-        self._write_create_pr_state(ws, repo_id, "SHOP-1", pr_number=7, archived=False)
-        # archived partition: SHOP-2 → PR 8
-        self._write_create_pr_state(ws, repo_id, "SHOP-2", pr_number=8, archived=True)
-        # inflated metrics
-        lib.write_json(lib.metrics_path(ws, repo_id), {
-            "prs": {"created": 99, "merged": 3, "created_pr_numbers": []},
-            "tickets": {},
-            "totals": {},
-        })
-        return ws, repo_id
-
-    # AC-4: backfill heals inflated count
-    def test_ac4_backfill_heals_inflated_count(self):
-        ws, repo_id = self._seed_workspace()
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        m = lib.read_json(lib.metrics_path(ws, repo_id))
-        self.assertEqual(m["prs"]["created"], 2)
-        self.assertEqual(m["prs"]["created_pr_numbers"], [7, 8])
-
-    # AC-4: double run is idempotent (R1 mitigation)
-    def test_ac4_backfill_idempotent_on_double_run(self):
-        ws, repo_id = self._seed_workspace()
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        m = lib.read_json(lib.metrics_path(ws, repo_id))
-        self.assertEqual(m["prs"]["created"], 2)
-        self.assertEqual(m["prs"]["created_pr_numbers"], [7, 8])
-
-    # AC-4: backfill reads only metrics.json as a write (other files untouched)
-    def test_ac4_backfill_writes_only_metrics_json(self):
-        ws, repo_id = self._seed_workspace()
-        # record mtimes before
-        repo_dir = os.path.join(ws, repo_id)
-        before = {}
-        for fname in os.listdir(repo_dir):
-            p = os.path.join(repo_dir, fname)
-            if os.path.isfile(p):
-                before[fname] = os.path.getmtime(p)
-        # slight delay so mtime change is detectable
-        import time as _time
-        _time.sleep(0.05)
-
-        lib.backfill_distinct_pr_count(ws, repo_id)
-
-        after = {}
-        for fname in os.listdir(repo_dir):
-            p = os.path.join(repo_dir, fname)
-            if os.path.isfile(p):
-                after[fname] = os.path.getmtime(p)
-
-        for fname, mtime in before.items():
-            if fname == "metrics.json":
-                continue  # this one IS allowed to change
-            if fname in after:
-                self.assertAlmostEqual(after[fname], mtime, places=1,
-                                       msg="unexpected write to %s" % fname)
-
-    # AC-4: ticket with no create-pr-state.json contributes 0 numbers
-    def test_ac4_backfill_skips_ticket_with_no_state(self):
-        ws = self.ws
-        repo_id = "acme-shop"
-        os.makedirs(os.path.join(ws, repo_id), exist_ok=True)
-        # Only one ticket, no create-pr-state.json for it
-        lib.write_json(lib.index_path(ws, repo_id), {
-            "tickets": {"SHOP-1": {"id": "SHOP-1", "status": "done", "type": "story"}}
-        })
-        os.makedirs(os.path.join(ws, repo_id, "SHOP-1"), exist_ok=True)
-        lib.write_json(lib.metrics_path(ws, repo_id), {
-            "prs": {"created": 5, "merged": 0},
-        })
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        m = lib.read_json(lib.metrics_path(ws, repo_id))
-        self.assertEqual(m["prs"]["created"], 0)
-        self.assertEqual(m["prs"]["created_pr_numbers"], [])
-
-    # AC-4: ticket with states.pr.number=null is skipped gracefully
-    def test_ac4_backfill_skips_null_pr_number(self):
-        ws = self.ws
-        repo_id = "acme-shop"
-        os.makedirs(os.path.join(ws, repo_id), exist_ok=True)
-        lib.write_json(lib.index_path(ws, repo_id), {
-            "tickets": {"SHOP-1": {"id": "SHOP-1", "status": "done", "type": "story"}}
-        })
-        tdir = os.path.join(ws, repo_id, "SHOP-1")
-        os.makedirs(tdir, exist_ok=True)
-        lib.write_json(lib.state_path(tdir, "create-pr"),
-                       {"runs": [], "states": {"pr": {"number": None}}})
-        lib.write_json(lib.metrics_path(ws, repo_id), {
-            "prs": {"created": 5, "merged": 0},
-        })
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        m = lib.read_json(lib.metrics_path(ws, repo_id))
-        self.assertEqual(m["prs"]["created"], 0)
-        self.assertEqual(m["prs"]["created_pr_numbers"], [])
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-# ---------------------------------------------------------------------------
-# MAR-15 spec 01 — due_date schema + write path
-# ---------------------------------------------------------------------------
 
 class TestDueDateSchema(unittest.TestCase):
     """AC-1: due_date is an optional, back-compatible addition to ticket.schema.json.

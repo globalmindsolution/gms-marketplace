@@ -1,6 +1,6 @@
 # 0103 — No status line, no dollar-cost metering
 
-**Status**: Accepted · **Date**: 2026-09-23
+**Status**: Accepted — amended by [0104](0104-no-usage-dashboards-no-usage-recording.md) (the tokens this kept are no longer recorded; both dashboards are removed) · **Date**: 2026-09-23
 
 **Supersedes in part**: [0082](0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md).
 Its session-anchored transcript measurement stands: tokens, `role_usage` and

@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Thirty-two skills in total. There is no registry file listing them: a skill is
+Thirty skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). `skills/<name>/acs.yaml` declares what
 each one reads and writes; nothing declares which group it belongs to, because
@@ -20,7 +20,7 @@ The groups below are a reader's aid, not a structure the code knows about:
 - **Test** — `/acs:create-e2e-tests`, `/acs:run-e2e-tests`.
 - **Ship** — `/acs:create-pr`, `/acs:merge-pr`, `/acs:release`.
 - **Utility** — `/acs:setup`, `/acs:install-hooks`, `/acs:update`,
-  `/acs:handoff`, `/acs:metrics`, `/acs:usage`, `/acs:ship`.
+  `/acs:handoff`, `/acs:ship`.
 
 The ORDER of the implementation skills is `workflows/ship.yaml`'s list, and
 nothing else states it. A run's progress over that list is `run.json`; a
@@ -32,11 +32,11 @@ Test and Ship steps run in for a ticket is declared in
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Seventeen of the twenty-seven are **hooked** (a pre-hook and a post-hook
+Seventeen of the twenty-five are **hooked** (a pre-hook and a post-hook
 each): the eight Design-phase skills except `/acs:project`, all six
 Build-phase skills, `/create-e2e-tests`, `/create-pr` and `/merge-pr`. The
 the rest (`/setup`, `/ship`, `/handoff`, `/update`, `/install-hooks`,
-`/metrics`, `/usage`, `/acs:release`, `/acs:project`) are unhooked and take
+`/acs:release`, `/acs:project`) are unhooked and take
 no position in a run. `/run-e2e-tests` is a hooked step like any other; the
 `/acs:test` alias is removed.
 
@@ -232,63 +232,6 @@ this skill owns the workflow around it.
   skill states this explicitly — the current session keeps the old version.
 - Not part of the gated pipeline; no executor/verifier subagents.
 
-## `/metrics` (utility)
-
-Purpose: render a **read-only** in-session **PM view** dashboard of this
-repo's delivery metrics, derived entirely from existing workspace state — no
-network, no new config key, nothing written.
-
-- **Model-invocable** (unlike `/update` and `/install-hooks`, it does not set
-  `disable-model-invocation`): a natural-language request to see this repo's
-  throughput, pipeline health, issues, progress, coverage, or lead/cycle time
-  routes here.
-- Runs the stdlib helper `metrics_aggregate.py`, which emits one superset
-  aggregate JSON. The coordinator then passes the JSON to `metrics_render.py
-  --view pm`, which renders the **nine PM-view panels**: delivery summary (headline
-  KPIs), throughput by status/type, pipeline funnel + distinct PRs, ISSUES
-  (id/title/status/type/GitHub key), PROGRESS (per-epic done/total + burn-up
-  visual), DEADLINE (on-track/overdue status derived from each ticket's `due_date` vs
-  the aggregation reference time; a workspace with no parseable `due_date` degrades to
-  "not set" (B1); set at `/acs:create-ticket`), coverage achieved vs target,
-  review iterations before the verifier passed, and lead + cycle time.
-- The coordinator **routes** the aggregate JSON through the deterministic stdlib
-  renderer `metrics_render.py --view pm` rather than composing the layout
-  itself: the **terminal** Unicode dashboard is the Claude Code CLI default, and
-  `--html` emits a self-contained HTML string handed to `show_widget` on Claude
-  Desktop / claude.ai. Rendering is deterministic and read-only; every PM-view
-  panel key is always present (a panel with no data renders as "no data", not a
-  missing frame). The deterministic terminal renderer **supersedes** the former
-  Markdown-table fallback.
-- **Reads only** — writes no file, makes no network/`gh` call, and consumes no
-  config key beyond the `.acs/settings.json` the helper already reads.
-- Not part of the gated pipeline; no executor/verifier subagents.
-
-## `/usage` (utility)
-
-Purpose: render a **read-only** in-session **usage view** dashboard of this
-repo's acs-tool usage metrics (working time, token burn), derived entirely from
-existing workspace state — no network, no new config key, nothing written.
-
-- **Model-invocable** (it does not set `disable-model-invocation`): a
-  natural-language request to see this repo's acs token consumption, working
-  time per ticket, or token burn routes here.
-- Runs the same stdlib helper `metrics_aggregate.py` that `/metrics` uses (one
-  shared superset aggregator), then passes the JSON to `metrics_render.py
-  --view usage`, which renders the **three usage-view panels**: usage summary
-  (headline KPIs — total tokens, total working time, total runs, plus two
-  averages: avg working time per ticket and per merged PR), time per ticket by
-  step, and token burn by role (coordinator/planner/executor/verifier/other,
-  plus `unattributed` whenever the ticket has any such tokens). No dollar
-  figure and no API duration
-  ([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
-- The coordinator **routes** the aggregate JSON through `metrics_render.py
-  --view usage`: **terminal** (Claude Code CLI default) or `--html`
-  (self-contained HTML → `show_widget`). Rendering is deterministic and
-  read-only; every usage-view panel key is always present.
-- **Reads only** — writes no file, makes no network/`gh` call, and consumes no
-  config key beyond the `.acs/settings.json` the helper already reads.
-- Not part of the gated pipeline; no executor/verifier subagents.
-
 ## /acs:run-e2e-tests (test)
 
 Purpose: the standing, schedulable **suite runner** over the `suites`
@@ -301,14 +244,14 @@ closing the loop on failures with a regression ticket.
   suite, or check whether anything broke routes here.
 - **Argument contract:** no `--suite` flag runs every suite in `suites`; one
   or more `--suite <name>` flags run only the named subset.
-- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`,
+- **Unhooked** — like `/setup`/`/update`,
   `/acs:run-e2e-tests` has no executor/verifier pair, no pre- or
   post-hook, and no skill-start ticket allocation.
 - **`/acs:test` is removed, not deprecated.** The alias that was to survive
   one release goes with the rename instead, because the surface it aliased
   was never released; `/acs:run-e2e-tests` is the skill and no ledger key
   named `test` is accepted.
-- **Not read-only**, unlike `/metrics`/`/usage`: every run writes a results
+- **Not read-only**: every run writes a results
   artifact to the workspace, and a failure path can mint or comment-bump a
   ticket.
 - **It is a hooked step like any other.** `pre-run-e2e-tests.py` gates it on
@@ -351,7 +294,7 @@ history, bumps the version-location files plus any extra refs configured in
 the repo's `.acs/settings.json` `release` block, dates the section, and opens
 an exempt `release/*` PR for a mandatory human merge.
 
-- **Unhooked** — like `/setup`/`/update`/`/metrics`/`/usage`,
+- **Unhooked** — like `/setup`/`/update`,
   `/acs:release` has no executor/verifier pair, no `release-state.json`
   skill-start ticket allocation, no `.lock`, no pointer file, no partition.
   It is not part of the gated pipeline.
@@ -409,7 +352,7 @@ skills, while not running the ticket pipeline, MUST each create their own
 - The skill's state file (`create-prd-state.json`, …) lives in the delivery
   ticket's partition like any other skill state, records the PR reference,
   and `run.json` records the run's workflow. Locking,
-  resume, handoff, and metrics work exactly as for any other ticket.
+  resume and handoff work exactly as for any other ticket.
 - `/merge-pr` works as for any other ticket: readiness check, merge, mark
   done (and sync), archive the partition.
 

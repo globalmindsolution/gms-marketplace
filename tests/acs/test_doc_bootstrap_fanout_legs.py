@@ -202,7 +202,7 @@ class LedgerTest(AcsWorkspaceCase):
         self.assertNotIn("quality", flat)
         self.assertIn("operations", flat)
 
-    def test_both_sets_completed_retain_both_ledgers_index_and_metrics_entries(self):
+    def test_both_sets_completed_retain_both_ledgers_and_index_entries(self):
         q = self._allocate("quality")
         o = self._allocate("operations")
         self.assertEqual(self.post("create-docs", q,
@@ -213,16 +213,13 @@ class LedgerTest(AcsWorkspaceCase):
                           {"status": "completed",
                            "states": {"pr": {"number": 2, "url": "https://example.invalid/pull/2"}}}
                           ).returncode, 0)
-        for ticket in (q, o):
+        for ticket, pr in ((q, 1), (o, 2)):
             state = lib.load_step_state(self.rdir(ticket), "create-docs", ticket)
             self.assertEqual(state["invocations"][-1]["status"], "completed")
+            self.assertEqual(state["states"]["pr"]["number"], pr)
         tickets_index = lib.read_json(lib.index_path(self.ws, "acme-shop"))
         self.assertEqual(tickets_index["tickets"][q]["status"], "in_review")
         self.assertEqual(tickets_index["tickets"][o]["status"], "in_review")
-        metrics = lib.read_json(lib.metrics_path(self.ws, "acme-shop"))
-        self.assertEqual(metrics["totals"]["runs"], 2)
-        self.assertEqual(metrics["prs"]["created"], 2)
-        self.assertEqual(metrics["prs"]["created_pr_numbers"], [1, 2])
 
 
 if __name__ == "__main__":

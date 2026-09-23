@@ -12,7 +12,6 @@ it always did. In dependency order:
   run / step     the two state machines (§4.3, §4.4)
   lock           the run lock and its audit ledger
   tickets        ticket.json, the id counter and tickets-index.json
-  metrics        token/cost apportionment and the metrics ledger
   setup_helpers  doc-set fan-out, toolchain probing, exempt-PR classifier
   forge          PR-metadata fill and tracker sync against gh (MAR-525)
   gate_inputs    the ticket-artifact input checks the Build/Test gates share
@@ -31,15 +30,15 @@ that USES it -- `mock.patch.object(lib.step, "write_json")` -- or, for a stdlib
 module (`lib.subprocess`), patch the shared module object as before.
 """
 
-from . import (_common, settings, repo, hostgates, planrules, lock, tickets, metrics,  # noqa: F401
+from . import (_common, settings, repo, hostgates, planrules, lock, tickets,  # noqa: F401
                setup_helpers, forge, verdict, derive, gate_inputs, gates, lifecycle,  # noqa: F401
                advisory)  # noqa: F401
 
-from ._common import (ATTRIBUTION_SKILL_MAP, DELIVERY_TICKET_SKILLS,
+from ._common import (DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
     DOC_BOOTSTRAP_SENTINEL, DOC_SET_DEFAULT_DIR, DOC_SET_TITLES, DOC_SETS,
     CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
-    PIPELINE_STEP_ORDER, PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
+    PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
     PRODUCT_TICKET_TITLES, PROJECT_MODE_LEG, PROJECT_MODE_SENTINEL,
     PROJECT_MODE_SETTINGS_KEY, PROJECT_MODES, ReconciliationRequired, TICKET_ID_RE,
     TICKET_STATUSES, TICKET_TYPES, UNHOOKED_SKILLS, WORKFLOW_SKILLS, _ISO_INSTANT,
@@ -59,14 +58,14 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     checkout_id, checkout_root, current_branch, default_state_root,
     find_ticket_partition, gh_failure_hint, gh_read_is_unevaluable,
     gh_pr_required_checks_ok, gh_pr_view, index_path, lock_path, main_repo_root,
-    pointer_path, record_session_marker, repo_dir, repo_guard, repo_partition_id,
+    pointer_path, repo_dir, repo_guard, repo_partition_id,
     resolve_active_partition, resolve_ticket_id, scan_local_ticket_evidence,
-    session_marker_path, sessions_dir, ticket_dir,
+    sessions_dir, ticket_dir,
     ticket_id_from_text)  # noqa: F401)  # noqa: F401
 
 from .hostgates import (DEFAULT_GATE_RESPONSE, GATE_EVIDENCE_MAX_AGE_SECONDS,
-    GATE_RESPONSES, HOOK_ENFORCEMENTS, SESSION_MARKER_MAX_AGE_SECONDS,
-    accepted_gate_evidence, accepted_session_marker, consume_gate_evidence,
+    GATE_RESPONSES, HOOK_ENFORCEMENTS,
+    accepted_gate_evidence, consume_gate_evidence,
     gate_evidence, gate_evidence_path, gate_notice, gate_response,
     record_gate_evidence)  # noqa: F401
 
@@ -88,10 +87,6 @@ from . import tickets as tickets_module  # noqa: F401
 from .tickets import (allocate_ticket_id, load_ticket, new_ticket_doc,  # noqa: F401
     save_ticket, update_index)
 
-from .metrics import (_EMPTY_MEASURED_TOKENS, _TOKEN_TOTAL_FIELDS, _measure_run_usage,
-    _sum_role_tokens, _update_metrics_body, backfill_distinct_pr_count,
-    compute_ticket_totals, elapsed_seconds, metrics_path, run_seconds, update_metrics)  # noqa: F401
-
 from .setup_helpers import (DOC_SET_ALL, DocSetRequest,
     TOOLCHAIN, _BARE_INT_RE,
     _FANOUT_FOR_RE, _LEGACY_FOR_NOTE, _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
@@ -108,7 +103,7 @@ from .gates import (BRAKES, NothingOwed,  # noqa: F401
     SUBJECT_GATES, _merge_pr_arg_text,
     build_context, design_requirement, gate_create_design, gate_merge_pr,
     gate_outcome, parent_epic_dir, resolve_run_for,
-    run_post_exempt_pr, run_pre, run_pre_payload, session_end,
+    run_pre, run_pre_payload, session_end,
     subject_from_payload)
 from .posthook import (_archive_partition, _clear_pointers_for_ticket,  # noqa: F401
     _epic_auto_done, _read_result_from_argv, run_post)

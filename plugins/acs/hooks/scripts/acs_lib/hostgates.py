@@ -13,15 +13,11 @@ other caller passes `record_marker=False` precisely so `acs.py gate` cannot
 forge one. The artifact is therefore written by the PreToolUse(Skill) hook and
 by nothing else: if it is there, the kernel ran the gate.
 
-The artifact is its own file, not a field on the session marker. That marker
-carries cost attribution, whose invariants run opposite to these: attribution
-must never be clobbered by an envelope that cannot supply it and must age out
-honestly, while gate evidence must be rewritten by every fire and spent once.
-Sharing one file cost three defects before this was separated -- a consumed
-stamp surviving a genuine fire, a correlation pair split across two sessions,
-and an expired correlation revived by a refreshed timestamp. This artifact
-holds no `session_id`, `transcript_path` or `cwd`, so it cannot corrupt
-attribution: it has none.
+The artifact is its own file, and holds no `session_id`, `transcript_path` or
+`cwd`: it must be rewritten by every fire and spent once, and carries nothing
+else. (It was once a field on a session-correlation marker, whose opposite
+invariants cost three defects; that marker is gone with usage recording,
+ADR-0104.)
 
 The converse does not hold, and nothing here claims it. That write is fail-open
 by design (MAR-514: a marker-write bug must never block a gated skill), so a
@@ -41,21 +37,14 @@ import os
 from datetime import datetime, timezone
 
 from ._common import now_iso, parse_iso, read_json, write_json
-from .repo import sessions_dir, session_marker_path
+from .repo import sessions_dir
 
 #: settings.hook_gates.when_absent. `warn` never blocks a run, and is the
 #: default everywhere: an install on a hookless runtime keeps working.
 GATE_RESPONSES = ("warn", "refuse")
 DEFAULT_GATE_RESPONSE = "warn"
 
-#: The staleness window the Start path has applied to the session marker since
-#: MAR-1 (`skill-start.py` then, `acs step start` now). Read here only by
-#: `accepted_session_marker`, which serves session CORRELATION; gate evidence has its own window below so that changing one
-#: clock never moves the other.
-SESSION_MARKER_MAX_AGE_SECONDS = 15 * 60
-
 #: How long a hook fire's evidence answers for a run that starts after it.
-#: Same duration as the marker's window today, declared separately on purpose.
 GATE_EVIDENCE_MAX_AGE_SECONDS = 15 * 60
 
 #: Every hooks/hooks.json binding, grouped under the enforcement it carries --
@@ -74,23 +63,6 @@ def gate_response(settings):
     block = (settings or {}).get("hook_gates")
     value = block.get("when_absent") if isinstance(block, dict) else None
     return value if value in GATE_RESPONSES else DEFAULT_GATE_RESPONSE
-
-
-def accepted_session_marker(ctx):
-    """Read the pre-hook's session marker under the staleness/cross-session
-    guard, returning (marker, None) or (None, why it was rejected)."""
-    marker = read_json(
-        session_marker_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-    if not isinstance(marker, dict):
-        return None, "no_gate_marker"
-    if marker.get("checkout_id") != ctx["checkout_id"]:
-        return None, "marker_foreign_checkout"
-    updated_at = parse_iso(marker.get("updated_at"))
-    if updated_at is None:
-        return None, "marker_unparseable"
-    if (datetime.now(timezone.utc) - updated_at).total_seconds() > SESSION_MARKER_MAX_AGE_SECONDS:
-        return None, "marker_stale"
-    return marker, None
 
 
 def gate_evidence_path(workspace, repo_id, ckid):

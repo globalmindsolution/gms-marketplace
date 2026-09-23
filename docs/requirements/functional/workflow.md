@@ -117,7 +117,7 @@ document belongs to exactly one of them:
   ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
   machine), each step's `result.json` and its `iter-<n>/` audit trail,
   `subject/`, `requirements.md`, verdicts, `lock.json`,
-  `clarifications.json`, and the repo-level index/metrics files
+  `clarifications.json`, and the repo-level index files
   ([workspace-and-state.md](workspace-and-state.md)). The run is keyed by the
   **run id**, which is derived from the subject — a ticket id when there is
   one, otherwise a slug of the prompt or document (ADR-0097).

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Post-hook for /acs:create-impl-plan — finalizes the run entry in create-impl-plan-state.json and
-updates pipeline-state.json, tickets-index.json, and metrics.json.
+updates run.json and tickets-index.json.
 
 Result-document `states` this run records for the steps that follow it:
   * plan_path      str  — where plan.md was written (the ticket docs folder, or

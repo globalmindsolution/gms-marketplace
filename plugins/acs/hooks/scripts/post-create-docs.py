@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Post-hook for /acs:create-docs — finalizes the run entry in create-docs-state.json and
-updates pipeline-state.json, tickets-index.json, and metrics.json for ONE doc set's
+updates run.json and tickets-index.json for ONE doc set's
 delivery ticket.
 
 Invoked by the skill's coordinator as its mandatory final step, once per doc set:

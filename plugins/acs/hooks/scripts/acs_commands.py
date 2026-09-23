@@ -5,8 +5,7 @@ byte-identical to the one acs.py carried, and acs.py re-exports the whole set
 so `acs.cmd_context` and friends keep resolving for the tests and for anything
 that reached them by name.
 
-Sibling module rather than a package, matching what MAR-531 did for
-metrics_render and its kin: three SKILL.md files invoke
+Sibling module rather than a package: SKILL.md files invoke
 `python3 .../acs.py` by path, and that has to keep working.
 """
 
@@ -72,10 +71,8 @@ def cmd_gate(args):
     payload = {"cwd": os.getcwd(), "tool_input": {"skill": args.skill}}
     if args.ticket:
         payload["tool_input"]["args"] = args.ticket
-    # record_marker=False: this is NOT a PreToolUse event. The payload has no
-    # session_id or transcript_path, and record_session_marker persists those
-    # faithfully as null -- overwriting the real marker and costing the next run
-    # its cost/usage attribution. Asking "would this gate pass?" must not.
+    # record_marker=False: this is NOT a PreToolUse event, so it must not write
+    # the gate evidence only a real hook fire may write.
     # mutate=False: "would this gate pass?" must not answer by creating a run,
     # taking the lock, opening the step or settling a no-op. It did all four,
     # so asking about `create-e2e-tests` permanently completed that step. The
@@ -381,7 +378,7 @@ def cmd_filemap_show(args):
 def cmd_guard_events(args):
     """The file-map guard denials the latest run recorded.
 
-    The audit trail /acs:metrics and external tooling read without knowing the
+    The audit trail external tooling reads without knowing the
     state-file layout: one object, `events` in the order they were denied."""
     run_id, rdir, _ctx = run_or_die("guard events", args.run)
     path = lib.state_path(rdir, args.skill)

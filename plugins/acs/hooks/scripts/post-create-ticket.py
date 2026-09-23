@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Post-hook for /acs:create-ticket — finalizes the run entry in create-ticket-state.json and
-updates pipeline-state.json, tickets-index.json, and metrics.json.
+updates run.json and tickets-index.json.
 
 Invoked by the skill's coordinator as its mandatory final step:
   python3 post-create-ticket.py --result-file <result.json>     # or JSON on stdin

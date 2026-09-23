@@ -6,16 +6,15 @@ C4Container
 
     Person(dev, "Developer")
     System_Boundary(mkt, "GMS Marketplace (plugin catalog)") {
-        Container(skills, "acs Skills", "32 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
+        Container(skills, "acs Skills", "30 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
         Container(agents, "acs Subagents", "32 x agent .md (all reachable)", "Executor + verifier pair for the twelve authoring skills (create-prd/-architecture/-project/-design, create-requirements, standardize-project, docs-sync, analyze-requirements, create-impl-plan/-api-contract/-test-docs/-e2e-tests — 24 agents; no planner, ADR 0092) plus create-docs (2); four executor-only skills — the three apply-work ones (create-ticket/-pr/merge-pr) and code, whose review left for review-code (4); and review-code's own lens + adjudicator, which fan out independently rather than pairing (2); grounding rules; JSON I/O")
         Container(hooks, "acs Hook & helper layer", "Python 3.9+ stdlib", "dispatch + 19 pre + 19 post hooks; acs (the CLI: run, step, result, ...), new-ticket, handoff, clarify, mermaid_lint, structure_lint, citation_check, prd_conformance_check; acs_lib")
-        Container(schemas, "acs Schemas & templates", "JSON Schema / md", "15 JSON schemas (run, step-state, result, verdict, workflow, lock, ...), 5 description templates; templates/ci/ includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
+        Container(schemas, "acs Schemas & templates", "JSON Schema / md", "14 JSON schemas (run, step-state, result, verdict, workflow, lock, ...), 5 description templates; templates/ci/ includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
     }
     System_Ext(cc, "Claude Code runtime")
-    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/runs/<run-id>/ partitions (steps/, subject/) plus ticket partitions and repo-level index/counters/metrics/sessions, gitignored, anchored to the main checkout (ADR-0086); no override (ADR-0102)")
+    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/runs/<run-id>/ partitions (steps/, subject/) plus ticket partitions and repo-level index/counters/sessions, gitignored, anchored to the main checkout (ADR-0086); no override (ADR-0102)")
     System_Ext(repo, "Consumer repo")
     System_Ext(trackers, "GitHub / Jira")
-    ContainerDb_Ext(transcript, "Claude Code transcript store", "Filesystem, ~/.claude/projects/", "Per-session JSONL transcript (message.usage token counts, model, timestamps, attribution fields) plus its own subagents/ subtree; read-only, outside the workspace store (MAR-1)")
 
     Container(tests_plugin, "tests/<plugin>/", "Python unittest", "Per-plugin deterministic tests; discovered by unittest discover -s tests")
     Container(evals_plugin, "plugins/<plugin>/evals/", "Markdown + YAML case files, run by claude plugin eval", "Per-plugin eval cases (routing, artifacts); run locally and at the release gate, NOT in CI")
@@ -26,12 +25,11 @@ C4Container
     Rel(skills, agents, "spawns via Agent tool (JSON task)")
     Rel(skills, hooks, "acs step start / post-hook / helpers (Bash)")
     Rel(agents, ws, "phase artifacts (execute/verify, lens/adjudication)")
-    Rel(hooks, ws, "state files, ledger, locks, index, metrics")
+    Rel(hooks, ws, "state files, ledger, locks, index")
     Rel(agents, repo, "executors edit source/docs on ticket branch")
     Rel(skills, trackers, "gh / acli (sync, PRs) -- critical calls stop the run, incl. gate-input reads whose failure leaves a readiness gate unevaluable; metadata calls degrade to findings and continue (ADR-0088)")
     Rel(skills, schemas, "validate messages & state; render templates")
     Rel(tests_plugin, mkt, "validates per-plugin schemas, hooks, skills presence-gated")
-    Rel(hooks, transcript, "usage_reader.py reads the run's exact recorded transcript_path + subagents/, read-only, never a constructed path (MAR-1)")
 ```
 
 Container responsibilities are deliberately asymmetric: **skills/agents decide,
@@ -44,10 +42,8 @@ cases ship inside the plugin directory — so an installed build carries
 its own suite, and `claude plugin eval <plugin>@<marketplace>` can grade
 what a consumer received — but nothing at runtime reads them.
 
-**Transcript store (MAR-1, ADR 0082).** This external data source is
-read-only from the hook layer's side — the hook layer never writes into the
-transcript store. This is the read-outside-the-workspace exception recorded
-in `docs/requirements/non-functional/portability.md`. The statusLine cost
-payload that sat beside it went with acs's status line
-([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)): acs records
-no dollar figure.
+**No transcript store (ADR 0104).** The Claude Code transcript store that
+token measurement read is no longer a container here: acs records no usage
+and reads no transcript
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)). The
+hook layer's only input from Claude Code is the hook envelope.

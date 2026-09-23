@@ -335,34 +335,32 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         self.assertIn("acs %s:" % command, out.stderr)
         self.assertNotIn("Traceback", out.stderr)
 
-    def test_handoff_releases_the_lock_even_when_metrics_refuses(self):
-        """Releasing the lock IS the handoff. A refused metrics write that
-        finalizes the run `handed_off` and then keeps the lock leaves the
-        ticket unresumable by anyone, which is the one unrecoverable outcome."""
+    def test_handoff_releases_the_lock(self):
+        """Releasing the lock IS the handoff: a finalized step that keeps the
+        lock leaves the ticket unresumable by anyone. (The repo-level metrics
+        write that once could refuse here is gone -- ADR-0104.)"""
         ticket = self.new_ticket("Audit", "task")
         self.start("code", ticket)
         rdir = self.rdir(ticket)
         self.assertTrue(os.path.exists(lib.lock_path(rdir)))
-        self._hold("metrics.json.lock")
         out = self.run_script("handoff.py", "--summary", "stopping here",
                               env=self._env())
-        self._assert_clean_refusal(out, "handoff")
+        self.assertEqual(out.returncode, 0, out.stderr)
         self.assertFalse(os.path.exists(lib.lock_path(rdir)),
-                         "the lock must be released even when metrics is refused")
+                         "the handoff must release the lock")
         # `handed_off` named a reason wearing a status (§4.3): the step is
         # `interrupted`, and `stop_reason` says which kind of ending it was.
         entry = lib.step_entry(lib.load_run(rdir), "code")
         self.assertEqual(entry["status"], "interrupted")
         self.assertEqual(entry["stop_reason"], "context_pressure")
 
-    def test_session_end_releases_the_lock_even_when_metrics_refuses(self):
+    def test_session_end_releases_the_lock(self):
         """The SessionEnd net's whole job is the release, and dispatch.py
-        swallows what it raises -- so a refusal here exited 0 with the lock
+        swallows what it raises -- so a failure here would exit 0 with the lock
         held and nothing said."""
         ticket = self.new_ticket("Audit", "task")
         self.start("code", ticket)
         rdir = self.rdir(ticket)
-        self._hold("metrics.json.lock")
         out = self.run_script("dispatch.py", "session-end",
                               stdin=json.dumps({"cwd": self.repo}),
                               env=self._env())

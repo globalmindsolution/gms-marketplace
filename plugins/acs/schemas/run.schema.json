@@ -34,7 +34,7 @@
       },
       "default": {}
     },
-    "totals": {"type": "object", "default": {}},
+    "totals": {"type": "object", "description": "Legacy: an older run.json carries an empty totals object; accepted and ignored -- acs records no usage (ADR-0104)."},
     "started_at": {"type": "string"},
     "ended_at": {"type": "string"},
     "abandoned_reason": {"type": "string"}

@@ -228,7 +228,7 @@ the filesystem** or **belongs to the skill**:
 | which skills exist | `skills/<name>/SKILL.md` exists |
 | `agents:` — which subagent roles a skill owns | `agents/<skill>-<role>.md` exists; PRD G8 (every agent file is reachable) becomes a naming-convention check |
 | `internal:` — which skill a leg belongs to | `leg_of: code` in the leg's own `acs.yaml` |
-| `phases:` — the lifecycle group | `phase: build` in `acs.yaml`, read by the README table and the metrics grouping and by nothing else |
+| `phases:` — the lifecycle group | `phase: build` in `acs.yaml`, read by the README table and by nothing else |
 | `aliases:` | the one alias is removed (§6); none remain |
 | the rule "only build, test and ship skills may be steps" | dropped — a step is any skill that declares `reads` / `writes`; the validator checks the order, not the group |
 | — | `reads:` / `writes:` (§2.1), which never had a home |
@@ -251,12 +251,12 @@ leg_of: code            # not a step; /acs:code dispatches to it
 ```
 
 A skill with no `acs.yaml`, or one that declares no `reads` / `writes`, is not
-a step candidate — `setup`, `metrics`, `handoff`, and `ship` itself are
+a step candidate — `setup`, `handoff`, and `ship` itself are
 skills, not steps, and that is the whole admission rule. `acs.yaml` is not
 Claude Code's `SKILL.md` frontmatter, which stays exactly the four keys it
 carries today; acs's facts about a skill live beside it, in a file acs owns.
 
-The cost is honest: 32 small files where there was one. The return is that
+The cost is honest: 30 small files where there was one. The return is that
 the redesign's own rule — *a skill is described by its directory* — has no
 exception, that adding a skill is a directory and nothing else, and that
 "phases" stops meaning two things (§4.1 already removed the other one).
@@ -862,11 +862,9 @@ Six things are wrong with it, and none is fixable by renaming a directory:
   counters.json                    ticket id allocation (run ids derive from the subject; no allocator)
   tickets-index.json               every ticket (unchanged)
   runs-index.json                  every run: id, workflow, subject, status, started/ended
-  metrics.json                     repo aggregates (unchanged)
   tickets/<ticket-id>/ticket.json  only for a ticket not yet moved to docs/tickets/<ID>/
   sessions/<checkout-id>/          one directory per checkout, not five prefixed files
     pointer.json                   current run + step  (was: current ticket + skill)
-    session.json                   the session-correlation marker
   runs/<run-id>/
     run.json                       THE RUN MACHINE                             (§4.3)
     subject/                       what this run is about: ticket.json | prompt.md | document
@@ -934,8 +932,7 @@ ran its cycle*.
     "code":                 { "status": "completed", "iteration": 2, "leg": "code-standard" },
     "review-code":          { "status": "in_progress", "iteration": 2 }
   },
-  "loops": { "review-code": { "iteration": 2, "max": 3 } },
-  "totals": { "…": "tokens, wall time — unchanged" }
+  "loops": { "review-code": { "iteration": 2, "max": 3 } }
 }
 ```
 
@@ -1002,9 +999,8 @@ directory; neither touches a schema or a central list.
 ### 4.4 The step machine — `steps/<skill>/state.json`
 
 The current shape is sound and is kept: a `states` object, `findings`,
-`errors`, and one record per invocation carrying session id, transcript path,
-checkout id, tokens, role/model usage, guard events, gate enforcement,
-status and stop reason. Four changes:
+`errors`, and one record per invocation carrying its timestamps, guard
+events, gate enforcement, status and stop reason. Four changes:
 
 1. **`runs[]` becomes `invocations[]`.** Once the partition is `runs/<run-id>/`,
    a `runs` array inside a step's state means the wrong thing. An invocation
@@ -1062,7 +1058,8 @@ Fifteen JSON schemas and one XSD today; the table is every one of them.
 | `verdict.schema.json` | same | owned by `review-code`; gains `reviewed_sha`, and per finding `id`, `status`, `kind`, `lens`, `claim`, `evidence`, `resolved_when`, `traces_to`, `adjudication` (§2.3) — today a finding is `severity`, `dimension`, `detail`, `file`, `line` |
 | — | `result.schema.json` | **new** — the step result document, today validated ad hoc by `acs phase validate`; for `code` it carries `since_sha` and `resolutions[]` (§2.3) |
 | `phases.schema.json` | `acs-skill.schema.json` | validates one `skills/<name>/acs.yaml` (§2.4): `phase`, `leg_of`, `reads`, `writes` |
-| `ticket.schema.json`, `tickets-index.schema.json`, `counters.schema.json`, `lock.schema.json`, `lock-events.schema.json`, `metrics.schema.json`, `settings.schema.json` | same | unchanged (settings loses the removed keys) |
+| `ticket.schema.json`, `tickets-index.schema.json`, `counters.schema.json`, `lock.schema.json`, `lock-events.schema.json`, `settings.schema.json` | same | unchanged (settings loses the removed keys) |
+| `metrics.schema.json` | — | removed with usage recording (ADR 0104) |
 | `acs-messages.xsd` | — | removed (§6) |
 
 ### 4.7 The kernel — `acs_lib`
@@ -1201,8 +1198,9 @@ Named explicitly so a "from scratch" reading does not discard them:
 - **gate evidence** (MAR-583)
 - **derived verdicts** (MAR-523, MAR-527)
 - the **file-map guard** and its denial records
-- **token / session attribution** in `runs[]` (its dollar-cost half was later
-  removed with the status line, ADR 0103)
+- **token / session attribution** in `runs[]` — since removed: its
+  dollar-cost half with the status line (ADR 0103), the rest with usage
+  recording (ADR 0104)
 - the **four delivery paths and their `code-*` legs** — what changes is where the
   path is recorded (the plan, not `ship.yaml`) and who dispatches on it
   (`/acs:code`, not the workflow), never that the path exists

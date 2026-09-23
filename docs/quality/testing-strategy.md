@@ -15,10 +15,10 @@ deterministic at the base, most expensive and least deterministic at the top.
 | # | Layer | What it verifies | Cost / determinism | Where | Runs |
 |---|-------|------------------|--------------------|-------|------|
 | 1 | Structural / contract | every skill & agent is wired right — frontmatter, lifecycle-script calls, completion reports, tool restrictions, grounding, phase artifacts | free, deterministic | [test_skill_contracts.py](../../tests/acs/test_skill_contracts.py) | every PR |
-| 2 | Deterministic layer | gates block/advance, state/locks/counters/metrics, helper CLIs | free, deterministic | Every module that imports the shared `acs_case` fixture (`tests/acs/acs_case.py`) — **23** modules; re-derive with `grep -lE "^(import|from) acs_case" tests/acs/*.py` (a bare `grep -l acs_case` over-counts: `test_testing_conventions_guard.py` and `test_coverage_measurement_config.py` mention the fixture in prose without importing it): [`test_acs_case_fixture.py`](../../tests/acs/test_acs_case_fixture.py), [`test_acs_lib_gates.py`](../../tests/acs/test_acs_lib_gates.py), [`test_acs_lib_hook_entrypoints.py`](../../tests/acs/test_acs_lib_hook_entrypoints.py), [`test_acs_lib_settings.py`](../../tests/acs/test_acs_lib_settings.py), [`test_acs_lib_state_locks.py`](../../tests/acs/test_acs_lib_state_locks.py), [`test_acs_plugin.py`](../../tests/acs/test_acs_plugin.py), [`test_clarify.py`](../../tests/acs/test_clarify.py), [`test_codeowners.py`](../../tests/acs/test_codeowners.py), [`test_doc_bootstrap_fanout_legs.py`](../../tests/acs/test_doc_bootstrap_fanout_legs.py), [`test_epic_fan_out_mode.py`](../../tests/acs/test_epic_fan_out_mode.py), [`test_handoff.py`](../../tests/acs/test_handoff.py), [`test_metrics_self_estimate_removed.py`](../../tests/acs/test_metrics_self_estimate_removed.py), [`test_needs_design_epic_only.py`](../../tests/acs/test_needs_design_epic_only.py), [`test_new_ticket.py`](../../tests/acs/test_new_ticket.py), [`test_plan_approval.py`](../../tests/acs/test_plan_approval.py), [`test_planning_skills_registry.py`](../../tests/acs/test_planning_skills_registry.py), [`test_session_marker.py`](../../tests/acs/test_session_marker.py), [`test_skill_start.py`](../../tests/acs/test_skill_start.py), [`test_ticket_id_reconciliation.py`](../../tests/acs/test_ticket_id_reconciliation.py), [`test_workspace_migrator.py`](../../tests/acs/test_workspace_migrator.py) (`test_testing_conventions_guard.py` deliberately does not import it — see its own docstring). `AcsWorkspaceCase.setUp` seeds a *reconciled* `counters.json` (MAR-402); a test that needs the reconciliation refusal calls `unreconcile()` first. | every PR |
+| 2 | Deterministic layer | gates block/advance, state/locks/counters, helper CLIs | free, deterministic | Every module that imports the shared `acs_case` fixture (`tests/acs/acs_case.py`) — **23** modules; re-derive with `grep -lE "^(import|from) acs_case" tests/acs/*.py` (a bare `grep -l acs_case` over-counts: `test_testing_conventions_guard.py` and `test_coverage_measurement_config.py` mention the fixture in prose without importing it): [`test_acs_case_fixture.py`](../../tests/acs/test_acs_case_fixture.py), [`test_acs_lib_gates.py`](../../tests/acs/test_acs_lib_gates.py), [`test_acs_lib_hook_entrypoints.py`](../../tests/acs/test_acs_lib_hook_entrypoints.py), [`test_acs_lib_settings.py`](../../tests/acs/test_acs_lib_settings.py), [`test_acs_lib_state_locks.py`](../../tests/acs/test_acs_lib_state_locks.py), [`test_acs_plugin.py`](../../tests/acs/test_acs_plugin.py), [`test_clarify.py`](../../tests/acs/test_clarify.py), [`test_codeowners.py`](../../tests/acs/test_codeowners.py), [`test_doc_bootstrap_fanout_legs.py`](../../tests/acs/test_doc_bootstrap_fanout_legs.py), [`test_epic_fan_out_mode.py`](../../tests/acs/test_epic_fan_out_mode.py), [`test_handoff.py`](../../tests/acs/test_handoff.py), [`test_needs_design_epic_only.py`](../../tests/acs/test_needs_design_epic_only.py), [`test_new_ticket.py`](../../tests/acs/test_new_ticket.py), [`test_plan_approval.py`](../../tests/acs/test_plan_approval.py), [`test_planning_skills_registry.py`](../../tests/acs/test_planning_skills_registry.py), [`test_skill_start.py`](../../tests/acs/test_skill_start.py), [`test_ticket_id_reconciliation.py`](../../tests/acs/test_ticket_id_reconciliation.py), [`test_workspace_migrator.py`](../../tests/acs/test_workspace_migrator.py) (`test_testing_conventions_guard.py` deliberately does not import it — see its own docstring). `AcsWorkspaceCase.setUp` seeds a *reconciled* `counters.json` (MAR-402); a test that needs the reconciliation refusal calls `unreconcile()` first. | every PR |
 | 3 | Static validation | JSON / JSON-Schema / XSD parse, byte-compile, version consistency | free, deterministic | [ci.yml](../../.github/workflows/ci.yml) | every PR |
 | 4 | Eval-suite structure | every eval case is well-formed and every shipped skill has a routing case — caught before a paid run discovers it | free, deterministic | [`test_eval_cases.py`](../../tests/acs/test_eval_cases.py) | every PR |
-| 5 | Routing evals | the *right skill fires* for a natural-language request, and internal legs do not | paid (~$0.12 a run), non-deterministic — 3 runs a case | [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) — 41 `claude plugin eval` cases, `--tag routing` | pre-release gate |
+| 5 | Routing evals | the *right skill fires* for a natural-language request, and internal legs do not | paid (~$0.12 a run), non-deterministic — 3 runs a case | [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) — 39 `claude plugin eval` cases, `--tag routing` | pre-release gate |
 | 6 | Artifact evals | a *real run* writes the right workspace state | paid (costly), non-deterministic | [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md) — 2 cases, `--tag artifacts --scaffold` | on demand |
 | 7 | Runtime reflection verifier | each individual run's output is correct (in-band, per-run) | part of normal use | the plan→execute→verify cycle inside every skill | every real invocation |
 | 8 | Dogfooding (E3) | end-to-end quality under real use | the cost of using acs | shipping acs changes via `/acs:ship` | ongoing |
@@ -61,29 +61,29 @@ item 2). The registry at
 [`acs_lib/_common.py:28-54`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
 into **19 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and the subagent roles `skills/<name>/acs.yaml`
-declares for it) and **9 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
+declares for it) and **7 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
 four delivery-path legs, which are gated as their entry point and own neither
 scripts nor agents (ADR-0095). Re-derive with `ls -1 plugins/acs/skills | wc -l`
-(→ `32`) and a Python one-liner importing `acs_lib` and printing
-`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `19 9`).
+(→ `30`) and a Python one-liner importing `acs_lib` and printing
+`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `19 7`).
 
 Each column below is a **rule**, applied mechanically — a cell is derived,
 never hand-picked:
 
 - **Structure (1)** — the skill's `SKILL.md` is asserted by
   `test_skill_contracts.py` (its `ALL_SKILLS` list at `:106`, asserted against
-  the skills directory at `:141`) → 32 of 32.
+  the skills directory at `:141`) → 30 of 30.
 - **Gate (2)** — the skill has a registered gate function in `acs_lib.GATES`
   → 19 of 19 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
   (`test_all_hooked_skills_have_a_gate`, a per-hooked-skill
-  `assertIn(skill, acs_lib.GATES)` loop); the 9 unhooked have none by
+  `assertIn(skill, acs_lib.GATES)` loop); the 7 unhooked have none by
   construction, closed by `tests/acs/test_release_skill_registry.py:94`
   (`assertEqual(len(acs_lib.GATES), 19)` — with the loop above proving
   `GATES` ⊇ the 19 hooked skills, an equal count pins it to exactly that
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a routing case under
-  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 32 of 32.
+  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 30 of 30.
   This column is no longer maintained by hand: `tests/acs/test_eval_cases.py`'s
   `CoverageTest` fails when any shipped skill lacks a routing case, or any case
   names a skill that does not ship, so running that module IS the check. Its
@@ -114,7 +114,7 @@ never hand-picked:
   call names is made non-invocable again.
 - **Artifact (6)** — an artifact case under
   [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md)
-  asserts that skill's own workspace state → 2 of 32: `create-ticket`
+  asserts that skill's own workspace state → 2 of 30: `create-ticket`
   (`create-ticket-artifacts`) and `code` (`resume-and-verify`). Both are marked
   † below: their seeds are verified by hand, but neither case has yet completed
   end to end — in the container this suite was built in, Bash is non-functional
@@ -149,7 +149,7 @@ is older than the eval-suite change and is not fixed here. For the Trigger
 column, trust `tests/acs/test_eval_cases.py`, which is mechanical, over the
 rows, which are not.
 
-**Unhooked (10)**
+**Unhooked (8)**
 
 | Skill | Structure (1) | Gate (2) | Trigger (5) | Artifact (6) |
 |-------|:---:|:---:|:---:|:---:|
@@ -158,8 +158,6 @@ rows, which are not.
 | `handoff` | ✅ | n/a (unhooked) | ✅ | — |
 | `update` | ✅ | n/a (unhooked) | ✅ | — |
 | `install-hooks` | ✅ | n/a (unhooked) | ✅ | — |
-| `metrics` | ✅ | n/a (unhooked) | ✅ | — |
-| `usage` | ✅ | n/a (unhooked) | ✅ | — |
 | `test` | ✅ | n/a (unhooked) | ✅ | — |
 | `release` | ✅ | n/a (unhooked) | ✅ | — |
 | `create-docs` | ✅ | n/a (unhooked) | ✅ | — |
@@ -170,16 +168,16 @@ network rules do not reach. They were covered — `create-pr` partly, since its
 scenario skipped without an onboarded target — by a forge tier in the retired
 behavioural harness. The other `—` cells are the gap itself.
 
-**Structure is complete: 32 of 32** (`test_skill_contracts.py:141` pins the
+**Structure is complete: 30 of 30** (`test_skill_contracts.py:141` pins the
 on-disk set against the `ALL_SKILLS` literal at
 `test_skill_contracts.py:106`, not against `acs_lib` — and no test pins this
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 **Gating is complete for what can be gated: 19 of 19 hooked skills**; the other
 11 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 32 of 32** — 40 routing cases in all (26 by
+none should. **Routing covers 30 of 30** — 38 routing cases in all (24 by
 description, 8 by explicit command, 6 negative) plus one off-domain control,
 and `tests/acs/test_eval_cases.py` fails the build if a shipped skill loses its
-case. **The gap is behavioral (artifact) coverage: 2 of 32 skills**
+case. **The gap is behavioral (artifact) coverage: 2 of 30 skills**
 (`create-ticket`, `code`), and neither has yet completed end to end — so the
 *common* skill bugs (a missing script reference, a malformed completion report,
 a broken gate, the wrong skill firing) are already caught cheaply for nearly the
@@ -250,14 +248,15 @@ whole surface, while whether a skill produced the *right* output mostly is not.
    `create-prd` / `create-architecture` / `create-design`, whose quality is
    about content soundness rather than artifact shape.
 5. **Dogfooding as standing coverage (E3).** Every acs change shipped via
-   `/acs:ship` is a real behavioral test; per-ticket metrics surface regressions.
+   `/acs:ship` is a real behavioral test; its run ledger and review findings
+   surface regressions.
 
 ## G13 e2e-integrity validation
 
 PRD **G13** ("Enforceable e2e integrity") is validated **read-only** from
 artifacts `/acs:merge-pr` and `/acs:code` already produce (Decision E1,
 first run 2026-07-12 as MAR-127 — [ADR 0049](../adr/0049-e2e-3-read-only-g13-metric-validation.md)) —
-no standing dashboard panel, no new mechanism.
+no new mechanism.
 
 **Re-run procedure, each release:**
 

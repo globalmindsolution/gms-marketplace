@@ -8,7 +8,7 @@ below belongs to exactly one of them:
 | | Repo docs tree | Workspace partition |
 |---|----------------|---------------------|
 | **Where** | `<repo>/docs/tickets/<ID>/` (fixed — no setting) | `<workspace>/<repo>/<ticket-id>/` |
-| **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `run.json`, `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `metrics.json` / `sessions/` |
+| **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `run.json`, `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
 | **Versioned** | yes — committed on the ticket branch, reviewed in the PR | no — gitignored |
 | **Written by** | the coordinator and the ticket skills; an executor MUST NOT write there (the file-map guard treats it as a control input) | hooks and the skills' own subagents |
 
@@ -110,11 +110,9 @@ The workspace (gitignored, the run ledger):
     ├── tickets-index.json              # all tickets: id, type, status, parent/children
     ├── runs-index.json                 # all runs: id, workflow, subject, status, started/ended
     ├── counters.json                   # ticket id sequence (run ids derive from the subject; no allocator)
-    ├── metrics.json                    # repo aggregates: ticket/PR counts, time, tokens
     ├── sessions/                       # per-checkout state for parallel worktree sessions
     │   └── <checkout-id>/              # ONE directory per checkout, not five prefixed files
-    │       ├── pointer.json            # the run AND step this checkout is on
-    │       └── session.json            # subject-independent session-correlation marker (MAR-1)
+    │       └── pointer.json            # the run AND step this checkout is on
     ├── archive/                        # runs of done tickets move here post-merge
     ├── tickets/<ticket-id>/ticket.json # only until artifacts migrate moves it
     └── runs/
@@ -177,15 +175,11 @@ Repo-level files (all maintained by hooks):
   derived from the absolute path of the repo checkout/worktree, so multiple
   parallel worktree sessions each have their own pointer
   ([hooks.md](hooks.md)).
-- **`sessions/<checkout-id>/session.json`** (MAR-1) — the per-checkout file
-  backing token measurement: a
-  ticket-independent session-correlation marker (`session_id`/
-  `transcript_path`/`cwd`/`skill`, written by a pre-hook inside its own
-  fail-open guard, rejected by the consuming skill if stale past 15 minutes
-  or from a foreign `checkout_id`) ([hooks.md](hooks.md)). The cost-sample
-  log and its allocation cursor went with the status line that fed them
-  ([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
-- **`metrics.json`** — per-repo aggregates (see [Metrics](#metrics)).
+- **`sessions/<checkout-id>-gate.json`** — the per-checkout gate evidence:
+  the `PreToolUse(Skill)` hook records that it fired, and a run spends that
+  record once, which is how acs tells a gated run from one on a host that
+  never fired its hooks ([hooks.md](hooks.md)). It carries no session or
+  transcript field.
 - **`archive/`** — completed ticket partitions are moved here by
   `post-merge-pr` (the partition is archived, never deleted).
 
@@ -224,8 +218,8 @@ manages. The derivation is:
 | `in_progress` | any step other than `create-ticket` has a status other than `skipped`; for an epic, any child is not `open`. |
 | `open` | otherwise. |
 
-`tickets-index.json` keeps mirroring the derived value so listings and
-metrics need not re-derive it per ticket.
+`tickets-index.json` keeps mirroring the derived value so listings need not
+re-derive it per ticket.
 
 Key fields written by `/acs:create-ticket` and maintained by hooks:
 
@@ -259,8 +253,11 @@ Each state file MUST capture:
   clarifications obtained from the user);
 - **error details** — what went wrong, if anything;
 - **invocations** — an **append-only array** of this step's invocations, each
-  carrying that invocation's timestamps, token counts, **status**, and,
-  when `interrupted`, its **stop reason**. The array is `invocations`, not
+  carrying that invocation's timestamps, **status**, and, when
+  `interrupted`, its **stop reason** — plus the file-map guard's
+  `guard_events` and the gate-enforcement verdict when there are any.
+  No token count or other usage figure is recorded
+  ([No usage recording](#no-usage-recording)). The array is `invocations`, not
   `runs`: a RUN is the whole pass over the workflow (`run.json`), and a step
   is invoked within it.
 
@@ -312,12 +309,6 @@ Each state file MUST capture:
     {
       "started_at": "2026-06-12T09:00:00Z",
       "ended_at": "2026-06-12T10:00:00Z",
-      "session_id": "...",
-      "transcript_path": "...",
-      "checkout_id": "...",
-      "tokens": { "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 },
-      "role_usage": [ { "role": "executor", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 } ],
-      "model_usage": [ { "model": "claude-sonnet-4-6", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 } ],
       "status": "completed",
       "stop_reason": "all specs implemented, verifier passed"
     }
@@ -327,9 +318,9 @@ Each state file MUST capture:
 
 JSON Schemas for the ticket (`ticket.json`, whose field set `ticket.md`'s
 front matter mirrors), `run.json`, `steps/<skill>/state.json`, a step's
-`result.json`, the workflow file, the session pointer, `settings.json`,
-`metrics.json` and `clarifications.json` are **shipped with the plugin**
-(`schemas/`, fifteen of them). JSON Schema is the only validator: the XSD
+`result.json`, the workflow file, the session pointer, `settings.json`
+and `clarifications.json` are **shipped with the plugin**
+(`schemas/`, fourteen of them). JSON Schema is the only validator: the XSD
 layer and `validate_xml.py` are gone. Skills validate against the full schemas; hooks
 perform lightweight stdlib-only structural checks
 ([hooks.md](hooks.md)).
@@ -395,15 +386,15 @@ worktree per ticket**:
   own Delivery step's **Branch** sub-step, before that leg's Execute phase.
   Both tickets share the run's `checkout_id`
   for the Start/plan/execute/verify portion of the run — the disposition for
-  this shared-checkout case is: pointer/marker collisions are
+  this shared-checkout case is: pointer collisions are
   accepted, labeled degradations rather than a correctness
   bug, because every consumer of ticket identity gets the ticket id
   explicitly. Each
   leg's own `.lock`/pointer/state files are otherwise unaffected — the
   legs remain two ordinary, independently-resumable delivery tickets. See
   `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
-- **Repo-level counter guard**: `update_index()`/`update_metrics()` (repo-level
-  `tickets-index.json`/`metrics.json`) are wrapped in an `O_EXCL`-guarded
+- **Repo-level counter guard**: `update_index()` (the repo-level
+  `tickets-index.json`) is wrapped in an `O_EXCL`-guarded
   critical section that serializes two legs finishing concurrently on the
   normal path. The spin is bounded, and exhausting it **fails closed**: the
   guard raises `GuardTimeout` and the write does not happen. A refused write is
@@ -419,42 +410,24 @@ worktree per ticket**:
   slow one, and reclaiming a live holder's guard puts two writers inside the
   critical section at once.
 
-## Metrics
+## No usage recording
 
-The workspace records effort — working time and tokens — at every level;
-post-hooks maintain all of it:
+The workspace records what the pipeline itself needs and nothing more: each
+invocation's `started_at`/`ended_at`, status and stop reason (plus its
+`guard_events` and gate-enforcement verdict), each step's `states`, findings
+and errors, the run's progress in `run.json`, and each ticket's derived
+status in `tickets-index.json`. Working time is computed from an
+invocation's timestamps when a completion report prints it; it is never
+stored or summed.
 
-- **Per invocation**: each entry records `started_at`/`ended_at` (working
-  time is computed from them) and token counts (input/output).
-  Invocations finalized outside a post-hook — `interrupted`, whether by a
-  deliberate handoff or by the SessionEnd safety net — are counted in the
-  repo aggregates too, so `metrics.json` and the per-run roll-up never
-  diverge.
-- **Per run**: `run.json` rolls up totals across every step of the run.
-- **Per repo** (`metrics.json`): ticket counts (by status and type), PR
-  counts (created, merged), and total working time and tokens.
-- **Measured, not self-reported (MAR-1, ADR 0082).** The coordinator's
-  result document carries no token figures at all — the standing `[ASSUMPTION]`
-  this bullet used to record is resolved, not merely reworded. A run's
-  `session_id`/`transcript_path` are captured from the genuine
-  `PreToolUse(Skill)` hook envelope by a session-correlation marker,
-  threaded onto the invocation at `acs.py step start`. At finalize time,
-  `usage_reader.py` reads real token counts (all four `message.usage`
-  classes) from that exact recorded transcript plus its `subagents/`
-  subtree — never a constructed path — and buckets them by role, including a
-  first-class `coordinator` bucket. No dollar figure is recorded: its only
-  source was Claude Code's status-line payload, and acs no longer ships a
-  status line ([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md));
-  acs owns no price table either. A run whose transcript cannot be read
-  records empty token counts, never a fabricated figure. The guarantee that
-  subagent-role token attribution (`usage_reader.py`) is immune to
-  cross-session contamination is scoped to topologies where each ticket
-  runs in its own session — true of worktree-per-ticket generally, but not of
-  the "Cross-skill, phase-level fan-out" shape two headings above, where
-  `/acs:create-docs`'s two legs share one session and their subagent work is
-  folded into shared role buckets by suffix alone, so subagent-role token
-  accounting is not immune to cross-contamination in that one specific case.
-  See ADR 0082's "Amendment — MAR-1" for the mechanism.
+acs records **no usage**: no token count, no per-role or per-model
+breakdown, no dollar figure, no per-run or per-repo totals, and it reads no
+Claude Code transcript
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+Tokens, spend and time per ticket are Claude Code's to report — its own
+`/cost`, the console, or its usage exports. A `metrics.json`, a `run.json`
+`totals` object or an invocation's `tokens` left by an older version is
+ignored.
 
 ## Epic ↔ child linkage
 
@@ -470,8 +443,7 @@ marks In Progress; the last child's `post-merge-pr` marks Done).
 When a ticket is merged/done, its partition is **archived** — moved to
 `<workspace>/<repo>/archive/<ticket-id>/` by `post-merge-pr` — keeping the
 full audit trail without cluttering the active workspace. Archived tickets
-remain in `tickets-index.json` (status `done`) and in the metrics
-aggregates.
+remain in `tickets-index.json` (status `done`).
 
 ### Ticket allocation on resume
 
