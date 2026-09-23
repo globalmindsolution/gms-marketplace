@@ -60,8 +60,9 @@ PY
 
 **Exit 2.** When `lib.validate_settings` raises `GateError`, the snippet
 catches it, writes the error to stderr, and exits 2: surface that stderr
-verbatim and stop — settings are invalid or acs is not initialized here (the
-same contract `ship/SKILL.md` and `create-docs/SKILL.md` use in their Start).
+verbatim and stop — a hand-set setting is malformed or this is not a git
+checkout (the same contract `ship/SKILL.md` and `create-docs/SKILL.md` use in
+their Start). A repo with no settings file resolves on the defaults.
 
 **Checkout root.** `project_mode` is given `lib.checkout_root(cwd)`, never the
 raw `cwd`: every sentinel is resolved relative to that root, so a run started

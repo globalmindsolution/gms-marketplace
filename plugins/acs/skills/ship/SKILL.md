@@ -57,8 +57,11 @@ Ground rules, non-negotiable:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" context
 ```
 
-On exit 2: surface stderr verbatim (typically "Run /acs:setup first") and
-stop. Otherwise record `workspace`, `repo_id` and `settings.ticket_prefix`.
+On exit 2: surface stderr verbatim (not a git repository, or a malformed
+setting such as an invalid hand-set `ticket_prefix`) and stop. A repo that
+never ran `/acs:setup` is not an exit 2: it resolves on the defaults.
+Otherwise record `workspace`, `repo_id` and `settings.ticket_prefix` (`ACS`
+unless the repo set its own).
 
 **Step 2 — find the run.** `$ARGUMENTS` names a SUBJECT, not a run id. This is
 Claude Code's own `--continue` / `--resume` shape: no argument means "carry

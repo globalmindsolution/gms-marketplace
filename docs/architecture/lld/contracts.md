@@ -165,8 +165,11 @@ true` (unchanged; MAR-73, slice 3 of MAR-69).
 ## Settings (consumer repo)
 
 `.acs/settings.json` (+ gitignored `settings.local.json`, user-scope file);
-per-key merge local → project → user; validated by every pre-hook
-(`settings.schema.json`): `ticket_prefix`,
+per-key merge local → project → user over `DEFAULT_SETTINGS`; every file is
+optional — with none, every key resolves to its default and no pre-hook
+refuses ([ADR-0105](../../adr/0105-acs-runs-without-setup.md)); validated by
+every pre-hook, which still refuses a malformed value
+(`settings.schema.json`): `ticket_prefix` (default `ACS`),
 `test_coverage_percent`, `merge_strategy`, `e2e?`, `suites?`,
 `tests?`, `enforcement?`, `models`, `tracker`, `formats`
 (array of glob strings; absent key resolves to the seed default
@@ -181,14 +184,19 @@ and `acs-tests.yml`+`run-tests.py` (`tests`). The e2e CI-gate artifact family
 shape: `acs-e2e.yml` + `run-e2e.py` (the committed
 template pair), built from `e2e?`/`suites?` — no dedicated settings key of
 its own — and wired as the `E2E suite` required-check context.
-`/acs:setup` writes only the project file, and only `ticket_prefix`, the
+`/acs:setup` is optional; it writes only the project file, and only the
 `formats.*` conventions and the chosen gates' keys (`tests.command`,
 `enforcement.checks.commit_message`); `setup_wizard.split_defaults` drops any
 answer equal to its built-in default and removes one an earlier run wrote.
-Every other key is edited by hand.
+Every other key, `ticket_prefix` included, is edited by hand. The default
+`formats.pr_title` is `{title}`; `templates/ci/check-conventions.py` runs
+without the plugin, so it holds its own copy of these defaults (a test fails
+when the copies differ) and checks a repo with no settings file against them.
 No key locates the workspace or a document ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)): the
 workspace is always `<main-checkout>/.acs/state-machine` (anchored via
-`git rev-parse --git-common-dir`, gitignored; ADR-0086), ticket documents are
+`git rev-parse --git-common-dir`, ADR-0086; ignored by its own `.gitignore`
+of `*`, which `write_json`/`write_text` create on the first write under it,
+ADR-0105), ticket documents are
 fixed at `docs/tickets/<ID>/`, and a skill finds every other repo document
 through `CLAUDE.md` and the repo, creating a missing one at its `docs/`
 convention. `release_notes.py --workspace` (above) is unaffected in shape —

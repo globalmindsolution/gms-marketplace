@@ -250,6 +250,21 @@ RETIRED_BY_SETUP_SIMPLIFICATION = {
     ),
 }
 
+#: ADR-0105 made the ticket prefix optional (default `ACS`) and removed the
+#: setup-first refusal: no settings file is required. `ticket_prefix` survives
+#: as a hand-set setting, so nothing it guaranteed is lost -- what these
+#: clauses assigned (setup PROMPTING for it, the setting being REQUIRED input,
+#: every pre-hook REFUSING until setup ran) no longer exists.
+RETIRED_BY_ADR_0105 = {
+    'skills.md': (
+        '- MUST prompt for **`ticket_prefix`**, suggesting one derived from the',
+    ),
+    'configuration.md': (
+        '- Every pre-hook MUST fail (exit 2) with a "run /setup first" message if no',
+        '| `ticket_prefix` | string | — | **Yes — user input at setup time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/setup` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |',
+    ),
+}
+
 #: The v0.5.0 implementation-pipeline redesign REWORDED two clauses rather
 #: than retiring them: the guarantee each carried is still in the tree, under
 #: the name its carrier now has. That is a different fact from the four
@@ -377,7 +392,7 @@ def _retired():
     merged = {}
     for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
                   RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING,
-                  RETIRED_BY_SETUP_SIMPLIFICATION):
+                  RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     for rewording in REWORDING_TABLES:

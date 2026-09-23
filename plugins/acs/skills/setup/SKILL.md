@@ -1,20 +1,24 @@
 ---
 name: setup
-description: Initialize or update acs for the current repo — the ticket prefix, the branch/commit/PR conventions, and the optional CI that enforces them. Use when setting up acs on a new repo, when another acs skill fails with "run /acs:setup first", or when the user wants acs conventions enforced in CI or the pipeline protected from being bypassed.
+description: Optionally configure acs for the current repo — keep or change the branch/commit/PR conventions, and install the CI that enforces them. Use when setting up acs on a new repo, when changing an acs convention format, or when the user wants acs conventions enforced in CI or the pipeline protected from being bypassed.
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
 hooked pipeline skill: no `acs step start`, no pre/post hooks, no subagents, no
-reflection loop. Every other acs skill's pre-hook fails with "run /acs:setup
-first" until this skill has recorded a ticket prefix.
+reflection loop.
 
-Setup configures two things: **conventions** (the ticket prefix and the
-branch/commit/PR formats) and the **CI** that enforces them. Nothing else. Every
-other setting has a working default, and no setting locates a document or the
-workspace (ADR-0102). A user who wants to change one — tracker, models, merge
-strategy, coverage target, test suites — edits `.acs/settings.json` against
-`${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`; setup does not ask about
-them.
+**Setup is optional** (ADR-0105). acs works with its defaults before setup ever
+runs: no settings file is required, and tickets take the default prefix `ACS`
+(`ACS-1`, `ACS-2`, …). No other skill needs setup first.
+
+Setup configures two things: **conventions** (the branch/commit/PR formats)
+and the **CI** that enforces them. Nothing else. Every other setting has a
+working default, and no setting locates a document or the workspace
+(ADR-0102). A user who wants to change one — ticket prefix, tracker, models,
+merge strategy, coverage target, test suites — edits `.acs/settings.json`
+against `${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`; setup does not
+ask about them. A repo that wants its own prefix sets `ticket_prefix` there by
+hand (uppercase letters and digits: `SHOP` → `SHOP-123`).
 
 **Your job is the conversation.** Every write — the settings, the ignore
 entries, the workspace, the CI copies — is performed by the two commands below.
@@ -40,39 +44,39 @@ present (`ci`), retired settings keys still sitting in a settings file
 non-empty → name each gap and its install hint now; nothing here blocks on it.
 
 **`retired_keys` non-empty** → name each key and the file it is in, and say it
-is ignored: documents are found through `CLAUDE.md` and the repo, and the
-workspace is always `.acs/state-machine` in the main checkout. If
-`workspace_path` is among them and pointed outside the repo, the state there is
-no longer read: offer `migrate_workspace.py --help` to move it across.
+is ignored.
 
-**A `ticket_prefix` already in the project file means this is a re-run.** Say
-so, show what is configured, and ask only about what the user wants to change —
-re-running is safe by construction, and is how a repo initialised by an older
-acs gets its missing ignore entries and refreshed CI files.
+**A project settings file or an installed CI gate means this is a re-run** —
+`scopes.project.exists` is true, or any `ci` entry has its `workflow` or
+`files` present. Say so, show what is configured, and ask only about what the
+user wants to change — re-running is safe by construction, and is how a repo
+initialised by an older acs gets its missing ignore entries and refreshed CI
+files.
 
 ## Step 2 — Ask
 
 Use AskUserQuestion, in this order.
 
-1. **`ticket_prefix`** — required, no default. Suggest one from the repo name
-   (`acme-shop` → `SHOP`). Uppercase letters and digits: `SHOP-123`.
-2. **Conventions** — show the three formats with their built-in defaults and
+1. **Conventions** — show the three formats with their built-in defaults and
    ask whether to keep them:
 
    | Format | Default | Example |
    |---|---|---|
-   | `formats.branch_name` | `{type}/{ticket_id}-{slug}` | `task/SHOP-12-add-wishlist` |
-   | `formats.commit_message` | `{ticket_id} {summary}` | `SHOP-12 Add the wishlist endpoint` |
-   | `formats.pr_title` | `[{ticket_id}] {title}` | `[SHOP-12] Add wishlist support` |
+   | `formats.branch_name` | `{type}/{ticket_id}-{slug}` | `task/ACS-12-add-wishlist` |
+   | `formats.commit_message` | `{ticket_id} {summary}` | `ACS-12 Add the wishlist endpoint` |
+   | `formats.pr_title` | `{title}` | `Add wishlist support` |
 
    Keeping a default writes nothing. A custom format uses the placeholders
    `{ticket_id}`, `{type}`, `{slug}`, `{summary}`, `{title}`, `{ticket_ref}` and
    `{external_key}`; `branch_name` must embed `{ticket_id}`, because every acs
-   skill finds the current ticket from the branch name. In `pr_title`,
-   `{ticket_ref}` renders the tracker's native reference when the ticket is
-   synced and the local id when unsynced; `branch_name` and `commit_message`
-   stay id-based and unconditional in every case.
-3. **CI enforcement** — offered explicitly, never installed silently:
+   skill finds the current ticket from the branch name. The default PR title
+   carries no ticket id — the PR description's Ticket section links the
+   ticket; a team that wants the id in titles adds `{ticket_id}` or
+   `{ticket_ref}`. In `pr_title`, `{ticket_ref}` renders the tracker's native
+   reference when the ticket is synced and the local id when unsynced;
+   `branch_name` and `commit_message` stay id-based and unconditional in every
+   case.
+2. **CI enforcement** — offered explicitly, never installed silently:
 
    | Offer | What declining costs |
    |---|---|
@@ -92,8 +96,7 @@ The answers document carries only what the user chose — `settings` and `ci`
 (any of `conventions`, `tests`, `e2e`):
 
 ```json
-{"settings": {"ticket_prefix": "SHOP",
-              "tests": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}},
+{"settings": {"tests": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}},
  "ci": ["conventions", "tests"]}
 ```
 

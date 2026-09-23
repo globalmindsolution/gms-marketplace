@@ -35,7 +35,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
   --provider "<ticket.external.provider or empty>"
 ```
 
-The title renders `settings.formats.pr_title` (default `[{ticket_id}] {title}`).
+The title renders `settings.formats.pr_title` (default `{title}`: no ticket id —
+the body's Ticket section links the ticket).
 The label already existing is not an error — that is what the `|| true` is for.
 
 ## 2. Body

@@ -20,8 +20,11 @@ one advisory stderr line, never a refusal.
   `pre-<skill>.py` and `post-<skill>.py`
   (e.g. `pre-code.py`, `post-code.py`).
 - Hooks MUST read and write state files only in the **workspace folder**
-  (`<workspace>/<repo>/…`), resolved via the `.acs` `settings.json`
-  (see [configuration.md](configuration.md)). Most access stays inside the
+  (`<workspace>/<repo>/…`), always `<main-checkout>/.acs/state-machine`
+  (see [configuration.md](configuration.md)). The first state write creates
+  the folder's own `.gitignore` of `*`, so it never shows up in `git status`;
+  a hook that only reads state writes nothing, so a repo that never runs acs
+  gets no folder (ADR-0105). Most access stays inside the
   run's own directory (`runs/<run-id>/`), but hooks also maintain the
   repo-level files (`tickets-index.json`, `runs-index.json`,
   `sessions/`), and `acs step start` MAY read the parent epic's run to
@@ -38,10 +41,14 @@ A pre-hook runs before its skill and checks two things, and only these two:
 
 **1. Inputs** — the artifacts and configuration the skill itself reads:
 
-- Baseline checks shared by all pre-hooks: `settings.json` exists (else
-  "run /setup"), the workspace (always `<main-checkout>/.acs/state-machine`,
-  no override) can be derived and is consistent across worktrees, and the
-  `<ticket-id>` partition can be resolved.
+- Baseline checks shared by all pre-hooks: the settings validate (no
+  `settings.json` is needed — every key has a default, so a repo that never
+  ran `/setup` passes; a malformed hand-set value, such as a lowercase
+  `ticket_prefix`, is refused with a message to fix it in
+  `.acs/settings.json` or remove it to use the default `ACS`), the workspace
+  (always `<main-checkout>/.acs/state-machine`, no override) can be derived
+  and is consistent across worktrees, and the `<ticket-id>` partition can be
+  resolved.
 - Skill-specific inputs — e.g. `pre-code.py` requires an approved `plan.md`;
   `pre-create-api-contract.py` requires `plan.md` **and** an `analysis.md`
   declaring `api_surface: true`; `pre-create-e2e-tests.py` requires a
@@ -190,13 +197,13 @@ Every row is an **input** (the skill cannot do its work without it) or a
 
 | Skill | Inputs | Brakes |
 |-------|--------|--------|
-| `/create-prd` | `/setup` done (settings exist) | — |
-| `/create-requirements` | `/setup` done | — |
-| `/create-ticket` | `/setup` done | — |
-| `/create-architecture` | `/setup` done (the skill itself checks for a PRD at Start) | — |
-| `/create-project` | `/setup` done (the skill itself checks for the architecture set's `hld/tech-stack.md` at Start) | — |
-| `/acs:create-docs` | `/setup` done (the skill itself checks for the architecture set at Start, once for every doc set) | — |
-| `/standardize-project` | `/setup` done (the skill itself checks for the architecture set at Start) | — |
+| `/create-prd` | — (only the baseline checks; no settings file needed) | — |
+| `/create-requirements` | — | — |
+| `/create-ticket` | — | — |
+| `/create-architecture` | — (the skill itself checks for a PRD at Start) | — |
+| `/create-project` | — (the skill itself checks for the architecture set's `hld/tech-stack.md` at Start) | — |
+| `/acs:create-docs` | — (the skill itself checks for the architecture set at Start, once for every doc set) | — |
+| `/standardize-project` | — (the skill itself checks for the architecture set at Start) | — |
 | `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
 | `/analyze-requirements` | ticket resolves | not an epic; lock free |
 | `/create-impl-plan` | ticket resolves | not an epic; lock free |

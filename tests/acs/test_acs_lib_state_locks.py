@@ -16,6 +16,7 @@ from a linked worktree and its main checkout, checkout_id still differs, and
 a lock file written from one side is visible at the same path from the other.
 """
 
+import json
 import os
 import shutil
 import socket
@@ -328,16 +329,30 @@ class TestBuildContext(unittest.TestCase):
     ~/.acs/settings.json, so an unpatched HOME couples the test to whoever
     runs it)."""
 
-    def test_raises_when_no_settings_file_found_anywhere(self):
+    def test_builds_on_the_defaults_when_no_settings_file_exists(self):
+        """ADR-0105: no settings file is needed; the prefix defaults to ACS."""
         tmp = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, tmp, True)
         repo = _mkrepo(tmp, "repo")
         fake_home = os.path.join(tmp, "home")
         os.makedirs(fake_home)
         with mock.patch.dict(os.environ, {"HOME": fake_home}):
+            ctx = lib.build_context(repo)
+        self.assertEqual(ctx["settings_sources"], [])
+        self.assertEqual(ctx["settings"]["ticket_prefix"], lib.DEFAULT_TICKET_PREFIX)
+        self.assertEqual(ctx["settings"]["formats"]["pr_title"], "{title}")
+
+    def test_raises_on_a_malformed_hand_set_prefix(self):
+        tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        repo = _mkrepo(tmp, "repo")
+        os.makedirs(os.path.join(repo, ".acs"))
+        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
+            json.dump({"ticket_prefix": "shop"}, fh)
+        with mock.patch.dict(os.environ, {"HOME": os.path.join(tmp, "home")}):
             with self.assertRaises(lib.GateError) as ctx:
                 lib.build_context(repo)
-        self.assertIn("no .acs/settings.json found", str(ctx.exception))
+        self.assertIn("ticket_prefix 'shop' is invalid", str(ctx.exception))
 
     def test_raises_when_repo_identity_cannot_be_derived(self):
         tmp = tempfile.mkdtemp(prefix="acs-test-")

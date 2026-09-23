@@ -1,10 +1,12 @@
 # Configuration & `/setup`
 
 The `acs` plugin must work on **different consumer repos**. Configuration is
-stored as `settings.json` under an `.acs` folder. The `/setup` skill writes
-the conventions — `ticket_prefix`, the `formats.*` strings — and the settings
-of the CI gates it installs; every other key has a working default and is
-edited by hand, validated against `settings.schema.json`.
+stored as `settings.json` under an `.acs` folder, and is optional: every key
+has a working default, so a repo with no settings file at all runs every skill
+([ADR-0105](../../adr/0105-acs-runs-without-setup.md)). The optional `/setup`
+skill writes the `formats.*` conventions and the settings of the CI gates it
+installs; every other key, `ticket_prefix` included, is edited by hand,
+validated against `settings.schema.json`.
 
 ## Scopes & files
 
@@ -34,7 +36,7 @@ edited by hand, validated against `settings.schema.json`.
 |-----|------|---------|----------|-------------|
 | `test_coverage_percent` | number | `90` | No | Coverage target used by `/code` when generating unit tests and running them in the TDD cycle. Missing the target is a hard fail. |
 | `merge_strategy` | string | `"squash"` | No | How `/merge-pr` merges: `squash` \| `merge` \| `rebase`. |
-| `ticket_prefix` | string | — | **Yes — user input at setup time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/setup` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |
+| `ticket_prefix` | string | `"ACS"` | No | Prefix for generated ticket ids (`<prefix>-<sequence>`): `ACS-1`, `ACS-2`, … by default. A repo that wants its own — e.g. `SHOP` for a shop product — sets it by hand in `.acs/settings.json`; `/setup` does not ask. Two repos that keep the default both mint `ACS-1`; ids are per-repo state and never cross repos, so a repo that shares a tracker with others sets its own. Changing it later strands the older ids' branches. The per-repo sequence counter lives in the workspace (`counters.json`). |
 | `e2e` | object | unset | No | **Deprecated compatibility alias** for `suites.e2e`: `{ "command", "setup"?, "teardown"?, "per_iteration"? }`. Still accepted and validated exactly as before, but normalized at load time into `suites["e2e"]` — new configuration should prefer `suites.e2e` directly (moving an existing `e2e` key across is a hand edit). Unset = no e2e suite. When configured: spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and `/acs:review-code`'s final gate runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict; `per_iteration: false` (default) defers the run past iterations that already have other blocking findings. `/create-project` scaffolds the harness and proposes this block for greenfield repos with a user-facing surface. This same `e2e`/`suites.e2e` configuration is also the **single opt-in signal** for the CI required merge gate — no dedicated `e2e.ci`/`suites.e2e.ci` enable key exists, or is ever introduced (see the e2e merge gate note below). |
 | `suites` | object | `{}` | No | The single source of truth for named test commands: `{ "<name>": { "command", "setup"?, "teardown"?, "per_iteration"? } }`. The reserved name `e2e` is auto-populated at load from a configured `e2e` key (see above). `/acs:test` is the consumer — it runs all configured suites, or a `--suite`-selected subset, capturing pass/fail results to an auditable workspace artifact. |
 | `tests` | object | unset | No | Unit/integration suite for the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 3, opt-in): `{ "command", "setup"? }`. `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`); acs exports `ACS_COVERAGE` (= `test_coverage_percent`) into the environment. Installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install). A merge gate once made a required status check (`Tests & coverage`) on a protected default branch. |
@@ -91,7 +93,10 @@ hooks read/write ticket state — is always `<main-checkout>/.acs/state-machine`
 a gitignored folder anchored to the repo's main checkout
 (`git rev-parse --git-common-dir`), so every worktree resolves to the same
 physical location without state being duplicated/dirtied per worktree
-(ADR-0086). Neither has an override.
+(ADR-0086). Neither has an override. The workspace ignores itself: the first
+state write under it creates `.acs/state-machine/.gitignore` containing `*`,
+so it stays out of `git status` whether or not `/setup` ever added a root
+`.gitignore` entry (ADR-0105).
 
 ### Format placeholders
 
@@ -106,6 +111,13 @@ titles) use `{placeholder}` syntax. The supported vocabulary:
 | `{slug}` | Kebab-case slug of the title (lowercase `a–z0–9-`, ≤ 40 chars) | `branch_name` |
 | `{summary}` | Short generated summary of the change | `commit_message`, `pr_title` |
 | `{external_key}` | Remote tracker key (empty when not synced) | all |
+| `{ticket_ref}` | The tracker's native reference when the ticket is synced (`#399` on GitHub, the issue key on Jira), else the local id | `pr_title` |
+
+The built-in defaults are `{type}/{ticket_id}-{slug}` for `branch_name`,
+`{ticket_id} {summary}` for `commit_message`, and `{title}` for `pr_title`.
+The PR title carries no ticket id by default, because the PR description's
+Ticket section links the ticket; a repo that wants the id in its titles uses
+`{ticket_id}` or `{ticket_ref}` (ADR-0105).
 
 An **unknown placeholder is a validation error**: `/setup` and the pre-hooks
 reject the format string (exit 2) rather than passing it through silently.
@@ -190,13 +202,15 @@ configured under `models`:
   be run from a regular git checkout.
 - `/setup` SHOULD create the workspace folder if missing and verify it is
   writable.
-- Every pre-hook MUST fail (exit 2) with a "run /setup first" message if no
-  `settings.json` can be resolved, and fail clearly if the workspace cannot
-  be derived.
+- No settings file is required: with none, every key resolves to its
+  default and every pre-hook runs. A pre-hook MUST fail clearly if the
+  workspace cannot be derived.
 - `test_coverage_percent` MUST be a number in `(0, 100]`; absent → `90`.
-- `ticket_prefix` is required at setup time (suggested from the repo name)
+- `ticket_prefix` is optional (absent → `ACS`, otherwise set by hand)
   and MUST be a non-empty uppercase identifier — ticket ids are
-  `<prefix>-<n>`, scoped per repo.
+  `<prefix>-<n>`, scoped per repo. A malformed one is refused (exit 2) with
+  a message to fix it in `.acs/settings.json` or remove it to use the
+  default.
 - `formats.branch_name` MUST include the `{ticket_id}` placeholder — ticket
   detection from the branch name depends on it.
 - `models` entries MUST be non-empty strings or `{ "model", "effort" }`
@@ -208,9 +222,9 @@ configured under `models`:
 The workspace always derives to `<main-checkout>/.acs/state-machine`
 (ADR-0086), and documents are found rather than configured (ADR-0102): no
 `settings.local.json` entry is needed at all. The example spells keys out for
-illustration; a file `/setup` writes holds only `ticket_prefix` and the
-convention/CI values that differ from their defaults, and the rest below is
-added by hand.
+illustration; a file `/setup` writes holds only the convention/CI values
+that differ from their defaults, and the rest below, `ticket_prefix`
+included, is added by hand.
 
 `<repo>/.acs/settings.json` (committed, team-shared):
 
@@ -237,7 +251,7 @@ added by hand.
   "formats": {
     "branch_name": "{type}/{ticket_id}-{slug}",
     "commit_message": "{ticket_id} {summary}",
-    "pr_title": "[{ticket_id}] {title}",
+    "pr_title": "{title}",
     "pr_description_template": "pr-default",
     "tickets": {
       "epic": { "title": "[EPIC] {title}", "description_template": "epic-default" },

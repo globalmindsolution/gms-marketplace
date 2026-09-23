@@ -34,6 +34,13 @@ unmigrated
   [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)); a layout
   that cannot resolve a main checkout (bare repo, submodule) is refused —
   acs must be run from a regular git checkout.
+- The workspace MUST ignore itself: the first state write under
+  `.acs/state-machine/` creates `.acs/state-machine/.gitignore` containing
+  `*`, so the workspace never shows up in `git status` whether or not the
+  repo's root `.gitignore` names it. The root entries `/acs:setup` adds are
+  no longer needed. Only a write creates the folder: a hook that only looks
+  for state writes nothing, so a repo that never runs acs gets no folder
+  ([ADR-0105](../../adr/0105-acs-runs-without-setup.md)).
 - The workspace MUST be partitioned **by consumer repo, then by
   `<ticket-id>`**: every pipeline artifact for a ticket lives under
   `<workspace>/<repo>/<ticket-id>/`.
@@ -45,17 +52,10 @@ unmigrated
 
 ## Migrating an existing external workspace
 
-- When an external workspace left by an older acs is detected for a repo
-  (a retired `workspace_path` key still in a settings file, which
-  `setup detect` reports under `retired_keys`),
-  `/acs:setup` MUST detect it and SHOULD offer a user-confirmed
-  migration into the in-repo default on the next re-run (ADR-0086; the
-  MUST/SHOULD split for `/setup` itself is specified in
-  [skills.md](skills.md) and not restated here).
-- A repo owner who migrates without re-running `/acs:setup` MUST use
-  the documented manual path instead: `migrate_workspace.py --from
-  <old-workspace-root> --to <repo>/.acs/state-machine --repo-root
-  <repo-root> [--dry-run]` (contract in
+- A repo owner moving state that an older acs kept in an external
+  workspace (named by a retired `workspace_path` key) MUST use the manual
+  migrator: `migrate_workspace.py --from <old-workspace-root> --to
+  <repo>/.acs/state-machine --repo-root <repo-root> [--dry-run]` (contract in
   [contracts.md](../../architecture/lld/contracts.md)). The migrator
   preflights — refusing to run while a `.lock` is held or an `in_progress`
   run exists anywhere under the old workspace's partition tree — then
@@ -64,8 +64,8 @@ unmigrated
   interruption is safe.
 - No setting points at the old location: every run resolves the in-repo
   workspace, so the old tree is no longer read once the migration succeeds.
-  A leftover key for it in `.acs/settings.local.json` is an unknown key —
-  ignored (named by `/acs:setup` as retired), and safe to delete.
+  A leftover key for it in `.acs/settings.local.json` is a retired key —
+  ignored, and safe to delete.
 
 ## Migrating ticket documents into the repo
 

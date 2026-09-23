@@ -171,7 +171,11 @@ open bugs to fix under this ticket:
   (`docs/adr/0035-pr-title-ticket-ref-token.md`), and the acs id appears
   nowhere else in the commit (verified: `git log -1 --format=%B` on that
   commit shows no `MAR-N` token anywhere in subject or body). Such tickets
-  under-count regardless of the fallback.
+  under-count regardless of the fallback. The same holds whenever the squash
+  subject is taken from a PR title rendered with the default `pr_title` of
+  `{title}` ([ADR-0105](../adr/0105-acs-runs-without-setup.md)): the subject
+  is the bare title plus `(#N)`, with no ticket id for the fallback to read,
+  so such a ticket is recovered from the archive or not at all.
 - **A shallow clone bounds recall to whatever history was actually
   fetched.** This checkout is shallow (`git rev-parse
   --is-shallow-repository` → `true`; as observed then, 49 commits on
@@ -182,10 +186,11 @@ open bugs to fix under this ticket:
   epic grouping or the docs-only flag, so such entries render as flat
   bullets categorized from the title alone.
 - The `--ticket-prefix` flag (`draft`/`bump`, passed by `/acs:release` as
-  the configured ticket prefix) narrows the match to this repo's own prefix
-  and reduces false positives from unrelated `XXX-123`-shaped tokens, but it
-  does not change which subjects carry a recoverable ticket id in the first
-  place — it cannot make a tracker-ref-only subject match.
+  the repo's ticket prefix, `ACS` unless one is set) narrows the match to
+  this repo's own prefix and reduces false positives from unrelated
+  `XXX-123`-shaped tokens, but it does not change which subjects carry a
+  recoverable ticket id in the first place — it cannot make a
+  tracker-ref-only subject match.
 
 The resulting count is **non-zero and honest about its source** (each
 enumerated ticket is stamped `"source": "archive"` or `"source": "git-log"`)

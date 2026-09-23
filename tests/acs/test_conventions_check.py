@@ -9,7 +9,9 @@ Run:  python3 -m unittest discover -s tests -v
 """
 
 import importlib.util
+import json
 import os
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -110,8 +112,13 @@ class EvaluatePrTests(unittest.TestCase):
     def test_bad_branch_fails(self):
         self.assertFails(cc.evaluate(settings(), ctx(branch="claude/foo"), "pr"), "branch_name")
 
+    def test_the_default_title_carries_no_ticket_id(self):
+        """ADR-0105: the PR description links the ticket, so the title need not."""
+        self.assertPasses(cc.evaluate(settings(), ctx(title="Add foo"), "pr"))
+
     def test_bad_title_fails(self):
-        self.assertFails(cc.evaluate(settings(), ctx(title="Add foo"), "pr"), "pr_title")
+        s = settings(formats={"pr_title": "[{ticket_id}] {title}"})
+        self.assertFails(cc.evaluate(s, ctx(title="Add foo"), "pr"), "pr_title")
 
     def test_missing_acs_label_fails(self):
         self.assertFails(cc.evaluate(settings(), ctx(labels=[]), "pr"), "acs_label")
@@ -176,14 +183,26 @@ class ExemptionTests(unittest.TestCase):
                                              title="bad", commits=[]), "pr").exempt)
 
 
-class FailClosedTests(unittest.TestCase):
-    def test_no_settings_fails_closed(self):
-        res = cc.evaluate({}, ctx(), "pr")
-        self.assertFails_settings(res)
+class DefaultsAndMalformedSettingsTests(unittest.TestCase):
+    """ADR-0105: absent keys take the plugin's defaults; malformed ones fail."""
 
-    def test_prefix_without_formats_fails_closed(self):
+    def test_no_settings_checks_against_the_defaults(self):
+        res = cc.evaluate({}, ctx(branch="task/ACS-12-add-foo", title="Add foo"), "pr")
+        self.assertEqual(res.errors, [])
+
+    def test_the_default_prefix_is_enforced(self):
+        res = cc.evaluate({}, ctx(branch="task/MAR-12-add-foo"), "pr")
+        self.assertIn("branch_name", [h for h, _ in res.errors])
+
+    def test_prefix_without_formats_uses_the_default_formats(self):
         res = cc.evaluate({"ticket_prefix": "MAR"}, ctx(), "pr")
-        self.assertFails_settings(res)
+        self.assertEqual(res.errors, [])
+
+    def test_malformed_prefix_fails_closed(self):
+        self.assertFails_settings(cc.evaluate({"ticket_prefix": "mar"}, ctx(), "pr"))
+
+    def test_non_object_formats_fails_closed(self):
+        self.assertFails_settings(cc.evaluate({"formats": "x"}, ctx(), "pr"))
 
     def assertFails_settings(self, res):
         self.assertIn("settings", [h for h, _ in res.errors])
@@ -266,6 +285,51 @@ class ReadCommitSubjectTests(unittest.TestCase):
         with open(path, "w") as fh:
             fh.write("\n# a comment\nMAR-9 real subject\n# more\nbody line\n")
         self.assertEqual(cc._read_commit_subject(path), "MAR-9 real subject")
+
+
+class DefaultsMatchThePluginTest(unittest.TestCase):
+    """The checker runs without the plugin, so it carries its own copy of the
+    defaults. The two copies had drifted (`[{ticket_ref}] {title}` here against
+    `[{ticket_id}] {title}` in the plugin); this is what keeps them level."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+        import acs_lib
+        cls.lib = acs_lib
+
+    def test_the_ticket_prefix_default_matches(self):
+        self.assertEqual(cc.DEFAULT_TICKET_PREFIX, self.lib.DEFAULT_TICKET_PREFIX)
+
+    def test_every_format_default_matches(self):
+        for key, value in cc.FORMAT_DEFAULTS.items():
+            with self.subTest(format=key):
+                self.assertEqual(value, self.lib.DEFAULT_SETTINGS["formats"][key])
+
+    def test_the_schema_documents_the_same_defaults(self):
+        with open(os.path.join(REPO_ROOT, "plugins", "acs", "schemas",
+                               "settings.schema.json"), encoding="utf-8") as fh:
+            props = json.load(fh)["properties"]
+        self.assertEqual(props["ticket_prefix"]["default"], self.lib.DEFAULT_TICKET_PREFIX)
+        for key in cc.FORMAT_DEFAULTS:
+            default = props["formats"]["properties"][key].get("default")
+            if default is not None:
+                with self.subTest(format=key):
+                    self.assertEqual(default, self.lib.DEFAULT_SETTINGS["formats"][key])
+
+    def test_every_shared_enforcement_default_matches(self):
+        shared = set(cc.ENFORCEMENT_DEFAULTS) & set(self.lib.ENFORCEMENT_DEFAULTS)
+        self.assertTrue(shared)
+        for key in sorted(shared):
+            with self.subTest(key=key):
+                self.assertEqual(cc.ENFORCEMENT_DEFAULTS[key], self.lib.ENFORCEMENT_DEFAULTS[key])
+
+    def test_this_repos_installed_copy_is_the_template(self):
+        installed = os.path.join(REPO_ROOT, ".acs", "ci", "check-conventions.py")
+        with open(CHECKER, "rb") as a, open(installed, "rb") as b:
+            self.assertEqual(a.read(), b.read(),
+                             ".acs/ci/check-conventions.py is a copy of the template; "
+                             "re-copy it rather than editing it")
 
 
 if __name__ == "__main__":

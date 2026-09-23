@@ -4,28 +4,42 @@ How a developer drives `acs` day to day. Commands are typed in a Claude Code
 session inside the consumer repo. Everything here follows the requirements
 in the sibling files; this doc adds no new rules, it shows them in action.
 
-## One-time setup (any repo)
+## Getting started (any repo)
+
+Nothing has to run first. Every setting has a working default, so any skill
+works in a repo that has no `.acs/settings.json`: tickets are `ACS-1`,
+`ACS-2`, …, a branch is `task/ACS-12-add-wishlist`, a commit
+`ACS-12 Add the wishlist endpoint`, and a PR title is the plain ticket title
+(`Add wishlist support`); coverage 90, merge strategy squash, tracker local,
+models inherited. The workspace is always `<main-checkout>/.acs/state-machine`
+and ignores itself on its first write.
+
+The `acme-shop` repo in these walkthroughs wants its own ticket prefix, so it
+sets one by hand in the committed `.acs/settings.json`:
+
+```json
+{ "ticket_prefix": "SHOP" }
+```
+
+`/setup` is optional: run it to change the branch/commit/PR formats or to
+install the CI gates.
 
 ```text
 cd acme-shop
 /setup
-  → ticket_prefix?    SHOP               (suggested from the repo name)
-  → conventions?      keep the defaults  (branch task/SHOP-12-slug, commit "SHOP-12 …", PR "[SHOP-12] …")
+  → conventions?      keep the defaults  (branch task/SHOP-12-slug, commit "SHOP-12 …", PR "Add wishlist support")
   → CI?               conventions + tests gates   (optional; branch protection + labels offered after)
-                      (workspace: always <main-checkout>/.acs/state-machine — nothing to answer)
 ```
 
 Setup writes only what differs from a default, to the committed
-`.acs/settings.json`. Every other setting — coverage 90, merge strategy
-squash, tracker local, models inherited — keeps its default; change one by
-editing that file.
+`.acs/settings.json`. Change any other setting by editing that file.
 
 ### Existing product (brownfield)
 
 ```text
 /create-prd            # reverse-engineers a baseline PRD from code + docs,
                        #   asks you to confirm open points
-                       # → delivery ticket SHOP-1, docs PR "[SHOP-1] Product definition"
+                       # → delivery ticket SHOP-1, docs PR "Product definition"
 /merge-pr SHOP-1       # after you review the PR yourself
 
 /create-architecture   # reverse-engineers HLD (C4 1–3, data model, deployment)

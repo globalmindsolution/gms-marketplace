@@ -10,9 +10,10 @@ commit messages match the *same* format strings the acs pipeline renders from
 `/acs:create-pr` is held to the identical convention before it can merge.
 
 No acs plugin install is required on the runner: the formats and ticket prefix
-are read from the committed `.acs/settings.json`. The check is FAIL-CLOSED — if
-no settings with `ticket_prefix` + `formats` are found, it errors and tells the
-user to run `/acs:setup`.
+are read from the committed `.acs/settings.json`, and every key it leaves out
+takes the same default the plugin uses (ADR-0105) -- so a repo with no settings
+file at all is checked against the defaults, ticket prefix `ACS` included. A
+settings file that is present but malformed fails the check.
 
 Modes:
   --mode pr        CI: validate a pull request (branch, title, body, labels,
@@ -38,10 +39,12 @@ import sys
 # repo initialised by an older acs that has no `enforcement` block yet.
 # ---------------------------------------------------------------------------
 
+DEFAULT_TICKET_PREFIX = "ACS"
+
 FORMAT_DEFAULTS = {
     "branch_name": "{type}/{ticket_id}-{slug}",
     "commit_message": "{ticket_id} {summary}",
-    "pr_title": "[{ticket_ref}] {title}",
+    "pr_title": "{title}",
 }
 
 CHECK_DEFAULTS = {
@@ -249,16 +252,18 @@ def evaluate(settings, ctx, mode):
 
     The checks that run are MODE_CHECKS[mode] intersected with the
     enforcement.checks.* toggles. Every check reads the user-configured
-    formats.* / enforcement.* from .acs/settings.json (set at /acs:setup) — there
-    are no hardcoded conventions, so local hooks and CI stay in lockstep.
+    formats.* / enforcement.* from .acs/settings.json, over the same defaults the
+    plugin uses, so local hooks and CI stay in lockstep.
     """
     res = Result()
-    prefix = settings.get("ticket_prefix")
-    if not prefix or not isinstance(settings.get("formats"), dict):
+    prefix = settings.get("ticket_prefix", DEFAULT_TICKET_PREFIX)
+    formats = settings.get("formats", {})
+    if (not isinstance(prefix, str) or not re.fullmatch(r"[A-Z][A-Z0-9]*", prefix)
+            or not isinstance(formats, dict)):
         res.errors.append((
             "settings",
-            "no committed acs conventions found (ticket_prefix + formats). "
-            "Run /acs:setup and commit .acs/settings.json.",
+            "malformed acs conventions in .acs/settings.json: ticket_prefix must be an "
+            "uppercase identifier and formats an object (remove either to use the default).",
         ))
         return res
 
@@ -384,7 +389,7 @@ def _emit(res, mode):
     if not in_actions:
         sys.stderr.write(
             "\nFix the above, or add the exempt label for a legitimate non-ticket PR.\n"
-            "These conventions come from .acs/settings.json — run /acs:setup to change them.\n")
+            "These conventions come from .acs/settings.json over acs's defaults — run /acs:setup to change them.\n")
     return 1
 
 

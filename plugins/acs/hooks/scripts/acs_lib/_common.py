@@ -408,8 +408,33 @@ def read_json(path):
         return None
 
 
+#: The in-repo state root's own path segments: <main-checkout>/.acs/state-machine.
+STATE_ROOT_SEGMENTS = (".acs", "state-machine")
+
+
+def _ensure_state_root_ignored(path):
+    """Give the state root a `.gitignore` of `*` before the first write under it.
+
+    A repo may run acs without /acs:setup ever adding the root `.gitignore`
+    entry (ADR-0105), and the workspace must still never show up as untracked
+    files. A `*` rule inside the folder ignores the folder and itself. Only a
+    write creates it: a hook that merely looks for state writes nothing, so a
+    repo that never runs acs gets no folder."""
+    parts = os.path.normpath(os.path.abspath(path)).split(os.sep)
+    for i in range(len(parts) - 1):
+        if tuple(parts[i:i + 2]) == STATE_ROOT_SEGMENTS:
+            root = os.sep.join(parts[:i + 2]) or os.sep
+            ignore = os.path.join(root, ".gitignore")
+            if not os.path.exists(ignore):
+                os.makedirs(root, exist_ok=True)
+                with open(ignore, "w", encoding="utf-8") as fh:
+                    fh.write("*\n")
+            return
+
+
 def write_json(path, data):
     """Atomic, pretty-printed write (the workspace doubles as a human-readable audit trail)."""
+    _ensure_state_root_ignored(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".acs-tmp-")
     try:
@@ -431,6 +456,7 @@ def write_text(path, text):
     a failure -- `handoff-context.md` is written because compaction is about to
     destroy the conversation, and truncating it is the one outcome worse than
     not writing it at all."""
+    _ensure_state_root_ignored(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".acs-tmp-")
     try:

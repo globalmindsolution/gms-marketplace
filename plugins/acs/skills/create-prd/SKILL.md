@@ -294,7 +294,7 @@ things are this run's own:
 - **What goes in it**, beyond the template's placeholders: Changes = the PRD
   files added or amended; Test plan = the verifier dimensions checked; mark
   TDD/coverage checklist items `N/A (docs-only PR)`. The default title renders
-  e.g. `[MAR-51] Amend PRD: add org-level enforcement policy`.
+  e.g. `Amend PRD: add org-level enforcement policy`.
 - **Reading the number back**: `gh pr view "<branch>" --json number,url`.
   Record the PR number, URL, and branch for the result document.
 

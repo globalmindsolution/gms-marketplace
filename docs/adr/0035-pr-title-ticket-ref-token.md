@@ -1,6 +1,6 @@
 # 0035 — Introduce a `pr_title`-only `{ticket_ref}` alternation token instead of overloading `{ticket_id}`
 
-**Status**: Accepted · **Date**: 2026-07-01
+**Status**: Accepted — amended by [0105](0105-acs-runs-without-setup.md) (the default `pr_title` is `{title}`; the token stays) · **Date**: 2026-07-01
 
 ## Context
 

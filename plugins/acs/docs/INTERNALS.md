@@ -1132,10 +1132,11 @@ what makes the arm reachable for a real ticket rather than only for a fixture.
 `setup/SKILL.md` was 1,003 lines, most of them mechanics. Since MAR-526 the
 skill asks and explains; `setup_wizard.py` writes, reached as two commands:
 
-Setup configures conventions and the CI that enforces them — the ticket
-prefix, the `formats.*` strings, and the convention and tests gates — and
-nothing else; every other setting keeps its default until someone edits
-`.acs/settings.json` by hand.
+Setup is optional (ADR-0105): no skill needs it first. It configures
+conventions and the CI that enforces them — the `formats.*` strings and the
+convention and tests gates — and nothing else; every other setting, the ticket
+prefix included, keeps its default until someone edits `.acs/settings.json` by
+hand.
 
 - **`acs.py setup detect`** — read-only. Which settings exist and **in which
   scope**, the resolved workspace, whether both ignore layers are in place and
@@ -1163,6 +1164,9 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
 
 - Resolution: `settings.local.json` -> project `settings.json` -> user
   `~/.acs/settings.json`, deep-merged per key (defaults in `acs_lib/settings.py`).
+  No settings file is required: every key has a default, `ticket_prefix`
+  included (`ACS`, ADR-0105), and only a malformed value (a lowercase prefix,
+  an unknown placeholder) is refused.
   A linked worktree without its own gitignored `settings.local.json` inherits
   the main checkout's.
 - Inline formats are validated by every pre-hook (unknown placeholder = exit 2;
@@ -1190,7 +1194,9 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   compiling the committed `formats.*` strings to regexes ({ticket_id} ->
   `PREFIX-\d+`, {type} -> `epic|story|task`, {slug} -> lower-kebab, free text ->
   `.+`), reading `ticket_prefix` + `formats` from the committed project
-  `settings.json`. It is fail-closed and tested by `tests/test_conventions_check.py`.
+  `settings.json` over its own copy of the plugin's defaults (ADR-0105), so a
+  repo with no settings file is checked against the defaults. A present but
+  malformed value fails closed; tested by `tests/test_conventions_check.py`.
   The CI check is necessary-but-not-sufficient (workspace proof lives off-repo),
   so the real gate is a required status check on a protected default branch;
   `exempt_branches`/`exempt_label` are the escape hatch for non-ticket PRs.

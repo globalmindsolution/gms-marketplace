@@ -48,13 +48,18 @@ class TestDispatcher(AcsWorkspaceCase):
 
 
 class TestGates(AcsWorkspaceCase):
-    def test_uninitialized_repo_blocks_with_setup_message(self):
+    def test_a_repo_that_never_ran_setup_is_not_blocked(self):
+        """ADR-0105: every setting has a default, so no /acs:setup is needed
+        first -- and the state the gate writes stays out of `git status`."""
         plain = os.path.join(self.tmp, "plain")
         os.makedirs(plain)
         subprocess.run(["git", "init", "-q", plain], check=True)
         result = self.pre("create-ticket", cwd=plain)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("setup", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("/acs:setup", result.stderr)
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=plain,
+                                capture_output=True, text=True, check=True)
+        self.assertEqual(status.stdout, "")
 
     def test_the_prd_precondition_is_the_skills_not_the_hooks(self):
         """ADR-0102: no setting says where the PRD lives, so the hook cannot

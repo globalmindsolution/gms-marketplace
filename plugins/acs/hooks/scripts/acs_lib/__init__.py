@@ -44,7 +44,8 @@ from ._common import (DELIVERY_TICKET_SKILLS,
     TICKET_STATUSES, TICKET_TYPES, UNHOOKED_SKILLS, WORKFLOW_SKILLS, _ISO_INSTANT,
     _git, deep_merge, now_iso, parse_iso, plugin_root, read_json, slugify, write_json)  # noqa: F401
 
-from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, ENFORCEMENT_DEFAULTS,
+from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, DEFAULT_TICKET_PREFIX,
+    ENFORCEMENT_DEFAULTS,
     FORMAT_PLACEHOLDERS, MODEL_EFFORTS, MODEL_OVERRIDE_SKILLS, MODEL_ROLES,
     RECOMMENDED_MODELS, RETIRED_SETTINGS_KEYS, _model_override_skills, _normalize_e2e_into_suites,
     enforcement_value, load_settings, render_format, resolve_role_model,

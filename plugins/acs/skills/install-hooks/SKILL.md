@@ -1,6 +1,6 @@
 ---
 name: install-hooks
-description: Write this clone's .git/hooks/commit-msg and .git/hooks/pre-push so the branch-name and commit-message formats configured at /acs:setup are checked locally as you commit and before you push. Git hooks are per-clone, so each teammate runs this once per clone and nothing else installs them.
+description: Write this clone's .git/hooks/commit-msg and .git/hooks/pre-push so the branch-name and commit-message formats (acs's defaults, or those changed with /acs:setup) are checked locally as you commit and before you push. Git hooks are per-clone, so each teammate runs this once per clone and nothing else installs them.
 when_to_use: Use when asked to install, set up, add or repair the local git hooks for this repository or clone; not for configuring what the conventions ARE (/acs:setup), and not for scaffolding a repo's missing tooling (/acs:project).
 ---
 
@@ -8,12 +8,13 @@ You are the coordinator of `/acs:install-hooks`. This is NOT a hooked pipeline
 skill: no `acs step start`, no pre/post hooks, no subagents, no reflection loop.
 You do everything yourself in this session with Bash, Read, Edit, and Write.
 
-The job: install this clone's local git hooks so the conventions the user
-configured at `/acs:setup` (`formats.branch_name`, `formats.commit_message`) are
-enforced **before push** — `commit-msg` validates the commit subject as it is
-written, `pre-push` validates the branch name and the push range's commit
-subjects. Both run the same `.acs/ci/check-conventions.py` against the same
-committed `.acs/settings.json` as CI, so laptop and runner never drift. PR title
+The job: install this clone's local git hooks so the repo's conventions
+(`formats.branch_name`, `formats.commit_message` — acs's defaults unless changed
+with `/acs:setup` or by hand) are enforced **before push** — `commit-msg`
+validates the commit subject as it is written, `pre-push` validates the branch
+name and the push range's commit subjects. Both run the same
+`.acs/ci/check-conventions.py` against the same committed `.acs/settings.json`
+(over the same defaults) as CI, so laptop and runner never drift. PR title
 and description can only be checked once a PR exists, so those stay CI-only.
 
 Git hooks are **per-clone** — that is why this is a command each teammate runs
@@ -39,25 +40,29 @@ PY
 If `checkout_root` is empty, stop: `/acs:install-hooks` must run inside the
 consumer repo. Use `main_repo_root` as `<repo>` below.
 
-## Step 1 — Require configured conventions
+## Step 1 — Check the conventions resolve
 
-The hooks are useless (and fail closed) without committed conventions. Verify
-`<repo>/.acs/settings.json` resolves with `ticket_prefix` + `formats`:
+No settings file is required: a key `.acs/settings.json` leaves out takes
+acs's default (ticket prefix `ACS`, the default formats), and the hooks check
+against those. A present but malformed value fails closed. Verify the
+conventions resolve with `ticket_prefix` + `formats`:
 
 ```bash
 python3 - "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" "<repo>" <<'PY'
-import os, sys
+import os, re, sys
 sys.path.insert(0, sys.argv[1])
 import acs_lib
 settings, _ = acs_lib.load_settings(sys.argv[2])
-ok = bool(settings.get("ticket_prefix")) and isinstance(settings.get("formats"), dict)
-print("CONVENTIONS_OK" if ok else "MISSING")
+prefix = settings.get("ticket_prefix")
+ok = (isinstance(prefix, str) and bool(re.fullmatch(r"[A-Z][A-Z0-9]*", prefix))
+      and isinstance(settings.get("formats"), dict))
+print("CONVENTIONS_OK" if ok else "MALFORMED")
 PY
 ```
 
-On `MISSING`, stop and tell the user to run `/acs:setup` first (it writes the
-committed conventions the hooks read). Do not install hooks that would only
-block every commit with "run /acs:setup".
+On `MALFORMED`, stop and tell the user their `.acs/settings.json` sets a
+malformed `ticket_prefix` or `formats`: fix it, or remove it to use the
+default. Do not install hooks that would only block every commit.
 
 ## Step 2 — Ensure the local-enforcement files are present
 
@@ -162,7 +167,7 @@ Ticket line with **Scope** (no ticket):
 - **Scope**: local hooks for <repo>
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: install path (pre-commit framework / raw git hooks); hooks installed (commit-msg, pre-push) or skipped (with reason); files copied into `.acs/ci/` (and whether they still need committing); verification outcome
-- **Findings**: <missing conventions / pre-existing non-acs hooks / clarifications, or "none">
+- **Findings**: <malformed conventions / pre-existing non-acs hooks / clarifications, or "none">
 - **Artifacts**: `.acs/ci/` files, this clone's `.git/hooks/*`, edited `.pre-commit-config.yaml`
 - **Metrics**: <wall time>
 - **Next**: have teammates run `/acs:install-hooks` per clone; configure the required CI check via `/acs:setup` for a true gate

@@ -134,7 +134,8 @@ job is to make sure the skill it guards can do its work at all, and to stop a
 run that would be unsafe.
 
 - Each hooked skill MUST be guarded by a **pre-hook**. Readiness means, at
-  minimum: the `.acs` `settings.json` resolves, the run resolves, no other
+  minimum: the settings validate (no `.acs/settings.json` is needed — every
+  key has a default, ADR-0105), the run resolves, no other
   session holds the run's lock, and every **input artifact the skill itself
   reads** exists. Examples: `/code` requires an approved `plan.md`;
   `/create-architecture` requires the PRD doc set.
@@ -527,8 +528,9 @@ markdown file per feature area):
 For a greenfield product, the product-level skills run before the first
 ticket:
 
-1. Create the empty git repo (user) and run **`/setup`** (workspace +
-   settings).
+1. Create the empty git repo (user). Nothing else is needed first;
+   **`/setup`** is optional, for changing the conventions or installing the
+   CI gates.
 2. **`/create-prd`** — elicit the product definition from the user: vision,
    problem, personas, goals with success metrics, prioritized features,
    product-level NFRs, constraints; shipped as the PRD doc set.

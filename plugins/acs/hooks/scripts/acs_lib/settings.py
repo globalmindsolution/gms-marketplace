@@ -31,7 +31,13 @@ FORMAT_PLACEHOLDERS = {
 BUILTIN_TEMPLATES = {"pr-default", "epic-default", "story-default", "task-default"}
 
 
+#: The ticket id prefix when a repo sets none (ADR-0105): tickets are ACS-1,
+#: ACS-2, ... A repo that wants its own sets `ticket_prefix` by hand. Mirrored
+#: by templates/ci/check-conventions.py, which runs without the plugin.
+DEFAULT_TICKET_PREFIX = "ACS"
+
 DEFAULT_SETTINGS = {
+    "ticket_prefix": DEFAULT_TICKET_PREFIX,
     "test_coverage_percent": 90,
     "merge_strategy": "squash",
     "suites": {},
@@ -42,7 +48,7 @@ DEFAULT_SETTINGS = {
     "formats": {
         "branch_name": "{type}/{ticket_id}-{slug}",
         "commit_message": "{ticket_id} {summary}",
-        "pr_title": "[{ticket_id}] {title}",
+        "pr_title": "{title}",
         "pr_description_template": "pr-default",
         "tickets": {
             "epic": {"title": "[EPIC] {title}", "description_template": "epic-default"},
@@ -142,8 +148,9 @@ def validate_settings(settings, cwd, require_workspace=True):
     if require_workspace:
         if not prefix or not re.fullmatch(r"[A-Z][A-Z0-9]*", str(prefix)):
             raise GateError(
-                "ticket_prefix is missing or invalid (must be a non-empty uppercase identifier, e.g. SHOP). "
-                "Run /acs:setup."
+                "ticket_prefix %r is invalid (must be an uppercase identifier, e.g. SHOP). "
+                "Fix it in .acs/settings.json, or remove it to use the default %s."
+                % (prefix, DEFAULT_TICKET_PREFIX)
             )
     coverage = settings.get("test_coverage_percent", 90)
     if not isinstance(coverage, (int, float)) or not (0 < coverage <= 100):

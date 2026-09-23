@@ -6,13 +6,16 @@ to choose ([ADR-0102](../../../adr/0102-documents-are-found-not-configured.md)) 
 the in-repo state root's gitignore coverage through two independent layers,
 verifies the combined result, guards against a broad ignore rule swallowing
 committed CI-readable files, creates the resolved state root and checks it is writable,
-and — only when a retired `workspace_path` key still points at an external
-workspace left by an older acs for this repo — offers a user-confirmed, one-shot
-migration into the new in-repo location. The reads are `setup detect` (Step 1)
-and the writes are `setup apply` (Step 3), both in `setup_wizard.py`; the
-migration offer is made at Step 1, before anything is asked. See
-the companion `setup-state-root-setup.evidence.md` sidecar for the code
-anchors this doc would otherwise cite inline.
+and names any retired settings key still in a settings file as ignored. The
+reads are `setup detect` (Step 1) and the writes are `setup apply` (Step 3),
+both in `setup_wizard.py`. See the companion `setup-state-root-setup.evidence.md`
+sidecar for the code anchors this doc would otherwise cite inline.
+
+Setup is optional, and nothing depends on this flow having run
+([ADR-0105](../../../adr/0105-acs-runs-without-setup.md)): the state root
+ignores itself, because the first state write under it creates
+`.acs/state-machine/.gitignore` containing `*`. The two layers below are
+kept for a repo that runs setup, not needed by one that never does.
 
 ## Sequence diagram
 
@@ -22,20 +25,11 @@ sequenceDiagram
     participant Init as /acs:setup
     participant Git as git plumbing - subprocess
     participant FS as Filesystem
-    participant Mig as migrate_workspace.py
 
     User->>Init: run /acs:setup
     Init->>Init: Step 1 - setup detect reports the workspace, ignore state and retired_keys
-    opt a retired workspace_path key points at an external workspace for this repo
-        Init->>User: name the key as ignored, offer to migrate that workspace into the repo
-        alt user confirms
-            Init->>Mig: run migrate_workspace.py with from, to, repo-root
-            Mig->>Mig: preflight - no live lock, no in_progress last run
-            Mig->>FS: copy old partition tree, verify, then remove old tree
-            Mig-->>Init: idempotent - safe to re-run if interrupted
-        else user declines
-            Init-->>User: old workspace left in place, no longer read
-        end
+    opt a settings file still carries a retired key
+        Init->>User: name the key and its file, say it is ignored
     end
     Init->>Init: Step 3 - setup apply
     Init->>Init: state root = main-checkout root + .acs/state-machine - no override
@@ -68,8 +62,6 @@ sequenceDiagram
 Both gitignore-coverage warnings above are non-fatal: `/acs:setup` warns
 and continues rather than hard-failing, since a conflicting negation rule or a
 pre-existing broad `.acs/` ignore is the user's own configuration to fix, not
-something init itself can safely resolve. The migration offer only ever
-triggers when a settings file still carries the retired `workspace_path` key
-pointing at an external workspace left by an older acs — a directory that
-already contains a partition tree for this repo; when there is none, the
-branch is skipped entirely and nothing is asked.
+something init itself can safely resolve. Moving state that an older acs kept
+in an external workspace is not part of setup: `migrate_workspace.py` does it
+by hand ([workspace-and-state.md](../../../requirements/functional/workspace-and-state.md)).

@@ -42,8 +42,10 @@ Parse the printed context JSON. Fields you will use:
   `{provider, key}` remote-tracker mapping, when synced).
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
   artifacts go in `steps/create-pr/`.
-- `settings.formats` — `pr_title` (default `[{ticket_id}] {title}`; vocabulary
-  `{ticket_id}` `{type}` `{title}` `{summary}` `{external_key}`) and
+- `settings.formats` — `pr_title` (default `{title}`, so the title carries no
+  ticket id: the body's Ticket section links the ticket; vocabulary
+  `{ticket_id}` `{type}` `{title}` `{summary}` `{external_key}` `{ticket_ref}`
+  for a repo that wants the id in its titles) and
   `pr_description_template` (default `pr-default`).
 - `settings.tracker` — `provider` is `local` (no sync), `github`, or `jira`.
 - `checkout_root`, `plugin_root` — for template resolution.

@@ -7,9 +7,10 @@ Core-principle row during the MAR-145 functional/non-functional reorg
 [../functional/configuration.md](../functional/configuration.md).
 
 - **Portability**: the plugin MUST be configurable per user and per project
-  via `settings.json` files — the project file seeded with the conventions by
-  `/setup`, everything else edited by hand
-  (see [../functional/configuration.md](../functional/configuration.md)).
+  via `settings.json` files, and MUST run without any: every key has a
+  default ([ADR-0105](../../adr/0105-acs-runs-without-setup.md)). The optional
+  `/setup` writes the conventions a team changes; everything else is edited
+  by hand (see [../functional/configuration.md](../functional/configuration.md)).
 
 | Core principle | Requirement |
 |----------------|-------------|

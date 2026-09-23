@@ -40,40 +40,41 @@ marketplace `globalmindsolution/gms-marketplace`, then install `acs` from it.
 
 ## Quick start
 
-One-time setup in any repo (the workspace is the gitignored
-`.acs/state-machine` folder in the main checkout — there is no path to pick):
+No setup is required: acs runs in any repo on its defaults. Tickets are
+`ACS-1`, `ACS-2`, …, and the workspace is the gitignored `.acs/state-machine`
+folder in the main checkout — there is no path to pick. Run `/acs:setup` only
+to change a convention or install the CI gates:
 
 ```text
 cd acme-shop
 /acs:setup
-  → ticket_prefix?    SHOP               (suggested from the repo name)
-  → conventions?      keep the defaults  (branch task/SHOP-12-slug, commit "SHOP-12 …", PR "[SHOP-12] …")
+  → conventions?      keep the defaults  (branch task/ACS-12-slug, commit "ACS-12 …", PR "Add wishlist support")
   → CI?               conventions + tests gates   (optional; branch protection offered after)
 ```
 
 Setup writes only what differs from a default, to `.acs/settings.json`. Every
-other setting — tracker, models, merge strategy, coverage target — has a
-working default; change one by editing that file.
+other setting — ticket prefix, tracker, models, merge strategy, coverage
+target — has a working default; change one by editing that file.
 
 Onboard an existing product (brownfield) — baseline the PRD and the
 architecture doc set, each delivered as a reviewable docs PR:
 
 ```text
 /acs:create-prd            # reverse-engineers a baseline PRD from code + docs
-                           # → delivery ticket SHOP-1, docs PR
+                           # → delivery ticket ACS-1, docs PR
                            # if this is the first allocation for this
-                           #   workspace partition since /acs:setup, it
-                           #   refuses with exit 2 and proposes a start
-                           #   number from local evidence — confirm or
-                           #   correct it with --seed-next <n> (see
-                           #   Troubleshooting below), then re-run; every
-                           #   later allocation is normal
-/acs:merge-pr SHOP-1       # after you review the PR yourself
+                           #   workspace partition, it refuses with exit 2
+                           #   and proposes a start number from local
+                           #   evidence — confirm or correct it with
+                           #   --seed-next <n> (see Troubleshooting
+                           #   below), then re-run; every later
+                           #   allocation is normal
+/acs:merge-pr ACS-1        # after you review the PR yourself
 
 /acs:create-architecture   # reverse-engineers HLD (C4 1–3, data model,
                            #   deployment) + LLD key flows, all Mermaid
-                           # → delivery ticket SHOP-2, docs PR
-/acs:merge-pr SHOP-2
+                           # → delivery ticket ACS-2, docs PR
+/acs:merge-pr ACS-2
 ```
 
 (Greenfield is the same, except both skills *elicit* instead of
@@ -88,9 +89,9 @@ in the Design phase:
 
 ```text
 /acs:create-ticket Add wishlist support so customers can save products for later
-                           # → SHOP-5, typed and traced to the PRD
-/acs:create-design SHOP-5  # only when the ticket carries needs_design: true
-/acs:ship SHOP-5           # drives the Build/Test/Ship steps to the PR
+                           # → ACS-5, typed and traced to the PRD
+/acs:create-design ACS-5   # only when the ticket carries needs_design: true
+/acs:ship ACS-5            # drives the Build/Test/Ship steps to the PR
 ```
 
 `/acs:ship` is a thin loop over `acs.py run next`: that command prints the
@@ -102,12 +103,12 @@ it cannot disagree with the ledger it is read from. Print the file with
 `acs.py workflow show` rather than assuming an order. After reviewing each PR yourself:
 
 ```text
-/acs:merge-pr SHOP-5       # readiness check → squash merge → delete branch →
+/acs:merge-pr ACS-5        # readiness check → squash merge → delete branch →
                            #   ticket done (+ tracker sync) → partition archived
 ```
 
 Every step is also invocable on its own (`/acs:create-ticket Fix flaky
-checkout rounding`, then `/acs:analyze-requirements SHOP-7`, `/acs:code SHOP-7`, …).
+checkout rounding`, then `/acs:analyze-requirements ACS-7`, `/acs:code ACS-7`, …).
 A hand-run step is never refused for a predecessor's position in the workflow —
 its hook checks the inputs it reads and the safety brakes below — so you can
 re-run one step, skip one you do not need, or drive the whole thing yourself.
@@ -224,7 +225,7 @@ different.
 
 | Skill | Gate (input / brake) | What it does |
 |-------|----------------------|--------------|
-| `/acs:setup` | — (bootstrap) | Configures conventions and the CI that enforces them: the ticket prefix, the branch/commit/PR formats, and the optional convention and tests gates. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
+| `/acs:setup` | — (optional; no skill needs it first) | Configures conventions and the CI that enforces them: the branch/commit/PR formats, and the optional convention and tests gates. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
@@ -317,14 +318,15 @@ and `acs.py run next` for what runs next.
 
 ## Configuration
 
-`/acs:setup` writes the conventions; everything else is edited by hand and
-validated against [schemas/settings.schema.json](schemas/settings.schema.json).
-Resolved per key as `settings.local.json` → project `settings.json` →
-`~/.acs/settings.json`, over the built-in defaults. The most-used keys:
+No settings file is required. `/acs:setup` writes the conventions; everything
+else is edited by hand and validated against
+[schemas/settings.schema.json](schemas/settings.schema.json). Resolved per key
+as `settings.local.json` → project `settings.json` → `~/.acs/settings.json`,
+over the built-in defaults. The most-used keys:
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `ticket_prefix` | — (required at setup time) | Per-repo ticket id prefix (`SHOP` → `SHOP-123`) |
+| `ticket_prefix` | `"ACS"` | Ticket id prefix (`ACS` → `ACS-123`); optional — set your own by hand (`SHOP` → `SHOP-123`) |
 | `test_coverage_percent` | `90` | `/acs:code` TDD coverage target (hard fail if missed) |
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
 | `models` | inherit | Per-role model + reasoning effort (`executor`/`verifier`, per-skill overrides; a `planner` entry is still accepted but no skill spawns one — ADR-0092) |
@@ -367,8 +369,7 @@ deleted.
 - **"no plan.md found for SHOP-123 …" (skill refuses to run).** A pre-hook
   exited 2 because an INPUT it reads is missing. The stderr message names the
   file, where it looked, and the skill that produces it — run that one for the
-  same ticket (here `/acs:create-impl-plan SHOP-123`). A "run /setup first"
-  message means no `settings.json` could be resolved: run `/acs:setup`.
+  same ticket (here `/acs:create-impl-plan SHOP-123`).
 - **"acs: docs-sync normally follows code in ship.yaml …" (skill runs
   anyway).** That is the out-of-order ADVISORY, not a refusal — one stderr line,
   exit 0. It means the step you invoked is ahead of its `needs` in the resolved

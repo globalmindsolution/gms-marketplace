@@ -134,7 +134,8 @@ PY
 
 **Exit 2.** When `lib.validate_settings` raises `GateError`, the snippet
 writes the error to stderr and exits 2: surface stderr verbatim and stop —
-settings are invalid or acs is not initialized here.
+a hand-set setting is malformed or this is not a git checkout. A repo with no
+settings file resolves on the defaults.
 
 **`resume` set** → skip eligibility entirely and go to "Per-set Start", resume
 form, for that one ticket.

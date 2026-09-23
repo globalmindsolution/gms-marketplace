@@ -158,18 +158,14 @@ class TestRunPostExits(AcsWorkspaceCase):
 
     def test_exits_when_context_cannot_be_built(self):
         """1966-1968: run_post exits 1 (not a traceback) when build_context
-        raises -- an uninitialized repo. HOME is isolated to a temp dir so a
-        real ~/.acs/settings.json on the runner's machine can't mask this."""
-        plain = os.path.join(self.tmp, "no-acs")
+        raises. A repo with no settings file no longer does (ADR-0105), so the
+        context that cannot be built is one outside any git repository."""
+        plain = os.path.join(self.tmp, "no-git")
         os.makedirs(plain)
-        subprocess.run(["git", "init", "-q", plain], check=True)
-        fake_home = os.path.join(self.tmp, "fake-home")
-        os.makedirs(fake_home)
-        env = dict(os.environ, HOME=fake_home)
-        result = self.run_script("post-code.py", cwd=plain, env=env,
+        result = self.run_script("post-code.py", cwd=plain,
                                  stdin=json.dumps({"status": "completed"}))
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("no .acs/settings.json", result.stderr)
+        self.assertIn("requires a git repository", result.stderr)
 
     def test_exits_when_the_run_cannot_be_resolved(self):
         """run_post exits 1 when no run can be resolved (no --run, no session

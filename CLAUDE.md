@@ -149,10 +149,11 @@ changing the plugin itself.
 
 ## Conventions enforced in CI
 
-`.acs/ci/check-conventions.py` validates branch names, commit messages and PR shape against the
-`formats.*` block in `.acs/settings.json` (branch `{type}/{ticket_id}-{slug}`, commit
-`{ticket_id} {summary}`, PR title `[{ticket_ref}] {title}`, required PR sections, the `ACS`
-label). Work not backed by a ticket needs the `acs-exempt` label. Toggles live under
-`enforcement.checks.*`.
+`.acs/ci/check-conventions.py` validates branch names, commit messages and PR shape against
+`.acs/settings.json` over acs's built-in defaults, which this repo keeps (branch
+`{type}/{ticket_id}-{slug}`, commit `{ticket_id} {summary}` with the `MAR` prefix, a plain PR
+title, required PR sections including the Ticket link, the `ACS` label). Work not backed by a
+ticket needs the `acs-exempt` label. Toggles live under `enforcement.checks.*`. The checker is a
+copy of `plugins/acs/templates/ci/check-conventions.py`: re-copy it, never edit it in place.
 
 `main` is protected — branch off it, never commit to it directly.

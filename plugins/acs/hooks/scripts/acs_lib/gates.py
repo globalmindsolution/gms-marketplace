@@ -61,9 +61,9 @@ def build_context(cwd, require_workspace=True):
     """Resolve everything deterministic about where we are. Raises GateError."""
     if not checkout_root(cwd):
         raise GateError("acs requires a git repository; %s is not inside one." % cwd)
+    # No settings file is needed (ADR-0105): every key has a default, the ticket
+    # prefix included, so a repo works before /acs:setup has ever run.
     settings, sources = load_settings(cwd)
-    if require_workspace and not sources:
-        raise GateError("no .acs/settings.json found (user or project scope). Run /acs:setup first.")
     workspace = validate_settings(settings, cwd, require_workspace=require_workspace)
     repo_id = repo_partition_id(cwd)
     if not repo_id:

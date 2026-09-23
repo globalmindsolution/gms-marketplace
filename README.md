@@ -159,10 +159,9 @@ The marketplace currently ships one plugin:
   The human-facing ticket documents (`ticket.md`, `design.md`, `plan.md`,
   `test-cases.md`, …) live in the consumer repo under
   `docs/tickets/<ticket-id>/`, reviewable in the PR like any other doc; the
-  durable **run ledger** lives in a gitignored `.acs/state-machine` folder
-  inside the consumer repo by default (an explicit override can still point
-  it elsewhere), making runs resumable and tickets shippable in parallel
-  across git worktrees.
+  durable **run ledger** lives in a `.acs/state-machine` folder in the
+  consumer repo's main checkout, which ignores itself in git, making runs
+  resumable and tickets shippable in parallel across git worktrees.
 
   The delivery **order** is declared in
   [`plugins/acs/workflows/ship.yaml`](plugins/acs/workflows/ship.yaml) — a version, a

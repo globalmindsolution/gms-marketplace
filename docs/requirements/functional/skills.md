@@ -104,13 +104,15 @@ table; none of its runtime obligations changed.
 
 ---
 
-## `/setup` (bootstrap)
+## `/setup` (optional)
 
-Purpose: make the `acs` plugin work on any consumer repo by configuring its
-conventions and the CI that enforces them — nothing else. Every other setting
-(coverage target, merge strategy, tracker, models, suites, advisories) keeps a
-working default and is edited by hand in `.acs/settings.json`, validated
-against `settings.schema.json`.
+Purpose: let a team change the branch/commit/PR conventions and install the
+CI that enforces them — nothing else. It is **optional**: every setting has a
+working default, so no skill needs `/setup` to have run first
+([ADR-0105](../../adr/0105-acs-runs-without-setup.md)). Every other setting
+(ticket prefix, coverage target, merge strategy, tracker, models, suites,
+advisories) keeps its default and is edited by hand in `.acs/settings.json`,
+validated against `settings.schema.json`.
 
 - MUST write only the project settings file (`<repo>/.acs/settings.json`,
   committed — conventions are the team's); there is no scope question. MUST
@@ -119,9 +121,8 @@ against `settings.schema.json`.
 - The workspace derives silently to `<main-checkout>/.acs/state-machine` —
   no prompt, no required input, and no override (ADR-0086,
   [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
-- MUST prompt for **`ticket_prefix`**, suggesting one derived from the
-  repo/product name (e.g. `SHOP`) — ticket ids are per-repo; there is no
-  global default prefix.
+- MUST NOT ask for a `ticket_prefix`: it defaults to `ACS`, and a repo that
+  wants its own sets it by hand.
 - MUST show the three conventions — `formats.branch_name`,
   `formats.commit_message`, `formats.pr_title` — with their built-in
   defaults, and ask whether to keep or customize them.
@@ -138,17 +139,16 @@ against `settings.schema.json`.
   `<git-common-dir>/info/exclude` append — MUST verify the combined result
   with `git check-ignore -v`, and MUST warn (never silently proceed) when
   the ignore is not actually in effect, or when a broad `.acs/` rule would
-  also hide `.acs/settings.json`/`.acs/ci/*` from CI (ADR-0086).
+  also hide `.acs/settings.json`/`.acs/ci/*` from CI (ADR-0086). Nothing
+  depends on these entries any more: the state root ignores itself through
+  its own `.gitignore` of `*`, written on the first state write (ADR-0105).
 - MUST name every retired settings key (ADR-0102) still in a settings file
-  and say it is ignored. When that key is a `workspace_path` pointing at an
-  external workspace left by an older acs, SHOULD offer a user-confirmed,
-  one-shot migration into the in-repo state root (`migrate_workspace.py`);
-  declining leaves the old workspace untouched — acs no longer reads it
-  (ADR-0086).
+  and say it is ignored.
 - `/setup` is not part of the gated pipeline (no executor/verifier
   subagents); it is a simple setup skill.
-- All other skills' pre-hooks fail fast (exit 2) with a "run /setup first"
-  message when no `settings.json` can be found.
+- No other skill waits on `/setup`: a repo with no `settings.json` runs every
+  skill on the defaults. A pre-hook still refuses (exit 2) a malformed
+  hand-set value, such as a lowercase `ticket_prefix`.
 - Re-running `/setup` on an initialized repo **updates the existing settings
   in place** (preserving keys it does not touch) and refreshes the CI copies.
 - MUST NOT write into the repo's `CLAUDE.md` (the repo's own project
@@ -1404,19 +1404,22 @@ Purpose: ship the implementation as a pull request.
   subagent; no planner subagent; no verifier subagent. Correctness was gated
   by the upstream review (`/acs:review-code`); the human checkpoint is the PR review.
 - PR title and PR description MUST follow the formats configured in
-  `settings.json` ([configuration.md](configuration.md)).
+  `settings.json` ([configuration.md](configuration.md)). The default
+  `pr_title` is `{title}` — the plain ticket title, e.g. `Add wishlist
+  support` — because the description's `## Ticket` section links the ticket
+  (ADR-0105).
 - The PR targets the repo's **default branch** and MUST carry the **`ACS`**
   label.
 - **[ASSUMPTION]** PRs are created ready-for-review (not draft).
 - **GitHub-native issue linking (standing behavior, MAR-75):** for a ticket
   synced to GitHub the PR body carries a `Closes #<external.key>` reference (a
   distinct bullet in the `## Ticket` section) so GitHub auto-links and
-  auto-closes the issue on merge, in addition to the existing `[{ticket_id}]`
-  title and tracker line. The PR also carries the required `ACS` label and the
-  milestone when one is used. The link bullet is omitted entirely for
-  `local`/unsynced tickets. Independently, the enforced `pr_title` format now
-  renders the tracker's native reference when the ticket is synced (MAR-80) —
-  see the `/create-pr` section above for the title-rendering mechanics.
+  auto-closes the issue on merge, in addition to the tracker line. The PR also
+  carries the required `ACS` label and the milestone when one is used. The
+  link bullet is omitted entirely for `local`/unsynced tickets. Independently,
+  a `pr_title` that uses `{ticket_ref}` renders the tracker's native reference
+  when the ticket is synced (MAR-80); the default `{title}` carries no
+  reference at all (ADR-0105).
 - **Tracker-metadata fill (standing behavior, MAR-101):** on GitHub tracker
   sync (i.e. `ticket.external.provider == "github"` and the ticket is synced),
   an acs-opened/updated PR carries assignee = PR author (the authenticated

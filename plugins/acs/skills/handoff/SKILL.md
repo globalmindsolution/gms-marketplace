@@ -49,7 +49,8 @@ You need the run directory before flushing. Resolve it like the hooks do:
 - **Settings** (per-key merge, most specific wins): read
   `<main-checkout>/.acs/settings.local.json`, then
   `<main-checkout>/.acs/settings.json`, then `~/.acs/settings.json`; take the
-  first `ticket_prefix` found. In a linked worktree also check the worktree's
+  first `ticket_prefix` found, or the default `ACS` when none sets one (no
+  settings file is required). In a linked worktree also check the worktree's
   own `.acs/` files. **Workspace**: always `<main-checkout>/.acs/state-machine`,
   the same derivation `acs_lib.default_state_root()` does — no override
   exists. When it cannot be derived (a bare repo or a submodule), stop and tell
@@ -166,8 +167,12 @@ If it exits non-zero, surface its stderr verbatim and stop. Known cases:
 
 - `a handoff summary is required (--summary or --summary-file)` — write the
   summary first; it is the whole point of a planned handoff.
-- `acs requires a git repository` / `no .acs/settings.json found (user or
-  project scope)` — tell the user to run `/acs:setup`.
+- `acs requires a git repository` — tell the user acs must be run inside a
+  git checkout. A missing `.acs/settings.json` is never the cause: acs runs on
+  its defaults, and no `/acs:setup` run is needed first.
+- `ticket_prefix '<x>' is invalid …` — a hand-set prefix is malformed; the
+  user fixes it in `.acs/settings.json`, or removes it to use the default
+  `ACS`.
 - `... acs cannot derive an in-repo state root here` (bare repo or
   submodule) — tell the user that acs must be run from a regular git
   checkout.

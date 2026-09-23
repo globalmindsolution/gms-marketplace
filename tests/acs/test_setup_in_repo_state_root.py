@@ -106,7 +106,6 @@ class Mar4InitStateRootCase(unittest.TestCase):
         self.assertNotIn("MUST be outside the consumer repo", self.body)
         self.assertIsNone(re.search(r"(?m)^\| `workspace_path` \|", self.body),
                           "setup must not offer a workspace_path row")
-        self.assertIn(".acs/state-machine", self.body)
 
     def test_both_ignore_layers_are_written(self):
         """AC: the tracked `.gitignore` entry AND the untracked
@@ -176,9 +175,11 @@ class Mar4InitStateRootCase(unittest.TestCase):
         self.assertIn("resolved exactly as validate_settings", self.wizard)
         self.assertIn("os.access(target, os.W_OK)", self.wizard)
 
-    def test_the_migration_offer_survives(self):
-        """AC: the one-shot external->in-repo migration is still offered."""
-        self.assertIn("migrate_workspace.py", self.body)
+    def test_setup_no_longer_offers_the_workspace_migration(self):
+        """ADR-0105: setup has nothing to say about where state lives -- it is
+        always .acs/state-machine. The one-shot external->in-repo move is
+        `migrate_workspace.py`'s own business, not a setup step."""
+        self.assertNotIn("migrate_workspace.py", self.body)
 
     def test_no_rationale_still_claims_the_workspace_is_outside_the_repo(self):
         """AC: the CI rationale that assumed an outside-the-repo workspace is

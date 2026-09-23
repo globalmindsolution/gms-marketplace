@@ -353,6 +353,23 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **acs runs without `/acs:setup`, and the PR title carries no ticket id**
+  (ADR-0105). `ticket_prefix` is optional and defaults to `ACS`, so tickets
+  are `ACS-1`, `ACS-2`, …; a repo that wants its own prefix sets it by hand.
+  No settings file is required: the "Run /acs:setup first" refusal is gone,
+  and a malformed value such as a lowercase prefix is still refused. The first
+  state write creates `.acs/state-machine/.gitignore` containing `*`, so the
+  workspace stays out of `git status` whether or not setup ran. The default
+  `formats.pr_title` is `{title}`: the PR description's Ticket section links
+  the ticket, and branch names and commit messages still carry the id.
+  `/acs:setup` no longer asks for a prefix or mentions `workspace_path`. The
+  CI convention checker uses the same defaults and checks a repo with no
+  settings file against them instead of failing. The plugin, the schema and
+  the checker had drifted on the `pr_title` default, and a test now keeps the
+  three level. Repos whose settings name a prefix or a `pr_title` keep them;
+  re-copy `.acs/ci/check-conventions.py` from the template to pick up the new
+  defaults.
+
 - **`/acs:metrics` and `/acs:usage` are removed, and acs records no usage**
   (ADR-0104, superseding ADR-0082 and amending ADR-0103). Both skills go, with
   everything that existed only to feed them: `metrics_aggregate*.py`,
