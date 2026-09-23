@@ -493,7 +493,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: PR number and URL; base branch; head branch; `ACS` label applied
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out>
 - **Next**: review the PR, then `/acs:merge-pr <ticket-id>` — a separate, reviewed step
 ```
 </content>

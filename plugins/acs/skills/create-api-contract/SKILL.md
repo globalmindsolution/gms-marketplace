@@ -460,6 +460,6 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Results**: contract path; items specified; acceptance criteria traced; compatibility verdict; machine-readable contract files changed
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <contract path, contract files, partition phase artifacts, branch>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:create-test-docs <ticket-id>`
 ```

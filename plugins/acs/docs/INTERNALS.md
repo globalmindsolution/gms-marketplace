@@ -15,8 +15,7 @@ component follows.
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 32 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 32 files, all reachable (13 executor + verifier pairs — the twelve authoring skills plus `create-docs` — 4 apply-work executors, and `review-code`'s lens and adjudicator; no skill has a planner since ADR-0092, and `code` lost its verifier to `/acs:review-code`). Each skill declares the roles it owns under `agents` in `skills/<name>/acs.yaml`; the files on disk are exactly that set |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,stacked-base,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above and the 2 status lines counted in the row below; the `acs_lib/` package, `usage_reader.py`, `cost_sampler.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 19 |
-| Status lines (opt-in) | `hooks/scripts/statusline.py` (prompt line: ticket + pipeline glyphs + cost; also samples and persists the real statusLine cost payload into the workspace on every invocation, fail-open, since MAR-1) and `hooks/scripts/subagent-statusline.py` (agent-panel rows for reflection subagents) — configured by hand in the user's Claude Code settings (`statusLine` / `subagentStatusLine`, each a `command` running `python3 <plugin-root>/hooks/scripts/<script>`); /setup no longer offers them, since it configures conventions and CI only. They stay user-owned settings, never forced. A plugin-root `settings.json` default was deliberately NOT shipped: `${CLAUDE_PLUGIN_ROOT}` expansion there is unverified, and a silently broken default is worse than an explicit opt-in. | 2 |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,metrics_aggregate,metrics_render,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,stacked-base,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `usage_reader.py`, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the twelve `metrics_render_*`, `metrics_aggregate_*` and `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 19 |
 | Workflow files | `plugins/acs/workflows/{phases,ship}.yaml` | 2 (the skill registry and the default delivery pipeline; a consumer may override the latter at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 14 |
 | XML schema | `the SubagentStop hook` | 1 |
@@ -50,12 +49,12 @@ onto the plugin hooks API like this:
 2. **Post-hooks — coordinator-invoked, gate-backed.** `post-<skill>.py` is the
    skill's mandatory final step (each SKILL.md ends with it). It must be a
    script the coordinator calls because its inputs — final status, stop
-   reason, and findings — exist only in the coordinator's context. Token/cost
+   reason, and findings — exist only in the coordinator's context. Token
    usage is the one exception since MAR-1 (ADR 0082): `finalize_run` measures
-   both itself, from the run's own Claude Code transcript and a sampled
-   statusLine cost figure, rather than trusting a coordinator-supplied value —
-   a `tokens`/`cost_usd` pair on the result document is accepted for backward
-   compatibility but silently ignored. The pipeline does not depend on the
+   it itself, from the run's own Claude Code transcript, rather than trusting a
+   coordinator-supplied value — a `tokens` object on the result document is
+   accepted for backward compatibility but silently ignored. No dollar cost is
+   recorded (ADR 0103). The pipeline does not depend on the
    model's goodwill: skill-start has already appended an `in_progress` run
    entry, and the ledger it writes is what `acs.py run next` walks, so a
    skipped post-hook leaves the step UN-SATISFIED — the pipeline re-offers it
@@ -514,7 +513,7 @@ pipeline end.
 - **Results**: <the skill's canonical states keys, as short bullets>
 - **Findings**: <open findings / clarifications obtained, or "none">
 - **Artifacts**: <what was written where: partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: <exact command(s), e.g. `/acs:create-pr SHOP-123`, or what unblocks>
 ```
 
@@ -553,7 +552,6 @@ SKILL.md's "Completion report" section.
   "findings": [ {"severity": "blocking|info", "dimension": "...", "detail": "..."} ],
   "errors":   [ "..." ],
   "tokens":   {"input": 0, "output": 0},
-  "cost_usd": 0.0,
   "handoff_summary": "only when status=interrupted"
 }
 ```
@@ -584,10 +582,13 @@ supplied-vs-derived pairs — which is also printed on stderr. `verifier_passed`
 is derived only for `code`, the one skill whose verdict `/acs:create-pr` gates
 on. **A coordinator cannot open that gate by writing `true`.**
 
-`tokens`/`cost_usd` above are legacy fields: accepted for backward compatibility but
-silently ignored since MAR-1 — `finalize_run` measures both itself (see the
-Token/cost usage exception noted above) rather than trusting a coordinator-supplied
-value. Emitting them is harmless but has no effect.
+`tokens` above is a legacy field: accepted for backward compatibility but
+silently ignored since MAR-1 — `finalize_run` measures tokens itself (see the
+token usage exception noted above) rather than trusting a coordinator-supplied
+value. Emitting it is harmless but has no effect. The same holds for
+`cost_usd`, `cost_basis` and `api_duration_ms` (ADR 0103): the result schema
+still accepts them, so an older coordinator's document validates, and nothing
+reads them.
 
 `post-<skill>.py` finalizes `runs[-1]`, merges `states` (replaces `findings` /
 `errors` when present), updates `run.json`, `tickets-index.json`,
@@ -745,7 +746,7 @@ whole docs folder when it creates the branch.
   runs-index.json                       # every run: id, workflow, subject, status
   sessions/<checkout-id>/               # ONE directory per checkout, not five files
     pointer.json                        #   the current RUN and STEP
-    session.json  cost.jsonl  runtime.json
+    session.json                        #   the session-correlation marker
   archive/<ticket-id>/                  # moved here by post-merge-pr
   runs/<run-id>/                        # THE PARTITION -- a run, not a ticket
     run.json                            #   the run machine (§4.3)
@@ -837,7 +838,7 @@ case except the one it exists for. A refused write is recoverable; a clobbered
 one is invisible — and for `counters.json` it means two sessions holding the
 same ticket id. In `post-<skill>.py` the refusal exits 1 and says which half
 landed: the run, `ticket.json` and `run.json` are already durable, the
-index self-heals on the next post hook, and that run's tokens and cost are lost
+index self-heals on the next post hook, and that run's tokens are lost
 from `metrics.json` — except after **merge-pr**, the terminal post hook, where
 nothing runs afterwards and the message says so instead. Every other entry point
 reports the refusal as `acs <command>: <reason>` and **exit 2**, and any that

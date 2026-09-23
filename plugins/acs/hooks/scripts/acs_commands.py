@@ -36,8 +36,7 @@ CONTEXT_KEYS = ("checkout_root", "main_repo_root", "workspace", "repo_id",
 def cmd_context(args):
     """The resolved workspace view: what checkout_root, main_repo_root,
     repo_partition_id, index_path, repo_dir and load_settings each answer, in
-    one call, plus checkout_id (which names this checkout's pointer and
-    cost-sample files)."""
+    one call, plus checkout_id (which names this checkout's pointer file)."""
     ctx = context_or_die("context")
     out = {"ok": True}
     for key in CONTEXT_KEYS:

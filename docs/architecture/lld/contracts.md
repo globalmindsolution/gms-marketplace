@@ -24,15 +24,18 @@ coordinator rather than arriving at the subagent as an absent value.
 **`<metrics>` removed (MAR-1, ADR 0082).** The self-estimated
 `<metrics tokens-input=".." tokens-output=".." cost-usd="..">` element is
 gone from the result document's shape — `result.schema.json` does not declare
-it, so a stray token/cost field is rejected as an undeclared property. Token
-and cost figures are no longer part of the
+it, so a stray `<metrics>` element is rejected as an undeclared property (the
+flat `tokens`, `cost_usd`, `cost_basis` and `api_duration_ms` keys stay
+accepted and ignored, ADR 0103). Token
+figures are no longer part of the
 subagent-to-coordinator message contract at all; they are measured from the
-run's own transcript and the statusLine cost sample at `finalize_run` time
-(see the Run-entry / totals contract below).
+run's own transcript at `finalize_run` time (see the Run-entry / totals
+contract below). No dollar figure is recorded anywhere
+([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
 
 ## Run-entry / totals contract (MAR-1, ADR 0082)
 
-`finalize_run` no longer trusts a coordinator-supplied `tokens`/`cost_usd`
+`finalize_run` no longer trusts a coordinator-supplied `tokens`
 self-estimate. A `<skill>-state.json` `runs[]` item now carries, additive to
 the existing `started_at`/`ended_at`/`status`/`stop_reason`/`handoff_summary`
 shape:
@@ -40,22 +43,22 @@ shape:
 | Field | Shape | Meaning |
 |---|---|---|
 | `session_id`, `transcript_path` | nullable string | Captured off the `PreToolUse(Skill)` envelope by the session marker, threaded on at `acs.py step start`; `null` when no marker was accepted |
-| `checkout_id` | nullable string | Needed at finalize time to locate this checkout's cost-sample/cursor files |
+| `checkout_id` | nullable string | The checkout the invocation ran in, off the session marker |
 | `tokens.{input,output,cache_creation,cache_read}` | integers | Raw measured token counts (`tokens` widens its explicit allow-list under `additionalProperties: false`) |
-| `cost_usd` | number or `null` | `null` means `cost_basis="unavailable"` — never a fabricated `0` |
-| `cost_basis` | enum | `measured` / `apportioned` / `unavailable` |
-| `cost_scope` | enum | `session_total` / `main_session_only` on a charge; `no_unconsumed_sample_in_window` / `cost_total_reset` reused as the degraded reason when `cost_usd` is `null` |
-| `excluded_cost_usd`, `excluded_token_share` | number or `null` | The unattributed same-window slice dropped from the ticket's cost, per C-8 — never redistributed onto attributed roles |
-| `role_usage` | array | Per-role `{role, input, output, cache_creation, cache_read, cost_usd, cost_basis}` buckets, including a first-class `coordinator` bucket and an `unattributed` bucket that never receives a dollar share |
-| `model_usage` | array | Per-model `{model, input, output, cache_creation, cache_read, cost_usd, cost_basis}` buckets — parallel to `role_usage`, unattributed-inclusive (D1.1 Option B). `cost_usd` apportions the run's FULL charged delta by token share with no unattributed exclusion (D1.2 Option A), so `sum(model_usage.cost_usd)` can exceed `sum(role_usage.cost_usd)`'s attributed-only total by `excluded_cost_usd` — a named, testable reconciliation identity, not a bug. |
+| `role_usage` | array | Per-role `{role, input, output, cache_creation, cache_read}` buckets, including a first-class `coordinator` bucket and an `unattributed` bucket for same-window tokens no role claims (C-8 — never redistributed onto attributed roles) |
+| `model_usage` | array | Per-model `{model, input, output, cache_creation, cache_read}` buckets — parallel to `role_usage`, unattributed-inclusive (D1.1 Option B) |
 
-`run.json`/`metrics.json` `totals` gain four additive counters —
-`runs_timed`/`runs_untimed` and `runs_cost_measured`/`runs_cost_unavailable`
-— incremented for every run regardless of whether it contributes to the
-`working_seconds`/`cost_usd` sums; a run with a `None`-elapsed interval or a
-non-measured/apportioned `cost_basis` (including a legacy run with no
-`cost_basis` field at all) is excluded from those sums but still counted, so
-averages never divide by the wrong denominator. `totals.tokens` also widens
+The `cost_usd`/`cost_basis`/`cost_scope`/`excluded_cost_usd`/`excluded_token_share`
+and `api_duration_*` fields this table carried went with the status line
+([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)). A run entry
+written before that keeps them, and nothing reads them.
+
+`run.json`/`metrics.json` `totals` gain two additive counters —
+`runs_timed`/`runs_untimed` — incremented for every run regardless of whether
+it contributes to the `working_seconds` sum; a run with a `None`-elapsed
+interval is excluded from that sum but still counted, so averages never
+divide by the wrong denominator. The `cost_usd` and `api_duration_ms` sums and
+their counters went with ADR 0103. `totals.tokens` also widens
 the same way as the run-entry `tokens` field above — from `{input, output}`
 to `{input, output, cache_creation, cache_read}` — summed by
 `compute_ticket_totals`/`update_metrics` across all four classes. All of this
@@ -67,7 +70,7 @@ becomes invalid.
 | Helper | Contract |
 |--------|----------|
 | `acs.py step start --step S [--ticket\|--args\|--allocate [--seed-next N]]` | stdout: context JSON (settings, run dir, subject, models, reconcile/handoff, post_hook path); records the step `in_progress`, takes the lock, writes the checkout pointer. `--step` is validated against the resolved workflow, not a closed enum. `--allocate` on a fresh/unreconciled `(repo_id, prefix)` partition (MAR-402): `allocate_ticket_id`'s fail-closed reconciliation gate refuses with **exit 2** and actionable stderr naming the ranked local-evidence proposal and the exact `--seed-next <n>` recovery command — no id minted, no lock/pointer/run-entry left behind. `--seed-next N` confirms the proposal (or repairs a wrong/stuck reconciliation) and mints `<PREFIX>-N`; `--seed-next` without `--allocate` is a malformed invocation, exit 2 per the file's existing stderr idiom |
-| `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors, tokens, cost_usd[, handoff_summary]}`; finalizes run + ledger + index + metrics, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate. **MAR-1/ADR 0082**: `tokens`/`cost_usd` on this input are vestigial — `finalize_run` measures both from the run's transcript/statusLine sample instead and silently ignores a coordinator-supplied value, a soft landing rather than a rejection |
+| `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors, tokens[, handoff_summary]}`; finalizes run + ledger + index + metrics, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate. **MAR-1/ADR 0082**: `tokens` on this input is vestigial — `finalize_run` measures tokens from the run's transcript instead and silently ignores a coordinator-supplied value, a soft landing rather than a rejection. `cost_usd` is no longer accepted: ADR 0103 dropped it from the result schema, which rejects it as an undeclared property |
 | `new-ticket.py --title --type [--parent --needs-design --docs-only --size --stakes … --seed-next N]` | mints id + partition + mint-time create-ticket state; epic backlinks; --size {trivial,small,standard,large} and --stakes {low,normal,high} write classification axes + derived lane. On a fresh/unreconciled `(repo_id, prefix)` partition (MAR-402): the same `allocate_ticket_id` fail-closed reconciliation gate refuses with **exit 2** and actionable stderr naming the local-evidence proposal and the exact `--seed-next <n>` recovery command — no ticket, partition, or `ticket.json` written. `--seed-next N` confirms/repairs the floor and mints `<PREFIX>-N` |
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
 | `handoff.py --summary` | finalizes the in-flight step `interrupted` with `stop_reason: context_pressure`, releases the lock, prints `continue_with` |

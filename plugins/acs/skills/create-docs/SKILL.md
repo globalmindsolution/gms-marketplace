@@ -219,8 +219,8 @@ ticket out via `gh`/`acli` per the tracker config.
 the **session checkout** (`cwd` unchanged), never from its worktree: running
 it from the worktree would resolve a different `checkout_id` than the one the
 pre-hook's `PreToolUse(Skill)` envelope used for its session marker, and
-degrade the run to zeroed tokens / `cost_usd: None` on every set. The session
-pointer, marker and cost cursor are therefore shared between the slice's sets
+degrade the run to zeroed tokens on every set. The session pointer and marker
+are therefore shared between the slice's sets
 — display-level only; every downstream consumer is given the ticket id
 explicitly.
 
@@ -502,6 +502,6 @@ post-hook succeeded. Same labels, same order, `none` where empty:
 - **Batch**: <eligible sets this pass, in slices of <max_parallel>, or "none — see reasons">
 - **<set>**: <ticket-id> — <status> — <PR url, or reason>
 - **Findings**: <open findings / clarifications / ineligible sets with reasons, or "none">
-- **Metrics**: per set — iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: per set — iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:merge-pr <ticket-id>` per completed set after reviewing its docs PR; `/acs:create-docs <ticket-id>` for any set that did not complete
 ```

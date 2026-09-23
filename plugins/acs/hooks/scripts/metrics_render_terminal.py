@@ -8,7 +8,7 @@ stays off: a surface-dependent escape would break the golden output.
 
 import acs_lib  # noqa: E402
 
-from metrics_render_common import NO_DATA, PANEL_KEYS, PANEL_TITLES, ROLE_ORDER, UNAVAILABLE, _average_cells, _bar, _counts_items, _fmt_money, _fmt_pct, _humanize_ms, _humanize_seconds, _is_no_data, _meta_lines, _panel6_extra_roles
+from metrics_render_common import NO_DATA, PANEL_KEYS, PANEL_TITLES, ROLE_ORDER, _average_cells, _bar, _counts_items, _fmt_pct, _humanize_seconds, _is_no_data, _meta_lines, _panel6_extra_roles
 
 
 
@@ -83,25 +83,16 @@ def _term_panel2(value):
 
 
 def _term_panel3_sub_rows(row):
-    """Per-skill sub-rows (MAR-7 spec 02, D5.4/S-C): "step span" (from `steps`, unchanged
-    mechanism) + API duration/basis (from `step_api_duration`), one line per `step_order` entry.
-    A missing/non-list `step_order` (legacy pre-MAR-7 aggregate JSON) yields no sub-rows at all."""
+    """Per-skill sub-rows (MAR-7 spec 02, D5.4/S-C): the wall-clock "step span" from `steps`,
+    one line per `step_order` entry. A missing/non-list `step_order` (legacy pre-MAR-7
+    aggregate JSON) yields no sub-rows at all."""
     step_order = row.get("step_order")
     if not isinstance(step_order, list):
         return []
     steps = row.get("steps") if isinstance(row.get("steps"), dict) else {}
-    step_api_duration = row.get("step_api_duration") if isinstance(row.get("step_api_duration"), dict) else {}
     out = []
     for skill in step_order:
-        step_span = _humanize_seconds(steps.get(skill))
-        entry = step_api_duration.get(skill)
-        if not isinstance(entry, dict):
-            api_str = UNAVAILABLE
-        elif entry.get("basis") == "unavailable":
-            api_str = UNAVAILABLE
-        else:
-            api_str = "%s (%s)" % (_humanize_ms(entry.get("ms")), entry.get("basis"))
-        out.append("    %-14s step span %10s   api duration %s" % (skill, step_span, api_str))
+        out.append("    %-14s step span %10s" % (skill, _humanize_seconds(steps.get(skill))))
     return out
 
 
@@ -109,7 +100,7 @@ def _term_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
     rows = value.get("tickets") if isinstance(value.get("tickets"), list) else []
-    out = ["  %-12s %12s %12s" % ("ticket", "working time", "cost_usd")]
+    out = ["  %-12s %12s" % ("ticket", "working time")]
     if not rows:
         out.append("  " + NO_DATA)
     for row in rows:
@@ -119,15 +110,13 @@ def _term_panel3(value):
         # C-6: humanize the working time; a missing/non-numeric value still renders the
         # existing no-data cell (B1 — _humanize_seconds returns NO_DATA for any non-number).
         working_time = _humanize_seconds(totals.get("working_seconds", "-"))
-        cost = _fmt_money(totals.get("cost_usd", "-"), empty="-")
-        out.append("  %-12s %12s %12s" % (str(row.get("ticket_id", "?")), working_time, cost))
+        out.append("  %-12s %12s" % (str(row.get("ticket_id", "?")), working_time))
         out.extend(_term_panel3_sub_rows(row))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
-        out.append("  %-12s %12s %12s"
-                   % ("REPO TOTAL", _humanize_seconds(repo_totals.get("working_seconds", "-")),
-                      _fmt_money(repo_totals.get("cost_usd", "-"), empty="-")))
-    # Four averages summary rows after REPO TOTAL (B1 — each value present, "no data" when absent).
+        out.append("  %-12s %12s"
+                   % ("REPO TOTAL", _humanize_seconds(repo_totals.get("working_seconds", "-"))))
+    # Two averages summary rows after REPO TOTAL (B1 — each value present, "no data" when absent).
     for label, formatted in _average_cells(value):
         out.append("  %-30s %12s" % (label, formatted))
     return out
@@ -171,8 +160,7 @@ def _term_panel5(value):
 def _term_panel6(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _term_no_data_block()
-    out = ["  %-10s %12s %12s %10s %10s %10s" % ("role", "input", "output", "cost_usd",
-                                                   "token %", "cost %")]
+    out = ["  %-10s %12s %12s %10s" % ("role", "input", "output", "token %")]
     roles = ROLE_ORDER + tuple(_panel6_extra_roles(value))
     inputs = []
     for role in roles:
@@ -183,11 +171,9 @@ def _term_panel6(value):
     for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
-        out.append("  %-10s %12s %12s %10s %10s %10s   %s"
+        out.append("  %-10s %12s %12s %10s   %s"
                    % (role, inp, bucket.get("output", 0),
-                      _fmt_money(bucket.get("cost", 0), empty="-"),
                       _fmt_pct(bucket.get("token_share_pct"), NO_DATA),
-                      _fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE),
                       _bar(inp, peak)))
     return out
 

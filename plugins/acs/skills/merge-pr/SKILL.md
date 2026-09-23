@@ -488,6 +488,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, partition archived, epic auto-done when last child)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out>
 - **Next**: nothing on success (ticket archived); when readiness failed this is report-only — fix what is listed and re-run `/acs:merge-pr <ticket-id>`
 ```

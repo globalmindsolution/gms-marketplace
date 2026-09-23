@@ -173,6 +173,6 @@ empty; replace the Ticket line with **Repo** (no ticket at init time):
 - **Results**: toolchain preflight outcome (tools present / still missing with the install hint); conventions written, per key (or "defaults"); retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined)
 - **Findings**: <open findings, or "none">
 - **Artifacts**: <files written or staged>
-- **Metrics**: <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: <wall time> · ~<tokens in/out>
 - **Next**: brownfield: `/acs:create-prd` then `/acs:create-architecture`; greenfield: same plus `/acs:project`; then `/acs:ship <prompt>` or `/acs:create-ticket <prompt>`
 ```

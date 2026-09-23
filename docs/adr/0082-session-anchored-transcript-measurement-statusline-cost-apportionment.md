@@ -1,6 +1,6 @@
 # 0082 — Session-anchored transcript measurement with statusLine-sourced real-cost apportionment, superseding an acs-owned price table
 
-**Status**: Accepted · **Date**: 2026-08-25
+**Status**: Accepted — superseded in part by [0103](0103-no-status-line-no-cost-metering.md) (the statusLine cost and API-duration apportionment is removed; the session-anchored transcript measurement stands) · **Date**: 2026-08-25
 
 ## Context
 

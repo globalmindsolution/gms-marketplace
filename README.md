@@ -141,7 +141,7 @@ confounded, and why. The step-by-step is the
 Either way, **`/acs:update`** inside a session compares installed vs latest,
 summarizes the changelog delta (flagging breaking changes), refreshes the
 marketplace with your consent, and runs post-update migration checks
-(settings schema, status-line paths).
+(settings schema, a leftover acs status line).
 
 The marketplace currently ships one plugin:
 

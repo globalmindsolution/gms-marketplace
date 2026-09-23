@@ -573,6 +573,6 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Results**: plan path; executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code executors will run
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <plan path, partition phase artifacts, branch>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:code <ticket-id>`; `/acs:create-api-contract <ticket-id>` first when the analysis declared an API surface change; after a split answer, `/acs:create-ticket split <ticket-id>`
 ```

@@ -94,7 +94,7 @@ ticket-independent session-correlation marker (`session_id`,
 envelope into `sessions/<checkout-id>-session.json`, inside its own
 fail-open guard so a marker-write failure can never turn into a blocked
 gate. The next skill's start step reads that marker (rejecting a foreign
-`checkout_id` or one older than 15 minutes) to correlate real cost/time
+`checkout_id` or one older than 15 minutes) to correlate token
 measurement with this run (MAR-1,
 [workspace-and-state.md](workspace-and-state.md)).
 
@@ -127,7 +127,7 @@ file in the workspace partition:
   `<workspace>/<repo>/runs/<run-id>/`.
 - The state file MUST record at least: the states, findings, and error
   details produced during the step, plus a new entry in the append-only
-  **`invocations`** array (timestamps, tokens, cost, status, stop reason).
+  **`invocations`** array (timestamps, tokens, status, stop reason).
   The array is `invocations`, not `runs`, because a RUN is the whole pass
   over the workflow and a step is invoked within it. The **last invocation is
   the current state** — the derived cursor, the subject's derived status and
@@ -141,7 +141,7 @@ file in the workspace partition:
   `summary`. `handed_off` and `skipped` are not statuses.
 - Post-hooks also update **`run.json`**, and the repo-level
   **`tickets-index.json`**, **`runs-index.json`** and **`metrics.json`**
-  (working time, tokens, cost per invocation — see
+  (working time and tokens per invocation — see
   [workspace-and-state.md](workspace-and-state.md)).
 - If the skill ends abnormally (crash, interruption), the post-hook MUST
   still write a state with status `failed` or `interrupted` — never leave
@@ -251,7 +251,7 @@ worth stating explicitly, because each used to be an order gate:
   skill ([skills.md](skills.md#product-level-delivery-tickets)). Skills themselves resolve via argument → session context →
   branch name ([workflow.md](workflow.md#ticket-context)). Since MAR-1, the
   `sessions/` directory holds more than this pointer per checkout — see the
-  session-correlation marker and cost-sample/cursor files in
+  session-correlation marker in
   [workspace-and-state.md](workspace-and-state.md).
 - **Python runtime**: hooks MUST be **stdlib-only Python 3** — no pip
   installs required on consumer machines.
@@ -275,7 +275,7 @@ completed" event exists):
   `/ship` invokes directly).
 - **Post-hooks** are invoked by the skill's **coordinator as its mandatory
   final step** (`post-<skill>.py --result-file …`) — their inputs (final
-  status, findings, tokens, cost) exist only in the coordinator's context.
+  status, stop reason, findings) exist only in the coordinator's context.
   Enforcement does not rely on the model: the coordinator records the step
   `in_progress` at skill start (`acs.py step start --step <name>`), so a
   skipped post-hook leaves it `in_progress` — never `completed`. Since the

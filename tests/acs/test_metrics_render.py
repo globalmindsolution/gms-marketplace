@@ -56,9 +56,10 @@ PANEL_HEADERS = (
 # ---------------------------------------------------------------------------
 
 def _full_workspace_data():
-    """A populated MAR-6-shaped aggregate: panel-1 primary, full funnel, cost/time, numeric
+    """A populated MAR-6-shaped aggregate: panel-1 primary, full funnel, working time, numeric
     coverage, authoritative review iterations, all four role buckets (planner/executor/verifier/
-    coordinator)."""
+    coordinator). The metrics.json and run.json totals keep a pre-ADR-0103 cost_usd -- legacy
+    state the dashboard must never render (NoDollarFigures)."""
     with TemporaryDirectory() as ws:
         fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
         fx.write_metrics(ws, {
@@ -75,11 +76,11 @@ def _full_workspace_data():
         fx.write_code_state(ws, "MAR-6",
                             {"tests": {"coverage_percent": 93.4, "coverage_target": 90},
                              "verifier_passed": True, "review": {"iterations": 2}}, archived=True)
-        fx.write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=42000, to=7500, cost=0.17, archived=True)
-        fx.write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=480000, to=90000, cost=3.5, archived=True)
-        fx.write_result_xml(ws, "MAR-6", "code", "verify", 1, ti=100000, to=20000, cost=1.0,
+        fx.write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=42000, to=7500, archived=True)
+        fx.write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=480000, to=90000, archived=True)
+        fx.write_result_xml(ws, "MAR-6", "code", "verify", 1, ti=100000, to=20000,
                             reorder=True, archived=True)
-        fx.write_result_xml(ws, "MAR-6", "code", "coordinate", 1, ti=999999, to=999999, cost=99.0,
+        fx.write_result_xml(ws, "MAR-6", "code", "coordinate", 1, ti=999999, to=999999,
                             archived=True)
         return metrics_aggregate.aggregate(ws, REPO_ID)
 
@@ -95,8 +96,9 @@ def _flow_workspace_data():
     """A flow-metrics payload exercising BOTH populated and 'no data' Panel 3 averages + Panel 7.
 
     MAR-6 is fully merged: ticket.json.created_at + code.started_at + merge-pr.ended_at all present,
-    so its lead AND cycle are numeric and the four Panel-3 averages are populated. MAR-OPEN has no
-    merged PR (no merge-pr.ended_at), so BOTH its lead and cycle render the 'no data' cell (B1)."""
+    so its lead AND cycle are numeric and the two Panel-3 averages are populated. MAR-OPEN has no
+    merged PR (no merge-pr.ended_at), so BOTH its lead and cycle render the 'no data' cell (B1).
+    The totals keep a pre-ADR-0103 cost_usd, which must never render (NoDollarFigures)."""
     with TemporaryDirectory() as ws:
         fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"},
                             "MAR-OPEN": {"status": "in_progress", "type": "task"}})
@@ -169,7 +171,7 @@ class TerminalSurface(unittest.TestCase):
         self.assertIn("created", out.lower())
         self.assertIn("merged", out.lower())
 
-    def test_panel3_cost_time_row(self):
+    def test_panel3_time_row(self):
         out = metrics_render.render_terminal(_full_workspace_data())
         self.assertIn("MAR-6", out)
         # C-6: the per-ticket working time is humanized (11922s -> "3h 18m"), NOT raw seconds,
@@ -183,13 +185,11 @@ class TerminalSurface(unittest.TestCase):
         p3 = out[out.index("Panel 3"):out.index("Panel 4")]
         self.assertIn("working time", p3)
         self.assertNotIn("seconds", p3)
-        self.assertIn("8.31", out)   # per-ticket cost (already 2dp) appears
-        # C-5: every money cell renders EXACTLY 2 decimals. The avg cost / merged PR is
-        # 18.75 / 4 = 4.6875 -> "4.69" (was a raw-float "4.6875" before the fix); the
-        # repo-total cost and avg cost / ticket render "18.75", not a bare/unrounded float.
-        self.assertIn("18.75", out)   # repo total cost + avg cost / ticket
-        self.assertIn("4.69", out)    # avg cost / merged PR, rounded to 2dp
-        self.assertNotIn("4.6875", out)  # the old unrounded money float must be gone
+        # ADR-0103: the legacy per-ticket (8.31) and repo-total (18.75) cost_usd the fixture
+        # still carries is not rendered, and neither is a cost average (18.75 / 4 -> 4.69).
+        self.assertNotIn("8.31", out)
+        self.assertNotIn("18.75", out)
+        self.assertNotIn("4.69", out)
 
     def test_panel3_working_time_humanized_both_surfaces(self):
         # C-6: Panel 3's per-ticket AND REPO-TOTAL working time is humanized on BOTH surfaces,
@@ -223,11 +223,9 @@ class TerminalSurface(unittest.TestCase):
         self.assertIn("executor", out)
         self.assertIn("verifier", out)
         self.assertIn("480000", out)  # executor input tokens
-        # C-5: the per-role cost_usd column renders EXACTLY 2 decimals on the terminal surface
-        # (planner 0.17, executor 3.5 -> "3.50", verifier 1.0 -> "1.00").
-        self.assertIn("3.50", out)   # executor cost, 2dp (was a raw "3.5")
-        self.assertIn("1.00", out)   # verifier cost, 2dp (was a raw "1.0"/"1")
-        self.assertIn("0.17", out)   # planner cost
+        p6 = out[out.index("Panel 6"):out.index("Panel 7")]
+        self.assertIn("token %", p6)
+        self.assertNotIn("cost", p6)  # ADR-0103: no cost_usd / cost % column
 
     def test_no_ansi_escape_codes_by_default(self):
         out = metrics_render.render_terminal(_full_workspace_data())
@@ -472,7 +470,7 @@ class ReadOnly(unittest.TestCase):
             fx.write_metrics(ws, {"tickets": {"by_status": {"done": 1}, "by_type": {"task": 1}}})
             fx.write_pipeline(ws, "MAR-6", steps=fx._full_funnel_steps("merge-pr"),
                               totals={"runs": 5, "working_seconds": 100,
-                                      "tokens": {"input": 1, "output": 1}, "cost_usd": 1.0},
+                                      "tokens": {"input": 1, "output": 1}},
                               archived=True)
             fx.write_code_state(ws, "MAR-6",
                                 {"review": {"iterations": 2},
@@ -565,48 +563,39 @@ class HumanizeSeconds(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# _fmt_money — pure USD formatter to exactly 2 decimals (C-5)
+# ADR-0103 — no dollar figure and no API duration on any view or surface
 # ---------------------------------------------------------------------------
 
-class FmtMoney(unittest.TestCase):
-    def test_whole_float_two_decimals(self):
-        self.assertEqual(metrics_render._fmt_money(36.0), "36.00")
+class NoDollarFigures(unittest.TestCase):
+    """acs meters no dollar cost and no API duration (ADR-0103). The fixtures keep the cost
+    fields pre-decision state still carries; no view renders any of it, on either surface."""
 
-    def test_int_two_decimals(self):
-        self.assertEqual(metrics_render._fmt_money(0), "0.00")
-        self.assertEqual(metrics_render._fmt_money(7), "7.00")
+    _RENDERERS = ("render_terminal", "render_html", "render_pm_terminal", "render_pm_html",
+                  "render_usage_terminal", "render_usage_html")
 
-    def test_one_decimal_padded_to_two(self):
-        self.assertEqual(metrics_render._fmt_money(7.2), "7.20")
-        self.assertEqual(metrics_render._fmt_money(3.5), "3.50")
+    def _outputs(self):
+        for data in (_full_workspace_data(), _flow_workspace_data(),
+                     _full_workspace_data_with_new_panels()):
+            for name in self._RENDERERS:
+                yield name, getattr(metrics_render, name)(data)
 
-    def test_long_float_rounded_to_two(self):
-        # the C-5 bug case: a raw float like 5.142857142857143 -> "5.14", never the long form
-        self.assertEqual(metrics_render._fmt_money(5.142857142857143), "5.14")
-        self.assertEqual(metrics_render._fmt_money(18.75 / 4), "4.69")
+    def test_no_cost_column_or_money_value_rendered(self):
+        for name, out in self._outputs():
+            with self.subTest(renderer=name):
+                self.assertNotIn("$", out)
+                self.assertNotIn("cost", out.lower())
+                self.assertNotIn("usd", out.lower())
 
-    def test_no_data_string_passthrough(self):
-        self.assertEqual(metrics_render._fmt_money("no data"), metrics_render.NO_DATA)
+    def test_no_api_duration_rendered(self):
+        for name, out in self._outputs():
+            with self.subTest(renderer=name):
+                self.assertNotIn("api duration", out.lower())
+                self.assertNotIn("apportioned", out)  # a cost/API-duration basis label
 
-    def test_non_numeric_is_empty_marker(self):
-        self.assertEqual(metrics_render._fmt_money(None), metrics_render.NO_DATA)
-        self.assertEqual(metrics_render._fmt_money("x"), metrics_render.NO_DATA)
-
-    def test_bool_is_empty_marker(self):
-        # bool is an int subclass — excluded from the numeric branch like _humanize_seconds/_bar
-        self.assertEqual(metrics_render._fmt_money(True), metrics_render.NO_DATA)
-        self.assertEqual(metrics_render._fmt_money(False), metrics_render.NO_DATA)
-
-    def test_custom_empty_marker_for_dash_cells(self):
-        # the per-ticket / REPO-TOTAL / role cost columns use "-" for their empty state
-        self.assertEqual(metrics_render._fmt_money("-", empty="-"), "-")
-        self.assertEqual(metrics_render._fmt_money(None, empty="-"), "-")
-        # a numeric value still formats to 2dp regardless of the empty marker
-        self.assertEqual(metrics_render._fmt_money(8.31, empty="-"), "8.31")
-
-    def test_pure_repeatable_no_clock(self):
-        self.assertEqual(metrics_render._fmt_money(4.6875),
-                         metrics_render._fmt_money(4.6875))
+    def test_cost_and_api_duration_helpers_are_gone(self):
+        for name in ("_fmt_money", "_humanize_ms", "_ticket_api_duration_str", "UNAVAILABLE"):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(metrics_render, name))
 
 
 # ---------------------------------------------------------------------------
@@ -620,13 +609,14 @@ class Panel3Averages(unittest.TestCase):
         html = metrics_render.render_html(data)
         for out in (term, html):
             # the two working-time averages are humanized (avg per ticket = 3600s = 1h)
+            self.assertIn("avg working time / ticket", out)
+            self.assertIn("avg working time / merged PR", out)
             self.assertIn("1h", out)
-            # C-5: the two cost averages render EXACTLY 2 decimals on BOTH surfaces
-            # (avg_cost_per_ticket 3.0 -> "3.00", avg_cost_per_pr 6.0 -> "6.00") — not raw floats.
-            self.assertIn("3.00", out)   # avg_cost_per_ticket, 2dp
-            self.assertIn("6.00", out)   # avg_cost_per_pr, 2dp
-            # the per-ticket / repo-total money cells are also 2dp on this payload
-            self.assertIn("5.00", out)   # MAR-6 per-ticket cost 5.0 -> "5.00"
+            # ADR-0103: the cost averages are gone (the fixture's legacy cost_usd 6.0 / 2
+            # tickets would have rendered "3.00"; per-ticket cost 5.0 "5.00")
+            self.assertNotIn("avg cost", out)
+            self.assertNotIn("3.00", out)
+            self.assertNotIn("5.00", out)
 
     def test_panel3_missing_working_seconds_still_renders_no_data_both_surfaces(self):
         # C-6 / B1: a ticket with an empty totals (MAR-OPEN) has no working_seconds; humanizing
@@ -650,9 +640,9 @@ class Panel3Averages(unittest.TestCase):
             fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             fx.write_metrics(ws, {"tickets": {"by_status": {"done": 1}, "by_type": {"task": 1}},
                                   "prs": {"created": 1, "merged": 0},
-                                  "totals": {"working_seconds": 100, "cost_usd": 1.0}})
+                                  "totals": {"working_seconds": 100}})
             fx.write_pipeline(ws, "MAR-6", steps=fx._full_funnel_steps("code"),
-                              totals={"working_seconds": 100, "cost_usd": 1.0}, archived=True)
+                              totals={"working_seconds": 100}, archived=True)
             data = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(data["panels"]["3"]["averages"]["avg_working_seconds_per_pr"],
                              "no data")
@@ -725,10 +715,10 @@ class Panel6RoleCoverage(unittest.TestCase):
 
     def test_coordinator_bucket_renders_both_surfaces(self):
         value = {
-            "planner": {"input": 100, "output": 20, "cost": 0.1},
-            "executor": {"input": 200, "output": 40, "cost": 0.2},
-            "verifier": {"input": 50, "output": 10, "cost": 0.05},
-            "coordinator": {"input": 777, "output": 88, "cost": 12.34},
+            "planner": {"input": 100, "output": 20},
+            "executor": {"input": 200, "output": 40},
+            "verifier": {"input": 50, "output": 10},
+            "coordinator": {"input": 777, "output": 88},
         }
         term = "\n".join(metrics_render._term_panel6(value))
         html = metrics_render._html_panel6(value)
@@ -736,16 +726,15 @@ class Panel6RoleCoverage(unittest.TestCase):
             self.assertIn("coordinator", out)
             self.assertIn("777", out)
             self.assertIn("88", out)
-            self.assertIn("12.34", out)
 
     def test_other_and_unattributed_extra_rows_sorted(self):
         value = {
-            "planner": {"input": 100, "output": 20, "cost": 0.1},
-            "executor": {"input": 200, "output": 40, "cost": 0.2},
-            "verifier": {"input": 50, "output": 10, "cost": 0.05},
-            "coordinator": {"input": 10, "output": 5, "cost": 0.01},
-            "unattributed": {"input": 300, "output": 60, "cost": 0.3},
-            "other": {"input": 15, "output": 3, "cost": 0.02},
+            "planner": {"input": 100, "output": 20},
+            "executor": {"input": 200, "output": 40},
+            "verifier": {"input": 50, "output": 10},
+            "coordinator": {"input": 10, "output": 5},
+            "unattributed": {"input": 300, "output": 60},
+            "other": {"input": 15, "output": 3},
         }
         term = "\n".join(metrics_render._term_panel6(value))
         html = metrics_render._html_panel6(value)
@@ -760,10 +749,10 @@ class Panel6RoleCoverage(unittest.TestCase):
 
     def test_no_extra_rows_when_only_core_roles_present(self):
         value = {
-            "planner": {"input": 100, "output": 20, "cost": 0.1},
-            "executor": {"input": 200, "output": 40, "cost": 0.2},
-            "verifier": {"input": 50, "output": 10, "cost": 0.05},
-            "coordinator": {"input": 10, "output": 5, "cost": 0.01},
+            "planner": {"input": 100, "output": 20},
+            "executor": {"input": 200, "output": 40},
+            "verifier": {"input": 50, "output": 10},
+            "coordinator": {"input": 10, "output": 5},
         }
         term = "\n".join(metrics_render._term_panel6(value))
         html = metrics_render._html_panel6(value)
@@ -774,7 +763,7 @@ class Panel6RoleCoverage(unittest.TestCase):
     def test_four_core_roles_fixed_order_with_zero_data(self):
         # Regression guard: the four core roles still render in ROLE_ORDER even when some are
         # all-zero, and even when the value dict omits them entirely (existing behavior).
-        value = {"executor": {"input": 500, "output": 50, "cost": 1.0}}
+        value = {"executor": {"input": 500, "output": 50}}
         term = "\n".join(metrics_render._term_panel6(value))
         html = metrics_render._html_panel6(value)
         for out in (term, html):
@@ -839,11 +828,11 @@ class FlowMetricsReadOnly(unittest.TestCase):
             fx.write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             fx.write_ticket_json(ws, "MAR-6", "2026-06-15T10:00:00Z", archived=True)
             fx.write_metrics(ws, {"prs": {"created": 1, "merged": 1},
-                                  "totals": {"working_seconds": 100, "cost_usd": 1.0}})
+                                  "totals": {"working_seconds": 100}})
             fx.write_pipeline(ws, "MAR-6",
                               steps=fx._lead_cycle_steps("2026-06-15T10:30:00Z",
                                                          "2026-06-15T13:00:00Z"),
-                              totals={"working_seconds": 100, "cost_usd": 1.0}, archived=True)
+                              totals={"working_seconds": 100}, archived=True)
             data = metrics_aggregate.aggregate(ws, REPO_ID)
             # sanity: the flow metrics are populated in this payload
             self.assertNotEqual(data["panels"]["7"]["avg_lead_seconds"], "no data")
@@ -897,7 +886,9 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 
 def _full_workspace_data_with_new_panels():
-    """Aggregate with all new panels populated (uses a workspace that exercises spec-01 code)."""
+    """Aggregate with all new panels populated (uses a workspace that exercises spec-01 code).
+    The totals and the model_usage item keep a pre-ADR-0103 cost_usd, which must never render
+    (NoDollarFigures)."""
     with TemporaryDirectory() as ws:
         fx.write_index(ws, {
             "MAR-1": {"status": "done", "type": "epic", "title": "Epic One",
@@ -926,13 +917,13 @@ def _full_workspace_data_with_new_panels():
                             {"tests": {"coverage_percent": 95.0, "coverage_target": 90},
                              "verifier_passed": True, "review": {"iterations": 1}},
                             archived=True)
-        fx.write_result_xml(ws, "MAR-2", "code", "plan", 1, ti=50000, to=10000, cost=0.5, archived=True)
-        fx.write_result_xml(ws, "MAR-2", "code", "execute", 1, ti=200000, to=40000, cost=2.0,
+        fx.write_result_xml(ws, "MAR-2", "code", "plan", 1, ti=50000, to=10000, archived=True)
+        fx.write_result_xml(ws, "MAR-2", "code", "execute", 1, ti=200000, to=40000,
                             model_usage=[{"model": "opus", "input": 200000, "output": 40000,
                                           "cache_creation": 1000, "cache_read": 500,
                                           "cost_usd": 2.0, "cost_basis": "apportioned"}],
                             archived=True)
-        fx.write_result_xml(ws, "MAR-2", "code", "verify", 1, ti=50000, to=10000, cost=0.5,
+        fx.write_result_xml(ws, "MAR-2", "code", "verify", 1, ti=50000, to=10000,
                             reorder=True, archived=True)
         return metrics_aggregate.aggregate(ws, REPO_ID)
 
@@ -946,7 +937,7 @@ def _pm_sentinel_data():
             "tickets": {"by_status": {"done": 1}, "by_type": {"task": 1}},
             "prs": {"created": 1, "merged": 1},
             "totals": {"runs": 1, "working_seconds": 100,
-                       "tokens": {"input": 1000, "output": 200}, "cost_usd": 0.1},
+                       "tokens": {"input": 1000, "output": 200}},
         })
         return metrics_aggregate.aggregate(ws, REPO_ID)
 
@@ -1248,7 +1239,7 @@ class TestViewDeterminism(unittest.TestCase):
 # AC-7 / Humanization + money tests
 # ---------------------------------------------------------------------------
 
-class TestViewHumanizationAndMoney(unittest.TestCase):
+class TestViewHumanization(unittest.TestCase):
     """delivery_summary and usage_summary humanized values."""
 
     def _make_data_with_delivery(self, avg_lead=3723.0, avg_cycle=3600.0):
@@ -1269,7 +1260,6 @@ class TestViewHumanizationAndMoney(unittest.TestCase):
     def _make_data_with_usage(self, **kwargs):
         data = _full_workspace_data_with_new_panels()
         us = {
-            "total_cost_usd": kwargs.get("total_cost_usd", 1.5),
             "total_tokens_input": kwargs.get("total_tokens_input", 1000),
             "total_tokens_output": kwargs.get("total_tokens_output", 200),
             "total_runs": kwargs.get("total_runs", 5),
@@ -1277,8 +1267,6 @@ class TestViewHumanizationAndMoney(unittest.TestCase):
             "prs_merged": kwargs.get("prs_merged", 2),
             "avg_working_seconds_per_ticket": kwargs.get("avg_working_seconds_per_ticket", 3600.0),
             "avg_working_seconds_per_pr": kwargs.get("avg_working_seconds_per_pr", 3600.0),
-            "avg_cost_per_ticket": kwargs.get("avg_cost_per_ticket", 0.75),
-            "avg_cost_per_pr": kwargs.get("avg_cost_per_pr", 0.75),
         }
         data["panels"]["usage_summary"] = us
         return data
@@ -1302,17 +1290,6 @@ class TestViewHumanizationAndMoney(unittest.TestCase):
         self.assertIn("no data", term)
         self.assertIn("no data", html)
 
-    def test_total_cost_usd_two_decimal_usage_terminal(self):
-        data = self._make_data_with_usage(total_cost_usd=1.5)
-        out = metrics_render.render_usage_terminal(data)
-        self.assertIn("1.50", out)
-
-    def test_avg_cost_per_ticket_two_decimal_usage_html(self):
-        data = self._make_data_with_usage(avg_cost_per_ticket=0.123)
-        out = metrics_render.render_usage_html(data)
-        # _fmt_money(0.123) = "0.12"
-        self.assertIn("0.12", out)
-
     def test_total_working_seconds_humanized_both_surfaces(self):
         data = self._make_data_with_usage(total_working_seconds=7200)
         term = metrics_render.render_usage_terminal(data)
@@ -1325,8 +1302,6 @@ class TestViewHumanizationAndMoney(unittest.TestCase):
         data = self._make_data_with_usage(
             avg_working_seconds_per_ticket="no data",
             avg_working_seconds_per_pr="no data",
-            avg_cost_per_ticket="no data",
-            avg_cost_per_pr="no data",
         )
         term = metrics_render.render_usage_terminal(data)
         html = metrics_render.render_usage_html(data)
@@ -1524,8 +1499,9 @@ class TestUsageByModelPanel(unittest.TestCase):
         self.assertIn("opus", out)
         self.assertIn("MAR-2", out)
 
-    def test_usage_by_model_columns_cover_four_token_classes_and_cost(self):
-        """AC-2's literal column list, both surfaces, including the cache write/read labels."""
+    def test_usage_by_model_columns_cover_four_token_classes(self):
+        """AC-2's column list, both surfaces, including the cache write/read labels; the
+        cost_usd column went with ADR-0103."""
         data = _full_workspace_data_with_new_panels()
         term = metrics_render.render_usage_terminal(data)
         term_section = term[term.index("Usage by model"):]
@@ -1536,7 +1512,7 @@ class TestUsageByModelPanel(unittest.TestCase):
             self.assertIn("output", section)
             self.assertIn("cache write", section)
             self.assertIn("cache read", section)
-            self.assertIn("cost_usd", section)
+            self.assertNotIn("cost_usd", section)
 
     def test_usage_by_model_no_data_frame_present_both_surfaces(self):
         """B1: whole-panel 'no data' still draws the 'Usage by model' frame."""
@@ -1562,23 +1538,20 @@ class TestUsageByModelPanel(unittest.TestCase):
         self.assertIn(metrics_render.NO_DATA, term)
         self.assertIn(metrics_render.NO_DATA, html)
 
-    def test_usage_by_model_null_cost_renders_no_data_not_zero(self):
+    def test_usage_by_model_row_is_the_four_token_classes(self):
         data = _full_workspace_data_with_new_panels()
         data["panels"]["usage_by_model"] = {
             "repo": [{"model": "opus", "input": 10, "output": 5,
-                      "cache_creation": 0, "cache_read": 0,
-                      "cost_usd": None, "cost_basis": "unavailable"}],
+                      "cache_creation": 3, "cache_read": 2}],
             "tickets": [],
         }
         term = metrics_render.render_usage_terminal(data)
         opus_line = next(line for line in term.splitlines() if "opus" in line)
-        self.assertIn(metrics_render.NO_DATA, opus_line)
-        self.assertNotIn("0.00", opus_line)
+        self.assertEqual(opus_line.split(), ["opus", "10", "5", "3", "2"])
 
         html = metrics_render.render_usage_html(data)
         opus_row = next(r for r in html.split("<tr>") if "opus" in r)
-        self.assertIn(metrics_render.NO_DATA, opus_row)
-        self.assertNotIn("0.00", opus_row)
+        self.assertEqual(opus_row.count("<td"), 5)
 
     def test_pm_view_unaffected_by_usage_by_model(self):
         """_PM_PANELS is untouched — the PM view never renders usage_by_model."""
@@ -1605,13 +1578,12 @@ class TestUsageByModelPanel(unittest.TestCase):
         _full_workspace_data_with_new_panels() fixture and its "opus" model name are untouched.
 
         Cell values are placeholder tokens whose LENGTH matches their column header's own
-        length ("input"=5, "output"=6, "cache write"=11, "cache read"=10, "cost_usd"=8) --
+        length ("input"=5, "output"=6, "cache write"=11, "cache read"=10) --
         %10s/%12s right-justify, so a value's *text* starts at the header label's own offset
         only when the field itself is aligned AND the two strings share a length; matching
         lengths makes header.index(label) a valid stand-in for the field's start column."""
         row = {"input": "AAAAA", "output": "BBBBBB",
-               "cache_creation": "CCCCCCCCCCC", "cache_read": "DDDDDDDDDD",
-               "cost_usd": 12345.60, "cost_basis": "apportioned"}
+               "cache_creation": "CCCCCCCCCCC", "cache_read": "DDDDDDDDDD"}
         models = [dict(row, model="opus"), dict(row, model="claude-sonnet-4-5-20250929")]
         lines = metrics_render._term_model_table(models, indent="    ")
         header, opus_row, sonnet_row = lines
@@ -1623,7 +1595,6 @@ class TestUsageByModelPanel(unittest.TestCase):
             self.assertEqual(data_row.index("BBBBBB"), header.index("output"))
             self.assertEqual(data_row.index("CCCCCCCCCCC"), header.index("cache write"))
             self.assertEqual(data_row.index("DDDDDDDDDD"), header.index("cache read"))
-            self.assertEqual(data_row.index("12345.60"), header.index("cost_usd"))
 
 
 # ---------------------------------------------------------------------------
@@ -1655,14 +1626,6 @@ class TestEscRouting(unittest.TestCase):
         out = metrics_render.render_pm_html(data)
         self.assertNotIn("<b>test</b>", out)
         self.assertIn("&lt;b&gt;", out)
-
-    def test_float_cost_cannot_inject_angle_brackets(self):
-        """Float values (total_cost_usd etc.) never contain < or >; static assertion."""
-        # _fmt_money formats floats as "%.2f" — the repr never contains angle brackets.
-        for value in (0.0, 1.5, 999.99, -1.0):
-            formatted = metrics_render._fmt_money(value)
-            self.assertNotIn("<", formatted)
-            self.assertNotIn(">", formatted)
 
 
 # ---------------------------------------------------------------------------
@@ -1892,9 +1855,10 @@ class TestDeadlinePanelRendering(unittest.TestCase):
 class TestUsageSummaryPanelRendering(unittest.TestCase):
     """Specific tests for the usage_summary panel renderers."""
 
-    def test_usage_summary_cost_formatted(self):
+    def test_usage_summary_renders_tokens_and_no_cost_row(self):
         data = _full_workspace_data_with_new_panels()
         data["panels"]["usage_summary"] = {
+            # a legacy aggregate JSON's cost keys: the renderer does not read them
             "total_cost_usd": 12.345,
             "total_tokens_input": 500000,
             "total_tokens_output": 100000,
@@ -1908,15 +1872,14 @@ class TestUsageSummaryPanelRendering(unittest.TestCase):
         }
         term = metrics_render.render_usage_terminal(data)
         html = metrics_render.render_usage_html(data)
-        self.assertIn("12.35", term)  # _fmt_money(12.345) = "12.35" (rounds)
-        self.assertIn("12.35", html)
-        self.assertIn("500000", term)
-        self.assertIn("500000", html)
+        for out in (term, html):
+            self.assertIn("500000", out)
+            self.assertNotIn("12.35", out)
+            self.assertNotIn("6.17", out)
 
     def test_usage_summary_none_working_seconds_renders_no_data(self):
         data = _full_workspace_data_with_new_panels()
         data["panels"]["usage_summary"] = {
-            "total_cost_usd": 1.0,
             "total_tokens_input": 100,
             "total_tokens_output": 20,
             "total_runs": 1,
@@ -1924,8 +1887,6 @@ class TestUsageSummaryPanelRendering(unittest.TestCase):
             "prs_merged": 1,
             "avg_working_seconds_per_ticket": "no data",
             "avg_working_seconds_per_pr": "no data",
-            "avg_cost_per_ticket": "no data",
-            "avg_cost_per_pr": "no data",
         }
         term = metrics_render.render_usage_terminal(data)
         html = metrics_render.render_usage_html(data)
@@ -1938,82 +1899,49 @@ class TestUsageSummaryPanelRendering(unittest.TestCase):
 # ===========================================================================
 
 class TestPanel6PercentColumns(unittest.TestCase):
-    """AC-1 render half: panel 6 gains token %/cost % columns (D5, D6)."""
+    """AC-1 render half: panel 6 gains a token % column (D5). The cost % column beside it
+    went with ADR-0103."""
 
     def test_panel6_percent_columns_render_both_surfaces(self):
         value = {
-            "planner": {"input": 100, "output": 20, "cost": 0.1,
-                        "token_share_pct": 12.5, "cost_share_pct": 8.25},
-            "executor": {"input": 200, "output": 40, "cost": 0.2,
-                         "token_share_pct": 45.6, "cost_share_pct": 60.0},
-            "verifier": {"input": 50, "output": 10, "cost": 0.05,
-                         "token_share_pct": 20.0, "cost_share_pct": 15.75},
-            "coordinator": {"input": 10, "output": 5, "cost": 0.01,
-                            "token_share_pct": 21.9, "cost_share_pct": 16.0},
+            "planner": {"input": 100, "output": 20, "token_share_pct": 12.5},
+            "executor": {"input": 200, "output": 40, "token_share_pct": 45.6},
+            "verifier": {"input": 50, "output": 10, "token_share_pct": 20.0},
+            "coordinator": {"input": 10, "output": 5, "token_share_pct": 21.9},
         }
         term = "\n".join(metrics_render._term_panel6(value))
         html = metrics_render._html_panel6(value)
         for out in (term, html):
             self.assertRegex(out, r"12\.5%")
             self.assertRegex(out, r"45\.6%")
-            self.assertRegex(out, r"8\.2%|8\.3%")  # 8.25 -> "%.1f%%" rounds to 8.2 (banker's) or 8.3
-        # column headers present
-        self.assertIn("token %", term)
-        self.assertIn("cost %", term)
-        self.assertIn("token %", html)
-        self.assertIn("cost %", html)
-
-    def test_panel6_cost_share_pct_none_renders_literal_unavailable(self):
-        value = {
-            "planner": {"input": 100, "output": 20, "cost": 0.0,
-                        "token_share_pct": 50.0, "cost_share_pct": None},
-            "executor": {"input": 100, "output": 20, "cost": 0.5,
-                         "token_share_pct": 50.0, "cost_share_pct": 100.0},
-            "verifier": {"input": 0, "output": 0, "cost": 0.0,
-                         "token_share_pct": None, "cost_share_pct": None},
-            "coordinator": {"input": 0, "output": 0, "cost": 0.0,
-                            "token_share_pct": None, "cost_share_pct": None},
-        }
-        term = "\n".join(metrics_render._term_panel6(value))
-        html = metrics_render._html_panel6(value)
-        for out in (term, html):
-            self.assertIn(metrics_render.UNAVAILABLE, out)
-            self.assertIn("unavailable", out)
+            self.assertIn("token %", out)
+            self.assertNotIn("cost %", out)
 
     def test_panel6_token_share_pct_none_renders_no_data(self):
         value = {
-            "planner": {"input": 0, "output": 0, "cost": 0.0,
-                        "token_share_pct": None, "cost_share_pct": 12.3},
-            "executor": {"input": 100, "output": 20, "cost": 0.5,
-                         "token_share_pct": 87.7, "cost_share_pct": 0.0},
-            "verifier": {"input": 0, "output": 0, "cost": 0.0,
-                         "token_share_pct": None, "cost_share_pct": None},
-            "coordinator": {"input": 0, "output": 0, "cost": 0.0,
-                            "token_share_pct": None, "cost_share_pct": None},
+            "planner": {"input": 0, "output": 0, "token_share_pct": None},
+            "executor": {"input": 100, "output": 20, "token_share_pct": 87.7},
+            "verifier": {"input": 0, "output": 0, "token_share_pct": None},
+            "coordinator": {"input": 0, "output": 0, "token_share_pct": None},
         }
         term = "\n".join(metrics_render._term_panel6(value))
         html = metrics_render._html_panel6(value)
         for out in (term, html):
             self.assertIn(metrics_render.NO_DATA, out)
 
-    def test_unavailable_constant_distinct_from_no_data(self):
-        self.assertEqual(metrics_render.UNAVAILABLE, "unavailable")
-        self.assertNotEqual(metrics_render.UNAVAILABLE, metrics_render.NO_DATA)
-
     def test_existing_panel6_role_coverage_tests_unmodified_pass(self):
         """Inverse obligation guard (plan §Existing-test churn): the hand-authored value dicts
-        used by Panel6RoleCoverage/test_panel6_three_role_buckets lack the new pct keys and must
-        still degrade gracefully via .get() -> None -> NO_DATA/UNAVAILABLE, never raising."""
-        value = {"executor": {"input": 500, "output": 50, "cost": 1.0}}
+        used by Panel6RoleCoverage/test_panel6_three_role_buckets lack the pct key and must
+        still degrade gracefully via .get() -> None -> NO_DATA, never raising."""
+        value = {"executor": {"input": 500, "output": 50}}
         term = "\n".join(metrics_render._term_panel6(value))
         html = metrics_render._html_panel6(value)
         for out in (term, html):
             self.assertIn(metrics_render.NO_DATA, out)      # token % degrades to NO_DATA
-            self.assertIn(metrics_render.UNAVAILABLE, out)  # cost % degrades to UNAVAILABLE
 
 
 class FmtPct(unittest.TestCase):
-    """_fmt_pct mirrors _fmt_money's house style (numeric non-bool -> "%.1f%%", else empty)."""
+    """_fmt_pct: numeric non-bool -> "%.1f%%", anything else -> the caller's empty marker."""
 
     def test_numeric_formats_one_decimal_percent(self):
         self.assertEqual(metrics_render._fmt_pct(12.5, "empty"), "12.5%")
@@ -2042,11 +1970,9 @@ class TestUsageByTicketPanel(unittest.TestCase):
 
     _ROLES = {
         "executor": {"input": 100, "output": 20, "cache_creation": 5, "cache_read": 3,
-                     "cost_usd": 1.23, "cost_basis": "apportioned",
-                     "token_share_pct": 80.0, "cost_share_pct": 100.0},
+                     "token_share_pct": 80.0},
         "planner": {"input": 25, "output": 5, "cache_creation": 0, "cache_read": 0,
-                    "cost_usd": None, "cost_basis": "unavailable",
-                    "token_share_pct": 20.0, "cost_share_pct": None},
+                    "token_share_pct": 20.0},
     }
 
     def test_usage_by_ticket_terminal_renders_role_shares_per_ticket(self):
@@ -2057,7 +1983,6 @@ class TestUsageByTicketPanel(unittest.TestCase):
         self.assertIn("planner", out)
         self.assertIn("80.0%", out)
         self.assertIn("20.0%", out)
-        self.assertIn(metrics_render.UNAVAILABLE, out)  # planner's null cost_share_pct
 
     def test_usage_by_ticket_html_renders_role_shares_per_ticket(self):
         value = {"tickets": [{"ticket_id": "MAR-9", "roles": self._ROLES}]}
@@ -2066,7 +1991,6 @@ class TestUsageByTicketPanel(unittest.TestCase):
         self.assertIn("<h4>ticket MAR-9</h4>", out)
         self.assertIn("executor", out)
         self.assertIn("80.0%", out)
-        self.assertIn(metrics_render.UNAVAILABLE, out)
 
     def test_usage_by_ticket_no_data_frame_both_surfaces(self):
         # Whole-panel "no data" -> nodata block/frame on both surfaces (B1).
@@ -2120,11 +2044,9 @@ class TestUsageByTicketPanel(unittest.TestCase):
         A deliberately UN-sorted roles dict (zebra before alpha) must render in that given order."""
         roles = {
             "zebra_role": {"input": 1, "output": 0, "cache_creation": 0, "cache_read": 0,
-                           "cost_usd": None, "cost_basis": "unavailable",
-                           "token_share_pct": 50.0, "cost_share_pct": None},
+                           "token_share_pct": 50.0},
             "alpha_role": {"input": 1, "output": 0, "cache_creation": 0, "cache_read": 0,
-                          "cost_usd": None, "cost_basis": "unavailable",
-                          "token_share_pct": 50.0, "cost_share_pct": None},
+                          "token_share_pct": 50.0},
         }
         term = "\n".join(metrics_render._term_role_table(roles))
         html = metrics_render._html_role_table(roles)
@@ -2155,7 +2077,8 @@ class TestRoleTable(unittest.TestCase):
         self.assertIn(metrics_render.NO_DATA, term[-1])
         self.assertIn(metrics_render.NO_DATA, html)
 
-    def test_columns_cover_role_four_token_classes_cost_and_two_pcts(self):
+    def test_columns_cover_role_four_token_classes_and_token_pct(self):
+        # a legacy role item's cost fields: never rendered (ADR-0103)
         roles = {"executor": {"input": 10, "output": 5, "cache_creation": 2, "cache_read": 1,
                               "cost_usd": 0.5, "cost_basis": "apportioned",
                               "token_share_pct": 100.0, "cost_share_pct": 100.0}}
@@ -2167,73 +2090,68 @@ class TestRoleTable(unittest.TestCase):
             self.assertIn("output", out)
             self.assertIn("cache write", out)
             self.assertIn("cache read", out)
-            self.assertIn("cost_usd", out)
             self.assertIn("token %", out)
-            self.assertIn("cost %", out)
             self.assertIn("executor", out)
             self.assertIn("100.0%", out)
-            self.assertIn("0.50", out)
-
-    def test_null_cost_usd_renders_no_data_not_zero(self):
-        roles = {"planner": {"input": 5, "output": 0, "cache_creation": 0, "cache_read": 0,
-                             "cost_usd": None, "cost_basis": "unavailable",
-                             "token_share_pct": 100.0, "cost_share_pct": None}}
-        term = "\n".join(metrics_render._term_role_table(roles))
-        html = metrics_render._html_role_table(roles)
-        for out in (term, html):
-            self.assertIn(metrics_render.NO_DATA, out)   # cost_usd empty=NO_DATA
-            self.assertNotIn("0.00", out)
+            self.assertNotIn("cost", out)
+            self.assertNotIn("0.50", out)
 
 
 # ===========================================================================
-# MAR-7 spec 02 tests — panel-3 per-skill sub-rows, usage_by_ticket skill/run
-# detail, usage_summary API-duration rows (D5.4/S-C, D6). See iter-1-plan.md
-# "Spec 02" for the folded spec content this class implements against.
+# MAR-7 spec 02 tests — panel-3 per-skill sub-rows and usage_by_ticket skill/run
+# detail (D5.4/S-C). See iter-1-plan.md "Spec 02" for the folded spec content this
+# class implements against. The API-duration cells and usage_summary rows it also
+# specified went with ADR-0103.
 # ===========================================================================
 
-class TestPanel3ApiDurationSubRows(unittest.TestCase):
-    """MAR-7 spec 02: panel-3 gains a per-skill sub-row (step span + API duration + basis)
-    per `step_order` entry, on both surfaces. `steps`/`totals` themselves are untouched."""
+class TestPanel3StepSpanSubRows(unittest.TestCase):
+    """MAR-7 spec 02: panel-3 gains a per-skill step-span sub-row per `step_order` entry, on
+    both surfaces. `steps`/`totals` themselves are untouched."""
 
-    def test_panel3_terminal_renders_step_span_and_api_duration_sub_row_per_skill(self):
-        value = {
-            "tickets": [{
-                "ticket_id": "MAR-7", "steps": {"code": 2325},
-                "totals": {"working_seconds": 2325, "cost_usd": 1.0},
-                "step_api_duration": {"code": {"ms": 1800000, "basis": "measured"}},
-                "step_order": ["code"],
-            }],
-            "repo_totals": {}, "averages": {},
-        }
-        out = "\n".join(metrics_render._term_panel3(value))
+    _VALUE = {
+        "tickets": [{
+            "ticket_id": "MAR-7", "steps": {"code": 1800},
+            "totals": {"working_seconds": 2325},
+            "step_order": ["code"],
+        }],
+        "repo_totals": {}, "averages": {},
+    }
+
+    def test_panel3_terminal_renders_step_span_sub_row_per_skill(self):
+        out = "\n".join(metrics_render._term_panel3(self._VALUE))
         self.assertIn("step span", out)
         self.assertIn("code", out)
-        self.assertIn("measured", out)
-        self.assertIn("30m", out)  # 1800000ms -> 1800s -> "30m"
+        self.assertIn("30m", out)  # steps["code"] 1800s -> "30m"
 
-    def test_panel3_html_renders_step_span_and_api_duration_sub_row_per_skill(self):
-        value = {
-            "tickets": [{
-                "ticket_id": "MAR-7", "steps": {"code": 2325},
-                "totals": {"working_seconds": 2325, "cost_usd": 1.0},
-                "step_api_duration": {"code": {"ms": 1800000, "basis": "measured"}},
-                "step_order": ["code"],
-            }],
-            "repo_totals": {}, "averages": {},
-        }
-        out = metrics_render._html_panel3(value)
+    def test_panel3_html_renders_step_span_sub_row_per_skill(self):
+        out = metrics_render._html_panel3(self._VALUE)
         self.assertIn("step span", out)
         self.assertIn("code", out)
-        self.assertIn("measured", out)
         self.assertIn("30m", out)
 
+    def test_panel3_sub_row_ignores_a_legacy_step_api_duration(self):
+        """An aggregate JSON written before ADR-0103 may still carry step_api_duration. The
+        sub-row is the step span alone; the API-duration cell is not rendered."""
+        value = {
+            "tickets": [dict(self._VALUE["tickets"][0],
+                             step_api_duration={"code": {"ms": 5400000, "basis": "measured"}})],
+            "repo_totals": {}, "averages": {},
+        }
+        term = "\n".join(metrics_render._term_panel3(value))
+        html = metrics_render._html_panel3(value)
+        for out in (term, html):
+            self.assertIn("30m", out)
+            self.assertNotIn("1h 30m", out)
+            self.assertNotIn("measured", out)
+            self.assertNotIn("api duration", out)
+
     def test_panel3_step_order_absent_legacy_aggregate_json_degrades_to_steps_only_no_raise(self):
-        """A pre-MAR-7 aggregate JSON has no step_order/step_api_duration keys at all — the
-        sub-row block must be skipped entirely, never raising (design.md:815-816)."""
+        """A pre-MAR-7 aggregate JSON has no step_order key at all — the sub-row block must be
+        skipped entirely, never raising (design.md:815-816)."""
         value = {
             "tickets": [{
                 "ticket_id": "MAR-LEGACY", "steps": {"code": 100},
-                "totals": {"working_seconds": 100, "cost_usd": 1.0},
+                "totals": {"working_seconds": 100},
             }],
             "repo_totals": {}, "averages": {},
         }
@@ -2243,13 +2161,12 @@ class TestPanel3ApiDurationSubRows(unittest.TestCase):
         self.assertNotIn("step span", term)
         self.assertNotIn("step span", html)
 
-    def test_panel3_hooked_only_skill_no_steps_entry_renders_no_data_for_step_span(self):
-        """F13 direction 1: a hooked-only skill (e.g. create-quality) with a step_api_duration
-        entry but no `steps` entry renders the step-span cell NO_DATA (never fabricated)."""
+    def test_panel3_step_order_entry_without_steps_entry_renders_no_data_for_step_span(self):
+        """F13: a step_order entry absent from `steps` renders its step-span cell NO_DATA
+        (never fabricated)."""
         value = {
             "tickets": [{
                 "ticket_id": "MAR-7", "steps": {}, "totals": {},
-                "step_api_duration": {"create-quality": {"ms": 60000, "basis": "measured"}},
                 "step_order": ["create-quality"],
             }],
             "repo_totals": {}, "averages": {},
@@ -2259,82 +2176,32 @@ class TestPanel3ApiDurationSubRows(unittest.TestCase):
         for out in (term, html):
             self.assertIn("create-quality", out)
             self.assertIn(metrics_render.NO_DATA, out)
-            self.assertIn("measured", out)
-
-    def test_panel3_test_step_no_step_api_duration_entry_renders_unavailable_for_api_duration(self):
-        """F13 direction 2: "test" is present in `steps` only (never HOOKED_SKILLS, so it never
-        gets a step_api_duration entry). Per design.md's Population table (design.md:824-829),
-        the `test` row is the one structurally-absent-`step_api_duration` case, and its
-        API-duration cell renders the literal UNAVAILABLE marker (D6), not NO_DATA -- NO_DATA is
-        reserved for the step-span cell of a hooked-only skill absent from `steps` (the OTHER F13
-        direction, covered by test_panel3_hooked_only_skill_no_steps_entry_renders_no_data_for_step_span
-        above)."""
-        value = {
-            "tickets": [{
-                "ticket_id": "MAR-7", "steps": {"test": 42}, "totals": {},
-                "step_api_duration": {}, "step_order": ["test"],
-            }],
-            "repo_totals": {}, "averages": {},
-        }
-        term = "\n".join(metrics_render._term_panel3(value))
-        html = metrics_render._html_panel3(value)
-        for out in (term, html):
-            self.assertIn("test", out)
-            self.assertIn(metrics_render.UNAVAILABLE, out)
-
-    def test_panel3_step_api_duration_unavailable_basis_renders_literal_unavailable_not_no_data(self):
-        """D6: a PRESENT step_api_duration entry whose basis == "unavailable" renders the
-        literal UNAVAILABLE marker, distinct from an absent entry's NO_DATA (test above)."""
-        value = {
-            "tickets": [{
-                "ticket_id": "MAR-7", "steps": {"code": 10}, "totals": {},
-                "step_api_duration": {"code": {"ms": None, "basis": "unavailable"}},
-                "step_order": ["code"],
-            }],
-            "repo_totals": {}, "averages": {},
-        }
-        term = "\n".join(metrics_render._term_panel3(value))
-        html = metrics_render._html_panel3(value)
-        for out in (term, html):
-            self.assertIn(metrics_render.UNAVAILABLE, out)
 
 
-class TestUsageByTicketApiDurationAndSkills(unittest.TestCase):
-    """MAR-7 spec 02: usage_by_ticket gains a ticket-scope api-duration header line, a new
-    skill table (_term_skill_table/_html_skill_table, mirroring the model-table pair) and
-    nested per-run detail."""
+class TestUsageByTicketSkills(unittest.TestCase):
+    """MAR-7 spec 02: usage_by_ticket gains a skill table (_term_skill_table/_html_skill_table,
+    mirroring the model-table pair) and nested per-run wall-clock detail."""
 
     _SKILLS = [
-        {"skill": "code", "run_seconds_sum": 120.0, "api_duration_ms": 90000.0,
-         "api_duration_basis": "apportioned",
-         "runs": [{"started_at": "2026-06-15T10:00:00Z", "wall_clock_seconds": 60.0,
-                   "api_duration_ms": 45000.0, "api_duration_basis": "measured"},
-                  {"started_at": "2026-06-15T11:00:00Z", "wall_clock_seconds": 60.0,
-                   "api_duration_ms": 45000.0, "api_duration_basis": "measured"}]},
+        {"skill": "code", "run_seconds_sum": 120.0,
+         "runs": [{"started_at": "2026-06-15T10:00:00Z", "wall_clock_seconds": 60.0},
+                  {"started_at": "2026-06-15T11:00:00Z", "wall_clock_seconds": 45.0}]},
     ]
 
-    def test_usage_by_ticket_terminal_renders_ticket_scope_api_duration_header_row(self):
-        # A present, non-"unavailable" basis renders the humanized duration (money-style cell,
-        # D6) -- the literal UNAVAILABLE marker is reserved for basis == "unavailable" (below).
+    def test_usage_by_ticket_has_no_api_duration_header_row(self):
+        # ADR-0103: the ticket-scope api-duration header line is gone, legacy fields or not.
         value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
                               "api_duration_ms": 90000.0, "api_duration_basis": "apportioned",
                               "skills": []}]}
-        out = "\n".join(metrics_render._term_render_usage_by_ticket(value))
-        self.assertIn("MAR-9", out)
-        self.assertIn("1m 30s", out)  # 90000ms -> 90s -> "1m 30s"
-        self.assertIn("api duration", out.lower())
+        term = "\n".join(metrics_render._term_render_usage_by_ticket(value))
+        html = metrics_render._html_render_usage_by_ticket(value)
+        for out in (term, html):
+            self.assertIn("MAR-9", out)
+            self.assertNotIn("api duration", out.lower())
+            self.assertNotIn("1m 30s", out)
 
-    def test_usage_by_ticket_html_renders_ticket_scope_api_duration_header_row(self):
+    def test_usage_by_ticket_skill_table_renders_run_time_sum_per_skill(self):
         value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
-                              "api_duration_ms": None, "api_duration_basis": "unavailable",
-                              "skills": []}]}
-        out = metrics_render._html_render_usage_by_ticket(value)
-        self.assertIn("MAR-9", out)
-        self.assertIn(metrics_render.UNAVAILABLE, out)
-
-    def test_usage_by_ticket_skill_table_renders_run_time_sum_and_api_duration_per_skill(self):
-        value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
-                              "api_duration_ms": 90000.0, "api_duration_basis": "apportioned",
                               "skills": self._SKILLS}]}
         term = "\n".join(metrics_render._term_render_usage_by_ticket(value))
         html = metrics_render._html_render_usage_by_ticket(value)
@@ -2342,13 +2209,9 @@ class TestUsageByTicketApiDurationAndSkills(unittest.TestCase):
             self.assertIn("run time (sum of runs)", out)
             self.assertIn("code", out)
             self.assertIn("2m", out)       # run_seconds_sum 120.0 -> "2m"
-            self.assertIn("1m 30s", out)   # skill api_duration_ms 90000 -> "1m 30s"
-            self.assertIn("apportioned", out)
 
     def test_usage_by_ticket_skill_table_empty_list_renders_nodata_row_not_error(self):
-        value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
-                              "api_duration_ms": None, "api_duration_basis": "unavailable",
-                              "skills": []}]}
+        value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data", "skills": []}]}
         term = "\n".join(metrics_render._term_render_usage_by_ticket(value))
         html = metrics_render._html_render_usage_by_ticket(value)
         for out in (term, html):
@@ -2358,18 +2221,16 @@ class TestUsageByTicketApiDurationAndSkills(unittest.TestCase):
         self.assertIn(metrics_render.NO_DATA, term_rows[-1])
         self.assertIn(metrics_render.NO_DATA, html_rows)
 
-    def test_usage_by_ticket_run_detail_renders_per_run_started_at_wall_clock_and_api_duration(self):
+    def test_usage_by_ticket_run_detail_renders_per_run_started_at_and_wall_clock(self):
         value = {"tickets": [{"ticket_id": "MAR-9", "roles": "no data",
-                              "api_duration_ms": 90000.0, "api_duration_basis": "apportioned",
                               "skills": self._SKILLS}]}
         term = "\n".join(metrics_render._term_render_usage_by_ticket(value))
         html = metrics_render._html_render_usage_by_ticket(value)
         for out in (term, html):
             self.assertIn("2026-06-15T10:00:00Z", out)
             self.assertIn("2026-06-15T11:00:00Z", out)
-            self.assertIn("measured", out)
             self.assertIn("1m", out)   # per-run wall_clock_seconds 60.0 -> "1m"
-            self.assertIn("45s", out)  # per-run api_duration_ms 45000 -> "45s"
+            self.assertIn("45s", out)  # per-run wall_clock_seconds 45.0 -> "45s"
 
 
 class TestStepSpanRunSecondsSumReconciliation(unittest.TestCase):
@@ -2384,7 +2245,6 @@ class TestStepSpanRunSecondsSumReconciliation(unittest.TestCase):
         panel3_value = {
             "tickets": [{
                 "ticket_id": "MAR-9", "steps": {"code": 300}, "step_order": ["code"],
-                "step_api_duration": {"code": {"ms": None, "basis": "unavailable"}},
                 "totals": {},
             }],
             "repo_totals": {}, "averages": {},
@@ -2398,10 +2258,7 @@ class TestStepSpanRunSecondsSumReconciliation(unittest.TestCase):
         usage_by_ticket_value = {
             "tickets": [{
                 "ticket_id": "MAR-9", "roles": "no data",
-                "api_duration_ms": None, "api_duration_basis": "unavailable",
-                "skills": [{"skill": "code", "run_seconds_sum": 90,
-                            "api_duration_ms": None, "api_duration_basis": "unavailable",
-                            "runs": []}],
+                "skills": [{"skill": "code", "run_seconds_sum": 90, "runs": []}],
             }],
         }
         ubt_term = "\n".join(metrics_render._term_render_usage_by_ticket(usage_by_ticket_value))
@@ -2419,34 +2276,37 @@ class TestStepSpanRunSecondsSumReconciliation(unittest.TestCase):
             self.assertNotIn("step span", out)
 
 
-class TestUsageSummaryApiDurationRows(unittest.TestCase):
-    """MAR-7 spec 02: usage_summary gains total_api_duration_ms + its two averages."""
+class TestUsageSummaryRows(unittest.TestCase):
+    """usage_summary renders its seven token/run/working-time rows; the API-duration rows MAR-7
+    spec 02 added and the dollar rows before them went with ADR-0103."""
 
     _PANEL = {
-        "total_cost_usd": 1.0, "total_tokens_input": 10, "total_tokens_output": 2,
-        "total_runs": 1, "total_working_seconds": 100, "prs_merged": 1,
-        "avg_working_seconds_per_ticket": 100.0, "avg_working_seconds_per_pr": 100.0,
-        "avg_cost_per_ticket": 1.0, "avg_cost_per_pr": 1.0,
-        "total_api_duration_ms": 5400000.0,            # 5400s -> "1h 30m"
-        "avg_api_duration_ms_per_ticket": 3600000.0,    # 3600s -> "1h"
-        "avg_api_duration_ms_per_pr": 1800000.0,        # 1800s -> "30m"
+        "total_tokens_input": 10, "total_tokens_output": 2,
+        "total_runs": 1, "total_working_seconds": 5400, "prs_merged": 1,
+        "avg_working_seconds_per_ticket": 3600.0, "avg_working_seconds_per_pr": 1800.0,
+        # legacy keys an older aggregate JSON carries: never rendered
+        "total_api_duration_ms": 7200000.0, "total_cost_usd": 1.0,
     }
 
-    def test_usage_summary_terminal_renders_three_new_rows(self):
-        out = "\n".join(metrics_render._term_render_usage_summary(self._PANEL))
-        self.assertIn("1h 30m", out)
-        self.assertIn("api duration", out.lower())
+    def test_usage_summary_terminal_renders_seven_rows(self):
+        out = metrics_render._term_render_usage_summary(self._PANEL)
+        self.assertEqual(len(out), 7)
+        text = "\n".join(out)
+        self.assertIn("1h 30m", text)   # total working time 5400s
+        self.assertNotIn("2h", text)    # the legacy 7200000ms API duration
+        self.assertNotIn("api duration", text.lower())
 
-    def test_usage_summary_html_renders_three_new_rows(self):
+    def test_usage_summary_html_renders_seven_rows(self):
         out = metrics_render._html_render_usage_summary(self._PANEL)
+        self.assertEqual(out.count("<tr>"), 8)  # header + seven
         self.assertIn("1h 30m", out)
-        self.assertIn("api duration", out.lower())
+        self.assertNotIn("api duration", out.lower())
 
 
-class TestUsageViewDeterminismWithApiDuration(unittest.TestCase):
+class TestUsageViewDeterminismWithSkills(unittest.TestCase):
     """Additive determinism coverage (plan Test-plan item 10) — same-input-same-bytes over the
-    new step_order/step_api_duration/skills content. Does NOT replace the existing
-    Determinism/TestViewDeterminism byte-identical tests on their own, unmodified fixtures."""
+    step_order/skills content. Does NOT replace the existing Determinism/TestViewDeterminism
+    byte-identical tests on their own, unmodified fixtures."""
 
     def test_usage_terminal_byte_identical_with_step_order_and_skills(self):
         data = _full_workspace_data_with_new_panels()
@@ -2459,7 +2319,7 @@ class TestUsageViewDeterminismWithApiDuration(unittest.TestCase):
                          metrics_render.render_usage_html(data))
 
 
-class TestPMViewUnaffectedByApiDurationRendering(unittest.TestCase):
+class TestPMViewUnaffectedBySkillRendering(unittest.TestCase):
     """_PM_TERMINAL_PANELS/_PM_HTML_PANELS are untouched — the PM view never renders panel 3's
     sub-rows or usage_by_ticket's skill/run detail (mirrors test_pm_view_unaffected_by_usage_by_ticket)."""
 

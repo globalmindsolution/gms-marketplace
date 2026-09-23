@@ -18,7 +18,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from unittest import mock
 
@@ -456,57 +455,14 @@ class TestClarifications(AcsWorkspaceCase):
         self.assertEqual(json.loads(self.clarify("list", "--open").stdout)["count"], 0)
 
 
-class TestStatusLines(AcsWorkspaceCase):
-    def payload(self, cwd):
-        return json.dumps({"model": {"display_name": "Opus"},
-                           "workspace": {"current_dir": cwd}})
+class TestNoStatusLine(unittest.TestCase):
+    """ADR-0103: acs ships no status line -- and so no cost sampler, the only
+    thing its payload fed."""
 
-    def test_statusline_states(self):
-        plain = os.path.join(self.tmp, "plain")
-        os.makedirs(plain)
-        out = self.run_script("statusline.py", stdin=self.payload(plain), cwd=plain)
-        self.assertEqual(out.returncode, 0)
-        self.assertIn("plain", out.stdout)
-
-        ticket = self.new_ticket("Fix rounding", "task")
-        self.start("code", ticket)
-        out = self.run_script("statusline.py", stdin=self.payload(self.repo))
-        self.assertEqual(out.returncode, 0, out.stderr)
-        for expected in (ticket, "code"):
-            self.assertIn(expected, out.stdout)
-
-    def test_subagent_statusline_rows(self):
-        """The row names the RUN, and the skill/role vocabulary is read from
-        the tree — a hard-coded list outlived two of its own entries."""
-        ticket = self.new_ticket("X", "task")
-        self.start("review-code", ticket)
-        payload = json.dumps({"columns": 80, "tasks": [
-            {"id": "a1", "type": "acs:review-code-lens", "status": "running",
-             "startTime": (time.time() - 95) * 1000, "tokenCount": 45200, "cwd": self.repo},
-            {"id": "a2", "type": "Explore", "description": "unrelated", "cwd": self.repo},
-        ]})
-        out = self.run_script("subagent-statusline.py", stdin=payload)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        rows = [json.loads(line) for line in out.stdout.splitlines()]
-        self.assertEqual([row["id"] for row in rows], ["a1"])  # non-acs row untouched
-        self.assertIn(ticket, rows[0]["content"])
-        self.assertIn("review-code-lens", rows[0]["content"])
-
-    def test_a_retired_agent_name_no_longer_matches(self):
-        """`code-verifier` left with the verifier (§3.5); a row for it is not
-        an acs subagent row any more."""
-        payload = json.dumps({"columns": 80, "tasks": [
-            {"id": "a1", "type": "acs:code-verifier", "status": "running",
-             "cwd": self.repo}]})
-        out = self.run_script("subagent-statusline.py", stdin=payload)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(out.stdout.strip(), "")
-
-    def test_statusline_never_crashes(self):
-        for bad in ("", "not json", '{"tasks": [{"id": "x", "type": 5}]}'):
-            for script in ("statusline.py", "subagent-statusline.py"):
-                out = self.run_script(script, stdin=bad)
-                self.assertEqual(out.returncode, 0, (script, bad, out.stderr))
+    def test_the_scripts_are_gone(self):
+        for name in ("statusline.py", "subagent-statusline.py", "cost_sampler.py"):
+            with self.subTest(script=name):
+                self.assertFalse(os.path.exists(os.path.join(SCRIPTS, name)))
 
 
 class ToolchainTests(unittest.TestCase):

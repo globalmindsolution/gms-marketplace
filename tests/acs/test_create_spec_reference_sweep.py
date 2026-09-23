@@ -58,7 +58,6 @@ RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
 SHIP_SKILL = os.path.join(SKILLS_DIR, "ship", "SKILL.md")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
-SUBAGENT_STATUSLINE_PY = os.path.join(HOOKS_SCRIPTS, "subagent-statusline.py")
 
 # The pinned past-tense provenance substrings (Decision 3) — deliberately
 # permanent, asserted present, never removed.
@@ -399,16 +398,13 @@ class NegativeGuardsBackwardCompatTest(unittest.TestCase):
     token.
 
     v0.5.0 retired the XML messaging surface (acs-messages.xsd,
-    validate_xml.py) and rewrote the statusline around runs, so the anchors
-    those three carried are gone with their subjects; the schema, subagent
-    statusline and plan-rule anchors below are the ones that remain.
+    validate_xml.py), and ADR-0103 removed the status lines, so the anchors
+    those carried are gone with their subjects; the schema anchor below is
+    the one that remains.
     """
 
     def test_clarifications_schema_enum_present(self):
         self.assertIn('"create-spec"', read(CLARIFICATIONS_SCHEMA))
-
-    def test_subagent_statusline_alternation_present(self):
-        self.assertIn("create-spec", read(SUBAGENT_STATUSLINE_PY))
 
     def test_ship_skill_free_of_create_spec(self):
         self.assertNotIn("create-spec", read(SHIP_SKILL))

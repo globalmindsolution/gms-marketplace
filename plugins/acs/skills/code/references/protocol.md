@@ -322,7 +322,7 @@ AFTER the post-hook succeeded. Same labels, same order, `none` where empty:
 - **Results**: branch; what was implemented; targeted tests passed/failed; docs updated
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <run files, repo paths, branch>
-- **Metrics**: iteration <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iteration <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:review-code` on success; on `needs_input`, answer the questions and re-run; on a plan failure, `/acs:create-impl-plan`
 ```
 

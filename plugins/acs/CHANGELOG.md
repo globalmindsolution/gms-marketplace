@@ -346,6 +346,22 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **No status line, no dollar-cost metering** (ADR-0103, superseding in part
+  ADR-0082). `statusline.py`, `subagent-statusline.py` and `cost_sampler.py`
+  are removed. So are the statusLine payload probes and the `claude_version`
+  probe in `claude_code_adapter.py`, and the per-checkout cost-cursor and
+  cost-sample files. The status line was acs's only source of real dollar
+  figures, so run entries, ticket totals and `metrics.json` now record
+  measured tokens (per role and per model) and wall-clock time, and drop
+  `cost_usd`, `cost_basis`, `cost_scope`, `excluded_cost_usd`,
+  `api_duration_*` and their counters. `/acs:usage` and `/acs:metrics`
+  report tokens and time, and completion reports end their Metrics line at
+  tokens. Old state files keep their cost fields, and nothing reads them. A
+  result document may still carry `cost_usd` / `cost_basis` /
+  `api_duration_ms`, which are accepted and ignored. If you wired
+  `statusLine` to an acs script by hand, remove that setting. `/acs:update`
+  flags it.
+
 - **`/acs:setup` configures conventions and the CI that enforces them, and
   nothing else.** It asks for the ticket prefix, the three `formats.*`
   strings, and the convention, tests and (when an e2e suite is configured) e2e

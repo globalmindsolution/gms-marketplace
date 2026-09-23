@@ -5,7 +5,7 @@ progress; this tracks one skill's progress inside it.
 
 The shape carried over from `<skill>-state.json` because it was sound: a
 `states` object, `findings`, `errors`, and one record per invocation with its
-session id, transcript path, checkout id, tokens, cost, role/model usage,
+session id, transcript path, checkout id, tokens, role/model usage,
 guard events, gate enforcement, status and stop reason. Four things changed:
 
   1. **`runs[]` became `invocations[]`.** Once the partition is
@@ -171,23 +171,19 @@ def finalize_invocation(rdir, step, run_id, result):
     entry = invocations[-1]
     entry["ended_at"] = now_iso()
     entry["status"] = status
-    # `in result`, not `is not None`: for the measurement keys, None is an
-    # ANSWER -- "unavailable" -- and it is the answer the metrics roll-up folds
-    # on (`runs_cost_unavailable`, `runs_api_duration_unavailable`). Skipping a
-    # None left the key absent, which reads as a run that was never measured
-    # rather than one whose measurement could not be taken.
+    # `in result`, not `is not None`: a key the result states as None is still
+    # an answer, and skipping it would leave the entry reading as if the key
+    # had never been reported.
     if "stop_reason" in result:
         entry["stop_reason"] = result["stop_reason"]
     if result.get("handoff_summary"):
         entry["handoff_summary"] = result["handoff_summary"]
     if "guard_events" in result:
         entry["guard_events"] = result["guard_events"]
-    # Tokens, cost and API duration are MEASURED from this invocation's own
-    # recorded transcript, never taken from `result`. A coordinator reporting
-    # its own spend is the same category of claim as one reporting its own
-    # verdict, and the metrics roll-up folds on the measurement's BASIS -- so
-    # "unavailable" is written as `None` with a basis beside it rather than
-    # left absent, which would read as a run nobody tried to measure.
+    # Tokens are MEASURED from this invocation's own recorded transcript,
+    # never taken from `result`. A coordinator reporting its own spend is the
+    # same category of claim as one reporting its own verdict. There is no
+    # dollar cost to record (ADR-0103).
     _measure_run_usage(entry, rdir, step)
     if result.get("states"):
         doc.setdefault("states", {}).update(result["states"])

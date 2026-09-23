@@ -402,6 +402,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Results**: PRD files written/amended (`<prd>`, `<roadmap>`); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:create-architecture`
 ```

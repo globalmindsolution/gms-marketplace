@@ -152,8 +152,7 @@ against `settings.schema.json`.
 - Re-running `/setup` on an initialized repo **updates the existing settings
   in place** (preserving keys it does not touch) and refreshes the CI copies.
 - MUST NOT write into the repo's `CLAUDE.md` (the repo's own project
-  instructions) or into the user's Claude Code settings: the status lines are
-  wired by hand ([configuration.md](configuration.md#status-lines-optional)).
+  instructions) or into the user's Claude Code settings.
 
 ## `/ship` (umbrella)
 
@@ -225,9 +224,10 @@ this skill owns the workflow around it.
   (`claude plugin marketplace update gms-marketplace`) — updates reach consumers only
   when the plugin's `version` bumps (semver; automated release tagging).
 - Runs post-update migration checks: settings valid against the new schema,
-  status-line paths still resolve (they hold absolute install paths —
-  re-point them by hand when the install moved; `/setup` does not write
-  them), workspace reachable.
+  no leftover `statusLine` / `subagentStatusLine` setting still pointing at an
+  acs status-line script (acs no longer ships them —
+  [ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md); the fix is
+  removing that setting), workspace reachable.
 - Reloading is the user's action (`/reload-plugins` or a new session); the
   skill states this explicitly — the current session keeps the old version.
 - Not part of the gated pipeline; no executor/verifier subagents.
@@ -266,20 +266,21 @@ network, no new config key, nothing written.
 ## `/usage` (utility)
 
 Purpose: render a **read-only** in-session **usage view** dashboard of this
-repo's acs-tool spend metrics (cost, time, token burn), derived entirely from
+repo's acs-tool usage metrics (working time, token burn), derived entirely from
 existing workspace state — no network, no new config key, nothing written.
 
 - **Model-invocable** (it does not set `disable-model-invocation`): a
-  natural-language request to see this repo's acs spend, cost per ticket, or
-  token burn routes here.
+  natural-language request to see this repo's acs token consumption, working
+  time per ticket, or token burn routes here.
 - Runs the same stdlib helper `metrics_aggregate.py` that `/metrics` uses (one
   shared superset aggregator), then passes the JSON to `metrics_render.py
   --view usage`, which renders the **three usage-view panels**: usage summary
-  (headline spend KPIs — total cost, total working time, total runs, plus four
-  averages: avg working time per ticket and per merged PR, avg cost per ticket
-  and per merged PR), cost + time per ticket by step with the four averages, and
-  token burn by role (coordinator/planner/executor/verifier/other, plus
-  `unattributed` whenever the ticket has any such spend).
+  (headline KPIs — total tokens, total working time, total runs, plus two
+  averages: avg working time per ticket and per merged PR), time per ticket by
+  step, and token burn by role (coordinator/planner/executor/verifier/other,
+  plus `unattributed` whenever the ticket has any such tokens). No dollar
+  figure and no API duration
+  ([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
 - The coordinator **routes** the aggregate JSON through `metrics_render.py
   --view usage`: **terminal** (Claude Code CLI default) or `--html`
   (self-contained HTML → `show_widget`). Rendering is deterministic and

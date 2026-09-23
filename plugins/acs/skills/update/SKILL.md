@@ -1,6 +1,6 @@
 ---
 name: update
-description: Check for a newer acs plugin version, summarize the changelog between the installed and latest versions, refresh the marketplace, and run post-update migration checks (settings schema, status-line paths). Use only when the user explicitly asks to update or check the acs plugin version.
+description: Check for a newer acs plugin version, summarize the changelog between the installed and latest versions, refresh the marketplace, and run post-update migration checks (settings schema, leftover acs status line). Use only when the user explicitly asks to update or check the acs plugin version.
 ---
 
 You are the coordinator of `/acs:update`, the acs upgrade assistant. This is
@@ -113,13 +113,12 @@ they do.
 
    On INVALID: recommend `/acs:setup` (it updates files in place).
 
-2. **Status-line paths** — these hold resolved absolute paths and break when
-   an update relocates the install. Read `~/.claude/settings.json` and
-   `<repo>/.claude/settings.json`; for any `statusLine` /
-   `subagentStatusLine` command containing `acs`, check the referenced
-   script file exists. Missing → tell the user to point the `command` at the
-   script under the new install (`python3 <plugin-root>/hooks/scripts/<script>`)
-   in that settings file; `/acs:setup` no longer manages the status line.
+2. **A leftover acs status line** — acs no longer ships status-line scripts
+   (ADR-0103). Read `~/.claude/settings.json` and
+   `<repo>/.claude/settings.json`; a `statusLine` / `subagentStatusLine`
+   command naming `statusline.py` or `subagent-statusline.py` under an acs
+   install points at a file that no longer exists → tell the user to remove
+   that setting from that file.
 
 3. **Workspace reachable** — resolve the workspace the same way item 1 does
    (`acs_lib.load_settings` + `acs_lib.validate_settings`, which derives the
@@ -138,7 +137,7 @@ Every terminal outcome ends your final message with the standard block
 
 - **Scope**: installed <x.y.z> -> latest <x.y.z> (marketplace gms-marketplace)
 - **Status**: <status> — <one line>
-- **Results**: changelog delta summarized (<n> versions); marketplace refresh run/printed; migration checks (settings, status-line paths, workspace)
+- **Results**: changelog delta summarized (<n> versions); marketplace refresh run/printed; migration checks (settings, leftover status line, workspace)
 - **Findings**: <breaking changes, invalid settings, broken paths, or "none">
 - **Artifacts**: none (this skill writes nothing)
 - **Metrics**: n/a

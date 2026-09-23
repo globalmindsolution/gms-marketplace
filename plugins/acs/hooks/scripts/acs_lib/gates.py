@@ -632,7 +632,7 @@ def session_end(payload):
         sys.stderr.write(
             "acs session-end: %s\n%s's step is finalized as interrupted and the "
             "lock is released; metrics.json was not updated, so this step's tokens "
-            "and cost are lost from it.\n" % (exc, run_id))
+            "are lost from it.\n" % (exc, run_id))
     finally:
         sessions.save_pointer(repo, ctx["checkout_id"], run_id=run_id, step=None)
         release_lock(rdir, cwd)

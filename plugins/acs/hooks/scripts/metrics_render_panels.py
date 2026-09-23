@@ -8,7 +8,7 @@ decision about how that panel reads, not two.
 
 
 
-from metrics_render_common import NO_DATA, _bar, _bar_pct, _esc, _fmt_money, _html_bar_cell, _humanize_ms, _humanize_seconds, _is_no_data
+from metrics_render_common import NO_DATA, _bar, _bar_pct, _esc, _html_bar_cell, _humanize_seconds, _is_no_data
 from metrics_render_terminal import _term_no_data_block
 from metrics_render_html import _html_no_data
 
@@ -345,14 +345,13 @@ def _html_render_deadline(panel):
 def _term_render_usage_summary(panel):
     """Terminal renderer for the usage_summary panel (spec 02 §_render_usage_summary_terminal).
 
-    10 KPIs in fixed order. 'no data' or non-dict -> single 'no data' row (B1).
-    Duration values -> _humanize_seconds; None total_working_seconds -> 'no data'.
-    Cost values -> _fmt_money (2dp); 'no data' averages -> 'no data'.
+    7 KPIs in fixed order: tokens, runs and working time (ADR-0103: no dollar cost, no API
+    duration). 'no data' or non-dict -> single 'no data' row (B1). Duration values ->
+    _humanize_seconds; None total_working_seconds and 'no data' averages -> 'no data'.
     """
     if _is_no_data(panel) or not isinstance(panel, dict):
         return _term_no_data_block()
     out = []
-    out.append("  total cost (USD):                   %s" % _fmt_money(panel.get("total_cost_usd", 0)))
     out.append("  total tokens input:                 %s" % panel.get("total_tokens_input", 0))
     out.append("  total tokens output:                %s" % panel.get("total_tokens_output", 0))
     out.append("  total runs:                         %s" % panel.get("total_runs", 0))
@@ -366,36 +365,17 @@ def _term_render_usage_summary(panel):
     avg_wp = panel.get("avg_working_seconds_per_pr", NO_DATA)
     out.append("  avg working time / merged PR:       %s" % (
         _humanize_seconds(avg_wp) if not _is_no_data(avg_wp) else NO_DATA))
-    avg_ct = panel.get("avg_cost_per_ticket", NO_DATA)
-    out.append("  avg cost / ticket (USD):            %s" % (
-        _fmt_money(avg_ct) if not _is_no_data(avg_ct) else NO_DATA))
-    avg_cp = panel.get("avg_cost_per_pr", NO_DATA)
-    out.append("  avg cost / merged PR (USD):         %s" % (
-        _fmt_money(avg_cp) if not _is_no_data(avg_cp) else NO_DATA))
-    # 3 API-duration rows (MAR-7 spec 02) — total row guarded is-not-None like
-    # total_working_seconds; the two averages follow the existing NO_DATA-guarded pattern.
-    tad = panel.get("total_api_duration_ms")
-    out.append("  total API duration:                 %s" % (
-        _humanize_ms(tad) if tad is not None else NO_DATA))
-    avg_at = panel.get("avg_api_duration_ms_per_ticket", NO_DATA)
-    out.append("  avg API duration / ticket:          %s" % (
-        _humanize_ms(avg_at) if not _is_no_data(avg_at) else NO_DATA))
-    avg_ap = panel.get("avg_api_duration_ms_per_pr", NO_DATA)
-    out.append("  avg API duration / merged PR:       %s" % (
-        _humanize_ms(avg_ap) if not _is_no_data(avg_ap) else NO_DATA))
     return out
 
 
 def _html_render_usage_summary(panel):
     """HTML renderer for the usage_summary panel (spec 02 §_render_usage_summary_html).
 
-    10-row KPI table. 'no data' or non-dict -> nodata div (B1).
+    7-row KPI table, same rows as the terminal surface. 'no data' or non-dict -> nodata div (B1).
     """
     if _is_no_data(panel) or not isinstance(panel, dict):
         return _html_no_data()
     rows = ["<tr><th>metric</th><th>value</th></tr>"]
-    rows.append("<tr><td>total cost (USD)</td><td>%s</td></tr>"
-                % _esc(_fmt_money(panel.get("total_cost_usd", 0))))
     rows.append("<tr><td>total tokens input</td><td>%s</td></tr>"
                 % _esc(str(panel.get("total_tokens_input", 0))))
     rows.append("<tr><td>total tokens output</td><td>%s</td></tr>"
@@ -409,32 +389,13 @@ def _html_render_usage_summary(panel):
     rows.append("<tr><td>PRs merged</td><td>%s</td></tr>"
                 % _esc(str(panel.get("prs_merged", 0))))
 
-    def _avg_row(label, value, fmt):
-        v_str = fmt(value) if not _is_no_data(value) else NO_DATA
+    def _avg_row(label, value):
+        v_str = _humanize_seconds(value) if not _is_no_data(value) else NO_DATA
         c = ' class="nodata"' if v_str == NO_DATA else ""
         return "<tr><td>%s</td><td%s>%s</td></tr>" % (_esc(label), c, _esc(v_str))
 
     rows.append(_avg_row("avg working time / ticket",
-                         panel.get("avg_working_seconds_per_ticket", NO_DATA),
-                         _humanize_seconds))
+                         panel.get("avg_working_seconds_per_ticket", NO_DATA)))
     rows.append(_avg_row("avg working time / merged PR",
-                         panel.get("avg_working_seconds_per_pr", NO_DATA),
-                         _humanize_seconds))
-    rows.append(_avg_row("avg cost / ticket (USD)",
-                         panel.get("avg_cost_per_ticket", NO_DATA),
-                         _fmt_money))
-    rows.append(_avg_row("avg cost / merged PR (USD)",
-                         panel.get("avg_cost_per_pr", NO_DATA),
-                         _fmt_money))
-    # 3 API-duration rows (MAR-7 spec 02) — mirrors the same guard pattern as above.
-    tad = panel.get("total_api_duration_ms")
-    tad_str = _humanize_ms(tad) if tad is not None else NO_DATA
-    cls = ' class="nodata"' if tad_str == NO_DATA else ""
-    rows.append("<tr><td>total API duration</td><td%s>%s</td></tr>" % (cls, _esc(tad_str)))
-    rows.append(_avg_row("avg API duration / ticket",
-                         panel.get("avg_api_duration_ms_per_ticket", NO_DATA),
-                         _humanize_ms))
-    rows.append(_avg_row("avg API duration / merged PR",
-                         panel.get("avg_api_duration_ms_per_pr", NO_DATA),
-                         _humanize_ms))
+                         panel.get("avg_working_seconds_per_pr", NO_DATA)))
     return "<table>" + "".join(rows) + "</table>"

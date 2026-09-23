@@ -39,15 +39,14 @@ def _sum_role_tokens(role_usage):
 
 
 def _measure_run_usage(entry, tdir, skill):
-    """Persist MEASURED tokens/role_usage/cost onto `entry` -- read from its
-    own recorded transcript (usage_reader) and priced via
-    cost_sampler.allocate_cost -- rather than trusting a coordinator's
-    self-reported result["tokens"]/result["cost_usd"] (AC-3).
+    """Persist MEASURED tokens/role_usage/model_usage onto `entry` -- read from
+    its own recorded transcript (usage_reader) rather than trusting a
+    coordinator's self-reported result["tokens"] (AC-3). No dollar cost is
+    recorded: its only source was the status line, removed by ADR-0103.
 
     Required short-circuit (Risk R-N): a run entry with no session_id/
     transcript_path (e.g. new-ticket.py's synthetic, immediately-finalized
-    create-ticket runs) never performs transcript I/O -- cost_usd=None,
-    cost_basis="unavailable", tokens empty.
+    create-ticket runs) never performs transcript I/O -- tokens empty.
 
     `skill` (the run's own skill, as finalize_run received it) is threaded
     through to usage_reader so it can filter main-session attribution to
@@ -57,61 +56,22 @@ def _measure_run_usage(entry, tdir, skill):
     transcript_path = entry.get("transcript_path")
     if not session_id or not transcript_path:
         entry["tokens"] = dict(_EMPTY_MEASURED_TOKENS)
-        entry["cost_usd"] = None
-        entry["cost_basis"] = "unavailable"
         entry["role_usage"] = []
         entry["model_usage"] = []
-        entry["api_duration_ms"] = None
-        entry["api_duration_basis"] = "unavailable"
         return
 
     import usage_reader
     usage = usage_reader.read_transcript_usage(
         transcript_path, entry.get("started_at"), entry.get("ended_at"), skill)
     if usage.get("degraded"):
-        # A failed measurement must never look like a successful one: no
-        # cost sample may be consumed and no cursor may advance for a run
-        # whose transcript read itself is unreliable.
+        # A failed measurement must never look like a successful one.
         entry["tokens"] = dict(_EMPTY_MEASURED_TOKENS)
-        entry["cost_usd"] = None
-        entry["cost_basis"] = "unavailable"
         entry["role_usage"] = []
         entry["model_usage"] = []
-        entry["api_duration_ms"] = None
-        entry["api_duration_basis"] = "unavailable"
         return
-    role_usage = usage.get("role_usage") or []
-    model_usage = usage.get("model_usage") or []
-    entry["tokens"] = _sum_role_tokens(role_usage)
-
-    checkout_id = entry.get("checkout_id")
-    if not checkout_id:
-        # Tokens are measured (transcript-only); cost needs the checkout-scoped
-        # sample/cursor files this entry has no checkout_id to locate.
-        entry["role_usage"] = role_usage
-        entry["model_usage"] = model_usage
-        entry["cost_usd"] = None
-        entry["cost_basis"] = "unavailable"
-        entry["api_duration_ms"] = None
-        entry["api_duration_basis"] = "unavailable"
-        return
-
-    import cost_sampler
-    workspace = os.path.dirname(os.path.dirname(tdir))
-    repo_id = os.path.basename(os.path.dirname(tdir))
-    result = cost_sampler.allocate_cost(
-        workspace, repo_id, checkout_id,
-        entry.get("started_at"), entry.get("ended_at"), role_usage, model_usage)
-    entry["role_usage"] = result["role_usage"]
-    entry["model_usage"] = result["model_usage"]
-    entry["cost_usd"] = result["cost_usd"]
-    entry["cost_basis"] = result["cost_basis"]
-    entry["cost_scope"] = result["cost_scope"]
-    entry["excluded_cost_usd"] = result["excluded_cost_usd"]
-    entry["excluded_token_share"] = result["excluded_token_share"]
-    entry["api_duration_ms"] = result["api_duration_ms"]
-    entry["api_duration_basis"] = result["api_duration_basis"]
-    entry["api_duration_scope"] = result["api_duration_scope"]
+    entry["role_usage"] = usage.get("role_usage") or []
+    entry["model_usage"] = usage.get("model_usage") or []
+    entry["tokens"] = _sum_role_tokens(entry["role_usage"])
 
 
 def elapsed_seconds(start, end):
@@ -129,53 +89,20 @@ def run_seconds(entry):
     return elapsed_seconds(entry.get("started_at"), entry.get("ended_at"))
 
 
-#: What compute_ticket_totals folds per run entry. Cost and API duration are the
-#: same accumulation over different keys (MAR-522): (value, basis, measured
-#: counter, unavailable counter). A third measured quantity is a row, not a
-#: fourth copy of the branch below.
-_MEASURED_FOLDS = (
-    ("cost_usd", "cost_basis", "runs_cost_measured", "runs_cost_unavailable"),
-    ("api_duration_ms", "api_duration_basis",
-     "runs_api_duration_measured", "runs_api_duration_unavailable"),
-)
-
-
-def _fold_measured(totals, entry, value_key, basis_key, measured_key, unavailable_key):
-    """Fold one entry's value into totals when its basis says the value is real.
-
-    A basis outside ("measured", "apportioned") -- or a value that is not a
-    number -- counts the run as unavailable and contributes nothing, so a
-    degraded run can never quietly read as a zero-cost one. bool is excluded
-    explicitly: isinstance(True, int) is True in Python, so a stray True would
-    otherwise fold in as 1.0."""
-    basis = entry.get(basis_key) or "unavailable"
-    value = entry.get(value_key)
-    if basis in ("measured", "apportioned") and isinstance(value, (int, float)) \
-            and not isinstance(value, bool):
-        totals[measured_key] += 1
-        totals[value_key] += float(value)
-    else:
-        totals[unavailable_key] += 1
-
-
 def compute_ticket_totals(tdir):
-    """Roll up time/tokens/cost across every skill state file in the partition.
+    """Roll up time and tokens across every skill state file in the partition.
 
     A None-elapsed run (missing/malformed/inverted interval) is excluded from
     working_seconds rather than counted as zero, but still counts in runs and
-    in exactly one of runs_timed/runs_untimed. Likewise, a run whose
-    cost_basis is "measured"/"apportioned" contributes its cost_usd and
-    counts in runs_cost_measured; every other run (cost_basis "unavailable",
-    or absent -- a legacy pre-cutover run, C-11) counts in
-    runs_cost_unavailable and contributes nothing to the cost_usd sum."""
+    in exactly one of runs_timed/runs_untimed. A cost field a pre-ADR-0103
+    entry still carries is ignored."""
     totals = {
         # `invocations`, not `runs`: a "run" is the whole workflow over a
         # subject now, and what this counts is a SESSION's attempt at one step.
         # Two different things under one name is how a metric starts lying.
         "invocations": 0, "working_seconds": 0,
-        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
-        "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
-        "api_duration_ms": 0.0, "runs_api_duration_measured": 0, "runs_api_duration_unavailable": 0,
+        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0},
+        "runs_timed": 0, "runs_untimed": 0,
     }
     for skill in HOOKED_SKILLS:
         state = read_json(state_path(tdir, skill))
@@ -196,10 +123,6 @@ def compute_ticket_totals(tdir):
             tokens = entry.get("tokens") or {}
             for field in _TOKEN_TOTAL_FIELDS:
                 totals["tokens"][field] += int(tokens.get(field, 0) or 0)
-            for fold in _MEASURED_FOLDS:
-                _fold_measured(totals, entry, *fold)
-    for value_key, _basis, _measured, _unavailable in _MEASURED_FOLDS:
-        totals[value_key] = round(totals[value_key], 4)
     return totals
 
 
@@ -223,15 +146,14 @@ def _update_metrics_body(workspace, repo_id, run_entry, pr_created, pr_merged, p
     data.setdefault("prs", {"created": 0, "merged": 0, "created_pr_numbers": []})
     data.setdefault("totals", {
         "runs": 0, "working_seconds": 0,
-        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0}, "cost_usd": 0.0,
-        "runs_timed": 0, "runs_untimed": 0, "runs_cost_measured": 0, "runs_cost_unavailable": 0,
-        "api_duration_ms": 0.0, "runs_api_duration_measured": 0, "runs_api_duration_unavailable": 0,
+        "tokens": {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0},
+        "runs_timed": 0, "runs_untimed": 0,
     })
     # A pre-existing metrics.json predates these counters; backfill them at 0.
-    for counter in ("runs_timed", "runs_untimed", "runs_cost_measured", "runs_cost_unavailable",
-                     "runs_api_duration_measured", "runs_api_duration_unavailable"):
+    # Cost and API-duration totals an older file carries are left as they
+    # are and no longer accumulate (ADR-0103).
+    for counter in ("runs_timed", "runs_untimed"):
         data["totals"].setdefault(counter, 0)
-    data["totals"].setdefault("api_duration_ms", 0.0)
     # A pre-existing metrics.json's tokens dict predates the cache fields; backfill at 0.
     data["totals"].setdefault("tokens", {})
     for field in _TOKEN_TOTAL_FIELDS:
@@ -267,22 +189,6 @@ def _update_metrics_body(workspace, repo_id, run_entry, pr_created, pr_merged, p
         totals.setdefault("tokens", {"input": 0, "output": 0, "cache_creation": 0, "cache_read": 0})
         for field in _TOKEN_TOTAL_FIELDS:
             totals["tokens"][field] = int(totals["tokens"].get(field, 0)) + int(tokens.get(field, 0) or 0)
-        cost_basis = run_entry.get("cost_basis") or "unavailable"
-        cost_usd = run_entry.get("cost_usd")
-        if cost_basis in ("measured", "apportioned") and isinstance(cost_usd, (int, float)) \
-                and not isinstance(cost_usd, bool):
-            totals["runs_cost_measured"] = int(totals.get("runs_cost_measured", 0)) + 1
-            totals["cost_usd"] = round(float(totals.get("cost_usd", 0.0)) + float(cost_usd), 4)
-        else:
-            totals["runs_cost_unavailable"] = int(totals.get("runs_cost_unavailable", 0)) + 1
-        api_duration_basis = run_entry.get("api_duration_basis") or "unavailable"
-        api_duration_ms = run_entry.get("api_duration_ms")
-        if api_duration_basis in ("measured", "apportioned") and isinstance(api_duration_ms, (int, float)) \
-                and not isinstance(api_duration_ms, bool):
-            totals["runs_api_duration_measured"] = int(totals.get("runs_api_duration_measured", 0)) + 1
-            totals["api_duration_ms"] = round(float(totals.get("api_duration_ms", 0.0)) + float(api_duration_ms), 4)
-        else:
-            totals["runs_api_duration_unavailable"] = int(totals.get("runs_api_duration_unavailable", 0)) + 1
     data["updated_at"] = now_iso()
     write_json(path, data)
     return data

@@ -1,7 +1,7 @@
 ---
 name: metrics
 description: Render a read-only, in-session dashboard of project-management delivery metrics for the current repo — delivery summary (headline KPIs), ticket throughput by status/type, pipeline funnel with distinct PRs created/merged, ISSUES (per-ticket id, title, status, type, GitHub key), PROGRESS (done vs total, per-epic child progress), coverage achieved vs target, review iterations before pass, and lead/cycle time — all derived from existing workspace state.
-when_to_use: Use when asked to see, audit, or report this repo's delivery throughput, pipeline funnel, ticket progress, schedule, coverage, review effort, or lead/cycle time, not AI spend or token consumption.
+when_to_use: Use when asked to see, audit, or report this repo's delivery throughput, pipeline funnel, ticket progress, schedule, coverage, review effort, or lead/cycle time, not token consumption or per-ticket working time.
 ---
 
 You are the coordinator of `/acs:metrics`, the acs PM delivery dashboard. This
@@ -105,7 +105,7 @@ The PM delivery view renders exactly nine panels:
 - **PROGRESS** — done vs total counts; per-epic child progress breakdown.
 - **DEADLINE** — not set frame; deadline tracking requires a `due_date` field on the ticket, wired in Child 3 / MAR-15.
 
-Usage-only panels (usage summary, cost and time per ticket by step (3), token
+Usage-only panels (usage summary, working time per ticket by step (3), token
 burn by role (6)) are NOT included in the PM delivery view.
 
 The renderer surfaces the `meta.degraded` entries as an explicit summary section

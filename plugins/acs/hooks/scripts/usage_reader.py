@@ -21,10 +21,8 @@ results, and never opens a subagents/*.meta.json sidecar at all (only
 
 Unattributed-token / apportionment-denominator contract: unattributed
 same-window tokens (C-8's "drop, don't redistribute" policy) are folded into
-a `role_usage` entry with `"role": "unattributed"` -- the exact convention
-cost_sampler.allocate_cost's own docstring documents expecting from its
-caller -- rather than silently vanishing or inflating an attributed role's
-bucket. `excluded_token_share` is additionally reported at the top level of
+a `role_usage` entry with `"role": "unattributed"` rather than silently
+vanishing or inflating an attributed role's bucket. `excluded_token_share` is additionally reported at the top level of
 the result for direct/display consumers that do not want to re-derive it
 from the role_usage list themselves. This bucket also absorbs any
 attributionSkill that is present but not the run's own (`skill` argument):
@@ -51,8 +49,7 @@ MAX_FILES = 64
 _USAGE_FIELDS = cc.USAGE_FIELDS
 _BUCKET_KEYS = cc.BUCKET_KEYS
 
-#: role bucket for same-window tokens with no attributionSkill/attributionAgent
-#: -- matches cost_sampler.UNATTRIBUTED_ROLE's own documented expectation.
+#: role bucket for same-window tokens with no attributionSkill/attributionAgent.
 UNATTRIBUTED_ROLE = "unattributed"
 
 

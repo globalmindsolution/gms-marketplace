@@ -42,10 +42,6 @@ unchanged).
     [../functional/reflection.md](../functional/reflection.md).
   - **Hooks**: a pre and post hook per hooked skill (seventeen of each),
     implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).
-  - MAY bundle optional extras the user wires by hand — e.g. the
-    status-line scripts (prompt line and agent-panel line), configured as
-    `statusLine` / `subagentStatusLine` commands in the user's Claude Code
-    settings; `/setup` does not wire them.
 
 ## Distribution & versioning
 

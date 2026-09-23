@@ -219,6 +219,6 @@ order, `none` where empty:
 - **Results**: lenses run; candidate findings raised; confirmed / refuted / advisory after adjudication; the gate's four checks and coverage vs target
 - **Findings**: <confirmed findings by id, or "none">
 - **Artifacts**: `verdict.json`, the lens reports, `adjudication.json`, `gate.json`
-- **Metrics**: iteration <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iteration <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:code` on blocking findings; `/acs:docs-sync` then `/acs:create-pr` on a pass
 ```

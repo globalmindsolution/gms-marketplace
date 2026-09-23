@@ -178,33 +178,8 @@ configured under `models`:
   subagents — the hooked skills. An unknown skill name (`ship`, say, which
   spawns none of its own) is a settings error.
 - Model choice is team-shareable (committed `settings.json`) and can be
-  overridden per scope like any other key. Cost effects are visible in the
-  per-run metrics ([workspace-and-state.md](workspace-and-state.md)).
-
-### Status lines (optional)
-
-The plugin ships two status-line scripts — a prompt line (active ticket +
-pipeline step glyphs + cost) and an agent-panel line (live rows for the
-reflection subagents). `statusLine` / `subagentStatusLine` are the **user's**
-Claude Code settings, wired by hand in `~/.claude/settings.json` or the repo's
-`.claude/settings.json`: each is a `command` entry running
-`python3 <plugin-root>/hooks/scripts/statusline.py` (respectively
-`subagent-statusline.py`) at its resolved absolute install path. `/setup` does
-not offer or write them, and the plugin never forces them.
-
-Since MAR-1, the prompt line's `statusLine` script is not a pure renderer:
-on every invocation it also **samples and persists** the real cost figure
-Claude Code piped it on stdin (`cost_sampler.record_cost_sample`), fail-open
-and ticket-independent, so samples accumulate even before a ticket's first
-run can be measured against them. The `~$…` figure it displays now means the
-**latest real session-cumulative cost sample** when one exists, falling back
-to `pipeline.totals.cost_usd` (the ticket's own recomputed total) only when
-no sample has been recorded yet for the checkout — a change from the prior
-pure-workspace-state reading. Leaving `statusLine` unconfigured leaves
-per-run cost figures rendering as `unavailable`;
-token counts stay `measured` regardless, since they come from the Claude
-Code transcript, not the statusLine payload
-([ADR 0082](../../adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md)).
+  overridden per scope like any other key. Its effect on token usage is visible
+  in the per-run metrics ([workspace-and-state.md](workspace-and-state.md)).
 
 ## Validation rules
 

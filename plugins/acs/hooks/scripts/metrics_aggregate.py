@@ -31,10 +31,11 @@ New panel keys (MAR-14 spec 01):
   "issues"           — sorted list of all index entries with id, title, status, type, external_key.
   "progress"         — overall done/total, per_epic breakdown, burn_up date series.
   "deadline"         — always degraded "not set" frame (Child 3 / MAR-15 wires real data).
-  "usage_summary"    — totals + four averages from panel3; mirrors usage view data needs.
+  "usage_summary"    — token/run/working-time totals + the two working-time averages from
+                        panel3; mirrors usage view data needs.
 
 New panel key (MAR-3 spec 04):
-  "usage_by_model"   — per-model token/cost breakdown, at repo AND per-ticket scope, folded
+  "usage_by_model"   — per-model token breakdown, at repo AND per-ticket scope, folded
                         from each run entry's model_usage field (acs_lib._measure_run_usage)
                         in the same single pass _accumulate_burn already makes for panel 6
                         (zero additional file reads). "no data" repo/ticket-row when no
@@ -42,19 +43,23 @@ New panel key (MAR-3 spec 04):
 
 New panel key (MAR-4 spec 01):
   "usage_by_ticket"  — per-ticket role-share percentages: panel 6's bucket widens to the four
-                        token classes plus repo-scope token_share_pct/cost_share_pct; this panel
+                        token classes plus a repo-scope token_share_pct; this panel
                         adds the SAME shares at ticket scope, keyed by role, in the same
                         _accumulate_burn pass (zero additional file reads). "no data" ticket row
                         when the ticket contributed no role_usage anywhere.
 
-Per-skill/per-run API-duration surfacing (MAR-7 spec 01): panel 3 gains "step_api_duration"/
-"step_order" additive sibling keys per ticket ("steps" itself unchanged); "usage_by_ticket"
-widens with ticket/skill-scoped api_duration_ms/api_duration_basis and a skills[] array;
-"usage_summary" gains total_api_duration_ms and its two per-ticket/per-pr averages. All sourced
-from fields MAR-6 already persists — zero additional file reads.
+Per-skill/per-run wall-clock surfacing (MAR-7 spec 01): panel 3 gains a "step_order" additive
+sibling key per ticket ("steps" itself unchanged); "usage_by_ticket" widens with a skills[]
+array of per-skill summed run time and per-run wall-clock. Zero additional file reads.
 
-Existing panel keys "1".."7" and their shapes are UNCHANGED (A1 contract). New keys are additive.
-meta.degraded entries for new panels use string panel names; entries for "1".."7" use integers.
+No dollar cost and no API duration (ADR-0103): their only source was the status line, now
+removed. Panels 3 and 6, usage_summary, usage_by_model and usage_by_ticket report tokens and
+wall-clock time only, and a cost or API-duration field an older run entry, run.json or
+metrics.json still carries is never read into the aggregate.
+
+Panel keys "1".."7" are UNCHANGED (A1 contract); ADR-0103 removed the cost and API-duration
+fields inside panels 3 and 6. New keys are additive. meta.degraded entries for new panels use
+string panel names; entries for "1".."7" use integers.
 
 The helper is READ-ONLY: zero acs_lib.write_json calls; it mutates no workspace file.
 
@@ -82,7 +87,7 @@ import acs_lib  # noqa: E402
 # included, because the tests reach them by name. Import from the module that
 # OWNS a name when you add code; import from here only to keep a caller working.
 from metrics_aggregate_common import (PANEL_KEYS, _ITER_RE, _NEW_PANEL_KEYS,
-    _elapsed_seconds, _is_number, _parse_due_date,
+    _TOTALS_KEYS, _elapsed_seconds, _is_number, _measured_totals, _parse_due_date,
     _read_text, _safe_avg, _share_pct, _to_int)  # noqa: F401
 from metrics_aggregate_panels import (_deadline_panel, _delivery_summary,
     _delivery_paths_tally, _issues_panel, _progress_panel,
@@ -94,7 +99,7 @@ from metrics_aggregate_usage import (_apply_panel6_shares, _empty_model_bucket,
     _finalize_skill_bucket, _fold_model_bucket,
     _usage_by_model_panel, _usage_by_ticket_panel)  # noqa: F401
 from metrics_aggregate_rows import (_accumulate_burn, _accumulate_funnel,
-    _max_verify_iteration, _panel1, _panel3_row,
+    _fold_token_item, _max_verify_iteration, _panel1, _panel3_row,
     _panel4_row, _panel5_row, _panel7, _panel7_row,
     _rework_count, _test_runs_source)  # noqa: F401
 
@@ -179,7 +184,7 @@ def aggregate(workspace, repo_id, now=None):
     # Panel 1 — throughput by status/type (repo metrics primary; recompute fallback from the index).
     panel1 = _panel1(tickets, repo_metrics)
 
-    # Panels 2/3 funnel + cost/time, 4 coverage, 5 review iterations, 6 token burn — single pass.
+    # Panels 2/3 funnel + time, 4 coverage, 5 review iterations, 6 token burn — single pass.
     funnel = {skill: 0 for skill in acs_lib.HOOKED_SKILLS}
     p3_rows = []
     p4_rows = []
@@ -190,7 +195,7 @@ def aggregate(workspace, repo_id, now=None):
     repo_models = {}  # model -> raw accumulator (MAR-3: usage_by_model repo scope)
     _ticket_model_rows = []  # [(ticket_id, {model -> raw accumulator}), ...] (ticket scope)
     _ticket_role_rows = []  # [(ticket_id, {role -> raw accumulator}), ...] (MAR-4: usage_by_ticket)
-    _ticket_skill_rows = []  # [(ticket_id, {skill -> raw duration accumulator}), ...] (MAR-7)
+    _ticket_skill_rows = []  # [(ticket_id, {skill -> raw wall-clock accumulator}), ...] (MAR-7)
 
     # Per-ticket extra data collected for the new panels (no additional file reads — reuses
     # the ticket.json and run.json already opened below; spec 01:44-49).
@@ -216,7 +221,7 @@ def aggregate(workspace, repo_id, now=None):
             _accumulate_funnel(funnel, pipeline)
         else:
             degrade(ticket_id, 2, "run.json absent — ticket omitted from the funnel")
-            degrade(ticket_id, 3, "run.json absent — no cost/time row")
+            degrade(ticket_id, 3, "run.json absent — no time row")
 
         # Collect merge-pr.ended_at for burn_up (primary date source; spec 01:193-197).
         steps = pipeline.get("steps") if isinstance(pipeline, dict) else None
@@ -243,7 +248,7 @@ def aggregate(workspace, repo_id, now=None):
 
         ticket_models, ticket_roles, ticket_skills = _accumulate_burn(burn, tdir)
         if isinstance(pipeline, dict):
-            p3_rows.append(_panel3_row(ticket_id, pipeline, ticket_skills))
+            p3_rows.append(_panel3_row(ticket_id, pipeline))
         for model, bucket in ticket_models.items():
             repo_bucket = repo_models.setdefault(model, _empty_model_bucket())
             _fold_model_bucket(repo_bucket, bucket)
@@ -267,10 +272,11 @@ def aggregate(workspace, repo_id, now=None):
         })
 
     prs = (repo_metrics or {}).get("prs", {"created": 0, "merged": 0})
-    totals = (repo_metrics or {}).get("totals", {})
+    # Restricted to the measured roll-up keys: an older metrics.json's cost and
+    # API-duration sums are dropped here, before any panel sees them (ADR-0103).
+    totals = _measured_totals((repo_metrics or {}).get("totals", {}))
     merged = prs.get("merged") if isinstance(prs, dict) else None
-    working_seconds = totals.get("working_seconds") if isinstance(totals, dict) else None
-    cost_usd = totals.get("cost_usd") if isinstance(totals, dict) else None
+    working_seconds = totals.get("working_seconds")
     ticket_count = meta["ticket_count"]
 
     panel2 = {"steps": funnel, "prs": prs}
@@ -280,13 +286,11 @@ def aggregate(workspace, repo_id, now=None):
         "averages": {
             "avg_working_seconds_per_ticket": _safe_avg(working_seconds, ticket_count),
             "avg_working_seconds_per_pr": _safe_avg(working_seconds, merged),
-            "avg_cost_per_ticket": _safe_avg(cost_usd, ticket_count),
-            "avg_cost_per_pr": _safe_avg(cost_usd, merged),
         },
     }
     panel4 = {"tickets": p4_rows}
     panel5 = {"tickets": p5_rows}
-    _apply_panel6_shares(burn)  # repo-scope token_share_pct/cost_share_pct, once (MAR-4 spec 01)
+    _apply_panel6_shares(burn)  # repo-scope token_share_pct, once (MAR-4 spec 01)
     panel6 = burn
     panel7 = _panel7(p7_rows)
 
@@ -309,14 +313,14 @@ def aggregate(workspace, repo_id, now=None):
     _now_date = _parse_due_date(_now_str)  # date object for comparison; None if now is None
     deadline = _deadline_panel(_tickets_due_data, _now_date, degrade)
 
-    # usage_summary: totals + four averages (spec 01:251-269), + 3 API-duration fields (MAR-7)
-    usage_summary = _usage_summary_panel(totals, prs, panel3["averages"], ticket_count)
+    # usage_summary: totals + the two working-time averages (spec 01:251-269)
+    usage_summary = _usage_summary_panel(totals, prs, panel3["averages"])
 
-    # usage_by_model: per-model token/cost breakdown, repo + per-ticket (MAR-3 spec 04)
+    # usage_by_model: per-model token breakdown, repo + per-ticket (MAR-3 spec 04)
     usage_by_model = _usage_by_model_panel(repo_models, _ticket_model_rows)
 
     # usage_by_ticket: per-ticket role-share percentages (MAR-4 spec 01), widened with
-    # ticket/skill-scoped API duration + a skills[] array (MAR-7 spec 01)
+    # a per-skill wall-clock skills[] array (MAR-7 spec 01)
     usage_by_ticket = _usage_by_ticket_panel(_ticket_role_rows, _ticket_skill_rows)
 
     panels = {

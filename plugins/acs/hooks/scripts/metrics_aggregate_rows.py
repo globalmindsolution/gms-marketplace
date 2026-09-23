@@ -11,7 +11,7 @@ import json
 import os
 import acs_lib  # noqa: E402
 
-from metrics_aggregate_common import _ITER_RE, _elapsed_seconds, _is_number, _read_text, _safe_avg, _to_int
+from metrics_aggregate_common import _ITER_RE, _elapsed_seconds, _is_number, _measured_totals, _read_text, _safe_avg, _to_int
 from metrics_aggregate_usage import _empty_model_bucket, _empty_panel6_bucket, _empty_skill_duration_bucket
 
 
@@ -100,42 +100,28 @@ def _accumulate_funnel(funnel, pipeline):
             funnel[skill] += 1
 
 
-def _panel3_row(ticket_id, pipeline, ticket_skills=None):
-    """Panel-3 row: ticket_id/steps/totals unchanged (F13's no-mutation invariant -- `steps` is
-    only ever read here, never reordered or filtered), plus two additive sibling keys (MAR-7
-    spec 01, D5.4/S-C): step_api_duration (per-skill API duration + basis) and step_order (the
-    ordered union of steps' and step_api_duration's own key sets, K-A).
+def _panel3_row(ticket_id, pipeline):
+    """Panel-3 row: ticket_id/steps/totals (F13's no-mutation invariant -- `steps` is only ever
+    read here, never reordered or filtered), plus an additive `step_order` sibling key (MAR-7
+    spec 01, D5.4/S-C): the steps' own keys in PIPELINE_STEP_ORDER, then any other key sorted.
 
-    ticket_skills: the SAME raw {skill -> duration accumulator} map _accumulate_burn returns --
-    zero extra file reads (P-1). A skill's step_api_duration cell's "basis" passes through the
-    LAST contributing run's own literal basis (not the "apportioned"/"unavailable" collapse
-    _finalize_skill_bucket uses for usage_by_ticket.skills[] -- that scope's own roll-up rule).
+    `totals` is run.json's roll-up restricted to _measured_totals: a pre-ADR-0103 run.json
+    still carries cost and API-duration sums, and they are not passed through.
     """
     steps = pipeline.get("steps") if isinstance(pipeline.get("steps"), dict) else {}
     per_step = {}
     for skill, step in steps.items():
         if isinstance(step, dict):
             per_step[skill] = acs_lib.run_seconds(step)
-    totals = pipeline.get("totals") if isinstance(pipeline.get("totals"), dict) else {}
+    totals = _measured_totals(pipeline.get("totals"))
 
-    ticket_skills = ticket_skills if isinstance(ticket_skills, dict) else {}
-    step_api_duration = {}
-    for skill, bucket in ticket_skills.items():
-        if not bucket.get("api_duration_seen"):
-            continue
-        contributing = [r for r in bucket.get("runs", []) if _is_number(r.get("api_duration_ms"))]
-        basis = contributing[-1]["api_duration_basis"] if contributing else "unavailable"
-        step_api_duration[skill] = {"ms": round(bucket["api_duration_ms_sum"], 4), "basis": basis}
-
-    union = set(per_step) | set(step_api_duration)
-    step_order = ([s for s in acs_lib.PIPELINE_STEP_ORDER if s in union]
-                  + sorted(union - set(acs_lib.PIPELINE_STEP_ORDER)))
+    step_order = ([s for s in acs_lib.PIPELINE_STEP_ORDER if s in per_step]
+                  + sorted(set(per_step) - set(acs_lib.PIPELINE_STEP_ORDER)))
 
     return {
         "ticket_id": ticket_id,
         "steps": per_step,
         "totals": totals,
-        "step_api_duration": step_api_duration,
         "step_order": step_order,
     }
 
@@ -299,16 +285,16 @@ def _accumulate_burn(burn, tdir):
     """Sum each HOOKED_SKILLS run entry's measured `role_usage` into role buckets (panel 6, now
     widened to the four token classes, MAR-4 spec 01), this ticket's OWN role_usage into a raw
     per-role accumulator (usage_by_ticket, MAR-4 spec 01), this ticket's `model_usage` into
-    per-model buckets (usage_by_model, MAR-3 spec 04), and each entry's own `api_duration_ms`/
-    `api_duration_basis`/wall-clock seconds into a raw per-skill duration accumulator (panel 3's
-    step_api_duration + usage_by_ticket.skills[], MAR-7 spec 01, D5.4/P-1 -- zero additional
-    file reads).
+    per-model buckets (usage_by_model, MAR-3 spec 04), and each entry's wall-clock seconds into
+    a raw per-skill accumulator (usage_by_ticket.skills[], MAR-7 spec 01, D5.4/P-1 -- zero
+    additional file reads).
 
     Reads acs_lib.finalize_run's own persisted shape directly instead of scraping the retired
     <metrics> XML element; a role bucket is created on first use (dict.setdefault), so
-    `coordinator` now surfaces like any other role instead of being silently excluded.
-    `burn`'s shape and behavior are unchanged (widened, not reshaped); the model/role/skill
-    accumulators are this function's return value -- (ticket_models, ticket_roles, ticket_skills).
+    `coordinator` now surfaces like any other role instead of being silently excluded. Only
+    token counts and timestamps are read: a cost or API-duration field a pre-ADR-0103 entry
+    still carries is ignored. The model/role/skill accumulators are this function's return
+    value -- (ticket_models, ticket_roles, ticket_skills).
     """
     ticket_models = {}
     ticket_roles = {}
@@ -326,16 +312,9 @@ def _accumulate_burn(burn, tdir):
             if wall_clock_seconds is not None:
                 skill_bucket["run_seconds_sum"] += wall_clock_seconds
                 skill_bucket["run_seconds_seen"] = True
-            api_duration_ms = entry.get("api_duration_ms")
-            api_duration_basis = entry.get("api_duration_basis") or "unavailable"
-            if _is_number(api_duration_ms):
-                skill_bucket["api_duration_ms_sum"] += api_duration_ms
-                skill_bucket["api_duration_seen"] = True
             skill_bucket["runs"].append({
                 "started_at": entry.get("started_at"),
                 "wall_clock_seconds": wall_clock_seconds,
-                "api_duration_ms": api_duration_ms,
-                "api_duration_basis": api_duration_basis,
             })
 
             for item in entry.get("role_usage") or []:
@@ -344,40 +323,20 @@ def _accumulate_burn(burn, tdir):
                 role = item.get("role")
                 if not role:
                     continue
-                cache_creation = _to_int(item.get("cache_creation"))
-                cache_read = _to_int(item.get("cache_read"))
-                cost = item.get("cost_usd")
-
-                bucket = burn.setdefault(role, _empty_panel6_bucket())
-                bucket["input"] += _to_int(item.get("input"))
-                bucket["output"] += _to_int(item.get("output"))
-                bucket["cache_creation"] += cache_creation
-                bucket["cache_read"] += cache_read
-                if _is_number(cost):
-                    bucket["cost"] = round(bucket["cost"] + cost, 6)
-                    bucket["cost_seen"] = True
-
-                role_bucket = ticket_roles.setdefault(role, _empty_model_bucket())
-                role_bucket["input"] += _to_int(item.get("input"))
-                role_bucket["output"] += _to_int(item.get("output"))
-                role_bucket["cache_creation"] += cache_creation
-                role_bucket["cache_read"] += cache_read
-                if _is_number(cost):
-                    role_bucket["cost_sum"] += cost
-                    role_bucket["cost_seen"] = True
+                for bucket in (burn.setdefault(role, _empty_panel6_bucket()),
+                               ticket_roles.setdefault(role, _empty_model_bucket())):
+                    _fold_token_item(bucket, item)
             for item in entry.get("model_usage") or []:
                 if not isinstance(item, dict):
                     continue
                 model = item.get("model")
                 if not model:
                     continue
-                model_bucket = ticket_models.setdefault(model, _empty_model_bucket())
-                model_bucket["input"] += _to_int(item.get("input"))
-                model_bucket["output"] += _to_int(item.get("output"))
-                model_bucket["cache_creation"] += _to_int(item.get("cache_creation"))
-                model_bucket["cache_read"] += _to_int(item.get("cache_read"))
-                cost = item.get("cost_usd")
-                if _is_number(cost):
-                    model_bucket["cost_sum"] += cost
-                    model_bucket["cost_seen"] = True
+                _fold_token_item(ticket_models.setdefault(model, _empty_model_bucket()), item)
     return ticket_models, ticket_roles, ticket_skills
+
+
+def _fold_token_item(bucket, item):
+    """Add one role_usage/model_usage item's four token classes into `bucket`, in place."""
+    for field in ("input", "output", "cache_creation", "cache_read"):
+        bucket[field] += _to_int(item.get(field))

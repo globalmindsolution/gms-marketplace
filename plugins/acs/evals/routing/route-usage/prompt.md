@@ -7,4 +7,4 @@ max_turns: 10
 allowed_tools: [Skill]
 ---
 
-How much have we spent on AI for this repo, and what's the token burn per role?
+How many tokens has the AI burned on this repo, split by role, and how much working time has each ticket taken?

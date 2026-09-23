@@ -483,6 +483,6 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Results**: verdict (ready_for_planning); impact map counts; api_surface; load-bearing surfaces named in Risks; needs_design / refined-AC proposals
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <analysis path, partition phase artifacts, branch>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:create-impl-plan <ticket-id>`
 ```

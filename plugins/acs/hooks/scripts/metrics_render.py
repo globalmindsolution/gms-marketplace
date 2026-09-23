@@ -37,8 +37,9 @@ Invariants (AC-8):
   * Read-only — zero writes (no file, no state, no schema/config). The only effects of main() are
     reading stdin and printing to stdout.
   * Never crash — a panel value is sometimes a dict and sometimes the bare string "no data"; the
-    renderer renders a "no data" frame for either form on both surfaces and never raises (the
-    never-crash discipline of statusline.py).
+    renderer renders a "no data" frame for either form on both surfaces and never raises.
+  * No dollar figure and no API duration (ADR-0103) — the usage panels render tokens and
+    wall-clock time only, so neither surface ever prints a "$" amount or a cost column.
 
 ANSI color is OFF by default (determinism forbids surface-dependent escapes in the golden output).
 """
@@ -62,14 +63,13 @@ import acs_lib  # noqa: E402
 # the golden tests reach them by name. Import from the module that OWNS a name
 # when you add code; import from here only to keep an existing caller working.
 from metrics_render_common import (AVERAGE_ROWS, NO_DATA, PANEL_KEYS, PANEL_TITLES,
-    ROLE_ORDER, UNAVAILABLE, _BAR_EMPTY, _BAR_FULL,
+    ROLE_ORDER, _BAR_EMPTY, _BAR_FULL,
     _BAR_WIDTH, _NEW_PANEL_TITLES, _PM_PANELS,
     _USAGE_PANELS, _average_cells, _bar, _bar_pct,
-    _counts_items, _esc, _fmt_money, _fmt_pct,
-    _format_average, _html_bar_cell, _humanize_ms,
+    _counts_items, _esc, _fmt_pct,
+    _format_average, _html_bar_cell,
     _humanize_seconds, _is_no_data, _meta_lines,
-    _panel6_extra_roles, _panel_max,
-    _ticket_api_duration_str)  # noqa: F401
+    _panel6_extra_roles, _panel_max)  # noqa: F401
 from metrics_render_terminal import (_TERMINAL_PANELS, _term_no_data_block, _term_panel1,
     _term_panel2, _term_panel3, _term_panel3_sub_rows,
     _term_panel4, _term_panel5, _term_panel6,
@@ -200,7 +200,7 @@ def render_pm_html(data):
 
 
 def render_usage_terminal(data):
-    """Usage-view terminal dashboard (usage_summary,3,6). Never raises."""
+    """Usage-view terminal dashboard (usage_summary,3,6,usage_by_model,usage_by_ticket). Never raises."""
     data = data if isinstance(data, dict) else {}
     panels = data.get("panels") if isinstance(data.get("panels"), dict) else {}
     meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}

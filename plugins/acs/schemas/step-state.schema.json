@@ -32,7 +32,7 @@
       "type": "array"
     },
     "invocations": {
-      "description": "One record per session's attempt at this step. A resumed step appends rather than overwriting, so an interrupted attempt's cost and session trail survive it.",
+      "description": "One record per session's attempt at this step. A resumed step appends rather than overwriting, so an interrupted attempt's token and session trail survive it.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/invocation"
@@ -79,54 +79,6 @@
         },
         "tokens": {
           "type": "object"
-        },
-        "cost_usd": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "cost_basis": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "cost_scope": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "excluded_cost_usd": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "excluded_token_share": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "api_duration_ms": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "api_duration_basis": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "api_duration_scope": {
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "role_usage": {
           "type": "object"

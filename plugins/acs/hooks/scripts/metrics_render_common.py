@@ -51,7 +51,7 @@ ROLE_ORDER = ("planner", "executor", "verifier", "coordinator")
 PANEL_TITLES = {
     "1": "Panel 1 — Throughput by status / type",
     "2": "Panel 2 — Pipeline funnel",
-    "3": "Panel 3 — Cost + time per ticket by step",
+    "3": "Panel 3 — Working time per ticket by step",
     "4": "Panel 4 — Coverage achieved vs target",
     "5": "Panel 5 — Review iterations before pass",
     "6": "Panel 6 — Token burn by role",
@@ -70,22 +70,16 @@ _NEW_PANEL_TITLES = {
 }
 
 # Fixed-key order for the Panel 3 averages summary rows (determinism — read by name, not by
-# dict iteration). The aggregate (spec 01) emits exactly these four keys.
+# dict iteration). The aggregate (spec 01) emits exactly these two keys; the two dollar-cost
+# averages that followed them went with ADR-0103.
 AVERAGE_ROWS = (
-    ("avg working time / ticket", "avg_working_seconds_per_ticket", "duration"),
-    ("avg working time / merged PR", "avg_working_seconds_per_pr", "duration"),
-    ("avg cost / ticket", "avg_cost_per_ticket", "cost"),
-    ("avg cost / merged PR", "avg_cost_per_pr", "cost"),
+    ("avg working time / ticket", "avg_working_seconds_per_ticket"),
+    ("avg working time / merged PR", "avg_working_seconds_per_pr"),
 )
 
 NO_DATA = "no data"
 
-# Cost-share-only null marker (MAR-4 spec 02, D6): distinct from NO_DATA. Used ONLY by a
-# cost-share cell whose value is None (an unavailable cost basis) -- a token-share cell's
-# None still renders NO_DATA, its own separate convention.
-UNAVAILABLE = "unavailable"
-
-# Unicode block glyphs for the deterministic block-bar (statusline.py's deterministic-glyph style).
+# Unicode block glyphs for the deterministic block-bar (fixed glyphs, never locale-dependent).
 _BAR_FULL = "█"   # █
 _BAR_EMPTY = "·"  # ·
 _BAR_WIDTH = 24        # fixed bar width so output is deterministic regardless of value magnitude
@@ -136,38 +130,14 @@ def _humanize_seconds(value):
     return sign + " ".join(parts[:2])
 
 
-def _humanize_ms(value):
-    """Format a millisecond duration (MAR-7 spec 02): converts to seconds, then delegates to
-    _humanize_seconds for the actual formatting. NO_DATA for any non-number, same guard."""
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        return NO_DATA
-    return _humanize_seconds(value / 1000.0)
-
-
-def _fmt_money(value, empty=NO_DATA):
-    """Format a USD cost cell to EXACTLY 2 decimals, or the cell's empty marker for any non-number.
-
-    Pure function of its arguments only — NO clock, NO locale, NO random (determinism / R4).
-    A numeric value renders "%.2f" (e.g. 36.0 -> "36.00", 5.142857... -> "5.14", 7.2 -> "7.20").
-    bool (an int subclass) and any non-numeric value (the literal NO_DATA string, a missing-cell
-    default, None) return `empty` — the marker the calling cell uses for its empty state (NO_DATA
-    for the average cells, "-" for the per-ticket / REPO-TOTAL / role cost columns), so the cell's
-    existing empty handling and B1 ("no data" cells still render) are preserved. Mirrors the bool
-    guard in _humanize_seconds.
-    """
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        return empty
-    return "%.2f" % value
-
-
 def _fmt_pct(value, empty):
     """Format a percentage cell to EXACTLY 1 decimal + '%', or `empty` for any non-number.
 
-    Mirrors _fmt_money's house style: a numeric, non-bool `value` renders "%.1f%%" (e.g.
-    12.5 -> "12.5%"). bool (an int subclass) and any non-numeric value (None, the literal
-    NO_DATA string) return `empty` -- the caller's own marker (NO_DATA for token_share_pct,
-    UNAVAILABLE for cost_share_pct). No division here (D2 placement) -- the value arrives
-    pre-computed from metrics_aggregate.py; this only formats.
+    Pure function of its arguments only — NO clock, NO locale, NO random (determinism / R4).
+    A numeric, non-bool `value` renders "%.1f%%" (e.g. 12.5 -> "12.5%"). bool (an int
+    subclass) and any non-numeric value (None, the literal NO_DATA string) return `empty` --
+    the caller's own marker (NO_DATA for token_share_pct). No division here (D2 placement) --
+    the value arrives pre-computed from metrics_aggregate.py; this only formats.
     """
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return empty
@@ -191,29 +161,26 @@ def _counts_items(mapping):
     return sorted(((str(k), v) for k, v in mapping.items()), key=lambda kv: kv[0])
 
 
-def _format_average(value, kind):
-    """Format a Panel-3 average cell: duration averages humanized, cost averages numeric.
+def _format_average(value):
+    """Format a Panel-3 average cell: a humanized duration.
 
-    A "no data" (or any non-numeric) value renders the NO_DATA cell for either kind (B1).
+    A "no data" (or any non-numeric) value renders the NO_DATA cell (B1).
     """
     if _is_no_data(value):
         return NO_DATA
-    if kind == "duration":
-        return _humanize_seconds(value)
-    # kind == "cost": money to exactly 2 decimals; non-numeric -> NO_DATA cell (B1).
-    return _fmt_money(value, empty=NO_DATA)
+    return _humanize_seconds(value)
 
 
 def _average_cells(value):
-    """The (label, formatted_value) pairs for Panel 3's four averages (fixed order, B1).
+    """The (label, formatted_value) pairs for Panel 3's two averages (fixed order, B1).
 
-    A missing or non-dict `averages` renders four NO_DATA cells — never an omitted row.
+    A missing or non-dict `averages` renders two NO_DATA cells — never an omitted row.
     """
     averages = value.get("averages") if isinstance(value, dict) else None
     averages = averages if isinstance(averages, dict) else {}
     out = []
-    for label, key, kind in AVERAGE_ROWS:
-        out.append((label, _format_average(averages.get(key, NO_DATA), kind)))
+    for label, key in AVERAGE_ROWS:
+        out.append((label, _format_average(averages.get(key, NO_DATA))))
     return out
 
 
@@ -255,12 +222,3 @@ def _panel_max(values):
     """The max numeric value in `values` (bools/non-numerics ignored); 0 when none."""
     nums = [v for v in values if isinstance(v, (int, float)) and not isinstance(v, bool)]
     return max(nums) if nums else 0
-
-
-def _ticket_api_duration_str(row):
-    """Ticket-scope api_duration_ms/api_duration_basis header value (MAR-7 spec 02) — shared by
-    both surfaces' usage_by_ticket renderers."""
-    basis = row.get("api_duration_basis")
-    if basis == "unavailable":
-        return UNAVAILABLE
-    return _humanize_ms(row.get("api_duration_ms"))

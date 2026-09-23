@@ -1,21 +1,19 @@
 """Behavior tests for claude_code_adapter.py -- the single module encoding
 what acs assumes about Claude Code's undocumented interfaces (MAR-520).
 
-Three things are under test here:
+Two things are under test here:
 
 1. Every accessor is TOTAL. A malformed, absent, or wrong-typed value yields
    None (or the documented default), never an exception -- measurement code
    must not have to validate Claude Code's output at each call site.
 2. The degradation switch logs its reason and returns it, and never raises
    even when the log destination is unusable.
-3. `claude_version` is cached, bounded, and degrades to None -- it runs on
-   every measurement tick, so a missing or slow `claude` binary can never
-   cost the caller anything.
 
 Plus a structural guard (`TestInterfaceLiteralsLiveInTheAdapter`) that fails
-if any of the five interfaces' distinctive field names reappear in another
-plugin module -- the enforceable half of this ticket's "all five interface
-assumptions live in one adapter module".
+if any of the interfaces' distinctive field names reappear in another plugin
+module -- the enforceable half of this ticket's "every interface assumption
+lives in one adapter module". (The statusLine payload keys and the
+`claude_version` probe went with the status line -- ADR-0103.)
 """
 
 import ast
@@ -182,25 +180,6 @@ class TestSubagentLayout(unittest.TestCase):
         self.assertFalse(cc.is_transcript_file(None))
 
 
-class TestStatusPayload(unittest.TestCase):
-    """Interface 5: statusLine payload keys and the cost probe order."""
-
-    def test_model_display_name_with_default(self):
-        self.assertEqual(cc.status_model_display_name({"model": {"display_name": "Opus"}}), "Opus")
-        self.assertEqual(cc.status_model_display_name({}), "Claude")
-        self.assertEqual(cc.status_model_display_name([]), "Claude")
-        self.assertEqual(cc.status_model_display_name({"model": {}}, default="X"), "X")
-
-    def test_probe_source_labels_match_the_recorded_src_values(self):
-        self.assertEqual(cc.probe_source("cost", "total_cost_usd"), "cost.total_cost_usd")
-        self.assertEqual(cc.probe_source(None, "total_cost_usd"), "total_cost_usd")
-
-    def test_duration_probe_order_mirrors_the_cost_one(self):
-        self.assertEqual(len(cc.COST_PROBE_ORDER), len(cc.DURATION_PROBE_ORDER))
-        self.assertEqual([container for container, _ in cc.COST_PROBE_ORDER],
-                         [container for container, _ in cc.DURATION_PROBE_ORDER])
-
-
 class TestDegradationSwitch(unittest.TestCase):
     """The one switch: it returns the reason and logs it, and never raises."""
 
@@ -252,97 +231,8 @@ class TestDegradationSwitch(unittest.TestCase):
         self.assertEqual(cc.UNAVAILABLE, "unavailable")
 
 
-class TestClaudeVersion(unittest.TestCase):
-    """`claude --version` alongside samples: cached, bounded, degrades to None."""
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="acs-version-")
-        self.addCleanup(shutil.rmtree, self.tmp, True)
-        self.cache = os.path.join(self.tmp, "sessions", "ck-claude-version.json")
-        cc._VERSION_MEMO.clear()
-        self.addCleanup(cc._VERSION_MEMO.clear)
-
-    def test_probes_once_and_caches_to_disk(self):
-        with mock.patch.object(cc, "_probe_claude_version", return_value="2.1.0") as probe:
-            self.assertEqual(cc.claude_version(self.cache), "2.1.0")
-            self.assertEqual(cc.claude_version(self.cache), "2.1.0")
-        self.assertEqual(probe.call_count, 1)
-        with open(self.cache) as fh:
-            self.assertEqual(json.load(fh)["version"], "2.1.0")
-
-    def test_reprobes_once_the_ttl_has_passed(self):
-        with mock.patch.object(cc, "_probe_claude_version", return_value="2.1.0"):
-            cc.claude_version(self.cache)
-        with mock.patch.object(cc, "_probe_claude_version", return_value="2.2.0") as probe:
-            self.assertEqual(cc.claude_version(self.cache, ttl_seconds=-1), "2.2.0")
-        self.assertEqual(probe.call_count, 1)
-
-    def test_a_missing_claude_binary_degrades_to_none(self):
-        with mock.patch.object(cc.subprocess, "run", side_effect=OSError("no claude")):
-            self.assertIsNone(cc.claude_version(self.cache))
-        self.assertFalse(os.path.exists(self.cache),
-                         "a failed probe must leave no cache file to age out of")
-
-    def test_a_failed_probe_is_not_cached_for_the_life_of_the_process(self):
-        """The headline fix, which had NO test: the memo was consulted whenever
-        the disk cache was not stale, and a FAILED probe writes no cache file --
-        so `not stale` was trivially true for the absent file and the memoised
-        None was returned forever. `claude` appearing on PATH a moment later
-        never took effect, which is the opposite of what the change claimed."""
-        with mock.patch.object(cc, "_probe_claude_version",
-                               side_effect=[None, "2.3.0", "2.3.0"]) as probe:
-            self.assertIsNone(cc.claude_version(self.cache))
-            self.assertEqual(cc.claude_version(self.cache), "2.3.0")
-            self.assertEqual(cc.claude_version(self.cache), "2.3.0")
-        self.assertEqual(probe.call_count, 2,
-                         "re-probe after the failure, then serve from cache")
-
-    def test_an_unwritable_cache_does_not_respawn_the_probe_every_call(self):
-        """The other half of the same fix, also untested: with the cache
-        unwritable the memo must still answer, or statusline.main's pre-print
-        path spawns a subprocess on every call."""
-        # mkstemp, not chmod: the suite runs as root in CI, where a read-only
-        # directory is still writable. _write_version_cache swallows this, so
-        # the call stays total and the cache simply never lands.
-        with mock.patch.object(cc.tempfile, "mkstemp", side_effect=OSError("ro")):
-            with mock.patch.object(cc, "_probe_claude_version",
-                                   return_value="2.4.0") as probe:
-                for _ in range(3):
-                    self.assertEqual(cc.claude_version(self.cache), "2.4.0")
-        self.assertFalse(os.path.exists(self.cache), "the cache really did not land")
-        self.assertEqual(probe.call_count, 1)
-
-    def test_a_failed_cache_write_leaves_no_temp_file_behind(self):
-        """mkstemp then os.replace: if the replace never happens the temp must
-        still be removed, or the sessions dir accretes .acs-version-* files."""
-        os.makedirs(os.path.dirname(self.cache), exist_ok=True)
-        with mock.patch.object(cc.os, "replace", side_effect=OSError("boom")):
-            with mock.patch.object(cc, "_probe_claude_version", return_value="2.5.0"):
-                # The writer is total, so this must not raise either.
-                self.assertEqual(cc.claude_version(self.cache), "2.5.0")
-        leftovers = [n for n in os.listdir(os.path.dirname(self.cache))
-                     if n.startswith(".acs-version-")]
-        self.assertEqual(leftovers, [], leftovers)
-
-    def test_a_nonzero_exit_degrades_to_none(self):
-        proc = mock.Mock(returncode=1, stdout=b"")
-        with mock.patch.object(cc.subprocess, "run", return_value=proc):
-            self.assertIsNone(cc.claude_version(self.cache))
-
-    def test_the_version_string_is_stripped(self):
-        proc = mock.Mock(returncode=0, stdout=b"  2.1.0 (Claude Code)\n")
-        with mock.patch.object(cc.subprocess, "run", return_value=proc):
-            self.assertEqual(cc.claude_version(self.cache), "2.1.0 (Claude Code)")
-
-    def test_without_a_cache_path_the_process_memo_still_bounds_the_probe(self):
-        with mock.patch.object(cc, "_probe_claude_version", return_value="2.1.0") as probe:
-            cc.claude_version()
-            cc.claude_version()
-        self.assertEqual(probe.call_count, 1)
-
-
 class TestInterfaceLiteralsLiveInTheAdapter(unittest.TestCase):
-    """The enforceable half of "all five interface assumptions live in one
+    """The enforceable half of "every interface assumption lives in one
     adapter module": these field names are Claude Code's, not acs's, so a
     second spelling of one anywhere else in the plugin is the drift this
     ticket removed. Docstrings and comments are exempt -- prose may name a
@@ -351,7 +241,7 @@ class TestInterfaceLiteralsLiveInTheAdapter(unittest.TestCase):
     ADAPTER_ONLY = ("attributionSkill", "attributionAgent",
                     "input_tokens", "output_tokens",
                     "cache_creation_input_tokens", "cache_read_input_tokens",
-                    "display_name", "current_dir")
+                    "current_dir")
 
     def _code_strings(self, path):
         """Every string constant in `path` that is not a docstring."""
@@ -412,25 +302,6 @@ class TestInterfaceLiteralsLiveInTheAdapter(unittest.TestCase):
         strings = self._code_strings(os.path.join(PLUGIN_SCRIPTS, "claude_code_adapter.py"))
         for literal in self.ADAPTER_ONLY:
             self.assertIn(literal, strings, "%s must be defined in the adapter" % literal)
-
-
-class TestCostSampleCarriesTheVersion(acs_case.AcsWorkspaceCase):
-    """The sample record grows a `claude_version` field, so a shape change
-    can be dated against the build that produced the sample."""
-
-    def test_record_cost_sample_writes_the_version(self):
-        import cost_sampler
-        with mock.patch.object(cc, "_probe_claude_version", return_value="2.1.0"):
-            cc._VERSION_MEMO.clear()
-            with acs_case.pushd(self.repo):
-                cost_sampler.record_cost_sample({"cost": {"total_cost_usd": 1.5},
-                                                 "cwd": self.repo})
-        ctx = acs_case.lib.build_context(self.repo)
-        path = cost_sampler.cost_samples_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"])
-        with open(path) as fh:
-            sample = json.loads(fh.readline())
-        self.assertEqual(sample["claude_version"], "2.1.0")
-        self.assertEqual(sample["total_cost_usd"], 1.5)
 
 
 if __name__ == "__main__":

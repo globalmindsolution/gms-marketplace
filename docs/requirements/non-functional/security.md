@@ -24,7 +24,7 @@ per the functional/non-functional tie-break rule.
 
 ## Transcript privacy boundary (MAR-1, ADR 0082)
 
-Cost/time measurement reads the Claude Code transcript for a run's own
+Token measurement reads the Claude Code transcript for a run's own
 recorded `transcript_path` plus its `subagents/` subtree. The boundary is
 structural, not merely a policy note: only `*.jsonl` files are ever
 enumerated or opened, so `subagents/*.meta.json` sidecars — which carry a
@@ -38,6 +38,5 @@ kind is ever persisted into the workspace store — `usage_reader.py` itself
 persists nothing; it returns a dict of integer counts bucketed by role
 (`role_usage`) and by model (`model_usage`, MAR-3) to its caller.
 `acs_lib/metrics.py`'s `_measure_run_usage`/`finalize_run` are what persist that
-returned data into the run entry; `cost_sampler.py` persists only a float,
-a key-path string, and an ISO timestamp. No network calls occur anywhere
-in the measurement path.
+returned data into the run entry. No network calls occur anywhere in the
+measurement path.

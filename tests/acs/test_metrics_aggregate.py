@@ -139,7 +139,7 @@ _TEST_PHASE_ROLE = {"plan": "planner", "execute": "executor", "verify": "verifie
                     "coordinate": "coordinator"}
 
 
-def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
+def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0,
                      reorder=False, no_metrics=False, archived=False, model_usage=None):
     """Write phases/<skill_dir>/iter-<it>-<phase>.xml -- a result XML with no <metrics> element,
     the only shape a result XML can carry now that element is retired.
@@ -166,8 +166,7 @@ def write_result_xml(ws, tid, skill_dir, phase, it, ti=0, to=0, cost=0.0,
         "started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
         "status": "completed",
         "role_usage": [{"role": role, "input": ti, "output": to,
-                         "cache_creation": 0, "cache_read": 0,
-                         "cost_usd": cost, "cost_basis": "measured"}],
+                         "cache_creation": 0, "cache_read": 0}],
     }
     if model_usage is not None:
         run_entry["model_usage"] = model_usage
@@ -257,7 +256,7 @@ class Panel2Funnel(unittest.TestCase):
             self.assertEqual(p2["prs"], {"created": 5, "merged": 4})
 
 
-class Panel3CostTime(unittest.TestCase):
+class Panel3Time(unittest.TestCase):
     def test_per_ticket_seconds_and_totals_rollup(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
@@ -266,26 +265,40 @@ class Panel3CostTime(unittest.TestCase):
                          "ended_at": "2026-06-15T17:03:15Z"},
             }
             totals = {"runs": 5, "working_seconds": 11922,
-                      "tokens": {"input": 1306000, "output": 237000}, "cost_usd": 8.31}
+                      "tokens": {"input": 1306000, "output": 237000}}
             write_pipeline(ws, "MAR-6", steps=steps, totals=totals, archived=True)
             write_metrics(ws, {"totals": {"runs": 17, "working_seconds": 64238,
-                                          "tokens": {"input": 3102000, "output": 508500}, "cost_usd": 18.75}})
+                                          "tokens": {"input": 3102000, "output": 508500}}})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             p3 = out["panels"]["3"]
             row = next(r for r in p3["tickets"] if r["ticket_id"] == "MAR-6")
             # run_seconds(16:24:30 -> 17:03:15) == 2325s
             self.assertEqual(row["steps"]["code"], 2325)
             self.assertEqual(row["totals"]["working_seconds"], 11922)
-            self.assertEqual(row["totals"]["cost_usd"], 8.31)
             self.assertEqual(p3["repo_totals"]["working_seconds"], 64238)
-            self.assertEqual(p3["repo_totals"]["cost_usd"], 18.75)
+
+    def test_pre_adr_0103_cost_and_api_duration_totals_are_not_passed_through(self):
+        """ADR-0103: a run.json or metrics.json written before the decision still carries
+        cost and API-duration sums. Panel 3 keeps only the measured roll-up keys."""
+        legacy = {"cost_usd": 8.31, "runs_cost_measured": 5, "runs_cost_unavailable": 0,
+                  "api_duration_ms": 9000.0, "runs_api_duration_measured": 5,
+                  "runs_api_duration_unavailable": 0}
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_pipeline(ws, "MAR-6", totals=dict(legacy, invocations=5, working_seconds=11922),
+                           archived=True)
+            write_metrics(ws, {"totals": dict(legacy, runs=17, working_seconds=64238)})
+            p3 = metrics_aggregate.aggregate(ws, REPO_ID)["panels"]["3"]
+            row = next(r for r in p3["tickets"] if r["ticket_id"] == "MAR-6")
+            self.assertEqual(row["totals"], {"invocations": 5, "working_seconds": 11922})
+            self.assertEqual(p3["repo_totals"], {"runs": 17, "working_seconds": 64238})
 
 
-class Panel3ApiDuration(unittest.TestCase):
-    """MAR-7 spec 01 tests 1-3: panel 3 gains step_api_duration/step_order sibling keys;
-    `steps` itself stays byte-identical (F13's no-mutation invariant)."""
+class Panel3StepOrder(unittest.TestCase):
+    """MAR-7 spec 01 tests 1-3: panel 3 gains a step_order sibling key; `steps` itself stays
+    byte-identical (F13's no-mutation invariant)."""
 
-    def test_panel3_gains_step_api_duration_and_step_order_steps_key_untouched(self):
+    def test_panel3_gains_step_order_steps_key_untouched(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             steps = {
@@ -295,16 +308,15 @@ class Panel3ApiDuration(unittest.TestCase):
             write_pipeline(ws, "MAR-6", steps=steps, archived=True)
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
-                 "status": "completed", "api_duration_ms": 4200.0,
-                 "api_duration_basis": "measured"},
+                 "status": "completed"},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
             # F13 no-mutation invariant: byte-identical to the pre-MAR-7 value
-            # (Panel3CostTime.test_per_ticket_seconds_and_totals_rollup's own assertion, re-run).
+            # (Panel3Time.test_per_ticket_seconds_and_totals_rollup's own assertion, re-run).
             self.assertEqual(row["steps"]["code"], 2325)
-            self.assertEqual(row["step_api_duration"]["code"], {"ms": 4200.0, "basis": "measured"})
             self.assertEqual(row["step_order"], ["code"])
+            self.assertNotIn("step_api_duration", row)
 
     def test_step_order_orders_by_pipeline_step_order_then_sorted_tail_for_unknown_keys(self):
         with TemporaryDirectory() as ws:
@@ -314,30 +326,20 @@ class Panel3ApiDuration(unittest.TestCase):
                          "ended_at": "2026-06-15T10:05:00Z"},
                 "code": {"started_at": "2026-06-15T10:05:00Z", "status": "completed",
                          "ended_at": "2026-06-15T10:10:00Z"},
+                "create-docs": {"started_at": "2026-06-15T09:58:00Z", "status": "completed",
+                                "ended_at": "2026-06-15T10:00:00Z"},
             }
             write_pipeline(ws, "MAR-6", steps=steps, archived=True)
-            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
-                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:05:00Z",
-                 "status": "completed", "api_duration_ms": 1000.0,
-                 "api_duration_basis": "apportioned"},
-            ])
-            tdir = _ticket_dir(ws, "MAR-6", archived=True)
-            _write_json(os.path.join(tdir, "steps", "create-docs", "state.json"), {
-                "skill": "create-docs", "run_id": "MAR-6", "states": {},
-                "findings": [], "errors": [], "invocations": [
-                    {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
-                     "status": "completed", "api_duration_ms": 500.0,
-                     "api_duration_basis": "apportioned"},
-                ],
-            })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
-            # union = {test, code, create-docs}; create-docs is a product-level skill now
-            # listed in PIPELINE_STEP_ORDER (before create-ticket/code/test), so it orders first;
-            # code before test follows PIPELINE_STEP_ORDER's own relative position for both.
+            # create-docs is a product-level skill listed in PIPELINE_STEP_ORDER before code, so
+            # it orders first; `test` is not in PIPELINE_STEP_ORDER, so it lands in the sorted tail.
             self.assertEqual(row["step_order"], ["create-docs", "code", "test"])
 
-    def test_step_api_duration_present_without_steps_entry_hooked_only_skill(self):
+    def test_invocations_without_a_steps_entry_add_no_step_order_entry(self):
+        """step_order is run.json's own steps, ordered. It used to also take any hooked skill
+        with an API duration; that figure is gone (ADR-0103), and a skill with invocations but
+        no step span would render an empty sub-row."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_pipeline(ws, "MAR-6", steps={}, archived=True)
@@ -346,18 +348,15 @@ class Panel3ApiDuration(unittest.TestCase):
                 "skill": "create-docs", "run_id": "MAR-6", "states": {},
                 "findings": [], "errors": [], "invocations": [
                     {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:02:00Z",
-                     "status": "completed", "api_duration_ms": 750.0,
-                     "api_duration_basis": "apportioned"},
+                     "status": "completed"},
                 ],
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
             self.assertNotIn("create-docs", row["steps"])
-            self.assertEqual(row["step_api_duration"]["create-docs"],
-                             {"ms": 750.0, "basis": "apportioned"})
-            self.assertIn("create-docs", row["step_order"])
+            self.assertEqual(row["step_order"], [])
 
-    def test_steps_entry_present_without_step_api_duration_the_test_step_case(self):
+    def test_step_order_covers_an_unhooked_steps_entry_the_test_step_case(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             steps = {"test": {"started_at": "2026-06-15T10:00:00Z", "status": "completed",
@@ -366,7 +365,6 @@ class Panel3ApiDuration(unittest.TestCase):
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             row = next(r for r in out["panels"]["3"]["tickets"] if r["ticket_id"] == "MAR-6")
             self.assertIn("test", row["steps"])
-            self.assertNotIn("test", row["step_api_duration"])
             self.assertEqual(row["step_order"], ["test"])
 
 
@@ -421,57 +419,52 @@ class Panel6TokenBurn(unittest.TestCase):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             # plan -> planner; execute -> executor; verify -> verifier; coordinate -> coordinator
-            write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=42000, to=7500, cost=0.17, archived=True)
-            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=480000, to=90000, cost=3.5, archived=True)
-            write_result_xml(ws, "MAR-6", "code", "verify", 1, ti=100000, to=20000, cost=1.0, archived=True)
+            write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=42000, to=7500, archived=True)
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=480000, to=90000, archived=True)
+            write_result_xml(ws, "MAR-6", "code", "verify", 1, ti=100000, to=20000, archived=True)
             # coordinator-attributed usage was silently excluded pre-fix (ledger C-5); it is now
             # a first-class, present, non-empty bucket (AC-4)
-            write_result_xml(ws, "MAR-6", "code", "coordinate", 1, ti=15000, to=3000, cost=0.4,
+            write_result_xml(ws, "MAR-6", "code", "coordinate", 1, ti=15000, to=3000,
                              archived=True)
             # a -task.xml (never a run entry itself), and a merge-pr run with no_metrics -> 0 contribution
             write_task_xml(ws, "MAR-6", "code", "plan", 1, archived=True)
             write_result_xml(ws, "MAR-6", "merge-pr", "plan", 1, no_metrics=True, archived=True)
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             p6 = out["panels"]["6"]
-            # (input, output, cost) per role -- MAR-4 widens each bucket to 7 keys (cache classes
-            # are 0 for every role here) plus repo-scope token_share_pct/cost_share_pct.
+            # (input, output) per role -- MAR-4 widens each bucket to the four token classes
+            # (cache classes are 0 for every role here) plus a repo-scope token_share_pct.
             raw = {
-                "planner": (42000, 7500, 0.17),
-                "executor": (480000, 90000, 3.5),
-                "verifier": (100000, 20000, 1.0),
-                "coordinator": (15000, 3000, 0.4),
+                "planner": (42000, 7500),
+                "executor": (480000, 90000),
+                "verifier": (100000, 20000),
+                "coordinator": (15000, 3000),
             }
-            token_total = sum(i + o for i, o, c in raw.values())
-            cost_total = sum(c for i, o, c in raw.values())
-            for role, (i, o, c) in raw.items():
+            token_total = sum(i + o for i, o in raw.values())
+            for role, (i, o) in raw.items():
                 bucket = p6[role]
-                self.assertEqual(bucket["input"], i)
-                self.assertEqual(bucket["output"], o)
-                self.assertEqual(bucket["cache_creation"], 0)
-                self.assertEqual(bucket["cache_read"], 0)
-                self.assertAlmostEqual(bucket["cost"], c)
-                self.assertEqual(bucket["token_share_pct"], round((i + o) / token_total * 100, 4))
-                self.assertAlmostEqual(bucket["cost_share_pct"], round(c / cost_total * 100, 4))
+                self.assertEqual(bucket, {
+                    "input": i, "output": o, "cache_creation": 0, "cache_read": 0,
+                    "token_share_pct": round((i + o) / token_total * 100, 4),
+                })
             # AC-4/AC-5: coordinator bucket is present and non-empty (inverted from the old exclusion)
             self.assertIn("coordinator", p6)
 
     def test_missing_role_usage_fields_default_to_zero(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-8": {"status": "done", "type": "task"}})
-            # a role_usage item with only "input" present -- output/cost default to 0, matching
-            # usage_reader.py's own optional-field contract
+            # a role_usage item with only "input" present -- the other token classes default to
+            # 0, matching usage_reader.py's own optional-field contract
             write_code_state(ws, "MAR-8", {"verifier_passed": True}, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed", "role_usage": [{"role": "planner", "input": 500}]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["panels"]["6"]["planner"], {
-                "input": 500, "output": 0, "cache_creation": 0, "cache_read": 0, "cost": 0.0,
-                "cost_seen": False, "token_share_pct": 100.0, "cost_share_pct": None,
+                "input": 500, "output": 0, "cache_creation": 0, "cache_read": 0,
+                "token_share_pct": 100.0,
             })
             # sibling seeded roles stay all-zero but share the same repo-scope denominator
             self.assertEqual(out["panels"]["6"]["executor"]["token_share_pct"], 0.0)
-            self.assertIsNone(out["panels"]["6"]["executor"]["cost_share_pct"])
 
     def test_non_dict_role_usage_items_and_missing_role_skipped(self):
         with TemporaryDirectory() as ws:
@@ -480,21 +473,19 @@ class Panel6TokenBurn(unittest.TestCase):
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed",
                  "role_usage": ["not-a-dict", {"input": 10, "output": 5}, None,
-                                {"role": "executor", "input": 7, "output": 2, "cost_usd": 0.02}]},
+                                {"role": "executor", "input": 7, "output": 2}]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             p6 = out["panels"]["6"]
             self.assertEqual(p6["executor"], {
-                "input": 7, "output": 2, "cache_creation": 0, "cache_read": 0, "cost": 0.02,
-                "cost_seen": True, "token_share_pct": 100.0, "cost_share_pct": 100.0,
+                "input": 7, "output": 2, "cache_creation": 0, "cache_read": 0,
+                "token_share_pct": 100.0,
             })
             # the malformed/roleless entries contributed to no bucket
             self.assertEqual(p6["planner"]["input"], 0)
             self.assertEqual(p6["planner"]["output"], 0)
-            self.assertEqual(p6["planner"]["cost"], 0.0)
             self.assertEqual(p6["verifier"]["input"], 0)
             self.assertEqual(p6["verifier"]["output"], 0)
-            self.assertEqual(p6["verifier"]["cost"], 0.0)
 
 
 class UsageByModelPanel(unittest.TestCase):
@@ -506,27 +497,22 @@ class UsageByModelPanel(unittest.TestCase):
                 "MAR-6": {"status": "done", "type": "task"},
                 "MAR-7": {"status": "done", "type": "task"},
             })
-            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200,
                              model_usage=[{"model": "opus", "input": 1000, "output": 200,
-                                           "cache_creation": 10, "cache_read": 5,
-                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+                                           "cache_creation": 10, "cache_read": 5}])
             write_result_xml(ws, "MAR-6", "merge-pr", "plan", 1,
                              model_usage=[{"model": "opus", "input": 500, "output": 100,
-                                           "cache_creation": 0, "cache_read": 0,
-                                           "cost_usd": 0.05, "cost_basis": "apportioned"}])
-            write_result_xml(ws, "MAR-7", "code", "execute", 1, ti=2000, to=400, cost=0.2,
+                                           "cache_creation": 0, "cache_read": 0}])
+            write_result_xml(ws, "MAR-7", "code", "execute", 1, ti=2000, to=400,
                              model_usage=[{"model": "sonnet", "input": 2000, "output": 400,
-                                           "cache_creation": 0, "cache_read": 0,
-                                           "cost_usd": 0.2, "cost_basis": "apportioned"}])
+                                           "cache_creation": 0, "cache_read": 0}])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             repo = out["panels"]["usage_by_model"]["repo"]
             by_model = {row["model"]: row for row in repo}
             self.assertEqual(by_model["opus"], {"model": "opus", "input": 1500, "output": 300,
-                                                 "cache_creation": 10, "cache_read": 5,
-                                                 "cost_usd": 0.15, "cost_basis": "apportioned"})
+                                                 "cache_creation": 10, "cache_read": 5})
             self.assertEqual(by_model["sonnet"], {"model": "sonnet", "input": 2000, "output": 400,
-                                                   "cache_creation": 0, "cache_read": 0,
-                                                   "cost_usd": 0.2, "cost_basis": "apportioned"})
+                                                   "cache_creation": 0, "cache_read": 0})
 
     def test_usage_by_model_per_ticket_scope(self):
         with TemporaryDirectory() as ws:
@@ -534,23 +520,19 @@ class UsageByModelPanel(unittest.TestCase):
                 "MAR-6": {"status": "done", "type": "task"},
                 "MAR-7": {"status": "done", "type": "task"},
             })
-            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200,
                              model_usage=[{"model": "opus", "input": 1000, "output": 200,
-                                           "cache_creation": 0, "cache_read": 0,
-                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
-            write_result_xml(ws, "MAR-7", "code", "execute", 1, ti=2000, to=400, cost=0.2,
+                                           "cache_creation": 0, "cache_read": 0}])
+            write_result_xml(ws, "MAR-7", "code", "execute", 1, ti=2000, to=400,
                              model_usage=[{"model": "sonnet", "input": 2000, "output": 400,
-                                           "cache_creation": 0, "cache_read": 0,
-                                           "cost_usd": 0.2, "cost_basis": "apportioned"}])
+                                           "cache_creation": 0, "cache_read": 0}])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             tickets = {row["ticket_id"]: row["models"]
                        for row in out["panels"]["usage_by_model"]["tickets"]}
             self.assertEqual(tickets["MAR-6"], [{"model": "opus", "input": 1000, "output": 200,
-                                                  "cache_creation": 0, "cache_read": 0,
-                                                  "cost_usd": 0.1, "cost_basis": "apportioned"}])
+                                                  "cache_creation": 0, "cache_read": 0}])
             self.assertEqual(tickets["MAR-7"], [{"model": "sonnet", "input": 2000, "output": 400,
-                                                  "cache_creation": 0, "cache_read": 0,
-                                                  "cost_usd": 0.2, "cost_basis": "apportioned"}])
+                                                  "cache_creation": 0, "cache_read": 0}])
 
     def test_usage_by_model_models_sorted_by_name(self):
         with TemporaryDirectory() as ws:
@@ -558,33 +540,32 @@ class UsageByModelPanel(unittest.TestCase):
             write_result_xml(ws, "MAR-6", "code", "execute", 1,
                              model_usage=[
                                  {"model": "sonnet", "input": 1, "output": 1,
-                                  "cache_creation": 0, "cache_read": 0,
-                                  "cost_usd": 0.01, "cost_basis": "apportioned"},
+                                  "cache_creation": 0, "cache_read": 0},
                                  {"model": "opus", "input": 1, "output": 1,
-                                  "cache_creation": 0, "cache_read": 0,
-                                  "cost_usd": 0.02, "cost_basis": "apportioned"},
+                                  "cache_creation": 0, "cache_read": 0},
                              ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             repo = out["panels"]["usage_by_model"]["repo"]
             self.assertEqual([row["model"] for row in repo], ["opus", "sonnet"])
 
-    def test_model_cost_null_and_unavailable_when_no_entry_carries_cost(self):
+    def test_legacy_model_cost_fields_are_ignored(self):
+        """ADR-0103: a pre-decision model_usage item still carries cost_usd/cost_basis. The
+        model row is its four token classes and nothing else."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_result_xml(ws, "MAR-6", "code", "execute", 1,
                              model_usage=[{"model": "opus", "input": 500, "output": 100,
                                            "cache_creation": 0, "cache_read": 0,
-                                           "cost_usd": None, "cost_basis": "unavailable"}])
+                                           "cost_usd": 0.4, "cost_basis": "apportioned"}])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
-            repo_row = out["panels"]["usage_by_model"]["repo"][0]
-            self.assertIsNone(repo_row["cost_usd"])
-            self.assertEqual(repo_row["cost_basis"], "unavailable")
-            self.assertEqual(repo_row["input"], 500)
+            self.assertEqual(out["panels"]["usage_by_model"]["repo"],
+                             [{"model": "opus", "input": 500, "output": 100,
+                               "cache_creation": 0, "cache_read": 0}])
 
     def test_legacy_run_entry_without_model_usage_yields_no_data_row(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-1": {"status": "done", "type": "task"}})
-            write_result_xml(ws, "MAR-1", "code", "execute", 1, ti=500, to=100, cost=0.05)
+            write_result_xml(ws, "MAR-1", "code", "execute", 1, ti=500, to=100)
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             panel = out["panels"]["usage_by_model"]
             self.assertEqual(panel["repo"], "no data")
@@ -607,7 +588,7 @@ class UsageByModelPanel(unittest.TestCase):
         def _tracked_run(model_usage):
             with TemporaryDirectory() as ws:
                 write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
-                write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+                write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200,
                                  model_usage=model_usage)
                 seen_paths = []
                 orig_read = acs_lib.read_json
@@ -624,8 +605,7 @@ class UsageByModelPanel(unittest.TestCase):
                 return seen_paths
 
         with_model = _tracked_run([{"model": "opus", "input": 1000, "output": 200,
-                                     "cache_creation": 10, "cache_read": 5,
-                                     "cost_usd": 0.1, "cost_basis": "apportioned"}])
+                                     "cache_creation": 10, "cache_read": 5}])
         without_model = _tracked_run(None)
 
         self.assertTrue(with_model)
@@ -635,32 +615,26 @@ class UsageByModelPanel(unittest.TestCase):
                          sorted(os.path.basename(p) for p in without_model))
 
     def test_panel6_bucket_shape_widened_by_this_ticket(self):
-        """Seam guard: panel 6 buckets widen to the 8-key shape (MAR-4 + cost_seen), and this
-        widening stays independent of usage_by_model even when the same run entry also carries
-        model_usage."""
+        """Seam guard: panel 6 buckets widen to the 5-key shape (MAR-4), and this widening stays
+        independent of usage_by_model even when the same run entry also carries model_usage."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
-            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200, cost=0.1,
+            write_result_xml(ws, "MAR-6", "code", "execute", 1, ti=1000, to=200,
                              model_usage=[{"model": "opus", "input": 1000, "output": 200,
-                                           "cache_creation": 0, "cache_read": 0,
-                                           "cost_usd": 0.1, "cost_basis": "apportioned"}])
+                                           "cache_creation": 0, "cache_read": 0}])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             bucket = out["panels"]["6"]["executor"]
             self.assertEqual(set(bucket.keys()),
-                             {"input", "output", "cache_creation", "cache_read", "cost",
-                              "cost_seen", "token_share_pct", "cost_share_pct"})
+                             {"input", "output", "cache_creation", "cache_read", "token_share_pct"})
             self.assertEqual(bucket["input"], 1000)
             self.assertEqual(bucket["output"], 200)
             self.assertEqual(bucket["cache_creation"], 0)
             self.assertEqual(bucket["cache_read"], 0)
-            self.assertEqual(bucket["cost"], 0.1)
             self.assertEqual(bucket["token_share_pct"], 100.0)
-            self.assertEqual(bucket["cost_share_pct"], 100.0)
-            # usage_by_model's own item shape is untouched by this widening (no cost_basis key
-            # leaked into panel 6, no percentage key leaked into usage_by_model).
+            # usage_by_model's own item shape is untouched by this widening (no percentage key
+            # leaked into usage_by_model).
             model_row = out["panels"]["usage_by_model"]["repo"][0]
             self.assertNotIn("token_share_pct", model_row)
-            self.assertNotIn("cost_share_pct", model_row)
 
     def test_non_dict_model_usage_items_and_missing_model_skipped(self):
         with TemporaryDirectory() as ws:
@@ -670,14 +644,12 @@ class UsageByModelPanel(unittest.TestCase):
                  "status": "completed",
                  "model_usage": ["not-a-dict", {"input": 10, "output": 5}, None,
                                  {"model": "opus", "input": 7, "output": 2,
-                                  "cache_creation": 0, "cache_read": 0,
-                                  "cost_usd": 0.02, "cost_basis": "apportioned"}]},
+                                  "cache_creation": 0, "cache_read": 0}]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             repo = out["panels"]["usage_by_model"]["repo"]
             self.assertEqual(repo, [{"model": "opus", "input": 7, "output": 2,
-                                      "cache_creation": 0, "cache_read": 0,
-                                      "cost_usd": 0.02, "cost_basis": "apportioned"}])
+                                      "cache_creation": 0, "cache_read": 0}])
 
 
 class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
@@ -691,7 +663,7 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed",
                  "role_usage": [{"role": "planner", "input": 100, "output": 50,
-                                 "cache_creation": 30, "cache_read": 20, "cost_usd": 0.5}]},
+                                 "cache_creation": 30, "cache_read": 20}]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             bucket = out["panels"]["6"]["planner"]
@@ -699,44 +671,44 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
             self.assertEqual(bucket["cache_creation"], 30)
             self.assertEqual(bucket["cache_read"], 20)
 
-    def test_panel6_token_share_pct_and_cost_share_pct_repo_scope(self):
+    def test_panel6_token_share_pct_repo_scope(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed", "role_usage": [
                      {"role": "planner", "input": 100, "output": 50,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                      "cache_creation": 0, "cache_read": 0},
                      {"role": "executor", "input": 300, "output": 150,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": 3.0},
+                      "cache_creation": 0, "cache_read": 0},
                  ]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             p6 = out["panels"]["6"]
             token_total = sum(b["input"] + b["output"] + b["cache_creation"] + b["cache_read"]
                               for b in p6.values())
-            cost_total = sum(b["cost"] for b in p6.values())
             total_token_pct = 0.0
             for bucket in p6.values():
                 token_sum = bucket["input"] + bucket["output"] + bucket["cache_creation"] + bucket["cache_read"]
                 self.assertEqual(bucket["token_share_pct"], round(token_sum / token_total * 100, 4))
                 total_token_pct += bucket["token_share_pct"]
             self.assertAlmostEqual(total_token_pct, 100.0, places=4)
-            planner = p6["planner"]
-            self.assertEqual(planner["cost_share_pct"], round(1.0 / cost_total * 100, 4))
 
-    def test_panel6_cost_share_pct_null_when_no_cost_measured_repo_wide(self):
+    def test_panel6_ignores_legacy_role_usage_cost_fields(self):
+        """ADR-0103: a pre-decision role_usage item still carries cost_usd/cost_basis. No
+        panel-6 bucket grows a cost key from it."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed",
                  "role_usage": [{"role": "planner", "input": 100, "output": 50,
-                                 "cache_creation": 0, "cache_read": 0}]},
+                                 "cache_creation": 0, "cache_read": 0,
+                                 "cost_usd": 0.5, "cost_basis": "apportioned"}]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             for bucket in out["panels"]["6"].values():
-                self.assertIsNone(bucket["cost_share_pct"])
+                self.assertFalse([k for k in bucket if "cost" in k])
 
     def test_panel6_token_share_pct_null_on_all_zero_tokens(self):
         with TemporaryDirectory() as ws:
@@ -744,68 +716,26 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             for bucket in out["panels"]["6"].values():
                 self.assertIsNone(bucket["token_share_pct"])
-                self.assertIsNone(bucket["cost_share_pct"])
 
-    def test_apply_panel6_shares_cost_share_pct_none_when_bucket_never_charged_but_sibling_costed(self):
-        burn = {
-            "planner": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
-                        "cost": 0.0, "cost_seen": False},
-            "executor": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
-                         "cost": 5.0, "cost_seen": True},
-        }
-        metrics_aggregate._apply_panel6_shares(burn)
-        self.assertIsNone(burn["planner"]["cost_share_pct"])
-        self.assertEqual(burn["executor"]["cost_share_pct"], 100.0)
-
-    def test_apply_panel6_shares_cost_share_pct_zero_when_bucket_genuinely_charged_zero(self):
-        burn = {
-            "planner": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
-                        "cost": 0.0, "cost_seen": True},
-            "executor": {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
-                         "cost": 5.0, "cost_seen": True},
-        }
-        metrics_aggregate._apply_panel6_shares(burn)
-        self.assertEqual(burn["planner"]["cost_share_pct"], 0.0)
-
-    def test_panel6_render_unavailable_not_zero_pct_when_role_never_charged_but_repo_has_cost(self):
+    def test_panel6_render_shows_token_share_and_no_cost_column(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed", "role_usage": [
                      {"role": "planner", "input": 100, "output": 50,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": 5.0},
+                      "cache_creation": 0, "cache_read": 0},
                      {"role": "executor", "input": 200, "output": 100,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": None},
+                      "cache_creation": 0, "cache_read": 0},
                  ]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
-            bucket = out["panels"]["6"]["executor"]
-            self.assertIsNone(bucket["cost_share_pct"])
             rows = metrics_render._term_panel6(out["panels"]["6"])
+            # executor: 300 of 450 tokens.
             executor_row = next(r for r in rows if r.strip().startswith("executor"))
-            self.assertIn(metrics_render.UNAVAILABLE, executor_row)
-            self.assertNotIn("0.0%", executor_row)
-
-    def test_panel6_render_zero_pct_when_role_genuinely_charged_exactly_zero(self):
-        with TemporaryDirectory() as ws:
-            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
-            write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
-                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
-                 "status": "completed", "role_usage": [
-                     {"role": "planner", "input": 100, "output": 50,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": 5.0},
-                     {"role": "executor", "input": 200, "output": 100,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": 0.0},
-                 ]},
-            ])
-            out = metrics_aggregate.aggregate(ws, REPO_ID)
-            bucket = out["panels"]["6"]["executor"]
-            self.assertEqual(bucket["cost_share_pct"], 0.0)
-            rows = metrics_render._term_panel6(out["panels"]["6"])
-            executor_row = next(r for r in rows if r.strip().startswith("executor"))
-            self.assertIn("0.0%", executor_row)
-            self.assertNotIn(metrics_render.UNAVAILABLE, executor_row)
+            self.assertIn("66.7%", executor_row)
+            self.assertNotIn("cost", rows[0])
+            self.assertNotIn("unavailable", "\n".join(rows))
 
     def test_usage_by_ticket_role_shares_are_ticket_scoped_not_repo_scoped(self):
         with TemporaryDirectory() as ws:
@@ -817,16 +747,16 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed", "role_usage": [
                      {"role": "planner", "input": 100, "output": 0,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                      "cache_creation": 0, "cache_read": 0},
                      {"role": "executor", "input": 100, "output": 0,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0},
+                      "cache_creation": 0, "cache_read": 0},
                  ]},
             ])
             write_code_state(ws, "MAR-7", {"verifier_passed": True}, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed", "role_usage": [
                      {"role": "planner", "input": 900, "output": 0,
-                      "cache_creation": 0, "cache_read": 0, "cost_usd": 9.0},
+                      "cache_creation": 0, "cache_read": 0},
                  ]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
@@ -843,7 +773,9 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
             self.assertNotEqual(mar6_planner_pct, repo_planner_pct)
             self.assertNotEqual(mar7_planner_pct, repo_planner_pct)
 
-    def test_usage_by_ticket_cost_basis_unavailable_per_role_independent_of_siblings(self):
+    def test_usage_by_ticket_role_item_is_tokens_and_share_only(self):
+        """ADR-0103: a role's item is its four token classes and its ticket-scope share. A
+        legacy cost_usd on one role's role_usage leaks into neither that role nor a sibling."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
@@ -858,13 +790,10 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             roles = next(r["roles"] for r in out["panels"]["usage_by_ticket"]["tickets"]
                         if r["ticket_id"] == "MAR-6")
-            self.assertEqual(roles["planner"]["cost_usd"], 2.0)
-            self.assertEqual(roles["planner"]["cost_basis"], "apportioned")
-            self.assertIsNotNone(roles["planner"]["cost_share_pct"])
-            # sibling role with no measured cost: unaffected by planner's costed contribution.
-            self.assertIsNone(roles["executor"]["cost_usd"])
-            self.assertEqual(roles["executor"]["cost_basis"], "unavailable")
-            self.assertIsNone(roles["executor"]["cost_share_pct"])
+            expected = {"input": 100, "output": 0, "cache_creation": 0, "cache_read": 0,
+                        "token_share_pct": 50.0}
+            self.assertEqual(roles["planner"], expected)
+            self.assertEqual(roles["executor"], expected)
 
     def test_usage_by_ticket_roles_no_data_when_ticket_has_no_role_usage(self):
         with TemporaryDirectory() as ws:
@@ -873,8 +802,8 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
             ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
                          if r["ticket_id"] == "MAR-6")
             self.assertEqual(ticket["roles"], "no data")
-            # genuine zero-run-entries case: skills == [] too (never confused with the
-            # "has runs but no measured duration" case, which still gets a populated row).
+            # genuine zero-run-entries case: skills == [] too (never confused with a
+            # ticket that has timed runs, which gets a populated row).
             self.assertEqual(ticket["skills"], [])
 
     def test_usage_by_ticket_roles_sorted_by_role_name(self):
@@ -883,10 +812,10 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:00:01Z",
                  "status": "completed", "role_usage": [
-                     {"role": "verifier", "input": 10, "output": 0, "cost_usd": 0.1},
-                     {"role": "planner", "input": 10, "output": 0, "cost_usd": 0.1},
-                     {"role": "executor", "input": 10, "output": 0, "cost_usd": 0.1},
-                     {"role": "coordinator", "input": 10, "output": 0, "cost_usd": 0.1},
+                     {"role": "verifier", "input": 10, "output": 0},
+                     {"role": "planner", "input": 10, "output": 0},
+                     {"role": "executor", "input": 10, "output": 0},
+                     {"role": "coordinator", "input": 10, "output": 0},
                  ]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
@@ -912,8 +841,7 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
                 write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
                 runs = [{"started_at": "2026-01-01T00:00:00Z",
                         "ended_at": "2026-01-01T00:00:01Z", "status": "completed",
-                        "role_usage": [{"role": "planner", "input": 10, "output": 0,
-                                        "cost_usd": 0.1}]}] if with_role_usage else []
+                        "role_usage": [{"role": "planner", "input": 10, "output": 0}]}] if with_role_usage else []
                 write_code_state(ws, "MAR-6", {"verifier_passed": True}, runs=runs)
                 seen_paths = []
                 orig_read = acs_lib.read_json
@@ -940,42 +868,51 @@ class Panel6PercentageSharesAndUsageByTicket(unittest.TestCase):
 
 
 class UsageByTicketSkillWidening(unittest.TestCase):
-    """MAR-7 spec 01 tests 4-8: usage_by_ticket gains ticket-scope api_duration_ms/basis
-    (siblings of the unchanged `roles` key) and a `skills[]` array."""
+    """MAR-7 spec 01 tests 4-8: usage_by_ticket gains a `skills[]` array beside the unchanged
+    `roles` key. The ticket- and skill-scope API duration it also carried went with ADR-0103."""
 
-    def test_api_duration_ms_null_or_unavailable_basis_excluded_from_skill_sum_never_fabricated_zero(self):
+    def test_untimed_run_excluded_from_skill_sum_never_fabricated_zero(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
-                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable"},
-                {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:02:00Z",
-                 "status": "completed", "api_duration_ms": 3000.0, "api_duration_basis": "measured"},
+                 "status": "completed"},
+                # no ended_at -> run_seconds is None, not 0
+                {"started_at": "2026-01-01T01:00:00Z", "status": "in_progress"},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
                          if r["ticket_id"] == "MAR-6")
             code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
-            # never fabricated as if the null run contributed 0 -- equals only the measured run.
-            self.assertEqual(code_skill["api_duration_ms"], 3000.0)
-            # rolled-up basis collapses to "apportioned" (seen=True from >=1 contributing run),
-            # mirroring _finalize_model_bucket's own cost_basis rule.
-            self.assertEqual(code_skill["api_duration_basis"], "apportioned")
+            self.assertEqual(code_skill["run_seconds_sum"], 60.0)
+            # the untimed run is still listed, with its own None rather than a fabricated 0
+            self.assertEqual([r["wall_clock_seconds"] for r in code_skill["runs"]], [60, None])
 
-    def test_usage_by_ticket_gains_ticket_scope_api_duration_ms_and_basis_siblings_of_roles(self):
+    def test_skill_with_only_untimed_runs_has_no_row(self):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
-                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
-                 "status": "completed", "api_duration_ms": 2500.0, "api_duration_basis": "apportioned",
-                 "role_usage": [{"role": "executor", "input": 100, "output": 50,
-                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 1.0}]},
+                {"started_at": "2026-01-01T01:00:00Z", "status": "in_progress"},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
                          if r["ticket_id"] == "MAR-6")
-            self.assertEqual(ticket["api_duration_ms"], 2500.0)
-            self.assertEqual(ticket["api_duration_basis"], "apportioned")
+            self.assertEqual(ticket["skills"], [])
+
+    def test_usage_by_ticket_ticket_row_is_roles_and_skills_only(self):
+        """ADR-0103: the ticket-scope api_duration_ms/api_duration_basis siblings are gone."""
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed",
+                 "role_usage": [{"role": "executor", "input": 100, "output": 50,
+                                 "cache_creation": 0, "cache_read": 0}]},
+            ])
+            out = metrics_aggregate.aggregate(ws, REPO_ID)
+            ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
+                         if r["ticket_id"] == "MAR-6")
+            self.assertEqual(set(ticket), {"ticket_id", "roles", "skills"})
             # "roles" key unchanged in shape
             self.assertIn("executor", ticket["roles"])
             self.assertEqual(ticket["roles"]["executor"]["input"], 100)
@@ -985,15 +922,14 @@ class UsageByTicketSkillWidening(unittest.TestCase):
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
-                 "status": "completed", "api_duration_ms": 100.0, "api_duration_basis": "apportioned"},
+                 "status": "completed"},
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
             _write_json(os.path.join(tdir, "steps", "create-design", "state.json"), {
                 "skill": "create-design", "run_id": "MAR-6", "states": {},
                 "findings": [], "errors": [], "invocations": [
                     {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:01:00Z",
-                     "status": "completed", "api_duration_ms": 200.0,
-                     "api_duration_basis": "apportioned"},
+                     "status": "completed"},
                 ],
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
@@ -1009,11 +945,11 @@ class UsageByTicketSkillWidening(unittest.TestCase):
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             runs = [
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
-                 "status": "completed", "api_duration_ms": 100.0, "api_duration_basis": "apportioned"},
+                 "status": "completed"},
                 {"started_at": "2026-01-01T01:00:00Z", "ended_at": "2026-01-01T01:03:00Z",
-                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable"},
+                 "status": "completed"},
                 {"started_at": "2026-01-01T02:00:00Z", "ended_at": "2026-01-01T02:00:30Z",
-                 "status": "completed", "api_duration_ms": 50.0, "api_duration_basis": "apportioned"},
+                 "status": "completed"},
             ]
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=runs)
             out = metrics_aggregate.aggregate(ws, REPO_ID)
@@ -1023,35 +959,29 @@ class UsageByTicketSkillWidening(unittest.TestCase):
             self.assertEqual(len(code_skill["runs"]), 3)
             self.assertEqual(code_skill["runs"][0]["started_at"], "2026-01-01T00:00:00Z")
             self.assertEqual(code_skill["runs"][0]["wall_clock_seconds"], 60)
-            self.assertEqual(code_skill["runs"][0]["api_duration_ms"], 100.0)
-            self.assertEqual(code_skill["runs"][0]["api_duration_basis"], "apportioned")
-            self.assertEqual(code_skill["runs"][1]["api_duration_ms"], None)
-            self.assertEqual(code_skill["runs"][1]["api_duration_basis"], "unavailable")
+            self.assertEqual(code_skill["runs"][1]["wall_clock_seconds"], 180)
             self.assertEqual(code_skill["runs"][2]["wall_clock_seconds"], 30)
-            self.assertEqual(set(code_skill["runs"][0].keys()),
-                             {"started_at", "wall_clock_seconds", "api_duration_ms", "api_duration_basis"})
+            self.assertEqual(set(code_skill["runs"][0].keys()), {"started_at", "wall_clock_seconds"})
 
-    def test_usage_by_ticket_skills_empty_list_not_no_data_when_ticket_has_runs_but_no_duration(self):
-        """MAR-7 iteration 2 MERGED-2 fix: a skill with a measurable run_seconds_sum but zero
-        measured/apportioned api_duration must still surface its row -- api_duration degrades to
-        null/"unavailable" independently, it does not suppress the whole row (design.md:760-769,
-        1201-1207)."""
+    def test_usage_by_ticket_skill_row_present_when_ticket_has_timed_runs(self):
+        """MAR-7 iteration 2 MERGED-2 fix: a skill with a measurable run_seconds_sum surfaces
+        its row (design.md:760-769, 1201-1207); the row carries no API-duration field."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
-                 "status": "completed", "api_duration_ms": None, "api_duration_basis": "unavailable",
+                 "status": "completed",
                  "role_usage": [{"role": "executor", "input": 10, "output": 5,
-                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 0.1}]},
+                                 "cache_creation": 0, "cache_read": 0}]},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             ticket = next(r for r in out["panels"]["usage_by_ticket"]["tickets"]
                          if r["ticket_id"] == "MAR-6")
             self.assertIsInstance(ticket["roles"], dict)  # populated -- not the "no data" case
             code_skill = next(s for s in ticket["skills"] if s["skill"] == "code")
-            self.assertEqual(code_skill["run_seconds_sum"], 60.0)
-            self.assertIsNone(code_skill["api_duration_ms"])
-            self.assertEqual(code_skill["api_duration_basis"], "unavailable")
+            self.assertEqual(code_skill, {"skill": "code", "run_seconds_sum": 60.0,
+                                          "runs": [{"started_at": "2026-01-01T00:00:00Z",
+                                                    "wall_clock_seconds": 60}]})
 
 
 class StepSpanRunSecondsSumReconciliation(unittest.TestCase):
@@ -1070,11 +1000,9 @@ class StepSpanRunSecondsSumReconciliation(unittest.TestCase):
             }, archived=True)
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
-                 "status": "completed", "api_duration_ms": 1000.0,
-                 "api_duration_basis": "apportioned"},
+                 "status": "completed"},
                 {"started_at": "2026-01-01T00:03:00Z", "ended_at": "2026-01-01T00:03:30Z",
-                 "status": "completed", "api_duration_ms": None,
-                 "api_duration_basis": "unavailable"},
+                 "status": "completed"},
             ])
             out = metrics_aggregate.aggregate(ws, REPO_ID)
 
@@ -1100,9 +1028,9 @@ class AccumulateBurnThreeTuple(unittest.TestCase):
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
                 {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
-                 "status": "completed", "api_duration_ms": 42.0, "api_duration_basis": "apportioned",
+                 "status": "completed",
                  "role_usage": [{"role": "executor", "input": 1, "output": 1,
-                                 "cache_creation": 0, "cache_read": 0, "cost_usd": 0.01}]},
+                                 "cache_creation": 0, "cache_read": 0}]},
             ])
             tdir = _ticket_dir(ws, "MAR-6", archived=True)
             burn = {role: metrics_aggregate._empty_panel6_bucket()
@@ -1115,8 +1043,8 @@ class AccumulateBurnThreeTuple(unittest.TestCase):
 
 
 class NoAdditionalFileReadsForDuration(unittest.TestCase):
-    """MAR-7 spec 01 test 12: extends the G7 no-extra-file-reads guard to the new per-skill
-    duration collection."""
+    """MAR-7 spec 01 test 12: extends the G7 no-extra-file-reads guard to the per-skill
+    wall-clock collection."""
 
     def test_panel3_and_usage_by_ticket_add_no_additional_file_reads(self):
 
@@ -1128,8 +1056,7 @@ class NoAdditionalFileReadsForDuration(unittest.TestCase):
                              "ended_at": "2026-01-01T00:01:00Z"},
                 }, archived=True)
                 runs = [{"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
-                        "status": "completed", "api_duration_ms": 10.0,
-                        "api_duration_basis": "apportioned"}] if with_duration else []
+                        "status": "completed"}] if with_duration else []
                 write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=runs)
                 seen_paths = []
                 orig_read = acs_lib.read_json
@@ -1156,11 +1083,11 @@ class NoAdditionalFileReadsForDuration(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Panel 3 averages (AC-1) — four averages incl. both divide-by-zero
+# Panel 3 averages (AC-1) — two working-time averages incl. both divide-by-zero
 # ---------------------------------------------------------------------------
 
 class AveragesPanel3(unittest.TestCase):
-    def test_exact_four_averages(self):
+    def test_exact_two_averages(self):
         with TemporaryDirectory() as ws:
             # 4 tickets -> ticket_count == 4; prs.merged == 2
             write_index(ws, {
@@ -1175,8 +1102,9 @@ class AveragesPanel3(unittest.TestCase):
             avgs = out["panels"]["3"]["averages"]
             self.assertEqual(avgs["avg_working_seconds_per_ticket"], 64238 / 4)
             self.assertEqual(avgs["avg_working_seconds_per_pr"], 64238 / 2)
-            self.assertEqual(avgs["avg_cost_per_ticket"], 18.76 / 4)
-            self.assertEqual(avgs["avg_cost_per_pr"], 18.76 / 2)
+            # ADR-0103: no dollar-cost average, even with a legacy totals.cost_usd to divide
+            self.assertEqual(set(avgs), {"avg_working_seconds_per_ticket",
+                                         "avg_working_seconds_per_pr"})
             # existing Panel 3 keys untouched (additive)
             self.assertIn("tickets", out["panels"]["3"])
             self.assertIn("repo_totals", out["panels"]["3"])
@@ -1193,27 +1121,24 @@ class AveragesPanel3(unittest.TestCase):
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_metrics(ws, {"prs": {"created": 3, "merged": 0},
-                               "totals": {"working_seconds": 1200, "cost_usd": 4.0}})
+                               "totals": {"working_seconds": 1200}})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             avgs = out["panels"]["3"]["averages"]
             self.assertEqual(avgs["avg_working_seconds_per_pr"], "no data")
-            self.assertEqual(avgs["avg_cost_per_pr"], "no data")
             # per-ticket averages still compute (ticket_count == 1)
             self.assertEqual(avgs["avg_working_seconds_per_ticket"], 1200.0)
-            self.assertEqual(avgs["avg_cost_per_ticket"], 4.0)
 
     def test_prs_absent_defaults_merged_zero(self):
         # no prs key in metrics.json -> defaults to merged == 0 -> per-PR averages "no data".
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
-            write_metrics(ws, {"totals": {"working_seconds": 1200, "cost_usd": 4.0}})
+            write_metrics(ws, {"totals": {"working_seconds": 1200}})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             avgs = out["panels"]["3"]["averages"]
             self.assertEqual(avgs["avg_working_seconds_per_pr"], "no data")
-            self.assertEqual(avgs["avg_cost_per_pr"], "no data")
 
     def test_non_numeric_totals_are_no_data(self):
-        # totals.working_seconds None / cost_usd absent -> those averages "no data", no exception.
+        # totals.working_seconds None -> both averages "no data", no exception.
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_metrics(ws, {"prs": {"created": 2, "merged": 2},
@@ -1222,19 +1147,16 @@ class AveragesPanel3(unittest.TestCase):
             avgs = out["panels"]["3"]["averages"]
             self.assertEqual(avgs["avg_working_seconds_per_ticket"], "no data")
             self.assertEqual(avgs["avg_working_seconds_per_pr"], "no data")
-            self.assertEqual(avgs["avg_cost_per_ticket"], "no data")
-            self.assertEqual(avgs["avg_cost_per_pr"], "no data")
 
     def test_bool_denominator_treated_non_numeric(self):
         # a bool merged value must not act as 1 -> "no data" (mirror panel-4 bool guard).
         with TemporaryDirectory() as ws:
             write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
             write_metrics(ws, {"prs": {"created": 1, "merged": True},
-                               "totals": {"working_seconds": 100, "cost_usd": 1.0}})
+                               "totals": {"working_seconds": 100}})
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             avgs = out["panels"]["3"]["averages"]
             self.assertEqual(avgs["avg_working_seconds_per_pr"], "no data")
-            self.assertEqual(avgs["avg_cost_per_pr"], "no data")
 
 
 # ---------------------------------------------------------------------------
@@ -1670,22 +1592,22 @@ class Performance(unittest.TestCase):
                 tickets[tid] = {"status": "done", "type": "task"}
                 write_pipeline(ws, tid, steps=_full_funnel_steps("merge-pr"),
                                totals={"runs": 5, "working_seconds": 100,
-                                       "tokens": {"input": 1, "output": 1}, "cost_usd": 1.0})
+                                       "tokens": {"input": 1, "output": 1}})
                 write_code_state(ws, tid, {"tests": {"coverage_percent": 90.0, "coverage_target": 90},
                                            "review": {"iterations": 2}})
                 write_create_pr_state(ws, tid)
                 # ~22 metric-bearing XMLs per ticket across phases (mirrors live MAR-6 distribution)
                 for i in range(4):
-                    write_result_xml(ws, tid, "code", "plan", i + 1, ti=1, to=1, cost=0.1)
+                    write_result_xml(ws, tid, "code", "plan", i + 1, ti=1, to=1)
                 for i in range(9):
-                    write_result_xml(ws, tid, "code", "execute", i + 1, ti=1, to=1, cost=0.1)
+                    write_result_xml(ws, tid, "code", "execute", i + 1, ti=1, to=1)
                 for i in range(9):
-                    write_result_xml(ws, tid, "code", "verify", i + 1, ti=1, to=1, cost=0.1)
+                    write_result_xml(ws, tid, "code", "verify", i + 1, ti=1, to=1)
             write_index(ws, tickets)
             write_metrics(ws, {"tickets": {"by_status": {"done": 50}, "by_type": {"task": 50}},
                                "prs": {"created": 50, "merged": 50},
                                "totals": {"runs": 250, "working_seconds": 5000,
-                                          "tokens": {"input": 50, "output": 50}, "cost_usd": 50.0}})
+                                          "tokens": {"input": 50, "output": 50}}})
             t0 = time.monotonic()
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             elapsed = time.monotonic() - t0
@@ -1716,13 +1638,13 @@ class ReadOnly(unittest.TestCase):
             write_metrics(ws, {"tickets": {"by_status": {"done": 1}, "by_type": {"task": 1}}})
             write_pipeline(ws, "MAR-6", steps=_full_funnel_steps("merge-pr"),
                            totals={"runs": 5, "working_seconds": 100,
-                                   "tokens": {"input": 1, "output": 1}, "cost_usd": 1.0}, archived=True)
+                                   "tokens": {"input": 1, "output": 1}}, archived=True)
             write_code_state(ws, "MAR-6", {"review": {"iterations": 2},
                                            "tests": {"coverage_percent": 90.0, "coverage_target": 90}},
                              archived=True)
             # panel-7 lead-time anchor: a per-ticket ticket.json the new read opens read-only
             write_ticket_json(ws, "MAR-6", "2026-06-15T10:00:00Z", archived=True)
-            write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=1, to=1, cost=0.1, archived=True)
+            write_result_xml(ws, "MAR-6", "code", "plan", 1, ti=1, to=1, archived=True)
 
             before = self._snapshot_mtimes(_repo_dir(ws))
 
@@ -1776,7 +1698,7 @@ class TestDeliverySummary(unittest.TestCase):
             })
             write_metrics(ws, {
                 "prs": {"created": 3, "merged": 2},
-                "totals": {"runs": 5, "working_seconds": 3600, "cost_usd": 5.0,
+                "totals": {"runs": 5, "working_seconds": 3600,
                            "tokens": {"input": 1000, "output": 200}},
             })
             # T1 and T2 are done with merge-pr timestamps
@@ -2386,7 +2308,7 @@ class TestUsageSummary(unittest.TestCase):
     """MAR-14 spec 01 §Test plan: usage_summary panel."""
 
     def test_happy_path_all_fields(self):
-        """Full metrics.json -> all 8 keys present with expected types."""
+        """Full metrics.json -> exactly the 7 keys, with expected types."""
         with TemporaryDirectory() as ws:
             write_index(ws, {
                 "T1": {"status": "done", "type": "story"},
@@ -2396,11 +2318,14 @@ class TestUsageSummary(unittest.TestCase):
             write_metrics(ws, {
                 "prs": {"created": 3, "merged": 3},
                 "totals": {"runs": 10, "working_seconds": 7200,
-                           "tokens": {"input": 50000, "output": 10000}, "cost_usd": 12.50},
+                           "tokens": {"input": 50000, "output": 10000}},
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             us = out["panels"]["usage_summary"]
-            self.assertAlmostEqual(us["total_cost_usd"], 12.50)
+            self.assertEqual(set(us), {
+                "total_tokens_input", "total_tokens_output", "total_runs",
+                "total_working_seconds", "prs_merged",
+                "avg_working_seconds_per_ticket", "avg_working_seconds_per_pr"})
             self.assertEqual(us["total_tokens_input"], 50000)
             self.assertEqual(us["total_tokens_output"], 10000)
             self.assertEqual(us["total_runs"], 10)
@@ -2409,17 +2334,14 @@ class TestUsageSummary(unittest.TestCase):
             # averages from panel3
             self.assertIsInstance(us["avg_working_seconds_per_ticket"], float)
             self.assertIsInstance(us["avg_working_seconds_per_pr"], float)
-            self.assertIsInstance(us["avg_cost_per_ticket"], float)
-            self.assertIsInstance(us["avg_cost_per_pr"], float)
 
     def test_missing_metrics_json_zero_defaults(self):
-        """No metrics.json -> integer/float totals default to 0/0.0; averages are 'no data'."""
+        """No metrics.json -> integer totals default to 0; averages are 'no data'."""
         with TemporaryDirectory() as ws:
             write_index(ws, {"T1": {"status": "done", "type": "story"}})
             # No metrics.json
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             us = out["panels"]["usage_summary"]
-            self.assertEqual(us["total_cost_usd"], 0.0)
             self.assertEqual(us["total_tokens_input"], 0)
             self.assertEqual(us["total_tokens_output"], 0)
             self.assertEqual(us["total_runs"], 0)
@@ -2427,8 +2349,6 @@ class TestUsageSummary(unittest.TestCase):
             # averages: no totals data -> "no data"
             self.assertEqual(us["avg_working_seconds_per_ticket"], "no data")
             self.assertEqual(us["avg_working_seconds_per_pr"], "no data")
-            self.assertEqual(us["avg_cost_per_ticket"], "no data")
-            self.assertEqual(us["avg_cost_per_pr"], "no data")
 
     def test_total_working_seconds_none_when_absent(self):
         """metrics.json present but totals.working_seconds absent -> total_working_seconds is None."""
@@ -2436,7 +2356,7 @@ class TestUsageSummary(unittest.TestCase):
             write_index(ws, {"T1": {"status": "done", "type": "story"}})
             write_metrics(ws, {
                 "prs": {"created": 1, "merged": 1},
-                "totals": {"runs": 2, "cost_usd": 3.0,
+                "totals": {"runs": 2,
                            "tokens": {"input": 100, "output": 50}},
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
@@ -2450,8 +2370,9 @@ class TestUsageSummary(unittest.TestCase):
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             self.assertEqual(out["panels"]["usage_summary"], "no data")
 
-    def test_usage_summary_gains_total_and_two_averages_api_duration_fields(self):
-        """MAR-7 spec 01 test 9: mirrors the existing total_cost_usd/avg_cost_per_ticket pair."""
+    def test_legacy_cost_and_api_duration_totals_are_not_surfaced(self):
+        """ADR-0103: a metrics.json written before the decision still carries cost_usd and
+        api_duration_ms totals. usage_summary neither echoes nor averages them."""
         with TemporaryDirectory() as ws:
             write_index(ws, {
                 "T1": {"status": "done", "type": "story"},
@@ -2460,27 +2381,14 @@ class TestUsageSummary(unittest.TestCase):
             write_metrics(ws, {
                 "prs": {"created": 2, "merged": 2},
                 "totals": {"runs": 4, "working_seconds": 3600,
-                           "tokens": {"input": 1000, "output": 200}, "cost_usd": 5.0,
-                           "api_duration_ms": 9000.0},
+                           "tokens": {"input": 1000, "output": 200},
+                           "cost_usd": 5.0, "api_duration_ms": 9000.0,
+                           "runs_cost_measured": 4, "runs_api_duration_measured": 4},
             })
             out = metrics_aggregate.aggregate(ws, REPO_ID)
             us = out["panels"]["usage_summary"]
-            self.assertEqual(us["total_api_duration_ms"], 9000.0)
-            self.assertEqual(us["avg_api_duration_ms_per_ticket"], 4500.0)
-            self.assertEqual(us["avg_api_duration_ms_per_pr"], 4500.0)
-
-    def test_usage_summary_api_duration_defaults_to_zero_and_no_data_averages_on_empty_workspace(self):
-        """MAR-7 spec 01 test 10: extends test_missing_metrics_json_zero_defaults's own pattern --
-        totals.api_duration_ms absent -> total_api_duration_ms defaults to 0.0 (mirrors
-        total_cost_usd's own default, never None); avg_..._per_pr is 'no data' (merged == 0,
-        no metrics.json means prs defaults to {"created": 0, "merged": 0})."""
-        with TemporaryDirectory() as ws:
-            write_index(ws, {"T1": {"status": "done", "type": "story"}})
-            out = metrics_aggregate.aggregate(ws, REPO_ID)
-            us = out["panels"]["usage_summary"]
-            self.assertEqual(us["total_api_duration_ms"], 0.0)
-            self.assertEqual(us["avg_api_duration_ms_per_ticket"], 0.0)
-            self.assertEqual(us["avg_api_duration_ms_per_pr"], "no data")
+            self.assertFalse([k for k in us if "cost" in k or "api_duration" in k])
+            self.assertEqual(us["avg_working_seconds_per_ticket"], 1800.0)
 
 
 class TestTestRunsRead(unittest.TestCase):
@@ -2662,7 +2570,7 @@ class TestAggregatorDeterminism(unittest.TestCase):
             })
             write_metrics(ws, {
                 "prs": {"created": 1, "merged": 1},
-                "totals": {"runs": 3, "working_seconds": 3600, "cost_usd": 5.0,
+                "totals": {"runs": 3, "working_seconds": 3600,
                            "tokens": {"input": 10000, "output": 2000}},
             })
             write_ticket_json(ws, "S1", "2026-06-01T10:00:00Z")
@@ -2675,3 +2583,42 @@ class TestAggregatorDeterminism(unittest.TestCase):
             for k in self._NEW_KEYS:
                 self.assertEqual(out1["panels"][k], out2["panels"][k],
                                  "non-deterministic result for panel key: %s" % k)
+
+
+class NoCostOrApiDurationAnywhere(unittest.TestCase):
+    """ADR-0103: acs meters no dollar cost and no API duration. State written before the
+    decision keeps those fields -- on run entries, their role_usage/model_usage items, run.json
+    totals and metrics.json totals -- and the aggregate must carry none of them forward."""
+
+    _LEGACY_TOTALS = {"cost_usd": 18.75, "runs_cost_measured": 3, "runs_cost_unavailable": 1,
+                      "api_duration_ms": 9000.0, "runs_api_duration_measured": 3,
+                      "runs_api_duration_unavailable": 1}
+
+    def test_no_cost_or_api_duration_key_in_the_aggregate(self):
+        with TemporaryDirectory() as ws:
+            write_index(ws, {"MAR-6": {"status": "done", "type": "task"}})
+            write_metrics(ws, {"prs": {"created": 1, "merged": 1},
+                               "totals": dict(self._LEGACY_TOTALS, runs=4, working_seconds=600,
+                                              tokens={"input": 10, "output": 5})})
+            write_pipeline(ws, "MAR-6", steps=_full_funnel_steps("merge-pr"),
+                           totals=dict(self._LEGACY_TOTALS, invocations=4, working_seconds=600),
+                           archived=True)
+            write_code_state(ws, "MAR-6", {"verifier_passed": True}, archived=True, runs=[
+                {"started_at": "2026-01-01T00:00:00Z", "ended_at": "2026-01-01T00:01:00Z",
+                 "status": "completed", "cost_usd": 0.4, "cost_basis": "apportioned",
+                 "cost_scope": "run", "excluded_cost_usd": 0.1, "excluded_token_share": 0.2,
+                 "api_duration_ms": 4200.0, "api_duration_basis": "apportioned",
+                 "api_duration_scope": "run",
+                 "role_usage": [{"role": "executor", "input": 10, "output": 5,
+                                 "cache_creation": 0, "cache_read": 0,
+                                 "cost_usd": 0.4, "cost_basis": "apportioned"}],
+                 "model_usage": [{"model": "opus", "input": 10, "output": 5,
+                                  "cache_creation": 0, "cache_read": 0,
+                                  "cost_usd": 0.5, "cost_basis": "apportioned"}]},
+            ])
+            dumped = json.dumps(metrics_aggregate.aggregate(ws, REPO_ID, now="2026-07-01"))
+            self.assertNotIn("cost", dumped)
+            self.assertNotIn("api_duration", dumped)
+            # the token and time figures beside them still come through
+            self.assertIn('"working_seconds": 600', dumped)
+            self.assertIn('"run_seconds_sum": 60', dumped)

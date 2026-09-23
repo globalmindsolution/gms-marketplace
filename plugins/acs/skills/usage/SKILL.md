@@ -1,10 +1,10 @@
 ---
 name: usage
-description: Render a read-only, in-session dashboard of acs tool usage and spend for the current repo — usage summary, cost and working time per ticket by pipeline step, the four per-ticket and per-PR averages (avg working time / ticket, avg working time / merged PR, avg cost / ticket, avg cost / merged PR), and token burn by role (planner / executor / verifier / coordinator) — all derived from existing workspace state.
-when_to_use: Use when asked to see, audit, or report this repo's AI spend, token consumption, working time, cost per ticket, or averages, not delivery throughput or pipeline coverage.
+description: Render a read-only, in-session dashboard of acs tool usage for the current repo — usage summary, working time per ticket by pipeline step, the two per-ticket and per-PR averages (avg working time / ticket, avg working time / merged PR), token burn by role (planner / executor / verifier / coordinator), and tokens by model and by ticket — all derived from existing workspace state, in tokens and wall-clock time, never dollars.
+when_to_use: Use when asked to see, audit, or report this repo's token consumption, token burn per role or model, working time per ticket, or those averages, not delivery throughput or pipeline coverage.
 ---
 
-You are the coordinator of `/acs:usage`, the acs tool-usage and spend dashboard.
+You are the coordinator of `/acs:usage`, the acs tool-usage dashboard.
 This is NOT a hooked pipeline skill: no step start, no pre/post hooks, no
 subagents, no reflection loop. You do everything yourself with Bash and
 `show_widget`.
@@ -78,55 +78,36 @@ same input — and present what it emits. Both surfaces invoke the renderer with
 
 The usage view renders exactly five panels:
 
-1. **Usage summary** — total and average cost, token consumption, run count,
-   working time, and API duration across all tickets in the workspace — a third
-   total+average pair (`total_api_duration_ms`, `avg_api_duration_ms_per_ticket`,
-   `avg_api_duration_ms_per_pr`) mirroring the existing cost/time totals and
-   averages.
-3. **Cost and time per ticket by pipeline step** — per-ticket rows broken down by
-   pipeline step (working time and spend), with the four per-ticket / per-PR
-   averages: avg working time / ticket, avg working time / merged PR, avg cost /
-   ticket, avg cost / merged PR. Each
-   ticket row also expands into one per-skill sub-row per pipeline step
-   (`step_order`), showing that skill's own wall-clock step span alongside its
-   API duration and basis (`step_api_duration`, `metrics_aggregate._panel3_row`)
-   — mirroring Claude Code's own `/usage` split between wall-clock and API
-   time. The API-duration cell renders the literal `unavailable` marker
-   uniformly whether `step_api_duration` carries no entry at all for that
-   skill (e.g. the unhooked `test` pipeline step, never walked by
-   `_accumulate_burn`) or an entry whose own `basis` is `unavailable` — both
-   collapse to the same marker rather than a bare "no data" at this per-skill
-   scope.
-6. **Token burn by role** — input/output tokens and cost bucketed into the four
-   roles planner / executor / verifier / coordinator, plus any dynamic
+- **Usage summary** — total input and output tokens, run count, working time
+  and PRs merged across all tickets in the workspace, with the two averages
+  avg working time / ticket and avg working time / merged PR.
+3. **Working time per ticket by pipeline step** — per-ticket working time, a
+   REPO TOTAL row, and the same two per-ticket / per-PR averages. Each ticket
+   row also expands into one per-skill sub-row per pipeline step
+   (`step_order`), showing that step's own wall-clock span
+   (`metrics_aggregate._panel3_row`).
+6. **Token burn by role** — input/output tokens bucketed into the four roles
+   planner / executor / verifier / coordinator, plus any dynamic
    `other`/`unattributed` extras present in the data. Each role's bucket also
-   carries a token-share and a cost-share percentage — of the repo-wide total
-   here, and again at per-ticket scope in the "Usage by ticket" panel below —
-   with the cost-share cell rendering the literal `unavailable` (never `no
-   data`) on a bucket with no measured cost.
-7. **Usage by model** — input, output, cache-write, and cache-read tokens and
-   cost per model, at both repo scope and per ticket. Its cost pool is the
-   run's full charged delta with no unattributed-token exclusion, so
-   `sum(model_usage.cost_usd)` can exceed panel 6's attributed-only total by
-   `excluded_cost_usd` — a documented reconciliation identity, not a bug.
-8. **Usage by ticket** — a per-ticket role-share table: input, output,
-   cache-write, and cache-read tokens and cost per role, for each ticket in
-   the workspace, plus each role's token-share and cost-share percentage of
-   that ticket's own total. Mirrors panel 7's per-role breakdown style but
-   scoped to one ticket rather than repo-wide; a role with no measured cost in
-   that ticket renders `no data` for its cost cell and `unavailable` for its
-   cost-share cell, independent of any sibling role's measured cost in the
-   same ticket. Each ticket now opens with a ticket-scope API-duration header
-   line (`api_duration_ms`/`api_duration_basis`, folded across that ticket's
-   own skills) followed by a `skills[]` table — one row per hooked skill this
-   ticket ever ran, each showing its own summed run time (`run_seconds_sum`),
-   API duration, and basis, plus a further-indented per-run breakdown
-   (`runs[]`: `started_at`, wall-clock seconds, API duration, basis) —
-   `metrics_aggregate._usage_by_ticket_panel`/`_finalize_skill_bucket`. A
-   skill with run entries but no duration ever measured/apportioned still gets
-   its own row (`api_duration_ms` null, `basis` `unavailable`) rather than
-   being dropped; `skills` is the empty list only when the ticket has zero run
-   entries for every hooked skill.
+   carries a token-share percentage of the repo-wide total, and again at
+   per-ticket scope in the "Usage by ticket" panel below.
+- **Usage by model** — input, output, cache-write, and cache-read tokens per
+  model, at both repo scope and per ticket.
+- **Usage by ticket** — a per-ticket role-share table: input, output,
+  cache-write, and cache-read tokens per role, for each ticket in the
+  workspace, plus each role's token-share percentage of that ticket's own
+  total. Mirrors panel 6's per-role breakdown but scoped to one ticket
+  rather than repo-wide. Each ticket also carries a `skills[]` table — one
+  row per hooked skill with at least one timed run, showing its summed run
+  time (`run_seconds_sum`), plus a further-indented per-run breakdown
+  (`runs[]`: `started_at`, wall-clock seconds) —
+  `metrics_aggregate._usage_by_ticket_panel`/`_finalize_skill_bucket`.
+  `skills` is the empty list when the ticket has no timed run.
+
+No panel reports a dollar amount or an API duration: acs records neither
+(ADR-0103). Tokens per role and per model show where the load falls; for
+money, point the user to Claude Code's own `/cost`, the console, or its usage
+exports, and do not estimate a figure from token counts.
 
 PM-only panels (delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS,
 DEADLINE, coverage achieved vs target, review iterations, lead/cycle time) are
@@ -153,5 +134,5 @@ line with **Scope** (this skill is repo-wide, not tied to one ticket):
 - **Findings**: <degraded panels/tickets and why, or "none — all panels had data">
 - **Artifacts**: none (this skill writes nothing)
 - **Metrics**: n/a
-- **Next**: <e.g. re-run after the next ticket completes, or compare spend across PRs>
+- **Next**: <e.g. re-run after the next ticket completes, or compare token burn across tickets>
 ```

@@ -64,12 +64,14 @@
       "type": "object"
     },
     "cost_usd": {
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no cost or API duration (ADR-0103).",
       "type": [
         "number",
         "null"
       ]
     },
     "cost_basis": {
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no cost or API duration (ADR-0103).",
       "type": [
         "string",
         "null"
@@ -82,6 +84,7 @@
       "type": "object"
     },
     "api_duration_ms": {
+      "description": "Legacy: accepted so an older coordinator's result still validates, and ignored -- acs records no cost or API duration (ADR-0103).",
       "type": [
         "number",
         "null"

@@ -24,7 +24,6 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 import usage_reader  # noqa: E402
-import cost_sampler  # noqa: E402
 
 
 def _usage(input_tokens=0, output_tokens=0, cache_creation=0, cache_read=0):
@@ -174,8 +173,7 @@ class TestUnattributedTokensDropped(UsageReaderCase):
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         # The unattributed 300 must not land on coordinator (100 only) --
-        # instead it lands in its own "unattributed" bucket (cost_sampler's
-        # documented apportionment-denominator convention), never merged in.
+        # instead it lands in its own "unattributed" bucket, never merged in.
         self.assertEqual(coordinator["input"], 100)
         unattributed = next(r for r in result["role_usage"] if r["role"] == "unattributed")
         self.assertEqual(unattributed["input"], 300)
@@ -491,61 +489,6 @@ class TestCorruptLineSkipped(UsageReaderCase):
         self.assertFalse(result["degraded"])
         coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
         self.assertEqual(coordinator["input"], 4)
-
-
-class TestRoleUsageFeedsCostSamplerCleanly(UsageReaderCase):
-    """Cross-module contract check: usage_reader's role_usage, fed directly
-    into cost_sampler.allocate_cost, is consumed exactly per cost_sampler's
-    own documented convention (its module docstring / UNATTRIBUTED_ROLE) --
-    the "unattributed" bucket counts toward the apportionment denominator but
-    never receives a dollar share itself. Also feeds model_usage straight
-    into allocate_cost -- the end-to-end AC-1 -> AC-2 cost-column contract
-    (D1.2 Option A: model_usage's cost is the full delta, unlike role_usage's
-    attributed-only cost)."""
-
-    def test_unattributed_bucket_excluded_from_cost_apportionment(self):
-        self.write_main([
-            _record("2026-01-01T00:00:05Z", usage=_usage(100, 0, 0, 0),
-                     attribution_skill="acs:code", model="claude-opus-4"),
-            _record("2026-01-01T00:00:06Z", usage=_usage(300, 0, 0, 0),
-                     model="claude-sonnet-5"),  # no attributionSkill
-        ])
-        usage = usage_reader.read_transcript_usage(
-            self.transcript_path, "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", "code")
-        self.assertFalse(usage["degraded"])
-
-        workspace = tempfile.mkdtemp(prefix="acs-test-cost-")
-        self.addCleanup(shutil.rmtree, workspace, True)
-        cost_sampler._append_sample_line(
-            cost_sampler.cost_samples_path(workspace, "acme-shop", "ck1"),
-            {"ts": "2026-01-01T00:00:30Z", "total_cost_usd": 1.0, "src": "cost.total_cost_usd"})
-
-        result = cost_sampler.allocate_cost(
-            workspace, "acme-shop", "ck1",
-            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
-            usage["role_usage"], model_usage=usage["model_usage"])
-        self.assertEqual(result["cost_basis"], "measured")
-        # C-8 "drop, don't redistribute": the role-scoped cost_usd is the
-        # attributed-only share of the charge (100 of 400 tokens), not the
-        # raw full delta.
-        self.assertAlmostEqual(result["cost_usd"], 0.25)
-        coordinator = next(r for r in result["role_usage"] if r["role"] == "coordinator")
-        unattributed = next(r for r in result["role_usage"] if r["role"] == "unattributed")
-        self.assertAlmostEqual(coordinator["cost_usd"], 0.25)  # 100 of 400 tokens
-        self.assertIsNone(unattributed["cost_usd"])
-        self.assertAlmostEqual(result["excluded_token_share"], 300 / 400)
-        self.assertAlmostEqual(result["excluded_cost_usd"], 0.75)
-        # Matches usage_reader's own reported share exactly -- the two
-        # modules' independent accountings agree.
-        self.assertAlmostEqual(result["excluded_token_share"], usage["excluded_token_share"])
-
-        # D1.2 Option A: model_usage's cost is the FULL delta apportioned by
-        # token share -- no unattributed exclusion, unlike role_usage above.
-        by_model = {m["model"]: m for m in result["model_usage"]}
-        self.assertAlmostEqual(by_model["claude-opus-4"]["cost_usd"], 0.25)  # 100/400 * 1.0
-        self.assertAlmostEqual(by_model["claude-sonnet-5"]["cost_usd"], 0.75)  # 300/400 * 1.0
-        for entry in result["model_usage"]:
-            self.assertEqual(entry["cost_basis"], "apportioned")
 
 
 class TestModelUsageBucketing(UsageReaderCase):

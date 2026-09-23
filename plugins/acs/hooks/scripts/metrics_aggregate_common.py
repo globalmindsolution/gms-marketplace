@@ -21,6 +21,11 @@ _NEW_PANEL_KEYS = ("delivery_summary", "issues", "progress", "deadline", "usage_
 # iteration="N" on a verify result XML (panel 5 fallback)
 _ITER_RE = re.compile(r'\biteration\s*=\s*"(\d+)"')
 
+# The roll-up keys a run.json or metrics.json `totals` carries (ADR-0103). A file
+# written before that decision also holds dollar-cost and API-duration sums and
+# their counters; _measured_totals drops them, so none reaches the aggregate.
+_TOTALS_KEYS = ("invocations", "runs", "working_seconds", "tokens", "runs_timed", "runs_untimed")
+
 
 def _to_int(text):
     try:
@@ -43,6 +48,13 @@ def _safe_avg(numerator, denominator):
     if not _is_number(numerator) or not _is_number(denominator) or denominator <= 0:
         return "no data"
     return numerator / denominator
+
+
+def _measured_totals(totals):
+    """`totals` restricted to _TOTALS_KEYS: {} for a non-dict, never an exception."""
+    if not isinstance(totals, dict):
+        return {}
+    return {key: totals[key] for key in _TOTALS_KEYS if key in totals}
 
 
 def _share_pct(value, total):

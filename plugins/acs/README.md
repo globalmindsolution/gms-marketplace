@@ -226,10 +226,10 @@ different.
 |-------|----------------------|--------------|
 | `/acs:setup` | — (bootstrap) | Configures conventions and the CI that enforces them: the ticket prefix, the branch/commit/PR formats, and the optional convention and tests gates. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
-| `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, status-line paths). Reloading stays your action. |
+| `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:metrics` | — (utility) | Read-only in-session dashboard: renders the PM delivery view: delivery summary, throughput, pipeline funnel, ISSUES, PROGRESS, DEADLINE, coverage, review iterations, lead/cycle time — from workspace state. Writes nothing. |
-| `/acs:usage` | — (utility) | Read-only in-session usage dashboard: renders the usage view — usage summary, cost and time per ticket by step, the four per-ticket/per-PR averages, token burn by role — from workspace state. Writes nothing. |
+| `/acs:usage` | — (utility) | Read-only in-session usage dashboard: renders the usage view — usage summary, working time per ticket by step, the per-ticket/per-PR working-time averages, token burn by role and by model — from workspace state. Tokens and wall-clock time only; no dollar figures. Writes nothing. |
 | `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step, then asks again, until the list is done. Never merges. |
 
 ## How gating works
@@ -283,7 +283,7 @@ workspace.
   tickets-index.json  runs-index.json  counters.json  metrics.json
   sessions/<checkout-id>/               # one directory per worktree
     pointer.json                        # the run and step this checkout is on
-    session.json  cost.jsonl  runtime.json
+    session.json                        # the session-correlation marker
   archive/<run-id>/                     # moved here by post-merge-pr
   runs/<run-id>/                        # the run id is derived from the subject
     run.json                            # THE RUN MACHINE
@@ -314,7 +314,7 @@ artifacts actually resolved.
 Executors may not write inside the ticket docs tree — it is a control input the
 file-map guard denies, like the guard's own records.
 
-Inspect progress and spend anytime: `tickets-index.json` for status across
+Inspect progress and usage anytime: `tickets-index.json` for status across
 tickets, `runs-index.json` for every run, `metrics.json` for per-repo totals,
 `acs.py run show` for where a run stands, and `acs.py run next` for what runs
 next.

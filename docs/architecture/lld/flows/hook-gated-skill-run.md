@@ -139,17 +139,17 @@ and no `<result>` is returned, so there is no execute XML to validate and no
 `iter-<n>-execute.xml` snapshot to persist — the verify XML persistence in
 the `loop reflection` block above is unaffected in every lane.
 
-**Cost/time metering (MAR-1, ADR 0082).** Two of the diagram's steps carry
+**Token/time metering (MAR-1, ADR 0082).** Two of the diagram's steps carry
 additional, undrawn responsibility, detailed in full in the dedicated
 `acs-cost-metering.md` flow: the `PRE` participant's gate check now also
 writes a ticket-independent session-correlation marker (`session_id`/
 `transcript_path` off the real `PreToolUse(Skill)` envelope), in its own
 fail-open `try/except` so a marker bug can never turn into a blocked gate;
 and the `POST` participant's `finalize_run` no longer trusts a
-coordinator-supplied `tokens`/`cost_usd` estimate — it measures real token
-counts from the run's recorded transcript and apportions a real dollar
-figure sampled off the opt-in statusLine hook, both fail-open to
-`cost_basis="unavailable"` rather than a fabricated number.
+coordinator-supplied `tokens` estimate — it measures real token counts from
+the run's recorded transcript, failing open to empty counts rather than a
+fabricated number. No dollar figure is recorded
+([ADR 0103](../../../adr/0103-no-status-line-no-cost-metering.md)).
 
 **File-map guard denials (MAR-578).** The `PreToolUse` write-tool guard is not
 a participant in this diagram at all — it runs per write tool call inside the

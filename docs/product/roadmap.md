@@ -256,15 +256,16 @@ safety net.
   `/acs:create-ticket` (the plan defines the epics; acs assigns the ids).
 - **E3.2** — Every change to this repo ships via `/acs:ship`; PRD/architecture
   amendments via skill re-runs.
-- **E3.3** — `acs:metrics` skill delivery: implement the dashboard skill reading workspace artifacts; render the six panels (throughput, funnel, cost/time per step, coverage vs target, review iterations, token burn by role); ship as a new skill in the `acs` plugin. Traces G5, G7.
-- **E3.4** — Status-line refinement (dogfood-driven): both the prompt line and the reflection agent-panel compose with Claude Code's default status line and add acs state on top (default context + acs pipeline/subagent state) instead of replacing it; ships as a maturing refinement to the v0.1 Should-have status-line feature. Traces G7.
+- **E3.3** — `acs:metrics` skill delivery: implement the dashboard skill reading workspace artifacts; render the six panels (throughput, funnel, cost/time per step, coverage vs target, review iterations, token burn by role); ship as a new skill in the `acs` plugin. Traces G5, G7. *(The cost half of cost/time per step was removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md).)*
+- **E3.4** *(removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md) — acs no longer ships a status line)* — Status-line refinement (dogfood-driven): both the prompt line and the reflection agent-panel compose with Claude Code's default status line and add acs state on top (default context + acs pipeline/subagent state) instead of replacing it; ships as a maturing refinement to the v0.1 Should-have status-line feature. Traces G7.
 
 #### Epic E4 — `acs:metrics` dashboard *(gates on E1)*
 
 Traces G5, G7. Starts once E1 (eval harness) is green — behavioral evals for
 the `acs:metrics` skill land in E1 before the skill ships. **Note (delivered):**
 `acs:metrics` (delivery KPIs — throughput, funnel, coverage, review iterations)
-shipped alongside a separate `acs:usage` skill (AI spend/tokens/time), splitting
+shipped alongside a separate `acs:usage` skill (AI spend/tokens/time — its dollar
+figures since removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md)), splitting
 delivery-metrics from AI-spend tracking; both verified on disk
 (`plugins/acs/skills/metrics/SKILL.md`, `plugins/acs/skills/usage/SKILL.md`).
 
@@ -514,7 +515,8 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   epic's design phase.
 - **Epic: department metrics rollups** — extends the `acs:metrics`/`acs:usage`
   dashboard surface with project → department → org rollups of delivery
-  throughput/cost metrics, read-only from existing workspace artifacts (same
+  throughput/cost metrics (token and time figures — acs records no dollar figure
+  since [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md)), read-only from existing workspace artifacts (same
   no-new-config discipline as G7). Maps to PRD **G24**/**G19** and the acs Could-have
   "Department metrics rollups" feature. **Traces the Org/Platform-admin persona +
   G24 (relates to G19).** The MECHANISM (rollup source, org/dept grouping key) is

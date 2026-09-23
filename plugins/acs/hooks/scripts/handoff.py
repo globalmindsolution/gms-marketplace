@@ -128,7 +128,7 @@ def main():
         sys.stderr.write(
             "acs handoff: %s\nThe step is finalized as interrupted and the lock IS "
             "released, so %s can be resumed; only metrics.json was not updated, "
-            "so this invocation's tokens and cost are lost from it.\n"
+            "so this invocation's tokens are lost from it.\n"
             % (metrics_error, run_id))
         sys.exit(2)
 

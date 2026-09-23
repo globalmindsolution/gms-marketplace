@@ -465,6 +465,6 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Results**: <n> suite file(s) under <e2e root>; cases covered TC-…; suite run: <passing / red on TC-… because …>
 - **Findings**: <product failures, uncovered cases, open clarifications, or "none">
 - **Artifacts**: <suite paths, partition phase artifacts, branch, commit>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:run-e2e-tests --for-ticket <ticket-id>`
 ```

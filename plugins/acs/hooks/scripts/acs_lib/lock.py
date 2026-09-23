@@ -147,7 +147,7 @@ def release_lock(tdir, cwd=None):
 
 
 #: The ticket-scoped, append-only ledger of lock breaks. JSONL, one object per
-#: line, the same shape cost_sampler uses for its sample log.
+#: line.
 LOCK_AUDIT_FILENAME = "lock-events.jsonl"
 
 

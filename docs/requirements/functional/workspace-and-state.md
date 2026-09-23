@@ -110,13 +110,11 @@ The workspace (gitignored, the run ledger):
     ├── tickets-index.json              # all tickets: id, type, status, parent/children
     ├── runs-index.json                 # all runs: id, workflow, subject, status, started/ended
     ├── counters.json                   # ticket id sequence (run ids derive from the subject; no allocator)
-    ├── metrics.json                    # repo aggregates: ticket/PR counts, time, tokens, cost
+    ├── metrics.json                    # repo aggregates: ticket/PR counts, time, tokens
     ├── sessions/                       # per-checkout state for parallel worktree sessions
     │   └── <checkout-id>/              # ONE directory per checkout, not five prefixed files
     │       ├── pointer.json            # the run AND step this checkout is on
-    │       ├── session.json            # subject-independent session-correlation marker (MAR-1)
-    │       ├── cost.jsonl              # append-only statusLine cost samples, rotated in place (MAR-1)
-    │       └── runtime.json            # allocation cursor into the cost-sample log (MAR-1)
+    │       └── session.json            # subject-independent session-correlation marker (MAR-1)
     ├── archive/                        # runs of done tickets move here post-merge
     ├── tickets/<ticket-id>/ticket.json # only until artifacts migrate moves it
     └── runs/
@@ -179,17 +177,14 @@ Repo-level files (all maintained by hooks):
   derived from the absolute path of the repo checkout/worktree, so multiple
   parallel worktree sessions each have their own pointer
   ([hooks.md](hooks.md)).
-- **`sessions/<checkout-id>-session.json`**,
-  **`sessions/<checkout-id>-cost-samples.jsonl`**,
-  **`sessions/<checkout-id>-cost-cursor.json`** (MAR-1) — three additional
-  per-checkout files backing real cost/time measurement: a
+- **`sessions/<checkout-id>/session.json`** (MAR-1) — the per-checkout file
+  backing token measurement: a
   ticket-independent session-correlation marker (`session_id`/
   `transcript_path`/`cwd`/`skill`, written by a pre-hook inside its own
   fail-open guard, rejected by the consuming skill if stale past 15 minutes
-  or from a foreign `checkout_id`); an append-only log of `statusLine`
-  cost samples, rotated in place once it exceeds 64 KiB (no `.1` sibling);
-  and the allocation cursor marking how much of that log has already been
-  charged to a run ([hooks.md](hooks.md)).
+  or from a foreign `checkout_id`) ([hooks.md](hooks.md)). The cost-sample
+  log and its allocation cursor went with the status line that fed them
+  ([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
 - **`metrics.json`** — per-repo aggregates (see [Metrics](#metrics)).
 - **`archive/`** — completed ticket partitions are moved here by
   `post-merge-pr` (the partition is archived, never deleted).
@@ -264,7 +259,7 @@ Each state file MUST capture:
   clarifications obtained from the user);
 - **error details** — what went wrong, if anything;
 - **invocations** — an **append-only array** of this step's invocations, each
-  carrying that invocation's timestamps, token counts, cost, **status**, and,
+  carrying that invocation's timestamps, token counts, **status**, and,
   when `interrupted`, its **stop reason**. The array is `invocations`, not
   `runs`: a RUN is the whole pass over the workflow (`run.json`), and a step
   is invoked within it.
@@ -321,13 +316,8 @@ Each state file MUST capture:
       "transcript_path": "...",
       "checkout_id": "...",
       "tokens": { "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 },
-      "cost_usd": 4.21,
-      "cost_basis": "measured",
-      "cost_scope": "session_total",
-      "excluded_cost_usd": 0.0,
-      "excluded_token_share": 0.0,
-      "role_usage": [ { "role": "executor", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
-      "model_usage": [ { "model": "claude-sonnet-4-6", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
+      "role_usage": [ { "role": "executor", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 } ],
+      "model_usage": [ { "model": "claude-sonnet-4-6", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 } ],
       "status": "completed",
       "stop_reason": "all specs implemented, verifier passed"
     }
@@ -405,11 +395,10 @@ worktree per ticket**:
   own Delivery step's **Branch** sub-step, before that leg's Execute phase.
   Both tickets share the run's `checkout_id`
   for the Start/plan/execute/verify portion of the run — the disposition for
-  this shared-checkout case is: pointer/marker/cursor collisions are
-  accepted, labeled degradations (statusline shows only one leg; the losing
-  leg's cost sampling degrades to `unavailable`) rather than a correctness
+  this shared-checkout case is: pointer/marker collisions are
+  accepted, labeled degradations rather than a correctness
   bug, because every consumer of ticket identity gets the ticket id
-  explicitly and `cost_basis` is never fabricated for the losing leg. Each
+  explicitly. Each
   leg's own `.lock`/pointer/state files are otherwise unaffected — the
   legs remain two ordinary, independently-resumable delivery tickets. See
   `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
@@ -432,20 +421,20 @@ worktree per ticket**:
 
 ## Metrics
 
-The workspace records effort and cost at every level; post-hooks maintain
-all of it:
+The workspace records effort — working time and tokens — at every level;
+post-hooks maintain all of it:
 
 - **Per invocation**: each entry records `started_at`/`ended_at` (working
-  time is computed from them), token counts (input/output), and cost.
+  time is computed from them) and token counts (input/output).
   Invocations finalized outside a post-hook — `interrupted`, whether by a
   deliberate handoff or by the SessionEnd safety net — are counted in the
   repo aggregates too, so `metrics.json` and the per-run roll-up never
   diverge.
 - **Per run**: `run.json` rolls up totals across every step of the run.
 - **Per repo** (`metrics.json`): ticket counts (by status and type), PR
-  counts (created, merged), and total working time, tokens, and cost.
+  counts (created, merged), and total working time and tokens.
 - **Measured, not self-reported (MAR-1, ADR 0082).** The coordinator's
-  result document carries no token/cost figures at all — the standing `[ASSUMPTION]`
+  result document carries no token figures at all — the standing `[ASSUMPTION]`
   this bullet used to record is resolved, not merely reworded. A run's
   `session_id`/`transcript_path` are captured from the genuine
   `PreToolUse(Skill)` hook envelope by a session-correlation marker,
@@ -453,20 +442,13 @@ all of it:
   `usage_reader.py` reads real token counts (all four `message.usage`
   classes) from that exact recorded transcript plus its `subagents/`
   subtree — never a constructed path — and buckets them by role, including a
-  first-class `coordinator` bucket. A dollar figure is sourced from Claude
-  Code's own real-time cost computation, sampled off the opt-in `statusLine`
-  hook and apportioned across roles by measured token share
-  (`cost_sampler.py`) via a cursor-consumed, non-overlapping partition that
-  makes double-charging structurally impossible. acs owns no price table.
-  Every figure carries a basis label — `measured` / `apportioned` /
-  `unavailable` — never fabricated, never zero-padded; coverage is
-  contingent on `statusLine` opt-in and on an unconsumed sample existing in
-  a run's window, a disclosed limitation rather than a silent one. The
-  dollar-cost double-charging guarantee above (`cost_sampler.py`'s
-  checkout-scoped cursor) is unaffected by fan-out and holds unconditionally,
-  in every topology including the one below. A separate, narrower guarantee —
-  subagent-role token attribution (`usage_reader.py`) being immune to
-  cross-session contamination — is scoped to topologies where each ticket
+  first-class `coordinator` bucket. No dollar figure is recorded: its only
+  source was Claude Code's status-line payload, and acs no longer ships a
+  status line ([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md));
+  acs owns no price table either. A run whose transcript cannot be read
+  records empty token counts, never a fabricated figure. The guarantee that
+  subagent-role token attribution (`usage_reader.py`) is immune to
+  cross-session contamination is scoped to topologies where each ticket
   runs in its own session — true of worktree-per-ticket generally, but not of
   the "Cross-skill, phase-level fan-out" shape two headings above, where
   `/acs:create-docs`'s two legs share one session and their subagent work is

@@ -480,6 +480,6 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Results**: <n> cases (<u> unit / <i> integration / <e> e2e); <k>/<k> acceptance criteria traced; suites targeted
 - **Findings**: <untraced criteria / open clarifications, or "none">
 - **Artifacts**: <test-cases.md path, partition phase artifacts, branch>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:code <ticket-id>`
 ```

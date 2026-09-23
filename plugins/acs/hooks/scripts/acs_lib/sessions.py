@@ -1,12 +1,13 @@
 """acs_lib.sessions — `sessions/<checkout-id>/`, one directory per checkout.
 
-Five files related by a filename prefix became one directory:
+Files related by a filename prefix became one directory:
 
-    sessions/<checkout>.json                 ┐            sessions/<checkout-id>/
-    sessions/<checkout>-session.json         │  becomes     pointer.json
-    sessions/<checkout>-cost-cursor.json     │              session.json
-    sessions/<checkout>-cost-samples.jsonl   │              cost.jsonl
-    sessions/<checkout>-claude-version.json  ┘              runtime.json
+    sessions/<checkout>.json                 ┐  becomes   sessions/<checkout-id>/
+    sessions/<checkout>-session.json         ┘              pointer.json
+                                                            session.json
+
+(The cost-cursor, cost-sample and claude-version files went with the status
+line that wrote them -- ADR-0103.)
 
 **`pointer.json` is why nobody types a run id.** Hooks are deterministic
 scripts that cannot read a conversation, so something on disk has to say what
@@ -24,8 +25,6 @@ from ._common import now_iso, read_json, write_json
 SESSIONS_DIRNAME = "sessions"
 POINTER_FILENAME = "pointer.json"
 SESSION_FILENAME = "session.json"
-COST_FILENAME = "cost.jsonl"
-RUNTIME_FILENAME = "runtime.json"
 
 
 def sessions_root(repo_dir_path):
@@ -45,14 +44,6 @@ def pointer_path(repo_dir_path, ckid):
 
 def session_path(repo_dir_path, ckid):
     return os.path.join(checkout_dir(repo_dir_path, ckid), SESSION_FILENAME)
-
-
-def cost_path(repo_dir_path, ckid):
-    return os.path.join(checkout_dir(repo_dir_path, ckid), COST_FILENAME)
-
-
-def runtime_path(repo_dir_path, ckid):
-    return os.path.join(checkout_dir(repo_dir_path, ckid), RUNTIME_FILENAME)
 
 
 def load_pointer(repo_dir_path, ckid):

@@ -866,7 +866,7 @@ Six things are wrong with it, and none is fixable by renaming a directory:
   tickets/<ticket-id>/ticket.json  only for a ticket not yet moved to docs/tickets/<ID>/
   sessions/<checkout-id>/          one directory per checkout, not five prefixed files
     pointer.json                   current run + step  (was: current ticket + skill)
-    session.json · cost.jsonl · runtime.json
+    session.json                   the session-correlation marker
   runs/<run-id>/
     run.json                       THE RUN MACHINE                             (§4.3)
     subject/                       what this run is about: ticket.json | prompt.md | document
@@ -935,7 +935,7 @@ ran its cycle*.
     "review-code":          { "status": "in_progress", "iteration": 2 }
   },
   "loops": { "review-code": { "iteration": 2, "max": 3 } },
-  "totals": { "…": "cost, tokens, wall time — unchanged" }
+  "totals": { "…": "tokens, wall time — unchanged" }
 }
 ```
 
@@ -1003,7 +1003,7 @@ directory; neither touches a schema or a central list.
 
 The current shape is sound and is kept: a `states` object, `findings`,
 `errors`, and one record per invocation carrying session id, transcript path,
-checkout id, tokens, cost, role/model usage, guard events, gate enforcement,
+checkout id, tokens, role/model usage, guard events, gate enforcement,
 status and stop reason. Four changes:
 
 1. **`runs[]` becomes `invocations[]`.** Once the partition is `runs/<run-id>/`,
@@ -1201,7 +1201,8 @@ Named explicitly so a "from scratch" reading does not discard them:
 - **gate evidence** (MAR-583)
 - **derived verdicts** (MAR-523, MAR-527)
 - the **file-map guard** and its denial records
-- **cost / token / session attribution** in `runs[]`
+- **token / session attribution** in `runs[]` (its dollar-cost half was later
+  removed with the status line, ADR 0103)
 - the **four delivery paths and their `code-*` legs** — what changes is where the
   path is recorded (the plan, not `ship.yaml`) and who dispatches on it
   (`/acs:code`, not the workflow), never that the path exists

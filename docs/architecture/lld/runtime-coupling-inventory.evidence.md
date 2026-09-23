@@ -39,14 +39,12 @@ distinct anchors (MAR-528 added Surface #6's three).
 - Entry-point anchor verification record — `LIFECYCLE_MODES` + `def run_lifecycle(mode, payload)` (fails OPEN): `dispatch.py:119-142`
 - Entry-point anchor verification record — `subagent_start` / `subagent_stop` / `stop` / `pre_compact`: `acs_lib/lifecycle.py:397-584`
 
-## Runtime-coupled surfaces — Surface #5 (Cost/token sourcing, MAR-1)
+## Runtime-coupled surfaces — Surface #5 (Token sourcing, MAR-1)
 
-- Surface #5 — Cost/token sourcing — shipped `cost_basis` enum
-  (`measured|apportioned|unavailable`): `skill-state.schema.json:45-47`
+- Surface #5 — Token sourcing — transcript read entry point
+  `def read_transcript_usage(transcript_path, started_at, ended_at, skill)`: `usage_reader.py:193`
+- Surface #5 — Token sourcing — the invocation's measured `tokens` /
+  `role_usage` / `model_usage` fields: `step-state.schema.json:80-88`
 
-## Runtime-agnostic surfaces — `statusline.py` split note (MAR-1)
-
-- Runtime-agnostic surfaces — `statusline.py` cost-sampling half —
-  module docstring naming the Claude-Code-piped stdin payload: `statusline.py:16`
-- Runtime-agnostic surfaces — `statusline.py` cost-sampling half —
-  `main()` reads stdin then calls `cost_sampler.record_cost_sample(payload)`: `statusline.py:131-138`
+The `cost_basis` enum and the `statusline.py` split note that were recorded
+here went with the status line (ADR 0103).

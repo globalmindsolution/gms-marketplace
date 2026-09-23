@@ -168,8 +168,7 @@ def _clear_pointers_for_ticket(ctx, run_id):
     One DIRECTORY per checkout now (`sessions/<ckid>/pointer.json`), keyed on
     `run_id` -- five prefixed files keyed on `ticket_id` was the old shape
     (ADR-0097). It clears the pointer rather than removing the directory,
-    because `session.json`, `cost.jsonl` and `runtime.json` are the checkout's
-    and outlive any one run.
+    because `session.json` is the checkout's and outlives any one run.
     """
     sdir = sessions_dir(ctx["workspace"], ctx["repo_id"])
     if not os.path.isdir(sdir):
@@ -379,7 +378,7 @@ def run_post(skill):
             "acs post-%s: %s\n"
             "%s's invocation, result and run.json ARE written and the lock is "
             "released; the repo-level writes (tickets-index.json, metrics.json%s) "
-            "are not. %s This run's tokens and cost are lost from metrics.json. "
+            "are not. %s This run's tokens are lost from metrics.json. "
             "Do NOT re-run this hook to repair it -- the step is already "
             "finalized, so a second call appends a second invocation.\n"
             % (skill, exc, run_id,

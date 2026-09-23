@@ -8,7 +8,7 @@ verbatim. Every value from a panel dict passes through _esc().
 
 import acs_lib  # noqa: E402
 
-from metrics_render_common import NO_DATA, PANEL_KEYS, PANEL_TITLES, ROLE_ORDER, UNAVAILABLE, _average_cells, _counts_items, _esc, _fmt_money, _fmt_pct, _html_bar_cell, _humanize_ms, _humanize_seconds, _is_no_data, _meta_lines, _panel6_extra_roles, _panel_max
+from metrics_render_common import NO_DATA, PANEL_KEYS, PANEL_TITLES, ROLE_ORDER, _average_cells, _counts_items, _esc, _fmt_pct, _html_bar_cell, _humanize_seconds, _is_no_data, _meta_lines, _panel6_extra_roles, _panel_max
 
 
 
@@ -123,54 +123,44 @@ def _html_panel2(value):
 
 def _html_panel3_sub_rows(row):
     """HTML equivalent of _term_panel3_sub_rows (MAR-7 spec 02) — one extra <tr> per skill,
-    reusing the main row's 3-column shape (skill / step span / API duration + basis)."""
+    reusing the main row's 2-column shape (skill / step span)."""
     step_order = row.get("step_order")
     if not isinstance(step_order, list):
         return []
     steps = row.get("steps") if isinstance(row.get("steps"), dict) else {}
-    step_api_duration = row.get("step_api_duration") if isinstance(row.get("step_api_duration"), dict) else {}
     out = []
     for skill in step_order:
         step_span = _humanize_seconds(steps.get(skill))
-        entry = step_api_duration.get(skill)
-        if not isinstance(entry, dict):
-            api_str = UNAVAILABLE
-        elif entry.get("basis") == "unavailable":
-            api_str = UNAVAILABLE
-        else:
-            api_str = "%s (%s)" % (_humanize_ms(entry.get("ms")), entry.get("basis"))
-        out.append("<tr><td>&nbsp;&nbsp;%s</td><td>step span %s</td><td>api duration %s</td></tr>"
-                   % (_esc(skill), _esc(step_span), _esc(api_str)))
+        out.append("<tr><td>&nbsp;&nbsp;%s</td><td>step span %s</td></tr>"
+                   % (_esc(skill), _esc(step_span)))
     return out
 
 
 def _html_panel3(value):
     if _is_no_data(value) or not isinstance(value, dict):
         return _html_no_data()
-    rows = ["<tr><th>ticket</th><th>working time</th><th>cost_usd</th></tr>"]
+    rows = ["<tr><th>ticket</th><th>working time</th></tr>"]
     tickets = value.get("tickets") if isinstance(value.get("tickets"), list) else []
     if not tickets:
-        rows.append('<tr><td colspan="3" class="nodata">%s</td></tr>' % NO_DATA)
+        rows.append('<tr><td colspan="2" class="nodata">%s</td></tr>' % NO_DATA)
     for row in tickets:
         if not isinstance(row, dict):
             continue
         totals = row.get("totals") if isinstance(row.get("totals"), dict) else {}
         # C-6: humanize the working time; a missing/non-numeric value still renders the existing
         # no-data text via _humanize_seconds (returns NO_DATA for any non-number — B1 preserved).
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>"
+        rows.append("<tr><td>%s</td><td>%s</td></tr>"
                     % (_esc(row.get("ticket_id", "?")),
-                       _esc(_humanize_seconds(totals.get("working_seconds", "-"))),
-                       _esc(_fmt_money(totals.get("cost_usd", "-"), empty="-"))))
+                       _esc(_humanize_seconds(totals.get("working_seconds", "-")))))
         rows.extend(_html_panel3_sub_rows(row))
     repo_totals = value.get("repo_totals") if isinstance(value.get("repo_totals"), dict) else {}
     if repo_totals:
-        rows.append("<tr><td>REPO TOTAL</td><td>%s</td><td>%s</td></tr>"
-                    % (_esc(_humanize_seconds(repo_totals.get("working_seconds", "-"))),
-                       _esc(_fmt_money(repo_totals.get("cost_usd", "-"), empty="-"))))
-    # Four averages summary rows (B1 — a "no data" average renders the nodata cell, never omitted).
+        rows.append("<tr><td>REPO TOTAL</td><td>%s</td></tr>"
+                    % _esc(_humanize_seconds(repo_totals.get("working_seconds", "-"))))
+    # Two averages summary rows (B1 — a "no data" average renders the nodata cell, never omitted).
     for label, formatted in _average_cells(value):
         cls = ' class="nodata"' if formatted == NO_DATA else ""
-        rows.append('<tr><td>%s</td><td colspan="2"%s>%s</td></tr>'
+        rows.append('<tr><td>%s</td><td%s>%s</td></tr>'
                     % (_esc(label), cls, _esc(formatted)))
     return "<table>" + "".join(rows) + "</table>"
 
@@ -220,16 +210,13 @@ def _html_panel6(value):
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inputs.append(bucket.get("input", 0))
     panel_max = _panel_max(inputs)
-    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>cost_usd</th>"
-            "<th>token %</th><th>cost %</th><th>bar</th></tr>"]
+    rows = ["<tr><th>role</th><th>input</th><th>output</th><th>token %</th><th>bar</th></tr>"]
     for role in roles:
         bucket = value.get(role) if isinstance(value.get(role), dict) else {}
         inp = bucket.get("input", 0)
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td>%s</tr>"
                     % (_esc(role), _esc(inp), _esc(bucket.get("output", 0)),
-                       _esc(_fmt_money(bucket.get("cost", 0), empty="-")),
                        _esc(_fmt_pct(bucket.get("token_share_pct"), NO_DATA)),
-                       _esc(_fmt_pct(bucket.get("cost_share_pct"), UNAVAILABLE)),
                        _html_bar_cell(inp, panel_max)))
     return "<table>" + "".join(rows) + "</table>"
 

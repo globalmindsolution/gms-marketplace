@@ -2,11 +2,11 @@
 """claude_code_adapter.py -- the one module that encodes what acs assumes
 about Claude Code's *undocumented* interfaces.
 
-Cost, token, and attribution measurement rests on five interfaces that Claude
-Code does not publish as a contract. Before this module they were spelled out
-in five different scripts, so a rename upstream broke measurement in five
-places and each one degraded (or silently dropped records) its own way. Every
-assumption now lives here, once:
+Token and attribution measurement rests on four interfaces that Claude Code
+does not publish as a contract. Before this module they were spelled out in
+several scripts, so a rename upstream broke measurement in several places and
+each one degraded (or silently dropped records) its own way. Every assumption
+now lives here, once:
 
 1. **Hook envelope fields** -- the JSON a hook receives on stdin:
    `session_id`, `transcript_path`, `cwd`, `hook_event_name`, `tool_input`,
@@ -20,19 +20,13 @@ assumption now lives here, once:
 4. **Subagent transcript directory layout** --
    `<dirname(transcript_path)>/<session_id>/subagents/**.jsonl`, with
    `session_id` derived from the transcript's own basename.
-5. **statusLine / subagentStatusLine payload keys** -- `model.display_name`,
-   `workspace.current_dir`, and the cost/duration probe order.
 
-Two cross-cutting concerns live here for the same reason:
+One cross-cutting concern lives here for the same reason:
 
 - **One degradation switch.** `unavailable(reason)` is the only way a caller
   marks a measurement unavailable. It logs the reason and returns it, so
   "why is this unavailable?" has a single answer path instead of one
   convention per module. It never raises.
-- **`claude_version()`** records which Claude Code build produced a sample,
-  so a future shape change can be dated against the version that introduced
-  it. Cached (bounded TTL, optional on-disk cache) because measurement hooks
-  run per tick.
 
 Stdlib-only (Python 3.9+, no pip). No acs_lib import: acs_lib depends on this
 module, never the reverse.
@@ -45,9 +39,6 @@ Claude Code's output.
 import datetime
 import json
 import os
-import re
-import subprocess
-import tempfile
 import sys
 
 # ---------------------------------------------------------------------------
@@ -132,8 +123,8 @@ _NO_DEFAULT = object()
 def payload_cwd(payload, default=_NO_DEFAULT):
     """The working directory a payload resolves to.
 
-    One probe order shared by hook envelopes and statusLine payloads:
-    `workspace.current_dir`, then top-level `cwd`, then `default` -- which
+    One probe order for every payload shape: `workspace.current_dir`, then
+    top-level `cwd`, then `default` -- which
     defaults to the process cwd, what most callers want. Pass `default=None`
     to get None instead: a caller that must never construct a value (the
     session marker records envelope fields verbatim) needs the probe order
@@ -271,43 +262,6 @@ def is_transcript_file(name):
 
 
 # ---------------------------------------------------------------------------
-# 5. statusLine / subagentStatusLine payload keys
-# ---------------------------------------------------------------------------
-
-STATUS_MODEL = "model"
-STATUS_MODEL_DISPLAY_NAME = "display_name"
-
-#: Cost probe order: (container key or None, key). A None container means the
-#: payload's own top level. Tried in order, then a bounded recursive scan.
-#: The key names a session payload spells its running totals with, as patterns
-#: for a nested scan. They live here because they are Claude Code's spellings,
-#: not ours -- the same reason COST_PROBE_ORDER does. A regex source is not a
-#: string constant the AST guard can match, so keeping them at the call site
-#: left an unwatched drift door.
-TOTAL_COST_KEY_RE = re.compile(r"total_cost(_usd)?$")
-TOTAL_API_DURATION_KEY_RE = re.compile(r"total_api_duration(_ms)?$")
-
-COST_PROBE_ORDER = (("cost", "total_cost_usd"),
-                    ("cost", "total_cost"),
-                    (None, "total_cost_usd"))
-#: API-duration probe order -- a structural mirror of COST_PROBE_ORDER.
-DURATION_PROBE_ORDER = (("cost", "total_api_duration_ms"),
-                        ("cost", "total_api_duration"),
-                        (None, "total_api_duration_ms"))
-
-
-def status_model_display_name(payload, default="Claude"):
-    """The payload's `model.display_name`, or `default`."""
-    name = _str_or_none(_dict(_dict(payload).get(STATUS_MODEL)).get(STATUS_MODEL_DISPLAY_NAME))
-    return name if name else default
-
-
-def probe_source(container, key):
-    """The `src` label recorded for a probe hit ("cost.total_cost_usd")."""
-    return key if container is None else "%s.%s" % (container, key)
-
-
-# ---------------------------------------------------------------------------
 # The one degradation switch
 # ---------------------------------------------------------------------------
 
@@ -315,7 +269,7 @@ def probe_source(container, key):
 UNAVAILABLE = "unavailable"
 
 #: Optional JSONL destination for degradation reasons. Unset (the default),
-#: reasons go to stderr only under ACS_DEBUG -- a status line must stay quiet.
+#: reasons go to stderr only under ACS_DEBUG -- a hook must stay quiet.
 DEGRADATION_LOG_ENV = "ACS_DEGRADATION_LOG"
 DEBUG_ENV = "ACS_DEBUG"
 
@@ -355,117 +309,3 @@ def _log_degradation(entry):
         return
     if os.environ.get(DEBUG_ENV):
         sys.stderr.write("acs: measurement unavailable (%s)\n" % entry.get("reason"))
-
-
-# ---------------------------------------------------------------------------
-# Which Claude Code produced a sample
-# ---------------------------------------------------------------------------
-
-CLAUDE_VERSION_TTL_SECONDS = 24 * 60 * 60
-_VERSION_MEMO = {}
-
-
-def claude_version(cache_path=None, ttl_seconds=CLAUDE_VERSION_TTL_SECONDS):
-    """`claude --version`, or None when it cannot be determined.
-
-    Recorded alongside cost samples so a shape change can be dated against
-    the build that introduced it. Measurement hooks run per tick, so the
-    probe is cached: in-process always, and on disk when `cache_path` is
-    given (refreshed once per `ttl_seconds`). Never raises, never blocks
-    longer than the subprocess timeout."""
-    if cache_path:
-        cached = _read_version_cache(cache_path, ttl_seconds)
-        # A cached null is a FAILED probe, not an answer. Treating it as a hit
-        # negatively cached the failure for the whole TTL, so a probe that failed
-        # once (claude not yet on PATH) reported no version for 24 hours.
-        if cached is not None and cached.get("version") is not None:
-            _VERSION_MEMO["version"] = cached["version"]
-            return cached["version"]
-        # The disk cache did not answer. An EXPIRED one must re-probe -- that is
-        # what the TTL is for. One that is merely absent or unwritable must not:
-        # behind the old `elif` the memo was skipped whenever cache_path was
-        # given, so an unwritable cache re-spawned the subprocess on every call,
-        # on statusline.main's pre-print path (measured: 3 calls, 3 spawns).
-        # ...and the memo may only answer with a SUCCESSFUL probe. A failed one
-        # writes no cache file, so `not stale` is trivially true for the absent
-        # file and the memoised None was returned for the life of the process:
-        # `claude` appearing on PATH a moment later never took effect, which is
-        # the opposite of the "a failure is no longer cached" this change
-        # claimed. Re-probing on a failure is cheap; being permanently wrong is
-        # not.
-        if (not _version_cache_is_stale(cache_path, ttl_seconds)
-                and _VERSION_MEMO.get("version") is not None):
-            return _VERSION_MEMO["version"]
-    elif _VERSION_MEMO.get("version") is not None:
-        return _VERSION_MEMO["version"]
-
-    version = _probe_claude_version()
-    _VERSION_MEMO["version"] = version
-    if cache_path and version is not None:
-        _write_version_cache(cache_path, version)
-    return version
-
-
-def _probe_claude_version():
-    try:
-        proc = subprocess.run(["claude", "--version"], stdout=subprocess.PIPE,
-                              stderr=subprocess.DEVNULL, timeout=10)
-    except Exception:
-        return None
-    if proc.returncode != 0:
-        return None
-    try:
-        return proc.stdout.decode("utf-8", errors="replace").strip() or None
-    except Exception:
-        return None
-
-
-def _version_cache_is_stale(path, ttl_seconds):
-    """True only when the cache EXISTS and has aged out.
-
-    Absent, unreadable or unwritable is not stale: there is nothing to refresh,
-    so the in-process memo may answer instead of re-probing."""
-    try:
-        return (_now_epoch() - os.path.getmtime(path)) > ttl_seconds
-    except OSError:
-        return False
-
-
-def _read_version_cache(path, ttl_seconds):
-    try:
-        age = _now_epoch() - os.path.getmtime(path)
-        if age > ttl_seconds:
-            return None
-        with open(path, "r", encoding="utf-8") as fh:
-            cached = json.load(fh)
-        return cached if isinstance(cached, dict) else None
-    except Exception:
-        return None
-
-
-def _write_version_cache(path, version):
-    try:
-        parent = os.path.dirname(path)
-        if parent and not os.path.isdir(parent):
-            os.makedirs(parent, exist_ok=True)
-        # mkstemp, not a fixed "<path>.tmp": two sessions in the same checkout
-        # write this concurrently, and a fixed name lets one truncate the
-        # other's partial file. The unlink keeps a failed write from leaking it.
-        fd, tmp = tempfile.mkstemp(dir=parent or ".", prefix=".acs-version-")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                json.dump({"version": version, "probed_at": _now_iso()}, fh, sort_keys=True)
-            os.replace(tmp, path)
-        except Exception:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
-    except Exception:
-        pass
-
-
-def _now_epoch():
-    import time
-    return time.time()

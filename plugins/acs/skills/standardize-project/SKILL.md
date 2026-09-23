@@ -462,6 +462,6 @@ same labels/order, `none` where empty; under `/acs:ship` the final message is th
 - **Findings**: <open findings / clarifications, or "none">
 - **Recommended follow-ups**: <recommended_follow_ups titles, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
-- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out> · ~$<cost_usd>
+- **Metrics**: iterations <n>/<cap> · <wall time> · ~<tokens in/out>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the scaffold PR; consider the recommended follow-ups
 ```

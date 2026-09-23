@@ -1,11 +1,17 @@
-# LLD Flow — acs cost/time metering (measure/persist and read/render)
+# LLD Flow — acs token/time metering (measure/persist and read/render)
 
-How `acs` measures and persists real elapsed time, real token counts, and a
-real (never self-estimated) dollar figure for every hooked skill run, and how
-`/acs:usage`/`/acs:metrics` render those figures back out. Two coupled paths:
-**measure/persist** (every hooked skill run, at its pre-hook and post-hook)
-and **read/render** (`/acs:usage`, `/acs:metrics`), both read-only on the
-render side. ADR 0082 records the decision this flow implements.
+How `acs` measures and persists real elapsed time and real token counts for
+every hooked skill run, and how `/acs:usage`/`/acs:metrics` render those
+figures back out. Two coupled paths: **measure/persist** (every hooked skill
+run, at its pre-hook and post-hook) and **read/render** (`/acs:usage`,
+`/acs:metrics`), read-only on the render side. ADR 0082 records the decision
+this flow implements.
+
+[ADR 0103](../../../adr/0103-no-status-line-no-cost-metering.md) removed this
+flow's dollar-cost half: the status line that sampled Claude Code's cost
+payload, `cost_sampler.py`, the per-checkout sample log and allocation cursor,
+and every cost and API-duration figure on a run entry, a total or a
+dashboard. acs records no dollar figure. The file keeps its original name.
 
 ## Sequence diagram — measure/persist path
 
@@ -13,81 +19,40 @@ render side. ADR 0082 records the decision this flow implements.
 sequenceDiagram
     participant Coord as Coordinator (skill session)
     participant CC as Claude Code runtime
-    participant Disp as dispatch.py pre
-    participant Pre as pre-<skill>.py / acs_lib.run_pre
-    participant Start as skill-start.py
-    participant SL as statusline.py (opt-in)
-    participant CS as cost_sampler.py
-    participant Post as post-<skill>.py / acs_lib.finalize_run
+    participant Pre as dispatch.py pre / acs_lib.run_pre_payload
+    participant Start as acs step start
+    participant Post as post-<skill>.py / acs_lib.finalize_invocation
     participant UR as usage_reader.py
     participant TR as Transcript store (session .jsonl + subagents/)
-    participant WS as Workspace (marker, cursor, samples, run entry, totals)
+    participant WS as Workspace (marker, invocation, run.json, metrics.json)
 
     Coord->>CC: /acs:<skill> invoked
-    CC->>Disp: PreToolUse(Skill) envelope (session_id, transcript_path, cwd, tool_input.skill)
-    Disp->>Pre: forward raw envelope, HOOKED_SKILLS only
-    Pre->>Pre: build_context, GATES[skill] check
-    Pre->>Pre: record_session_marker(ctx, payload) -- only when record_marker and the root guard allow
-    Pre->>WS: write sessions/<checkout_id>-session.json
-    Pre-->>Disp: exit 0 (pass) or exit 2 (blocked) -- the marker write never affects this exit code
-    Coord->>Start: skill-start.py --skill <skill>, coordinator's first action
-    Start->>WS: read sessions/<checkout_id>-session.json
-    Start->>Start: accept only if marker.checkout_id == ctx.checkout_id and age <= 15 min
-    Start->>WS: append_in_progress_run(..., session=marker) -- persists session_id/transcript_path/checkout_id, or all-null if rejected
-    loop while the skill runs, subagents spawn, statusLine refreshes
-        CC->>SL: statusLine payload on stdin (model, workspace, session, cost)
-        SL->>CS: record_cost_sample(payload), before render(), own try/except
-        CS->>CS: _extract_total_cost -- cost.total_cost_usd, cost.total_cost, total_cost_usd, or a depth<=3 scan for /total_cost(_usd)$/
-        CS->>CS: _extract_api_duration -- cost.total_api_duration_ms, cost.total_api_duration, total_api_duration_ms, or a depth<=3 scan for /total_api_duration(_ms)$/ (MAR-6)
-        alt either candidate matched
-            CS->>WS: append {ts, total_cost_usd, src, total_api_duration_ms, duration_src} to sessions/<checkout_id>-cost-samples.jsonl (rotated past 64 KiB — MAR-6, a sample is written when EITHER quantity is found)
-        else neither candidate matched
-            CS->>CS: no sample written -- not an error
-        end
-    end
+    CC->>Pre: PreToolUse(Skill) envelope (session_id, transcript_path, cwd, tool_input.skill)
+    Pre->>Pre: build_context
+    Pre->>WS: record_session_marker -- sessions/<checkout_id>/session.json, only when record_marker and the root guard allow, in its own try/except
+    Pre->>Pre: GATES[skill] check (gate_outcome)
+    Pre->>WS: gate passed -- _mark_step_started opens the invocation (started_at, status in_progress)
+    Pre-->>CC: exit 0 (pass) or exit 2 (blocked) -- the marker write never affects this exit code
+    Coord->>Start: acs step start --step <skill>, the coordinator's first action
+    Start->>WS: append_invocation enriches the already-open invocation (gate verdict) rather than appending a second one
     Coord->>Post: skill finishes, coordinator calls the post-hook with the result document
-    Post->>WS: finalize_run reads runs[-1] (session_id, transcript_path, checkout_id, started_at)
-    alt run entry has no session_id or transcript_path
-        Post->>Post: short-circuit -- no transcript I/O (new-ticket.py's synthetic create-ticket runs land here)
-        Post->>WS: persist tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[], model_usage=[]
+    Post->>Post: validate_result -- a cost_usd key is an undeclared property since ADR 0103
+    Post->>WS: finalize_invocation reads invocations[-1] (session_id, transcript_path, started_at), stamps ended_at and status
+    alt invocation has no session_id or transcript_path
+        Post->>WS: tokens all-zero, role_usage=[], model_usage=[] -- no transcript I/O (new-ticket.py's synthetic create-ticket runs land here)
     else session_id and transcript_path present
         Post->>UR: read_transcript_usage(transcript_path, started_at, ended_at, skill)
         UR->>TR: stream the exact transcript_path, then a recursive walk of dirname(transcript_path)/<session_id>/subagents/*.jsonl (never a constructed slug, never *.meta.json)
         TR-->>UR: message.usage (4 integer fields) + model + timestamp + attributionSkill/attributionAgent, in-window records only
         alt transcript unreadable, cap breached (32 MiB / 64 files), empty window, or zero real tokens resolved
-            UR-->>Post: {degraded: true, reason, role_usage: [], model_usage: []}
-            Post->>WS: tokens all-zero, cost_usd=null, cost_basis="unavailable", role_usage=[], model_usage=[]
+            UR-->>Post: {degraded: true, reason}
+            Post->>WS: tokens all-zero, role_usage=[], model_usage=[]
         else at least one in-window usage record
             UR-->>Post: {degraded: false, role_usage: [{role, input, output, cache_creation, cache_read}, ...], model_usage: [{model, input, output, cache_creation, cache_read}, ...], excluded_token_share}
-            Post->>Post: sum role_usage into raw tokens.{input,output,cache_creation,cache_read}
-            alt run entry has no checkout_id
-                Post->>WS: persist measured tokens/role_usage/model_usage, cost_usd=null, cost_basis="unavailable" (no checkout_id to locate the cost-sample/cursor files)
-            else checkout_id present
-                Post->>CS: allocate_cost(workspace, repo_id, checkout_id, started_at, ended_at, role_usage, model_usage)
-                CS->>WS: read cost-cursor.json (default {ts: null, total_cost_usd: 0.0, total_api_duration_ms: null} if absent — MAR-6 widens the cursor to 3 fields, one shared file) and cost-samples.jsonl
-                CS->>CS: after = newest sample with ts <= ended_at
-                alt no sample, or after.ts <= cursor.ts
-                    CS-->>Post: (role_usage unavailable, model_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="no_unconsumed_sample_in_window", api_duration_ms=null, api_duration_basis="unavailable", api_duration_scope="no_unconsumed_sample_in_window")
-                else delta = after.total_cost_usd - cursor.total_cost_usd is negative
-                    CS->>WS: advance cursor to after (charge nothing — total_api_duration_ms carried onto the cursor regardless)
-                    CS-->>Post: (role_usage unavailable, model_usage unavailable, cost_usd=null, cost_basis="unavailable", cost_scope="cost_total_reset", api_duration_ms=null, api_duration_basis="unavailable", api_duration_scope="cost_total_reset" -- MAR-6, a cost reset marks BOTH quantities unavailable for this charge)
-                else delta >= 0
-                    CS->>CS: apportion delta across role_usage by token share (denominator = ALL in-window tokens, incl. unattributed) — unattributed entries receive no dollar share
-                    CS->>CS: _apportion_models applies the SAME delta to model_usage by token share across ALL in-window tokens, no unattributed exclusion (D1.2 Option A)
-                    CS->>WS: advance cursor to after (total_cost_usd and total_api_duration_ms together, one write)
-                    CS-->>Post: (role_usage apportioned, model_usage apportioned, cost_usd=attributed-token share of delta (delta net of excluded_cost_usd), cost_basis="measured", cost_scope="session_total", excluded_cost_usd, excluded_token_share)
-                    alt cursor_duration and after_duration both numeric, and duration_delta = after_duration - cursor_duration >= 0 (MAR-6)
-                        CS->>CS: _apportion_duration applies duration_delta to role_usage by the identical token-share mechanism as cost (same denominator, same UNATTRIBUTED_ROLE exclusion)
-                        CS-->>Post: (api_duration_ms=attributed-token share of duration_delta, api_duration_basis="apportioned", api_duration_scope="session_total")
-                    else either edge missing/non-numeric, or duration_delta negative
-                        CS-->>Post: (role_usage's api_duration_ms/api_duration_basis degraded to null/"unavailable" — api_duration_ms=null, api_duration_basis="unavailable", api_duration_scope="duration_unavailable_on_cursor" -- no cost-side analogue, cost proceeds unaffected)
-                    end
-                end
-                Post->>WS: persist tokens, role_usage, model_usage, cost_usd, cost_basis, cost_scope, excluded_cost_usd, excluded_token_share, api_duration_ms, api_duration_basis, api_duration_scope (MAR-6)
-            end
+            Post->>WS: persist role_usage, model_usage, and tokens summed from role_usage
         end
     end
-    Post->>WS: compute_ticket_totals / update_metrics -- exclude None-elapsed and non-measured/apportioned cost contributions from sums, increment runs_timed/runs_untimed and runs_cost_measured/runs_cost_unavailable for every run regardless -- MAR-6 additionally sums api_duration_ms and increments runs_api_duration_measured/runs_api_duration_unavailable by the identical rule
+    Post->>WS: update_metrics -- invocations, working_seconds (a None-elapsed run is excluded from the sum), runs_timed/runs_untimed, tokens by class
 ```
 
 ## Sequence diagram — read/render path
@@ -98,23 +63,22 @@ sequenceDiagram
     participant CC as Claude Code runtime
     participant Usage as /acs:usage or /acs:metrics coordinator
     participant Agg as metrics_aggregate.py
-    participant WS as Workspace (run entries, totals)
+    participant WS as Workspace (run.json, step state, metrics.json)
     participant Render as metrics_render.py
 
     PM->>CC: /acs:usage (or /acs:metrics)
     CC->>Usage: expand skill, run coordinator
     Usage->>Agg: python3 metrics_aggregate.py
-    Agg->>WS: read pipeline-state.json + <skill>-state.json runs, per ticket
-    WS-->>Agg: run entries -- tokens, role_usage, model_usage, cost_usd or null, cost_basis, cost_scope
+    Agg->>WS: read run.json + steps/<skill>/state.json invocations, per ticket, and metrics.json
+    WS-->>Agg: invocations -- started_at/ended_at, tokens, role_usage, model_usage
     Agg->>Agg: elapsed_seconds via acs_lib -- None renders "no data", never 0
-    Agg->>Agg: sum totals excluding cost_basis != measured/apportioned and None-elapsed runs, divide by runs_timed / runs_cost_measured, never by runs
-    Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket, and every model_usage entry into usage_by_model by model, at both repo and per-ticket scope (MAR-3), plus each entry's own api_duration_ms/api_duration_basis/wall-clock seconds into a per-skill raw duration accumulator feeding panel 3's step_api_duration and usage_by_ticket.skills[] (MAR-7, zero extra file reads)
-    Agg->>Agg: _apply_panel6_shares computes repo-scope token_share_pct/cost_share_pct on every panel-6 bucket, once, post-loop, and _usage_by_ticket_panel finalizes ticket-scope role shares into the new usage_by_ticket panel (MAR-4)
-    Agg-->>Usage: aggregate JSON -- panels 1-7 (panel 3 widened with step_api_duration/step_order per ticket, MAR-7) plus usage_by_model plus usage_by_ticket (widened with ticket-scope api_duration_ms/api_duration_basis and a skills[] array, MAR-7) plus meta.degraded entries
+    Agg->>Agg: working-time averages divide metrics.json's working_seconds by the ticket count and by the merged-PR count -- no data when either is zero
+    Agg->>Agg: _accumulate_burn buckets every role_usage entry into panel 6 by role, including a first-class coordinator bucket, every model_usage entry into usage_by_model by model, at both repo and per-ticket scope, and each entry's wall-clock seconds into a per-skill accumulator for usage_by_ticket.skills[] (zero extra file reads)
+    Agg->>Agg: _apply_panel6_shares computes repo-scope token_share_pct once, post-loop, and _usage_by_ticket_panel finalizes ticket-scope token shares
+    Agg-->>Usage: aggregate JSON -- panels 1-7 plus usage_by_model plus usage_by_ticket plus meta.degraded entries, with no cost or API-duration key even when an older run entry carries one
     Usage->>Render: pipe JSON, render the requested view
-    Render->>Render: _humanize_seconds / _fmt_money render None/non-numeric as "no data" — _humanize_ms (MAR-7) converts a millisecond duration to seconds and delegates to _humanize_seconds, and a step_api_duration cell renders the literal UNAVAILABLE marker uniformly whether that skill's entry is structurally absent or present with basis unavailable (D6), never a bare "no data" at this per-skill scope
-    Render-->>Usage: self-contained HTML
-    Usage-->>PM: show_widget -- dashboard with basis-labeled figures and a degraded summary
+    Render-->>Usage: terminal text or self-contained HTML
+    Usage-->>PM: the dashboard, tokens and wall-clock time only, with a degraded summary
 ```
 
 No write, lock, or gate involvement on the read/render path — it is a pure
@@ -129,7 +93,7 @@ function of workspace JSON already written by the measure/persist path above.
 `checkout_id` (from `build_context`), `hook_event_name`, and the skill name
 read from `tool_input.skill` — never a constructed or guessed value.
 
-**Two conditions gate it, and both were added after this diagram was drawn.**
+**Two conditions gate it, and both were added after this diagram was first drawn.**
 `run_pre_payload` takes `record_marker`, which `acs gate` passes as `False`:
 `gate` answers "would this pass?" and is not a `PreToolUse` event, so routing
 it through the hook path used to rewrite the marker with a null `session_id`
@@ -137,69 +101,61 @@ and cost the NEXT run its attribution. And the root guard declines to
 overwrite a marker that already carries a `session_id` with a payload that
 does not. So a missing field is written as `null` only when the write happens
 at all; where either condition declines, nothing is written. The marker call sits **between**
-`build_context` and the skill's own `GATES[skill]` check inside `run_pre`,
+`build_context` and the skill's own `GATES[skill]` check inside `run_pre_payload`,
 wrapped in its own `try/except Exception: pass`, so a bug in the marker path
-can never turn `run_pre`'s outer fail-closed handler (exit 2) into a blocked
+can never turn the outer fail-closed handler (exit 2) into a blocked
 pipeline over an unrelated audit-trail write.
 
-### Measure/persist — threading onto the run entry (skill-start)
+### Measure/persist — threading onto the invocation
 
-`skill-start.py` reads the marker as its first action after
-`build_context(cwd)`, before the `--pr` resume branch. It accepts the marker
+`acs_lib.accepted_session_marker` is the accept rule: it takes the marker
 only when `marker.checkout_id` matches the current checkout **and** the
 marker is no older than 15 minutes (bounded by the pre-hook's own 30s/25s
-timeouts) — a rejected or stale marker means `session_id = null` on the new
-run entry, which `usage_reader` treats as `degraded, reason="no_session_marker"`
-at finalize time. It never falls back to constructing a path.
+timeouts). `append_invocation` takes an accepted marker as `session` and
+copies `session_id`/`transcript_path`/`checkout_id` onto the open invocation.
+A rejected or stale marker means `session_id = null` on the invocation, which
+`usage_reader` treats as `degraded, reason="no_session_marker"` at finalize
+time. It never falls back to constructing a path.
 
-### Measure/persist — statusLine sampling (opt-in, continuous)
+**Known gap.** Neither opener passes `session` today — not the pre-hook's
+`_mark_step_started`, and not `acs step start` — so a live invocation reaches
+`finalize_invocation` without a `session_id` and takes the no-transcript
+branch of the diagram above. The accept rule and the copy are implemented
+and tested on their own; the call that joins them is missing.
 
-Every `statusline.py` invocation — independent of whether a ticket exists
-yet — probes its stdin payload for a `total_cost_usd`-shaped value at four
-candidate locations, in order, and records which one matched (`src`). No
-match means no sample is written; this is expected, not an error, on any
-payload shape the probe does not recognize. The sample log is append-only
-JSONL, rotated once it exceeds 64 KiB (keeping the most recent half-budget
-of lines).
+### Measure/persist — token measurement (post-hook)
 
-### Measure/persist — token measurement and cost allocation (post-hook)
-
-`finalize_run` short-circuits before any transcript I/O when the run entry
-carries no `session_id`/`transcript_path` — this is deliberate: `new-ticket.py`
-synthesizes and immediately finalizes a `create-ticket` run per epic child
-with no session, and an unguarded scan would run once per child. When a
-session is present, `usage_reader.read_transcript_usage` reads the exact
-recorded file plus a recursive walk of its `subagents/` subtree — never a
-`*.meta.json` sidecar, since only `*.jsonl` paths are ever enumerated — and
-returns per-role token buckets or a degraded reason. `usage_reader` now
-buckets by model as well as by role (`model_usage`, parallel to
-`role_usage`, MAR-3); `cost_sampler.allocate_cost` apportions the same
-session-window delta across both dimensions independently — the
-role-scoped figure stays attributed-only, while the model-scoped figure is
-full-delta with no unattributed exclusion (D1.2 Option A). It also
-consumes at most the unconsumed portion of the sample log since the
-persisted cursor: the cursor is always the "before" edge, so a sample once
-consumed can never again serve as another run's charge (the structural
-no-double-charge invariant). A negative delta (a session cost reset) charges
-nothing but still advances the cursor.
+`finalize_invocation` calls `_measure_run_usage`, which short-circuits before
+any transcript I/O when the invocation carries no `session_id`/
+`transcript_path` — deliberately: `new-ticket.py` synthesizes and immediately
+finalizes a `create-ticket` run per epic child with no session, and an
+unguarded scan would run once per child. When a session is present,
+`usage_reader.read_transcript_usage` reads the exact recorded file plus a
+recursive walk of its `subagents/` subtree — never a `*.meta.json` sidecar,
+since only `*.jsonl` paths are ever enumerated — and returns per-role and
+per-model token buckets (`role_usage`, `model_usage`, MAR-3) or a degraded
+reason. Unattributed same-window tokens land in an `unattributed` role
+bucket rather than inflating an attributed role (C-8); the reader also
+reports `excluded_token_share`, which the invocation does not persist. A
+degraded read records empty token counts, never a fabricated figure.
 
 ### Read/render — never a second source of truth
 
-`metrics_aggregate.py` reads only already-finalized run entries; it performs
-no transcript or statusLine I/O of its own and writes nothing. Panel 6 sums
-each run entry's `role_usage` list directly — the `coordinator` bucket
+`metrics_aggregate.py` reads only already-finalized invocations; it performs
+no transcript I/O of its own and writes nothing. Panel 6 sums each
+invocation's `role_usage` list directly — the `coordinator` bucket
 (main-session work attributed to **the run's own skill**) surfaces exactly
 like `planner`/`executor`/`verifier`/`other`, and an `unattributed` bucket
-(present when `excluded_token_share` is nonzero) is visible rather than
-silently absorbed into an attributed role's total; it also absorbs
-main-session records attributed to a different acs skill than the run's own,
-not just records with no attribution at all. `usage_by_model` (MAR-3) sums
-each run entry's `model_usage` list similarly, at both repo and per-ticket
-scope, with no exclusion applied — its `cost_usd` total is therefore the
-full-delta figure, not the attributed-only one panel 6 reports. `_apply_panel6_shares`
-(MAR-4) computes each panel-6 bucket's `token_share_pct`/`cost_share_pct` as a
-repo-scope percentage of the already-summed totals, once, after the
-accumulation loop — never persisted, always recomputed on the next read;
-`usage_by_ticket` (MAR-4) similarly derives each role's ticket-scope share
-from the same per-ticket `role_usage` rows panel 6 already sums, so it
-reports a different (ticket-local) denominator, not a conflicting figure.
+is visible rather than silently absorbed into an attributed role's total; it
+also absorbs main-session records attributed to a different acs skill than
+the run's own, not just records with no attribution at all.
+`usage_by_model` (MAR-3) sums each invocation's `model_usage` list similarly,
+at both repo and per-ticket scope. `_apply_panel6_shares` (MAR-4) computes
+each panel-6 bucket's `token_share_pct` as a repo-scope percentage of the
+already-summed totals, once, after the accumulation loop — never persisted,
+always recomputed on the next read; `usage_by_ticket` (MAR-4) similarly
+derives each role's ticket-scope share from the same per-ticket `role_usage`
+rows panel 6 already sums, so it reports a different (ticket-local)
+denominator, not a conflicting figure. A cost or API-duration field that an
+invocation, `run.json` or `metrics.json` written before ADR 0103 still
+carries is ignored, never summed or rendered.

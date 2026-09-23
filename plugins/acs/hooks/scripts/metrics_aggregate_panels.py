@@ -8,7 +8,7 @@ already-loaded ticket rows into one panel value. None of them reads the disk.
 
 import acs_lib  # noqa: E402
 
-from metrics_aggregate_common import _is_number, _parse_due_date, _safe_avg
+from metrics_aggregate_common import _parse_due_date
 
 
 
@@ -281,11 +281,10 @@ def _deadline_panel(tickets_with_due, now_date, degrade):
     return {"rows": rows, "rollup": rollup}
 
 
-def _usage_summary_panel(totals, prs, panel3_averages, ticket_count):
+def _usage_summary_panel(totals, prs, panel3_averages):
     """Build the usage_summary panel from already-computed totals and panel3 averages (spec 01:251-269).
 
     Keys:
-      total_cost_usd                  — float from totals.cost_usd (or 0.0).
       total_tokens_input               — int from totals.tokens.input (or 0).
       total_tokens_output              — int from totals.tokens.output (or 0).
       total_runs                       — int from totals.runs (or 0).
@@ -293,21 +292,13 @@ def _usage_summary_panel(totals, prs, panel3_averages, ticket_count):
       prs_merged                       — int from prs.merged (or 0).
       avg_working_seconds_per_ticket   — from panel3_averages (float or "no data").
       avg_working_seconds_per_pr       — from panel3_averages (float or "no data").
-      avg_cost_per_ticket              — from panel3_averages (float or "no data").
-      avg_cost_per_pr                  — from panel3_averages (float or "no data").
-      total_api_duration_ms            — float from totals.api_duration_ms (or 0.0, MAR-7).
-      avg_api_duration_ms_per_ticket   — total_api_duration_ms / ticket_count (or "no data", MAR-7).
-      avg_api_duration_ms_per_pr       — total_api_duration_ms / prs_merged (or "no data", MAR-7).
 
-    No meta.degraded entry (degrades to zeros, never absent).
+    No dollar-cost or API-duration figure (ADR-0103), even when an older metrics.json still
+    carries one. No meta.degraded entry (degrades to zeros, never absent).
     """
     t = totals if isinstance(totals, dict) else {}
     tokens = t.get("tokens", {})
     tokens = tokens if isinstance(tokens, dict) else {}
-
-    total_cost_usd = t.get("cost_usd", 0.0)
-    if not _is_number(total_cost_usd):
-        total_cost_usd = 0.0
 
     total_tokens_input = tokens.get("input", 0)
     if not isinstance(total_tokens_input, int) or isinstance(total_tokens_input, bool):
@@ -330,12 +321,7 @@ def _usage_summary_panel(totals, prs, panel3_averages, ticket_count):
 
     avgs = panel3_averages if isinstance(panel3_averages, dict) else {}
 
-    total_api_duration_ms = t.get("api_duration_ms", 0.0)
-    if not _is_number(total_api_duration_ms):
-        total_api_duration_ms = 0.0
-
     return {
-        "total_cost_usd": total_cost_usd,
         "total_tokens_input": total_tokens_input,
         "total_tokens_output": total_tokens_output,
         "total_runs": total_runs,
@@ -343,9 +329,4 @@ def _usage_summary_panel(totals, prs, panel3_averages, ticket_count):
         "prs_merged": prs_merged,
         "avg_working_seconds_per_ticket": avgs.get("avg_working_seconds_per_ticket", "no data"),
         "avg_working_seconds_per_pr": avgs.get("avg_working_seconds_per_pr", "no data"),
-        "avg_cost_per_ticket": avgs.get("avg_cost_per_ticket", "no data"),
-        "avg_cost_per_pr": avgs.get("avg_cost_per_pr", "no data"),
-        "total_api_duration_ms": total_api_duration_ms,
-        "avg_api_duration_ms_per_ticket": _safe_avg(total_api_duration_ms, ticket_count),
-        "avg_api_duration_ms_per_pr": _safe_avg(total_api_duration_ms, prs_merged),
     }

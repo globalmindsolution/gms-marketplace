@@ -22,8 +22,8 @@
 - **Writes**: temp-file + `os.replace` (atomic); counters guarded by an
   `O_EXCL` spin lock; corrupt JSON read as "absent", reported, never fatal.
 - **Failure policy**: gates fail **closed**; helper CLIs exit 2 with
-  actionable stderr; status-line scripts fail **open** (fallback line) —
-  observability must never block work.
+  actionable stderr; token measurement (session marker, transcript read)
+  fails **open** — observability must never block work.
 - **Python compatibility**: 3.9+ (no `match`, no `X | Y` unions); `python3`
   on PATH is the only assumption.
 - **Docs altitude**: requirements (`docs/0*.md`) → PRD (`docs/product/`) →
