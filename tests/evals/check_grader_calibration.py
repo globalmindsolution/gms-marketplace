@@ -1,4 +1,7 @@
-"""Every free grader in the setup and artifact suites, calibrated.
+"""Every free grader in the setup and artifact suites, calibrated -- locally.
+
+Local-only like everything under tests/evals/ (ADR-0108): run by the
+`acs-eval-checks` pre-commit hook and the release gate, never by CI.
 
 A grader that cannot fail proves nothing, and one that cannot pass reads as a
 plugin failure forever. So for each case this test builds the case's real
@@ -37,7 +40,8 @@ import sys
 import tempfile
 import unittest
 
-TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS_ACS = HERE  # the strict case reader lives beside these checks
 sys.path.insert(0, TESTS_ACS)
 import eval_cases as ec  # noqa: E402
 

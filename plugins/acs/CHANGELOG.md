@@ -362,6 +362,22 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **Nothing about the eval suite runs in CI** (ADR-0108, extends ADR-0022).
+  - **The free eval checks moved out of CI discovery.** Case shape and coverage,
+    grader calibration, the gate's own tests, and four probe-expectation classes
+    that were buried in doc tests moved from `tests/acs/` to
+    `tests/evals/check_*.py`. CI's `unittest discover -s tests` never loads that
+    directory.
+  - **No CI test reads the case files.** The strict case reader moved with the
+    checks. Doc tests that pinned the routing-coverage count now derive it from
+    the shipped skills.
+  - **The checks run locally.** The new `acs-eval-checks` pre-commit hook fires
+    when a commit touches the suite, a skill, the hook scripts, the schemas or
+    the gate. CI's pre-commit job skips it. The release gate still runs the
+    checks first.
+  - **Migration:** none for consumers. Contributors run `pre-commit install`
+    once per clone to get the hook.
+
 - **Routing is graded on the first move and gated by skill, not by prompt**
   (ADR-0107).
   - **The old gate could not pass.** It ran every routing case at the CLI's

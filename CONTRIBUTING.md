@@ -24,12 +24,15 @@ run day to day:
 
 ```bash
 python3 -m unittest discover -s tests -v          # deterministic + contract suites (free)
-python3 -m unittest tests.acs.test_eval_cases     # every eval case well-formed (free; part of the above)
+python3 -m unittest discover -s tests/evals -p 'check_*.py'   # eval-suite checks (free, local only)
 cd plugins/acs && claude plugin eval . --case route-code --runs 1 --ablation none   # one eval case ($)
 ```
 
-- The **free** layer gates every PR (CI). It includes a structural check of the
-  eval suite, because the eval CLI itself never runs in CI.
+- The **free** layer gates every PR (CI). It does not include the eval suite:
+  nothing about evals runs in CI (ADR-0108). The eval-suite checks under
+  `tests/evals/` run locally instead — the `acs-eval-checks` pre-commit hook
+  fires when a commit touches the suite, a skill or the gate, and the release
+  gate runs them first. Install the hooks once per clone: `pre-commit install`.
 - The **paid** eval suite is `claude plugin eval` case files at
   [`plugins/acs/evals/`](plugins/acs/evals/README.md). Run a case or two while
   you change a skill's `description` — that is what the routing cases measure —

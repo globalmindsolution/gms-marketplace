@@ -10,4 +10,4 @@ placeholder ticket.json whose `acceptance_criteria` is `[]` -- and whose id,
 type (`--type task`) and `needs_design: false` already satisfy the three
 graders above. Without this grader and the title one, a run that started the
 skill and then wrote nothing would pass. The grader calibration test
-(tests/acs/test_eval_grader_calibration.py) plays exactly that run.
+(tests/evals/check_grader_calibration.py) plays exactly that run.

@@ -1,5 +1,8 @@
 """scripts/eval_gate.py -- the release gate's judgement of a routing run.
 
+Local-only like everything under tests/evals/ (ADR-0108): run by the
+`acs-eval-checks` pre-commit hook and the release gate, never by CI.
+
 Every result here is synthetic, shaped like the `--json` file `claude plugin
 eval` writes (schema version 1: `cases[].arms.with[].score`), and named after
 the REAL routing cases, because the gate maps a case to its skill and kind by
@@ -17,8 +20,9 @@ import sys
 import tempfile
 import unittest
 
-TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_ACS))
+HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS_ACS = HERE  # the strict case reader lives beside these checks
+REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, TESTS_ACS)
 import eval_cases as ec  # noqa: E402
 

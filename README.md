@@ -112,7 +112,7 @@ gate — the commands `release.pre_release_gate` in
 order and stops at the first failure:
 
 ```bash
-python3 -m unittest tests.acs.test_eval_cases tests.acs.test_eval_gate   # free: every eval case well-formed, every skill covered
+python3 -m unittest discover -s tests/evals -p 'check_*.py'   # free: every eval case well-formed, every skill covered
 claude plugin eval plugins/acs --tag description --tag negative --tag control \
   --ablation none --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
   --trust-plugin --no-publish --max-cost-usd 40   # PAID: does each prompt reach the right skill?

@@ -43,8 +43,8 @@ PRECOMMIT_YAML = os.path.join(REPO_ROOT, ".pre-commit-config.yaml")
 #: Every `files:` glob the retired acs-free-evals hook ever carried, oldest
 #: first. History: NOT rewritten when anything moves. The hook ran the
 #: behavioural harness's free tier on commit; the harness was retired when the
-#: eval suite moved to `claude plugin eval` case files, whose free check is a
-#: unit test (tests/acs/test_eval_cases.py) that CI already runs.
+#: eval suite moved to `claude plugin eval` case files, whose free checks run
+#: locally (tests/evals/, the acs-eval-checks hook), never in CI (ADR-0108).
 RETIRED_EVAL_GLOBS = (
     "^(evals/|plugins/)",
     "^(evals/|src/acs/)",

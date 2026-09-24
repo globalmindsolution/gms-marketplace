@@ -47,7 +47,7 @@ import os
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "evals"))
 import eval_cases  # noqa: E402  (the strict case reader the free tests use)
 
 #: The `--json` result schema this script was written against (claude 2.1.x).

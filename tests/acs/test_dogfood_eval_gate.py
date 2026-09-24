@@ -43,7 +43,6 @@ SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import eval_cases  # noqa: E402  (the case files are the probe set)
 
 import acs_lib as lib  # noqa: E402
 
@@ -182,18 +181,6 @@ class SettingsShapeTest(unittest.TestCase):
             post_code_test_gate({"post_code_test": {"enabled": False}, "e2e": {"command": "x"}}),
             "off",
         )
-
-
-
-def _routing_probed_skills():
-    """The set of skills the routing cases probe.
-
-    Parsed out of s04_skill_triggers.py once, then read from a routing dataset;
-    both are gone, and the case files under plugins/acs/evals/ are the probe set.
-    Derived rather than pinned so that adding a skill's case cannot leave the
-    roadmap's claim behind -- the rot this assertion existed to catch, twice.
-    """
-    return {p["skill"].split(":", 1)[1] for p in eval_cases.probe_dicts()}
 
 
 

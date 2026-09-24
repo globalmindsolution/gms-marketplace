@@ -5,7 +5,7 @@ one green.
 
 The layers below this one are cheap and already complete: structure is 28 of
 32, gating 17 of 17 hooked, routing 32 of 32 (enforced mechanically by
-`tests/acs/test_eval_cases.py`). They prove that a skill *ships*,
+`tests/evals/check_cases.py`, run locally). They prove that a skill *ships*,
 that it *refuses* what it must, and that a request *reaches* it. None of them
 proves it **produced the right thing** — and that is the only layer a user
 would notice missing.

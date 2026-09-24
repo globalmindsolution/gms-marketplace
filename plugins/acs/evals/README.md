@@ -112,8 +112,9 @@ routing case here has exactly one.
 `release.pre_release_gate` in `.acs/settings.json` runs three commands, and the
 first non-zero exit stops the cut ([ADR-0107](../../../docs/adr/0107-routing-gated-by-skill-not-by-prompt.md)):
 
-1. `python3 -m unittest tests.acs.test_eval_cases tests.acs.test_eval_gate` —
-   free: a malformed case fails before anything is spent.
+1. `python3 -m unittest discover -s tests/evals -p check_*.py` — free: a
+   malformed case, or a grader that cannot fail, stops the cut before anything
+   is spent.
 2. `claude plugin eval plugins/acs --tag description --tag negative --tag
    control --ablation none --threshold 0 --json …` — the paid run. `--threshold
    0` stops the CLI from judging; the result goes to a file.
@@ -150,12 +151,13 @@ baseline (Phase 2 below). A rate is only worth what the baseline behind it is.
 ## How the graders are shown to be right
 
 A grader is trusted only after it has passed four checks. Two are free and run
-on every PR. Two are paid and **have not been done yet**.
+locally — never in CI (see [Not in CI](#not-in-ci)). Two are paid and **have not
+been done yet**.
 
 | Check | What it proves | Where | Status |
 |---|---|---|---|
-| Well-formed | every case and grader uses keys and values the CLI accepts; every routing regex matches its own skill, bare and qualified, and no other shipped skill | `tests/acs/test_eval_cases.py` | free, every PR |
-| Calibrated | every free grader in `setup/` and `artifacts/` passes an ideal run and at least one fails each bad run, built from the case's real scaffold and the plugin's real writers and graded the way the CLI grades | `tests/acs/test_eval_grader_calibration.py` | free, every PR |
+| Well-formed | every case and grader uses keys and values the CLI accepts; every routing regex matches its own skill, bare and qualified, and no other shipped skill | `tests/evals/check_cases.py` | free, local |
+| Calibrated | every free grader in `setup/` and `artifacts/` passes an ideal run and at least one fails each bad run, built from the case's real scaffold and the plugin's real writers and graded the way the CLI grades | `tests/evals/check_grader_calibration.py` | free, local |
 | Can fail | each case scores lower against a deliberately broken plugin — a skill removed, a description blanked, a known bug put back | a paid run | **not done** |
 | Judge agrees | each `llm` grader's verdict matches a human's on hand-labelled transcripts | a paid run with `--judge-model sonnet` | **not done** |
 
@@ -205,7 +207,7 @@ Every `llm` grader also fails a reply that asks for a ticket prefix or a
 workspace location, which setup no longer asks about. Use `--judge-model
 sonnet`: the default judge is a small model.
 
-The free graders are calibrated by `test_eval_grader_calibration.py` (above).
+The free graders are calibrated by `tests/evals/check_grader_calibration.py` (above).
 The `llm` graders have not been piloted, and neither has any case end to end:
 that needs a host where `--allow-tools Bash` works (see artifacts/README.md).
 Pilot with `--runs 1 --no-publish` first.
@@ -233,16 +235,31 @@ Pilot with `--runs 1 --no-publish` first.
 
 ## Not in CI
 
-ADR-0022: behavioural and LLM evals never run in CI, and these cases spawn real
-sessions that cost money. The invariant is a grep that must return nothing:
+Nothing about this suite runs in CI — not the CLI, which spawns real sessions
+that cost money (ADR-0022), and not the free checks either (ADR-0108). The
+invariant is a grep that must return nothing:
 
 ```bash
-grep -rn "run_evals\|evals/behavioural/\|plugin eval" .github/workflows/
+grep -rn "run_evals\|evals/behavioural/\|plugin eval\|tests/evals" .github/workflows/
 ```
 
-What does run free on every PR is `tests/acs/test_eval_cases.py`, which parses
-these files and checks their shape and coverage: every shipped skill has a
-case, no case names a skill that is not shipped, every grader is well-formed.
-The CLI itself never runs in CI, so that test is the only thing that catches a
-malformed case before someone pays to discover it.
-`test_eval_grader_calibration.py` and `test_eval_gate.py` run free beside it.
+The free checks live in `tests/evals/`, named `check_*.py` so that CI's
+`unittest discover -s tests` never loads them, and no test under `tests/acs/`
+reads these case files:
+
+| Check | Asserts |
+|---|---|
+| `check_cases.py` | every case and grader is well-formed; every shipped skill has a routing case and no case names one that does not ship; each routing regex matches its own skill and no neighbour; the routing conventions above hold |
+| `check_grader_calibration.py` | every free setup and artifact grader passes an ideal run and fails a bad one |
+| `check_gate.py` | `scripts/eval_gate.py` judges as the policy says, and the settings wire it |
+| `check_probe_expectations.py` | the per-skill probe expectations earlier tickets pinned (create-docs, standardize-project, run-e2e-tests, setup), and this README's tag counts |
+
+They run in two places:
+
+- **The `acs-eval-checks` pre-commit hook** — when a commit touches this suite,
+  a skill, the hook scripts, the schemas or the gate (`pre-commit install` once
+  per clone). CI's pre-commit job `SKIP`s it.
+- **The release gate's first step**, before anything is paid for.
+
+By hand: `python3 -m unittest discover -s tests/evals -p 'check_*.py'`
+(free, a few seconds).

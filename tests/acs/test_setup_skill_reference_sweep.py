@@ -57,7 +57,6 @@ CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
 sys.path.insert(0, HOOKS_SCRIPTS)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import eval_cases  # noqa: E402  (the case files are the probe set)
 import acs_lib  # noqa: E402
 
 XS_NS = "{http://www.w3.org/2001/XMLSchema}"
@@ -450,10 +449,9 @@ T2_T3_SETUP_PATHS = (
     "docs/requirements/non-functional/portability.md",
     "docs/requirements/non-functional/security.md",
     "tests/acs/fixtures/mar145_clause_inventory.json",
-    # The eval layer. Four behavioural-harness files stood here; the harness
-    # was retired when the suite moved to `claude plugin eval` case files, and
-    # the one of those that must name the skill is its routing case's grader.
-    "plugins/acs/evals/routing/route-setup/graders/routes-to-setup.md",
+    # The eval layer's one entry, the route-setup routing grader, is checked
+    # with the other eval expectations in tests/evals/check_probe_expectations.py:
+    # evals left CI (ADR-0108).
 )
 
 SETUP_LITERAL_RE = re.compile(r"/acs:setup|(?<![A-Za-z0-9_-])setup(?![A-Za-z0-9_-])")
@@ -650,24 +648,6 @@ class ChangelogAddOnlyTest(unittest.TestCase):
             deleted, "0",
             "plugins/acs/CHANGELOG.md diff must have zero deleted lines, "
             "got: %s" % output)
-
-
-class EvalTriggerCaseTest(unittest.TestCase):
-    """AC-5: no routing probe expects the stale skill literal "init".
-
-    The probe set moved out of s04_skill_triggers.py's CASES list and into
-    the routing case files under plugins/acs/evals/ when routing
-    consolidated onto the `claude plugin eval` suite. The assertion is unchanged: `init` was renamed
-    to `setup`, and a probe still naming the old literal asserts a skill that
-    does not ship."""
-
-    def test_eval_trigger_case_expects_setup(self):
-        expected_skills = sorted({p["skill"].split(":", 1)[1]
-                                  for p in eval_cases.probe_dicts()})
-        self.assertNotIn(
-            "init", expected_skills,
-            "a probe expects the stale skill literal \"init\" -- expected "
-            "\"setup\" (got expected-skill values: %s)" % expected_skills)
 
 
 class GitignoredPathsNotSweptTest(unittest.TestCase):

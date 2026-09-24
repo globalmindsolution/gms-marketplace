@@ -1,10 +1,13 @@
-"""The plugin's `claude plugin eval` suite, checked for free on every PR.
+"""The plugin's `claude plugin eval` suite, checked for free -- locally.
 
-The CLI never runs in CI (ADR-0022: evals that spawn sessions stay local), so
-nothing else catches a malformed case before someone pays to run it -- and the
-CLI reports an unknown frontmatter key, a bad grader type or a case that fails
-to load only at run time. These tests read the case files as data
-(tests/acs/eval_cases.py) and assert three things:
+Nothing about the eval suite runs in CI (ADR-0022, ADR-0108): this module is
+named `check_*.py` under tests/evals/ so `unittest discover -s tests` never
+loads it. It runs from the `acs-eval-checks` pre-commit hook when a commit
+touches the suite or a skill, and as the release gate's first step. Nothing
+else catches a malformed case before someone pays to run it -- the CLI reports
+an unknown frontmatter key, a bad grader type or a case that fails to load only
+at run time. These tests read the case files as data
+(tests/evals/eval_cases.py) and assert three things:
 
 1. SHAPE -- every case and grader uses only the keys and values the reference
    (https://code.claude.com/docs/en/plugin-evals) documents.
@@ -27,7 +30,8 @@ import stat
 import sys
 import unittest
 
-TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.abspath(__file__))
+TESTS_ACS = HERE  # the strict case reader lives beside these checks
 sys.path.insert(0, TESTS_ACS)
 import eval_cases as ec  # noqa: E402
 

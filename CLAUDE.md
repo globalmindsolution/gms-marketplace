@@ -39,7 +39,7 @@ to any relative path introduced into that file.
 
 ```bash
 # Eval suite (see "Two grading layers") — free checks, then paid runs
-python3 -m unittest tests.acs.test_eval_cases tests.acs.test_eval_gate tests.acs.test_eval_grader_calibration  # $0
+python3 -m unittest discover -s tests/evals -p 'check_*.py'   # $0, local only: also the acs-eval-checks pre-commit hook
 cd plugins/acs && claude plugin eval . --tag routing --ablation none --runs 1   # PAID smoke, 1 run each
 cd plugins/acs && claude plugin eval . --tag routing --ablation none            # PAID, 3 runs each
 claude plugin eval acs@gms-marketplace --tag routing --ablation none           # the INSTALLED build
@@ -83,12 +83,16 @@ they are rendered from and no generator.
 Edit a case by editing its files. `plugins/acs/evals/README.md` is the reference for tags,
 grading, and the suite's known limits — read it before quoting a number.
 
-Because the CLI never runs in CI, `tests/acs/test_eval_cases.py` is the only thing that catches
-a malformed case before a paid run does. It parses every case (through the strict reader in
-`tests/acs/eval_cases.py`) and fails on an undocumented key, a bad grader type, a `max: 0`
-without `min: 0`, an `input_match` that doesn't match its own skill's tool input or does match
-a neighbour's, and any shipped skill without a routing case. The release gate runs it first,
-so a broken case fails for free before any session is paid for.
+**Nothing about the eval suite runs in CI** (ADR-0022, ADR-0108) — not the CLI, not the free
+checks. The free checks live in `tests/evals/` as `check_*.py`, a name `unittest discover -s tests`
+never loads, and run locally: the `acs-eval-checks` pre-commit hook fires when a commit touches the
+suite, a skill, the hook scripts or the gate (CI's pre-commit job `SKIP`s it), and the release gate
+runs them first. `check_cases.py` is the only thing that catches a malformed case before a paid run
+does: it parses every case (through the strict reader in `tests/evals/eval_cases.py`) and fails on
+an undocumented key, a bad grader type, a `max: 0` without `min: 0`, an `input_match` that doesn't
+match its own skill's tool input or does match a neighbour's, and any shipped skill without a
+routing case. `check_grader_calibration.py` proves each free setup/artifact grader can pass and fail;
+`check_gate.py` tests `scripts/eval_gate.py`. No test under `tests/acs/` reads the eval case files.
 
 **Source vs installed build** is a first-class distinction. A *path* target
 (`claude plugin eval plugins/acs`) grades this checkout; the *named* target
@@ -105,8 +109,8 @@ the suite README: an explicit `/acs:<skill>` invocation is not reliably observab
 expanded before any model turn, so no `Skill` call happens), and three routing prompts presuppose
 context the empty eval workspace lacks.
 
-**Behavioural and LLM evals never run in CI** (ADR-0022). The invariant is a grep that must keep
-returning nothing: `grep -rn "run_evals\|evals/behavioural/\|plugin eval" .github/workflows/`.
+**No eval runs in CI** (ADR-0022, ADR-0108). The invariant is a grep that must keep
+returning nothing: `grep -rn "run_evals\|evals/behavioural/\|plugin eval\|tests/evals" .github/workflows/`.
 
 ### Inside the plugin
 

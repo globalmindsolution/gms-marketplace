@@ -57,7 +57,7 @@ measures and does not judge. Then `scripts/eval_gate.py` applies the policy:
 The two rates are **provisional**. They come from arithmetic, not data, and are
 to be re-set from the first three-run baseline.
 
-**Free graders are calibrated in CI.** `tests/acs/test_eval_grader_calibration.py`
+**Free graders are calibrated for free.** `tests/evals/check_grader_calibration.py` (run locally, never in CI — [ADR-0108](0108-evals-never-run-in-ci.md))
 works on every `setup/` and `artifacts/` case:
 - It builds the case's real scaffold.
 - It plays an ideal run and one or more bad runs through the plugin's own

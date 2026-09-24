@@ -25,7 +25,6 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import eval_cases  # noqa: E402  (the case files are the probe set)
 import mermaid_lint  # noqa: E402
 
 FLOW_DOC = os.path.join(
@@ -291,86 +290,6 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertNotIn("twelve triad-keeping skills", hook_gated)
         self.assertIn("twelve authoring skills", hook_gated)
         self.assertIn("standardize-project", hook_gated)
-
-
-class RoutingProbeCaseTest(unittest.TestCase):
-    """AC-9: standardize-project's routing cases (no paid model call).
-
-    These parsed s04_skill_triggers.py's CASES/NEGATIVE lists, then read a
-    routing dataset; both are gone, and the case files under plugins/acs/evals/
-    are the probe set, read through tests/acs/eval_cases.py. The rule carried
-    through every move: counts the suite states about itself are DERIVED here
-    and never pinned, so a case change cascades to zero test edits. Applied to
-    the old dataset it found the description claiming 24 natural-language
-    probes when there were 26; the suite's README is where those counts live
-    now, so that is what is held to them."""
-
-    README = os.path.join(PLUGIN, "evals", "README.md")
-
-    @staticmethod
-    def _probes():
-        return eval_cases.probe_dicts()
-
-    @staticmethod
-    def _skill(probe):
-        return probe["skill"].split(":", 1)[1]
-
-    def test_standardize_project_case_present_and_internally_consistent(self):
-        probes = self._probes()
-        positives = [p for p in probes
-                     if p["must_route"] and self._skill(p) == "standardize-project"]
-        self.assertTrue(positives, "the suite must carry a standardize-project positive")
-        # ADR 0091 made this an internal leg, so its positive probe is the
-        # explicit command, and the description that used to be the positive is
-        # now the NEGATIVE -- the one that must NOT auto-route. The no-naming
-        # rule follows the description to where it lives.
-        self.assertEqual(
-            positives[0]["prompt"].strip(), "/acs:standardize-project",
-            "an internal leg's positive probe is the explicit command")
-        negatives = [p for p in probes
-                     if not p["must_route"] and self._skill(p) == "standardize-project"]
-        self.assertTrue(negatives, "an internal leg needs a no-auto-route negative case")
-        self.assertNotIn(
-            "standardize", negatives[0]["prompt"],
-            "the probe request must describe brownfield audit intent "
-            "without naming the skill")
-
-    def test_no_create_spec_routing_case(self):
-        for probe in self._probes():
-            self.assertNotEqual(self._skill(probe), "create-spec",
-                                "no case may route to the deleted create-spec")
-        # Nothing anywhere in the eval suite may mention the deleted skill
-        # (AC-1, scope extension): scan every file of it, not just the graders.
-        for dirpath, dirnames, filenames in os.walk(eval_cases.EVALS):
-            dirnames[:] = [d for d in dirnames if d != "results"]
-            for name in filenames:
-                path = os.path.join(dirpath, name)
-                with open(path, encoding="utf-8") as fh:
-                    self.assertNotIn(
-                        "create-spec", fh.read(),
-                        "%s references the deleted create-spec skill"
-                        % os.path.relpath(path, REPO_ROOT))
-
-    def test_readme_tag_counts_match_the_cases(self):
-        """The README's tag table is part of the suite: a stale count there is
-        how a reader forms a wrong belief about what it covers."""
-        with open(self.README, encoding="utf-8") as fh:
-            readme = fh.read()
-        cases = eval_cases.all_cases()
-        for tag in ("routing", "description", "explicit", "negative", "control",
-                    "artifacts", "setup"):
-            n = len([c for c in cases if tag in c.tags])
-            with self.subTest(tag=tag):
-                self.assertRegex(
-                    readme, r"\| `%s` \| [^|]*?\b%d\b" % (re.escape(tag), n),
-                    "README's %r row does not state the real count %d" % (tag, n))
-
-    def test_readme_does_not_claim_more_coverage_than_the_cases_carry(self):
-        shipped = set(eval_cases.shipped_skills())
-        probed = {self._skill(p) for p in self._probes()}
-        self.assertEqual(probed, shipped,
-                         "every shipped skill must have a case before the "
-                         "suite may be described as covering them")
 
 
 class ChangelogMar121EntryTest(unittest.TestCase):
