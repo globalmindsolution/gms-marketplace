@@ -10,7 +10,7 @@ description: >-
   all. The probe is unchanged; only its justification is.
 expected_outcome: Does not invoke acs:create-project.
 tags: [routing, negative]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

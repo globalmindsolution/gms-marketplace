@@ -36,7 +36,8 @@ cd plugins/acs && claude plugin eval . --case route-code --runs 1 --ablation non
   and read that README for tags and known limits before quoting a number.
 - The **pre-release gate** is `release.pre_release_gate` in
   [`.acs/settings.json`](.acs/settings.json): the free structural check, then
-  the routing suite, in that order. Run it before bumping `version` —
+  the routing suite, then `scripts/eval_gate.py` judging it by skill rather
+  than by prompt (ADR-0107), in that order. Run it before bumping `version` —
   see the [release runbook](docs/operations/release-runbook.md).
 
 ### Reproducing the *Tests & coverage* gate locally

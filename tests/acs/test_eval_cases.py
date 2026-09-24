@@ -159,6 +159,20 @@ class RoutingShapeTest(unittest.TestCase):
             with self.subTest(case=c.name):
                 self.assertEqual(c.fm.get("allowed_tools"), ["Skill"])
 
+    def test_routing_runs_are_one_turn(self):
+        """Only the model's FIRST move is the route. The grader counts Skill
+        calls across the whole run, and skills call skills: /acs:ship invokes
+        each step with the Skill tool, and /acs:code dispatches its leg the
+        same way. Given a second turn, a request misrouted to ship passes a
+        step's positive once ship reaches that step, and a request correctly
+        routed to code fails a leg's negative once code dispatches the leg.
+        One turn makes both impossible. The CLI still grades a run that stops
+        at the limit: it passes `--max-turns` to the child and scores the tool
+        calls in the trace whatever the exit status."""
+        for c in self.cases:
+            with self.subTest(case=c.name):
+                self.assertEqual(c.fm.get("max_turns"), 1)
+
     def test_every_probe_names_its_skill_in_the_canonical_form(self):
         for c in ec.probe_cases():
             with self.subTest(case=c.name):
@@ -182,14 +196,19 @@ class RoutingShapeTest(unittest.TestCase):
                 self.assertEqual(c.explicit, c.kind == "explicit" or (
                     c.kind == "negative" and c.explicit))
 
-    def test_the_off_domain_control_counts_every_skill_call(self):
+    def test_every_off_domain_control_counts_every_skill_call(self):
         """With no input_match the grader counts EVERY Skill call, which is the
-        point: any skill firing on a poem request is over-triggering."""
+        point: any skill firing on a poem, or on a git question answered in
+        prose, is over-triggering. The poem alone proved little -- nothing in
+        it resembles delivery work -- so the controls include requests that
+        sit next to acs's vocabulary and must still route nowhere."""
         controls = [c for c in self.cases if c.kind == "control"]
-        self.assertEqual(len(controls), 1)
-        g = controls[0].graders[0]
-        self.assertEqual(g.fm.get("tool"), "Skill")
-        self.assertNotIn("input_match", g.fm)
+        self.assertGreaterEqual(len(controls), 4)
+        for c in controls:
+            with self.subTest(case=c.name):
+                g = c.graders[0]
+                self.assertEqual(g.fm.get("tool"), "Skill")
+                self.assertNotIn("input_match", g.fm)
 
 
 class GraderMatchesTest(unittest.TestCase):
@@ -256,6 +275,43 @@ class CoverageTest(unittest.TestCase):
         (`install-hooks`, `update`) that are commands rather than pipeline steps."""
         explicit = {c.skill for c in ec.probe_cases() if c.kind == "explicit"}
         self.assertEqual(explicit, _internal_legs() | {"install-hooks", "update"})
+
+    #: Phrasings per skill with a description positive. One prompt per skill
+    #: measures one sentence; three measure the description. The release gate
+    #: pools a skill's cases (ADR-0107), so this is also its sample size.
+    MIN_PHRASINGS = 3
+
+    def _description_cases(self):
+        by_skill = {}
+        for c in ec.probe_cases():
+            if c.kind == "description":
+                by_skill.setdefault(c.skill, []).append(c)
+        return by_skill
+
+    def test_every_described_skill_has_several_phrasings(self):
+        for skill, cases in sorted(self._description_cases().items()):
+            with self.subTest(skill=skill):
+                self.assertGreaterEqual(len(cases), self.MIN_PHRASINGS)
+                prompts = [c.prompt for c in cases]
+                self.assertEqual(len(set(prompts)), len(prompts), "duplicate prompt")
+
+    def test_every_described_skill_has_a_confusable_phrasing(self):
+        """A prompt that borrows a neighbour's vocabulary -- "merge" in a
+        request to OPEN a PR, "design" in a request for the architecture set --
+        is where routing actually fails. Every described skill carries one,
+        tagged `confusable`, and its description names the neighbour it borrows
+        from, which must be a skill that ships."""
+        shipped = set(ec.shipped_skills())
+        for skill, cases in sorted(self._description_cases().items()):
+            confusable = [c for c in cases if "confusable" in c.tags]
+            with self.subTest(skill=skill):
+                self.assertTrue(confusable, "no confusable phrasing")
+            for c in confusable:
+                with self.subTest(case=c.name):
+                    m = re.search(r"/acs:([a-z0-9-]+)", c.fm.get("description", ""))
+                    self.assertIsNotNone(m, "the description must name the neighbour")
+                    self.assertIn(m.group(1), shipped)
+                    self.assertNotEqual(m.group(1), skill)
 
     def test_the_new_cases_expect_their_own_skill(self):
         positive = {c.skill for c in ec.probe_cases() if c.kind == "description"}

@@ -202,14 +202,14 @@ class RoutingProbeCaseTest(unittest.TestCase):
     def test_create_docs_case_present_and_internally_consistent(self):
         matches = [p for p in self._probes(positive=True)
                    if self._skill(p) == "create-docs"]
-        self.assertEqual(len(matches), 1, "exactly one create-docs probe")
-        prompt = matches[0]["prompt"]
-        self.assertNotIn("create-docs", prompt,
-                         "the probe describes intent without naming the skill")
-        named = [x for x in SETS if x in prompt]
-        self.assertGreaterEqual(len(named), 2,
-                                "the probe should name more than one set, so "
-                                "routing must reach the umbrella and not a leg")
+        self.assertTrue(matches, "no create-docs probe")
+        for probe in matches:
+            self.assertNotIn("create-docs", probe["prompt"],
+                             "the probe describes intent without naming the skill")
+        self.assertTrue(
+            any(len([x for x in SETS if x in p["prompt"]]) >= 2 for p in matches),
+            "a probe should name more than one set, so routing must reach the "
+            "umbrella and not a leg")
 
     def test_no_case_survives_for_a_retired_leg(self):
         probed = {self._skill(p) for p in self._probes()}

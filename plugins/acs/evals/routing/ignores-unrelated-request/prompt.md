@@ -6,7 +6,7 @@ description: >-
   Either way the surrounding measurement cannot be read.
 expected_outcome: Invokes no skill at all.
 tags: [routing, control]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

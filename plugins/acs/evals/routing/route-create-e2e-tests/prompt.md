@@ -6,7 +6,7 @@ description: >-
   authored, not run.
 expected_outcome: Routes to acs:create-e2e-tests.
 tags: [routing, description]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

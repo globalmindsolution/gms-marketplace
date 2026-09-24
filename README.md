@@ -112,23 +112,30 @@ gate — the commands `release.pre_release_gate` in
 order and stops at the first failure:
 
 ```bash
-python3 -m unittest tests.acs.test_eval_cases   # free: every eval case well-formed, every skill covered
-claude plugin eval plugins/acs --tag routing --ablation none \
-  --trust-plugin --no-publish --max-cost-usd 20  # PAID: does each prompt reach the right skill?
+python3 -m unittest tests.acs.test_eval_cases tests.acs.test_eval_gate   # free: every eval case well-formed, every skill covered
+claude plugin eval plugins/acs --tag description --tag negative --tag control \
+  --ablation none --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
+  --trust-plugin --no-publish --max-cost-usd 40   # PAID: does each prompt reach the right skill?
+python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
+  --min-skill-rate 2/3 --min-suite-rate 9/10      # the judgement: by skill and suite, not by prompt
 ```
 
 The second command is the plugin's eval suite — `claude plugin eval` case files
 at [`plugins/acs/evals/`](plugins/acs/evals/README.md), in the layout the
 [reference](https://code.claude.com/docs/en/plugin-evals) specifies. The free
 check runs first on purpose: a malformed case fails it for $0 instead of being
-discovered by a paid run.
+discovered by a paid run. The CLI only measures (`--threshold 0`); the third
+command judges the result
+([ADR-0107](docs/adr/0107-routing-gated-by-skill-not-by-prompt.md)): negatives
+and controls must pass every run, each skill must route at least 2/3 of its
+runs and the suite at least 9/10.
 
 Run the suite against the **installed** build too —
 `claude plugin eval acs@gms-marketplace --tag routing --ablation none` grades
 the installed copy with the installed copy loaded, which is what a consumer
 actually runs, and is the only run that catches packaging drift. Read the
-suite's README before quoting a number: it records which cases are known to be
-confounded, and why. The step-by-step is the
+suite's README before quoting a number: it records which checks the graders
+have passed, which they have not yet, and which cases are known to read low. The step-by-step is the
 [release runbook](docs/operations/release-runbook.md).
 
 - **Pinned consumers** (recommended) never receive an update without an

@@ -362,6 +362,32 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **Routing is graded on the first move and gated by skill, not by prompt**
+  (ADR-0107).
+  - **The old gate could not pass.** It ran every routing case at the CLI's
+    default per-case threshold of 1.0, including the `explicit` cases, which
+    are not observable.
+  - **A routing run is now one turn,** so a request misrouted to `/acs:ship`
+    can no longer pass a step's case when `ship` invokes that step.
+  - **Each skill a user reaches by description has three phrasings.** One of
+    them, tagged `confusable`, borrows a neighbouring skill's words. There are
+    three new requests answered in prose that must fire no skill. The suite
+    grows from 39 to 90 routing cases.
+  - **The gate runs the CLI with `--threshold 0 --json`, then
+    `scripts/eval_gate.py`.**
+    - Negatives and controls must pass every run.
+    - Each skill must route at least 2/3 of its pooled runs, and the suite at
+      least 9/10. Both rates are provisional until a baseline is taken.
+    - A partial, stale or unreadable result fails the gate. So does a run that
+      never reached the model.
+  - **A new free test calibrates every setup and artifact grader.** It plays an
+    ideal run and bad runs through the plugin's own writers. It found two
+    graders that could not fail, and both are fixed: `create-ticket-artifacts`
+    passed a run that only started the skill, and `resume-and-verify` passed on
+    a comment mentioning `/health`.
+  - **Migration:** none for consumers. The earlier routing numbers are history,
+    not a baseline.
+
 - **The CI convention check enforces one rule: the PR description names its
   ticket** (ADR-0106). `acs-conventions.yml` passes a PR whose description
   names the acs id (`<prefix>-<n>`), a `#<n>` issue reference, or an issue

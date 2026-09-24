@@ -8,7 +8,7 @@ description: >-
   other explicit probe.
 expected_outcome: Routes to acs:create-project.
 tags: [routing, explicit]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

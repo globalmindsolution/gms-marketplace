@@ -9,7 +9,7 @@ description: >-
   to hold.
 expected_outcome: Does not invoke acs:code-trivial.
 tags: [routing, negative]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

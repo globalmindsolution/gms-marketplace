@@ -38,11 +38,12 @@ the hook CLIs through `subprocess.run` with `cwd=mkdtemp()`. Run coverage withou
 to any relative path introduced into that file.
 
 ```bash
-# Eval suite (see "Two grading layers") — free structural check, then paid runs
-python3 -m unittest tests.acs.test_eval_cases                  # $0: every case well-formed, every skill covered
-cd plugins/acs && claude plugin eval . --tag routing --ablation none --runs 1   # PAID smoke (~$5)
-cd plugins/acs && claude plugin eval . --tag routing --ablation none            # PAID, 3 runs each (~$15)
+# Eval suite (see "Two grading layers") — free checks, then paid runs
+python3 -m unittest tests.acs.test_eval_cases tests.acs.test_eval_gate tests.acs.test_eval_grader_calibration  # $0
+cd plugins/acs && claude plugin eval . --tag routing --ablation none --runs 1   # PAID smoke, 1 run each
+cd plugins/acs && claude plugin eval . --tag routing --ablation none            # PAID, 3 runs each
 claude plugin eval acs@gms-marketplace --tag routing --ablation none           # the INSTALLED build
+# The release gate is release.pre_release_gate: the CLI with --threshold 0 --json, then scripts/eval_gate.py
 ```
 
 ## Architecture
