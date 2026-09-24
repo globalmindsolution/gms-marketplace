@@ -375,8 +375,19 @@ JSON validated by JSON Schema, one central envelope plus a
     when a commit touches the suite, a skill, the hook scripts, the schemas or
     the gate. CI's pre-commit job skips it. The release gate still runs the
     checks first.
+  - **An opt-in `acs-evals` hook runs the paid cases a change affects, locally.**
+    It runs on `git push`, or on demand with `pre-commit run acs-evals
+    --hook-stage manual`. `scripts/eval_changed.py` diffs the branch against
+    `origin/main`, picks the cases that diff can move, and runs each once
+    within a budget (default $3).
+    - It blocks only on a misrouted `negative` or `control` case, or on a run
+      that could not happen. A missed description case is reported with the
+      command that runs it three times.
+    - It is off until `git config acs.evals true`, never runs in CI, and never
+      passes `--trust-plugin`.
   - **Migration:** none for consumers. Contributors run `pre-commit install`
-    once per clone to get the hook.
+    once per clone to get the free hook. The paid hook also needs
+    `pre-commit install --hook-type pre-push` and `git config acs.evals true`.
 
 - **Routing is graded on the first move and gated by skill, not by prompt**
   (ADR-0107).

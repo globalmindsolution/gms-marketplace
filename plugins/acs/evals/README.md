@@ -253,6 +253,7 @@ reads these case files:
 | `check_grader_calibration.py` | every free setup and artifact grader passes an ideal run and fails a bad one |
 | `check_gate.py` | `scripts/eval_gate.py` judges as the policy says, and the settings wire it |
 | `check_probe_expectations.py` | the per-skill probe expectations earlier tickets pinned (create-docs, standardize-project, run-e2e-tests, setup), and this README's tag counts |
+| `check_eval_changed.py` | `scripts/eval_changed.py` selects the right cases for a change and blocks only on what it should (against a fake `claude`) |
 
 They run in two places:
 
@@ -263,3 +264,46 @@ They run in two places:
 
 By hand: `python3 -m unittest discover -s tests/evals -p 'check_*.py'`
 (free, a few seconds).
+
+## Running the evals your change affects
+
+The paid cases can run locally too, before you open a PR. The `acs-evals`
+pre-commit hook runs `scripts/eval_changed.py` on `git push`. It diffs your
+branch against `origin/main`, picks the cases that diff can move, and runs each
+once. It is **off until you turn it on**, because each case is a paid session:
+
+```bash
+pre-commit install --hook-type pre-push      # once per clone (also enables the branch/commit pre-push check)
+git config acs.evals true                    # turn it on for this clone
+git config acs.evalsBudget 5                 # optional: USD cap per run (default 3)
+claude plugin eval plugins/acs --case ignores-regex-request --runs 1 --ablation none   # once, in a terminal: trust this directory
+
+python3 scripts/eval_changed.py --dry-run    # what your change would run, for free
+pre-commit run acs-evals --hook-stage manual # run it now, without pushing
+ACS_EVALS=1 git push                         # this push only
+SKIP=acs-evals git push                      # skip it once
+```
+
+| Your change | What it runs |
+|---|---|
+| a skill's frontmatter (`description`, `when_to_use`, …) | that skill's routing cases, the `confusable` cases that name it as their neighbour, and every `negative` and `control` case (a description competes with all the others) |
+| any file of `setup`, `create-ticket` or `code` | that skill's behaviour cases |
+| an eval case's files | that case (a group's `_fixtures/`: the whole group) |
+| the setup wizard or the CI templates it installs | the setup suite |
+| `acs.py` or `acs_lib/` | the artifact suite |
+| anything else | nothing |
+
+It runs the must-never cases first. **It blocks the push** only when:
+- a `negative` or `control` case misroutes, even once; or
+- it could not run: `claude` missing, the directory not trusted yet, an auth
+  failure, a case that failed to load.
+
+A missed description case, or a behaviour case scoring below 1.0, is
+**reported** with the command that runs it three times, because one run is not
+evidence. The push goes ahead. When the budget runs out, the rest is listed as
+not run, without blocking.
+
+The hook runs only at the `pre-push` and `manual` stages, which CI's pre-commit
+job does not run, and the script exits at once when `CI` is set. It never passes
+`--trust-plugin`: the CLI remembers trust per directory, so you confirm it once,
+by hand.

@@ -45,6 +45,20 @@ anything it covers. The maintainer's decision is that CI does not do evals.
   `grep -rn "run_evals\|evals/behavioural/\|plugin eval\|tests/evals"
   .github/workflows/` must return nothing.
 
+**The paid cases a change affects can run locally, opt-in.** The `acs-evals`
+hook (`scripts/eval_changed.py`) runs at the `pre-push` and `manual` stages.
+CI's pre-commit job runs neither, and the script exits when `CI` is set. It
+works like this:
+- It selects the cases the branch's diff can move and runs each once, within
+  a budget.
+- It blocks a push only on a misrouted `negative` or `control` case, or on a
+  run that could not happen. A missed description case is reported, not
+  blocking, because one run is not evidence.
+- It is off until `git config acs.evals true`, because each case is a paid
+  session.
+- It never passes `--trust-plugin`: the CLI remembers trust per directory, and
+  the developer confirms it once in a terminal.
+
 ## Consequences
 
 **A malformed eval case can now reach `main`.** CI will not stop it. The

@@ -46,7 +46,23 @@ repos:
         entry: python3 -m unittest discover -s tests/evals -p check_*.py
         language: system
         pass_filenames: false
-        files: ^(plugins/acs/(evals|skills|hooks/scripts|schemas)/|tests/evals/|scripts/eval_gate\.py$|\.acs/settings\.json$)
+        files: ^(plugins/acs/(evals|skills|hooks/scripts|schemas)/|tests/evals/|scripts/eval_(gate|changed)\.py$|\.acs/settings\.json$)
+
+      # PAID, opt-in: the evals this branch's change can move, one run each, on
+      # `git push` (or `pre-commit run acs-evals --hook-stage manual`). Off
+      # until `git config acs.evals true`; needs the pre-push hook type
+      # installed (`pre-commit install --hook-type pre-push`). Never in CI:
+      # the pre-push and manual stages are not run by CI's pre-commit job, and
+      # the script refuses when CI is set (ADR-0108). See
+      # plugins/acs/evals/README.md, "Running the evals your change affects".
+      - id: acs-evals
+        name: acs evals for this change (local, opt-in, paid)
+        entry: python3 scripts/eval_changed.py
+        language: system
+        stages: [pre-push, manual]
+        pass_filenames: false
+        always_run: true
+        verbose: true
 
       # acs convention hooks — validate branch/commit against committed formats.*
       # (honour enforcement.checks.* toggles + exempt label/branches).
