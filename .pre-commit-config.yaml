@@ -48,15 +48,16 @@ repos:
         pass_filenames: false
         files: ^(plugins/acs/(evals|skills|hooks/scripts|schemas)/|tests/evals/|scripts/eval_(gate|changed)\.py$|\.acs/settings\.json$)
 
-      # PAID, opt-in: the evals this branch's change can move, one run each, on
-      # `git push` (or `pre-commit run acs-evals --hook-stage manual`). Off
-      # until `git config acs.evals true`; needs the pre-push hook type
-      # installed (`pre-commit install --hook-type pre-push`). Never in CI:
-      # the pre-push and manual stages are not run by CI's pre-commit job, and
-      # the script refuses when CI is set (ADR-0108). See
-      # plugins/acs/evals/README.md, "Running the evals your change affects".
+      # The evals this branch's change can move, three runs each, on `git push`
+      # (or `pre-commit run acs-evals --hook-stage manual`), on the Claude
+      # subscription `claude` is logged in with. On by default; off with
+      # `git config acs.evals false`. Needs the pre-push hook type installed
+      # (`pre-commit install --hook-type pre-push`). Never in CI: the pre-push
+      # and manual stages are not run by CI's pre-commit job, and the script
+      # exits when CI is set (ADR-0108). See plugins/acs/evals/README.md,
+      # "Running the evals your change affects".
       - id: acs-evals
-        name: acs evals for this change (local, opt-in, paid)
+        name: acs evals for this change (local, subscription quota)
         entry: python3 scripts/eval_changed.py
         language: system
         stages: [pre-push, manual]

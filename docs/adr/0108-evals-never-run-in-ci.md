@@ -45,17 +45,23 @@ anything it covers. The maintainer's decision is that CI does not do evals.
   `grep -rn "run_evals\|evals/behavioural/\|plugin eval\|tests/evals"
   .github/workflows/` must return nothing.
 
-**The paid cases a change affects can run locally, opt-in.** The `acs-evals`
-hook (`scripts/eval_changed.py`) runs at the `pre-push` and `manual` stages.
-CI's pre-commit job runs neither, and the script exits when `CI` is set. It
-works like this:
-- It selects the cases the branch's diff can move and runs each once, within
-  a budget.
-- It blocks a push only on a misrouted `negative` or `control` case, or on a
-  run that could not happen. A missed description case is reported, not
-  blocking, because one run is not evidence.
-- It is off until `git config acs.evals true`, because each case is a paid
-  session.
+**The cases a change affects run locally, on the team's subscription.** The
+`acs-evals` hook (`scripts/eval_changed.py`) runs at the `pre-push` and
+`manual` stages. CI's pre-commit job runs neither, and the script exits when
+`CI` is set. It works like this:
+- It selects the cases the branch's diff can move and runs each three times.
+- It applies the release gate's rules (ADR-0107) to the skills the change
+  touches:
+  - a `negative` or `control` misroute in any run blocks the push;
+  - so does a touched skill whose selected description cases route less than
+    2/3 of their pooled runs;
+  - so does a run that could not happen, including a gated case the budget
+    guard stopped before it ran.
+- Explicit and behaviour cases are reported, not blocking.
+- Runs draw on the Claude subscription `claude` is logged in with, so the hook
+  is on by default (`git config acs.evals false` turns it off). The budget is a
+  runaway guard on the CLI's computed cost, $25 per push, not a bill. Without
+  `claude` installed, it lets the push through.
 - It never passes `--trust-plugin`: the CLI remembers trust per directory, and
   the developer confirms it once in a terminal.
 

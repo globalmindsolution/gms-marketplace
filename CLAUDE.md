@@ -40,8 +40,8 @@ to any relative path introduced into that file.
 ```bash
 # Eval suite (see "Two grading layers") — free checks, then paid runs
 python3 -m unittest discover -s tests/evals -p 'check_*.py'   # $0, local only: also the acs-eval-checks pre-commit hook
-python3 scripts/eval_changed.py --dry-run                     # $0: the paid cases this branch's change would run
-pre-commit run acs-evals --hook-stage manual                   # PAID, opt-in (git config acs.evals true): run them; also on git push
+python3 scripts/eval_changed.py --dry-run                     # the cases this branch's change would run (runs nothing)
+pre-commit run acs-evals --hook-stage manual                   # run them, 3 runs each, on your subscription; also on git push (off: git config acs.evals false)
 cd plugins/acs && claude plugin eval . --tag routing --ablation none --runs 1   # PAID smoke, 1 run each
 cd plugins/acs && claude plugin eval . --tag routing --ablation none            # PAID, 3 runs each
 claude plugin eval acs@gms-marketplace --tag routing --ablation none           # the INSTALLED build

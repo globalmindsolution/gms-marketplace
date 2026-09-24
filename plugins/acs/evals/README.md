@@ -267,21 +267,22 @@ By hand: `python3 -m unittest discover -s tests/evals -p 'check_*.py'`
 
 ## Running the evals your change affects
 
-The paid cases can run locally too, before you open a PR. The `acs-evals`
-pre-commit hook runs `scripts/eval_changed.py` on `git push`. It diffs your
-branch against `origin/main`, picks the cases that diff can move, and runs each
-once. It is **off until you turn it on**, because each case is a paid session:
+The cases your change affects run locally before you open a PR, on the Claude
+subscription your `claude` CLI is logged in with. The `acs-evals` pre-commit
+hook runs `scripts/eval_changed.py` on `git push`. It diffs your branch against
+`origin/main`, picks the cases that diff can move, and runs each **three
+times**. It is **on by default**:
 
 ```bash
 pre-commit install --hook-type pre-push      # once per clone (also enables the branch/commit pre-push check)
-git config acs.evals true                    # turn it on for this clone
-git config acs.evalsBudget 5                 # optional: USD cap per run (default 3)
 claude plugin eval plugins/acs --case ignores-regex-request --runs 1 --ablation none   # once, in a terminal: trust this directory
 
-python3 scripts/eval_changed.py --dry-run    # what your change would run, for free
+python3 scripts/eval_changed.py --dry-run    # what your change would run (runs nothing)
 pre-commit run acs-evals --hook-stage manual # run it now, without pushing
-ACS_EVALS=1 git push                         # this push only
 SKIP=acs-evals git push                      # skip it once
+git config acs.evals false                   # turn it off for this clone (ACS_EVALS=0 for one push)
+git config acs.evalsRuns 5                   # optional: runs per case (default 3)
+git config acs.evalsBudget 40                # optional: runaway guard on computed cost (default $25)
 ```
 
 | Your change | What it runs |
@@ -293,15 +294,24 @@ SKIP=acs-evals git push                      # skip it once
 | `acs.py` or `acs_lib/` | the artifact suite |
 | anything else | nothing |
 
-It runs the must-never cases first. **It blocks the push** only when:
-- a `negative` or `control` case misroutes, even once; or
-- it could not run: `claude` missing, the directory not trusted yet, an auth
-  failure, a case that failed to load.
+It applies the [release gate's rules](#what-the-release-gate-passes) to the
+skills your change touches, and runs the must-never cases first. **It blocks
+the push** when:
+- a `negative` or `control` case misroutes in any run;
+- a touched skill's selected description cases, pooled, route less than 2/3 of
+  their runs. A neighbour whose `confusable` case your new description steals
+  counts too;
+- a run could not happen: the directory is not trusted yet, a usage limit or
+  auth failure hit mid-run, a case failed to load, or a run has no score;
+- the budget guard stopped a gated routing case before it ran. An unmeasured
+  case is not a pass.
 
-A missed description case, or a behaviour case scoring below 1.0, is
-**reported** with the command that runs it three times, because one run is not
-evidence. The push goes ahead. When the budget runs out, the rest is listed as
-not run, without blocking.
+`explicit` cases (not observable) and behaviour cases (graders not yet piloted)
+below 1.0 are **reported**, with the command that re-runs them. They don't
+block. Without `claude` on PATH the hook says so and lets the push through. The
+budget is a guard against a runaway run, not a bill. Behaviour cases run last,
+so a guard that trips usually stops only those, and they are listed as not run
+without blocking.
 
 The hook runs only at the `pre-push` and `manual` stages, which CI's pre-commit
 job does not run, and the script exits at once when `CI` is set. It never passes

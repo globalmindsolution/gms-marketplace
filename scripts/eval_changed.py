@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Run the evals a change affects -- locally, opt-in, paid.
+"""Run the evals a change affects -- locally, on your subscription quota.
 
 The `acs-evals` pre-commit hook runs this on `git push` (and on demand with
 `pre-commit run acs-evals --hook-stage manual`). It reads the branch's diff
 against `origin/main`, picks the eval cases that diff can move, and runs each
-once with `claude plugin eval`. Nothing about the eval suite runs in CI
+three times with `claude plugin eval`. Nothing about the eval suite runs in CI
 (ADR-0022, ADR-0108), and this refuses to run there.
 
-**Off unless you turn it on** -- every case is a real, paid session, and a push
-must not spend a teammate's money for them:
+**On by default.** Runs draw on the Claude subscription `claude` is logged in
+with, so there is no per-run bill to guard. Turn it off, or skip it:
 
-    git config acs.evals true          # this clone, from now on
-    ACS_EVALS=1 git push                # this push only
+    git config acs.evals false         # this clone, from now on
+    ACS_EVALS=0 git push                # this push only
     SKIP=acs-evals git push             # skip it once (pre-commit's own switch)
+
+Without `claude` on PATH it says so and lets the push through.
 
 **What a change selects** (`select()` below, in order of what runs first):
 
@@ -30,17 +32,26 @@ must not spend a teammate's money for them:
 `explicit` routing cases run only when their own files change: a typed
 `/acs:<skill>` is not reliably observable (plugins/acs/evals/README.md).
 
-**What blocks the push**: a `negative` or `control` case that misroutes (a
-must-never, even once), or a run that could not happen -- the CLI missing, the
-plugin directory not trusted yet, an auth failure, a case that failed to load.
-Everything else is one run, which is not evidence, so a description case that
-missed or a behaviour case below 1.0 is REPORTED with the command that runs it
-three times, and the push goes ahead.
+**What blocks the push** -- the release gate's own rules (ADR-0107), applied to
+the skills this change touches:
 
-**Budget**: `--budget` (default $3, or `git config acs.evalsBudget`) caps the
-whole run; each case gets what is left as its `--max-cost-usd`. Must-never
-cases run first, so a budget that runs out skips the costly behaviour cases,
-not the checks that block.
+* a `negative` or `control` case that misroutes in any run -- a must-never;
+* a skill whose selected description cases, pooled, route less than 2/3 of
+  their runs (`--min-skill-rate`);
+* a run that could not happen -- the plugin directory not trusted yet, a usage
+  limit or auth failure, a case that failed to load, a run with no score, or a
+  gated case the budget guard stopped before it ran.
+
+`explicit` and behaviour (setup, artifact) cases below 1.0 are REPORTED, not
+blocking: the first is unobservable, and the behaviour graders have not been
+piloted yet.
+
+**Runs** default to 3 (`--runs`, or `git config acs.evalsRuns`), in parallel
+within a case. **Budget** is a runaway guard, not a bill: the CLI's computed
+cost, capped at $25 per push (`--budget`, or `git config acs.evalsBudget`).
+Must-never cases run first and behaviour cases last, so a guard that trips
+usually skips only the costly behaviour cases, which is reported. If it stops a
+gated routing case, the push is blocked: an unmeasured case is not a pass.
 
 **Trust**: the CLI asks, once per plugin directory, whether you trust it, and a
 hook cannot answer. Run any case once in a terminal, e.g.
@@ -49,6 +60,7 @@ This script never passes `--trust-plugin`.
 """
 
 import argparse
+import fractions
 import json
 import os
 import re
@@ -64,7 +76,8 @@ import eval_cases  # noqa: E402  (the strict case reader the local checks use)
 PLUGIN_REL = "plugins/acs"
 SKILLS_PREFIX = PLUGIN_REL + "/skills/"
 EVALS_PREFIX = PLUGIN_REL + "/evals/"
-DEFAULT_BUDGET_USD = 3.0
+DEFAULT_BUDGET_USD = 25.0
+DEFAULT_RUNS = 3
 
 #: Skills with a behaviour suite, and the cases that exercise them.
 BEHAVIOUR = {
@@ -175,8 +188,9 @@ def select(paths, described, cases=None):
 # --------------------------------------------------------------------------
 # Running and judging
 
-def command(case, budget_left, json_path):
-    return (["claude", "plugin", "eval", PLUGIN_REL, "--case", case.name, "--runs", "1",
+def command(case, runs, budget_left, json_path):
+    return (["claude", "plugin", "eval", PLUGIN_REL, "--case", case.name,
+             "--runs", str(runs), "-j", str(min(runs, 8)),
              "--threshold", "0", "--json", json_path, "--no-publish",
              "--max-cost-usd", "%.2f" % max(budget_left, 0.01)]
             + GROUP_ARGS[case.group])
@@ -187,10 +201,10 @@ def rerun_hint(case):
                     + GROUP_ARGS[case.group])
 
 
-def run_case(case, budget_left, workdir):
-    """{"status": ok|budget|error, "score", "cost", "failed_graders", "message"}."""
+def run_case(case, runs, budget_left, workdir):
+    """{"status": ok|budget|error, "scores": [per run], "cost", "failed_graders", "message"}."""
     json_path = os.path.join(workdir, case.name + ".json")
-    proc = subprocess.run(command(case, budget_left, json_path), cwd=REPO_ROOT,
+    proc = subprocess.run(command(case, runs, budget_left, json_path), cwd=REPO_ROOT,
                           capture_output=True, text=True)
     out = (proc.stderr or "") + (proc.stdout or "")
     if "not a trusted plugin directory" in out:
@@ -210,14 +224,52 @@ def run_case(case, budget_left, workdir):
             return {"status": "budget", "cost": cost}
         return {"status": "error", "cost": cost, "message": "the run stopped: %s" % reason}
     entry = next((c for c in result.get("cases") or [] if c.get("name") == case.name), None)
-    runs = ((entry or {}).get("arms") or {}).get("with") or []
-    if not runs:
+    arm = ((entry or {}).get("arms") or {}).get("with") or []
+    if not arm:
         return {"status": "error", "cost": cost, "message": "the result has no run for this case"}
-    run = runs[0]
-    if run.get("error") and not run.get("turns"):
-        return {"status": "error", "cost": cost, "message": "the run never reached the model: %s" % run["error"]}
-    failed = [g.get("name") for g in run.get("graders") or [] if not g.get("passed") and g.get("scored", True)]
-    return {"status": "ok", "cost": cost, "score": run.get("score", 0), "failed_graders": failed}
+    for run in arm:
+        if run.get("error") and not run.get("turns"):
+            return {"status": "error", "cost": cost,
+                    "message": "a run never reached the model: %s" % run["error"]}
+        score = run.get("score")
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            return {"status": "error", "cost": cost, "message": "a run has no score"}
+    failed = sorted({g.get("name") for run in arm for g in run.get("graders") or []
+                     if not g.get("passed") and g.get("scored", True)})
+    return {"status": "ok", "cost": cost, "scores": [run["score"] for run in arm],
+            "failed_graders": failed}
+
+
+def gated(case):
+    """Whether a miss on this case can block: must-never and description routing."""
+    return case.group == "routing" and (case.kind in MUST_NEVER or case.kind == "description")
+
+
+def judge(outcomes, min_skill_rate):
+    """(blocking, reported) from {case: outcome} for the cases that ran."""
+    blocking, reported, pools = [], [], {}
+    for case, outcome in outcomes:
+        scores = outcome["scores"]
+        hits = sum(1 for s in scores if s >= 1)
+        detail = ", ".join(outcome["failed_graders"]) or "score %.2f" % (sum(scores) / len(scores))
+        if case.kind in MUST_NEVER:
+            if hits < len(scores):
+                blocking.append("%s (%s) misrouted in %d of %d runs: %s"
+                                % (case.name, case.kind, len(scores) - hits, len(scores), detail))
+        elif case.group == "routing" and case.kind == "description":
+            pool = pools.setdefault(case.skill, [0, 0, []])
+            pool[0] += hits
+            pool[1] += len(scores)
+            pool[2].append(case)
+        elif hits < len(scores):
+            reported.append("%s: %d of %d runs passed (%s); run it again with:\n      %s"
+                            % (case.name, hits, len(scores), detail, rerun_hint(case)))
+    for skill in sorted(pools):
+        hits, total, cases = pools[skill]
+        if fractions.Fraction(hits, total) < min_skill_rate:
+            blocking.append("%s routed %d of %d runs across %s, below %s"
+                            % (skill, hits, total, ", ".join(c.name for c in cases), min_skill_rate))
+    return blocking, reported
 
 
 def enabled(env):
@@ -225,23 +277,27 @@ def enabled(env):
     if flag is not None:
         return flag.strip().lower() in ("1", "true", "yes", "on")
     try:
-        return git("config", "--get", "acs.evals").strip().lower() == "true"
+        return git("config", "--get", "acs.evals").strip().lower() not in ("false", "0", "no", "off")
     except subprocess.CalledProcessError:
-        return False
+        return True  # unset: on
 
 
-def configured_budget():
+def configured(key, default, kind):
     try:
-        return float(git("config", "--get", "acs.evalsBudget").strip())
+        return kind(git("config", "--get", key).strip())
     except (subprocess.CalledProcessError, ValueError):
-        return DEFAULT_BUDGET_USD
+        return default
 
 
 def main(argv=None, env=None):
     env = os.environ if env is None else env
-    parser = argparse.ArgumentParser(description="Run the evals a change affects (local, opt-in, paid).")
+    parser = argparse.ArgumentParser(description="Run the evals a change affects, locally.")
     parser.add_argument("--base", default=None, help="ref to diff against (default origin/main)")
-    parser.add_argument("--budget", type=float, default=None, help="USD cap for the whole run")
+    parser.add_argument("--runs", type=int, default=None, help="runs per case (default 3)")
+    parser.add_argument("--budget", type=float, default=None,
+                        help="runaway guard on the CLI's computed cost (default $25)")
+    parser.add_argument("--min-skill-rate", type=fractions.Fraction, default=fractions.Fraction(2, 3),
+                        help="a touched skill's pooled description runs must route at least this")
     parser.add_argument("--dry-run", action="store_true", help="print the selection; run nothing")
     args = parser.parse_args(argv)
 
@@ -249,8 +305,7 @@ def main(argv=None, env=None):
         print("acs-evals: evals never run in CI (ADR-0108); nothing to do.")
         return 0
     if not args.dry_run and not enabled(env):
-        print("acs-evals: off. Turn it on with `git config acs.evals true` "
-              "(each case is a paid session).")
+        print("acs-evals: off (git config acs.evals false, or ACS_EVALS=0).")
         return 0
 
     head = env.get("PRE_COMMIT_TO_REF") or "HEAD"
@@ -260,52 +315,52 @@ def main(argv=None, env=None):
     if not selected:
         print("acs-evals: this change moves no eval case (diffed against %s)." % base)
         return 0
-    budget = args.budget if args.budget is not None else configured_budget()
-    print("acs-evals: %d case(s) for this change, 1 run each, budget $%.2f:" % (len(selected), budget))
+    runs = max(1, args.runs if args.runs is not None else configured("acs.evalsRuns", DEFAULT_RUNS, int))
+    budget = args.budget if args.budget is not None else configured("acs.evalsBudget", DEFAULT_BUDGET_USD, float)
+    print("acs-evals: %d case(s) for this change, %d run(s) each, guard $%.2f:"
+          % (len(selected), runs, budget))
     for c in selected:
         print("  %-10s %-12s %s" % (c.group, c.kind or "", c.name))
     if args.dry_run:
         return 0
     if shutil.which("claude") is None:
-        print("acs-evals: FAIL -- `claude` is not on PATH. Install Claude Code, or skip this "
-              "push with SKIP=acs-evals.")
-        return 1
+        print("acs-evals: skipped -- `claude` is not on PATH, so nothing can be run.")
+        return 0
 
-    blocking, reported, skipped, spent = [], [], [], 0.0
+    errors, outcomes, skipped, spent = [], [], [], 0.0
     workdir = tempfile.mkdtemp(prefix="acs-evals-")
     try:
         for i, case in enumerate(selected):
             if spent >= budget:
-                skipped.extend(c.name for c in selected[i:])
+                skipped.extend(selected[i:])
                 break
-            outcome = run_case(case, budget - spent, workdir)
+            outcome = run_case(case, runs, budget - spent, workdir)
             spent += outcome.get("cost", 0.0)
             if outcome["status"] == "budget":
-                skipped.extend(c.name for c in selected[i:])
+                skipped.extend(selected[i:])
                 break
             if outcome["status"] == "error":
-                blocking.append("%s: %s" % (case.name, outcome["message"]))
+                errors.append("%s: %s" % (case.name, outcome["message"]))
                 if "not trusted" in outcome["message"]:
                     break  # every other case would fail the same way
                 continue
-            ok = outcome["score"] >= 1
-            print("  %s %s  $%.2f" % ("ok  " if ok else "MISS", case.name, outcome.get("cost", 0.0)))
-            if ok:
-                continue
-            detail = ", ".join(outcome["failed_graders"]) or "score %.2f" % outcome["score"]
-            if case.kind in MUST_NEVER:
-                blocking.append("%s (%s) misrouted: %s" % (case.name, case.kind, detail))
-            else:
-                reported.append("%s: %s -- one run is not evidence; run it 3 times:\n      %s"
-                                % (case.name, detail, rerun_hint(case)))
+            hits = sum(1 for s in outcome["scores"] if s >= 1)
+            print("  %d/%d %s" % (hits, len(outcome["scores"]), case.name))
+            outcomes.append((case, outcome))
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
-    print("acs-evals: spent $%.2f of $%.2f" % (spent, budget))
+    blocking, reported = judge(outcomes, args.min_skill_rate)
+    blocking = errors + blocking
+    unmeasured = [c.name for c in skipped if gated(c)]
+    if unmeasured:
+        blocking.append("the $%.2f guard was reached before these gated cases ran: %s. Raise it "
+                        "with --budget or git config acs.evalsBudget" % (budget, ", ".join(unmeasured)))
+    print("acs-evals: computed cost $%.2f (guard $%.2f)" % (spent, budget))
     for line in reported:
         print("  report: %s" % line)
     if skipped:
-        print("  budget reached; not run: %s" % ", ".join(skipped))
+        print("  guard reached; not run: %s" % ", ".join(c.name for c in skipped))
     if blocking:
         print("acs-evals: FAIL (skip once with SKIP=acs-evals)")
         for line in blocking:

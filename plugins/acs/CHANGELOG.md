@@ -375,19 +375,20 @@ JSON validated by JSON Schema, one central envelope plus a
     when a commit touches the suite, a skill, the hook scripts, the schemas or
     the gate. CI's pre-commit job skips it. The release gate still runs the
     checks first.
-  - **An opt-in `acs-evals` hook runs the paid cases a change affects, locally.**
-    It runs on `git push`, or on demand with `pre-commit run acs-evals
-    --hook-stage manual`. `scripts/eval_changed.py` diffs the branch against
-    `origin/main`, picks the cases that diff can move, and runs each once
-    within a budget (default $3).
-    - It blocks only on a misrouted `negative` or `control` case, or on a run
-      that could not happen. A missed description case is reported with the
-      command that runs it three times.
-    - It is off until `git config acs.evals true`, never runs in CI, and never
-      passes `--trust-plugin`.
+  - **An `acs-evals` hook runs the cases a change affects, locally, on the
+    Claude subscription.** It runs on `git push`, or on demand with
+    `pre-commit run acs-evals --hook-stage manual`. `scripts/eval_changed.py`
+    diffs the branch against `origin/main`, picks the cases that diff can move,
+    and runs each three times.
+    - It applies the release gate's rules to the touched skills: any
+      negative/control misroute blocks, and so does a skill routing less than
+      2/3 of its pooled runs, and so does a gated case that could not run.
+      Explicit and behaviour cases are reported.
+    - It is on by default (`git config acs.evals false` turns it off). Its
+      budget is a $25 runaway guard on computed cost. It never runs in CI and
+      never passes `--trust-plugin`.
   - **Migration:** none for consumers. Contributors run `pre-commit install`
-    once per clone to get the free hook. The paid hook also needs
-    `pre-commit install --hook-type pre-push` and `git config acs.evals true`.
+    and `pre-commit install --hook-type pre-push` once per clone.
 
 - **Routing is graded on the first move and gated by skill, not by prompt**
   (ADR-0107).
