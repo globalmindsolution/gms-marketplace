@@ -6,7 +6,7 @@ description: >-
   list.
 expected_outcome: Routes to acs:analyze-requirements.
 tags: [routing, description]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

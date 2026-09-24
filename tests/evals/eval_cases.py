@@ -1,9 +1,11 @@
-"""Read the plugin's `claude plugin eval` suite as data, for the free tests.
+"""Read the plugin's `claude plugin eval` suite as data, for the free checks.
 
 The case files under plugins/acs/evals/ ARE the suite -- nothing renders them
--- so every test that asserts something about the probe set reads them here.
-The CLI itself never runs in CI (ADR-0022), which makes this reader, and the
-tests built on it, the only thing that catches a malformed case before someone
+-- so every check that asserts something about the probe set reads them here,
+and so does scripts/eval_gate.py. Neither the CLI nor these checks run in CI
+(ADR-0022, ADR-0108): the checks beside this file (tests/evals/check_*.py) run
+from the `acs-eval-checks` pre-commit hook and as the release gate's first
+step, and they are the only thing that catches a malformed case before someone
 pays to discover it.
 
 Deliberately STRICT. Frontmatter is parsed by a small stdlib reader that

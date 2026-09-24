@@ -155,7 +155,7 @@ class ThisRepoDeclaresItsOwnGateTest(unittest.TestCase):
         control: a malformed case must fail the free validator before the
         gate spends anything on sessions that would only discover it."""
         gate = json.load(open(SETTINGS))["release"]["pre_release_gate"]
-        free = [i for i, c in enumerate(gate) if "test_eval_cases" in c]
+        free = [i for i, c in enumerate(gate) if "tests/evals" in c]
         paid = [i for i, c in enumerate(gate) if "claude plugin eval" in c]
         self.assertTrue(free and paid, gate)
         self.assertLess(free[0], paid[0])

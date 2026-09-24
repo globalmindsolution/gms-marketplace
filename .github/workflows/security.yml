@@ -37,3 +37,7 @@ jobs:
         with:
           python-version: "3.x"
       - uses: pre-commit/action@v3.0.1
+        env:
+          # Evals never run in CI (ADR-0022, ADR-0108): the eval checks are a
+          # local pre-commit hook and the release gate's first step.
+          SKIP: acs-eval-checks

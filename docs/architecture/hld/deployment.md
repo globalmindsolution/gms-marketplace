@@ -69,9 +69,10 @@ Key facts:
   graded repo-wide against the 90% floor. The plugin's eval suite
   (`plugins/<plugin>/evals/`, `claude plugin eval` case files) runs **locally
   and at the release gate only** — every case spawns a real session and costs
-  money, so it is not coupled to CI. What CI does run is a free structural check
-  of those case files (`tests/acs/test_eval_cases.py`), because otherwise the
-  first sign of a malformed case would be a paid run scoring it zero.
+  money, so it is not coupled to CI. Neither are its free checks (ADR-0108):
+  the structural and calibration checks under `tests/evals/` run from a local
+  pre-commit hook and as the release gate's first step, so a malformed case
+  still fails for $0 before a paid run scores it zero.
 - **Consumer-repo required-check gates**: `/acs:setup` can opt-in scaffold up
   to three independent GitHub Actions checks per consumer repo — conventions
   (`acs-conventions.yml`, which since ADR-0106 checks one rule: the PR

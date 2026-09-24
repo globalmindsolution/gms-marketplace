@@ -24,19 +24,30 @@ run day to day:
 
 ```bash
 python3 -m unittest discover -s tests -v          # deterministic + contract suites (free)
-python3 -m unittest tests.acs.test_eval_cases     # every eval case well-formed (free; part of the above)
+python3 -m unittest discover -s tests/evals -p 'check_*.py'   # eval-suite checks (free, local only)
 cd plugins/acs && claude plugin eval . --case route-code --runs 1 --ablation none   # one eval case ($)
 ```
 
-- The **free** layer gates every PR (CI). It includes a structural check of the
-  eval suite, because the eval CLI itself never runs in CI.
+- The **free** layer gates every PR (CI). It does not include the eval suite:
+  nothing about evals runs in CI (ADR-0108). The eval-suite checks under
+  `tests/evals/` run locally instead — the `acs-eval-checks` pre-commit hook
+  fires when a commit touches the suite, a skill or the gate, and the release
+  gate runs them first. Install the hooks once per clone: `pre-commit install`.
+- The **eval cases of the skills you changed** run before you open a PR, on the
+  Claude subscription your `claude` CLI is logged in with. The `acs-evals`
+  hook is on by default once `pre-commit install --hook-type pre-push` has
+  run. It runs on `git push`, or on demand with
+  `pre-commit run acs-evals --hook-stage manual`, and
+  `git config acs.evals false` turns it off. See the eval suite's README,
+  "Running the evals your change affects".
 - The **paid** eval suite is `claude plugin eval` case files at
   [`plugins/acs/evals/`](plugins/acs/evals/README.md). Run a case or two while
   you change a skill's `description` — that is what the routing cases measure —
   and read that README for tags and known limits before quoting a number.
 - The **pre-release gate** is `release.pre_release_gate` in
   [`.acs/settings.json`](.acs/settings.json): the free structural check, then
-  the routing suite, in that order. Run it before bumping `version` —
+  the routing suite, then `scripts/eval_gate.py` judging it by skill rather
+  than by prompt (ADR-0107), in that order. Run it before bumping `version` —
   see the [release runbook](docs/operations/release-runbook.md).
 
 ### Reproducing the *Tests & coverage* gate locally

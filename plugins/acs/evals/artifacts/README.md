@@ -57,6 +57,19 @@ Stated so a green run is not read as more than it is:
 
 ## Validation status
 
+- **Every free grader is calibrated, free and locally** by
+  `tests/evals/check_grader_calibration.py` (ADR-0107), from the pre-commit
+  hook and the release gate, never in CI (ADR-0108). Each case's real
+  scaffold is built, and runs are played through the plugin's own writers
+  (`acs step start --allocate`, `acs ticket save`, `acs step start` / `step
+  finish`). An ideal run must pass every free grader, and each bad run must fail
+  at least one. Two graders failed that bar and were fixed:
+  - `create-ticket-artifacts` passed a run that only started the skill. The
+    allocate step's placeholder ticket already has the right id, type and
+    `needs_design`. It now also requires an acceptance criterion and a
+    non-placeholder title.
+  - `resume-and-verify` passed on a comment mentioning `/health`. It now
+    requires the quoted route string.
 - **Both seeds are verified**: run by hand, each exits 0; `resume-and-verify`
   mints EVAL-1 through the plugin's own `new-ticket.py`, and the real
   `/acs:code` gate then OPENS on the seeded state (checked from outside the

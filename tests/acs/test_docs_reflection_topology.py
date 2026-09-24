@@ -28,7 +28,6 @@ import re
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import eval_cases  # noqa: E402  (the case files are the probe set)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -93,12 +92,14 @@ def _load_acs_lib():
 def _routing_positive_skills():
     """How many skills carry a positive routing case.
 
-    Was `len(s04_skill_triggers.CASES)` -- one entry per shipped skill -- and
-    then a count over a routing dataset; both are gone, and the case files are
-    the probe set. The equivalent is DISTINCT skills with a must-route case:
-    two skills carry two positives each (an explicit command and a
-    description), which a raw case count would double-count."""
-    return len({p["skill"] for p in eval_cases.probe_dicts() if p["must_route"]})
+    Was `len(s04_skill_triggers.CASES)` -- one entry per shipped skill -- then
+    a count over the routing case files. Evals left CI (ADR-0108), and every
+    shipped skill carrying a positive routing case is asserted with the eval
+    suite, locally (tests/evals/check_cases.py, CoverageTest). So the number the
+    docs must state is the shipped-skill count, read from the skills tree."""
+    skills = os.path.join(PLUGIN, "skills")
+    return len([n for n in os.listdir(skills)
+                if os.path.isfile(os.path.join(skills, n, "SKILL.md"))])
 
 
 

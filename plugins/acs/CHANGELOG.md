@@ -362,6 +362,61 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **Nothing about the eval suite runs in CI** (ADR-0108, extends ADR-0022).
+  - **The free eval checks moved out of CI discovery.** Case shape and coverage,
+    grader calibration, the gate's own tests, and four probe-expectation classes
+    that were buried in doc tests moved from `tests/acs/` to
+    `tests/evals/check_*.py`. CI's `unittest discover -s tests` never loads that
+    directory.
+  - **No CI test reads the case files.** The strict case reader moved with the
+    checks. Doc tests that pinned the routing-coverage count now derive it from
+    the shipped skills.
+  - **The checks run locally.** The new `acs-eval-checks` pre-commit hook fires
+    when a commit touches the suite, a skill, the hook scripts, the schemas or
+    the gate. CI's pre-commit job skips it. The release gate still runs the
+    checks first.
+  - **An `acs-evals` hook runs the changed skills' cases, locally, on the
+    Claude subscription.** It runs on `git push`, or on demand with
+    `pre-commit run acs-evals --hook-stage manual`. `scripts/eval_changed.py`
+    diffs the branch against `origin/main` and runs only the changed skills'
+    cases, three times each. It never runs the full suite; the release gate
+    does.
+    - It applies the release gate's rules to the touched skills: any
+      negative/control misroute blocks, and so does a skill routing less than
+      2/3 of its pooled runs, and so does a gated case that could not run.
+      Explicit and behaviour cases are reported.
+    - It is on by default (`git config acs.evals false` turns it off). Its
+      budget is a $25 runaway guard on computed cost. It never runs in CI and
+      never passes `--trust-plugin`.
+  - **Migration:** none for consumers. Contributors run `pre-commit install`
+    and `pre-commit install --hook-type pre-push` once per clone.
+
+- **Routing is graded on the first move and gated by skill, not by prompt**
+  (ADR-0107).
+  - **The old gate could not pass.** It ran every routing case at the CLI's
+    default per-case threshold of 1.0, including the `explicit` cases, which
+    are not observable.
+  - **A routing run is now one turn,** so a request misrouted to `/acs:ship`
+    can no longer pass a step's case when `ship` invokes that step.
+  - **Each skill a user reaches by description has three phrasings.** One of
+    them, tagged `confusable`, borrows a neighbouring skill's words. There are
+    three new requests answered in prose that must fire no skill. The suite
+    grows from 39 to 90 routing cases.
+  - **The gate runs the CLI with `--threshold 0 --json`, then
+    `scripts/eval_gate.py`.**
+    - Negatives and controls must pass every run.
+    - Each skill must route at least 2/3 of its pooled runs, and the suite at
+      least 9/10. Both rates are provisional until a baseline is taken.
+    - A partial, stale or unreadable result fails the gate. So does a run that
+      never reached the model.
+  - **A new free test calibrates every setup and artifact grader.** It plays an
+    ideal run and bad runs through the plugin's own writers. It found two
+    graders that could not fail, and both are fixed: `create-ticket-artifacts`
+    passed a run that only started the skill, and `resume-and-verify` passed on
+    a comment mentioning `/health`.
+  - **Migration:** none for consumers. The earlier routing numbers are history,
+    not a baseline.
+
 - **The CI convention check enforces one rule: the PR description names its
   ticket** (ADR-0106). `acs-conventions.yml` passes a PR whose description
   names the acs id (`<prefix>-<n>`), a `#<n>` issue reference, or an issue

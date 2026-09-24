@@ -20,7 +20,6 @@ import unittest
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import eval_cases  # noqa: E402  (the case files are the probe set)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -152,33 +151,6 @@ class SkillsMdCountAndTestSectionTest(unittest.TestCase):
             "the suite-runner section must state it is unhooked / has no planner triad")
         self.assertIn("suites", window,
                       "the suite-runner section must reference the suites map")
-
-
-class RoutingProbeCaseTest(unittest.TestCase):
-    """Approach item 4: one suite-runner routing probe, read from the curated
-    dataset (no paid model call).
-
-    MAR-114 added it as `test`; the skills-independence refactor renamed that
-    skill to `run-e2e-tests` and left `test` behind as a deprecated alias
-    directory, which v0.5.0 then deleted. The probe must expect
-    `run-e2e-tests` — pinning `test` would pin an alias that no longer ships,
-    which is exactly the stale assertion the guide-format migration found and
-    removed from this dataset."""
-
-    @staticmethod
-    def _probes():
-        return eval_cases.probe_dicts()
-
-    @staticmethod
-    def _skill(probe):
-        return probe["skill"].split(":", 1)[1]
-
-    def test_suite_runner_case_present_and_internally_consistent(self):
-        probed = [self._skill(p) for p in self._probes()]
-        self.assertIn("run-e2e-tests", probed,
-                      "the suite must carry a run-e2e-tests routing case")
-        self.assertNotIn("test", probed,
-                         "no probe may name the deleted `test` alias directory")
 
 
 class ChangelogMar114EntryTest(unittest.TestCase):

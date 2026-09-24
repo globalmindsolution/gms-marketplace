@@ -7,7 +7,7 @@ description: >-
   invocation that is legitimately explicit.
 expected_outcome: Routes to acs:code-standard.
 tags: [routing, explicit]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

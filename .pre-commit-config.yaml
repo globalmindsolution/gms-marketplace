@@ -35,6 +35,37 @@ repos:
         files: \.md$
 
 
+      # Eval-suite checks ($0, a few seconds): case shape and coverage, grader
+      # calibration against the plugin's real writers, and the release gate's
+      # judgement. Local only — CI's pre-commit job SKIPs this hook, and CI's
+      # test discovery never loads tests/evals/ (ADR-0108). Fires when a commit
+      # touches the suite, a skill, the hook scripts the calibration plays
+      # through, or the gate.
+      - id: acs-eval-checks
+        name: acs eval-suite checks (local only)
+        entry: python3 -m unittest discover -s tests/evals -p check_*.py
+        language: system
+        pass_filenames: false
+        files: ^(plugins/acs/(evals|skills|hooks/scripts|schemas)/|tests/evals/|scripts/eval_(gate|changed)\.py$|\.acs/settings\.json$)
+
+      # The eval cases of the skills this branch changed -- never the full
+      # suite, which is the release gate's -- three runs each, on `git push`
+      # (or `pre-commit run acs-evals --hook-stage manual`), on the Claude
+      # subscription `claude` is logged in with. On by default; off with
+      # `git config acs.evals false`. Needs the pre-push hook type installed
+      # (`pre-commit install --hook-type pre-push`). Never in CI: the pre-push
+      # and manual stages are not run by CI's pre-commit job, and the script
+      # exits when CI is set (ADR-0108). See plugins/acs/evals/README.md,
+      # "Running the evals your change affects".
+      - id: acs-evals
+        name: acs evals for the skills this change touches (local, subscription quota)
+        entry: python3 scripts/eval_changed.py
+        language: system
+        stages: [pre-push, manual]
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
       # acs convention hooks — validate branch/commit against committed formats.*
       # (honour enforcement.checks.* toggles + exempt label/branches).
       - id: acs-commit-msg

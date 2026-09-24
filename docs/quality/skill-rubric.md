@@ -31,11 +31,12 @@ skill. The dimension asks whether it is *discriminating*, not whether it is
 well written: a description that wins its own probe but also wins its
 neighbour's is worse than a plain one that wins only its own.
 
-- **Evidence**: the skill's routing case under `plugins/acs/evals/routing/`,
-  run with `claude plugin eval . --tag routing` — 3 runs a case by default.
-  Read the suite README's known limits first: an `explicit` case can read zero
-  for a probe that routed, and three prompts presuppose context the empty
-  workspace lacks.
+- **Evidence**: the skill's three routing cases under `plugins/acs/evals/routing/`
+  — the plain request, an indirect one, and a `confusable` one that borrows a
+  neighbour's words — run with `claude plugin eval . --tag routing`, 3 runs a
+  case by default. The confusable case is the one that measures
+  discrimination. Read the suite README's known limits first: an `explicit`
+  case can read zero for a probe that routed.
 - **Blocks** when reliability is below 100%. Routing is an absolute floor —
   the suite's performance tier already treated it as one, and a skill that
   routes 4 times in 5 fails one user in five.

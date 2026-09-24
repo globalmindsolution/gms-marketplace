@@ -57,8 +57,9 @@
       ]
     },
     "pre_release_gate": [
-      "python3 -m unittest tests.acs.test_eval_cases",
-      "claude plugin eval plugins/acs --tag routing --ablation none --trust-plugin --no-publish --max-cost-usd 20"
+      "python3 -m unittest discover -s tests/evals -p check_*.py",
+      "claude plugin eval plugins/acs --tag description --tag negative --tag control --ablation none --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json --trust-plugin --no-publish --max-cost-usd 40",
+      "python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json --min-skill-rate 2/3 --min-suite-rate 9/10"
     ]
   },
   "tests": {

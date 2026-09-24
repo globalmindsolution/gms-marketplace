@@ -1,16 +1,16 @@
 ---
 description: >-
   A natural-language request in the skill's domain, never naming the skill.
-  KNOWN CONFOUND: the prompt presupposes an existing codebase to reverse-
-  engineer, and the case runs in an empty workspace. That is measured, not
-  hypothetical: on an empty repo the model looked, found nothing, and asked
-  instead of routing. `allowed_tools: [Skill]` removes the looking, not the
-  absence -- seed a codebase before reading a miss here as a description
-  defect.
+  It was a known confound while the prompt only presupposed an existing
+  codebase: on an empty repo the model looked, found nothing, and asked
+  instead of routing. The prompt now describes the codebase itself, and a
+  routing run is one turn with only the Skill tool, so there is nothing to
+  look at and no turn in which to find it missing. Re-measured by the next
+  paid run; until then its history is a caveat, not a baseline.
 expected_outcome: Routes to acs:create-requirements.
 tags: [routing, description]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Reverse-engineer the functional and non-functional requirements out of this existing codebase.
+This repository is an existing codebase — a Node.js API with about sixty route handlers and no written requirements. Reverse-engineer its functional and non-functional requirements from the source.

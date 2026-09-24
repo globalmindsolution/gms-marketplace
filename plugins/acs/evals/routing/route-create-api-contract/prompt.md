@@ -5,7 +5,7 @@ description: >-
   surface and its shapes rather than to the internal approach.
 expected_outcome: Routes to acs:create-api-contract.
 tags: [routing, description]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

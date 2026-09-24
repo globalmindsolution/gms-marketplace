@@ -6,7 +6,7 @@ description: >-
   that was this skill's negative case.
 expected_outcome: Routes to acs:install-hooks.
 tags: [routing, explicit]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

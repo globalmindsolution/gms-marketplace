@@ -17,9 +17,12 @@ the step-by-step the maintainer follows.
    from the checkout root before it drafts, bumps, branches or pushes anything.
    To run it by hand first — which is how you find out before the cut does:
    ```bash
-   python3 -m unittest tests.acs.test_eval_cases    # free: every eval case well-formed
-   claude plugin eval plugins/acs --tag routing --ablation none \
-     --trust-plugin --no-publish --max-cost-usd 20  # PAID (~$15): routing, 3 runs a case
+   python3 -m unittest discover -s tests/evals -p 'check_*.py'   # free, local eval checks
+   claude plugin eval plugins/acs --tag description --tag negative --tag control \
+     --ablation none --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
+     --trust-plugin --no-publish --max-cost-usd 40   # PAID: routing, 3 runs a case
+   python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
+     --min-skill-rate 2/3 --min-suite-rate 9/10       # the judgement
    ```
    The second command runs the plugin's eval suite, `claude plugin eval` case
    files at [`plugins/acs/evals/`](../../plugins/acs/evals/README.md). The free
@@ -27,13 +30,16 @@ the step-by-step the maintainer follows.
    paid run has spent. `--max-cost-usd` is a ceiling: hitting it exits **2**
    with `partial: true`, which is an unfinished run, not a result.
 
-   Read a red run before acting on it. The command exits 1 when any case scores
-   below 1.0, and the suite's README records which cases are known to read low
-   for reasons that are not the plugin: explicit `/acs:<skill>` invocations are
-   not reliably observable, and three routing prompts presuppose context the
-   empty eval workspace lacks. A usage or rate limit reached mid-run also scores
-   later runs 0 without marking the run partial — check each case's NOTES for
-   the limit message before trusting the table.
+   The CLI only measures (`--threshold 0`); `scripts/eval_gate.py` judges
+   ([ADR-0107](../adr/0107-routing-gated-by-skill-not-by-prompt.md)). Negatives
+   and controls must pass every run; each skill, pooling its three phrasings,
+   must route at least 2/3 of its runs and the suite at least 9/10; `explicit`
+   cases, which are not reliably observable, are not run. Read a red verdict
+   before acting on it: the script names each failing skill or case. It refuses
+   rather than passes a run it cannot trust — a partial run, a missing case, a
+   result older than six hours, or a run that errored before the model answered
+   (a usage or rate limit mid-run scores later runs without marking the run
+   partial, and a negative would read such a run as a pass).
 
    Then run the suite against the **installed** build as well, once the tag is
    cut and the build is installed:

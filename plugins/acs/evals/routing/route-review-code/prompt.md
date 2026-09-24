@@ -12,7 +12,7 @@ description: >-
   the point.
 expected_outcome: Routes to acs:review-code.
 tags: [routing, description]
-max_turns: 10
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

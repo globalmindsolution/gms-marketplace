@@ -26,7 +26,6 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import eval_cases  # noqa: E402  (the case files are the probe set)
 
 import acs_lib  # noqa: E402
 
@@ -176,45 +175,6 @@ class ArchitectureDocsTest(unittest.TestCase):
             for retired in RETIRED:
                 self.assertNotIn("`/acs:%s`" % retired, body,
                                  "%s names retired leg %s" % (name, retired))
-
-
-class RoutingProbeCaseTest(unittest.TestCase):
-    """One routing probe for the fold, read from the curated dataset (no paid
-    call): a description-shaped probe that names two sets and routes to
-    create-docs; no probe survives for a retired leg.
-
-    The probe set used to live in s04_skill_triggers.py's CASES list, parsed
-    out of its AST. Routing consolidated onto the `claude plugin eval` tree, so
-    the probe set is the case files under plugins/acs/evals/, read through
-    tests/acs/eval_cases.py."""
-
-    @staticmethod
-    def _probes(positive=None):
-        probes = eval_cases.probe_dicts()
-        if positive is not None:
-            probes = [p for p in probes if p["must_route"] is positive]
-        return probes
-
-    @staticmethod
-    def _skill(probe):
-        return probe["skill"].split(":", 1)[1]
-
-    def test_create_docs_case_present_and_internally_consistent(self):
-        matches = [p for p in self._probes(positive=True)
-                   if self._skill(p) == "create-docs"]
-        self.assertEqual(len(matches), 1, "exactly one create-docs probe")
-        prompt = matches[0]["prompt"]
-        self.assertNotIn("create-docs", prompt,
-                         "the probe describes intent without naming the skill")
-        named = [x for x in SETS if x in prompt]
-        self.assertGreaterEqual(len(named), 2,
-                                "the probe should name more than one set, so "
-                                "routing must reach the umbrella and not a leg")
-
-    def test_no_case_survives_for_a_retired_leg(self):
-        probed = {self._skill(p) for p in self._probes()}
-        for retired in RETIRED:
-            self.assertNotIn(retired, probed)
 
 
 class ChangelogEntriesTest(unittest.TestCase):
