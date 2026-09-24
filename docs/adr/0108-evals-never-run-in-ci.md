@@ -49,7 +49,12 @@ anything it covers. The maintainer's decision is that CI does not do evals.
 `acs-evals` hook (`scripts/eval_changed.py`) runs at the `pre-push` and
 `manual` stages. CI's pre-commit job runs neither, and the script exits when
 `CI` is set. It works like this:
-- It selects the cases the branch's diff can move and runs each three times.
+- It finds the skills the branch changed and runs only their cases, three
+  times each. For a changed skill, those are its routing cases when its
+  frontmatter changed, the `confusable`, `negative` and `control` cases whose
+  description names it, and its behaviour suite. An edited case, the shared
+  hook library, or anything else that is not a skill runs nothing here. The
+  full suite is the release gate's.
 - It applies the release gate's rules (ADR-0107) to the skills the change
   touches:
   - a `negative` or `control` misroute in any run blocks the push;

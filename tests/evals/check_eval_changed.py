@@ -28,7 +28,9 @@ hook = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(hook)
 
 CASES = {c.name: c for c in ec.all_cases()}
-MUST_NEVER = sorted(n for n, c in CASES.items() if c.kind in ("negative", "control"))
+PR_CHANGE = (["plugins/acs/skills/create-pr/SKILL.md"], {"create-pr"})
+#: The must-never cases a create-pr description change selects.
+PR_MUST_NEVER = [c.name for c in hook.select(*PR_CHANGE) if c.kind in ("negative", "control")]
 
 
 def names(selected):
@@ -37,22 +39,46 @@ def names(selected):
 
 class SelectionTest(unittest.TestCase):
 
-    def test_a_description_change_selects_its_skill_its_neighbours_and_every_must_never(self):
-        got = names(hook.select(["plugins/acs/skills/create-pr/SKILL.md"], {"create-pr"}))
+    def test_a_description_change_selects_that_skill_and_what_names_it_only(self):
+        got = names(hook.select(*PR_CHANGE))
         own = sorted(n for n, c in CASES.items()
                      if c.skill == "create-pr" and c.kind == "description")
         self.assertEqual(len(own), 3)
-        for name in own + MUST_NEVER:
+        for name in own:
             self.assertIn(name, got)
         borrowing = [n for n, c in CASES.items() if "confusable" in c.tags
                      and "/acs:create-pr " in c.fm.get("description", "")]
         self.assertTrue(borrowing, "some confusable case names create-pr as its neighbour")
         for name in borrowing:
             self.assertIn(name, got)
-        self.assertNotIn("route-merge-pr", got, "an unrelated skill's plain case is not moved")
+        self.assertIn("ignores-general-pr-advice", got, "the control that names create-pr")
+        for name in ("route-merge-pr", "ignores-regex-request", "route-code-small-negative"):
+            self.assertNotIn(name, got, "a case about another skill is not run")
+
+    def test_a_legs_negative_runs_when_the_leg_or_its_entry_point_changes(self):
+        self.assertEqual(names(hook.select(["plugins/acs/skills/code-small/SKILL.md"],
+                                           {"code-small"})), ["route-code-small-negative"])
+        got = names(hook.select(["plugins/acs/skills/code/SKILL.md"], {"code"}))
+        for leg in ("small", "standard", "complex", "trivial"):
+            self.assertIn("route-code-%s-negative" % leg, got)
+
+    def test_a_skill_named_is_not_a_longer_skill_named(self):
+        case = CASES["route-code-small-negative"]
+        self.assertTrue(hook.names_skill(case, "code"))
+        self.assertFalse(hook.names_skill(case, "code-s"))
+
+    def test_no_skill_change_runs_the_full_suite(self):
+        """The whole suite is the release gate's; a change runs a slice of it."""
+        routing = [c for c in CASES.values() if c.group == "routing"]
+        for skill in sorted(os.listdir(os.path.join(REPO_ROOT, "plugins", "acs", "skills"))):
+            with self.subTest(skill=skill):
+                got = hook.select(["plugins/acs/skills/%s/SKILL.md" % skill], {skill})
+                self.assertLess(len([c for c in got if c.group == "routing"]), len(routing) // 5)
+                self.assertFalse({"ignores-regex-request", "ignores-unrelated-request"}
+                                 & set(names(got)), "the controls naming no skill are release-only")
 
     def test_must_never_cases_run_first(self):
-        got = hook.select(["plugins/acs/skills/create-pr/SKILL.md"], {"create-pr"})
+        got = hook.select(*PR_CHANGE)
         kinds = [c.kind for c in got]
         first_other = next(i for i, k in enumerate(kinds) if k not in ("negative", "control"))
         self.assertTrue(all(k not in ("negative", "control") for k in kinds[first_other:]))
@@ -69,19 +95,25 @@ class SelectionTest(unittest.TestCase):
     def test_a_skill_without_a_behaviour_suite_and_an_unchanged_description_selects_nothing(self):
         self.assertEqual(hook.select(["plugins/acs/skills/merge-pr/SKILL.md"], set()), [])
 
-    def test_a_case_change_selects_that_case(self):
-        got = hook.select(["plugins/acs/evals/routing/route-code/prompt.md"], set())
-        self.assertEqual(names(got), ["route-code"])
+    def test_an_edited_case_is_listed_not_run(self):
+        paths = ["plugins/acs/evals/routing/route-code/prompt.md",
+                 "plugins/acs/evals/setup/_fixtures/python-repo.sh"]
+        self.assertEqual(hook.select(paths, set()), [])
+        self.assertEqual(hook.edited_cases(paths, []), ["route-code"])
 
-    def test_a_fixture_change_selects_its_group(self):
-        got = hook.select(["plugins/acs/evals/setup/_fixtures/python-repo.sh"], set())
-        self.assertEqual({c.group for c in got}, {"setup"})
+    def test_an_edited_case_the_skill_change_runs_is_not_listed(self):
+        paths = ["plugins/acs/skills/code/SKILL.md", "plugins/acs/evals/routing/route-code/prompt.md"]
+        selected = hook.select(paths, {"code"})
+        self.assertIn("route-code", names(selected))
+        self.assertEqual(hook.edited_cases(paths, selected), [])
 
-    def test_suite_code_selects_its_suite(self):
+    def test_a_file_a_skill_owns_outside_its_directory_selects_its_suite(self):
         self.assertEqual({c.group for c in hook.select(
             ["plugins/acs/hooks/scripts/setup_wizard.py"], set())}, {"setup"})
-        self.assertEqual({c.group for c in hook.select(
-            ["plugins/acs/hooks/scripts/acs_lib/tickets.py"], set())}, {"artifacts"})
+
+    def test_the_shared_hook_library_is_not_a_skill_change(self):
+        self.assertEqual(hook.select(["plugins/acs/hooks/scripts/acs_lib/tickets.py",
+                                      "plugins/acs/hooks/scripts/acs.py"], set()), [])
 
     def test_an_unrelated_change_selects_nothing(self):
         self.assertEqual(hook.select(["README.md", "docs/adr/README.md"], set()), [])
@@ -139,7 +171,7 @@ class RunTest(unittest.TestCase):
                     os.environ[k] = v
         self.addCleanup(restore)
         stubs = {"base_ref": lambda preferred: "main",
-                 "changes": lambda base, head: (["plugins/acs/skills/create-pr/SKILL.md"], {"create-pr"}),
+                 "changes": lambda base, head: PR_CHANGE,
                  "configured": lambda key, default, kind: default}
         for name, fn in stubs.items():
             original = getattr(hook, name)
@@ -172,9 +204,9 @@ class RunTest(unittest.TestCase):
             self.assertNotIn("--trust-plugin", call)
 
     def test_one_misroute_of_a_negative_blocks(self):
-        code, out = self.main({MUST_NEVER[0]: "110"})
+        code, out = self.main({PR_MUST_NEVER[0]: "110"})
         self.assertEqual(code, 1)
-        self.assertIn("%s (" % MUST_NEVER[0], out)
+        self.assertIn("%s (" % PR_MUST_NEVER[0], out)
         self.assertIn("misrouted in 1 of 3 runs", out)
 
     def test_a_touched_skill_below_two_thirds_blocks(self):
@@ -206,18 +238,18 @@ class RunTest(unittest.TestCase):
         self.assertIn("report: %s: 1 of 3 runs passed" % setup_case, out)
 
     def test_a_usage_limit_mid_run_blocks_rather_than_passing_a_negative(self):
-        code, out = self.main({MUST_NEVER[0]: "1x1"})
+        code, out = self.main({PR_MUST_NEVER[0]: "1x1"})
         self.assertEqual(code, 1)
         self.assertIn("never reached the model", out)
 
     def test_an_untrusted_directory_blocks_once_with_the_fix(self):
-        code, out = self.main({MUST_NEVER[0]: "untrusted"})
+        code, out = self.main({PR_MUST_NEVER[0]: "untrusted"})
         self.assertEqual(code, 1)
         self.assertIn("not trusted yet", out)
         self.assertEqual(len(self.calls()), 1, "it stops after the first untrusted run")
 
     def test_a_run_without_a_score_blocks(self):
-        code, out = self.main({MUST_NEVER[0]: "1n1"})
+        code, out = self.main({PR_MUST_NEVER[0]: "1n1"})
         self.assertEqual(code, 1)
         self.assertIn("a run has no score", out)
 
@@ -230,9 +262,9 @@ class RunTest(unittest.TestCase):
         self.assertLessEqual(len(self.calls()), 3)
 
     def test_the_cli_hitting_its_ceiling_on_a_gated_case_blocks(self):
-        code, out = self.main({MUST_NEVER[0]: "ceiling"})
+        code, out = self.main({PR_MUST_NEVER[0]: "ceiling"})
         self.assertEqual(code, 1, out)
-        self.assertIn("before these gated cases ran: %s" % MUST_NEVER[0], out)
+        self.assertIn("before these gated cases ran: %s" % PR_MUST_NEVER[0], out)
 
     def test_a_guard_that_stops_only_behaviour_cases_is_reported(self):
         hook.changes, saved = (lambda base, head: (["plugins/acs/skills/setup/SKILL.md"], set())), hook.changes
@@ -241,6 +273,16 @@ class RunTest(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("guard reached; not run:", out)
         self.assertNotIn("gated cases", out)
+
+    def test_a_change_to_no_skill_runs_nothing_and_lists_the_edited_cases(self):
+        hook.changes, saved = (lambda base, head: (
+            ["plugins/acs/evals/routing/route-code/prompt.md"], set())), hook.changes
+        self.addCleanup(setattr, hook, "changes", saved)
+        code, out = self.main({})
+        self.assertEqual(code, 0, out)
+        self.assertIn("1 edited case(s) not run", out)
+        self.assertIn("nothing to run", out)
+        self.assertFalse(os.path.exists(self.log), "the CLI is never called")
 
     def test_without_claude_it_lets_the_push_through(self):
         os.environ["PATH"] = os.pathsep.join(p for p in os.environ["PATH"].split(os.pathsep)

@@ -375,11 +375,12 @@ JSON validated by JSON Schema, one central envelope plus a
     when a commit touches the suite, a skill, the hook scripts, the schemas or
     the gate. CI's pre-commit job skips it. The release gate still runs the
     checks first.
-  - **An `acs-evals` hook runs the cases a change affects, locally, on the
+  - **An `acs-evals` hook runs the changed skills' cases, locally, on the
     Claude subscription.** It runs on `git push`, or on demand with
     `pre-commit run acs-evals --hook-stage manual`. `scripts/eval_changed.py`
-    diffs the branch against `origin/main`, picks the cases that diff can move,
-    and runs each three times.
+    diffs the branch against `origin/main` and runs only the changed skills'
+    cases, three times each. It never runs the full suite; the release gate
+    does.
     - It applies the release gate's rules to the touched skills: any
       negative/control misroute blocks, and so does a skill routing less than
       2/3 of its pooled runs, and so does a gated case that could not run.

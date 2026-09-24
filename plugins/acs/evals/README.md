@@ -270,8 +270,9 @@ By hand: `python3 -m unittest discover -s tests/evals -p 'check_*.py'`
 The cases your change affects run locally before you open a PR, on the Claude
 subscription your `claude` CLI is logged in with. The `acs-evals` pre-commit
 hook runs `scripts/eval_changed.py` on `git push`. It diffs your branch against
-`origin/main`, picks the cases that diff can move, and runs each **three
-times**. It is **on by default**:
+`origin/main`, finds the **skills you changed**, and runs only their cases,
+**three times** each. It never runs the full suite: that is the release gate's
+job. It is **on by default**:
 
 ```bash
 pre-commit install --hook-type pre-push      # once per clone (also enables the branch/commit pre-push check)
@@ -287,17 +288,23 @@ git config acs.evalsBudget 40                # optional: runaway guard on comput
 
 | Your change | What it runs |
 |---|---|
-| a skill's frontmatter (`description`, `when_to_use`, …) | that skill's routing cases, the `confusable` cases that name it as their neighbour, and every `negative` and `control` case (a description competes with all the others) |
-| any file of `setup`, `create-ticket` or `code` | that skill's behaviour cases |
-| an eval case's files | that case (a group's `_fixtures/`: the whole group) |
-| the setup wizard or the CI templates it installs | the setup suite |
-| `acs.py` or `acs_lib/` | the artifact suite |
-| anything else | nothing |
+| a skill's frontmatter (`description`, `when_to_use`, …) | that skill's routing cases, and the cases whose `description` names it as `/acs:<skill>`: a `confusable` case that borrows its vocabulary, a `negative` or `control` case it could steal |
+| any file of `setup`, `create-ticket` or `code` (for `setup`, also the setup wizard and the CI templates it installs) | that skill's behaviour cases |
+| a skill's body, for a skill with no behaviour suite | nothing: routing reads only the frontmatter |
+| an eval case, a fixture, `acs.py`, `acs_lib/`, anything else | nothing |
+
+A description change runs four routing cases at the median. The most is eight,
+for `code`, whose four legs each have a `negative` case. `setup` adds its eight
+behaviour cases. The hook lists the eval cases your branch edited but did not
+run, and the release gate runs them all. The two controls that name no skill,
+`ignores-regex-request` and `ignores-unrelated-request`, run only there. To tie
+a `negative` or `control` case to a skill, name the skill as `/acs:<skill>` in
+the case's `description`.
 
 It applies the [release gate's rules](#what-the-release-gate-passes) to the
 skills your change touches, and runs the must-never cases first. **It blocks
 the push** when:
-- a `negative` or `control` case misroutes in any run;
+- a selected `negative` or `control` case misroutes in any run;
 - a touched skill's selected description cases, pooled, route less than 2/3 of
   their runs. A neighbour whose `confusable` case your new description steals
   counts too;

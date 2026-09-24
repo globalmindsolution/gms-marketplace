@@ -3,8 +3,9 @@
 
 The `acs-evals` pre-commit hook runs this on `git push` (and on demand with
 `pre-commit run acs-evals --hook-stage manual`). It reads the branch's diff
-against `origin/main`, picks the eval cases that diff can move, and runs each
-three times with `claude plugin eval`. Nothing about the eval suite runs in CI
+against `origin/main`, finds the skills it changed, and runs only those skills'
+eval cases, three times each, with `claude plugin eval`. It never runs the full
+suite: that is the release gate's job. Nothing about the eval suite runs in CI
 (ADR-0022, ADR-0108), and this refuses to run there.
 
 **On by default.** Runs draw on the Claude subscription `claude` is logged in
@@ -16,21 +17,26 @@ with, so there is no per-run bill to guard. Turn it off, or skip it:
 
 Without `claude` on PATH it says so and lets the push through.
 
-**What a change selects** (`select()` below, in order of what runs first):
+**Only a changed skill selects anything** (`select()` below). A skill is
+changed when a file under `plugins/acs/skills/<skill>/` changes, or a file it
+alone owns (`OWNED`: the setup wizard and the CI templates it installs). For
+each changed skill:
 
-* a skill's frontmatter (`description`, `when_to_use`, ...) -- the routing
-  cases that probe that skill, the `confusable` cases that name it as the
-  neighbour they borrow from, and every `negative` and `control` case: a
-  description competes with all the others, so a new one can pull a request off
-  an internal leg or fire on a question answered in prose;
-* any file of a skill that has a behaviour suite (`setup`, `create-ticket`,
-  `code`) -- that suite's cases;
-* an eval case's files -- that case (a group's `_fixtures/`: the whole group);
-* the setup wizard or the CI templates it installs -- the setup suite;
-* the hook library the artifact cases play through -- the artifact suite.
+* if its frontmatter changed (`description`, `when_to_use`, ... -- the only
+  part of a skill routing reads): its own routing cases, and the cases that
+  name it as the skill a request could be stolen by or leak to -- a
+  `confusable` case whose description names `/acs:<skill>` as its neighbour, a
+  `negative` or `control` case whose description names it, and a `negative`
+  guarding it;
+* whatever the file: its behaviour suite, if it has one (`setup`,
+  `create-ticket`, `code`).
 
-`explicit` routing cases run only when their own files change: a typed
-`/acs:<skill>` is not reliably observable (plugins/acs/evals/README.md).
+Nothing else selects anything: not an edited eval case, a fixture, the shared
+hook library, or the two controls that name no skill (`ignores-regex-request`,
+`ignores-unrelated-request`). Those are covered by the release gate, which runs
+the whole suite; the hook lists the edited cases it did not run, with the
+command that runs one. `explicit` cases never run here: a typed `/acs:<skill>`
+is not reliably observable (plugins/acs/evals/README.md).
 
 **What blocks the push** -- the release gate's own rules (ADR-0107), applied to
 the skills this change touches:
@@ -85,12 +91,13 @@ BEHAVIOUR = {
     "create-ticket": ("case", "create-ticket-artifacts"),
     "code": ("case", "resume-and-verify"),
 }
-#: Code that a suite plays through without it being a skill's own file.
-SUITE_CODE = (
+#: Files outside a skill's directory that only that skill uses.
+OWNED = (
     (re.compile(r"^plugins/acs/hooks/scripts/setup_wizard[^/]*\.py$"), "setup"),
     (re.compile(r"^plugins/acs/templates/ci/"), "setup"),
-    (re.compile(r"^plugins/acs/hooks/scripts/(acs\.py|acs_lib/)"), "artifacts"),
 )
+SKILL_FILE = re.compile(r"^plugins/acs/skills/([^/]+)/")
+CASE_FILE = re.compile(r"^plugins/acs/evals/([^/]+)/([^/]+)/")
 #: How each group is run. Routing needs no baseline arm (no plugin, no route);
 #: the setup suite is scored against one; the artifact cases need shell.
 GROUP_ARGS = {
@@ -143,46 +150,61 @@ def changes(base, head):
 # --------------------------------------------------------------------------
 # What that selects
 
-def select(paths, described, cases=None):
-    """The cases to run, in run order: must-never first, behaviour last."""
-    cases = cases if cases is not None else eval_cases.all_cases()
-    by_name = {c.name: c for c in cases}
-    chosen = set()
-
-    def group(name):
-        chosen.update(c.name for c in cases if c.group == name)
-
-    for skill in described:
-        for c in cases:
-            if c.group != "routing":
-                continue
-            if c.kind in MUST_NEVER:
-                chosen.add(c.name)
-            elif c.skill == skill and c.kind != "explicit":
-                chosen.add(c.name)
-            elif "confusable" in c.tags and "/acs:%s " % skill in c.fm.get("description", "") + " ":
-                chosen.add(c.name)
+def touched_skills(paths):
+    """The skills a change touches: a file in the skill's directory, or one it owns."""
+    skills = set()
     for path in paths:
-        m = re.match(r"^plugins/acs/skills/([^/]+)/", path)
-        if m and m.group(1) in BEHAVIOUR:
-            kind, target = BEHAVIOUR[m.group(1)]
-            group(target) if kind == "group" else chosen.add(target)
-        m = re.match(r"^plugins/acs/evals/([^/]+)/([^/]+)/", path)
+        m = SKILL_FILE.match(path)
         if m:
-            group_name, case = m.groups()
-            if case == "_fixtures":
-                group(group_name)
-            elif case in by_name:
-                chosen.add(case)
-        for rx, suite in SUITE_CODE:
-            if rx.match(path):
-                group(suite)
+            skills.add(m.group(1))
+        skills.update(skill for rx, skill in OWNED if rx.match(path))
+    return skills
+
+
+def names_skill(case, skill):
+    """Whether a case's description names `/acs:<skill>` (not a longer name)."""
+    return re.search(r"/acs:%s(?![\w-])" % re.escape(skill), case.fm.get("description", "")) is not None
+
+
+def routes_for(case, skill):
+    """Whether a routing case measures a change to `skill`'s frontmatter."""
+    if case.group != "routing" or case.kind == "explicit":
+        return False
+    if case.skill == skill:
+        return True
+    if case.kind in MUST_NEVER or "confusable" in case.tags:
+        return names_skill(case, skill)
+    return False
+
+
+def select(paths, described, cases=None):
+    """The cases for the skills this change touches, in run order: must-never
+    first, behaviour last. Nothing but a changed skill selects a case."""
+    cases = cases if cases is not None else eval_cases.all_cases()
+    chosen = set()
+    for skill in described:
+        chosen.update(c.name for c in cases if routes_for(c, skill))
+    for skill in touched_skills(paths) & set(BEHAVIOUR):
+        kind, target = BEHAVIOUR[skill]
+        chosen.update(c.name for c in cases
+                      if (c.group if kind == "group" else c.name) == target)
+
+    by_name = {c.name: c for c in cases}
 
     def order(name):
         c = by_name[name]
         rank = (0 if c.kind in MUST_NEVER else 1 if c.group == "routing" else 2)
         return (rank, c.group, name)
     return [by_name[n] for n in sorted(chosen, key=order)]
+
+
+def edited_cases(paths, selected, cases=None):
+    """Eval cases this change edits that the selection does not run."""
+    cases = cases if cases is not None else eval_cases.all_cases()
+    known = {c.name for c in cases}
+    running = {c.name for c in selected}
+    edited = {m.group(2) for m in (CASE_FILE.match(p) for p in paths) if m}
+    return sorted(edited & known - running)
 
 
 # --------------------------------------------------------------------------
@@ -312,8 +334,17 @@ def main(argv=None, env=None):
     base = base_ref(args.base)
     paths, described = changes(base, head)
     selected = select(paths, described)
+    skipped_edits = edited_cases(paths, selected)
+    if skipped_edits:
+        shown = ", ".join(skipped_edits[:5]) + (" and %d more" % (len(skipped_edits) - 5)
+                                                if len(skipped_edits) > 5 else "")
+        print("acs-evals: %d edited case(s) not run -- not a skill change: %s.\n"
+              "  Run one by hand: claude plugin eval %s --case <name> (each group's flags: "
+              "plugins/acs/evals/README.md). The release gate runs them all."
+              % (len(skipped_edits), shown, PLUGIN_REL))
     if not selected:
-        print("acs-evals: this change moves no eval case (diffed against %s)." % base)
+        print("acs-evals: this change touches no skill's routing or behaviour; nothing to run "
+              "(diffed against %s)." % base)
         return 0
     runs = max(1, args.runs if args.runs is not None else configured("acs.evalsRuns", DEFAULT_RUNS, int))
     budget = args.budget if args.budget is not None else configured("acs.evalsBudget", DEFAULT_BUDGET_USD, float)

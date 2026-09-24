@@ -33,7 +33,7 @@ cd plugins/acs && claude plugin eval . --case route-code --runs 1 --ablation non
   `tests/evals/` run locally instead — the `acs-eval-checks` pre-commit hook
   fires when a commit touches the suite, a skill or the gate, and the release
   gate runs them first. Install the hooks once per clone: `pre-commit install`.
-- The **eval cases your change affects** run before you open a PR, on the
+- The **eval cases of the skills you changed** run before you open a PR, on the
   Claude subscription your `claude` CLI is logged in with. The `acs-evals`
   hook is on by default once `pre-commit install --hook-type pre-push` has
   run. It runs on `git push`, or on demand with

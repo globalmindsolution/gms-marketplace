@@ -48,7 +48,8 @@ repos:
         pass_filenames: false
         files: ^(plugins/acs/(evals|skills|hooks/scripts|schemas)/|tests/evals/|scripts/eval_(gate|changed)\.py$|\.acs/settings\.json$)
 
-      # The evals this branch's change can move, three runs each, on `git push`
+      # The eval cases of the skills this branch changed -- never the full
+      # suite, which is the release gate's -- three runs each, on `git push`
       # (or `pre-commit run acs-evals --hook-stage manual`), on the Claude
       # subscription `claude` is logged in with. On by default; off with
       # `git config acs.evals false`. Needs the pre-push hook type installed
@@ -57,7 +58,7 @@ repos:
       # exits when CI is set (ADR-0108). See plugins/acs/evals/README.md,
       # "Running the evals your change affects".
       - id: acs-evals
-        name: acs evals for this change (local, subscription quota)
+        name: acs evals for the skills this change touches (local, subscription quota)
         entry: python3 scripts/eval_changed.py
         language: system
         stages: [pre-push, manual]
