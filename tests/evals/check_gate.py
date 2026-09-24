@@ -82,11 +82,11 @@ class PassTest(GateTestCase):
         self.assertIn("routing gate: PASS", out)
 
     def test_exactly_the_skill_floor_passes(self):
-        """6 of 9 is exactly 2/3: the floor is inclusive, and compared as a
-        fraction so 0.666... is not rounded below it."""
+        """Two of every three runs is exactly 2/3: the floor is inclusive, and
+        compared as a fraction so 0.666... is not rounded below it."""
         names = self.skill_cases("create-ticket")
-        self.assertEqual(len(names), 3)
-        scores = {names[0]: [1, 1, 0], names[1]: [1, 1, 0], names[2]: [1, 1, 0]}
+        self.assertGreaterEqual(len(names), 3)
+        scores = {name: [1, 1, 0] for name in names}
         code, out = self.run_gate(result(scores))
         self.assertEqual(code, 0, out)
 
@@ -118,19 +118,16 @@ class ShouldRouteTest(GateTestCase):
 
     def test_a_skill_below_its_floor_fails_even_when_the_suite_passes(self):
         names = self.skill_cases("merge-pr")
-        scores = {names[0]: [1, 0, 0], names[1]: [1, 0, 0], names[2]: [1, 1, 1]}
+        scores = {name: [1, 0, 0] for name in names}
         code, out = self.run_gate(result(scores))
         self.assertEqual(code, 1)
-        self.assertIn("merge-pr routed 5 of 9", out)
+        self.assertIn("merge-pr routed %d of %d" % (len(names), 3 * len(names)), out)
+        self.assertNotIn("the suite routed", out, "one weak skill does not sink the suite")
 
     def test_a_broad_slide_fails_the_suite_with_no_skill_below_its_floor(self):
-        """Every skill at 7/9 clears the 2/3 floor, but 78% overall is below
-        the 90% suite rate: nothing is broken, everything is worse."""
-        scores = {}
-        for skill in {c.skill for c in gated("description")}:
-            names = self.skill_cases(skill)
-            for i, name in enumerate(names):
-                scores[name] = [1, 1, 0] if i < 2 else [1, 1, 1]
+        """Every skill at exactly 2/3 clears the floor, but 67% overall is
+        below the 90% suite rate: nothing is broken, everything is worse."""
+        scores = {c.name: [1, 1, 0] for c in gated("description")}
         code, out = self.run_gate(result(scores))
         self.assertEqual(code, 1)
         self.assertIn("the suite routed", out)
@@ -232,6 +229,13 @@ class ThisRepoWiresTheGateTest(unittest.TestCase):
     def test_the_thresholds_are_stated_not_defaulted(self):
         self.assertIn("--min-skill-rate", self.judge[0])
         self.assertIn("--min-suite-rate", self.judge[0])
+
+    def test_ten_runs_a_case_at_nine_tenths_per_skill_and_every_run_overall(self):
+        """ADR-0109: ten runs a case, each skill's pooled runs at 9/10, and the
+        suite at 1.0 -- one misrouted description run fails the release."""
+        self.assertIn(" --runs 10 ", " %s " % self.paid[0])
+        self.assertIn(" --min-skill-rate 9/10 ", " %s " % self.judge[0])
+        self.assertIn(" --min-suite-rate 1 ", " %s " % self.judge[0])
 
 
 if __name__ == "__main__":

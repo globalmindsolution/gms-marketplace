@@ -19,10 +19,10 @@ the step-by-step the maintainer follows.
    ```bash
    python3 -m unittest discover -s tests/evals -p 'check_*.py'   # free, local eval checks
    claude plugin eval plugins/acs --tag description --tag negative --tag control \
-     --ablation none --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
-     --trust-plugin --no-publish --max-cost-usd 40   # PAID: routing, 3 runs a case
+     --ablation none --runs 10 -j 8 --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
+     --trust-plugin --no-publish --max-cost-usd 250  # PAID: routing, 10 runs a case (~$190)
    python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
-     --min-skill-rate 2/3 --min-suite-rate 9/10       # the judgement
+     --min-skill-rate 9/10 --min-suite-rate 1         # the judgement
    ```
    The second command runs the plugin's eval suite, `claude plugin eval` case
    files at [`plugins/acs/evals/`](../../plugins/acs/evals/README.md). The free
@@ -32,8 +32,9 @@ the step-by-step the maintainer follows.
 
    The CLI only measures (`--threshold 0`); `scripts/eval_gate.py` judges
    ([ADR-0107](../adr/0107-routing-gated-by-skill-not-by-prompt.md)). Negatives
-   and controls must pass every run; each skill, pooling its three phrasings,
-   must route at least 2/3 of its runs and the suite at least 9/10; `explicit`
+   and controls must pass every run; each skill, pooling its ten phrasings,
+   must route at least 9/10 of its runs and the suite every run
+   ([ADR-0109](../adr/0109-routing-gate-ten-phrasings-ten-runs.md)); `explicit`
    cases, which are not reliably observable, are not run. Read a red verdict
    before acting on it: the script names each failing skill or case. It refuses
    rather than passes a run it cannot trust — a partial run, a missing case, a

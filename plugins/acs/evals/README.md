@@ -7,7 +7,7 @@ Edit a case by editing its files.
 
 ```
 evals/
-├── routing/                  # 90 cases: does a prompt reach the right skill?
+├── routing/                  # 258 cases: does a prompt reach the right skill?
 │   └── <case>/
 │       ├── prompt.md         # frontmatter: description, expected_outcome, tags, limits; body: the prompt
 │       └── graders/<name>.md # one grader per file
@@ -36,17 +36,17 @@ claude plugin eval . --tag setup --scaffold --allow-tools Bash Write Edit --judg
 
 Pin `--model` before recording a number you mean to compare with a later run:
 unpinned, a model rollout is indistinguishable from a plugin regression.
-`--max-cost-usd` is the cost lever. A routing run is one model turn (see below);
-what that costs per run has not been measured yet. The last measured figure,
-about $0.12 a run, was taken with ten turns allowed.
+`--max-cost-usd` is the cost lever. A routing run is one model turn (see below)
+and costs about $0.075 (measured over 208 one-turn runs on 2026-09-24), so the
+release gate's ~2,500 runs cost about $190.
 
 ## Tags
 
 | Tag | Cases | Asserts |
 |---|---|---|
-| `routing` | all 90 routing cases | a prompt reaches (or avoids) a skill |
-| `description` | 72 | a natural-language request, never naming the skill, reaches it — three phrasings for each of 24 skills |
-| `confusable` | 24 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
+| `routing` | all 258 routing cases | a prompt reaches (or avoids) a skill |
+| `description` | 240 | a natural-language request, never naming the skill, reaches it — ten phrasings for each of 24 skills |
+| `confusable` | 72 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
 | `explicit` | 8 | a typed `/acs:<skill>` reaches it — see the limit below |
 | `negative` | 6 | a description of an internal leg's subject does NOT reach the leg |
 | `control` | 4 | a request answered in prose invokes no skill at all |
@@ -57,13 +57,14 @@ about $0.12 a run, was taken with ten turns allowed.
 negative --tag control` runs the routing cases that are fully measurable —
 which is exactly what the release gate runs.
 
-Each of the 24 skills a user reaches by describing the work has three
-phrasings: the plain request, an indirect one with the context stated in the
-prompt, and a `confusable` one that borrows a neighbour's words — "don't merge
+Each of the 24 skills a user reaches by describing the work has ten
+phrasings: plain requests, indirect ones with the context stated in the
+prompt, and `confusable` ones that borrow a neighbour's words — "don't merge
 anything, just open the pull request", "not a design for one ticket: regenerate
 the product-wide C4 views". Each confusable case's `description` names the
-neighbour. One prompt per skill measured one sentence; three measure the
-description.
+neighbour. One prompt per skill measured one sentence; ten, run ten times each,
+measure the description on 100 runs
+([ADR-0109](../../../docs/adr/0109-routing-gate-ten-phrasings-ten-runs.md)).
 
 ## How routing is graded
 
@@ -116,15 +117,16 @@ first non-zero exit stops the cut ([ADR-0107](../../../docs/adr/0107-routing-gat
    malformed case, or a grader that cannot fail, stops the cut before anything
    is spent.
 2. `claude plugin eval plugins/acs --tag description --tag negative --tag
-   control --ablation none --threshold 0 --json …` — the paid run. `--threshold
+   control --ablation none --runs 10 -j 8 --threshold 0 --json …` — the paid
+   run, ten runs a case. `--threshold
    0` stops the CLI from judging; the result goes to a file.
-3. `python3 scripts/eval_gate.py <that file> --min-skill-rate 2/3
-   --min-suite-rate 9/10` — the judgement.
+3. `python3 scripts/eval_gate.py <that file> --min-skill-rate 9/10
+   --min-suite-rate 1` — the judgement.
 
 The CLI judges one case at a time: it exits 1 if any case scores below
 `--threshold`, which defaults to 1.0. For routing that is the wrong unit. The
 model is stochastic, so a skill that routes right 90% of the time scores 3/3
-on a prompt only 73% of the time, and across the 72 description cases the
+on a prompt only 73% of the time, and across the 240 description cases the
 chance that every one scores 3/3 is effectively nil. A gate at 1.0 fails on
 almost every run whether or not anything is wrong. The old gate was also
 unpassable for a second reason: it ran the `explicit` cases, six of which
@@ -135,7 +137,7 @@ scored 0.00 in the first full run for a reason no grader can see.
 | Kind | Rule | Why |
 |---|---|---|
 | `negative`, `control` | every run must pass | pulling a request onto an internal leg, or firing a skill on a git question, is a defect however rarely it happens |
-| `description` | each **skill**, pooling its three phrasings (9 runs), routes at least **2/3**; the **suite** routes at least **9/10** | the floor catches a broken skill, the suite rate a broad slide where no single skill is broken |
+| `description` | each **skill**, pooling its ten phrasings (100 runs), routes at least **9/10**; the **suite** routes **every run** | the floor names a weak skill; the suite rate of 1.0 is the binding rule — one misroute anywhere fails the release (ADR-0109) |
 | `explicit` | not gated | not observable — see the limit below |
 
 It fails closed on anything it cannot read: a partial run (cost ceiling hit), an
@@ -144,9 +146,11 @@ from the run, or a result older than six hours. The CLI only warns when it
 cannot write `--json`, so without that last check a stale file from an earlier
 run could be judged in place of this one.
 
-**The two rates are provisional.** They were chosen before any run of this
-suite, from the arithmetic above. Re-set them from the first full three-run
-baseline (Phase 2 below). A rate is only worth what the baseline behind it is.
+**The rates were set by the owner, not by a baseline** (ADR-0109). A suite
+rate of 1.0 means every one of about 2,400 description runs must route, so the
+gate fails until every weak description is fixed. The partial run of 2026-09-24
+had `review-code` at 0/9 and `docs-sync` at 1/9. More phrasings measure a
+description more precisely; they do not improve it.
 
 ## How the graders are shown to be right
 
@@ -181,7 +185,7 @@ Phase 2, on a host where Bash works inside eval runs:
 1. Pilot every new case once.
 2. Run against a broken plugin to confirm each case can fail.
 3. Calibrate the judges.
-4. Take the three-run baseline that sets the gate's rates.
+4. Take the ten-run baseline the gate is judged against.
 
 ## How the setup cases are graded
 

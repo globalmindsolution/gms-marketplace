@@ -362,6 +362,18 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **The routing gate runs ten phrasings ten times, and every run must route**
+  (ADR-0109, amends ADR-0107).
+  - **Each of the 24 described skills has ten phrasings,** up from three. The
+    suite grows from 90 to 258 routing cases.
+  - **The paid step runs each case ten times** (`--runs 10 -j 8`). The cost
+    ceiling rises from $40 to $250; a full gate run is about $190.
+  - **Each skill must route at least 9/10 of its pooled runs, and the suite
+    every run** (`--min-skill-rate 9/10 --min-suite-rate 1`). A single misroute
+    in any description case fails the release.
+  - **Migration:** none for consumers. The pre-push `acs-evals` hook keeps
+    three runs at 2/3.
+
 - **Nothing about the eval suite runs in CI** (ADR-0108, extends ADR-0022).
   - **The free eval checks moved out of CI discovery.** Case shape and coverage,
     grader calibration, the gate's own tests, and four probe-expectation classes

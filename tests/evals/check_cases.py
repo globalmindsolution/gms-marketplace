@@ -281,9 +281,10 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(explicit, _internal_legs() | {"install-hooks", "update"})
 
     #: Phrasings per skill with a description positive. One prompt per skill
-    #: measures one sentence; three measure the description. The release gate
-    #: pools a skill's cases (ADR-0107), so this is also its sample size.
-    MIN_PHRASINGS = 3
+    #: measures one sentence; ten measure the description. The release gate
+    #: pools a skill's cases (ADR-0107) at ten runs each (ADR-0109), so a
+    #: skill is judged on 100 runs.
+    MIN_PHRASINGS = 10
 
     def _description_cases(self):
         by_skill = {}

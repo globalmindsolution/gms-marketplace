@@ -43,7 +43,7 @@ class SelectionTest(unittest.TestCase):
         got = names(hook.select(*PR_CHANGE))
         own = sorted(n for n, c in CASES.items()
                      if c.skill == "create-pr" and c.kind == "description")
-        self.assertEqual(len(own), 3)
+        self.assertGreaterEqual(len(own), 3)
         for name in own:
             self.assertIn(name, got)
         borrowing = [n for n, c in CASES.items() if "confusable" in c.tags
@@ -211,9 +211,9 @@ class RunTest(unittest.TestCase):
 
     def test_a_touched_skill_below_two_thirds_blocks(self):
         names = own("create-pr")
-        code, out = self.main({names[0]: "100", names[1]: "100", names[2]: "111"})
+        code, out = self.main({n: "100" for n in names})
         self.assertEqual(code, 1)
-        self.assertIn("create-pr routed 5 of 9", out)
+        self.assertIn("create-pr routed %d of %d" % (len(names), 3 * len(names)), out)
 
     def test_a_touched_skill_at_exactly_two_thirds_passes(self):
         names = own("create-pr")
