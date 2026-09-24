@@ -17,14 +17,14 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
 from acs_lib import skills as K  # noqa: E402
 from acs_lib import workflow as W  # noqa: E402
 
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SHIP = os.path.join(PLUGIN, "workflows", "ship.yaml")
 
 

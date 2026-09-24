@@ -76,7 +76,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TESTS_DIR = os.path.join(REPO_ROOT, "tests")
-SCRIPTS_DIR = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acs_case import acs_lib_source  # noqa: E402
 
@@ -295,7 +295,7 @@ ALLOWED_UNGUARDED_RUN_MAIN = {
                    "--changed-files here are both absolute tempfile paths, so resolve() "
                    "only ever reads and a wrong cwd cannot make it write against the "
                    "operator's real workspace.",
-            evidence="src/acs/hooks/scripts/codeowners.py"),
+            evidence="plugins/acs/hooks/scripts/codeowners.py"),
     ("tests/acs/test_codeowners.py", "test_resolve_reads_changed_files_from_stdin_when_dash"):
         Justification(
             target="codeowners.py",
@@ -304,7 +304,7 @@ ALLOWED_UNGUARDED_RUN_MAIN = {
                    "filesystem input is the absolute --repo-root; codeowners.py imports no "
                    "acs_lib and its only open() calls (:87, :102) are read-only, so resolve() "
                    "cannot write regardless of cwd.",
-            evidence="src/acs/hooks/scripts/codeowners.py"),
+            evidence="plugins/acs/hooks/scripts/codeowners.py"),
     ("tests/acs/test_codeowners.py", "test_blank_only_stdin_lines_are_dropped_before_matching"):
         Justification(
             target="codeowners.py",
@@ -312,7 +312,7 @@ ALLOWED_UNGUARDED_RUN_MAIN = {
             reason="same stdin-only filesystem path as the sibling dash test (codeowners.py:102) "
                    "-- blank-line filtering happens after the read, so the absolute --repo-root "
                    "is again the sole filesystem input and resolve() stays read-only.",
-            evidence="src/acs/hooks/scripts/codeowners.py"),
+            evidence="plugins/acs/hooks/scripts/codeowners.py"),
     ("tests/acs/test_codeowners.py", "test_missing_required_argument_exits_2"):
         Justification(
             target="codeowners.py",
@@ -321,7 +321,7 @@ ALLOWED_UNGUARDED_RUN_MAIN = {
                    "required=True), so argparse raises SystemExit(2) inside parse_args() "
                    "(codeowners.py:118) before _read_changed_files/resolve ever run -- zero "
                    "filesystem contact, so cwd is irrelevant.",
-            evidence="src/acs/hooks/scripts/codeowners.py"),
+            evidence="plugins/acs/hooks/scripts/codeowners.py"),
     ("tests/acs/test_codeowners.py", "test_no_subcommand_exits_2"):
         Justification(
             target="codeowners.py",
@@ -329,7 +329,7 @@ ALLOWED_UNGUARDED_RUN_MAIN = {
             reason="argv is empty and add_subparsers(dest=\"cmd\", required=True) "
                    "(codeowners.py:116) raises at parse time (codeowners.py:118) before any "
                    "subcommand logic runs -- zero filesystem contact.",
-            evidence="src/acs/hooks/scripts/codeowners.py"),
+            evidence="plugins/acs/hooks/scripts/codeowners.py"),
     ("tests/acs/test_acs_case_fixture.py", "test_run_main_captures_systemexit_and_stdout"):
         Justification(
             target="new-ticket.py",
@@ -339,7 +339,7 @@ ALLOWED_UNGUARDED_RUN_MAIN = {
                    "SystemExit(0) there -- lib.build_context is never reached, so no "
                    "workspace is resolved or written despite new-ticket.py importing "
                    "acs_lib and writing a workspace on its normal path.",
-            evidence="src/acs/hooks/scripts/new-ticket.py"),
+            evidence="plugins/acs/hooks/scripts/new-ticket.py"),
     ("tests/acs/test_acs_case_fixture.py", "test_run_main_returns_cli_exit_code_without_raising"):
         Justification(
             target="new-ticket.py",
@@ -348,7 +348,7 @@ ALLOWED_UNGUARDED_RUN_MAIN = {
                    "so parse_args() (new-ticket.py:50) exits 2 before any workspace "
                    "resolution -- proving exactly this SystemExit-to-return-code conversion "
                    "is the test's own purpose, so a pushd would add nothing.",
-            evidence="src/acs/hooks/scripts/new-ticket.py"),
+            evidence="plugins/acs/hooks/scripts/new-ticket.py"),
 }
 
 
@@ -501,7 +501,7 @@ def test_bad():
             ("tests/acs/does_not_exist.py", "test_nope"): Justification(
                 target="nowhere.py", calls=1,
                 reason="x" * MIN_REASON_LEN,
-                evidence="src/acs/hooks/scripts/acs_lib.py"),
+                evidence="plugins/acs/hooks/scripts/acs_lib.py"),
         }
         with self.assertRaises(AssertionError):
             assert_allowlist_not_stale([], bogus)

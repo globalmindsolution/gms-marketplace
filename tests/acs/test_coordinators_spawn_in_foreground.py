@@ -24,7 +24,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SKILLS = os.path.join(REPO_ROOT, "src", "acs", "skills")
+SKILLS = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
 
 RULE = "Spawn in the foreground and wait on the result, never on a clock."
 

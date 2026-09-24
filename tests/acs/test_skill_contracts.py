@@ -18,7 +18,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
 
@@ -112,8 +112,8 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 # skills/code/references/.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 ALL_SKILLS = (HOOKED_SKILLS + CODE_PATH_LEGS
-              + ["setup", "ship", "handoff", "update", "install-hooks", "metrics",
-                 "usage", "release", "project"])
+              + ["setup", "ship", "handoff", "update", "install-hooks", "release",
+                 "project"])
 #: The roles an agent file may carry. `lens` and `adjudicator` came with
 #: /acs:review-code; they are not a triad and the triad assertions skip them.
 ROLES = list(lib.AGENT_ROLES)
@@ -165,7 +165,7 @@ class TestSkillContracts(unittest.TestCase):
             body = read_skill_contract(name)
             self.assertIn("acs.py\" step start", body, name)
             self.assertRegex(body, r"--step %s\b" % re.escape(name), name)
-            # the post-hook, not `acs step finish`: `run_post` is a SUPERSET -- it calls finish_step AND derives states, writes the index and metrics, and releases the lock. `acs step finish` does only the run half, so a skill that ends there leaves verifier_passed underived (which shuts the create-pr brake for ever), metrics unwritten and the lock held.
+            # the post-hook, not `acs step finish`: `run_post` is a SUPERSET -- it calls finish_step AND derives states, writes the index, and releases the lock. `acs step finish` does only the run half, so a skill that ends there leaves verifier_passed underived (which shuts the create-pr brake for ever), the index unwritten and the lock held.
             if name == "code":
                 # `/acs:code` is a DISPATCHER: it invokes a delivery-path leg
                 # and the leg runs the lifecycle, under `code`'s own hooks and
@@ -397,10 +397,11 @@ class TestCrossReferences(unittest.TestCase):
 
 
 class TestExemptPrDocs(unittest.TestCase):
-    """MAR-9 (spec 04): the exempt --pr merge path and the /acs:setup CLAUDE.md
-    managed block must stay surfaced in the merge-pr skill prose and the docs.
-    Additive existence/section assertions only — they pin the new prose so a
-    later edit that drops it fails CI. No existing assertion is modified."""
+    """MAR-9 (spec 04): the exempt --pr merge path must stay surfaced in the
+    merge-pr skill prose and the docs. The /acs:setup CLAUDE.md managed block
+    MAR-9 also pinned is gone: setup configures conventions and CI only and
+    writes nothing into a consumer's CLAUDE.md, so those two assertions are
+    inverted into guards that it stays gone."""
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -420,15 +421,18 @@ class TestExemptPrDocs(unittest.TestCase):
         body = read_skill_contract("merge-pr")
         self.assertIn("Exempt non-ticket PR mode", body)
 
-    def test_setup_documents_claude_md_managed_block(self):
+    def test_setup_writes_no_claude_md_managed_block(self):
         body = read(self.skill_path("setup"))
-        self.assertIn("CLAUDE.acs.md", body)
-        self.assertIn("upsert_managed_block", body)
+        self.assertNotIn("CLAUDE.acs.md", body)
+        self.assertNotIn("upsert_managed_block", body)
+        self.assertFalse(os.path.exists(os.path.join(PLUGIN, "templates", "CLAUDE.acs.md")))
 
     def test_internals_mentions_exempt_pr_merge(self):
         body = read(self.doc_path("docs", "INTERNALS.md"))
         self.assertIn("--pr", body)
-        self.assertIn("CLAUDE.acs.md", body)
+        self.assertNotIn("CLAUDE.acs.md", body)
+        self.assertIn("acs writes nothing into a consumer's `CLAUDE.md`",
+                      " ".join(body.split()))
 
     def test_readme_mentions_exempt_pr_merge(self):
         body = read(self.doc_path("README.md"))
@@ -863,7 +867,7 @@ class TestApplyTierInline(unittest.TestCase):
 
 class TestCreatePrConventionWiring(unittest.TestCase):
     """MAR-72 spec 02: pin the deterministic-render + pre-open self-check
-    wiring in src/acs/skills/create-pr/SKILL.md. Additive only — no
+    wiring in plugins/acs/skills/create-pr/SKILL.md. Additive only — no
     existing assertion in this file is modified. Written TDD-first (RED
     before Spec 02's SKILL.md edit lands)."""
 
@@ -939,16 +943,17 @@ class TestCreatePrConventionWiring(unittest.TestCase):
             re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
             "MAR-80 [create-pr]: render-title must co-occur with --provider within a bounded window")
 
-    def test_pre_open_check_and_render_share_same_pr_title_format(self):
-        """MAR-80 spec 03: step 4's --pr-title-format and step 2's --template
-        must be documented as resolving the SAME committed
-        settings.formats.pr_title value -- no per-provider template
-        branching, no independently-hardcoded literal."""
+    def test_the_pre_open_check_verifies_what_ci_checks(self):
+        """ADR-0106: CI checks only that the description names its ticket, so
+        the pre-open self-check takes the body and the prefix and nothing else.
+        It used to pass --pr-title-format, pinned by MAR-80 spec 03 to the same
+        settings.formats.pr_title that render-title uses; the title is no longer
+        a CI rule, so there is nothing left for the check to match it against."""
         body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?s)--pr-title-format.{0,600}(SAME|same).{0,200}settings\.formats\.pr_title", body),
-            "MAR-80 [create-pr]: step 4 narrative must state --pr-title-format "
-            "resolves the SAME settings.formats.pr_title value step 2's --template uses")
+        self.assertRegex(body, r"pr-conventions\.py\" check \\\n\s*--body-file \S+ "
+                               r"--ticket-prefix <settings\.ticket_prefix>")
+        for retired in ("--pr-title-format", "--require-label", "--sections"):
+            self.assertNotIn(retired, body)
 
     def test_r4_closes_linkage_fence_untouched(self):
         """MAR-80 R4 fence: the Closes #{external_key} body-fill mechanism
@@ -1839,61 +1844,61 @@ class TestDocSyncAuthoringContract(unittest.TestCase):
         self.assertIn("vision", body,
                       "code-executor.md must name 'vision' as an intent item (MAR-65 AC-4)")
 
-    # --- AC-7: regression guard (existing path tokens still present) ---
+    # --- AC-7: regression guard (the doc-set locations still reach docs-sync) ---
+    #
+    # ADR-0102: no setting locates a document. The guard is now that
+    # /acs:docs-sync still locates each doc set and hands it to its executor
+    # under the constraint that names what it carries, and that neither side
+    # still names the removed settings key.
 
-    def test_docs_sync_still_reads_requirements_path(self):
-        """The doc-set paths belong to /acs:docs-sync now. They passed through
-        /acs:code while it authored docs per commit; it does not, and a token
-        it no longer reads is not a regression guard — this is."""
-        body = read_skill_contract("docs-sync")
-        self.assertIn("requirements_path", body,
-                      "docs-sync/SKILL.md must still reference requirements_path")
+    def _assert_names_location(self, body, where, constraint, removed_key):
+        self.assertIn(constraint, body,
+                      "%s must name the `%s` constraint (the located set that "
+                      "replaced %s, ADR-0102)" % (where, constraint, removed_key))
+        self.assertNotIn(removed_key, body,
+                         "%s must not name the removed setting %s (ADR-0102)"
+                         % (where, removed_key))
 
-    def test_docs_sync_still_reads_architecture_path(self):
-        """The doc-set paths belong to /acs:docs-sync now. They passed through
-        /acs:code while it authored docs per commit; it does not, and a token
-        it no longer reads is not a regression guard — this is."""
-        body = read_skill_contract("docs-sync")
-        self.assertIn("architecture_path", body,
-                      "docs-sync/SKILL.md must still reference architecture_path")
+    def test_docs_sync_passes_requirements_dir(self):
+        """The doc-set locations belong to /acs:docs-sync now. They passed
+        through /acs:code while it authored docs per commit; it does not.
+        docs-sync locates the requirements set and passes it as
+        `requirements_dir`."""
+        self._assert_names_location(read_skill_contract("docs-sync"),
+                                    "docs-sync/SKILL.md", "requirements_dir",
+                                    "requirements_path")
 
-    def test_docs_sync_still_reads_adr_path(self):
-        """The doc-set paths belong to /acs:docs-sync now. They passed through
-        /acs:code while it authored docs per commit; it does not, and a token
-        it no longer reads is not a regression guard — this is."""
-        body = read_skill_contract("docs-sync")
-        self.assertIn("adr_path", body,
-                      "docs-sync/SKILL.md must still reference adr_path")
+    def test_docs_sync_passes_architecture_dir(self):
+        """docs-sync locates the architecture set and passes it as
+        `architecture_dir`."""
+        self._assert_names_location(read_skill_contract("docs-sync"),
+                                    "docs-sync/SKILL.md", "architecture_dir",
+                                    "architecture_path")
 
-    def test_executor_still_has_requirements_path(self):
-        """AC-7: MAR-162 (branch A): architecture_path/adr_path/
-        requirements_path move from code-executor.md's per-commit doc
-        mechanics to docs-sync-executor.md's independently re-derived
-        doc-delta production."""
-        body = read(self.agent_path("docs-sync", "executor"))
-        self.assertIn("requirements_path", body,
-                      "docs-sync-executor.md must reference requirements_path "
-                      "(MAR-65 AC-7 regression guard, re-homed by MAR-162)")
+    def test_docs_sync_passes_adr_dir(self):
+        """docs-sync locates the ADR folder and passes it as `adr_dir`."""
+        self._assert_names_location(read_skill_contract("docs-sync"),
+                                    "docs-sync/SKILL.md", "adr_dir", "adr_path")
 
-    def test_executor_still_has_architecture_path(self):
-        """AC-7: MAR-162 (branch A): architecture_path/adr_path/
-        requirements_path move from code-executor.md's per-commit doc
-        mechanics to docs-sync-executor.md's independently re-derived
-        doc-delta production."""
-        body = read(self.agent_path("docs-sync", "executor"))
-        self.assertIn("architecture_path", body,
-                      "docs-sync-executor.md must reference architecture_path "
-                      "(MAR-65 AC-7 regression guard, re-homed by MAR-162)")
+    def test_executor_reads_requirements_dir(self):
+        """AC-7: MAR-162 (branch A) moved the doc-set locations from
+        code-executor.md's per-commit doc mechanics to docs-sync-executor.md's
+        independently re-derived doc-delta production; ADR-0102 renamed them
+        to the constraints that carry the located sets."""
+        self._assert_names_location(read(self.agent_path("docs-sync", "executor")),
+                                    "docs-sync-executor.md", "requirements_dir",
+                                    "requirements_path")
 
-    def test_executor_still_has_adr_path(self):
-        """AC-7: MAR-162 (branch A): architecture_path/adr_path/
-        requirements_path move from code-executor.md's per-commit doc
-        mechanics to docs-sync-executor.md's independently re-derived
-        doc-delta production."""
-        body = read(self.agent_path("docs-sync", "executor"))
-        self.assertIn("adr_path", body,
-                      "docs-sync-executor.md must reference adr_path "
-                      "(MAR-65 AC-7 regression guard, re-homed by MAR-162)")
+    def test_executor_reads_architecture_dir(self):
+        """AC-7 (MAR-162, ADR-0102): see test_executor_reads_requirements_dir."""
+        self._assert_names_location(read(self.agent_path("docs-sync", "executor")),
+                                    "docs-sync-executor.md", "architecture_dir",
+                                    "architecture_path")
+
+    def test_executor_reads_adr_dir(self):
+        """AC-7 (MAR-162, ADR-0102): see test_executor_reads_requirements_dir."""
+        self._assert_names_location(read(self.agent_path("docs-sync", "executor")),
+                                    "docs-sync-executor.md", "adr_dir", "adr_path")
 
 
 class TestAdr0007Amendment(unittest.TestCase):
@@ -3169,8 +3174,9 @@ class TestCreateQualityDocConformance(unittest.TestCase):
     """MAR-112 spec 04 (AC-7): doc-conformance for the quality doc-set
     closure — skills.md's product-level section (since ADR-0094 the
     /acs:create-docs section, which delivers the quality set), configuration.md's
-    quality_path row, and c4-component.md's own reachable-agent/pre-post-pair
-    arithmetic. Structural string/regex assertions only."""
+    quality default (a quality_path key row until ADR-0102 removed the key),
+    and c4-component.md's own reachable-agent/pre-post-pair arithmetic.
+    Structural string/regex assertions only."""
 
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
@@ -3183,9 +3189,11 @@ class TestCreateQualityDocConformance(unittest.TestCase):
 
     def test_skills_md_has_create_docs_section(self):
         """AC-7, after ADR-0094: skills.md carries a '/acs:create-docs'
-        (product-level) section naming quality_path, create-docs-executor,
-        and create-docs-state.json — the quality set's closure now lives in
-        the one skill that delivers it."""
+        (product-level) section naming the quality set's default directory,
+        create-docs-executor, and the step's state file — the quality set's
+        closure now lives in the one skill that delivers it. After ADR-0102
+        the set is found, not configured: the section names `docs/quality/`
+        as the default and never the removed `quality_path` key."""
         body = self._skills_req()
         heading = "## `/acs:create-docs` (product-level)"
         self.assertIn(heading, body,
@@ -3195,8 +3203,12 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         next_heading = re.search(r"\n## ", body[section_start + 1:])
         section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
         section = body[section_start:section_end]
-        self.assertIn("quality_path", section,
-                      "the create-docs section must name quality_path (MAR-112 AC-7)")
+        self.assertIn("`docs/quality/`", section,
+                      "the create-docs section must name the quality set's "
+                      "default directory docs/quality/ (MAR-112 AC-7, ADR-0102)")
+        self.assertNotIn("quality_path", section,
+                         "the create-docs section must not name the removed "
+                         "quality_path setting (ADR-0102)")
         self.assertIn("create-docs-executor", section,
                       "the create-docs section must name create-docs-executor (MAR-112 AC-7)")
         # The state file moved with the run re-key (ADR-0097): the flat
@@ -3207,14 +3219,19 @@ class TestCreateQualityDocConformance(unittest.TestCase):
                       "the create-docs section must name the step's state "
                       "file (MAR-112 AC-7)")
 
-    def test_configuration_md_has_quality_path_row(self):
-        """AC-7: configuration.md's Keys table has a quality_path row with
-        default "docs/quality"."""
+    def test_configuration_md_documents_the_quality_default_not_a_key(self):
+        """AC-7, inverted by ADR-0102: configuration.md used to carry a
+        quality_path row in its Keys table. No key locates a document now, so
+        the Keys table has no such row, and the document-locations table
+        gives the quality set's conventional default, docs/quality/."""
         body = self._configuration()
+        self.assertNotIn("quality_path", body,
+                         "docs/requirements/functional/configuration.md must not "
+                         "document the removed quality_path key (ADR-0102)")
         self.assertIsNotNone(
-            re.search(r"\|\s*`quality_path`\s*\|[^\n]*`\"docs/quality\"`", body),
-            "docs/requirements/functional/configuration.md must have a quality_path row "
-            "with default \"docs/quality\" (MAR-112 AC-7)")
+            re.search(r"\|\s*Quality\b[^\n]*\|[^\n]*`docs/quality/`", body),
+            "docs/requirements/functional/configuration.md must give docs/quality/ "
+            "as the quality set's default location (MAR-112 AC-7, ADR-0102)")
 
     def test_c4_component_triad_count_advanced(self):
         """AC-7 sub-check 1: the triad-count sentence reflects the current
@@ -3311,8 +3328,9 @@ class TestCreateQualityChangelogEntry(unittest.TestCase):
 class TestCreateOperationsDocConformance(unittest.TestCase):
     """MAR-113 spec 04 (AC-7): doc-conformance for the /acs:create-operations
     doc-set closure — skills.md's new product-level section, configuration.md's
-    operations_path row, and c4-component.md's own +1 triad/reachable-agent/
-    pre-post-pair arithmetic. Structural string/regex assertions only."""
+    operations default (an operations_path key row until ADR-0102 removed the
+    key), and c4-component.md's own +1 triad/reachable-agent/pre-post-pair
+    arithmetic. Structural string/regex assertions only."""
 
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
@@ -3325,8 +3343,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
 
     def test_skills_md_names_the_operations_set_in_the_create_docs_section(self):
         """AC-7, after ADR-0094: the operations set's closure lives in the
-        '/acs:create-docs' (product-level) section, which names
-        operations_path, create-docs-executor and create-docs-state.json."""
+        '/acs:create-docs' (product-level) section, which names the set's
+        default directory (`docs/operations/`, ADR-0102 — never the removed
+        operations_path key), create-docs-executor and the step's state
+        file."""
         body = self._skills_req()
         heading = "## `/acs:create-docs` (product-level)"
         self.assertIn(heading, body)
@@ -3334,18 +3354,24 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         next_heading = re.search(r"\n## ", body[section_start + 1:])
         section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
         section = body[section_start:section_end]
-        self.assertIn("operations_path", section)
+        self.assertIn("`docs/operations/`", section)
+        self.assertNotIn("operations_path", section)
         self.assertIn("create-docs-executor", section)
         self.assertIn("steps/create-docs/state.json", section)
 
-    def test_configuration_md_has_operations_path_row(self):
-        """AC-7: configuration.md's Keys table has an operations_path row with
-        default "docs/operations"."""
+    def test_configuration_md_documents_the_operations_default_not_a_key(self):
+        """AC-7, inverted by ADR-0102: configuration.md used to carry an
+        operations_path row in its Keys table. No key locates a document now,
+        so the Keys table has no such row, and the document-locations table
+        gives the operations set's conventional default, docs/operations/."""
         body = self._configuration()
+        self.assertNotIn("operations_path", body,
+                         "docs/requirements/functional/configuration.md must not "
+                         "document the removed operations_path key (ADR-0102)")
         self.assertIsNotNone(
-            re.search(r"\|\s*`operations_path`\s*\|[^\n]*`\"docs/operations\"`", body),
-            "docs/requirements/functional/configuration.md must have an operations_path row "
-            "with default \"docs/operations\" (MAR-113 AC-7)")
+            re.search(r"\|[^\n]*\boperations\b[^\n]*\|[^\n]*`docs/operations/`", body),
+            "docs/requirements/functional/configuration.md must give docs/operations/ "
+            "as the operations set's default location (MAR-113 AC-7, ADR-0102)")
 
     def test_c4_component_triad_count_advanced(self):
         """AC-7 sub-check 1: the triad-count sentence reflects the current

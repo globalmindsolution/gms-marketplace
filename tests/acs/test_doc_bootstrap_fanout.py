@@ -1,6 +1,7 @@
 """Tests for acs_lib's doc-bootstrap fan-out deterministic layer: the declared
-dependency table, the sentinel-file doc-set presence predicate, and the pure
-fanout_batches eligibility/batching helper (D4/D4.1/D4.2/D4.3).
+dependency table and the pure fanout_batches eligibility/batching helper
+(D4/D4.1/D4.3). Whether a set is already in the repo is the coordinator's
+finding (`present`), not a disk probe of a configured path (ADR-0102).
 """
 
 import json
@@ -13,7 +14,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -24,59 +25,44 @@ try:
 except ImportError:
     HAS_JSONSCHEMA = False
 
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "run.schema.json")
 
-# v1 scope only: principles/standards deliberately unconfigured so the
-# eligible set is exactly the pair (D7-A).
-PAIR_SETTINGS = {
-    "quality_path": "docs/quality",
-    "operations_path": "docs/operations",
-    "principles_path": None,
-    "standards_path": None,
-}
-
-# All four doc-bootstrap paths configured, for exercising the soft-edge
-# batching rule between standards and principles.
-ALL_SETTINGS = {
-    "quality_path": "docs/quality",
-    "operations_path": "docs/operations",
-    "principles_path": "docs/principles",
-    "standards_path": "docs/standards",
-}
-
-
-def _touch(path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    open(path, "w").close()
+#: The pair, as an explicit request, for the tests that are about one pair.
+PAIR = ["quality", "operations"]
 
 
 def _ticket(title, ttype="task", status="open"):
     return {"title": title, "type": ttype, "status": status}
 
 
-class DocSetPresentOnDiskTest(unittest.TestCase):
-    def setUp(self):
-        self.root = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, self.root, True)
+class PresentSetsTest(unittest.TestCase):
+    """A set the coordinator found in the repo is not offered again, and a
+    hard dependency is clear only when its set is present."""
 
-    def test_present_when_sentinel_file_exists(self):
-        _touch(os.path.join(self.root, "docs/quality/test-strategy.md"))
-        self.assertTrue(lib.doc_set_present_on_disk(self.root, PAIR_SETTINGS, "quality"))
+    def test_a_present_set_is_not_eligible(self):
+        batches = lib.fanout_batches({"tickets": {}}, candidates=PAIR, present=["quality"])
+        self.assertEqual(batches, [["operations"]])
 
-    def test_absent_when_directory_exists_but_sentinel_missing(self):
-        # This repo's own live case (design.md D4.2): a populated directory
-        # that never actually produced the skill's own output file.
-        _touch(os.path.join(self.root, "docs/quality/README.md"))
-        self.assertFalse(lib.doc_set_present_on_disk(self.root, PAIR_SETTINGS, "quality"))
+    def test_nothing_present_offers_every_candidate(self):
+        batches = lib.fanout_batches({"tickets": {}}, candidates=PAIR)
+        self.assertEqual(batches, [PAIR])
 
-    def test_absent_when_path_unconfigured(self):
-        _touch(os.path.join(self.root, "docs/quality/test-strategy.md"))
-        settings = dict(PAIR_SETTINGS, quality_path=None)
-        self.assertFalse(lib.doc_set_present_on_disk(self.root, settings, "quality"))
+    def test_a_hard_dependency_is_clear_only_when_present(self):
+        deps = {"quality": {"hard": ["operations"], "soft": []},
+                "operations": {"hard": [], "soft": []}}
+        with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, deps, clear=True):
+            blocked = lib.fanout_batches({"tickets": {}}, candidates=PAIR)
+            clear = lib.fanout_batches({"tickets": {}}, candidates=["quality"],
+                                       present=["operations"])
+        self.assertEqual(blocked, [["operations"]])
+        self.assertEqual(clear, [["quality"]])
 
-    def test_absent_when_checkout_root_missing(self):
-        missing_root = os.path.join(self.root, "does-not-exist")
-        self.assertFalse(lib.doc_set_present_on_disk(missing_root, PAIR_SETTINGS, "quality"))
+    def test_the_cli_takes_the_present_sets(self):
+        out = subprocess.run(
+            [sys.executable, os.path.join(SCRIPTS, "acs.py"), "fanout", "batches", "--help"],
+            capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("--present", out.stdout)
 
 
 class DeclaredDependencyTest(unittest.TestCase):
@@ -96,30 +82,28 @@ class DeclaredDependencyTest(unittest.TestCase):
         self.assertEqual(
             lib.DOC_BOOTSTRAP_DEPENDENCIES["standards"]["soft"], ["principles"])
 
-    def test_settings_key_resolved_via_the_declared_row_not_string_building(self):
-        # Every doc set's settings key is DECLARED on its DOC_SETS row and
-        # the views are derived from it -- the lookup never string-builds
-        # "<set>_path" from the set name, even though today every row happens
-        # to follow that shape.
+    def test_default_dir_resolved_via_the_declared_row(self):
+        # Every doc set's default location is DECLARED on its DOC_SETS row and
+        # the views are derived from it. It is where a NEW set is created; an
+        # existing one is found, not configured (ADR-0102).
         for name in lib.DOC_BOOTSTRAP_DEPENDENCIES:
             with self.subTest(set=name):
-                self.assertIn(name, lib.DOC_BOOTSTRAP_SETTINGS_KEY)
                 self.assertIn(name, lib.DOC_BOOTSTRAP_SENTINEL)
-                self.assertEqual(lib.DOC_BOOTSTRAP_SETTINGS_KEY[name],
-                                 lib.DOC_SETS[name]["settings_key"])
+                self.assertEqual(lib.DOC_SET_DEFAULT_DIR[name],
+                                 lib.DOC_SETS[name]["default_dir"])
+                self.assertEqual(lib.DOC_SETS[name]["default_dir"], "docs/" + name)
+                self.assertNotIn("settings_key", lib.DOC_SETS[name])
 
     def test_standards_and_principles_never_share_a_batch(self):
         # General-case semantics (AC-5): explicit candidates, since v1's
         # default gate excludes both of these skills (finding 2).
-        batches = lib.fanout_batches(
-            ALL_SETTINGS, {"tickets": {}}, self.root,
+        batches = lib.fanout_batches({"tickets": {}},
             candidates=sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         for batch in batches:
             self.assertFalse({"standards", "principles"} <= set(batch))
 
     def test_soft_edge_alone_never_makes_a_candidate_ineligible(self):
-        batches = lib.fanout_batches(
-            ALL_SETTINGS, {"tickets": {}}, self.root,
+        batches = lib.fanout_batches({"tickets": {}},
             candidates=sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         flat = [skill for batch in batches for skill in batch]
         self.assertIn("standards", flat)
@@ -144,8 +128,7 @@ class SoftEdgeSymmetryTest(unittest.TestCase):
             "standards": {"hard": [], "soft": []},
         }
         with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reversed_deps, clear=True):
-            batches = lib.fanout_batches(
-                ALL_SETTINGS, {"tickets": {}}, self.root,
+            batches = lib.fanout_batches({"tickets": {}},
                 candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         for batch in batches:
             self.assertFalse({"standards", "principles"} <= set(batch))
@@ -159,8 +142,7 @@ class SoftEdgeSymmetryTest(unittest.TestCase):
             "principles": {"hard": [], "soft": []},
         }
         with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reordered_deps, clear=True):
-            batches = lib.fanout_batches(
-                ALL_SETTINGS, {"tickets": {}}, self.root,
+            batches = lib.fanout_batches({"tickets": {}},
                 candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         for batch in batches:
             self.assertFalse({"standards", "principles"} <= set(batch))
@@ -173,8 +155,7 @@ class SoftEdgeSymmetryTest(unittest.TestCase):
             "standards": {"hard": [], "soft": []},
         }
         with mock.patch.dict(lib.DOC_BOOTSTRAP_DEPENDENCIES, reversed_deps, clear=True):
-            batches = lib.fanout_batches(
-                ALL_SETTINGS, {"tickets": {}}, self.root,
+            batches = lib.fanout_batches({"tickets": {}},
                 candidates=list(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         flat = [skill for batch in batches for skill in batch]
         self.assertIn("standards", flat)
@@ -204,21 +185,19 @@ class V1FanoutGateTest(unittest.TestCase):
                          sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
 
     def test_default_batch_covers_every_configured_unshipped_leg(self):
-        batches = lib.fanout_batches(ALL_SETTINGS, {"tickets": {}}, self.root)
+        batches = lib.fanout_batches({"tickets": {}})
         flat = [skill for batch in batches for skill in batch]
         self.assertEqual(sorted(flat), ["operations", "principles",
                                         "quality", "standards"])
 
     def test_explicit_candidates_argument_covers_the_general_case(self):
-        batches = lib.fanout_batches(
-            ALL_SETTINGS, {"tickets": {}}, self.root,
+        batches = lib.fanout_batches({"tickets": {}},
             candidates=sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
         flat = [skill for batch in batches for skill in batch]
         self.assertEqual(sorted(flat), sorted(lib.DOC_BOOTSTRAP_DEPENDENCIES))
 
     def test_unknown_candidate_name_is_skipped_not_raised(self):
-        batches = lib.fanout_batches(
-            PAIR_SETTINGS, {"tickets": {}}, self.root,
+        batches = lib.fanout_batches({"tickets": {}},
             candidates=["quality", "not-a-skill"])
         self.assertEqual(batches, [["quality"]])
 
@@ -257,14 +236,11 @@ class ForFlagParsingTest(unittest.TestCase):
         self.assertEqual(request.rejected, [])
 
     def test_an_open_ticket_matches_by_doc_set_or_title(self):
-        settings = dict(PAIR_SETTINGS)
-        root = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, root, True)
         by_field = {"tickets": {"MAR-1": {"title": "whatever", "type": "task",
                                           "status": "in_progress", "doc_set": "quality"}}}
-        self.assertNotIn("quality", [s for b in lib.fanout_batches(settings, by_field, root) for s in b])
+        self.assertNotIn("quality", [s for b in lib.fanout_batches(by_field) for s in b])
         by_title = {"tickets": {"MAR-1": _ticket(lib.DOC_SET_TITLES["quality"])}}
-        self.assertNotIn("quality", [s for b in lib.fanout_batches(settings, by_title, root) for s in b])
+        self.assertNotIn("quality", [s for b in lib.fanout_batches(by_title) for s in b])
 
     def test_comma_list_order_preserved(self):
         self.assertEqual(
@@ -322,8 +298,7 @@ class ForFlagParsingTest(unittest.TestCase):
         candidates, rejected = lib.parse_fanout_for_arg(
             "--for quality,not-a-skill")
         self.assertEqual(rejected, ["not-a-skill"])
-        batches = lib.fanout_batches(
-            PAIR_SETTINGS, {"tickets": {}}, self.root, candidates=candidates)
+        batches = lib.fanout_batches({"tickets": {}}, candidates=candidates)
         flat = [skill for batch in batches for skill in batch]
         self.assertIn("quality", flat)
         self.assertNotIn("not-a-skill", flat)
@@ -426,8 +401,7 @@ class PositionalDocSetArgTest(unittest.TestCase):
 
     def test_candidates_feed_fanout_batches_unchanged(self):
         request = lib.parse_doc_set_arg("all")
-        batches = lib.fanout_batches(
-            ALL_SETTINGS, {"tickets": {}}, self.root, candidates=request.candidates)
+        batches = lib.fanout_batches({"tickets": {}}, candidates=request.candidates)
         flat = [skill for batch in batches for skill in batch]
         self.assertEqual(sorted(flat), sorted(self.ALL_LEGS))
 
@@ -447,7 +421,7 @@ class DeclaredBatchOrderTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, True)
 
     def _batches(self, **kwargs):
-        return lib.fanout_batches(ALL_SETTINGS, {"tickets": {}}, self.root, **kwargs)
+        return lib.fanout_batches({"tickets": {}}, **kwargs)
 
     def test_principles_batches_before_standards_on_the_default_set(self):
         batches = self._batches()
@@ -485,51 +459,20 @@ class DeclaredBatchOrderTest(unittest.TestCase):
         self.assertTrue(shared, batches)
 
 
-class CheckoutRootResolutionTest(unittest.TestCase):
-    """Finding 3: the Start snippet must resolve fanout_batches's
-    checkout_root via lib.checkout_root(cwd), never the raw cwd -- otherwise
-    a run started from a repo subdirectory reads an already-shipped doc set
-    as absent and wrongly re-offers it."""
-
-    def setUp(self):
-        self.root = tempfile.mkdtemp(prefix="acs-test-")
-        self.addCleanup(shutil.rmtree, self.root, True)
-        subprocess.run(["git", "init", "-q", self.root], check=True, capture_output=True)
-
-    def test_shipped_doc_set_is_seen_from_a_subdirectory_only_via_checkout_root(self):
-        _touch(os.path.join(self.root, "docs/quality/test-strategy.md"))
-        sub = os.path.join(self.root, "sub", "dir")
-        os.makedirs(sub)
-
-        settings = {"quality_path": "docs/quality", "operations_path": "docs/operations"}
-
-        # Buggy form: raw cwd (a subdirectory) is passed straight to
-        # fanout_batches -- the sentinel file is looked up relative to the
-        # subdirectory, so it is never found, and quality is wrongly
-        # re-offered even though it already shipped.
-        buggy = lib.fanout_batches(settings, {"tickets": {}}, sub)
-        self.assertEqual(buggy, [["quality", "operations"]])
-
-        # Fixed form: the Start snippet must resolve checkout_root(cwd) first.
-        fixed = lib.fanout_batches(settings, {"tickets": {}}, lib.checkout_root(sub))
-        self.assertEqual(fixed, [["operations"]])
-
-
 class FanoutBatchesTest(unittest.TestCase):
-    """AC-1: the pair batches together exactly when both are configured,
-    unshipped, and have no open delivery ticket."""
+    """AC-1: the pair batches together exactly when neither is in the repo
+    and neither has an open delivery ticket."""
 
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, self.root, True)
 
-    def test_pair_batched_when_configured_unshipped_and_no_open_ticket(self):
-        batches = lib.fanout_batches(PAIR_SETTINGS, {"tickets": {}}, self.root)
+    def test_pair_batched_when_absent_and_no_open_ticket(self):
+        batches = lib.fanout_batches({"tickets": {}}, candidates=PAIR)
         self.assertIn(["quality", "operations"], batches)
 
-    def test_shipped_doc_set_makes_skill_ineligible(self):
-        _touch(os.path.join(self.root, "docs/quality/test-strategy.md"))
-        batches = lib.fanout_batches(PAIR_SETTINGS, {"tickets": {}}, self.root)
+    def test_present_doc_set_makes_skill_ineligible(self):
+        batches = lib.fanout_batches({"tickets": {}}, candidates=PAIR, present=["quality"])
         flat = [skill for batch in batches for skill in batch]
         self.assertNotIn("quality", flat)
         self.assertIn("operations", flat)
@@ -538,7 +481,7 @@ class FanoutBatchesTest(unittest.TestCase):
         tickets_index = {
             "tickets": {"MAR-1": _ticket(lib.DOC_SET_TITLES["quality"])},
         }
-        batches = lib.fanout_batches(PAIR_SETTINGS, tickets_index, self.root)
+        batches = lib.fanout_batches(tickets_index, candidates=PAIR)
         flat = [skill for batch in batches for skill in batch]
         self.assertNotIn("quality", flat)
         self.assertIn("operations", flat)
@@ -549,15 +492,9 @@ class FanoutBatchesTest(unittest.TestCase):
                 "MAR-1": _ticket(lib.DOC_SET_TITLES["quality"], status="done"),
             },
         }
-        batches = lib.fanout_batches(PAIR_SETTINGS, tickets_index, self.root)
+        batches = lib.fanout_batches(tickets_index)
         flat = [skill for batch in batches for skill in batch]
         self.assertIn("quality", flat)
-
-    def test_unconfigured_path_is_never_eligible(self):
-        settings = dict(PAIR_SETTINGS, operations_path=None)
-        batches = lib.fanout_batches(settings, {"tickets": {}}, self.root)
-        flat = [skill for batch in batches for skill in batch]
-        self.assertNotIn("operations", flat)
 
 
 class RunSchemaProductStepsTest(unittest.TestCase):

@@ -28,7 +28,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SHIP_SKILL = os.path.join(PLUGIN, "skills", "ship", "SKILL.md")
 SETTINGS_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 WORKFLOW_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "workflow.schema.json")

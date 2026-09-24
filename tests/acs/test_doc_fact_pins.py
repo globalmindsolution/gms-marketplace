@@ -15,11 +15,13 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 ROADMAP = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
 ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
-ACS_README = os.path.join(REPO_ROOT, "src", "acs", "README.md")
-SKILLS_DIR = os.path.join(REPO_ROOT, "src", "acs", "skills")
+ACS_README = os.path.join(REPO_ROOT, "plugins", "acs", "README.md")
+SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
 SKILLS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 REFLECTION_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
-sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
 
 import acs_lib as lib  # noqa: E402
 
@@ -59,7 +61,7 @@ class RoadmapSpecTemplateRetirementTest(unittest.TestCase):
 
 
 class ReadmeSkillCountPinTest(unittest.TestCase):
-    """AC-2: src/acs/README.md's skill-table heading is pinned against
+    """AC-2: plugins/acs/README.md's skill-table heading is pinned against
     the on-disk skill directory count, never a hardcoded literal.
 
     The design-phase entry-point fold moved the row half of this pin with the
@@ -131,7 +133,7 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
     """
 
     STRATEGY = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
-    SKILLS = os.path.join(REPO_ROOT, "src", "acs", "skills")
+    SKILLS = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
 
     def _carriers(self):
         found = set()
@@ -165,11 +167,16 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
     def test_the_re_derivation_hint_is_real_not_a_placeholder(self):
         """The Trigger bullet tells a reader to re-derive its two figures. An
         elided `python3 -c "...; ..."` stub is not a command anyone can run --
-        the hint must name the module that actually derives them."""
+        the hint must name the module that actually derives them. That module
+        was test_eval_trigger_detection.py until the eval suite moved to
+        `claude plugin eval` case files; it is now test_eval_cases.py, whose
+        CoverageTest carries the same UNPROBED allowlist."""
         body = _read(self.STRATEGY)
         self.assertNotRegex(body, r"python3 -c \"[^\"]*\.\.\.")
-        self.assertIn("test_eval_trigger_detection.py", body)
+        self.assertIn("test_eval_cases.py", body)
         self.assertIn("UNPROBED", body)
+        self.assertNotIn("test_eval_trigger_detection.py", body,
+                         "the doc still names the retired module as the check")
 
     def test_strategy_states_why_the_legs_are_probed_explicitly(self):
         body = _read(self.STRATEGY)
@@ -320,10 +327,20 @@ class SkillCountDenominatorPinTest(unittest.TestCase):
                                     + "\n  ".join(wrong))
 
     def test_the_three_coverage_claims_are_each_present(self):
-        """Pins the numerators too, so a claim cannot quietly vanish."""
+        """Pins the numerators too, so a claim cannot quietly vanish.
+
+        The artifact numerator is DERIVED from the eval suite -- the distinct
+        skills its artifact cases invoke -- rather than written here. It was
+        the literal "only 3 of" until the forge-tier create-pr scenario was
+        retired with the behavioural harness; a literal would have gone on
+        asserting that stale count."""
+        artifact_skills = {g.skill() for c in eval_cases.all_cases()
+                           if "artifacts" in c.tags for g in c.graders
+                           if g.skill()}
+        self.assertTrue(artifact_skills, "found no artifact case to count")
         for needle in ("%d of %d" % (self.skills, self.skills),
                        "%d of %d hooked" % (self.hooked, self.hooked),
-                       "only 3 of %d" % self.skills):
+                       "%d of %d skills" % (len(artifact_skills), self.skills)):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.text)
 
@@ -344,15 +361,26 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
 
     `acs_lib.py` became the package `acs_lib/`, and 47 files went on citing the
     vanished file -- some with line numbers into it. Nothing caught that either.
-    Any reference to a path under src/acs/hooks/scripts must resolve, unless
+    Any reference to a path under plugins/acs/hooks/scripts must resolve, unless
     it is listed below as a deliberate mention of history.
     """
 
-    SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+    SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
     #: (path, needle) -> why this mention of a non-existent file is correct.
     ALLOWED = {
-        ("src/acs/CHANGELOG.md", "acs_lib.py"):
+        ("plugins/acs/CHANGELOG.md", "acs_lib.py"):
             "a changelog records what past releases did; rewriting it would falsify history",
+        ("plugins/acs/CHANGELOG.md", "acs_lib/phases.py"):
+            "same changelog, same rule: the entry RECORDS phases.py being removed, so the "
+            "retired path is the fact being reported",
+        ("plugins/acs/CHANGELOG.md", "acs_lib/lanes.py"):
+            "records the lanes.py -> planrules.py rename; naming the old path is the point",
+        ("plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md", "acs_lib/phases.py"):
+            "the v0.5.0 design doc states what phases.py BECOMES; it describes the change, "
+            "so the pre-change path has to appear",
+        ("plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md", "acs_lib/state.py"):
+            "the same doc naming the module the redesign split; the problem statement cannot "
+            "be written without the name of the module that had the problem",
         ("docs/adr/0030-four-lane-hybrid-routing-from-size-stakes-axes.md", "acs_lib/lanes.py"):
             "a superseded ADR records what was decided and where it lived AT THE TIME; "
             "ADR-0095 retired the routing and renamed the module to planrules.py, and "
@@ -360,12 +388,28 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
         ("docs/adr/0034-light-verify-one-iteration-cap.md", "acs_lib/lanes.py"):
             "same: superseded by ADR-0095, kept verbatim as the record of the "
             "verify-depth decision it made",
+        ("plugins/acs/CHANGELOG.md", "acs_lib/metrics.py"):
+            "records metrics.py's removal with the usage dashboards (ADR-0104); the "
+            "retired path is the fact being reported",
+        ("docs/adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md",
+         "acs_lib/metrics.py"):
+            "a superseded ADR records where its decision lived AT THE TIME; ADR-0104 "
+            "removed the module, and rewriting the record would falsify it",
+        ("docs/adr/0104-no-usage-dashboards-no-usage-recording.md", "acs_lib/metrics.py"):
+            "the ADR that removes metrics.py has to name what it removes",
+        ("tests/acs/test_doc_fact_pins.py", "acs_lib/metrics.py"):
+            "self-exemption for the metrics.py entries above, same recursion as lanes.py",
         ("tests/acs/acs_case.py", "acs_lib.py"):
             "describes the MAR-522 split itself (what reading acs_lib.py used to give)",
         ("tests/acs/test_evidence_sidecar_topology.py", "acs_lib.py"):
             "notes that MAR-522 split acs_lib.py into a package",
         ("tests/acs/test_setup_skill_reference_sweep.py", "acs_lib.py"):
             "explains why a guard went vacuous once MAR-522 deleted acs_lib.py",
+        ("tests/acs/test_doc_fact_pins.py", "acs_lib/phases.py"):
+            "self-exemption, same recursion as lanes.py below: the entries above name "
+            "phases.py in order to exempt it, and the scanner reads this file too",
+        ("tests/acs/test_doc_fact_pins.py", "acs_lib/state.py"):
+            "self-exemption for the REDESIGN-doc entry above, same recursion",
         ("tests/acs/test_doc_fact_pins.py", "acs_lib/lanes.py"):
             "this allowlist must NAME the retired path to exempt it; the entries "
             "above are the mention the scanner is seeing. `lanes.py` became "
@@ -380,7 +424,7 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
             "load-bearing test below keeps every entry honest",
     }
     #: Module docstrings that record their own extraction are allowed wholesale.
-    EXTRACTION_NOTE = "extracted from acs_lib.py by MAR-522"
+    EXTRACTION_NOTE = "extracted from acs_lib.py by mar-522"  # matched case-insensitively
 
     def _referring_files(self):
         for sub in ("docs", "tests", "plugins"):
@@ -398,7 +442,7 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
             with open(path, "r", encoding="utf-8") as fh:
                 text = fh.read()
             for lineno, line in enumerate(text.split("\n"), 1):
-                if self.EXTRACTION_NOTE in line:
+                if self.EXTRACTION_NOTE in line.lower():
                     continue
                 for ref in pattern.findall(line):
                     if os.path.exists(os.path.join(self.SCRIPTS, ref)):
@@ -445,8 +489,8 @@ class AdjudicationIsPerFindingTest(unittest.TestCase):
     superseded ADRs.
     """
 
-    REVIEW_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "review-code", "SKILL.md")
-    ADJUDICATOR = os.path.join(REPO_ROOT, "src", "acs", "agents", "review-code-adjudicator.md")
+    REVIEW_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "review-code", "SKILL.md")
+    ADJUDICATOR = os.path.join(REPO_ROOT, "plugins", "acs", "agents", "review-code-adjudicator.md")
     DOCS = (SKILLS_REQUIREMENTS, REVIEW_SKILL, ADJUDICATOR)
 
     #: Any spelling of the mechanism that does not exist.

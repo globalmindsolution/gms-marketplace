@@ -16,7 +16,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
 import citation_check  # noqa: E402
 
 

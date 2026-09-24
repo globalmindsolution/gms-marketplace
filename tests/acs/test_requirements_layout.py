@@ -1,13 +1,21 @@
-"""MAR-145 Spec 01 — `requirements_layout` settings key + /acs:code's
-requirements-merge classify-then-route prose contract + `contracts.md`
-settings note + ADR 0060 + CHANGELOG entry.
+"""MAR-145 Spec 01 — the requirements set's functional/non-functional split +
+/acs:code's requirements-merge classify-then-route prose contract +
+`contracts.md` settings note + ADR 0060 + CHANGELOG entry.
 
-Stdlib-only unittest. Mirrors `TestQualityPathSettings`
-(tests/acs/test_acs_plugin.py) for the schema/settings-default assertions and
-`test_docs_reflection_topology.py`'s `ChangelogMar123EntryTest` for the durable
-CHANGELOG assertion (never pins a literal `[Unreleased]`/dated heading).
+MAR-145 introduced a `requirements_layout` settings key naming the two
+subfolders; ADR-0102 ("documents are found, not configured") removed it. The
+split itself stands: the requirements set (found in the repo, else
+`docs/requirements/`) has a functional and a non-functional subfolder
+(`functional/` and `non-functional/` by default, an existing set's own names
+followed), and a coordinator hands the resolved locations to its agents as the
+`requirements_dir` / `functional_dir` / `non_functional_dir` constraints. The
+schema/settings classes below are now guards that the removed key stays gone.
 
-Run: python3 -m unittest tests.acs.test_mar145_requirements_layout -v
+Stdlib-only unittest. Uses `test_docs_reflection_topology.py`'s
+`ChangelogMar123EntryTest` shape for the durable CHANGELOG assertion (never
+pins a literal `[Unreleased]`/dated heading).
+
+Run: python3 -m unittest tests.acs.test_requirements_layout -v
 """
 
 import glob
@@ -20,7 +28,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402
@@ -31,11 +39,15 @@ def read(path):
         return fh.read()
 
 
+def flat(text):
+    return " ".join(text.split())
+
+
 class RequirementsLayoutSchemaTest(unittest.TestCase):
-    """T1.1 (AC-1, AC-6): schema defines `requirements_layout` (additive,
-    functional/non-functional shape, defaults); `requirements_path` stays a
-    plain string (no `oneOf` promotion); the marketplace's own
-    `.acs/settings.json` carries the block."""
+    """T1.1, inverted by ADR-0102: the schema no longer defines
+    `requirements_layout` or `requirements_path` (no setting locates a
+    document), stays additive so a consumer's legacy key still validates, and
+    the marketplace's own `.acs/settings.json` no longer carries the block."""
 
     SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 
@@ -44,54 +56,39 @@ class RequirementsLayoutSchemaTest(unittest.TestCase):
         with open(cls.SCHEMA_PATH) as fh:
             cls.schema = json.load(fh)
 
-    def test_requirements_layout_in_schema(self):
-        self.assertIn("requirements_layout", self.schema["properties"])
+    def test_requirements_layout_not_in_schema(self):
+        self.assertNotIn("requirements_layout", self.schema["properties"])
 
-    def test_requirements_layout_is_object_with_subdir_keys(self):
-        prop = self.schema["properties"]["requirements_layout"]
-        self.assertEqual(prop.get("type"), "object")
-        props = prop.get("properties", {})
-        self.assertEqual(props.get("functional_subdir", {}).get("type"), "string")
-        self.assertEqual(props.get("functional_subdir", {}).get("default"), "functional")
-        self.assertEqual(props.get("non_functional_subdir", {}).get("type"), "string")
-        self.assertEqual(props.get("non_functional_subdir", {}).get("default"), "non-functional")
+    def test_requirements_path_not_in_schema(self):
+        self.assertNotIn("requirements_path", self.schema["properties"])
 
-    def test_requirements_layout_additional_properties_true(self):
-        prop = self.schema["properties"]["requirements_layout"]
-        self.assertTrue(prop.get("additionalProperties"))
-
-    def test_requirements_path_still_a_plain_string(self):
-        """No `oneOf` promotion — every existing string reader stays
-        unaffected (design 'Settings-key shape', rejected alternative)."""
-        prop = self.schema["properties"]["requirements_path"]
-        self.assertEqual(prop.get("type"), "string")
-        self.assertNotIn("oneOf", prop)
+    def test_schema_never_names_the_subdir_keys(self):
+        body = read(self.SCHEMA_PATH)
+        self.assertNotIn("functional_subdir", body)
+        self.assertNotIn("non_functional_subdir", body)
 
     def test_top_level_schema_stays_additive(self):
         self.assertTrue(self.schema.get("additionalProperties"))
 
-    def test_marketplace_settings_carries_requirements_layout(self):
+    def test_marketplace_settings_has_no_requirements_layout(self):
         settings_path = os.path.join(REPO_ROOT, ".acs", "settings.json")
         with open(settings_path) as fh:
             settings = json.load(fh)
-        layout = settings.get("requirements_layout")
-        self.assertIsInstance(layout, dict)
-        self.assertEqual(layout.get("functional_subdir"), "functional")
-        self.assertEqual(layout.get("non_functional_subdir"), "non-functional")
+        self.assertNotIn("requirements_layout", settings)
+        self.assertNotIn("requirements_path", settings)
 
 
 class RequirementsLayoutDefaultResolutionTest(unittest.TestCase):
-    """T1.1: an absent `requirements_layout` key resolves to the
-    functional/non-functional defaults — zero-config repos keep working with
-    no settings edit."""
+    """T1.1, inverted by ADR-0102: nothing seeds `requirements_layout` any
+    more — a zero-config repo resolves no such key, because the subfolders are
+    found in the repo (or created at the `functional/` / `non-functional/`
+    convention) by the skill, not read from settings."""
 
-    def test_default_settings_seeds_requirements_layout(self):
-        self.assertEqual(
-            lib.DEFAULT_SETTINGS.get("requirements_layout"),
-            {"functional_subdir": "functional", "non_functional_subdir": "non-functional"},
-        )
+    def test_default_settings_does_not_seed_requirements_layout(self):
+        self.assertNotIn("requirements_layout", lib.DEFAULT_SETTINGS)
+        self.assertNotIn("requirements_path", lib.DEFAULT_SETTINGS)
 
-    def test_load_settings_resolves_default_when_absent(self):
+    def test_load_settings_resolves_no_layout_when_absent(self):
         tmp = tempfile.mkdtemp(prefix="acs-req-layout-test-")
         self.addCleanup(shutil.rmtree, tmp, True)
         repo = os.path.join(tmp, "shop")
@@ -99,8 +96,8 @@ class RequirementsLayoutDefaultResolutionTest(unittest.TestCase):
         with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
             json.dump({"ticket_prefix": "SHOP"}, fh)
         merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["requirements_layout"]["functional_subdir"], "functional")
-        self.assertEqual(merged["requirements_layout"]["non_functional_subdir"], "non-functional")
+        self.assertNotIn("requirements_layout", merged)
+        self.assertNotIn("requirements_path", merged)
 
 
 class MergeRoutingProseContractTest(unittest.TestCase):
@@ -135,9 +132,17 @@ class MergeRoutingProseContractTest(unittest.TestCase):
         )
 
     def test_skill_md_names_both_target_subfolders(self):
-        body = read(self.DOCS_SYNC_EXECUTOR_MD)
-        self.assertIn("functional_subdir", body)
-        self.assertIn("non_functional_subdir", body)
+        """The two targets are the resolved `functional_dir` /
+        `non_functional_dir` constraints, with the `functional/` /
+        `non-functional/` convention for a new set — never the removed
+        `requirements_layout` subdir keys."""
+        body = flat(read(self.DOCS_SYNC_EXECUTOR_MD))
+        self.assertIn("`<functional_dir>/<feature>.md`", body)
+        self.assertIn("`<non_functional_dir>/<item>.md`", body)
+        self.assertIn("(`functional/` in a new set;", body)
+        self.assertIn("(`non-functional/` in a new set;", body)
+        self.assertNotIn("functional_subdir", body)
+        self.assertNotIn("requirements_layout", body)
 
     def test_skill_md_preserves_no_overwrite_phrasing(self):
         body = read(self.DOCS_SYNC_EXECUTOR_MD)
@@ -151,9 +156,12 @@ class MergeRoutingProseContractTest(unittest.TestCase):
         self.assertRegex(body, re.compile(r"NON-FUNCTIONAL\*\*.*QUALITY", re.DOTALL))
 
     def test_code_executor_md_names_both_target_subfolders(self):
-        body = read(self.DOCS_SYNC_EXECUTOR_MD)
-        self.assertIn("functional_subdir", body)
-        self.assertIn("non_functional_subdir", body)
+        """The executor receives both subfolders as task constraints."""
+        body = flat(read(self.DOCS_SYNC_EXECUTOR_MD))
+        self.assertRegex(
+            body,
+            r"`requirements_dir`, `functional_dir`, `non_functional_dir`",
+        )
 
     def test_code_executor_md_preserves_no_overwrite_phrasing(self):
         body = read(self.DOCS_SYNC_EXECUTOR_MD)
@@ -163,7 +171,11 @@ class MergeRoutingProseContractTest(unittest.TestCase):
     def test_the_verifier_names_wrong_subfolder_routing_as_a_finding(self):
         body = read(self.VERIFIER_MD)
         self.assertRegex(body, r"wrong subfolder|wrong-subfolder")
-        self.assertRegex(body, re.compile(r"outside.*requirements_layout", re.DOTALL))
+        self.assertRegex(
+            body,
+            re.compile(r"outside.*`functional_dir`/`non_functional_dir`", re.DOTALL),
+        )
+        self.assertNotIn("requirements_layout", body)
 
 
 def _dimension_block(body, label):
@@ -197,7 +209,10 @@ class DocsSyncVerifierRequirementsRoutingTest(unittest.TestCase):
 
     def test_dimension_names_wrong_subfolder_routing(self):
         self.assertRegex(self.block, r"wrong subfolder|wrong-subfolder")
-        self.assertRegex(self.block, re.compile(r"outside.*requirements_layout", re.DOTALL))
+        self.assertRegex(
+            self.block,
+            re.compile(r"outside.*`functional_dir`/`non_functional_dir`", re.DOTALL),
+        )
 
     def test_dimension_mentions_evidence_sidecar(self):
         self.assertRegex(self.block, re.compile(r"(?i)\.evidence\.md"))
@@ -259,25 +274,28 @@ class ChangelogMar145EntryTest(unittest.TestCase):
 
 
 class ContractsMdSettingsNoteTest(unittest.TestCase):
-    """T1.5 (AC-2, contracts half): `contracts.md`'s Settings-keys list gains
-    `requirements_layout?` + a nearby functional/non-functional resolution
-    note; the conformance-chain line is UNCHANGED (D1 — no chain rewrite in
-    this spec; that clarifying note is MAR-144's)."""
+    """T1.5 (AC-2, contracts half), re-expressed by ADR-0102: `contracts.md`'s
+    Settings-keys list no longer carries `requirements_layout?` (no key locates
+    a document), and the functional/non-functional resolution note now says
+    the set is found in the repo, else created at the `docs/requirements/`
+    convention with `functional/` + `non-functional/` subfolders; the
+    conformance-chain line is UNCHANGED (D1 — no chain rewrite in this spec;
+    that clarifying note is MAR-144's)."""
 
     CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 
-    def test_settings_keys_list_gains_requirements_layout(self):
+    def test_settings_keys_list_drops_requirements_layout(self):
         body = read(self.CONTRACTS_MD)
-        self.assertIn("requirements_layout?", body)
+        self.assertNotIn("requirements_layout", body)
+        self.assertIn("No key locates the workspace or a document", flat(body))
 
     def test_functional_non_functional_resolution_documented(self):
-        body = read(self.CONTRACTS_MD)
-        self.assertRegex(
+        body = flat(read(self.CONTRACTS_MD))
+        self.assertIn(
+            "The requirements set (found in the repo, else `docs/requirements/`) has a "
+            "**functional** and a **non-functional** subfolder (`functional/` and "
+            "`non-functional/` by default; an existing set's own names are followed).",
             body,
-            re.compile(
-                r"resolves a.{0,40}functional.{0,40}non-functional.{0,80}requirements_layout",
-                re.DOTALL,
-            ),
         )
 
     def test_conformance_chain_line_unchanged(self):

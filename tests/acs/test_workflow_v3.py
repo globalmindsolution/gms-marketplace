@@ -24,13 +24,13 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))), "src", "acs", "hooks", "scripts"))
+    os.path.dirname(os.path.abspath(__file__)))), "plugins", "acs", "hooks", "scripts"))
 
 from acs_lib import workflow as W  # noqa: E402
 from acs_lib._common import WorkflowError  # noqa: E402
 
 PLUGIN = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))), "src", "acs")
+    os.path.abspath(__file__)))), "plugins", "acs")
 SHIP = os.path.join(PLUGIN, "workflows", "ship.yaml")
 
 VALID = """version: 3

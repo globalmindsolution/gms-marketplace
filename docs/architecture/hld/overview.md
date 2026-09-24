@@ -18,7 +18,8 @@ is published today:
   **consumer repository**, persisting all pipeline state into a gitignored
   **`.acs/state-machine/` folder inside that repo**, anchored to the repo's
   main checkout so every linked worktree resolves to the same on-disk state
-  (an explicit `workspace_path` override may still point anywhere; ADR-0086).
+  (no setting overrides it; ADR-0086,
+  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 
 ## Quality attributes (drive the design)
 
@@ -29,7 +30,7 @@ is published today:
 | Verification independence | Separate executor/verifier contexts on the twelve authoring skills (create-prd, create-architecture, create-project, create-design, docs-sync, standardize-project, create-requirements, analyze-requirements, create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests) and on `code` and `create-docs` — no skill has a planner context (ADR 0092; `code`'s plan comes from `/acs:create-impl-plan`, ADR 0089; `create-docs` took the shape first, ADR 0094) — for `/acs:create-impl-plan`, the executor context is STANDARD/COMPLEX-only since MAR-72 (ADR 0074; on TRIVIAL/SMALL the coordinator authors the plan itself), while the verifier context is separate in every lane, so the independence property this row asserts is preserved; verifiers anchor on gated upstream contracts and the executor's authoring notes, re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline and are verifier-gated upstream by /code's verifier. |
 | Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket, plus phase-level fan-out from a single coordinator (e.g. `/acs:create-docs`, over its four doc sets) spawning independent delivery tickets in parallel worktrees — **capped**, never unbounded: the coordinator walks the declared batches in slices of at most 2 legs, a limit it sets for itself. The ship pipeline itself runs one step at a time: `ship.yaml` v3 carries no `max_parallel` and no step-level fan-out (ADR-0096). |
 | Portability | stdlib-only Python ≥ 3.9 hooks; markdown skills/agents; no pip installs on consumer machines. |
-| Auditability | Pretty-printed JSON everywhere; archives never deleted; clarification ledger; per-run metrics. |
+| Auditability | Pretty-printed JSON everywhere; archives never deleted; clarification ledger; an append-only invocation history per step. |
 
 ## Key architectural decisions
 

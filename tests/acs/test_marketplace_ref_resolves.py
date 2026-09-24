@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The marketplace entry must resolve: `path` has to EXIST at `ref`.
+"""The marketplace entry must RESOLVE: an install has to find a plugin there.
 
 This is the one property an install actually exercises, and nothing checked
 it. On 2026-09-16 `acs@gms-marketplace` could not be installed at all:
@@ -7,47 +7,56 @@ it. On 2026-09-16 `acs@gms-marketplace` could not be installed at all:
     Failed to install plugin "acs@gms-marketplace": Subdirectory 'src/acs' not
     found in repository ... (ref: v0.4.9)
 
+The entry was a `git-subdir` object carrying its own `url`, `path` and `ref`.
 The plugin tree moved from `plugins/acs` to `src/acs` and the manifest's
 `path` moved with it, but its `ref` still named tag `v0.4.9`, where the plugin
 is at `plugins/acs`. Each field was individually correct and the pair was
 unresolvable. `test_marketplace_consistency.py` checks name and version
 agreement between the entry and `plugin.json`; it builds its own fixtures, so
-it never asks git whether this repo's advertised pair resolves.
+it never asks whether this repo's advertised source resolves.
 
-Two readers, two models, and the entry must satisfy both. `ci.yml`'s
-marketplace validator resolves `path` against the WORKING TREE and requires a
-plugin.json there; the installer resolves it at `ref`. Moving the tree without
-moving the ref leaves no value of `path` that works for both — pointing it at
+Two readers, two models, and the entry had to satisfy both. `ci.yml`'s
+marketplace validator resolved `path` against the WORKING TREE and required a
+plugin.json there; the installer resolved it AT `ref`. Moving the tree without
+moving the ref left no value of `path` that worked for both — pointing it at
 the released tree fixed the install and broke CI on the same day.
 
-So `path` follows the working tree, and `ref` is pinned to a commit on the
-default branch where that path exists. The release cut replaces the SHA with
-the new tag and re-asserts the path, together (`release.extra_refs` in
-`.acs/settings.json` sets `source/ref` and `source/path`).
-
-Then on 2026-09-17 the same entry broke a second way, and this file did not
-catch it either:
+Then on 2026-09-17 the same entry broke a second way:
 
     Failed to clone repository for git-subdir source: warning: Could not find
     remote branch e7e633f1804... to clone.
     fatal: Remote branch e7e633f1804... not found in upstream origin
 
 The 2026-09-16 fix pinned `ref` to a COMMIT on the default branch, which makes
-`path` resolve — `git cat-file -t <sha>:src/acs` is happy, so every assertion
-below passed. But the installer does not `cat-file` the ref, it CLONES with it:
-`git clone --branch <ref>`, which accepts a branch or a tag and rejects a bare
-SHA. Resolvable and cloneable are different properties, and only the first was
-tested.
+`path` resolve — `git cat-file -t <sha>:src/acs` is happy. But the installer
+does not `cat-file` the ref, it CLONES with it: `git clone --branch <ref>`,
+which takes a branch or a tag and rejects a bare SHA. Resolvable and cloneable
+are different properties, and only the first was tested.
 
-So a third constraint joins the two above: `ref` must NAME something — a branch
-or a tag — never a raw SHA. Between releases that means the default branch;
-`release.extra_refs` already rewrites it to `v{version}` at the cut, which is a
-tag and therefore cloneable. Note there is currently no OLDER tag that would
-work: `v0.4.9` predates the `plugins/acs` -> `src/acs` move, so `src/acs` does
-not exist there. Until v0.5.0 is tagged, the default branch is the only value
-that satisfies all three.
+WHAT CHANGED. The acs entry is now the relative string `./plugins/acs`, and
+that REMOVES the dual-reader failure mode rather than re-testing it. A
+relative source resolves from the marketplace checkout itself — the very tree
+both readers already have in front of them — so there is no second coordinate
+to fall out of step with the first: no `path`/`ref` pair, and nothing for a
+directory move to make individually-correct-but-jointly-unresolvable. Pinning
+moved up a level, from the plugin to the marketplace
+(`claude plugin marketplace add <repo>@v0.5.0`), where one ref decides both
+questions at once. The release cut no longer rewrites the source at all (see
+`TheReleaseCutLeavesTheSourceAloneTest`).
 
-Offline and free: it asks the local clone, reading the ref through
+So the property re-cut for that shape is the one that still guards an install:
+the string names a directory that EXISTS in the working tree, that directory
+carries `.claude-plugin/plugin.json`, and the entry round-trips — the name in
+the manifest is the name the catalog advertises.
+
+The at-ref and cloneable checks stay for the object shape, because a future
+plugin may well be fetched from elsewhere and the two outages above are what
+that shape costs when nobody looks. While every entry is relative those checks
+iterate nothing, which is exactly the inert-guard mistake this whole file is
+about — so `EveryEntryIsCheckedBySomethingTest` pins that no entry escapes
+both, and fails loudly on a source shape neither one understands.
+
+Offline and free: the ref checks ask the local clone, reading the ref through
 `origin/<ref>` when the bare name is absent -- which is the normal case in a
 `pull_request` checkout, detached at the merge ref with no local branches.
 Where neither name resolves the check skips with that reason rather than
@@ -68,6 +77,11 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MANIFEST = os.path.join(REPO_ROOT, ".claude-plugin", "marketplace.json")
 SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
+
+#: Object sources fetched from somewhere else entirely. Nothing about them is
+#: checkable from this clone, so they are named here rather than falling
+#: through a shape check that would then be examining nothing.
+REMOTE_SOURCES = {"github", "url", "npm"}
 
 
 def git(*args):
@@ -90,25 +104,143 @@ def resolve(ref):
     return None
 
 
-def entries():
+def manifest():
     with open(MANIFEST, encoding="utf-8") as fh:
-        doc = json.load(fh)
-    out = []
-    for plugin in doc.get("plugins", []):
-        source = plugin.get("source")
-        if isinstance(source, dict) and source.get("source") == "git-subdir":
-            out.append((plugin["name"], source))
-    return out
+        return json.load(fh)
+
+
+def entries():
+    """Every plugin entry in the catalog, whatever shape its source takes."""
+    return list(manifest().get("plugins", []))
+
+
+def relative_entries():
+    """Entries whose source is a plain string: a path in THIS repository."""
+    return [e for e in entries() if isinstance(e.get("source"), str)]
+
+
+def pinned_entries():
+    """Entries whose source is a git-subdir object carrying its own ref."""
+    return [e for e in entries()
+            if isinstance(e.get("source"), dict)
+            and e["source"].get("source") == "git-subdir"]
+
+
+def tree_path(entry):
+    """Where a string source lands in this working tree, absolute.
+
+    Mirrors what `ci.yml`'s validator does with the same value: the string is
+    repo-root relative, and `metadata.pluginRoot` prefixes it unless the
+    string is already explicitly rooted (`./` or `/`). Resolving it any other
+    way here would re-create the two-readers problem inside the test suite.
+    """
+    rel = entry["source"]
+    plugin_root = (manifest().get("metadata") or {}).get("pluginRoot")
+    if plugin_root and not rel.startswith(("./", "/")):
+        rel = os.path.join(plugin_root, rel)
+    return os.path.normpath(os.path.join(REPO_ROOT, rel))
+
+
+class EveryEntryIsCheckedBySomethingTest(unittest.TestCase):
+    """No entry may sit in a shape that neither class below understands.
+
+    Both shape checks loop over a filtered list, and a loop over an empty list
+    passes. That is how a catalog could quietly acquire an entry nothing
+    verifies -- the same inert-guard failure that let #540 ship green. This
+    test is the one that cannot go quiet: it reads the WHOLE catalog.
+    """
+
+    def test_the_catalog_is_not_empty(self):
+        self.assertTrue(entries(), "marketplace.json advertises no plugins at all")
+
+    def test_no_entry_escapes_both_shape_checks(self):
+        for entry in entries():
+            src = entry.get("source")
+            with self.subTest(plugin=entry.get("name")):
+                if isinstance(src, str):
+                    continue  # working-tree property, checked below
+                self.assertIsInstance(
+                    src, dict,
+                    "source must be a relative path string or a source object")
+                kind = src.get("source")
+                self.assertIn(
+                    kind, {"git-subdir"} | REMOTE_SOURCES,
+                    "unknown source kind %r: no test in this file knows how to "
+                    "decide whether it installs" % (kind,))
+                if kind == "git-subdir":
+                    self.assertTrue(src.get("path"),
+                                    "a git-subdir source declares no path")
+
+
+class RelativeSourceResolvesInTheWorkingTreeTest(unittest.TestCase):
+    """The property a relative source has instead of path-at-ref.
+
+    A string source carries no ref and no path field, so "does `path` exist at
+    `ref`" is not a question that can be asked of it -- and it no longer needs
+    asking, because the install and CI read the same tree. What is left to get
+    wrong is the tree itself: a moved or deleted directory, or one that holds
+    no plugin. That is what these three check.
+    """
+
+    def test_the_source_names_a_directory_in_this_tree(self):
+        for entry in relative_entries():
+            with self.subTest(plugin=entry.get("name")):
+                where = tree_path(entry)
+                self.assertTrue(
+                    os.path.isdir(where),
+                    "%s: source '%s' names no directory in this tree (%s). An "
+                    "install resolves the source from the marketplace checkout, "
+                    "so it fails on exactly this absence."
+                    % (entry.get("name"), entry["source"], where))
+
+    def test_that_directory_carries_a_plugin_manifest(self):
+        for entry in relative_entries():
+            with self.subTest(plugin=entry.get("name")):
+                target = os.path.join(tree_path(entry), ".claude-plugin", "plugin.json")
+                self.assertTrue(
+                    os.path.exists(target),
+                    "%s: no plugin.json at %s — the directory resolves but "
+                    "carries no plugin" % (entry.get("name"), target))
+
+    def test_the_entry_round_trips_with_that_manifest(self):
+        """The catalog's name is the plugin's name, and so is its version.
+
+        Round-tripping is what makes the two halves one entry rather than two
+        independent facts -- the shape of defect that made the entry
+        individually-correct and jointly-broken in the first place.
+        """
+        for entry in relative_entries():
+            with self.subTest(plugin=entry.get("name")):
+                target = os.path.join(tree_path(entry), ".claude-plugin", "plugin.json")
+                if not os.path.exists(target):
+                    continue  # already failed, loudly, in the test above
+                with open(target, encoding="utf-8") as fh:
+                    plugin = json.load(fh)
+                self.assertEqual(
+                    plugin.get("name"), entry.get("name"),
+                    "%s: plugin.json at %s names '%s'. The catalog entry and the "
+                    "plugin it resolves to must agree, or an install advertises "
+                    "one plugin and delivers another."
+                    % (entry.get("name"), target, plugin.get("name")))
+                if entry.get("version") is not None:
+                    self.assertEqual(
+                        entry["version"], plugin.get("version"),
+                        "%s: entry version '%s' != plugin.json version '%s' — "
+                        "plugin.json wins silently, so the catalog would lie."
+                        % (entry.get("name"), entry["version"], plugin.get("version")))
 
 
 class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
+    """The object-source property, kept for whatever is fetched from elsewhere.
+
+    Inert while every entry is relative; `EveryEntryIsCheckedBySomethingTest`
+    is what stops that from being a silence nobody notices.
+    """
 
     def test_every_git_subdir_entry_resolves(self):
-        found = entries()
-        self.assertTrue(found, "no git-subdir plugin entries to check")
-        for name, source in found:
-            path = source.get("path")
-            ref = source.get("ref")
+        for entry in pinned_entries():
+            source = entry["source"]
+            name, path, ref = entry.get("name"), source.get("path"), source.get("ref")
             with self.subTest(plugin=name):
                 self.assertTrue(path, "%s declares no path" % name)
                 # `path` is judged AT `ref` and nowhere else. It used to be
@@ -122,8 +254,12 @@ class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
                 # via .github/scripts/plugin_source_dirs.py), so neither does
                 # this test.
                 if not ref:
-                    # No ref means the marketplace tracks the default branch,
-                    # and the working-tree check above is the whole of it.
+                    # No ref means the entry tracks the ref the marketplace
+                    # itself was installed at, which is this tree.
+                    self.assertTrue(
+                        os.path.isdir(os.path.join(REPO_ROOT, path)),
+                        "%s: unpinned git-subdir source resolves against this "
+                        "tree, and '%s' is not there" % (name, path))
                     continue
                 readable = resolve(ref)
                 if readable is None:
@@ -140,11 +276,12 @@ class AdvertisedPathResolvesAtAdvertisedRefTest(unittest.TestCase):
                     "%s: '%s' at ref '%s' is not a directory" % (name, path, ref))
 
     def test_the_plugin_manifest_is_present_at_that_path_and_ref(self):
-        for name, source in entries():
-            path, ref = source.get("path"), source.get("ref")
+        for entry in pinned_entries():
+            source = entry["source"]
+            name, path, ref = entry.get("name"), source.get("path"), source.get("ref")
             with self.subTest(plugin=name):
                 if not ref:
-                    self.skipTest("entry tracks the default branch")
+                    self.skipTest("entry tracks the marketplace's own ref")
                 readable = resolve(ref)
                 if readable is None:
                     self.skipTest("ref %r not present in this clone" % ref)
@@ -161,7 +298,9 @@ class TheRefMustBeCloneableTest(unittest.TestCase):
     This is the property the 2026-09-17 install failure exercised. It is
     separate from "path resolves at ref": a commit SHA resolves fine and
     clones not at all, which is exactly how the previous fix passed every
-    check in this file and still could not be installed.
+    check in this file and still could not be installed. Only an object
+    source can hold a ref, so this reaches nothing while every entry is
+    relative -- which is the point of retiring that shape.
     """
 
     #: A ref of 7-40 hex characters is a commit SHA by shape. Branch and tag
@@ -181,11 +320,12 @@ class TheRefMustBeCloneableTest(unittest.TestCase):
         so the check that carries the weight asks no questions it might not
         get an answer to.
         """
-        for name, source in entries():
-            ref = source.get("ref")
+        for entry in pinned_entries():
+            ref = entry["source"].get("ref")
+            name = entry.get("name")
             with self.subTest(plugin=name):
                 if not ref:
-                    continue  # tracks the default branch; nothing to clone by name
+                    continue  # tracks the marketplace ref; nothing to clone by name
                 self.assertIsNone(
                     self.SHA.fullmatch(ref),
                     "%s: ref %r is a bare commit SHA. It resolves — every check "
@@ -199,8 +339,9 @@ class TheRefMustBeCloneableTest(unittest.TestCase):
         in CI's shallow checkout. The lexical test above is the load-bearing
         one; this adds the case a SHA-shaped check cannot see — a ref that is
         neither hex nor an existing branch or tag, e.g. a deleted branch."""
-        for name, source in entries():
-            ref = source.get("ref")
+        for entry in pinned_entries():
+            ref = entry["source"].get("ref")
+            name = entry.get("name")
             with self.subTest(plugin=name):
                 if not ref:
                     continue
@@ -221,39 +362,67 @@ class TheRefMustBeCloneableTest(unittest.TestCase):
                     % (name, ref, ref))
 
 
-class TheCutMovesBothFieldsTogetherTest(unittest.TestCase):
-    """The move that broke this is only safe if the release rewrites both."""
+class TheReleaseCutLeavesTheSourceAloneTest(unittest.TestCase):
+    """The cut used to rewrite the source; with a string source it must not.
+
+    While the entry was a git-subdir object, `release.extra_refs` rewrote
+    `source/ref` and `source/path` together, because a tag cut that moved one
+    without the other is precisely the 2026-09-16 break. A relative string has
+    neither field: an extra_ref that still set `source/ref` would replace the
+    string with an object — rebuilding the two-coordinate shape the move
+    retired, and advertising a `path` and `ref` nobody checked. So the cut's
+    only business with this entry is the version, and it reaches that through
+    `version_locations`, in the plugin manifest the entry resolves to.
+    """
 
     @classmethod
     def setUpClass(cls):
         with open(SETTINGS, encoding="utf-8") as fh:
             cls.release = json.load(fh).get("release") or {}
 
-    def test_extra_refs_rewrite_the_acs_ref_and_path(self):
-        targets = {}
-        for entry in self.release.get("extra_refs") or []:
-            if entry.get("file") != ".claude-plugin/marketplace.json":
-                continue
-            selector = entry.get("selector") or {}
-            if (selector.get("match") or {}).get("name") != "acs":
-                continue
-            targets[selector.get("set")] = entry.get("value_format")
-        self.assertIn("source/ref", targets,
-                      "the cut must re-point the marketplace ref at the new tag")
-        self.assertIn("source/path", targets,
-                      "the cut must also re-point the marketplace path: the "
-                      "plugin tree moved to src/acs, so a tag cut without this "
-                      "advertises a path that does not exist at it")
-        self.assertEqual(targets["source/ref"], "v{version}")
-        self.assertEqual(targets["source/path"], "src/acs")
+    def _marketplace_extra_refs(self):
+        return [e for e in (self.release.get("extra_refs") or [])
+                if e.get("file") == ".claude-plugin/marketplace.json"]
 
-    def test_the_source_tree_the_cut_will_point_at_exists_today(self):
-        self.assertTrue(os.path.isdir(os.path.join(REPO_ROOT, "src", "acs")),
-                        "the cut rewrites path to src/acs; it must exist")
+    def test_no_extra_ref_writes_into_a_string_source(self):
+        relative = {e.get("name") for e in relative_entries()}
+        for extra in self._marketplace_extra_refs():
+            selector = extra.get("selector") or {}
+            target = (selector.get("match") or {}).get("name")
+            with self.subTest(sets=selector.get("set"), plugin=target):
+                if target not in relative:
+                    continue
+                self.assertFalse(
+                    (selector.get("set") or "").startswith("source"),
+                    "the cut sets '%s' on '%s', whose source is the relative "
+                    "string '%s'. A string has no such field: writing one "
+                    "turns the entry back into an object with a path and a ref "
+                    "to keep in sync, which is the shape that made the plugin "
+                    "uninstallable twice."
+                    % (selector.get("set"), target,
+                       next(e["source"] for e in relative_entries()
+                            if e.get("name") == target)))
 
+    def test_the_cut_bumps_the_manifest_the_entry_resolves_to(self):
+        """The successor to "the cut moves both fields together".
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+        One coordinate is left, and the cut still has to hit it: the version
+        in the plugin.json that the advertised directory holds. A cut that
+        bumps the marketplace and not that file ships a catalog whose entry
+        resolves to a stale plugin.
+        """
+        files = {loc if isinstance(loc, str) else loc.get("file")
+                 for loc in (self.release.get("version_locations") or [])}
+        self.assertIn(".claude-plugin/marketplace.json", files,
+                      "the cut must bump the marketplace's own version")
+        for entry in relative_entries():
+            rel = os.path.relpath(tree_path(entry), REPO_ROOT)
+            expected = os.path.join(rel, ".claude-plugin", "plugin.json")
+            with self.subTest(plugin=entry.get("name")):
+                self.assertIn(
+                    expected, files,
+                    "the cut does not bump %s, the plugin manifest the '%s' "
+                    "entry resolves to" % (expected, entry.get("name")))
 
 
 class TheLintStepsFindASourceTreeTest(unittest.TestCase):
@@ -286,3 +455,7 @@ class TheLintStepsFindASourceTreeTest(unittest.TestCase):
                     glob.glob(os.path.join(REPO_ROOT, rel, "skills", "*", "SKILL.md")),
                     "%s carries no skills — the frontmatter check would pass "
                     "over an empty set" % rel)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

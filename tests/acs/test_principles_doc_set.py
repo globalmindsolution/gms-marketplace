@@ -1,18 +1,20 @@
 """MAR-133 -- stand up the engineering-principles doc set.
 
-Activates `principles_path` in `.acs/settings.json` (previously unset) and
-authors `docs/principles/principles.md` by hand, mirroring the
+Authors `docs/principles/principles.md` by hand, mirroring the
 `/acs:create-principles` output contract (`## Principles` then
 `## Rationale`) since the installed plugin is still 0.3.7 and the skill
 itself shipped in v0.4.0. The load-bearing principle encodes PRD C-20
-(consumer-repo generality), which generalizes C-16.
+(consumer-repo generality), which generalizes C-16. MAR-133 also set
+`principles_path` in `.acs/settings.json`; ADR-0102 removed that key, so the
+set is now found where it sits -- the conventional `docs/principles/` --
+and the settings carry no path for it.
 
 Stdlib-only (json, os, re, unittest); guards a bare `import jsonschema`
 behind `skipUnless` so the CI "Tests & validation" job (which does not
 install jsonschema) stays green -- see
 tests/acs/test_settings_models_pinned.py for the same pattern.
 
-Run:  python3 -m unittest tests.acs.test_mar133_principles -v
+Run:  python3 -m unittest tests.acs.test_principles_doc_set -v
 """
 
 import json
@@ -28,14 +30,14 @@ except ImportError:
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
-SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
 DOC_PATH = os.path.join(REPO_ROOT, "docs", "principles", "principles.md")
 
 FORBIDDEN_ARTIFACTS = (
     ".claude-plugin/marketplace.json",
-    "src/acs/.claude-plugin/plugin.json",
+    "plugins/acs/.claude-plugin/plugin.json",
     "source.ref",
-    "src/acs/CHANGELOG.md",
+    "plugins/acs/CHANGELOG.md",
     "release.yml",
 )
 
@@ -67,40 +69,27 @@ def principle_names(principles_section):
 
 
 class SettingsPrinciplesPathTest(unittest.TestCase):
-    """AC-1: principles_path set + settings stay schema-valid."""
+    """AC-1, after ADR-0102: settings stay schema-valid and no longer locate
+    the principles set -- documents are found, not configured."""
 
     def test_settings_is_valid_json(self):
         with open(SETTINGS_PATH, encoding="utf-8") as fh:
             json.load(fh)  # raises JSONDecodeError on malformed JSON
 
-    def test_settings_principles_path_is_docs_principles(self):
+    def test_settings_carry_no_principles_path(self):
         with open(SETTINGS_PATH, encoding="utf-8") as fh:
             settings = json.load(fh)
-        self.assertEqual(settings.get("principles_path"), "docs/principles")
+        self.assertNotIn("principles_path", settings)
 
-    def test_principles_path_schema_conformant_stdlib(self):
-        """No jsonschema import: mirror test_mar81's stdlib structural
-        check -- the schema's `principles_path` property is the oneOf
-        [string(minLength 1) | null] shape, and the committed value
-        satisfies the string branch."""
+    def test_schema_declares_no_principles_path_stdlib(self):
+        """No jsonschema import: the schema no longer declares a
+        `principles_path` property, and it still tolerates unknown keys, so
+        a consumer's stale `principles_path` validates and is ignored
+        (ADR-0102, Consequences)."""
         with open(SCHEMA_PATH, encoding="utf-8") as fh:
             schema = json.load(fh)
-        with open(SETTINGS_PATH, encoding="utf-8") as fh:
-            settings = json.load(fh)
-
-        prop = schema["properties"]["principles_path"]
-        string_branch = next(
-            branch for branch in prop["oneOf"] if branch.get("type") == "string"
-        )
-        self.assertEqual(string_branch.get("minLength"), 1)
-        null_branch = next(
-            branch for branch in prop["oneOf"] if branch.get("type") == "null"
-        )
-        self.assertIsNotNone(null_branch)
-
-        value = settings["principles_path"]
-        self.assertIsInstance(value, str)
-        self.assertGreaterEqual(len(value), string_branch["minLength"])
+        self.assertNotIn("principles_path", schema["properties"])
+        self.assertIsNot(schema.get("additionalProperties", True), False)
 
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema not installed in this env")
     def test_settings_full_schema_valid(self):

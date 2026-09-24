@@ -1,0 +1,526 @@
+"""acs_commands — the acs.py subcommand handlers.
+
+Split out of acs.py by MAR-572, which is code motion only: every handler is
+byte-identical to the one acs.py carried, and acs.py re-exports the whole set
+so `acs.cmd_context` and friends keep resolving for the tests and for anything
+that reached them by name.
+
+Sibling module rather than a package: SKILL.md files invoke
+`python3 .../acs.py` by path, and that has to keep working.
+"""
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import acs_lib as lib  # noqa: E402
+from acs_lib import workflow  # noqa: E402
+
+from acs_cli import (context_or_die, die, emit, load_ticket_or_die,
+    partition_or_die, read_json_arg, run_or_die)  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# context / gate
+# ---------------------------------------------------------------------------
+
+#: Keys build_context actually returns that a coordinator needs by name. Copied
+#: explicitly rather than passing ctx through, so a new internal key never
+#: leaks into this command's contract by accident.
+CONTEXT_KEYS = ("checkout_root", "main_repo_root", "workspace", "repo_id",
+                "checkout_id", "plugin_root", "settings", "settings_sources")
+
+
+def cmd_context(args):
+    """The resolved workspace view: what checkout_root, main_repo_root,
+    repo_partition_id, index_path, repo_dir and load_settings each answer, in
+    one call, plus checkout_id (which names this checkout's pointer file)."""
+    ctx = context_or_die("context")
+    out = {"ok": True}
+    for key in CONTEXT_KEYS:
+        if key in ctx:
+            out[key] = ctx[key]
+    out["index_path"] = lib.index_path(ctx["workspace"], ctx["repo_id"])
+    out["repo_dir"] = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    if args.ticket:
+        tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], args.ticket)
+        # find_ticket_partition returns the ACTIVE path for a ticket that exists
+        # nowhere, so the path alone cannot be read as "this ticket exists" --
+        # every other partition-taking subcommand refuses that case outright.
+        out["ticket_id"] = args.ticket
+        out["partition"] = tdir
+        out["archived"] = bool(archived)
+        out["exists"] = os.path.isdir(tdir)
+    emit(out)
+
+
+def cmd_gate(args):
+    """Run one skill's pre-gate without running the skill. Exit code mirrors
+    the gate's own (0 open, 2 blocked); the gate writes its reason to stderr.
+
+    A faithful dry-run of `pre-<skill>.py`: the same exit code and the same
+    stderr for the same subject, including the input fallbacks, the safety
+    brakes and the out-of-order advisory. When the checkout has no run yet the
+    gate judges the run the subject WOULD open, projected in memory
+    (`run.projected_run`), so the answer is the hook's without the hook's
+    writes."""
+    if args.skill not in lib.HOOKED_SKILLS:
+        die("gate", "unknown skill %r (expected one of %s)"
+            % (args.skill, ", ".join(sorted(lib.HOOKED_SKILLS))))
+    payload = {"cwd": os.getcwd(), "tool_input": {"skill": args.skill}}
+    if args.ticket:
+        payload["tool_input"]["args"] = args.ticket
+    # record_marker=False: this is NOT a PreToolUse event, so it must not write
+    # the gate evidence only a real hook fire may write.
+    # mutate=False: "would this gate pass?" must not answer by creating a run,
+    # taking the lock, opening the step or settling a no-op. It did all four,
+    # so asking about `create-e2e-tests` permanently completed that step. The
+    # question is still answered in full -- against a projected run, not a
+    # created one -- so removing the side effects did not cost the sight.
+    code = lib.run_pre_payload(args.skill, payload, record_marker=False, mutate=False)
+    emit({"ok": code == 0, "skill": args.skill, "exit_code": code})
+    sys.exit(code)
+
+
+# ---------------------------------------------------------------------------
+# the two state machines
+#
+# `acs run *`, `acs step *` and `acs result validate` live in
+# `acs_state_commands`: everything that writes run.json or a step's
+# state.json, and nothing that does not. Re-exported here because acs.py and
+# the tests reach every handler through this module.
+# ---------------------------------------------------------------------------
+from acs_state_commands import (  # noqa: E402,F401
+    _allocate_delivery_ticket, _ctx_of, _ensure_run_for_ticket, _exempt_pr_start,
+    _require_step, _resolve_run, _resume_id_for_allocate, _start_context,
+    _subject_from_args, cmd_result_validate, cmd_run_abandon, cmd_run_check,
+    cmd_run_new, cmd_run_next, cmd_run_show, cmd_step_finish, cmd_step_show,
+    cmd_step_start)
+
+
+# ---------------------------------------------------------------------------
+# file lists
+# ---------------------------------------------------------------------------
+
+def read_lines_arg(command, path):
+    """Lines from `path`, or from stdin when it is '-'.
+
+    The isatty guard matches _paths_from below: without it, `--files-from -`
+    typed at a terminal blocks forever on a read that will never end, instead
+    of saying what it wanted."""
+    if path == "-":
+        if sys.stdin.isatty():
+            die(command, "%s - expects one path per line on stdin" % command)
+        return sys.stdin.read().splitlines()
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read().splitlines()
+    except OSError as exc:
+        die(command, "could not read %s: %s" % (path, exc))
+
+
+# ---------------------------------------------------------------------------
+# ticket / phase / slug / fanout / doctor
+# ---------------------------------------------------------------------------
+
+def cmd_ticket_show(args):
+    ticket_id, tdir, _ctx = partition_or_die("ticket show", args.ticket)
+    emit({"ok": True, "ticket_id": ticket_id, "partition": tdir,
+          "ticket": load_ticket_or_die("ticket show", tdir, ticket_id)})
+
+
+def cmd_ticket_save(args):
+    """save_ticket + update_index in one call — SKILL.md never pairs them any
+    other way, and a save without the re-index leaves the index stale.
+
+    The document is a PATCH, not a replacement: incoming keys are merged over
+    the stored ticket. A caller that hand-builds a document — the model-driven
+    caller this CLI exists to serve — would otherwise wipe every field it did
+    not think to include, taking title, type, status, parent and children with
+    it and blanking the index row, which `gate_code`, `_epic_auto_done` and
+    `fanout_batches` all read.
+
+    Refuses to write a delivery path: it is judged once, by
+    `/acs:create-impl-plan`, and recorded in the plan's own `## Contract`
+    block (ADR-0095). A ticket field holding a second copy is how one run ends
+    up on two rigors."""
+    ticket_id, tdir, ctx = partition_or_die("ticket save", args.ticket)
+    current = load_ticket_or_die("ticket save", tdir, ticket_id)
+    incoming = read_json_arg("ticket save", args.source)
+
+    if not current.get("id"):
+        die("ticket save", "the stored ticket.json for %s has no id" % ticket_id)
+    if "id" in incoming and incoming["id"] != current["id"]:
+        die("ticket save", "document id %r does not match the partition's %r"
+            % (incoming.get("id"), current.get("id")))
+    guarded = [k for k in ("delivery_path", "delivery_path_reason")
+               if k in incoming and incoming[k] != current.get(k)]
+    if guarded:
+        die("ticket save", "%s is not a ticket field — the delivery path is judged "
+            "once by /acs:create-impl-plan and lives in the plan's `## Contract` "
+            "block" % ", ".join(guarded))
+
+    updated = dict(current)
+    updated.update(incoming)
+    lib.save_ticket(tdir, updated)
+    lib.update_index(ctx["workspace"], ctx["repo_id"], updated)
+    emit({"ok": True, "ticket_id": ticket_id, "indexed": True,
+          "fields_written": sorted(incoming)})
+
+
+def _gh_runner(args, cwd):
+    """The gh runner a forge command uses: live, or a recorded fixture.
+
+    `--gh-replay FILE` maps a command PREFIX to a [returncode, stdout, stderr]
+    triple, so the whole flow -- including the arms that only fire when a board
+    is missing a field -- is reproducible with no forge."""
+    responses = None
+    if args.gh_replay:
+        recorded = read_json_arg("pr metadata fill", args.gh_replay)
+        responses = {k: tuple(v) for k, v in recorded.items()}
+    return lib.Gh(responses=responses, cwd=cwd)
+
+
+def cmd_pr_metadata_fill(args):
+    """create-pr step 6a as one command: assignee, type label, CODEOWNERS
+    reviewers, and the Project item with its Status and Group-B fields.
+
+    Non-critical throughout — the PR is already created, so every failure is an
+    `info` finding carrying the command, and exit 0 means the pass RAN, not
+    that every field landed. Read `findings`."""
+    ticket_id, tdir, ctx = partition_or_die("pr metadata fill", args.ticket)
+    ticket = load_ticket_or_die("pr metadata fill", tdir, ticket_id)
+    provider = ((ctx["settings"].get("tracker") or {}).get("provider") or "local")
+    if provider != "github" or not (ticket.get("external") or {}).get("key"):
+        emit({"ok": True, "ticket_id": ticket_id, "skipped": True,
+              "reason": "tracker.provider is %r and ticket.external.key is %r — the "
+                        "metadata-fill block does not apply"
+                        % (provider, (ticket.get("external") or {}).get("key")),
+              "findings": [], "applied": []})
+        return
+    gh = _gh_runner(args, ctx["checkout_root"])
+    pr = {"number": args.pr, "url": args.url or ""}
+    if not pr["url"]:
+        code, out, _err = gh(["gh", "pr", "view", str(args.pr), "--json", "url", "-q", ".url"])
+        pr["url"] = (out or "").strip() if code == 0 else ""
+    out = lib.pr_metadata_fill(gh, ctx["settings"], ticket, pr, ctx["checkout_root"],
+                               author=args.author)
+    out.update({"ok": True, "ticket_id": ticket_id, "pr": args.pr, "skipped": False})
+    emit(out)
+
+
+def cmd_tracker_sync(args):
+    """create-ticket step 5's batch as one command.
+
+    Critical per ticket, soft per batch: a ticket whose `gh issue create` fails
+    gets an `error` finding with the canonical hint and keeps `external` unset,
+    and the batch continues so the failure can be retried alone. Exit 0 means
+    the batch ran; read `failed`."""
+    ctx = context_or_die("tracker sync")
+    provider = ((ctx["settings"].get("tracker") or {}).get("provider") or "local")
+    if provider == "local":
+        emit({"ok": True, "skipped": True, "reason": "tracker.provider is 'local'",
+              "synced": {}, "failed": [], "findings": []})
+        return
+    tickets, bodies = [], {}
+    for ticket_id in args.ticket:
+        tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+        if archived or not os.path.isdir(tdir):
+            die("tracker sync", "no active partition for %s" % ticket_id)
+        ticket = lib.load_ticket(tdir)
+        if not isinstance(ticket, dict):
+            die("tracker sync", "no readable ticket.json for %s" % ticket_id)
+        tickets.append(ticket)
+        bodies[ticket_id] = os.path.join(tdir, "tracker-body.md")
+
+    candidates = lib.sync_candidates(tickets, tuple(lib.PRODUCT_TICKET_TITLES.values()))
+    excluded = [t["id"] for t in tickets if t not in candidates]
+    if args.dry_run:
+        emit({"ok": True, "dry_run": True, "would_sync": [t["id"] for t in candidates],
+              "excluded": excluded, "synced": {}, "failed": [], "findings": []})
+        return
+    gh = _gh_runner(args, ctx["checkout_root"])
+    out = lib.tracker_sync(gh, ctx["settings"], candidates, bodies)
+    out.update({"ok": True, "excluded": excluded, "dry_run": False})
+    emit(out)
+def cmd_readiness(args):
+    """merge-pr's four readiness dimensions and one verdict, as JSON.
+
+    Two input modes, deliberately interchangeable: `--pr N` reads GitHub
+    through gh, and `--from FILE` replays a recorded document of the same
+    shape. The decision itself is a pure function of that document
+    (lib.merge_readiness), so a verdict is reproducible offline — which is what
+    makes it reviewable, and what lets the tests cover every failing dimension
+    without a network.
+
+    Exit 0 means the check RAN. Read `verdict`: "ready" (merge), "update-branch"
+    (only the base is ahead — the BEHIND carve-out), or "blocked" (a
+    REPORT-ONLY stop, with `stop_reason` ready to drop into the result
+    document)."""
+    if bool(args.pr) == bool(args.source):
+        die("readiness", "pass exactly one of --pr N or --from FILE")
+    if args.source:
+        recorded = read_json_arg("readiness", args.source)
+        pr = recorded.get("pr_view", recorded)
+        required_ok = recorded.get("required_checks_ok")
+        if not isinstance(pr, dict):
+            die("readiness", "the recorded document has no `pr_view` object")
+    else:
+        try:
+            # Normalised by `classify_merge_pr_arg`, the same helper the
+            # merge-pr Start path uses on the same user input: `#42` and a PR URL both reach gh as `42`. Unnormalised,
+            # `readiness --pr '#42'` reached `gh pr view '#42'`, which gh
+            # resolves as a BRANCH NAME.
+            pr = lib.gh_pr_view(lib.classify_merge_pr_arg(args.pr)[1] or args.pr,
+                                ",".join(lib.PR_VIEW_FIELDS))
+        except lib.GateError as exc:
+            die("readiness", "%s\n%s" % (exc, lib.gh_failure_hint(str(exc))))
+        required_ok = lib.gh_pr_required_checks_ok(args.pr)
+        # ADR-0088 classifies this read as CRITICAL: an unevaluable gate is
+        # never treated as passed. "No required checks configured" is NOT
+        # unevaluable -- it is a supported repo shape (/acs:setup documents
+        # enforcement as advisory until an admin enables it) -- so only a real
+        # failure to read stops here, with gh's own words and the canonical
+        # hint rather than a bare "exited non-zero".
+        if isinstance(required_ok, tuple):
+            _ok, detail = required_ok
+            if lib.gh_read_is_unevaluable(detail):
+                die("readiness", "gh pr checks --required could not be evaluated "
+                                 "for PR %s:\n%s\n%s"
+                    % (args.pr, detail or "(no output)", lib.gh_failure_hint(detail)))
+
+    out = lib.merge_readiness(pr, required_ok)
+    out["ok"] = True
+    out["pr"] = pr.get("number", args.pr)
+    out["required_checks_ok"] = (required_ok[0] if isinstance(required_ok, tuple)
+                                 else required_ok)
+    emit(out)
+def _lock_view(tdir, ticket_id, ctx):
+    lock = lib.read_lock(tdir)
+    if not isinstance(lock, dict):
+        return {"ok": True, "ticket_id": ticket_id, "held": False, "lock": None,
+                "stale": None, "basis": None, "basis_detail": None, "held_by_me": False}
+    stale, basis = lib.lock_staleness(lock)
+    return {"ok": True, "ticket_id": ticket_id, "held": True, "lock": lock,
+            "stale": stale, "basis": basis,
+            "basis_detail": lib.LOCK_STALENESS_REASONS[basis],
+            "held_by_me": lock.get("checkout_id") == ctx["checkout_id"]}
+
+
+def cmd_lock_status(args):
+    """What holds this ticket's lock, and on what evidence.
+
+    `stale` is a verdict, `basis` is how it was reached — a lock held on
+    another host has no liveness signal at all and degrades to an age timeout
+    (lib.lock_staleness). Read both before breaking anything."""
+    run_id, rdir, ctx = run_or_die("lock status", args.run)
+    view = _lock_view(rdir, run_id, ctx)
+    view["lock_path"] = lib.lock_path(rdir)
+    view["audit_path"] = lib.lock_audit_path(rdir)
+    emit(view)
+
+
+def cmd_lock_force_unlock(args):
+    """Break a lock this checkout does not hold, recording who and why.
+
+    The audited escape hatch for the case release_lock refuses by design: the
+    holding session is gone but its lock is not (and, cross-host, will not read
+    as stale for 24 hours). --reason is required and lands in the ticket's
+    append-only lock-events.jsonl before the lock file is removed."""
+    run_id, rdir, ctx = run_or_die("lock force-unlock", args.run)
+    before = _lock_view(rdir, run_id, ctx)
+    if not before["held"]:
+        emit({"ok": True, "run_id": run_id, "forced": False,
+              "detail": "no lock file at %s" % lib.lock_path(rdir)})
+        return
+    if before["held_by_me"] and not args.force:
+        die("lock force-unlock",
+            "this checkout holds the lock — the post hook releases it; pass --force "
+            "to break your own lock anyway")
+    try:
+        result = lib.force_release_lock(rdir, os.getcwd(), args.reason, actor=args.actor)
+    except (ValueError, lib.GateError) as exc:
+        die("lock force-unlock", str(exc))
+    emit({"ok": True, "run_id": run_id, "forced": result["forced"],
+          "detail": result["detail"], "audit_path": result["audit_path"],
+          "broken_lock": result["lock"], "was_stale": before["stale"],
+          "staleness_basis": before["basis"]})
+def cmd_filemap_set(args):
+    """Declare one executor task's file map, so the PreToolUse guard can enforce
+    the executor charter's "mutate ONLY the files in your task's file map".
+
+    Per task and additive: the coordinator declares them one at a time as it
+    decomposes the plan, and declaring task 2 must not erase task 1."""
+    run_id, rdir, _ctx = run_or_die("filemap set", args.run)
+    files = list(args.file)
+    if args.files_from:
+        files += [line.strip() for line in
+                  read_lines_arg("filemap set", args.files_from) if line.strip()]
+    if not files:
+        die("filemap set", "declare at least one file (--file, or --files-from FILE)")
+    tasks = lib.save_filemap_task(rdir, args.skill, args.iteration, args.task, files)
+    emit({"ok": True, "run_id": run_id, "skill": args.skill,
+          "iteration": str(args.iteration), "task": str(args.task),
+          "files": tasks[str(args.task)],
+          "path": lib.filemap_path(rdir, args.skill, args.iteration),
+          "tasks": tasks})
+
+
+def cmd_filemap_show(args):
+    """The declared map for an iteration, plus the union the guard enforces."""
+    run_id, rdir, _ctx = run_or_die("filemap show", args.run)
+    tasks = lib.load_filemap(rdir, args.skill, args.iteration) or {}
+    emit({"ok": True, "run_id": run_id, "skill": args.skill,
+          "iteration": str(args.iteration), "declared": bool(tasks), "tasks": tasks,
+          "union": sorted({f for files in tasks.values() for f in files}),
+          "path": lib.filemap_path(rdir, args.skill, args.iteration)})
+def cmd_guard_events(args):
+    """The file-map guard denials the latest run recorded.
+
+    The audit trail external tooling reads without knowing the
+    state-file layout: one object, `events` in the order they were denied."""
+    run_id, rdir, _ctx = run_or_die("guard events", args.run)
+    path = lib.state_path(rdir, args.skill)
+    if not os.path.exists(path):
+        die("guard events", "no %s state file at %s" % (args.skill, path))
+    entry = lib.last_invocation(lib.load_state(rdir, args.skill, run_id)) or {}
+    events = entry.get("guard_events") or []
+    emit({"ok": True, "run_id": run_id, "skill": args.skill,
+          "count": len(events), "events": events, "path": path})
+
+
+def cmd_verdict_show(args):
+    """The verifier's verdict for one iteration — validated, not just printed.
+
+    `passed` in the output is DERIVED from the findings, so a document that
+    claims otherwise shows up as an error here rather than as a pass."""
+    run_id, rdir, _ctx = run_or_die("verdict show", args.run)
+    doc = lib.load_verdict(rdir, args.skill, args.iteration, args.lens)
+    path = lib.verdict_path(rdir, args.skill, args.iteration, args.lens)
+    if doc is None:
+        die("verdict show", "no verdict at %s" % path)
+    errors = lib.validate_verdict(doc, lens=args.lens, skill=args.skill,
+                                  run_id=run_id, iteration=args.iteration)
+    if errors:
+        # `passed` is DERIVED from the findings, and an absent findings list
+        # derives True -- so emitting it beside ok:false told the coordinator
+        # (whose instructions say to copy `passed`, and never mention `ok`)
+        # that an unusable document was a pass. A document we cannot validate
+        # has no verdict to report.
+        die("verdict show", "the verdict at %s is not usable: %s"
+            % (path, "; ".join(errors)))
+    emit({"ok": True, "run_id": run_id, "path": path,
+          "passed": lib.derived_passed(doc), "claimed_passed": doc.get("passed"),
+          "blocking": len(lib.blocking_findings(doc)), "errors": [],
+          "verdict": doc})
+
+
+def cmd_slug(args):
+    emit({"text": args.text, "slug": lib.slugify(args.text, args.max_len)})
+
+
+def cmd_fanout_batches(args):
+    ctx = context_or_die("fanout batches")
+    index = lib.read_json(lib.index_path(ctx["workspace"], ctx["repo_id"])) or {}
+    present = [name.strip() for name in (args.present or "").split(",") if name.strip()]
+    emit({"batches": lib.fanout_batches(index, present=present)})
+
+
+def cmd_doctor(args):
+    ctx = None
+    try:
+        ctx = lib.build_context(os.getcwd())
+    except lib.GateError:
+        pass  # the toolchain report is useful precisely when the context is not
+    settings = ctx["settings"] if ctx else None
+    # Probed ONCE: missing_tools() re-runs check_toolchain internally, so calling
+    # both spawned every `<tool> --version` subprocess twice, each with a 5s
+    # timeout.
+    rows = lib.check_toolchain(settings)
+    missing = lib.missing_tools(settings, rows=rows)
+    required_missing = lib.missing_tools(settings, kinds=("required",), rows=rows)
+    # `ok` is the verdict the module contract tells callers to read, so it must
+    # answer "is the toolchain usable?" — not be a constant.
+    emit({"ok": not required_missing, "context": ctx is not None,
+          "toolchain": rows, "missing": missing,
+          "missing_required": required_missing})
+
+
+# ---------------------------------------------------------------------------
+# workflow — the declarative ship pipeline (workflows/ship.yaml)
+# ---------------------------------------------------------------------------
+
+def _checkout_root_or_die(command):
+    """`show` and `validate` are about FILES: they need the checkout (where
+    the override would live), not a configured workspace, so `validate
+    --file` works on a repo that has not run /acs:setup yet."""
+    root = lib.checkout_root(os.getcwd())
+    if not root:
+        die(command, "acs requires a git repository; %s is not inside one." % os.getcwd())
+    return root
+
+
+def cmd_workflow_show(args):
+    """The resolved workflow: the consumer's .acs/workflows/ship.yaml when
+    present, else the plugin default. Parsed, not validated -- `validate`
+    is the check; `show` answers "which file, and what does it say"."""
+    root = _checkout_root_or_die("workflow show")
+    try:
+        resolved = lib.resolve_workflow(root)
+    except lib.WorkflowError as exc:
+        die("workflow show", str(exc))
+    emit({"ok": True, "source": resolved["source"], "path": resolved["path"],
+          "workflow": resolved["workflow"]})
+
+
+def cmd_workflow_validate(args):
+    """Schema plus semantic checks over the resolved workflow (or --file).
+    Exit 0 with the step list; exit 2 with `<path>:<line>: <reason>` on
+    stderr, echoed as `{ok: false, line, reason}` on stdout."""
+    if args.file:
+        source, path = "file", args.file
+    else:
+        root = _checkout_root_or_die("workflow validate")
+        try:
+            resolved = lib.resolve_workflow(root)
+        except lib.WorkflowError as exc:
+            die("workflow validate", str(exc))
+        source, path = resolved["source"], resolved["path"]
+    try:
+        doc = lib.validate_workflow_file(path)
+    except lib.WorkflowError as exc:
+        emit({"ok": False, "source": source, "path": path, "line": exc.line,
+              "reason": exc.reason})
+        die("workflow validate", str(exc))
+    emit({"ok": True, "source": source, "path": path,
+          "name": lib.workflow_name(path), "version": doc.get("version"),
+          "steps": lib.steps_of(doc), "loops": lib.loops_of(doc),
+          "warnings": lib.order_warnings(doc)})
+
+
+def cmd_artifacts_migrate(args):
+    """Move every live partition's ticket.json (plus design.md and the legacy
+    plan) into docs/tickets/<ID>/ once -- idempotent, archive untouched, a
+    ticket.json.moved pointer left behind. --dry-run lists the moves only."""
+    ctx = context_or_die("artifacts migrate")
+    try:
+        report = lib.migrate_artifacts(ctx["workspace"], ctx["repo_id"], ctx["checkout_root"],
+                                       dry_run=args.dry_run)
+    except lib.GateError as exc:
+        die("artifacts migrate", str(exc))
+    emit(dict(report, ok=True))
+
+
+def cmd_artifacts_show(args):
+    """Where one ticket's documents live (docs folder, partition or legacy
+    location), whether the tree is active, and the derived status. Read-only,
+    so an archived ticket is answered too."""
+    ctx = context_or_die("artifacts show")
+    try:
+        ticket_id, tdir, _archived = lib.resolve_active_partition(
+            os.getcwd(), ctx, explicit=args.ticket, allow_archived=True)
+        out = lib.artifacts.describe(ctx, ticket_id, tdir)
+    except lib.GateError as exc:
+        die("artifacts show", str(exc))
+    emit(dict(out, ok=True))

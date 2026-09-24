@@ -4,27 +4,21 @@ Originating ticket: MAR-77. `create-design` moves out of `WORKFLOW_SKILLS`
 into a new `PLANNING_SKILLS` list; `HOOKED_SKILLS` becomes the explicit
 three-way concatenation `PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS`
 so every existing `HOOKED_SKILLS` consumer (dispatch.py, `acs step start`,
-clarify.py, metrics_aggregate.py, handoff.py, acs_lib's own
-compute_ticket_totals/session-end sweep) keeps seeing `create-design` with
-no code change of its own. `metrics_render.py`'s coverage of the same
-invariant is not duplicated here — see
-tests/acs/test_metrics_render.py:162-165, which loops
-`acs_lib.HOOKED_SKILLS` and asserts each name renders in panel 2.
+clarify.py, handoff.py, acs_lib's own session-end sweep) keeps seeing
+`create-design` with no code change of its own.
 """
 
-import importlib
 import json
 import os
 import re
 import sys
 import unittest
-from tempfile import TemporaryDirectory
 
 TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(TESTS_ACS))
-HOOKS_DIR = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-SHIP_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "ship", "SKILL.md")
-WORKFLOW_SCHEMA = os.path.join(REPO_ROOT, "src", "acs", "schemas",
+HOOKS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+SHIP_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "ship", "SKILL.md")
+WORKFLOW_SCHEMA = os.path.join(REPO_ROOT, "plugins", "acs", "schemas",
                                "workflow.schema.json")
 
 sys.path.insert(0, TESTS_ACS)
@@ -34,8 +28,6 @@ import acs_case  # noqa: E402
 import acs_lib  # noqa: E402
 import acs_lib as lib  # noqa: E402
 from acs_lib import workflow  # noqa: E402
-
-metrics_aggregate = importlib.import_module("metrics_aggregate")  # noqa: E402
 
 PINNED_SORTED_HOOKED_SKILLS = [
     "analyze-requirements", "code", "create-api-contract", "create-architecture",
@@ -174,26 +166,6 @@ class ClarifySkillChoicesCase(acs_case.AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         entry = json.loads(result.stdout)
         self.assertEqual(entry["skill"], "create-design")
-
-
-class MetricsAggregateFunnelCase(unittest.TestCase):
-    """AC-2: metrics_aggregate.py's panel-2 funnel still counts create-design."""
-
-    def test_create_design_is_a_funnel_key(self):
-        with TemporaryDirectory() as ws:
-            repo_id = "acme-shop"
-            repo_dir = os.path.join(ws, repo_id)
-            os.makedirs(repo_dir)
-            with open(os.path.join(repo_dir, "tickets-index.json"), "w") as fh:
-                json.dump({"tickets": {"MAR-1": {"status": "in_progress", "type": "task"}}}, fh)
-            with open(os.path.join(repo_dir, "metrics.json"), "w") as fh:
-                json.dump({"prs": {"created": 0, "merged": 0}}, fh)
-            tdir = os.path.join(repo_dir, "MAR-1")
-            os.makedirs(tdir)
-            with open(os.path.join(tdir, "run.json"), "w") as fh:
-                json.dump({"ticket_id": "MAR-1", "flow": "ticket", "steps": {}, "totals": {}}, fh)
-            out = metrics_aggregate.aggregate(ws, repo_id)
-            self.assertIn("create-design", out["panels"]["2"]["steps"])
 
 
 class HandoffResumeCase(acs_case.AcsWorkspaceCase):

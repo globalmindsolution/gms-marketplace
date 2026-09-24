@@ -5,7 +5,7 @@ The problem
 -----------
 Claude Code caches an installed plugin at
 ``<cache>/<marketplace>/<plugin>/<version>`` and records that path in
-``installed_plugins.json``. ``src/acs/.claude-plugin/plugin.json`` declares
+``installed_plugins.json``. ``plugins/acs/.claude-plugin/plugin.json`` declares
 ``0.4.9`` -- the same string the released tag declares -- so installing this
 working tree resolves to the directory the RELEASE already occupies. The
 install short-circuits, the stale release is served, and nothing says so. That
@@ -17,7 +17,7 @@ The fix
 Give the working tree a version no release can collide with, derived from the
 tree's own contents:
 
-    0.5.0-dev.<12 hex of a hash over every file under src/acs>
+    0.5.0-dev.<12 hex of a hash over every file under plugins/acs>
 
 Edit any byte of the plugin and the version changes, so the cache key changes,
 so a stale hit is impossible by construction rather than by remembering to
@@ -38,42 +38,50 @@ ONLY -- `plugin.json`'s version is rewritten in the staged copy, never here.
 `--cache-root` points the whole thing at a throwaway directory, which is how
 its own tests run without touching a real Claude install.
 
-Note for the eval suite: it does not need this. `measure_skills.py` passes
-`--plugin-dir` and never reads the cache at all. This is for hands-on
+Note for the eval suite: it does not need this. `claude plugin eval` loads the
+plugin from the path it is given and never reads the cache at all. This is for hands-on
 sessions, where the plugin has to be genuinely installed.
 """
 
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import shutil
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLUGIN_SRC = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN_SRC = os.path.join(REPO_ROOT, "plugins", "acs")
 
 
-def _evals_harness():
-    """The eval suite's harness, loaded by path.
+#: One definition of "the same tree": path and content both, sorted so
+#: directory-iteration order cannot change it, bytecode never counted. This
+#: used to be imported by path from the eval suite's `harness.tree_digest`;
+#: that suite was replaced by the `claude plugin eval` format, which keeps no
+#: build-identity notion of its own, so the definition lives here now -- its
+#: one remaining caller.
+def tree_digest(root, skip_dirs):
+    digest = hashlib.sha256()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in skip_dirs)
+        for name in sorted(filenames):
+            if name.endswith(".pyc"):
+                continue
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, root).replace(os.sep, "/")
+            digest.update(rel.encode("utf-8"))
+            digest.update(b"\0")
+            with open(path, "rb") as fh:
+                while True:
+                    chunk = fh.read(1 << 16)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+            digest.update(b"\0")
+    return digest.hexdigest()
 
-    `harness` is also the module name of `src/acs-evals/behavioural/acs/harness.py`, and a test
-    run that imported that one first would hand it back from `sys.modules`
-    under a plain import. Loading by path under a private name sidesteps
-    the collision instead of depending on import order.
-    """
-    import importlib.util
-    path = os.path.join(REPO_ROOT, "src", "acs-evals", "runner", "harness.py")
-    spec = importlib.util.spec_from_file_location("acs_evals_harness", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
-
-#: One definition of "the same tree", shared with the eval suite's build
-#: identity (`harness.build_digest`), so the dev version and a measurement
-#: agree about when the plugin changed.
-tree_digest = _evals_harness().tree_digest
 MARKETPLACE = "gms-marketplace"
 PLUGIN = "acs"
 KEY = "%s@%s" % (PLUGIN, MARKETPLACE)
@@ -96,13 +104,11 @@ def tree_hash(root):
     """A stable digest of every file under `root`.
 
     Path and content both feed the hash, so a rename is a change. Sorted, so
-    the digest does not depend on directory-iteration order. The definition
-    is the eval suite's `harness.tree_digest` -- one notion of "the same
-    tree" for the dev version here and for a measurement's build identity
-    there -- with nothing excluded: a rewritten `plugin.json` must mint a new
-    dev version, and the tests pin that this installer never rewrites it.
+    the digest does not depend on directory-iteration order. Nothing is
+    excluded: a rewritten `plugin.json` must mint a new dev version, and the
+    tests pin that this installer never rewrites it.
     """
-    return tree_digest(root, exclude=(), skip_dirs=SKIP_DIRS)
+    return tree_digest(root, skip_dirs=SKIP_DIRS)
 
 
 def dev_version(root=PLUGIN_SRC):

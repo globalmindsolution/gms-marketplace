@@ -7,7 +7,7 @@ recorded outcome deterministic, without relying on the model's memory or
 goodwill.
 
 Hooks do **not** enforce the pipeline's order. That order is declared in
-`src/acs/workflows/ship.yaml` and walked by `/ship`
+`plugins/acs/workflows/ship.yaml` and walked by `/ship`
 ([workflow.md](workflow.md#pipeline)); a pre-hook's contribution to order is
 one advisory stderr line, never a refusal.
 
@@ -20,10 +20,13 @@ one advisory stderr line, never a refusal.
   `pre-<skill>.py` and `post-<skill>.py`
   (e.g. `pre-code.py`, `post-code.py`).
 - Hooks MUST read and write state files only in the **workspace folder**
-  (`<workspace>/<repo>/…`), resolved via the `.acs` `settings.json`
-  (see [configuration.md](configuration.md)). Most access stays inside the
+  (`<workspace>/<repo>/…`), always `<main-checkout>/.acs/state-machine`
+  (see [configuration.md](configuration.md)). The first state write creates
+  the folder's own `.gitignore` of `*`, so it never shows up in `git status`;
+  a hook that only reads state writes nothing, so a repo that never runs acs
+  gets no folder (ADR-0105). Most access stays inside the
   run's own directory (`runs/<run-id>/`), but hooks also maintain the
-  repo-level files (`tickets-index.json`, `runs-index.json`, `metrics.json`,
+  repo-level files (`tickets-index.json`, `runs-index.json`,
   `sessions/`), and `acs step start` MAY read the parent epic's run to
   resolve its design state ([workspace-and-state.md](workspace-and-state.md)).
 - A pre-hook MAY additionally **read** (never write) the ticket's documents
@@ -38,18 +41,25 @@ A pre-hook runs before its skill and checks two things, and only these two:
 
 **1. Inputs** — the artifacts and configuration the skill itself reads:
 
-- Baseline checks shared by all pre-hooks: `settings.json` exists (else
-  "run /setup"), `workspace_path` is resolvable (explicit override or
-  derived default) and consistent across worktrees, and the `<ticket-id>`
-  partition can be resolved.
-- Skill-specific inputs — e.g. `pre-create-architecture.py` requires the PRD
-  doc set; `pre-code.py` requires an approved `plan.md`;
+- Baseline checks shared by all pre-hooks: the settings validate (no
+  `settings.json` is needed — every key has a default, so a repo that never
+  ran `/setup` passes; a malformed hand-set value, such as a lowercase
+  `ticket_prefix`, is refused with a message to fix it in
+  `.acs/settings.json` or remove it to use the default `ACS`), the workspace
+  (always `<main-checkout>/.acs/state-machine`, no override) can be derived
+  and is consistent across worktrees, and the `<ticket-id>` partition can be
+  resolved.
+- Skill-specific inputs — e.g. `pre-code.py` requires an approved `plan.md`;
   `pre-create-api-contract.py` requires `plan.md` **and** an `analysis.md`
   declaring `api_surface: true`; `pre-create-e2e-tests.py` requires a
   configured e2e suite **and** at least one e2e-typed case in
   `test-cases.md`.
 - A missing input MUST be reported by naming the artifact, where it was
   looked for, and the skill that produces it.
+- A repo **document** (the PRD, the architecture set) is not a pre-hook
+  input: no setting says where one lives, so the skill that needs it finds
+  it at Start and stops, naming the skill that produces it, when there is
+  none ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 
 **2. Safety brakes** — refusals that protect correctness rather than
 sequence:
@@ -85,15 +95,15 @@ workflow, and whenever anything it needs cannot be read — it is best-effort
 by construction and MUST never turn into a blocked gate. A refusal path never
 carries it.
 
-A pre-hook is also not purely a check: it **records** the
-ticket-independent session-correlation marker (`session_id`,
-`transcript_path`, `cwd`, `skill`) off the genuine `PreToolUse(Skill)` hook
-envelope into `sessions/<checkout-id>-session.json`, inside its own
-fail-open guard so a marker-write failure can never turn into a blocked
-gate. The next skill's start step reads that marker (rejecting a foreign
-`checkout_id` or one older than 15 minutes) to correlate real cost/time
-measurement with this run (MAR-1,
-[workspace-and-state.md](workspace-and-state.md)).
+A pre-hook is also not purely a check: before the gate passes or blocks, it
+**records** that it fired — the skill and the time, into
+`sessions/<checkout-id>-gate.json` — inside its own fail-open guard so a
+write failure can never turn into a blocked gate. The next skill's start
+step spends that evidence once (rejecting a foreign `checkout_id` or one
+older than 15 minutes) to tell a gated run from one on a host that never
+fired acs's hooks ([workspace-and-state.md](workspace-and-state.md)). It
+records no session or transcript field: acs measures no usage
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 **Exit code contract:**
 
@@ -124,7 +134,7 @@ file in the workspace partition:
   `<workspace>/<repo>/runs/<run-id>/`.
 - The state file MUST record at least: the states, findings, and error
   details produced during the step, plus a new entry in the append-only
-  **`invocations`** array (timestamps, tokens, cost, status, stop reason).
+  **`invocations`** array (timestamps, status, stop reason).
   The array is `invocations`, not `runs`, because a RUN is the whole pass
   over the workflow and a step is invoked within it. The **last invocation is
   the current state** — the derived cursor, the subject's derived status and
@@ -137,9 +147,9 @@ file in the workspace partition:
   context_pressure`; a completed or failed step's narrative goes in
   `summary`. `handed_off` and `skipped` are not statuses.
 - Post-hooks also update **`run.json`**, and the repo-level
-  **`tickets-index.json`**, **`runs-index.json`** and **`metrics.json`**
-  (working time, tokens, cost per invocation — see
-  [workspace-and-state.md](workspace-and-state.md)).
+  **`tickets-index.json`** and **`runs-index.json`** (see
+  [workspace-and-state.md](workspace-and-state.md)). They record no usage
+  figure.
 - If the skill ends abnormally (crash, interruption), the post-hook MUST
   still write a state with status `failed` or `interrupted` — never leave
   the previous state in place silently.
@@ -175,7 +185,7 @@ Twenty hooked skills, each with one pre-hook and one post-hook:
 | `/merge-pr` | `pre-merge-pr.py` | `post-merge-pr.py` | `merge-pr-state.json` |
 
 The utility skills (`/setup`, `/ship`, `/handoff`, `/update`,
-`/install-hooks`, `/metrics`, `/usage`, `/release`) are **unhooked**: they
+`/install-hooks`, `/release`) are **unhooked**: they
 have no pre- or post-hook and take no position in a run. The `/test` alias is
 removed — `/run-e2e-tests` is the skill, and it is hooked like any other
 step.
@@ -187,13 +197,13 @@ Every row is an **input** (the skill cannot do its work without it) or a
 
 | Skill | Inputs | Brakes |
 |-------|--------|--------|
-| `/create-prd` | `/setup` done (settings exist) | — |
-| `/create-requirements` | `/setup` done | — |
-| `/create-ticket` | `/setup` done | — |
-| `/create-architecture` | PRD doc set exists (`prd_path`) | — |
-| `/create-project` | architecture doc set exists (`hld/tech-stack.md`) | — |
-| `/acs:create-docs` | architecture doc set exists (one gate for every doc set) | — |
-| `/standardize-project` | architecture doc set exists | — |
+| `/create-prd` | — (only the baseline checks; no settings file needed) | — |
+| `/create-requirements` | — | — |
+| `/create-ticket` | — | — |
+| `/create-architecture` | — (the skill itself checks for a PRD at Start) | — |
+| `/create-project` | — (the skill itself checks for the architecture set's `hld/tech-stack.md` at Start) | — |
+| `/acs:create-docs` | — (the skill itself checks for the architecture set at Start, once for every doc set) | — |
+| `/standardize-project` | — (the skill itself checks for the architecture set at Start) | — |
 | `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
 | `/analyze-requirements` | ticket resolves | not an epic; lock free |
 | `/create-impl-plan` | ticket resolves | not an epic; lock free |
@@ -246,9 +256,8 @@ worth stating explicitly, because each used to be an order gate:
   pointer exists. Product-level skills create their **delivery ticket** at
   start, so their hooks resolve a normal ticket partition like any other
   skill ([skills.md](skills.md#product-level-delivery-tickets)). Skills themselves resolve via argument → session context →
-  branch name ([workflow.md](workflow.md#ticket-context)). Since MAR-1, the
-  `sessions/` directory holds more than this pointer per checkout — see the
-  session-correlation marker and cost-sample/cursor files in
+  branch name ([workflow.md](workflow.md#ticket-context)). The
+  `sessions/` directory also holds each checkout's gate evidence — see
   [workspace-and-state.md](workspace-and-state.md).
 - **Python runtime**: hooks MUST be **stdlib-only Python 3** — no pip
   installs required on consumer machines.
@@ -272,7 +281,7 @@ completed" event exists):
   `/ship` invokes directly).
 - **Post-hooks** are invoked by the skill's **coordinator as its mandatory
   final step** (`post-<skill>.py --result-file …`) — their inputs (final
-  status, findings, tokens, cost) exist only in the coordinator's context.
+  status, stop reason, findings) exist only in the coordinator's context.
   Enforcement does not rely on the model: the coordinator records the step
   `in_progress` at skill start (`acs.py step start --step <name>`), so a
   skipped post-hook leaves it `in_progress` — never `completed`. Since the
@@ -284,4 +293,4 @@ completed" event exists):
   checkout left `in_progress` as `interrupted` and releases its lock, so
   abnormal endings still write state.
 
-See `src/acs/docs/INTERNALS.md` for the full implementation contract.
+See `plugins/acs/docs/INTERNALS.md` for the full implementation contract.

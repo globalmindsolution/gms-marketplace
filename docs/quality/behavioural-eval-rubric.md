@@ -4,20 +4,24 @@ What an artifact-level eval must assert to count as evidence, and what makes
 one green.
 
 The layers below this one are cheap and already complete: structure is 28 of
-32, gating 17 of 17 hooked, routing 27 of 32. They prove that a skill *ships*,
+32, gating 17 of 17 hooked, routing 32 of 32 (enforced mechanically by
+`tests/acs/test_eval_cases.py`). They prove that a skill *ships*,
 that it *refuses* what it must, and that a request *reaches* it. None of them
 proves it **produced the right thing** — and that is the only layer a user
 would notice missing.
 
-Behavioural coverage is **3 of 32** (`create-ticket`, `code`, `create-pr`).
-PRD **G31** commits to closing it. This rubric says what closing it means, so
-that the twenty-nine scenarios still to be written are worth the money they
-cost.
+Behavioural coverage is **2 of 32** (`create-ticket`, `code`), as artifact
+cases under `plugins/acs/evals/artifacts/` — and neither has yet completed end
+to end (see that folder's README). `create-pr` had a third, a forge-tier
+scenario against a live GitHub remote; it went with the retired behavioural
+harness, and the eval sandbox cannot reach GitHub. PRD **G31** commits to
+closing the gap. This rubric says what closing it means, so that the thirty
+cases still to be written are worth the money they cost.
 
 > A behavioural eval asserts on the **artifacts a skill produced**, never on
 > what it said while producing them.
 
-That rule is not new — `src/acs-evals/behavioural/README.md` and
+That rule is not new — `plugins/acs/evals/artifacts/README.md` and
 [`README.md`](README.md) both state it. What follows is what it takes to
 satisfy it.
 
@@ -49,36 +53,40 @@ catch?** An assertion with no answer is decoration, and it makes the suite look
 stronger than it is — the failure mode the whole eval programme exists to
 avoid.
 
-### 3. It states its tier honestly, and spends only when it must
+### 3. It spends only when it must
 
-`META["tier"]` is `free`, `paid` or `forge`, and it decides whether the
-scenario may spawn `claude`:
+Every `claude plugin eval` case spawns a real session, so every case costs
+money. What a case may choose is how it is *graded*: `regex`, `tool_used`,
+`tool_order` and `file_exists` graders are free and deterministic, while `llm`
+and `baseline` graders add a judge call per vote. Prefer the free graders; keep
+`llm` for short outputs, with rubrics written as concrete PASS and FAIL
+conditions.
 
-- **free** — deterministic, `$0`, no model. Runs in the pre-commit hook and in
-  CI on every PR. Anything that *can* be free must be.
-- **paid** — spawns a real session. Reserved for behaviour that only a model
-  produces. It must declare `will_spend()` truthfully, so a run that cannot
-  spend (no `claude`, no configured target) skips cleanly at exit 0 rather
-  than failing as if the plugin were broken.
-- **forge** — needs a real remote (GitHub). Skips without a configured target,
-  and that skip is a clean pass, never a silent gap in a count.
+Anything that needs no model at all is not an eval case. It belongs in
+`tests/` — which is where the old harness's free-tier checks went when it was
+retired, and why the no-ticket refusal on `/acs:code` is now a unit test
+rather than a scenario.
 
-A `paid` scenario that asserts something a `free` one could have asserted is a
-defect: it buys with money what determinism gives away, and it makes the free
-tier look thinner than it is.
+A case that asserts something a unit test could have asserted is a defect: it
+buys with money what determinism gives away.
 
 ### 4. Its preconditions are real
 
-The scenario's seeded sandbox must actually satisfy what its prompt
-presupposes. This is the failure that already bit us: two routing probes split
+The case's scaffold must actually satisfy what its prompt presupposes. This is the failure that already bit us: two routing probes split
 4-of-5 not because a description was weak but because the seeded repo made the
 prompt false — the model looked for the thing, did not find it, and asked
 instead of acting. It was **first mis-triaged as a description defect**.
 
-So: if a prompt says "the code change is done", the fixture must carry a
-committed change. If it says "this repo has no tooling", the fixture must be
-bare. A scenario whose presupposition is false measures the fixture, not the
-skill.
+So: if a prompt says "the code change is done", the scaffold must commit a
+change. If it says "this repo has no tooling", the workspace must be bare. A
+case whose presupposition is false measures the scaffold, not the skill.
+
+**Three routing cases break this rule today**, knowingly:
+`route-create-design`, `route-create-requirements` and `route-docs-sync` each
+presuppose context (an epic ticket, an existing codebase, a finished change)
+and run in an empty workspace. Each case's `description` records it as a known
+confound. Seeding them is the fix; until then a miss on one of them is not
+evidence against its description.
 
 ## Grading a scenario's outcome
 
@@ -97,7 +105,7 @@ undecidable probe as "a miss, never a pass". Same default here.
 
 ## Severity, when one fails
 
-The same three levels `src/acs-evals/docs/RUBRIC.md` defines, asking its same
+The same three levels the retired eval rubric defined, asking its same
 question — *if this failed on a released build, what can go wrong for a
 consumer?* — applied to artifacts rather than CLI output:
 
@@ -114,7 +122,7 @@ Ties go to the higher level, for the reason the sibling rubric gives:
 over-classifying costs a conversation, under-classifying is how a real defect
 ships green.
 
-## Which twenty-nine to write first
+## Which twenty-eight to write first
 
 Not alphabetically, and not cheapest-first. Order by what a wrong artifact
 would cost:
@@ -126,12 +134,13 @@ would cost:
 2. **Skills that write to the consumer's repo.** The doc-bootstrap legs,
    `project`, `docs-sync`. Their output is what the user actually keeps.
 3. **Skills that mutate shared state.** `merge-pr`, `release`.
-4. **Read-only dashboards.** `metrics`, `usage`, `handoff` — named in PRD G8
-   as today's trigger-only gap, and genuinely the lowest risk of the four.
+4. **Session bookkeeping.** `handoff` — named in PRD G8 as today's
+   trigger-only gap, and genuinely the lowest risk of the four.
 
-Write them against the fixture app (`src/acs-evals/runner/fixture_app.py`) rather
-than a bare sandbox wherever the skill needs a real codebase, so that
-precondition 4 holds by construction.
+Where the skill needs a real codebase, have the case's `scaffold_script`
+build one rather than prompting against an empty workspace, so that
+precondition 4 holds by construction. (A fixture app used to exist for this;
+it was retired with the root `evals/` folder.)
 
 ## What this rubric does not do
 

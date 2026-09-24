@@ -1,5 +1,6 @@
 """Brief section 4: the human-facing ticket documents move from the workspace
-partition to the repo docs tree, `<settings.artifacts.tickets_path>/<ID>/`.
+partition to the repo docs tree, `docs/tickets/<ID>/` (a fixed location since
+ADR-0102 -- no setting moves it or opts out of it).
 
 What is pinned here is the contract every caller of load_ticket/save_ticket
 now relies on:
@@ -43,7 +44,7 @@ from acs_lib import artifacts  # noqa: E402
 TICKET = "SHOP-1"
 REPO_ID = "acme-shop"
 #: The description templates /acs:create-ticket builds every ticket body from.
-TEMPLATES_DIR = os.path.join(REPO_ROOT, "src", "acs", "templates")
+TEMPLATES_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
 DESCRIPTION_TEMPLATES = ("task-default", "story-default", "epic-default")
 
 
@@ -110,52 +111,36 @@ class ArtifactsCase(AcsWorkspaceCase):
 
 class TestTicketDocsDir(unittest.TestCase):
 
-    def test_default_path_is_docs_tickets_under_the_checkout(self):
-        self.assertEqual(artifacts.ticket_docs_dir({}, "/repo", "SHOP-1"),
-                         os.path.join("/repo", "docs", "tickets", "SHOP-1"))
-        self.assertEqual(artifacts.ticket_docs_dir(lib.DEFAULT_SETTINGS, "/repo", "SHOP-1"),
+    def test_the_path_is_docs_tickets_under_the_checkout(self):
+        self.assertEqual(artifacts.TICKETS_PATH, "docs/tickets")
+        self.assertEqual(artifacts.ticket_docs_dir("/repo", "SHOP-1"),
                          os.path.join("/repo", "docs", "tickets", "SHOP-1"))
 
-    def test_a_configured_path_is_honoured(self):
-        settings = {"artifacts": {"tickets_path": "work/tickets"}}
-        self.assertEqual(artifacts.ticket_docs_dir(settings, "/repo", "SHOP-2"),
-                         os.path.join("/repo", "work", "tickets", "SHOP-2"))
-
-    def test_null_opts_out_and_a_missing_checkout_resolves_nothing(self):
-        self.assertIsNone(artifacts.ticket_docs_dir({"artifacts": {"tickets_path": None}}, "/repo", "SHOP-1"))
-        self.assertIsNone(artifacts.ticket_docs_dir({}, None, "SHOP-1"))
-        self.assertIsNone(artifacts.ticket_docs_root({"artifacts": {"tickets_path": None}}, "/repo"))
+    def test_a_missing_checkout_resolves_nothing(self):
+        self.assertIsNone(artifacts.ticket_docs_dir(None, "SHOP-1"))
+        self.assertIsNone(artifacts.ticket_docs_root(None))
 
 
 class TestArtifactPath(ArtifactsCase):
 
     def test_docs_folder_wins_then_partition_then_legacy(self):
         tdir = self.partition()
-        settings = lib.DEFAULT_SETTINGS
         docs_plan = os.path.join(self.docs_root(), TICKET, "plan.md")
         legacy_plan = os.path.join(tdir, "phases", "code", "plan.md")
         # Nothing exists: the answer is where a writer should put it (docs tree).
-        self.assertEqual(artifacts.artifact_path(settings, self.repo, tdir, TICKET, "plan.md"), docs_plan)
+        self.assertEqual(artifacts.artifact_path(self.repo, tdir, TICKET, "plan.md"), docs_plan)
         os.makedirs(os.path.dirname(legacy_plan))
         with open(legacy_plan, "w") as fh:
             fh.write("# plan\n")
-        self.assertEqual(artifacts.artifact_path(settings, self.repo, tdir, TICKET, "plan.md"), legacy_plan)
+        self.assertEqual(artifacts.artifact_path(self.repo, tdir, TICKET, "plan.md"), legacy_plan)
         with open(os.path.join(tdir, "plan.md"), "w") as fh:
             fh.write("# plan\n")
-        self.assertEqual(artifacts.artifact_path(settings, self.repo, tdir, TICKET, "plan.md"),
+        self.assertEqual(artifacts.artifact_path(self.repo, tdir, TICKET, "plan.md"),
                          os.path.join(tdir, "plan.md"))
         os.makedirs(os.path.dirname(docs_plan))
         with open(docs_plan, "w") as fh:
             fh.write("# plan\n")
-        self.assertEqual(artifacts.artifact_path(settings, self.repo, tdir, TICKET, "plan.md"), docs_plan)
-
-    def test_opted_out_resolves_to_the_partition(self):
-        tdir = self.partition()
-        settings = {"artifacts": {"tickets_path": None}}
-        for name in ("design.md", "analysis.md", "api-contract.md", "test-cases.md"):
-            with self.subTest(name=name):
-                self.assertEqual(artifacts.artifact_path(settings, self.repo, tdir, TICKET, name),
-                                 os.path.join(tdir, name))
+        self.assertEqual(artifacts.artifact_path(self.repo, tdir, TICKET, "plan.md"), docs_plan)
 
 
 # ---------------------------------------------------------------------------
@@ -501,15 +486,17 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertIn("ticket.json", os.listdir(tdir))
         self.assertEqual(os.listdir(self.docs_root()), [])
 
-    def test_opted_out_never_touches_the_tree(self):
+    def test_a_stale_tickets_path_null_no_longer_opts_out(self):
+        """ADR-0102: the opt-out is gone with the key, so a consumer file that
+        still carries it gets the tree like everyone else."""
         self.write_settings({"ticket_prefix": "SHOP", "artifacts": {"tickets_path": None}})
         self.activate()
         tdir = self.tdir(TICKET)
         os.makedirs(tdir)
         with pushd(self.repo):
             lib.save_ticket(tdir, lib.new_ticket_doc(TICKET, "Widget", "task"))
-        self.assertIn("ticket.json", os.listdir(tdir))
-        self.assertEqual(os.listdir(self.docs_root()), [])
+        self.assertTrue(os.path.isfile(self.md_path()))
+        self.assertNotIn("ticket.json", os.listdir(tdir))
 
     def test_a_corrupt_ticket_md_reads_as_absent_with_a_warning(self):
         self.activate()
@@ -589,7 +576,7 @@ class TestCommitOwnership(unittest.TestCase):
     def skill(self, name):
         """The SKILL.md with whitespace runs folded, so a phrase check cannot
         fail merely because markdown word-wrap inserted a line break."""
-        raw = read_text(os.path.join(REPO_ROOT, "src", "acs", "skills", name, "SKILL.md"))
+        raw = read_text(os.path.join(REPO_ROOT, "plugins", "acs", "skills", name, "SKILL.md"))
         return " ".join(raw.split())
 
     def test_analyze_ticket_commits_the_whole_docs_folder(self):
@@ -636,7 +623,7 @@ class TestMigrate(ArtifactsCase):
         self.archived = archived
 
     def migrate(self, dry_run=False):
-        return artifacts.migrate(self.ws, REPO_ID, lib.DEFAULT_SETTINGS, self.repo, dry_run=dry_run)
+        return artifacts.migrate(self.ws, REPO_ID, self.repo, dry_run=dry_run)
 
     def test_dry_run_lists_the_moves_and_writes_nothing(self):
         report = self.migrate(dry_run=True)
@@ -695,10 +682,6 @@ class TestMigrate(ArtifactsCase):
         self.assertIn("SHOP-2", str(ctx.exception))
         self.assertIn("ticket.json", os.listdir(self.a))
 
-    def test_opted_out_refuses(self):
-        with self.assertRaises(lib.GateError):
-            artifacts.migrate(self.ws, REPO_ID, {"artifacts": {"tickets_path": None}}, self.repo)
-
     def test_the_cli_wraps_migrate_and_show(self):
         out = self.run_script("acs.py", "artifacts", "migrate", "--dry-run")
         self.assertEqual(out.returncode, 0, out.stderr)
@@ -756,12 +739,14 @@ class TestGuardControlInput(FileMapGuardCase):
                 self.assertIn("needs_input", out.stderr)
         self.assertEqual(self.write_attempt("docs/other.md").returncode, 0)
 
-    def test_opting_out_of_the_tree_lifts_the_denial(self):
+    def test_a_stale_tickets_path_null_does_not_lift_the_denial(self):
+        """ADR-0102: the opt-out went with the key -- a consumer file that still
+        carries it gets no unguarded ticket docs."""
         self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90,
                              "artifacts": {"tickets_path": None}})
         self.declare("docs/")
         self.spawn_executor()
-        self.assertEqual(self.write_attempt("docs/tickets/%s/plan.md" % self.ticket).returncode, 0)
+        self.assertEqual(self.write_attempt("docs/tickets/%s/plan.md" % self.ticket).returncode, 2)
 
 
 if __name__ == "__main__":

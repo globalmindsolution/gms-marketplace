@@ -1,5 +1,6 @@
-"""Tests for the O_EXCL guard on acs_lib's two repo-level read-modify-write
-writers, update_index and update_metrics (D5.1(a)). Mirrors the arms already
+"""Tests for the O_EXCL guard on acs_lib's repo-level read-modify-write
+writer, update_index (D5.1(a)). (update_metrics, the second writer it guarded,
+went with metrics.json -- ADR-0104.) Mirrors the arms already
 proven for the identical spin-lock pattern in
 tests/acs/test_acs_lib_state_locks.py::TestAllocateTicketId.
 
@@ -21,7 +22,7 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -170,22 +171,6 @@ class UpdateIndexGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
     def _did_not_land(self, n=1):
         data = lib.read_json(lib.index_path(self.workspace, "acme-shop")) or {}
         self.assertNotIn("SHOP-%d" % n, data.get("tickets", {}))
-
-
-class UpdateMetricsGuardTest(_GuardedWriterCaseMixin, unittest.TestCase):
-    MODULE = lib.metrics
-    guard_name = "metrics.json.lock"
-
-    def _call(self, n=1):
-        return lib.update_metrics(self.workspace, "acme-shop", pr_created=True, pr_number=n)
-
-    def _landed(self, n=1):
-        data = lib.read_json(lib.metrics_path(self.workspace, "acme-shop")) or {}
-        self.assertIn(n, data.get("prs", {}).get("created_pr_numbers", []))
-
-    def _did_not_land(self, n=1):
-        data = lib.read_json(lib.metrics_path(self.workspace, "acme-shop")) or {}
-        self.assertNotIn(n, data.get("prs", {}).get("created_pr_numbers", []))
 
 
 class ConcurrentWritersTest(unittest.TestCase):

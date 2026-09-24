@@ -1,10 +1,10 @@
 """Unit tests for the PR-convention helper CLI (MAR-72 spec 01).
 
-src/acs/hooks/scripts/pr-conventions.py gives SKILL prose a deterministic
+plugins/acs/hooks/scripts/pr-conventions.py gives SKILL prose a deterministic
 way to (a) render the configured PR title via acs_lib.render_format and (b)
-self-check a rendered title + body against the repo's configured PR
-conventions by driving check-conventions.py's evaluate() — never a divergent
-re-implementation of the convention rules.
+self-check a PR body against what CI checks -- that it names its ticket
+(ADR-0106) -- by driving check-conventions.py's evaluate(), never a divergent
+re-implementation of the rule.
 
 Loaded via the same importlib file-path pattern as
 tests/acs/test_conventions_check.py, so these tests exercise the shipped file
@@ -19,14 +19,11 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-TARGET = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts", "pr-conventions.py")
+TARGET = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts", "pr-conventions.py")
 
 _spec = importlib.util.spec_from_file_location("acs_pr_conventions", TARGET)
 pc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pc)
-
-
-DEFAULT_SECTIONS = ["Summary", "Ticket", "Changes", "Test plan"]
 
 
 def conforming_body():
@@ -181,15 +178,11 @@ class TestComputeTicketRef(unittest.TestCase):
 
 
 class TestCheckPasses(unittest.TestCase):
-    """Case 3: check passes a conforming title + body."""
+    """Case 3: check passes a body that names its ticket."""
 
-    def test_check_passes_conforming_title_and_body(self):
+    def test_check_passes_a_body_naming_its_ticket(self):
         result = pc.run_check(
-            title="[MAR-72] Fix thing",
             body=conforming_body(),
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
             ticket_prefix="MAR",
         )
         self.assertTrue(result["passed"])
@@ -197,50 +190,25 @@ class TestCheckPasses(unittest.TestCase):
 
 
 class TestCheckFailures(unittest.TestCase):
-    """Cases 4-7: check fails malformed title / missing section / placeholder / comment."""
+    """Cases 4-7: no ticket named / what is no longer judged / placeholder / comment."""
 
-    def test_check_fails_malformed_title(self):
-        # Case 4: title missing the required [MAR-72] prefix.
-        result = pc.run_check(
-            title="Fix thing",
-            body=conforming_body(),
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
-            ticket_prefix="MAR",
-        )
+    def test_check_fails_a_body_naming_no_ticket(self):
+        # Case 4: the one rule CI enforces (ADR-0106).
+        result = pc.run_check(body="## Summary\nDid a thing.\n", ticket_prefix="MAR")
         self.assertFalse(result["passed"])
-        headings = [e["heading"] for e in result["errors"]]
-        self.assertIn("pr_title", headings)
+        self.assertIn("ticket_link", [e["heading"] for e in result["errors"]])
 
-    def test_check_fails_missing_required_section(self):
-        # Case 5: body omits "## Test plan".
-        body = (
-            "## Summary\nSome summary text.\n\n"
-            "## Ticket\n\n- **MAR-72** — Fix thing (task)\n\n"
-            "## Changes\n\n- did stuff\n"
-        )
-        result = pc.run_check(
-            title="[MAR-72] Fix thing",
-            body=body,
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
-            ticket_prefix="MAR",
-        )
-        self.assertFalse(result["passed"])
-        headings = [e["heading"] for e in result["errors"]]
-        self.assertIn("pr_description", headings)
+    def test_check_no_longer_judges_title_sections_or_label(self):
+        # Case 5: a body with no section headings still passes when it names
+        # the ticket -- CI no longer checks sections, the title or a label.
+        result = pc.run_check(body="Work for MAR-72.", ticket_prefix="MAR")
+        self.assertTrue(result["passed"], result["errors"])
 
     def test_check_fails_unrendered_placeholder(self):
         # Case 6: a literal {summary} token survived in the body.
         body = conforming_body() + "\n{summary}\n"
         result = pc.run_check(
-            title="[MAR-72] Fix thing",
             body=body,
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
             ticket_prefix="MAR",
         )
         self.assertFalse(result["passed"])
@@ -251,11 +219,7 @@ class TestCheckFailures(unittest.TestCase):
         # Case 7: an un-deleted HTML guidance comment survived.
         body = conforming_body() + "\n<!-- fill this in -->\n"
         result = pc.run_check(
-            title="[MAR-72] Fix thing",
             body=body,
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
             ticket_prefix="MAR",
         )
         self.assertFalse(result["passed"])
@@ -264,38 +228,18 @@ class TestCheckFailures(unittest.TestCase):
 
 
 class TestScopingRegression(unittest.TestCase):
-    """Case 8: no regression to ACS label, base-branch detection, or tracker sync."""
+    """Case 8: no regression to base-branch detection or tracker sync."""
 
     def test_no_branch_name_or_commit_message_finding_ever(self):
-        # Construct a call where title/body conform but WOULD violate
-        # branch_name/commit_message if those checks ran (they never do here,
-        # since the helper never receives a branch or commit subjects).
+        # The helper never receives a branch or commit subjects, and CI's PR
+        # mode checks neither, so neither can ever be reported here.
         result = pc.run_check(
-            title="[MAR-72] Fix thing",
             body=conforming_body(),
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
             ticket_prefix="MAR",
         )
         headings = [e["heading"] for e in result["errors"]]
         self.assertNotIn("branch_name", headings)
         self.assertNotIn("commit_message", headings)
-
-    def test_omitting_require_label_still_runs_acs_label(self):
-        # Omitting --require-label does NOT silently disable acs_label — it
-        # is left enabled by default and reports a finding because no label
-        # was asserted.
-        result = pc.run_check(
-            title="[MAR-72] Fix thing",
-            body=conforming_body(),
-            require_label="",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
-            ticket_prefix="MAR",
-        )
-        headings = [e["heading"] for e in result["errors"]]
-        self.assertIn("acs_label", headings)
 
     def test_helper_module_has_no_git_or_tracker_reference(self):
         # Behavioral: the helper's own EXECUTABLE source never touches git,
@@ -319,24 +263,16 @@ class TestEvaluateReuse(unittest.TestCase):
     def test_check_calls_cc_evaluate_with_expected_args(self):
         with mock.patch.object(pc.cc, "evaluate", wraps=pc.cc.evaluate) as spy:
             pc.run_check(
-                title="[MAR-72] Fix thing",
                 body=conforming_body(),
-                require_label="ACS",
-                pr_title_format="[{ticket_id}] {title}",
-                sections=DEFAULT_SECTIONS,
                 ticket_prefix="MAR",
             )
         spy.assert_called_once()
         args, kwargs = spy.call_args
         settings, ctx, mode = args
         self.assertEqual(mode, "pr")
-        self.assertEqual(settings["ticket_prefix"], "MAR")
-        self.assertEqual(settings["formats"]["pr_title"], "[{ticket_id}] {title}")
-        self.assertFalse(settings["enforcement"]["checks"]["branch_name"])
-        self.assertFalse(settings["enforcement"]["checks"]["commit_message"])
-        self.assertEqual(settings["enforcement"]["pr_description_sections"], DEFAULT_SECTIONS)
-        self.assertEqual(ctx["title"], "[MAR-72] Fix thing")
-        self.assertEqual(ctx["labels"], ["ACS"])
+        self.assertEqual(settings, {"ticket_prefix": "MAR"})
+        self.assertEqual(ctx["body"], conforming_body())
+        self.assertEqual(ctx["labels"], [], "a PR about to be opened is never exempt")
 
 
 class TestMain(unittest.TestCase):
@@ -392,6 +328,11 @@ class TestMain(unittest.TestCase):
             body_path = fh.name
         try:
             code, out = self._run_main([
+                "check", "--body-file", body_path, "--ticket-prefix", "MAR",
+            ])
+            # An older skill invocation still runs: the retired flags are
+            # accepted and ignored.
+            legacy_code, legacy_out = self._run_main([
                 "check",
                 "--title", "[MAR-72] Fix thing",
                 "--body-file", body_path,
@@ -404,21 +345,16 @@ class TestMain(unittest.TestCase):
             os.unlink(body_path)
         self.assertEqual(code, 0)
         self.assertIn('"passed": true', out)
+        self.assertEqual((legacy_code, legacy_out), (code, out))
 
     def test_main_check_fail_exits_nonzero(self):
         import tempfile
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as fh:
-            fh.write("no sections here")
+            fh.write("no ticket named here")
             body_path = fh.name
         try:
             code, out = self._run_main([
-                "check",
-                "--title", "Fix thing",
-                "--body-file", body_path,
-                "--require-label", "ACS",
-                "--pr-title-format", "[{ticket_id}] {title}",
-                "--sections", "Summary,Ticket,Changes,Test plan",
-                "--ticket-prefix", "MAR",
+                "check", "--body-file", body_path, "--ticket-prefix", "MAR",
             ])
         finally:
             os.unlink(body_path)
@@ -448,15 +384,10 @@ class TestIssueLinkNonRegression(unittest.TestCase):
     exactly as the rest of this module does, with new input data only."""
 
     def test_check_passes_with_closes_link_in_ticket_section(self):
-        # AC-2/AC-3: a Closes #<key> bullet inside the existing Ticket section
-        # does not trip pr_description's heading check, pr_title's regex, or
-        # the hygiene scans.
+        # AC-2/AC-3: a Closes #<key> bullet inside the Ticket section does not
+        # trip the hygiene scans, and it names the ticket in its own right.
         result = pc.run_check(
-            title="[MAR-75] Fix thing",
             body=conforming_body_with_closes_link("156"),
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
             ticket_prefix="MAR",
         )
         self.assertTrue(result["passed"])
@@ -483,26 +414,18 @@ class TestIssueLinkNonRegression(unittest.TestCase):
         body = conforming_body()
         self.assertNotIn("Closes #", body)
         result = pc.run_check(
-            title="[MAR-72] Fix thing",
             body=body,
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
             ticket_prefix="MAR",
         )
         self.assertTrue(result["passed"])
         self.assertEqual(result["errors"], [])
 
     def test_closes_link_absent_is_still_conforming_baseline(self):
-        # AC-4 (regression baseline): byte-for-byte match of the pre-existing
-        # TestCheckPasses.test_check_passes_conforming_title_and_body call,
-        # pinning that conforming_body()'s shared meaning is unchanged.
+        # AC-4 (regression baseline): the same call as
+        # TestCheckPasses.test_check_passes_a_body_naming_its_ticket, pinning
+        # that conforming_body()'s shared meaning is unchanged.
         result = pc.run_check(
-            title="[MAR-72] Fix thing",
             body=conforming_body(),
-            require_label="ACS",
-            pr_title_format="[{ticket_id}] {title}",
-            sections=DEFAULT_SECTIONS,
             ticket_prefix="MAR",
         )
         self.assertTrue(result["passed"])

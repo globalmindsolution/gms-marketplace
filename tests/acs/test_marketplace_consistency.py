@@ -16,9 +16,16 @@ Mechanism: EXTRACT-AND-RUN (C-2 option A).
   lands).  If extraction drifts or Edit 1 is not yet applied, the guard fails
   loudly — this converts silent false-green into a visible red.
 
-Coverage note: MAR-29 touches zero files under src/acs/ (only ci.yml and
-this test file), so the 90% coverage gate against src/acs/ production code
-is unaffected.
+Coverage note: this module exercises ci.yml, not plugin code — it touches no
+file under plugins/acs/, so the 90% coverage gate against the plugin's
+production code is unaffected.
+
+Source shapes covered: the git-subdir object (T1-T5), the remote objects that
+carry no local manifest (T6), and the plain relative string (T7) — which is
+what the acs entry became when the plugin moved to plugins/acs and the
+git-subdir object with its own url/path/ref was retired. A string source has
+no ref, so the validator judges it against the WORKING TREE; the cases below
+pin both halves of that, the resolving one and the three ways it can fail.
 
 TDD: T2 and T4 are RED against the pre-Edit-1 ci.yml body (git-subdir entries
 are silently skipped → name/version mismatches produce rc==0 instead of rc==1).
@@ -351,7 +358,7 @@ class MarketplaceConsistencyTest(unittest.TestCase):
         self.assertEqual(out.returncode, 0, f"Expected rc==0. stderr={out.stderr!r}")
 
     # ------------------------------------------------------------------
-    # T7: String-path source unchanged (AC-5 regression guard)
+    # T7: String-path source — the shape the acs entry itself now takes
     # ------------------------------------------------------------------
 
     def test_string_path_source_unchanged(self):
@@ -385,22 +392,86 @@ class MarketplaceConsistencyTest(unittest.TestCase):
         self.assertIn("DIFFERENT_NAME", out.stderr,
                       f"Expected name mismatch in stderr. stderr={out.stderr!r}")
 
+    def test_dot_relative_string_source_passes(self):
+        """T7_dotslash: the live shape — "./plugins/<name>" — resolves (AC-5).
+
+        This is the form the acs entry takes after the git-subdir object was
+        retired, and it is a case of its own rather than a spelling of the one
+        above: the validator branches on the "./" prefix when deciding whether
+        metadata.pluginRoot prefixes the path, so the two walk different code.
+        """
+        entry = {
+            "name": "localplugin",
+            "version": "2.0.0",
+            "source": "./plugins/localplugin",
+        }
+        fixture = self._make_fixture(
+            entry,
+            plugin_path="plugins/localplugin",
+            plugin_json={"name": "localplugin", "version": "2.0.0"},
+        )
+        out = self._run(fixture)
+        self.assertEqual(out.returncode, 0, f"Expected rc==0. stderr={out.stderr!r}")
+        self.assertIn("OK", out.stdout)
+
+    def test_string_source_pointing_at_a_missing_directory_errors(self):
+        """T7_string_missing: a string source names a directory in the WORKING
+        TREE, so one that is not there cannot install → rc==1 (AC-5).
+
+        The relative-source counterpart of the 2026-09-16 break. There is no
+        ref left for the path to disagree with, so the only way to advertise a
+        plugin that is not there is to name a directory that does not exist —
+        after a move, a rename, or a delete.
+        """
+        entry = {"name": "ghost", "source": "plugins/ghost"}
+        fixture = self._make_fixture(entry)
+        out = self._run(fixture)
+        self.assertEqual(out.returncode, 1,
+                         f"Expected rc==1. stdout={out.stdout!r} stderr={out.stderr!r}")
+        self.assertIn("no plugin.json", out.stderr,
+                      f"Expected a missing-manifest error. stderr={out.stderr!r}")
+
+    def test_string_source_version_mismatch_errors(self):
+        """T7_string_version: string entry declaring a version the plugin.json
+        does not carry → rc==1 (AC-5).
+
+        plugin.json wins silently at install time, so a catalog declaring a
+        different version advertises something it will not deliver.
+        """
+        entry = {
+            "name": "localplugin",
+            "version": "2.0.0",
+            "source": "plugins/localplugin",
+        }
+        fixture = self._make_fixture(
+            entry,
+            plugin_path="plugins/localplugin",
+            plugin_json={"name": "localplugin", "version": "9.9.9"},
+        )
+        out = self._run(fixture)
+        self.assertEqual(out.returncode, 1,
+                         f"Expected rc==1. stdout={out.stdout!r} stderr={out.stderr!r}")
+        self.assertIn("9.9.9", out.stderr,
+                      f"Expected version mismatch in stderr. stderr={out.stderr!r}")
+
     # ------------------------------------------------------------------
     # T8: Live acs smoke — real marketplace.json + real plugin.json (AC-2, AC-6)
     # ------------------------------------------------------------------
 
     def test_live_acs_entry_name_matches(self):
-        """T8: Read the real marketplace.json and src/acs/.claude-plugin/plugin.json.
-        Assert the acs entry's name matches the plugin.json name.
-        This is the smoke test against the live repo state (AC-2, AC-6).
+        """T8: Read the real marketplace.json and the plugin.json its acs entry
+        RESOLVES TO, and assert the two names agree (AC-2, AC-6).
+
+        The plugin location is derived from the entry's source rather than
+        written out here. A second, hardcoded copy of the layout is precisely
+        what fell out of step when the tree moved — the entry said one thing,
+        this line said another, and only one of them was checked. Following
+        the manifest keeps this smoke test honest across the next move.
         """
         mkt_path = os.path.join(REPO_ROOT, ".claude-plugin", "marketplace.json")
-        pj_path = os.path.join(REPO_ROOT, "src", "acs", ".claude-plugin", "plugin.json")
 
         with open(mkt_path, encoding="utf-8") as fh:
             mkt = json.load(fh)
-        with open(pj_path, encoding="utf-8") as fh:
-            pj = json.load(fh)
 
         # Find the acs entry
         acs_entry = None
@@ -410,6 +481,19 @@ class MarketplaceConsistencyTest(unittest.TestCase):
                 break
 
         self.assertIsNotNone(acs_entry, "No 'acs' entry found in .claude-plugin/marketplace.json")
+
+        source = acs_entry.get("source")
+        self.assertIsInstance(
+            source, str,
+            "the acs entry is a relative string source; an object source is "
+            "judged at its ref instead — see tests/acs/test_marketplace_ref_resolves.py")
+        pj_path = os.path.join(os.path.normpath(os.path.join(REPO_ROOT, source)),
+                               ".claude-plugin", "plugin.json")
+        self.assertTrue(os.path.exists(pj_path),
+                        f"acs source '{source}' resolves to {pj_path}, which does not exist")
+        with open(pj_path, encoding="utf-8") as fh:
+            pj = json.load(fh)
+
         entry_name = acs_entry.get("name")
         pj_name = pj.get("name")
         self.assertEqual(
@@ -477,25 +561,31 @@ class PathIsJudgedAtTheRefTest(MarketplaceConsistencyTest):
 
 
 class TheReleaseCutWindowTest(MarketplaceConsistencyTest):
-    """The cut writes ref=v{version} before that tag exists; CI must not block it.
+    """A cut writes ref=v{version} before that tag exists; CI must not block it.
 
-    release.extra_refs rewrites source/ref and source/path in the release
-    commit, and release.yml creates the tag only once that commit reaches
-    main. So on the release PR the advertised ref names nothing yet. Judging
-    that as a broken pair would make every release PR unmergeable -- the
-    commit under test is precisely the one about to be tagged, so the tree is
-    what the tag will capture.
+    When an entry is PINNED, the release commit rewrites its ref to the tag
+    release.yml will only create once that commit reaches main, so on the
+    release PR the advertised ref names nothing yet. Judging that as a broken
+    pair would make every release PR unmergeable -- the commit under test is
+    precisely the one about to be tagged, so the tree is what the tag will
+    capture.
+
+    This repo's own acs entry no longer travels that road: a relative string
+    source carries no ref, so it is judged against the tree always, and the
+    cut has no source fields left to rewrite. The carve-out stays for any
+    pinned entry the catalog may carry later, and the fixtures below supply
+    one, since the live manifest no longer does.
     """
 
     def test_ref_that_does_not_exist_yet_is_judged_against_the_tree(self):
         entry = {
             "name": "acs",
             "source": {"source": "git-subdir", "url": "https://example.com/repo.git",
-                       "path": "src/acs", "ref": "v0.5.0"},
+                       "path": "plugins/acs", "ref": "v0.5.0"},
         }
         tmp = self._make_fixture(
             entry,
-            plugin_path="src/acs",
+            plugin_path="plugins/acs",
             plugin_json={"name": "acs", "version": "1.0.0"},
         )
         # _make_fixture tags the ref; drop it so the tag is genuinely absent,

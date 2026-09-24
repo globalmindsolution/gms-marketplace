@@ -23,7 +23,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 DOCS = os.path.join(REPO_ROOT, "docs")
@@ -243,7 +243,9 @@ class PlannerContractTest(unittest.TestCase):
 class SkillMirrorTest(unittest.TestCase):
     """create-prd/SKILL.md's plan-task example names the three new plan
     sections; its verify paragraph names `clarifications.json`, the repo
-    root, and the `git diff -- <prd_path>` derivation of `--added-heading`."""
+    root, and the `git diff -- "<prd>" "<roadmap>"` derivation of
+    `--added-heading` (the located PRD and roadmap files, ADR-0102 — once
+    `<settings.prd_path>`)."""
 
     @classmethod
     def setUpClass(cls):
@@ -265,7 +267,8 @@ class SkillMirrorTest(unittest.TestCase):
     def test_verify_paragraph_names_added_heading_git_diff_derivation(self):
         norm = _norm(self.verify_region)
         self.assertIn("--added-heading", norm)
-        self.assertIn("git diff -- <settings.prd_path>", norm)
+        self.assertIn('git diff -- "<prd>" "<roadmap>"', norm)
+        self.assertNotIn("prd_path", norm)
 
     def test_loop_topology_migrated_by_mar305(self):
         self.assertNotRegex(

@@ -1,12 +1,15 @@
 # Flow — /acs:create-pr stacked-base pre-flight
 
-`.acs/ci/check-conventions.py` collects a PR's commits with
-`git log --no-merges origin/<base>..HEAD` — pure SHA ancestry. A squash merge
-replaces the base PR's commits with ONE new commit, so the originals never
+Until ADR-0106, `.acs/ci/check-conventions.py` collected a PR's commits in CI
+with `git log --no-merges origin/<base>..HEAD` — pure SHA ancestry. A squash
+merge replaces the base PR's commits with ONE new commit, so the originals never
 become ancestors of the base. A branch stacked on that base still carries them,
 the range still lists them, and the `commit_message` check fails on subjects
 belonging to a pull request that is already merged — which the author cannot fix
-by renaming anything.
+by renaming anything. CI no longer checks commit subjects
+([ADR-0106](../../../adr/0106-ci-checks-the-ticket-link-only.md)); the optional
+local `pre-push` hook still does, over the commits being pushed, when
+`enforcement.checks.commit_message` is on.
 
 Since MAR-590 `/acs:create-pr` runs `hooks/scripts/stacked-base.py check` as a
 pre-flight in **step 1**, before the branch is pushed. The base detect moves
@@ -41,7 +44,7 @@ sequenceDiagram
         SB-->>CO: CheckError -- exit 2 with the reason on stderr and nothing on stdout
     end
     SB->>SB: list base_ref..HEAD with --no-merges
-    SB->>CC: format_to_regex and _is_ignorable_commit -- CI's own matcher, re-implemented nowhere
+    SB->>CC: format_to_regex and _is_ignorable_commit -- the checker's own matcher, re-implemented nowhere
     CC-->>SB: partition the range into ignorable, conforming and offending subjects
     SB->>TMP: read-tree the base and the fork point into two throwaway indexes
     TMP-->>SB: an unusable index degrades the run and is recorded in notes, never silently
@@ -93,8 +96,8 @@ classification rather than restating it. So a qualified exit 0 is **not**
 evidence that the non-conforming subjects are the branch's own: it is recorded
 as one `info` finding and the run continues, the same shape as exit 2. Only an
 exit 0 whose `notes` is empty carries the ordinary conclusion, where a
-non-conforming subject is the branch's own and gets the ordinary gate failure
-with no replay advice.
+non-conforming subject is the branch's own and gets the ordinary
+`commit_message` failure with no replay advice.
 
 ## What the flow does not do
 
@@ -104,8 +107,8 @@ detection it gates is deliberately incomplete.
 - **It reports, it does not prevent.** The conventions gate is unchanged. A
   commit whose region the base edited again after the squash fails both
   reverse-apply tests and is not recognised, and step B never runs when step A
-  finds no candidate. A miss degrades to today's behaviour — a red gate with no
-  replay advice — never to a false alarm.
+  finds no candidate. A miss degrades to the ordinary `commit_message` failure
+  with no replay advice — never to a false alarm.
 - **One false positive is accepted.** A branch whose entire net content against
   the base is already in the base acquires a replay point and is reported as
   stacked even when it was never stacked. The diagnosis is wrong, but such a

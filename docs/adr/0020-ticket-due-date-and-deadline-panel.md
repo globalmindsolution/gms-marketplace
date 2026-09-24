@@ -1,6 +1,6 @@
 # 0020 — Deadlines sourced from a `due_date` ticket field (not the GitHub tracker, not deferred)
 
-**Status**: Accepted · **Date**: 2026-06-18
+**Status**: Accepted — amended by [0104](0104-no-usage-dashboards-no-usage-recording.md) (the deadline panel is gone with `/acs:metrics`; the `due_date` ticket field stays) · **Date**: 2026-06-18
 
 ## Context
 

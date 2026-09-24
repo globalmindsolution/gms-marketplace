@@ -7,9 +7,9 @@ validate_settings/validate_formats/validate_models's raise-GateError arms,
 resolve_role_model's inherit-sentinel and per-skill-override precedence, and
 resolve_template's four resolution branches were exercised by no test.
 
-MAR-2 adds: default_state_root's 4-step git-plumbing resolution rule, the
-inverted (in-repo-accepting) validate_settings workspace branch, and the
-settings.schema.json workspace_path description rewrite.
+MAR-2 adds: default_state_root's 4-step git-plumbing resolution rule.
+ADR-0102 removes the workspace_path override: validate_settings always derives
+the in-repo workspace, and no settings key locates a document.
 """
 
 import inspect
@@ -120,13 +120,13 @@ class TestDefaultStateRoot(unittest.TestCase):
         self.assertEqual(main_result, wt_result)
         self.assertEqual(main_result, os.path.realpath(os.path.join(repo, ".acs", "state-machine")))
 
-    def test_bare_repo_raises_gate_error_naming_the_override(self):
+    def test_bare_repo_raises_gate_error_naming_the_remedy(self):
         bare = os.path.join(self.tmp, "bare.git")
         subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
         with self.assertRaises(lib.GateError) as ctx:
             lib.default_state_root(bare)
         msg = str(ctx.exception).replace(bare, "<cwd>")
-        self.assertIn("workspace_path", msg)
+        self.assertIn("regular git checkout", msg)
         self.assertIn("bare git repository", msg)
         self.assertNotIn("not a git repository", msg)
 
@@ -136,7 +136,7 @@ class TestDefaultStateRoot(unittest.TestCase):
         with self.assertRaises(lib.GateError) as ctx:
             lib.default_state_root(nongit)
         msg = str(ctx.exception).replace(nongit, "<cwd>")
-        self.assertIn("workspace_path", msg)
+        self.assertIn("regular git checkout", msg)
         self.assertIn("not a git repository", msg)
         self.assertNotIn("bare", msg)
 
@@ -147,7 +147,7 @@ class TestDefaultStateRoot(unittest.TestCase):
         with mock.patch.object(lib.repo, "_git", side_effect=["false", ""]):
             with self.assertRaises(lib.GateError) as ctx:
                 lib.default_state_root(self.tmp)
-        self.assertIn("workspace_path", str(ctx.exception))
+        self.assertIn("regular git checkout", str(ctx.exception))
 
     def test_submodule_raises_gate_error_naming_git_submodule(self):
         child = _mkrepo(self.tmp, "child")
@@ -175,7 +175,7 @@ class TestDefaultStateRoot(unittest.TestCase):
             lib.default_state_root(sub_path)
         msg = str(ctx.exception)
         self.assertIn("git submodule", msg)
-        self.assertIn("workspace_path", msg)
+        self.assertIn("regular git checkout", msg)
 
     def test_unusual_layout_without_a_superproject_raises_generic_gate_error(self):
         sepgit = os.path.join(self.tmp, "sepgit")
@@ -185,7 +185,7 @@ class TestDefaultStateRoot(unittest.TestCase):
         with self.assertRaises(lib.GateError) as ctx:
             lib.default_state_root(worktree_dir)
         msg = str(ctx.exception)
-        self.assertIn("workspace_path", msg)
+        self.assertIn("regular git checkout", msg)
         self.assertNotIn("submodule", msg)
 
 
@@ -269,18 +269,31 @@ class TestPathHelpersByteUnchanged(unittest.TestCase):
             self.assertEqual(actual, expected_source, "helper %s changed" % name)
 
 
-class TestSettingsSchemaWorkspacePathDoc(unittest.TestCase):
-    """AC3: workspace_path's schema description documents the optional,
-    in-repo-derived default and no longer claims an outside-repo requirement."""
+class TestNoSettingLocatesAnything(unittest.TestCase):
+    """ADR-0102: no setting locates the workspace or a document. The schema
+    carries none of the retired keys, and a stale one in a consumer's file is
+    ignored rather than obeyed."""
 
-    def test_settings_schema_workspace_path_is_documented_as_optional_and_in_repo(self):
-        schema_path = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+    RETIRED = ("workspace_path", "prd_path", "architecture_path", "requirements_path",
+               "requirements_layout", "adr_path", "quality_path", "operations_path",
+               "principles_path", "standards_path", "artifacts", "contracts_path")
+
+    def test_the_schema_declares_none_of_the_retired_keys(self):
+        schema_path = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, "r", encoding="utf-8") as fh:
             schema = json.load(fh)
-        description = schema["properties"]["workspace_path"]["description"]
-        self.assertNotIn("outside the consumer repo", description)
-        self.assertIn("state-machine", description)
-        self.assertNotIn("workspace_path", schema.get("required", []))
+        for key in self.RETIRED:
+            with self.subTest(key=key):
+                self.assertNotIn(key, schema["properties"])
+                self.assertNotIn(key, lib.DEFAULT_SETTINGS)
+
+    def test_a_stale_workspace_path_is_ignored(self):
+        tmp = tempfile.mkdtemp(prefix="acs-test-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        repo = _mkrepo(tmp, "repo")
+        result = lib.validate_settings({"workspace_path": os.path.join(tmp, "elsewhere"),
+                                        "ticket_prefix": "SHOP"}, repo)
+        self.assertEqual(result, os.path.join(repo, ".acs", "state-machine"))
 
 
 class TestRepoPartitionId(unittest.TestCase):
@@ -322,24 +335,11 @@ class TestValidateSettings(unittest.TestCase):
         self.repo = _mkrepo(self.tmp, "repo")
         self.ws = os.path.join(self.tmp, "outside-ws")
 
-    def test_accepts_an_explicit_workspace_path_inside_the_repo(self):
-        inside = os.path.join(self.repo, "ws")
-        result = lib.validate_settings({"workspace_path": inside, "ticket_prefix": "SHOP"}, self.repo)
-        self.assertEqual(result, os.path.abspath(inside))
-
-    def test_expands_user_home_in_an_explicit_override(self):
-        fake_home = os.path.join(self.tmp, "home")
-        os.makedirs(fake_home)
-        with mock.patch.dict(os.environ, {"HOME": fake_home}):
-            result = lib.validate_settings({"workspace_path": "~/ws", "ticket_prefix": "SHOP"}, self.repo)
-            expected = os.path.abspath(os.path.expanduser("~/ws"))
-        self.assertEqual(result, expected)
-
-    def test_derives_the_in_repo_default_when_workspace_path_is_absent(self):
+    def test_derives_the_in_repo_workspace(self):
         result = lib.validate_settings({"ticket_prefix": "SHOP"}, self.repo)
         self.assertEqual(result, os.path.join(self.repo, ".acs", "state-machine"))
 
-    def test_absent_workspace_path_in_a_bare_repo_raises_gate_error(self):
+    def test_a_bare_repo_raises_gate_error(self):
         bare = os.path.join(self.tmp, "bare.git")
         subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
         with self.assertRaises(lib.GateError):
@@ -356,7 +356,7 @@ class TestValidateSettings(unittest.TestCase):
 
     def test_rejects_missing_and_lowercase_ticket_prefix(self):
         for prefix in (None, "", "shop"):
-            settings = {"workspace_path": self.ws}
+            settings = {}
             if prefix is not None:
                 settings["ticket_prefix"] = prefix
             with self.assertRaises(lib.GateError) as ctx:
@@ -365,14 +365,14 @@ class TestValidateSettings(unittest.TestCase):
 
     def test_rejects_out_of_range_coverage_percent(self):
         for bad in (150, 0, "ninety"):
-            settings = {"workspace_path": self.ws, "ticket_prefix": "SHOP",
+            settings = {"ticket_prefix": "SHOP",
                         "test_coverage_percent": bad}
             with self.assertRaises(lib.GateError) as ctx:
                 lib.validate_settings(settings, self.repo)
             self.assertIn("test_coverage_percent", str(ctx.exception))
 
     def test_rejects_unknown_merge_strategy(self):
-        settings = {"workspace_path": self.ws, "ticket_prefix": "SHOP",
+        settings = {"ticket_prefix": "SHOP",
                      "merge_strategy": "octopus"}
         with self.assertRaises(lib.GateError) as ctx:
             lib.validate_settings(settings, self.repo)
@@ -380,14 +380,14 @@ class TestValidateSettings(unittest.TestCase):
 
     def test_rejects_blank_e2e_setup_and_teardown(self):
         for key in ("setup", "teardown"):
-            settings = {"workspace_path": self.ws, "ticket_prefix": "SHOP",
+            settings = {"ticket_prefix": "SHOP",
                         "e2e": {"command": "run", key: "  "}}
             with self.assertRaises(lib.GateError) as ctx:
                 lib.validate_settings(settings, self.repo)
             self.assertIn("e2e.%s" % key, str(ctx.exception))
 
     def test_rejects_non_boolean_e2e_per_iteration(self):
-        settings = {"workspace_path": self.ws, "ticket_prefix": "SHOP",
+        settings = {"ticket_prefix": "SHOP",
                      "e2e": {"command": "run", "per_iteration": "yes"}}
         with self.assertRaises(lib.GateError) as ctx:
             lib.validate_settings(settings, self.repo)
@@ -407,7 +407,7 @@ class TestHookGatesSetting(unittest.TestCase):
         self.ws = os.path.join(self.tmp, "outside-ws")
 
     def base(self, hook_gates):
-        return {"workspace_path": self.ws, "ticket_prefix": "SHOP", "hook_gates": hook_gates}
+        return {"ticket_prefix": "SHOP", "hook_gates": hook_gates}
 
     def test_hook_gates_defaults_to_warn(self):
         self.assertEqual(lib.DEFAULT_SETTINGS["hook_gates"], {"when_absent": "warn"})
@@ -433,7 +433,7 @@ class TestHookGatesSetting(unittest.TestCase):
             self.assertIn("hook_gates", str(ctx.exception))
 
     def test_schema_declares_the_enum(self):
-        schema_path = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+        schema_path = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, "r", encoding="utf-8") as fh:
             schema = json.load(fh)
         hook_gates = schema["properties"]["hook_gates"]

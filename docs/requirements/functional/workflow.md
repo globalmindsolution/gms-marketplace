@@ -4,10 +4,10 @@
 
 The `acs` plugin implements a multi-step delivery workflow. Every skill
 declares its own **phase** — design, build, test, ship, utility — in
-`src/acs/skills/<name>/acs.yaml`, beside the artifacts it reads and writes.
+`plugins/acs/skills/<name>/acs.yaml`, beside the artifacts it reads and writes.
 There is no registry file: the surfaces that need the grouping read the skill
 directories. The ORDER in which a ticket's build/test/ship steps run is
-**declared data, not hook code**: it lives in `src/acs/workflows/ship.yaml`,
+**declared data, not hook code**: it lives in `plugins/acs/workflows/ship.yaml`,
 which a consumer repo MAY replace wholesale with
 `<repo>/.acs/workflows/ship.yaml` (an override, never a merge).
 
@@ -58,7 +58,7 @@ passes; swap two whose order does and it names the pair and the line.
 | — `/create-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
 | `analyze-requirements` | build | Read the subject, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict. A not-ready analysis returns `needs_input`. |
 | `create-impl-plan` | build | The plan phase carved out of `/code`: the executor's survey, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. **It also judges the delivery path**, once, from the plan's own scope, and writes it into the plan's `## Contract` block (ADR-0098). |
-| `create-api-contract` | build | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files under `contracts_path` when the repo keeps them. Records an evidenced no-op when the Contract says `owes.api_contract: false`. |
+| `create-api-contract` | build | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files where the repo keeps them (else `docs/api/`). Records an evidenced no-op when the Contract says `owes.api_contract: false`. |
 | `create-test-docs` | build | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. Records an evidenced no-op when the Contract says `owes.test_cases: false`. |
 | `code` | build | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. It dispatches to the delivery-path leg the plan recorded. **It has no verifier, does not judge the changeset, and never runs the full suite** — targeted tests only. |
 | `review-code` | build | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding, then a final gate running build, lint, the full unit suite and coverage. **The only place the full suite runs.** Blocking findings re-enter at `code` through the workflow's single loop — see [Review feedback loop](#review-feedback-loop). |
@@ -107,18 +107,17 @@ an epic do **not** repeat design: they inherit the parent epic's `design.md`.
 The workflow reads and writes two distinct stores, and a requirement in this
 document belongs to exactly one of them:
 
-- **The repo docs tree** — `<repo>/<settings.artifacts.tickets_path>/<ID>/`
-  (default `docs/tickets/<ID>/`) holds the **human-facing ticket documents**:
-  `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`,
-  `test-cases.md`. They are committed on the ticket branch and reviewed in
-  the PR like any other doc. Setting `artifacts.tickets_path` to `null`
-  keeps every one of them in the workspace partition instead, exactly as
-  before this split.
+- **The repo docs tree** — `<repo>/docs/tickets/<ID>/`, a fixed location
+  with no setting and no opt-out
+  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)), holds the
+  **human-facing ticket documents**: `ticket.md`, `design.md`,
+  `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`. They are
+  committed on the ticket branch and reviewed in the PR like any other doc.
 - **The workspace run** — `<workspace>/<repo>/runs/<run-id>/` holds the **run
   ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
   machine), each step's `result.json` and its `iter-<n>/` audit trail,
   `subject/`, `requirements.md`, verdicts, `lock.json`,
-  `clarifications.json`, and the repo-level index/metrics files
+  `clarifications.json`, and the repo-level index files
   ([workspace-and-state.md](workspace-and-state.md)). The run is keyed by the
   **run id**, which is derived from the subject — a ticket id when there is
   one, otherwise a slug of the prompt or document (ADR-0097).
@@ -135,7 +134,8 @@ job is to make sure the skill it guards can do its work at all, and to stop a
 run that would be unsafe.
 
 - Each hooked skill MUST be guarded by a **pre-hook**. Readiness means, at
-  minimum: the `.acs` `settings.json` resolves, the run resolves, no other
+  minimum: the settings validate (no `.acs/settings.json` is needed — every
+  key has a default, ADR-0105), the run resolves, no other
   session holds the run's lock, and every **input artifact the skill itself
   reads** exists. Examples: `/code` requires an approved `plan.md`;
   `/create-architecture` requires the PRD doc set.
@@ -230,8 +230,8 @@ every skill's transcript in one context:
 - The `/ship` coordinator **invokes each step skill directly in its own
   context** (it holds the Agent tool the step needs to spawn its own
   executor/verifier). Between steps it reads only `run.json`, the subject's
-  own document (`ticket.md` in the docs tree, or `ticket.json` when
-  `artifacts.tickets_path` is `null`), the output of `acs.py run next`, and
+  own document (`ticket.md` in the docs tree), the output of
+  `acs.py run next`, and
   the step's handoff / `result.json` — never the step's transcript — so its
   own context stays small.
   - A session that runs out of context anyway ends the in-flight step
@@ -432,8 +432,8 @@ when it detects its context window running low — never burn the last of the
 context on work that would be lost with the session.
 
 Scope: handoff targets a new session on the **same machine/checkout** — the
-state machine lives in the repo's main checkout at `.acs/state-machine/`, or
-at an explicit `workspace_path` override (ADR-0086). Cross-machine handoff
+state machine lives in the repo's main checkout at `.acs/state-machine/`,
+with no override (ADR-0086). Cross-machine handoff
 would require a shared or synced workspace — out of scope for now.
 
 ## Parallel work
@@ -466,14 +466,18 @@ would require a shared or synced workspace — out of scope for now.
 
 Tickets flow through the pipeline; the **product architecture doc set** —
 bootstrapped by the product-level `/create-architecture` skill
-([skills.md](skills.md)) at `architecture_path` in the consumer repo —
-is the stable frame around it.
+([skills.md](skills.md)) wherever the consumer repo keeps it, else at
+`docs/architecture/` — is the stable frame around it. Every skill finds
+these documents the way any session does, through `CLAUDE.md` and the repo
+itself, rather than through a setting
+([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 
-Above the architecture sits the **PRD** (`prd_path`, bootstrapped and
-amended by `/create-prd`): vision, goals with success metrics, prioritized
-features, and product-level NFRs. The architecture is designed and verified
-to satisfy it, and `/create-ticket` traces tickets to its features —
-flagging any requested capability that diverges from it.
+Above the architecture sits the **PRD** (found the same way, else
+`docs/product/prd.md`; bootstrapped and amended by `/create-prd`): vision,
+goals with success metrics, prioritized features, and product-level NFRs.
+The architecture is designed and verified to satisfy it, and
+`/create-ticket` traces tickets to its features — flagging any requested
+capability that diverges from it.
 
 - **Input**: `/create-ticket` reads the PRD and the architecture doc set
   when analyzing requirements; `/create-design` designs against the doc
@@ -499,7 +503,7 @@ The conformance chain is **PRD → architecture → principles → standards →
 
 Per-ticket specs are change-deltas and are archived with their tickets; the
 **current** behavioral contract of the product accumulates in the living
-requirements doc set (`requirements_path`, default `docs/requirements/`, one
+requirements doc set (found in the repo, default `docs/requirements/`, one
 markdown file per feature area):
 
 - **Input**: `/create-ticket` reads the touched areas'
@@ -524,8 +528,9 @@ markdown file per feature area):
 For a greenfield product, the product-level skills run before the first
 ticket:
 
-1. Create the empty git repo (user) and run **`/setup`** (workspace +
-   settings).
+1. Create the empty git repo (user). Nothing else is needed first;
+   **`/setup`** is optional, for changing the conventions or installing the
+   CI gates.
 2. **`/create-prd`** — elicit the product definition from the user: vision,
    problem, personas, goals with success metrics, prioritized features,
    product-level NFRs, constraints; shipped as the PRD doc set.

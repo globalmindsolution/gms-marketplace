@@ -30,48 +30,41 @@ python3 -m coverage report
 
 ## Exclusions
 
-Coverage is measured over two trees: `src/acs/hooks/scripts` — the hook/CLI
-layer, `.coveragerc`'s `[run] source` — plus `src/acs-evals/behavioural/`,
-added as a `[run] source_dirs` entry (MAR-575; the tree lived at `evals/`
-until it was folded into `src/acs-evals/`, and the same files are measured
-either way). The behavioural tree is in the denominator because the eval
-harness is what decides whether a paid run's misses are real findings, and it
-has deterministic tests under `tests/acs/` that must not be allowed to rot; it
-is a `source_dirs` entry rather than a second `source` line because
-`tests/acs/test_coverage_measurement_config.py` pins `source` and `omit` to
-exact values, and the hook-scripts path stays the single pinned one it has
-always been. `src/acs/skills/**` prose and the `tests/**` tree themselves
-remain unmeasured. Within the hook/CLI source, `.coveragerc`'s `omit` list
-excludes the **39** pre-`*`/post-`*` argument-forwarder scripts (20 `pre-*`,
-19 `post-*` — e.g. `pre-code.py`, each about 6 statements: a `sys.path`
-insert, an import, and a `run_pre`/`run_post` call, no `def main()` of their
-own); adding the behavioural tree changed nothing about that list and added
-**no** omit entry for the eval scenario drivers. `post-merge-pr.py` is
-deliberately **not** omitted: it has a real `--pr` branch and is measured,
-currently at 21 statements / 100%.
+Coverage is measured over one tree: `plugins/acs/hooks/scripts` — the hook/CLI
+layer, `.coveragerc`'s `[run] source`. `plugins/acs/skills/**` prose, the eval
+case files under `plugins/acs/evals/` (Markdown and YAML — data, not code) and
+the `tests/**` tree remain unmeasured. Within that source, `.coveragerc`'s
+`omit` list excludes the **39** pre-`*`/post-`*` argument-forwarder scripts
+(20 `pre-*`, 19 `post-*` — e.g. `pre-code.py`, each about 6 statements: a
+`sys.path` insert, an import, and a `run_pre`/`run_post` call, no `def main()`
+of their own). `post-merge-pr.py` is deliberately **not** omitted: it has a real
+`--pr` branch and is measured, currently at 21 statements / 100%.
 
-`src/acs-evals/behavioural/` contributes 966 of the 10782 measured statements
-and 199 of the 598 missed (measured 2026-09-17; unchanged in absolute terms by
-ADR-0095, which touched the plugin rather than the scenario drivers — so its
-SHARE of the missed total rose, which is the same headroom finding the tabp
-removal produced, reading louder; the tree was 1140 of 10925 and 317 of 702 with `behavioural/tabp/`
-still in it). Split by each scenario module's declared `META["tier"]`, those
-199 are **90** in free-tier drivers — deterministic, and run by the
-`acs-free-evals` pre-commit hook whenever `src/acs/` or
-`src/acs-evals/behavioural/` change, just never in-process under the unit
-suite — **28** in paid-tier drivers, **5** in forge-tier drivers, **59** in
-`src/acs-evals/behavioural/acs/harness.py` itself and **17** in the two
-`run_evals.py` runners (the dispatcher and acs's own).
+**Measured 2026-09-23: 10365 statements, 651 missed, TOTAL 94%.** Re-derive with
+the gate command below; a figure here is a snapshot, the command is the truth.
 
-Note where that leaves the headroom, because the removal moved it: the
-free tier is now the largest block of missed statements in the eval layer, not
-the paid one. The three free drivers are $0 and deterministic — they simply run
-out-of-process under the pre-commit hook rather than in-process under
-`unittest`. If TOTAL ever drops under the floor, the remedy is a unit path for
-those drivers, not an `omit`:
-[ADR 0071](../adr/0071-coverage-omit-true-forwarder-shims-only.md) restricts
-`omit` to true argument-forwarder shims, and PRD **G3** requires the target be
-met or hard-failed, never silently waived.
+### The behavioural harness is no longer measured
+
+Until 2026-09-23 a second tree was measured too: `evals/behavioural/`, the
+Python behavioural-eval harness, as a `[run] source_dirs` entry (MAR-575). It
+was retired when the eval suite moved to `claude plugin eval` case files, and
+its `source_dirs` line went with it — deliberately removed rather than left
+pointing at an empty path, because a missing `source_dirs` path does not error:
+coverage silently measures nothing for it.
+
+Removing it **raised** TOTAL, from 92% to 94%, and that was predicted rather
+than hoped for: the harness was measured below the rest of the source. On
+2026-09-17 it contributed 966 of 10782 measured statements but 199 of the 598
+missed — about 79% covered, against roughly 96% for the hook/CLI layer — mostly
+in free-tier scenario drivers that ran out-of-process under a pre-commit hook
+and so earned no in-process credit. Taking out a tree covered below the average
+lifts the average.
+
+The headroom that finding pointed at is gone with it. If TOTAL ever drops under
+the floor, the remedy is still a unit path for the uncovered code, not an
+`omit`: [ADR 0071](../adr/0071-coverage-omit-true-forwarder-shims-only.md)
+restricts `omit` to true argument-forwarder shims, and PRD **G3** requires the
+target be met or hard-failed, never silently waived.
 
 ## Measurement per stack
 

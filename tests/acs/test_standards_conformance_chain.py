@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 
 import evidence_sidecar  # noqa: E402
 
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 CORE = "architecture → principles → standards → design"
 SIX_NODE = ("PRD → architecture → principles → standards → "
@@ -175,17 +175,24 @@ class ChainFullStringExactnessTest(unittest.TestCase):
 
 
 class ContractsMdSettingsKeysTest(unittest.TestCase):
-    """AC-5: contracts.md's Settings key list gains principles_path? and
-    standards_path? after adr_path?."""
+    """AC-5, inverted by ADR-0102: contracts.md's Settings key list once
+    gained principles_path? and standards_path? after adr_path?. No key
+    locates a document now, so the list names neither, and the Settings
+    section says documents are found rather than configured."""
 
-    def test_principles_and_standards_path_keys_present(self):
+    def test_principles_and_standards_path_keys_absent(self):
         body = read(CONTRACTS_MD)
-        self.assertIn("principles_path", body,
-                       "contracts.md Settings key list must mention "
-                       "principles_path")
-        self.assertIn("standards_path", body,
-                       "contracts.md Settings key list must mention "
-                       "standards_path")
+        self.assertNotIn("principles_path", body,
+                         "contracts.md must not list the removed "
+                         "principles_path key (ADR-0102)")
+        self.assertNotIn("standards_path", body,
+                         "contracts.md must not list the removed "
+                         "standards_path key (ADR-0102)")
+
+    def test_settings_section_states_documents_are_found(self):
+        window = norm(section(read(CONTRACTS_MD), "## Settings (consumer repo)"))
+        self.assertIn("No key locates the workspace or a document", window)
+        self.assertIn("0102-documents-are-found-not-configured.md", window)
 
 
 class SkillsMdReviewLensDimensionTest(unittest.TestCase):
@@ -216,10 +223,12 @@ class SkillsMdReviewLensDimensionTest(unittest.TestCase):
 
     def test_bullet_names_standards_source_of_truth(self):
         window = self._bullet_window()
-        self.assertTrue(
-            "standards_path" in window or "`standards/`" in window,
-            "the review stage must name standards_path or `standards/` as "
-            "the re-anchored check's source of truth")
+        # ADR-0102: the set is named by its folder; the standards_path key
+        # that once located it is gone.
+        self.assertIn("`standards/`", window,
+                      "the review stage must name `standards/` as the "
+                      "re-anchored check's source of truth")
+        self.assertNotIn("standards_path", window)
 
 
 class SkillsMdCreateDesignVerifierDimensionTest(unittest.TestCase):
@@ -239,10 +248,9 @@ class SkillsMdCreateDesignVerifierDimensionTest(unittest.TestCase):
 
     def test_bullet_names_standards_source_of_truth(self):
         window = self._bullet_window()
-        self.assertTrue(
-            "standards_path" in window or "`standards/`" in window,
-            "the create-design-verifier bullet must name standards_path or "
-            "`standards/`")
+        self.assertIn("`standards/`", window,
+                      "the create-design-verifier bullet must name `standards/`")
+        self.assertNotIn("standards_path", window)
 
     def test_bullet_keeps_original_checks(self):
         window = self._bullet_window()
@@ -275,10 +283,9 @@ class ReflectionMdDimensionTest(unittest.TestCase):
 
     def test_note_names_standards_source_of_truth(self):
         window = self._note_window()
-        self.assertTrue(
-            "standards_path" in window or "`standards/`" in window,
-            "the reflection.md Note must name standards_path or "
-            "`standards/`")
+        self.assertIn("`standards/`", window,
+                      "the reflection.md Note must name `standards/`")
+        self.assertNotIn("standards_path", window)
 
 
 class ChangelogMar119EntryTest(unittest.TestCase):

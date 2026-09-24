@@ -20,7 +20,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
@@ -115,13 +115,19 @@ class TheFoldTest(unittest.TestCase):
 class DocSetTableTest(unittest.TestCase):
     """acs_lib.DOC_SETS is the one declaration; the prose table mirrors it."""
 
-    def test_four_sets_with_their_settings_keys(self):
+    def test_four_sets_with_their_default_dirs(self):
+        """ADR-0102: a row carries the directory a NEW set is created in, never
+        a settings key -- an existing set is found, not configured."""
         self.assertEqual(list(acs_lib.DOC_SETS), ["quality", "operations", "principles", "standards"])
         for name, row in acs_lib.DOC_SETS.items():
             with self.subTest(set=name):
-                self.assertEqual(row["settings_key"], name + "_path")
+                self.assertEqual(row["default_dir"], "docs/" + name)
+                self.assertNotIn("settings_key", row)
                 self.assertEqual(row["title"], "Product %s doc set" % name)
                 self.assertEqual(row["template_dir"], name)
+        self.assertEqual(acs_lib.DOC_SET_DEFAULT_DIR,
+                         {name: row["default_dir"] for name, row in acs_lib.DOC_SETS.items()})
+        self.assertFalse(hasattr(acs_lib, "DOC_BOOTSTRAP_SETTINGS_KEY"))
 
     def test_every_file_has_a_template_carrying_its_required_sections(self):
         for name, row in acs_lib.DOC_SETS.items():
@@ -147,7 +153,7 @@ class DocSetTableTest(unittest.TestCase):
         for name, row in acs_lib.DOC_SETS.items():
             with self.subTest(set=name):
                 line = next(l for l in table.splitlines() if l.startswith("| `%s` |" % name))
-                self.assertIn("`%s`" % row["settings_key"], line)
+                self.assertIn("`%s`" % row["default_dir"], line)
                 for fname in row["files"]:
                     self.assertIn("`%s`" % fname, line)
                 self.assertIn(row["audience"], line)
@@ -215,26 +221,62 @@ class StartContractTest(unittest.TestCase):
         self.assertRegex(body, r"(?i)run its Start \*\*sequentially\*\* — never concurrently")
         self.assertRegex(body, r"(?i)runs from the \*\*session checkout\*\*")
 
-    def test_eligibility_is_the_declared_predicate(self):
+    def test_start_locates_the_sets_instead_of_reading_settings(self):
+        """ADR-0102: no setting says where a doc set lives, so Start finds each
+        one the way any session does and never names a path key."""
         body = norm(_body())
-        self.assertIn("lib.fanout_batches(settings, tickets_index, root, candidates=request.candidates)", body)
-        self.assertRegex(body, r"(?i)\*\*declared, not inferred\*\* eligibility predicate")
-        self.assertRegex(body, r"(?i)a `null` path is the consumer'?s opt-out")
+        self.assertRegex(body, r"(?i)locate the documents this run reads and writes\. "
+                               r"No setting says where they live")
+        self.assertIn("CLAUDE.md", body)
+        for key in ("prd_path", "architecture_path", "quality_path", "operations_path",
+                    "principles_path", "standards_path", "settings_key"):
+            with self.subTest(key=key):
+                self.assertNotIn(key, body)
 
-    def test_a_null_principles_path_never_stops_standards(self):
+    def test_eligibility_is_the_declared_predicate(self):
+        """Presence is the coordinator's Start finding, handed in as `present`;
+        the `null`-path opt-out is gone with the path settings (ADR-0102)."""
         body = norm(_body())
-        self.assertRegex(body, r"(?i)A `null` `principles_path` never stops a `standards` run")
+        self.assertIn("lib.fanout_batches(tickets_index, candidates=request.candidates, present=present)",
+                      body)
+        self.assertRegex(body, r"(?i)\*\*declared, not inferred\*\* eligibility predicate")
+        self.assertRegex(body, r"(?i)`present` is what you found at Start")
+        self.assertRegex(body, r"(?i)There is no per-set opt-out")
+        self.assertNotRegex(body, r"(?i)`null` path")
+
+    def test_a_missing_principles_set_never_stops_standards(self):
+        body = norm(_body())
+        self.assertRegex(body, r"(?i)A repo with no principles set never stops a `standards` run")
         self.assertRegex(body, r"(?i)Graceful degradation \(mandatory\)")
 
-    def test_the_gate_ran_once_for_every_set(self):
+    def test_the_precondition_is_checked_once_at_start_for_every_set(self):
+        """ADR-0102 moved the architecture precondition out of the pre-hook:
+        the skill checks it at Start, once, and states the refusal itself."""
         body = norm(_body())
-        self.assertRegex(body, r"(?i)`pre-create-docs.py` gates the Skill call on the architecture doc set, once")
-        self.assertRegex(body, r"(?i)checked by the pre-hook before any set started")
+        self.assertRegex(body, r"(?i)you check the architecture doc set yourself at Start, once, "
+                               r"for every set you go on to run")
+        self.assertIn("None found → STOP: \"no architecture doc set found (expected "
+                      "hld/tech-stack.md) — run /acs:create-architecture first.\"", body)
+        self.assertRegex(body, r"(?i)was checked at Start before any set started")
+        self.assertNotRegex(body, r"(?i)`pre-create-docs.py` gates the Skill call on the architecture")
 
-    def test_the_start_snippet_prints_the_table_and_paths(self):
+    def test_the_start_snippet_prints_the_table_and_default_dirs(self):
         body = _body()
         self.assertIn('"doc_sets": lib.DOC_SETS', body)
         self.assertIn('"resume": request.resume', body)
+        self.assertIn('"default_dirs": lib.DOC_SET_DEFAULT_DIR', body)
+        self.assertIn('python3 - "$ARGUMENTS" "<comma-separated present sets>"', body)
+        self.assertNotIn('"paths":', body)
+
+    def test_the_start_snippet_names_only_real_acs_lib_attributes(self):
+        """The snippet once called `lib.DEFAULT_MAX_PARALLEL`, which acs_lib
+        never defined -- a crash at Start. Every `lib.<name>` it uses exists."""
+        m = re.search(r'python3 - "\$ARGUMENTS".*?\nPY\n', _body(), re.DOTALL)
+        self.assertIsNotNone(m, "the Start snippet was not found")
+        for attr in sorted(set(re.findall(r"\blib\.(\w+)", m.group(0)))):
+            with self.subTest(attr=attr):
+                self.assertTrue(hasattr(acs_lib, attr),
+                                "the Start snippet calls lib.%s, which acs_lib does not define" % attr)
 
     def test_hook_bypass_language_absent(self):
         body = norm(_body())
@@ -246,7 +288,10 @@ class ConcurrencyAndWorktreeTest(unittest.TestCase):
     def test_cap_is_max_parallel(self):
         body = norm(_body())
         self.assertRegex(body, r"run \*\*at most 2\*\* sets concurrently")
-        self.assertIn("DEFAULT_MAX_PARALLEL", body)
+        # The cap is the skill's own (ship.yaml carries no max_parallel since
+        # ADR-0096): the snippet states it, never a lib constant.
+        self.assertIn("max_parallel = 2", body)
+        self.assertNotIn("DEFAULT_MAX_PARALLEL", body)
 
     def test_worktree_per_set_detached(self):
         body = _body()
@@ -270,9 +315,9 @@ class DeliveryTest(unittest.TestCase):
         self.assertRegex(body, r"(?i)one independent delivery ticket and one independent docs-only PR \*\*per set\*\*")
         self.assertRegex(body, r"(?i)never one shared branch, never a combined PR")
 
-    def test_stages_only_the_set_path_and_asserts_docs_only(self):
+    def test_stages_only_the_set_location_and_asserts_docs_only(self):
         body = norm(_body())
-        self.assertRegex(body, r"(?i)stage ONLY `<path>/` and verify the diff is docs-only")
+        self.assertRegex(body, r"(?i)stage ONLY `<location>/` and verify the diff is docs-only")
 
     def test_delivery_pattern_sentence_matches_the_sibling_product_skills(self):
         self.assertIn("/acs:create-design and /acs:code are not involved):", _body())

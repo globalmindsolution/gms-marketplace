@@ -1,4 +1,4 @@
-"""Tests for src/acs/hooks/scripts/release_notes.py (MAR-129 spec 01, settings-driven amendment;
+"""Tests for plugins/acs/hooks/scripts/release_notes.py (MAR-129 spec 01, settings-driven amendment;
 MAR-306 adds the git-history fallback for tickets merged without an archive entry).
 
 Pure stdlib (unittest, tempfile, json, os, subprocess, contextlib, unittest.mock). Drives the
@@ -22,7 +22,7 @@ from unittest import mock
 
 _SCRIPTS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "src", "acs", "hooks", "scripts",
+    "plugins", "acs", "hooks", "scripts",
 )
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
@@ -31,7 +31,7 @@ release_notes = importlib.import_module("release_notes")
 
 
 # ---------------------------------------------------------------------------
-# Fixture builders — mirror test_metrics_aggregate.py's synthesis style
+# Fixture builders
 # ---------------------------------------------------------------------------
 
 MARKETPLACE = {
@@ -61,14 +61,14 @@ CHANGELOG_TEMPLATE = (
 PROFILE1_CONFIG = {
     "version_locations": [
         {"file": ".claude-plugin/marketplace.json", "pointer": "/version"},
-        {"file": "src/acs/.claude-plugin/plugin.json", "pointer": "/version"},
+        {"file": "plugins/acs/.claude-plugin/plugin.json", "pointer": "/version"},
     ],
     "extra_refs": [
         {"file": ".claude-plugin/marketplace.json",
          "selector": {"pointer": "/plugins", "match": {"name": "acs"}, "set": "source/ref"},
          "value_format": "v{version}"},
     ],
-    "changelog_path": "src/acs/CHANGELOG.md",
+    "changelog_path": "plugins/acs/CHANGELOG.md",
     "tag_format": "v{version}",
     "base_branch": "main",
     "release_branch_format": "release/v{version}",
@@ -106,9 +106,9 @@ def make_repo(root, changelog_text=CHANGELOG_TEMPLATE, marketplace=None, plugin=
               init_git=True, with_origin=True, base_branch="main"):
     """Build a scratch consumer-repo checkout: manifests (+ optional CHANGELOG, git, bare origin)."""
     _write_json(os.path.join(root, ".claude-plugin", "marketplace.json"), marketplace or MARKETPLACE)
-    _write_json(os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json"), plugin or PLUGIN)
+    _write_json(os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json"), plugin or PLUGIN)
     if changelog_text is not None:
-        _write_text(os.path.join(root, "src", "acs", "CHANGELOG.md"), changelog_text)
+        _write_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"), changelog_text)
     if init_git:
         _run(["git", "init", "-q"], root)
         _run(["git", "config", "user.email", "t@example.com"], root)
@@ -308,7 +308,7 @@ class MissingOrMalformedFilesTest(unittest.TestCase):
     def test_missing_manifest_exits_2_for_all_three_subcommands(self):
         with TemporaryDirectory() as tmp:
             root = make_repo(os.path.join(tmp, "repo"))
-            os.remove(os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json"))
+            os.remove(os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json"))
             workspace = os.path.join(tmp, "ws")
 
             code, _out, err = run_cli(
@@ -392,14 +392,14 @@ class ReleaseConfigValidationTest(unittest.TestCase):
             workspace = os.path.join(tmp, "ws")
             paths = {
                 "market": os.path.join(root, ".claude-plugin", "marketplace.json"),
-                "plugin": os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json"),
-                "changelog": os.path.join(root, "src", "acs", "CHANGELOG.md"),
+                "plugin": os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json"),
+                "changelog": os.path.join(root, "plugins", "acs", "CHANGELOG.md"),
             }
             before = {k: _read_text(p) for k, p in paths.items()}
 
             bad_config = dict(PROFILE1_CONFIG, version_locations=[
                 {"file": ".claude-plugin/marketplace.json", "pointer": "/version"},
-                {"file": "src/acs/.claude-plugin/plugin.json", "pointer": "/nonexistent"},
+                {"file": "plugins/acs/.claude-plugin/plugin.json", "pointer": "/nonexistent"},
             ])
             with mock_gh(None):
                 code, _out, err = run_cli([
@@ -576,8 +576,8 @@ class BumpAtomicityTest(unittest.TestCase):
             )
             workspace = os.path.join(tmp, "ws")
             market_path = os.path.join(root, ".claude-plugin", "marketplace.json")
-            plugin_path = os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json")
-            changelog_path = os.path.join(root, "src", "acs", "CHANGELOG.md")
+            plugin_path = os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json")
+            changelog_path = os.path.join(root, "plugins", "acs", "CHANGELOG.md")
             before = {p: _read_text(p) for p in (market_path, plugin_path, changelog_path)}
             before_mtimes = {p: os.path.getmtime(p) for p in before}
 
@@ -616,13 +616,13 @@ class BumpAtomicityTest(unittest.TestCase):
             self.assertFalse(result["already_at_target"])
             self.assertEqual(sorted(result["files_changed"]), sorted([
                 ".claude-plugin/marketplace.json",
-                "src/acs/.claude-plugin/plugin.json",
-                "src/acs/CHANGELOG.md",
+                "plugins/acs/.claude-plugin/plugin.json",
+                "plugins/acs/CHANGELOG.md",
             ]))
 
             market = json.loads(_read_text(os.path.join(root, ".claude-plugin", "marketplace.json")))
             plugin = json.loads(_read_text(
-                os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json")))
+                os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json")))
             self.assertEqual(market["version"], "0.4.2")
             self.assertEqual(plugin["version"], "0.4.2")
             acs_entry = next(p for p in market["plugins"] if p["name"] == "acs")
@@ -646,6 +646,61 @@ class BumpAtomicityTest(unittest.TestCase):
             self.assertEqual(_read_text(market_path), before)
 
 
+class VersionLocationShorthandTest(unittest.TestCase):
+    """A bare path in `version_locations` means `{file: <path>, pointer: "/version"}`."""
+
+    SHORTHAND_CONFIG = dict(PROFILE1_CONFIG, version_locations=[
+        ".claude-plugin/marketplace.json",
+        "plugins/acs/.claude-plugin/plugin.json",
+    ])
+
+    def test_a_bare_path_expands_to_the_version_pointer(self):
+        config = {"version_locations": ["a.json", {"file": "b.json", "pointer": "/meta/version"}]}
+        expanded = release_notes.expand_version_locations(config)
+        self.assertEqual(expanded["version_locations"], [
+            {"file": "a.json", "pointer": "/version"},
+            {"file": "b.json", "pointer": "/meta/version"},
+        ])
+        self.assertEqual(config["version_locations"][0], "a.json",
+                         "the caller's config must not be mutated")
+
+    def test_the_object_form_is_returned_unchanged(self):
+        self.assertIs(release_notes.expand_version_locations(PROFILE1_CONFIG), PROFILE1_CONFIG)
+
+    def test_bump_writes_the_same_bytes_as_the_object_form(self):
+        written = []
+        for config in (PROFILE1_CONFIG, self.SHORTHAND_CONFIG):
+            with TemporaryDirectory() as tmp:
+                root = make_repo(os.path.join(tmp, "repo"))
+                workspace = os.path.join(tmp, "ws")
+                write_archive_ticket(workspace, "MAR-1", title="Add thing")
+                with mock_gh(None):
+                    result = release_notes.bump(
+                        "0.4.2", root, workspace, config, today="2026-07-19")
+                self.assertTrue(result["ok"])
+                written.append({f: _read_text(os.path.join(root, f))
+                                for f in sorted(result["files_changed"])})
+        self.assertEqual(written[0], written[1])
+
+    def test_the_cli_accepts_bare_paths(self):
+        with TemporaryDirectory() as tmp:
+            root = make_repo(os.path.join(tmp, "repo"))
+            with mock_gh(None):
+                code, out, err = run_cli([
+                    "status", "--version", "0.4.2", "--repo-root", root,
+                ] + rc_args(self.SHORTHAND_CONFIG))
+            self.assertEqual(code, 0, err)
+            self.assertFalse(json.loads(out)["manifests_at_target"])
+
+    def test_an_entry_that_is_neither_a_path_nor_an_object_is_refused(self):
+        with TemporaryDirectory() as tmp:
+            for bad in (42, "", "/etc/version.json", "../outside.json"):
+                with self.subTest(entry=bad):
+                    config = dict(PROFILE1_CONFIG, version_locations=[bad])
+                    with self.assertRaises(release_notes.ReleaseNotesError):
+                        release_notes.validate_release_config(config, tmp)
+
+
 # ---------------------------------------------------------------------------
 # R-A2 (REQUIRED) — byte-equal profile-#1 regression (design.md:1291-1298)
 # ---------------------------------------------------------------------------
@@ -665,8 +720,8 @@ class ProfileOneByteEqualRegressionTest(unittest.TestCase):
                 release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
 
             market_path = os.path.join(root, ".claude-plugin", "marketplace.json")
-            plugin_path = os.path.join(root, "src", "acs", ".claude-plugin", "plugin.json")
-            changelog_path = os.path.join(root, "src", "acs", "CHANGELOG.md")
+            plugin_path = os.path.join(root, "plugins", "acs", ".claude-plugin", "plugin.json")
+            changelog_path = os.path.join(root, "plugins", "acs", "CHANGELOG.md")
 
             golden_market = {
                 "name": "gms-marketplace",
@@ -1045,7 +1100,7 @@ class ChangelogStructureTest(unittest.TestCase):
             with mock_gh(None):
                 release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG, today="2026-07-19")
 
-            text = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+            text = _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"))
             unreleased_idx = text.index("## [Unreleased]")
             new_idx = text.index("## [0.4.2] - 2026-07-19")
             prior_idx = text.index("## [0.4.1] - 2026-07-12")
@@ -1077,7 +1132,7 @@ class ChangelogStructureTest(unittest.TestCase):
                 release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
                                    today="2026-07-19", unreleased="replace")
 
-            text = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+            text = _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"))
             self.assertNotIn("Some pending notes.", text)
             self.assertIn("Add a widget", text)
 
@@ -1087,7 +1142,7 @@ class ChangelogStructureTest(unittest.TestCase):
             root = self._repo_with_unreleased_body(tmp)
             workspace = os.path.join(tmp, "ws")
             write_archive_ticket(workspace, "MAR-1", title="Add a widget")
-            before = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+            before = _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"))
 
             with mock_gh(None):
                 with self.assertRaises(release_notes.ReleaseNotesError) as caught:
@@ -1096,7 +1151,7 @@ class ChangelogStructureTest(unittest.TestCase):
 
             self.assertIn("--unreleased promote", str(caught.exception))
             self.assertEqual(
-                before, _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+                before, _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md")))
 
     def test_promote_publishes_the_body_under_the_dated_heading(self):
         with TemporaryDirectory() as tmp:
@@ -1109,7 +1164,7 @@ class ChangelogStructureTest(unittest.TestCase):
                 release_notes.bump("0.4.2", root, workspace, PROFILE1_CONFIG,
                                    today="2026-07-19", unreleased="promote")
 
-            text = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+            text = _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"))
             self.assertIn("a widget, described properly", text)
             dated = text.index("## [0.4.2] - 2026-07-19")
             self.assertLess(text.index("## [Unreleased]"), dated)
@@ -1127,7 +1182,7 @@ class ChangelogStructureTest(unittest.TestCase):
             workspace = os.path.join(tmp, "ws")
             write_archive_ticket(workspace, "MAR-1", title="Add a widget")
             write_archive_ticket(workspace, "MAR-2", title="Add another widget")
-            before = _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md"))
+            before = _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md"))
 
             with mock_gh(None):
                 with self.assertRaises(release_notes.ReleaseNotesError) as caught:
@@ -1136,7 +1191,7 @@ class ChangelogStructureTest(unittest.TestCase):
 
             self.assertIn("MAR-2", str(caught.exception))
             self.assertEqual(
-                before, _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+                before, _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md")))
 
     def test_an_empty_body_needs_no_mode(self):
         with TemporaryDirectory() as tmp:
@@ -1150,7 +1205,7 @@ class ChangelogStructureTest(unittest.TestCase):
 
             self.assertTrue(out["ok"])
             self.assertIn("Add a widget",
-                          _read_text(os.path.join(root, "src", "acs", "CHANGELOG.md")))
+                          _read_text(os.path.join(root, "plugins", "acs", "CHANGELOG.md")))
 
     def test_an_invalid_mode_is_refused(self):
         with TemporaryDirectory() as tmp:
@@ -1184,7 +1239,7 @@ class StatusSignalsTest(unittest.TestCase):
             _write_json(third_path, {"version": "0.4.1"})
             config3 = dict(PROFILE1_CONFIG, version_locations=[
                 {"file": ".claude-plugin/marketplace.json", "pointer": "/version"},
-                {"file": "src/acs/.claude-plugin/plugin.json", "pointer": "/version"},
+                {"file": "plugins/acs/.claude-plugin/plugin.json", "pointer": "/version"},
                 {"file": "extra-version.json", "pointer": "/version"},
             ])
             with mock_gh(None):

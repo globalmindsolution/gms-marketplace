@@ -41,8 +41,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-HOOKS_JSON = os.path.join(REPO_ROOT, "src", "acs", "hooks", "hooks.json")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+HOOKS_JSON = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -157,8 +157,8 @@ class GateEvidenceTest(EvidenceCase):
 
 
 class EvidenceHoldsNoAttributionTest(EvidenceCase):
-    """Verifier checklist item 2, and the reason revision 2 exists: the artifact
-    cannot corrupt cost attribution because it carries none."""
+    """Verifier checklist item 2: the artifact carries no correlation field --
+    it records that the gate fired, nothing else."""
 
     def test_the_written_artifact_has_no_correlation_fields(self):
         ctx = self.context()
@@ -167,59 +167,12 @@ class EvidenceHoldsNoAttributionTest(EvidenceCase):
         for field in ("session_id", "transcript_path", "cwd"):
             self.assertNotIn(field, on_disk)
 
-    def test_the_artifact_is_not_the_session_marker(self):
-        ctx = self.context()
-        self.assertNotEqual(
-            self.gate_path(ctx),
-            lib.session_marker_path(
-                ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-
-
-class SessionMarkerIsUntouchedTest(EvidenceCase):
-    """Verifier checklist item 1, as a behavioural guard rather than a diff
-    check: recording gate evidence must not write, refresh or revive the
-    session marker. Revision 1 broke attribution three separate ways here."""
-
-    def seed_attributed_marker(self, fired_at=None):
-        payload = {"session_id": "REAL", "transcript_path": "/tmp/real.jsonl",
-                   "cwd": self.repo, "hook_event_name": "PreToolUse",
-                   "tool_input": {"skill": "acs:create-ticket"}}
-        marker = lib.record_session_marker(self.context(), payload)
-        if fired_at is not None:
-            marker["updated_at"] = fired_at
-            lib.write_json(
-                lib.session_marker_path(self.context()["workspace"],
-                                        self.context()["repo_id"],
-                                        self.context()["checkout_id"]), marker)
-        return marker
-
-    def test_record_session_marker_takes_no_skill_argument(self):
-        """The gate no longer threads its entry point through the marker."""
-        import inspect
-        params = list(inspect.signature(lib.record_session_marker).parameters)
-        self.assertEqual(params, ["ctx", "payload"])
-
-    def test_recording_evidence_leaves_a_stale_marker_stale(self):
-        """The defect that shipped in revision 1: a fire refreshed updated_at,
-        so an expired correlation was resurrected instead of ageing out."""
-        ctx = self.context()
-        stale = iso_ago(lib.SESSION_MARKER_MAX_AGE_SECONDS + 300)
-        self.seed_attributed_marker(fired_at=stale)
-        lib.record_gate_evidence(ctx, "code")
-        marker, reason = lib.accepted_session_marker(ctx)
-        self.assertIsNone(marker)
-        self.assertEqual(reason, "marker_stale")
-
-    def test_recording_evidence_leaves_the_correlation_pair_coherent(self):
-        """The other revision-1 defect: transcript_path was replaced while
-        session_id survived, so a run was billed to a different session."""
-        ctx = self.context()
-        self.seed_attributed_marker()
-        lib.record_gate_evidence(ctx, "code")
-        marker = lib.read_json(lib.session_marker_path(
-            ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]))
-        self.assertEqual(marker["session_id"], "REAL")
-        self.assertEqual(marker["transcript_path"], "/tmp/real.jsonl")
+    def test_the_session_marker_it_was_split_from_is_gone(self):
+        """ADR-0104 removed the session-correlation marker with the usage
+        recording it served; the evidence file is the one that stays."""
+        for name in ("session_marker_path", "record_session_marker",
+                     "accepted_session_marker", "SESSION_MARKER_MAX_AGE_SECONDS"):
+            self.assertFalse(hasattr(lib, name), name)
 
 
 class EvidenceConsumptionTest(EvidenceCase):
@@ -340,13 +293,13 @@ class FailOpenTest(EvidenceCase):
           1   -- the exception escaped as a traceback (measured: the un-nested
                  form returns 1 on 3.11)
           2   -- run_pre's fail-closed arm caught it and BLOCKED the skill,
-                 which is exactly what test_session_marker.py:157 forbids
+                 which a bookkeeping failure must never do
 
         So 0 and 120 pass; 1 and 2 fail. Asserting == 0 measured the
         interpreter rather than acs, and asserting != 2 missed the regression
         entirely, since it escapes as 1."""
         self.break_sessions_dir()
-        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=os.path.join(REPO_ROOT, "src", "acs"))
+        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=os.path.join(REPO_ROOT, "plugins", "acs"))
         with open("/dev/full", "w") as devfull:
             result = subprocess.run(
                 [sys.executable, os.path.join(SCRIPTS, "pre-create-ticket.py")],

@@ -1,6 +1,6 @@
 """MAR-125 (E2E-1) — /acs:setup Step 7f: e2e required merge gate wiring.
 
-Prose-contract unit test for `src/acs/skills/setup/SKILL.md`'s new opt-in
+Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`'s new opt-in
 Step 7f, which:
   1. is gated ENTIRELY on settings.e2e/suites.e2e being configured (opt-in
      invariant — the offer-gating half; the runner's own no-command guard is
@@ -16,7 +16,7 @@ Step 7f, which:
   6. records the outcome in Step 8's summary table and the completion report.
 
 Stdlib-only (os, re, unittest, json), mirroring
-tests/acs/test_setup_offers.py's `section()` helper + bounded-window
+the retired tests/acs/test_setup_offers.py's `section()` helper + bounded-window
 co-occurrence style — never a bare file-wide assertIn.
 
 Renamed under MAR-1 (the skill formerly invoked as acs:initialize is now
@@ -32,7 +32,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 

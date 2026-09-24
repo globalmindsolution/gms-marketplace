@@ -19,7 +19,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -70,15 +70,18 @@ class AcsWorkspaceCase(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.repo = os.path.join(self.tmp, "shop")
-        self.ws = os.path.join(self.tmp, "workspace")
         os.makedirs(self.repo)
         subprocess.run(["git", "init", "-q", self.repo], check=True)
         subprocess.run(["git", "-C", self.repo, "remote", "add", "origin",
                         "https://github.com/acme/shop.git"], check=True)
+        # The workspace is always the main checkout's .acs/state-machine
+        # (ADR-0086, ADR-0102). Ignored through .git/info/exclude rather than a
+        # .gitignore, so the fixture repo's working tree stays clean.
+        self.ws = lib.default_state_root(self.repo)
+        with open(os.path.join(self.repo, ".git", "info", "exclude"), "a") as fh:
+            fh.write(".acs/state-machine/\n")
         os.makedirs(os.path.join(self.repo, ".acs"))
         self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90})
-        with open(os.path.join(self.repo, ".acs", "settings.local.json"), "w") as fh:
-            json.dump({"workspace_path": self.ws}, fh)
         self.seed_counters(next_n=1)
 
     def _counters_path(self, repo_id="acme-shop"):

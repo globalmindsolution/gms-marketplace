@@ -421,15 +421,14 @@ class EvidenceConsumptionTest(SkillStartCase):
 
 
 class MarkerMaxAgeTest(unittest.TestCase):
-    """The 900s staleness window has ONE home now: acs_lib.hostgates. A second
+    """The 900s staleness window has ONE home: acs_lib.hostgates. A second
     spelling in skill-start.py is how the two silently drift apart."""
 
     def test_skill_start_keeps_no_second_max_age_constant(self):
         source = read(SKILL_START_PATH)
-        self.assertNotIn("_SESSION_MARKER_MAX_AGE_SECONDS", source)
+        self.assertNotIn("MAX_AGE_SECONDS", source)
         self.assertNotIn("15 * 60", source)
-        self.assertEqual(lib.SESSION_MARKER_MAX_AGE_SECONDS, 15 * 60)
-
+        self.assertEqual(lib.GATE_EVIDENCE_MAX_AGE_SECONDS, 15 * 60)
 
 if __name__ == "__main__":
     unittest.main()

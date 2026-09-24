@@ -22,22 +22,11 @@ the full behavioral definition lives in
 (the Grounding paragraph) — cross-referenced here rather than duplicated,
 per the functional/non-functional tie-break rule.
 
-## Transcript privacy boundary (MAR-1, ADR 0082)
+## Transcripts are not read
 
-Cost/time measurement reads the Claude Code transcript for a run's own
-recorded `transcript_path` plus its `subagents/` subtree. The boundary is
-structural, not merely a policy note: only `*.jsonl` files are ever
-enumerated or opened, so `subagents/*.meta.json` sidecars — which carry a
-free-text `description` field — are never opened at all, eliminating that
-free-text surface from exposure by construction rather than by convention.
-Within each `*.jsonl` record, only the four integer `message.usage` token
-fields, `message.model`, `timestamp`, and the attribution fields
-(`attributionSkill`/`attributionAgent`) are ever read. `message.content`,
-prompt text, and tool results are never read, and no transcript text of any
-kind is ever persisted into the workspace store — `usage_reader.py` itself
-persists nothing; it returns a dict of integer counts bucketed by role
-(`role_usage`) and by model (`model_usage`, MAR-3) to its caller.
-`acs_lib/metrics.py`'s `_measure_run_usage`/`finalize_run` are what persist that
-returned data into the run entry; `cost_sampler.py` persists only a float,
-a key-path string, and an ISO timestamp. No network calls occur anywhere
-in the measurement path.
+acs reads no Claude Code transcript: nothing in the plugin opens a session
+`.jsonl` file or its `subagents/` subtree, and no transcript text or figure
+is persisted into the workspace store. The only Claude Code input a hook
+reads is its own hook envelope on stdin. The token measurement that once
+read a run's transcript was removed with usage recording
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).

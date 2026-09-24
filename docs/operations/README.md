@@ -11,11 +11,11 @@ consolidated.
 
 | Doc | What it holds | Status |
 |-----|---------------|--------|
-| Release process | Version/tag/CHANGELOG flow | currently in the [root README](../../README.md#releasing--updating) + [CHANGELOG](../../src/acs/CHANGELOG.md) |
+| Release process | Version/tag/CHANGELOG flow | currently in the [root README](../../README.md#releasing--updating) + [CHANGELOG](../../plugins/acs/CHANGELOG.md) |
 | Validation runbook | Step-by-step end-to-end install/run checks | the [M2-0 validation spike](../product/m2-0-validation-spike.md) is the first such runbook |
-| [observability.md](observability.md) | Metrics/status surfaces and how to read them (the `acs:metrics` dashboard, status lines — PRD goal G7) | ✅ |
+| [observability.md](observability.md) | How to read acs's own record — run and step state, the tickets index, guard denials, gate enforcement, locks. acs ships no dashboard and records no usage (ADR 0104) | ✅ |
 | `incident-response.md` | What to do when a release misbehaves; rollback (re-pin to the previous `v<version>` tag) | planned |
-| [release-runbook.md](release-runbook.md) | The consolidated release checklist (incl. the pre-release quality gate: `make eval-source` in [`src/acs-evals/`](../../src/acs-evals/README.md), pointed at the release candidate) and rollback | ✅ |
+| [release-runbook.md](release-runbook.md) | The consolidated release checklist (incl. the pre-release gate: a free eval-structure check, then the plugin's `claude plugin eval` routing suite at [`plugins/acs/evals/`](../../plugins/acs/evals/README.md)) and rollback | ✅ |
 
 Release readiness traces upward: a release is cut only after the
 [quality](../quality/) gate — acs-evals' `make eval-source` against the release

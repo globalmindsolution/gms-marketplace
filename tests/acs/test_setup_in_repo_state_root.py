@@ -1,6 +1,6 @@
 """MAR-4 — /acs:setup sets up the in-repo state root (AC1, AC2).
 
-Prose-contract unit test for `src/acs/skills/setup/SKILL.md`. S3 of
+Prose-contract unit test for `plugins/acs/skills/setup/SKILL.md`. S3 of
 the MAR-1 epic split (ADR 0069): the state root moves from a machine-local,
 outside-the-repo `workspace_path` (always asked, validated to reject any path
 inside a worktree) to an in-repo default `<main-checkout>/.acs/state-machine`,
@@ -24,7 +24,7 @@ This module pins:
      `.acs/state-machine/` line (AC2 — regression pin, already satisfied by
      MAR-2's own merge).
 
-Stdlib-only (os, re, unittest), mirroring tests/acs/test_setup_offers.py
+Stdlib-only (os, re, unittest), mirroring the retired tests/acs/test_setup_offers.py
 (REPO_ROOT/PLUGIN + read + bounded-window `section()` helper). Assertions are
 bounded-window / co-occurrence anchored on real `## `/`### ` headings — never
 bare file-wide assertIn — so a too-loose match cannot pass vacuously.
@@ -45,7 +45,7 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 GITIGNORE_PATH = os.path.join(REPO_ROOT, ".gitignore")
 
@@ -100,14 +100,12 @@ class Mar4InitStateRootCase(unittest.TestCase):
         return setup_wizard.apply(cwd, answers or {"settings": {"ticket_prefix": "SHOP"}})
 
     def test_the_default_state_root_is_in_repo_and_never_asked_for(self):
-        """AC: `workspace_path` is an OPTIONAL override with an in-repo
-        default, not a must-ask key with an outside-the-repo validator."""
+        """AC: the in-repo state root is never asked for. ADR-0102 went further
+        than the optional override this pinned: there is no `workspace_path`
+        at all, so setup offers no row for it."""
         self.assertNotIn("MUST be outside the consumer repo", self.body)
-        row = re.search(r"(?m)^\| `workspace_path` \|.*\|$", self.body)
-        self.assertIsNotNone(row, "the optional-settings batch must offer workspace_path")
-        self.assertIn(".acs/state-machine", row.group(0))
-        self.assertIn("settings.local.json", row.group(0),
-                      "the key is machine-specific and always lands in the local file")
+        self.assertIsNone(re.search(r"(?m)^\| `workspace_path` \|", self.body),
+                          "setup must not offer a workspace_path row")
 
     def test_both_ignore_layers_are_written(self):
         """AC: the tracked `.gitignore` entry AND the untracked
@@ -177,9 +175,11 @@ class Mar4InitStateRootCase(unittest.TestCase):
         self.assertIn("resolved exactly as validate_settings", self.wizard)
         self.assertIn("os.access(target, os.W_OK)", self.wizard)
 
-    def test_the_migration_offer_survives(self):
-        """AC: the one-shot external->in-repo migration is still offered."""
-        self.assertIn("migrate_workspace.py", self.body)
+    def test_setup_no_longer_offers_the_workspace_migration(self):
+        """ADR-0105: setup has nothing to say about where state lives -- it is
+        always .acs/state-machine. The one-shot external->in-repo move is
+        `migrate_workspace.py`'s own business, not a setup step."""
+        self.assertNotIn("migrate_workspace.py", self.body)
 
     def test_no_rationale_still_claims_the_workspace_is_outside_the_repo(self):
         """AC: the CI rationale that assumed an outside-the-repo workspace is

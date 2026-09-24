@@ -6,12 +6,16 @@ modules were already over it — `metrics_render.py` (1682), `metrics_aggregate.
 plugin-wide reading E1 would have closed with its own success criterion unmet.
 
 SCOPE DECISION (recorded on #417): "under `acs/`" is read **plugin-wide**.
-`src/acs/` is the plugin root, and those three modules live under it; a
+`plugins/acs/` is the plugin root, and those three modules live under it; a
 reading that covered only the package MAR-522 created would make the criterion
 true by construction and say nothing about the plugin's maintainability, which
 is what it exists to protect.
 
 This module is the criterion as a test, so it cannot rot back into prose.
+
+ADR-0104 deleted `metrics_render` and `metrics_aggregate` with the dashboards
+they drew. `release_notes` and `setup_wizard` are the split entry points left
+to guard.
 """
 
 import os
@@ -19,14 +23,14 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 #: E1's number, unchanged. It is a budget, not a target: a module at 799 lines
 #: is not "fine", it is one edit from a split.
 LINE_BUDGET = 800
 
 #: What the budget covers: every Python module the plugin ships. Tests, evals
-#: and the consumer-repo templates are outside `src/acs/`.
+#: and the consumer-repo templates are outside `plugins/acs/`.
 def plugin_modules():
     for root, dirs, names in os.walk(PLUGIN):
         dirs[:] = [d for d in dirs if d != "__pycache__"]
@@ -52,12 +56,11 @@ class ModuleLineBudgetTest(unittest.TestCase):
     #: a recombination that leaves a single stub behind, which is exactly the
     #: rewrite the docstring claims to catch.
     EXPECTED_SIBLINGS = {
-        "metrics_render": ("common", "terminal", "html", "panels", "tables"),
-        "metrics_aggregate": ("common", "panels", "usage", "rows"),
         "release_notes": ("config", "git", "tickets"),
+        "setup_wizard": ("commands",),
     }
 
-    def test_the_three_modules_the_ticket_names_are_split(self):
+    def test_the_split_modules_stay_split(self):
         """Named explicitly so a future rewrite that recombines them fails here
         rather than quietly re-crossing the budget."""
         for name, parts in self.EXPECTED_SIBLINGS.items():
@@ -100,11 +103,11 @@ class ModuleLineBudgetTest(unittest.TestCase):
 
     def test_the_entry_points_stay_runnable_as_files(self):
         """The split kept sibling modules rather than making packages precisely
-        so `python3 .../metrics_render.py` keeps working — three SKILL.md files
-        invoke these by path."""
+        so `python3 .../release_notes.py` keeps working — SKILL.md files invoke
+        it by path."""
         import importlib.util
         scripts = os.path.join(PLUGIN, "hooks", "scripts")
-        for name in ("metrics_render.py", "metrics_aggregate.py", "release_notes.py"):
+        for name in ("release_notes.py", "setup_wizard.py"):
             path = os.path.join(scripts, name)
             with self.subTest(module=name):
                 self.assertTrue(os.path.isfile(path))
@@ -122,7 +125,7 @@ class ModuleLineBudgetTest(unittest.TestCase):
                 sys.path[:] = [p for p in sys.path
                                if os.path.abspath(p) != os.path.abspath(scripts)]
                 for mod in [m for m in list(sys.modules)
-                            if m.startswith(("metrics_", "release_notes", "acs_lib"))]:
+                            if m.startswith(("release_notes", "setup_wizard", "acs_lib"))]:
                     sys.modules.pop(mod, None)
                 try:
                     spec = importlib.util.spec_from_file_location(

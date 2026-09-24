@@ -7,35 +7,43 @@ below belongs to exactly one of them:
 
 | | Repo docs tree | Workspace partition |
 |---|----------------|---------------------|
-| **Where** | `<repo>/<settings.artifacts.tickets_path>/<ID>/` (default `docs/tickets/<ID>/`) | `<workspace>/<repo>/<ticket-id>/` |
-| **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `run.json`, `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `metrics.json` / `sessions/` |
+| **Where** | `<repo>/docs/tickets/<ID>/` (fixed — no setting) | `<workspace>/<repo>/<ticket-id>/` |
+| **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `run.json`, `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
 | **Versioned** | yes — committed on the ticket branch, reviewed in the PR | no — gitignored |
 | **Written by** | the coordinator and the ticket skills; an executor MUST NOT write there (the file-map guard treats it as a control input) | hooks and the skills' own subagents |
 
-`artifacts.tickets_path` set to **`null`** turns the split off: every
-document stays in the workspace partition exactly as before the split, and
-every reader falls back to it. Readers MUST therefore resolve a document by
-looking in the docs tree first and the partition second, so a partition
-written before the split keeps working unmigrated
+The docs-tree location is **fixed, never discovered**, and the split has no
+opt-out ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+Readers MUST still resolve a document by looking in the docs tree first and
+the partition second, so a partition written before the split keeps working
+unmigrated
 ([Migrating ticket documents into the repo](#migrating-ticket-documents-into-the-repo)).
 
 ## Workspace folder
 
 - The workspace is the single home for all pipeline **run state**. **All
   skills and hooks MUST read and write their state files in the workspace
-  folder**, located via `workspace_path` in `settings.json`
-  ([configuration.md](configuration.md)).
+  folder**, which is always `<main-checkout>/.acs/state-machine` — no
+  setting locates it ([configuration.md](configuration.md)).
 - The workspace MUST be resolvable to the **same physical location from
   every worktree of a repo** — that is the actual invariant, enabling
   **parallel tasks** (a worktree per ticket without state colliding or
-  polluting the repo). It is achieved by default via the in-repo,
+  polluting the repo). It is achieved via the in-repo,
   main-checkout-anchored `.acs/state-machine` folder (gitignored, resolved
-  from `git rev-parse --git-common-dir`), or via an explicit `workspace_path`
-  override for anyone who needs a different location (see ADR-0086).
+  from `git rev-parse --git-common-dir`), with no override (see ADR-0086,
+  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)); a layout
+  that cannot resolve a main checkout (bare repo, submodule) is refused —
+  acs must be run from a regular git checkout.
+- The workspace MUST ignore itself: the first state write under
+  `.acs/state-machine/` creates `.acs/state-machine/.gitignore` containing
+  `*`, so the workspace never shows up in `git status` whether or not the
+  repo's root `.gitignore` names it. The root entries `/acs:setup` adds are
+  no longer needed. Only a write creates the folder: a hook that only looks
+  for state writes nothing, so a repo that never runs acs gets no folder
+  ([ADR-0105](../../adr/0105-acs-runs-without-setup.md)).
 - The workspace MUST be partitioned **by consumer repo, then by
   `<ticket-id>`**: every pipeline artifact for a ticket lives under
-  `<workspace>/<repo>/<ticket-id>/`. One `workspace_path` can therefore be
-  shared by any number of consumer repos.
+  `<workspace>/<repo>/<ticket-id>/`.
 - `<repo>` is a stable identifier derived from the git remote
   (e.g. `owner-name`), falling back to the repo directory name when there is
   no remote. All worktrees of the same repo MUST resolve to the **same**
@@ -44,24 +52,20 @@ written before the split keeps working unmigrated
 
 ## Migrating an existing external workspace
 
-- When an existing external `workspace_path` is detected for a repo,
-  `/acs:setup` MUST detect it and SHOULD offer a user-confirmed
-  migration into the in-repo default on the next re-run (ADR-0086; the
-  MUST/SHOULD split for `/setup` itself is specified in
-  [skills.md](skills.md) and not restated here).
-- A repo owner who migrates without re-running `/acs:setup` MUST use
-  the documented manual path instead: `migrate_workspace.py --from
-  <old-workspace-root> --to <repo>/.acs/state-machine --repo-root
-  <repo-root> [--dry-run]` (contract in
+- A repo owner moving state that an older acs kept in an external
+  workspace (named by a retired `workspace_path` key) MUST use the manual
+  migrator: `migrate_workspace.py --from <old-workspace-root> --to
+  <repo>/.acs/state-machine --repo-root <repo-root> [--dry-run]` (contract in
   [contracts.md](../../architecture/lld/contracts.md)). The migrator
   preflights — refusing to run while a `.lock` is held or an `in_progress`
   run exists anywhere under the old workspace's partition tree — then
   copies the repo's partition tree, verifies the copy, and only then
   removes the old tree; it is idempotent, so re-running after an
   interruption is safe.
-- Once the migration succeeds, the repo owner MUST remove the
-  `workspace_path` key from `.acs/settings.local.json`, so that future runs
-  resolve the in-repo default instead of the old override.
+- No setting points at the old location: every run resolves the in-repo
+  workspace, so the old tree is no longer read once the migration succeeds.
+  A leftover key for it in `.acs/settings.local.json` is a retired key —
+  ignored, and safe to delete.
 
 ## Migrating ticket documents into the repo
 
@@ -76,8 +80,6 @@ written before the split keeps working unmigrated
   and unlinks `ticket.json`. It MUST be **idempotent** (a second run reports
   the already-migrated tickets and writes nothing new) and MUST refuse while
   a partition it still has to move holds a `.lock`.
-- A repo that does not want the split sets `artifacts.tickets_path` to
-  `null`; `artifacts migrate` then refuses rather than half-moving anything.
 - `acs.py artifacts show [--ticket ID]` reports, for one ticket, which store
   each document currently resolves from — the diagnostic for "where did my
   design.md go".
@@ -88,7 +90,7 @@ The repo docs tree (committed, one folder per ticket):
 
 ```
 <repo>/
-└── docs/tickets/                       # settings.artifacts.tickets_path
+└── docs/tickets/                       # fixed location, not a setting (ADR-0102)
     ├── SHOP-122/                       # an epic
     │   ├── ticket.md                   # front matter (every ticket.json field except status) + Description / Acceptance criteria / Clarifications
     │   └── design.md                   # epics always carry the design; children read it from here
@@ -108,15 +110,11 @@ The workspace (gitignored, the run ledger):
     ├── tickets-index.json              # all tickets: id, type, status, parent/children
     ├── runs-index.json                 # all runs: id, workflow, subject, status, started/ended
     ├── counters.json                   # ticket id sequence (run ids derive from the subject; no allocator)
-    ├── metrics.json                    # repo aggregates: ticket/PR counts, time, tokens, cost
     ├── sessions/                       # per-checkout state for parallel worktree sessions
     │   └── <checkout-id>/              # ONE directory per checkout, not five prefixed files
-    │       ├── pointer.json            # the run AND step this checkout is on
-    │       ├── session.json            # subject-independent session-correlation marker (MAR-1)
-    │       ├── cost.jsonl              # append-only statusLine cost samples, rotated in place (MAR-1)
-    │       └── runtime.json            # allocation cursor into the cost-sample log (MAR-1)
+    │       └── pointer.json            # the run AND step this checkout is on
     ├── archive/                        # runs of done tickets move here post-merge
-    ├── tickets/<ticket-id>/ticket.json # only when settings.artifacts.tickets_path is null
+    ├── tickets/<ticket-id>/ticket.json # only until artifacts migrate moves it
     └── runs/
         ├── SHOP-1/                     # a product-level delivery run (here: PRD)
         │   ├── run.json                # THE RUN MACHINE
@@ -177,18 +175,11 @@ Repo-level files (all maintained by hooks):
   derived from the absolute path of the repo checkout/worktree, so multiple
   parallel worktree sessions each have their own pointer
   ([hooks.md](hooks.md)).
-- **`sessions/<checkout-id>-session.json`**,
-  **`sessions/<checkout-id>-cost-samples.jsonl`**,
-  **`sessions/<checkout-id>-cost-cursor.json`** (MAR-1) — three additional
-  per-checkout files backing real cost/time measurement: a
-  ticket-independent session-correlation marker (`session_id`/
-  `transcript_path`/`cwd`/`skill`, written by a pre-hook inside its own
-  fail-open guard, rejected by the consuming skill if stale past 15 minutes
-  or from a foreign `checkout_id`); an append-only log of `statusLine`
-  cost samples, rotated in place once it exceeds 64 KiB (no `.1` sibling);
-  and the allocation cursor marking how much of that log has already been
-  charged to a run ([hooks.md](hooks.md)).
-- **`metrics.json`** — per-repo aggregates (see [Metrics](#metrics)).
+- **`sessions/<checkout-id>-gate.json`** — the per-checkout gate evidence:
+  the `PreToolUse(Skill)` hook records that it fired, and a run spends that
+  record once, which is how acs tells a gated run from one on a host that
+  never fired its hooks ([hooks.md](hooks.md)). It carries no session or
+  transcript field.
 - **`archive/`** — completed ticket partitions are moved here by
   `post-merge-pr` (the partition is archived, never deleted).
 
@@ -227,8 +218,8 @@ manages. The derivation is:
 | `in_progress` | any step other than `create-ticket` has a status other than `skipped`; for an epic, any child is not `open`. |
 | `open` | otherwise. |
 
-`tickets-index.json` keeps mirroring the derived value so listings and
-metrics need not re-derive it per ticket.
+`tickets-index.json` keeps mirroring the derived value so listings need not
+re-derive it per ticket.
 
 Key fields written by `/acs:create-ticket` and maintained by hooks:
 
@@ -262,8 +253,11 @@ Each state file MUST capture:
   clarifications obtained from the user);
 - **error details** — what went wrong, if anything;
 - **invocations** — an **append-only array** of this step's invocations, each
-  carrying that invocation's timestamps, token counts, cost, **status**, and,
-  when `interrupted`, its **stop reason**. The array is `invocations`, not
+  carrying that invocation's timestamps, **status**, and, when
+  `interrupted`, its **stop reason** — plus the file-map guard's
+  `guard_events` and the gate-enforcement verdict when there are any.
+  No token count or other usage figure is recorded
+  ([No usage recording](#no-usage-recording)). The array is `invocations`, not
   `runs`: a RUN is the whole pass over the workflow (`run.json`), and a step
   is invoked within it.
 
@@ -315,17 +309,6 @@ Each state file MUST capture:
     {
       "started_at": "2026-06-12T09:00:00Z",
       "ended_at": "2026-06-12T10:00:00Z",
-      "session_id": "...",
-      "transcript_path": "...",
-      "checkout_id": "...",
-      "tokens": { "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0 },
-      "cost_usd": 4.21,
-      "cost_basis": "measured",
-      "cost_scope": "session_total",
-      "excluded_cost_usd": 0.0,
-      "excluded_token_share": 0.0,
-      "role_usage": [ { "role": "executor", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
-      "model_usage": [ { "model": "claude-sonnet-4-6", "input": 152000, "output": 38000, "cache_creation": 0, "cache_read": 0, "cost_usd": 4.21, "cost_basis": "measured" } ],
       "status": "completed",
       "stop_reason": "all specs implemented, verifier passed"
     }
@@ -335,9 +318,9 @@ Each state file MUST capture:
 
 JSON Schemas for the ticket (`ticket.json`, whose field set `ticket.md`'s
 front matter mirrors), `run.json`, `steps/<skill>/state.json`, a step's
-`result.json`, the workflow file, the session pointer, `settings.json`,
-`metrics.json` and `clarifications.json` are **shipped with the plugin**
-(`schemas/`, fifteen of them). JSON Schema is the only validator: the XSD
+`result.json`, the workflow file, the session pointer, `settings.json`
+and `clarifications.json` are **shipped with the plugin**
+(`schemas/`, fourteen of them). JSON Schema is the only validator: the XSD
 layer and `validate_xml.py` are gone. Skills validate against the full schemas; hooks
 perform lightweight stdlib-only structural checks
 ([hooks.md](hooks.md)).
@@ -347,13 +330,13 @@ perform lightweight stdlib-only structural checks
 - Writers are the subagents/hooks of the owning skill; other skills read but
   MUST NOT modify another skill's state file.
 - Cross-ticket **reads** are allowed (e.g. a child ticket resolves its
-  parent epic's `design.md`, from the epic's docs-tree folder or, when the
-  tree is off, the epic's partition); cross-partition **writes** are limited
+  parent epic's `design.md`, from the epic's docs-tree folder or, for an
+  unmigrated epic, its partition); cross-partition **writes** are limited
   to the defined parent-epic status updates performed by child hooks
   ([workflow.md](workflow.md#epic-fan-out)).
 - The repo docs tree is a **control input**: the file-map guard refuses an
   executor subagent a write anywhere under
-  `<settings.artifacts.tickets_path>/`, with exit 2 and a message naming it
+  `docs/tickets/`, with exit 2 and a message naming it
   as a control input only the coordinator and the ticket skills write. An
   executor cannot widen or disarm its own scope by editing the ticket.
 - Re-running a skill for the same ticket updates the **current state** in
@@ -403,16 +386,15 @@ worktree per ticket**:
   own Delivery step's **Branch** sub-step, before that leg's Execute phase.
   Both tickets share the run's `checkout_id`
   for the Start/plan/execute/verify portion of the run — the disposition for
-  this shared-checkout case is: pointer/marker/cursor collisions are
-  accepted, labeled degradations (statusline shows only one leg; the losing
-  leg's cost sampling degrades to `unavailable`) rather than a correctness
+  this shared-checkout case is: pointer collisions are
+  accepted, labeled degradations rather than a correctness
   bug, because every consumer of ticket identity gets the ticket id
-  explicitly and `cost_basis` is never fabricated for the losing leg. Each
+  explicitly. Each
   leg's own `.lock`/pointer/state files are otherwise unaffected — the
   legs remain two ordinary, independently-resumable delivery tickets. See
   `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
-- **Repo-level counter guard**: `update_index()`/`update_metrics()` (repo-level
-  `tickets-index.json`/`metrics.json`) are wrapped in an `O_EXCL`-guarded
+- **Repo-level counter guard**: `update_index()` (the repo-level
+  `tickets-index.json`) is wrapped in an `O_EXCL`-guarded
   critical section that serializes two legs finishing concurrently on the
   normal path. The spin is bounded, and exhausting it **fails closed**: the
   guard raises `GuardTimeout` and the write does not happen. A refused write is
@@ -428,49 +410,24 @@ worktree per ticket**:
   slow one, and reclaiming a live holder's guard puts two writers inside the
   critical section at once.
 
-## Metrics
+## No usage recording
 
-The workspace records effort and cost at every level; post-hooks maintain
-all of it:
+The workspace records what the pipeline itself needs and nothing more: each
+invocation's `started_at`/`ended_at`, status and stop reason (plus its
+`guard_events` and gate-enforcement verdict), each step's `states`, findings
+and errors, the run's progress in `run.json`, and each ticket's derived
+status in `tickets-index.json`. Working time is computed from an
+invocation's timestamps when a completion report prints it; it is never
+stored or summed.
 
-- **Per invocation**: each entry records `started_at`/`ended_at` (working
-  time is computed from them), token counts (input/output), and cost.
-  Invocations finalized outside a post-hook — `interrupted`, whether by a
-  deliberate handoff or by the SessionEnd safety net — are counted in the
-  repo aggregates too, so `metrics.json` and the per-run roll-up never
-  diverge.
-- **Per run**: `run.json` rolls up totals across every step of the run.
-- **Per repo** (`metrics.json`): ticket counts (by status and type), PR
-  counts (created, merged), and total working time, tokens, and cost.
-- **Measured, not self-reported (MAR-1, ADR 0082).** The coordinator's
-  result document carries no token/cost figures at all — the standing `[ASSUMPTION]`
-  this bullet used to record is resolved, not merely reworded. A run's
-  `session_id`/`transcript_path` are captured from the genuine
-  `PreToolUse(Skill)` hook envelope by a session-correlation marker,
-  threaded onto the invocation at `acs.py step start`. At finalize time,
-  `usage_reader.py` reads real token counts (all four `message.usage`
-  classes) from that exact recorded transcript plus its `subagents/`
-  subtree — never a constructed path — and buckets them by role, including a
-  first-class `coordinator` bucket. A dollar figure is sourced from Claude
-  Code's own real-time cost computation, sampled off the opt-in `statusLine`
-  hook and apportioned across roles by measured token share
-  (`cost_sampler.py`) via a cursor-consumed, non-overlapping partition that
-  makes double-charging structurally impossible. acs owns no price table.
-  Every figure carries a basis label — `measured` / `apportioned` /
-  `unavailable` — never fabricated, never zero-padded; coverage is
-  contingent on `statusLine` opt-in and on an unconsumed sample existing in
-  a run's window, a disclosed limitation rather than a silent one. The
-  dollar-cost double-charging guarantee above (`cost_sampler.py`'s
-  checkout-scoped cursor) is unaffected by fan-out and holds unconditionally,
-  in every topology including the one below. A separate, narrower guarantee —
-  subagent-role token attribution (`usage_reader.py`) being immune to
-  cross-session contamination — is scoped to topologies where each ticket
-  runs in its own session — true of worktree-per-ticket generally, but not of
-  the "Cross-skill, phase-level fan-out" shape two headings above, where
-  `/acs:create-docs`'s two legs share one session and their subagent work is
-  folded into shared role buckets by suffix alone, so subagent-role token
-  accounting is not immune to cross-contamination in that one specific case.
-  See ADR 0082's "Amendment — MAR-1" for the mechanism.
+acs records **no usage**: no token count, no per-role or per-model
+breakdown, no dollar figure, no per-run or per-repo totals, and it reads no
+Claude Code transcript
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+Tokens, spend and time per ticket are Claude Code's to report — its own
+`/cost`, the console, or its usage exports. A `metrics.json`, a `run.json`
+`totals` object or an invocation's `tokens` left by an older version is
+ignored.
 
 ## Epic ↔ child linkage
 
@@ -486,8 +443,7 @@ marks In Progress; the last child's `post-merge-pr` marks Done).
 When a ticket is merged/done, its partition is **archived** — moved to
 `<workspace>/<repo>/archive/<ticket-id>/` by `post-merge-pr` — keeping the
 full audit trail without cluttering the active workspace. Archived tickets
-remain in `tickets-index.json` (status `done`) and in the metrics
-aggregates.
+remain in `tickets-index.json` (status `done`).
 
 ### Ticket allocation on resume
 

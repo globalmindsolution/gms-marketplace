@@ -25,7 +25,7 @@ sequenceDiagram
 
     Dev->>Rel: /acs:release 0.4.2
     Rel->>Lib: build_context(cwd)
-    Lib-->>Rel: settings, workspace_path, repo_id
+    Lib-->>Rel: settings, workspace, repo_id
     Rel->>Rel: resolve settings release block — profile #1 (version_locations, extra_refs, changelog_path, tag_format, base_branch, release_branch_format, publish_driver)
     Rel->>RN: release_notes.py status --version 0.4.2 --release-config block
     RN->>Man: read current version, source.ref (per version_locations, extra_refs)

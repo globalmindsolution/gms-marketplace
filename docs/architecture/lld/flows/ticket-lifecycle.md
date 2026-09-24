@@ -38,7 +38,7 @@ sequenceDiagram
         CO->>CO: clean worktree if one was used, then tracker sync to Done
         note over CO,POST: tracker-sync failure here is loud-but-non-reverting -- the merge already landed, never reverted or re-attempted (ADR-0088)
         CO->>POST: result document
-        POST->>WS: ticket done, epic auto-done when last child,<br/>clear pointers, metrics (pr merged)
+        POST->>WS: ticket done, epic auto-done when last child,<br/>clear pointers
         POST->>WS: move partition -> archive/SHOP-123/
         CO-->>Dev: completion report (cleanup performed, archive path)
     else mergeStateStatus == BEHIND and all other dimensions pass
@@ -55,7 +55,7 @@ sequenceDiagram
                         CO->>CO: clean worktree if one was used, then tracker sync to Done
                         note over CO,POST: tracker-sync failure here is loud-but-non-reverting -- the merge already landed, never reverted or re-attempted (ADR-0088)
                         CO->>POST: result document (protections="pass, was BEHIND — auto-updated via gh pr update-branch")
-                        POST->>WS: ticket done, epic auto-done when last child,<br/>clear pointers, metrics (pr merged)
+                        POST->>WS: ticket done, epic auto-done when last child,<br/>clear pointers
                         POST->>WS: move partition -> archive/SHOP-123/
                         CO-->>Dev: completion report (cleanup performed, archive path)
                     else BEHIND again (base advanced mid-poll)

@@ -7,9 +7,10 @@ execution of the skill) proving the deferred greenfield stub is now a real
 elicitation mode across SKILL.md + planner/executor/verifier, that greenfield
 is a distinct third classifier branch (not a brownfield fallthrough), that the
 DRAFT/confirm gate spans all three modes uniformly (C-22), that the per-file
-format is finalized, and that the new greenfield write prose uses
-settings-resolved layout placeholders rather than hardcoded marketplace literals
-(C-20). Mirrors the read()+assert style of
+format is finalized, and that the new greenfield write prose uses the
+located-subfolder placeholders (`<functional_dir>` / `<non_functional_dir>`,
+resolved by the coordinator per ADR-0102) rather than hardcoded marketplace
+literals (C-20). Mirrors the read()+assert style of
 test_create_requirements_skill.py.
 
 Stdlib-only (os, re, unittest). Run:
@@ -21,7 +22,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
 PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")  # the survey charter lives in the executor since ADR-0092
 EXECUTOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")
@@ -69,7 +70,7 @@ class Mar144GreenfieldRealCase(unittest.TestCase):
 
     def test_greenfield_elicits_and_authors_files(self):
         # Each body's greenfield mode bullet elicits from the user and names the
-        # settings-resolved functional/non-functional target files.
+        # located functional/non-functional target files.
         for name, body in (
             ("SKILL.md", self.skill),
             ("planner.md", self.planner),
@@ -82,10 +83,10 @@ class Mar144GreenfieldRealCase(unittest.TestCase):
                 joined, r"(?i)elicit",
                 "%s greenfield bullet does not state it elicits" % name)
             self.assertIn(
-                "<functional_subdir>", joined,
+                "<functional_dir>", joined,
                 "%s greenfield bullet does not name the functional target" % name)
             self.assertIn(
-                "<non_functional_subdir>", joined,
+                "<non_functional_dir>", joined,
                 "%s greenfield bullet does not name the non-functional target" % name)
 
     def test_greenfield_draft_marked(self):
@@ -122,7 +123,7 @@ class Mar144ThreeWayClassifierCase(unittest.TestCase):
         # Regression guard: the amend git-diff self-check + byte preservation text
         # is untouched by the greenfield edits.
         self.assertIn("byte-for-byte", self.executor)
-        self.assertIn("git diff -- <requirements_path>", self.executor)
+        self.assertIn("git diff -- <requirements_dir>", self.executor)
         self.assertIn("byte-identical", self.skill)
 
 
@@ -166,8 +167,8 @@ class Mar144FormatAndG36Case(unittest.TestCase):
         i = self.skill.find("Per-file format")
         self.assertNotEqual(i, -1, "SKILL.md lacks the finalized per-file format subsection")
         block = self.skill[i: i + 700]
-        self.assertIn("<functional_subdir>/<feature>.md", block)
-        self.assertIn("<non_functional_subdir>/<item>.md", block)
+        self.assertIn("<functional_dir>/<feature>.md", block)
+        self.assertIn("<non_functional_dir>/<item>.md", block)
         self.assertIn("DRAFT", block)
         for token in ("MUST", "SHOULD", "MAY", "[OPEN]", "[ASSUMPTION]"):
             self.assertIn(token, block, "format subsection missing %r vocab" % token)
@@ -198,10 +199,12 @@ class Mar144VerifierModeAwareCase(unittest.TestCase):
 
 
 class Mar144ConsumerGeneralCase(unittest.TestCase):
-    """AC-6 (prose half): the new greenfield write prose uses settings-resolved
-    layout placeholders, never hardcoded marketplace path literals (C-20)."""
+    """AC-6 (prose half): the new greenfield write prose uses the located
+    `<functional_dir>` placeholder (the coordinator finds the set, else uses
+    the `docs/requirements/` convention, ADR-0102), never hardcoded
+    marketplace path literals (C-20)."""
 
-    def test_greenfield_uses_settings_resolved_paths(self):
+    def test_greenfield_uses_located_subfolder_paths(self):
         for name, path in (
             ("SKILL.md", SKILL_PATH),
             ("planner.md", PLANNER_PATH),
@@ -210,8 +213,8 @@ class Mar144ConsumerGeneralCase(unittest.TestCase):
             body = read(path)
             for region in gf_regions(body, 300):
                 self.assertIn(
-                    "<functional_subdir>", region,
-                    "%s greenfield prose must use the <functional_subdir> "
+                    "<functional_dir>", region,
+                    "%s greenfield prose must use the <functional_dir> "
                     "placeholder, not a literal" % name)
                 self.assertNotIn(
                     "docs/requirements", region,
@@ -219,7 +222,7 @@ class Mar144ConsumerGeneralCase(unittest.TestCase):
                 self.assertNotIn(
                     "functional/", region,
                     "%s greenfield prose hardcodes a functional/ path literal "
-                    "instead of <functional_subdir>/ (C-20)" % name)
+                    "instead of <functional_dir>/ (C-20)" % name)
 
 
 if __name__ == "__main__":

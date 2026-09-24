@@ -1,7 +1,7 @@
 # HLD — Data model (workspace state)
 
 All entities are JSON files under `<workspace>/<repo-id>/`; schemas ship with
-the plugin (`src/acs/schemas/`). Pretty-printed, atomically written,
+the plugin (`plugins/acs/schemas/`). Pretty-printed, atomically written,
 human-auditable.
 
 ```mermaid
@@ -9,11 +9,7 @@ erDiagram
     REPO_PARTITION ||--o{ TICKET : contains
     REPO_PARTITION ||--|| TICKETS_INDEX : "indexes all tickets"
     REPO_PARTITION ||--|| COUNTERS : "id sequence"
-    REPO_PARTITION ||--|| METRICS : "aggregates"
     REPO_PARTITION ||--o{ SESSION_POINTER : "one per checkout/worktree"
-    REPO_PARTITION ||--o| SESSION_MARKER : "one per checkout, ticket-independent (MAR-1)"
-    REPO_PARTITION ||--o{ COST_SAMPLE : "append-only log, one per checkout (MAR-1)"
-    REPO_PARTITION ||--o| COST_CURSOR : "one per checkout (MAR-1)"
     TICKET ||--o{ SKILL_STATE : "one per skill that ran"
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
@@ -21,11 +17,6 @@ erDiagram
     TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration, each with its authoring notes; no plan artifact (ADR-0092)"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
-    RUN_ENTRY ||--o{ ROLE_USAGE : "measured token/cost breakdown by role (MAR-1)"
-    RUN_ENTRY ||--o{ MODEL_USAGE : "measured token/cost breakdown by model (MAR-3)"
-    SESSION_MARKER ||--o| RUN_ENTRY : "read at skill-start, threaded onto the new entry (MAR-1)"
-    RUN_ENTRY }o--o{ COST_SAMPLE : "cost consumed from the log via the cursor (MAR-1)"
-    COST_CURSOR ||--|| COST_SAMPLE : "advances to the newest consumed sample (MAR-1)"
     TICKET ||--o| PLAN_APPROVAL : "at most one per approved plan digest, /acs:code STANDARD/COMPLEX only, written solely by plan-approval.py"
     TICKET ||--o| PLAN : "exactly one phases/code/plan.md, authored once per run before the loop"
     PLAN ||--o{ PLAN_SUPERSEDED : "one plan-superseded-<k>.md per revocation; byte-identical copy, never deleted"
@@ -74,72 +65,16 @@ erDiagram
     RUN_ENTRY {
         datetime started_at
         datetime ended_at
-        string session_id "captured off the PreToolUse envelope via the session marker; null when no marker was accepted (MAR-1)"
-        string transcript_path "exact recorded path, never a constructed slug (MAR-1)"
-        string checkout_id "needed at finalize time to locate this checkout's cost-sample/cursor files (MAR-1)"
-        json tokens "input/output/cache_creation/cache_read -- raw measured counts, MAR-1 widened the allow-list"
-        number cost_usd "null means cost_basis=unavailable, never a fabricated 0 (MAR-1)"
-        enum cost_basis "measured|apportioned|unavailable (MAR-1, ADR 0082)"
-        enum cost_scope "session_total|main_session_only on a charge; reused as the degraded reason (no_unconsumed_sample_in_window|cost_total_reset) when cost_usd is null (MAR-1)"
-        number excluded_cost_usd "the unattributed same-window slice dropped per C-8, never redistributed (MAR-1)"
-        number excluded_token_share "0..1 (MAR-1)"
-        number api_duration_ms "null means api_duration_basis=unavailable, never a fabricated 0 (MAR-6)"
-        enum api_duration_basis "measured|apportioned|unavailable (MAR-6)"
-        enum api_duration_scope "session_total|main_session_only|no_unconsumed_sample_in_window|cost_total_reset|duration_unavailable_on_cursor -- the last value has no cost_scope analogue (MAR-6)"
         array guard_events "file-map guard denials appended by acs_lib/filemap.py on a deny only -- reasons outside_map/control_input/unreadable_payload, optional and forward-only (MAR-578)"
         enum status "in_progress|completed|failed|interrupted"
         enum stop_reason "session_end|needs_input|context_pressure -- an INTERRUPTED step only; a completed or failed step's narrative goes in summary (ADR-0097)"
         string summary "the step's own narrative, on any terminal status"
         string handoff_summary "when interrupted"
     }
-    ROLE_USAGE {
-        string role "coordinator|planner|executor|verifier|other|unattributed (MAR-1)"
-        int input
-        int output
-        int cache_creation
-        int cache_read
-        number cost_usd "null on an unattributed entry, which never receives a dollar share (MAR-1)"
-        enum cost_basis "measured|apportioned|unavailable (MAR-1)"
-        number api_duration_ms "null on an unattributed entry, which never receives a duration share (MAR-6)"
-        enum api_duration_basis "measured|apportioned|unavailable (MAR-6)"
-    }
-    MODEL_USAGE {
-        string model "message.model, or the literal string unknown (MAR-3)"
-        int input
-        int output
-        int cache_creation
-        int cache_read
-        number cost_usd "full-delta apportioned share, no unattributed exclusion, D1.2 Option A; null when unavailable (MAR-3)"
-        enum cost_basis "measured|apportioned|unavailable (MAR-3)"
-    }
-    SESSION_MARKER {
-        string checkout_id PK "sessions/<checkout_id>-session.json, sibling of SESSION_POINTER (MAR-1)"
-        string session_id
-        string transcript_path
-        string cwd
-        string hook_event_name
-        string skill "off tool_input.skill, raw acs:<name> value"
-        datetime updated_at "staleness guard: rejected if > 15 min old or checkout_id mismatches"
-    }
-    COST_SAMPLE {
-        string checkout_id FK "sessions/<checkout_id>-cost-samples.jsonl, append-only, rotated past 64 KiB (MAR-1)"
-        datetime ts
-        number total_cost_usd "session-cumulative, monotonic barring a session reset"
-        string src "the matched probe key path, e.g. cost.total_cost_usd"
-        number total_api_duration_ms "session-cumulative, independently nullable from total_cost_usd -- a sample is written when EITHER quantity is found (MAR-6)"
-        string duration_src "the matched probe key path, e.g. cost.total_api_duration_ms (MAR-6)"
-    }
-    COST_CURSOR {
-        string checkout_id PK "sessions/<checkout_id>-cost-cursor.json -- the 'before' edge for the next allocate_cost call (MAR-1)"
-        datetime ts
-        number total_cost_usd
-        number total_api_duration_ms "one shared cursor file tracks both quantities -- D3 Option A, not a second cursor file (MAR-6)"
-    }
     PIPELINE_STATE {
         string ticket_id PK
         enum flow "ticket|product"
         json steps "per-skill status/timestamps/summary, plus any caller-merged fields (e.g. /acs:ship's `fix_loops`) written through `update_pipeline`'s `extra` channel"
-        json totals "runs, runs_timed, runs_untimed, runs_cost_measured, runs_cost_unavailable, seconds, tokens (input/output/cache_creation/cache_read), cost (four counters additive since MAR-1); api_duration_ms, runs_api_duration_measured, runs_api_duration_unavailable (three counters additive since MAR-6, mirroring the cost counters' rule)"
         string lane "TRIVIAL|SMALL|STANDARD|COMPLEX (mirror of ticket.lane; written by update_pipeline; not declared in schema, allowed via additionalProperties)"
     }
     CLARIFICATIONS {
@@ -336,10 +271,10 @@ for the runs already recorded. Zero migration: no new state key, no new
 schema field; the retired path is simply never written again.
 
 **Amendment (ADR-0086).** The physical root each `REPO_PARTITION` resolves
-under is now `<main-checkout>/.acs/state-machine/<repo-id>/` by default —
+under is now `<main-checkout>/.acs/state-machine/<repo-id>/` —
 gitignored, anchored to the repo's main checkout (`git rev-parse
 --git-common-dir`) so every linked worktree resolves to the same on-disk
-tree — or an explicit `workspace_path` override pointing elsewhere. No
+tree, with no override ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)). No
 entity, field, or relationship change (D6): only what `workspace` (the
 string) resolves to is different.
 
@@ -354,6 +289,36 @@ declares the item shape (seven required fields, `iteration` a string, `target`
 nullable) even though run entries already allow additional properties, so the
 declaration documents the entry rather than tightening what a run entry may
 carry.
+
+**Amendment (ADR 0103) — supersedes the cost half of the MAR-1, MAR-3 and
+MAR-6 amendments above.** acs no longer ships a status line, and the
+statusLine-sourced cost and API-duration apportionment went with it
+([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
+`COST_SAMPLE` and `COST_CURSOR` are gone, and so are `RUN_ENTRY`'s
+`cost_usd`/`cost_basis`/`cost_scope`/`excluded_cost_usd`/`excluded_token_share`
+and `api_duration_ms`/`api_duration_basis`/`api_duration_scope`, the cost and
+API-duration fields on `ROLE_USAGE` and `MODEL_USAGE`, and the cost and
+API-duration sums and counters in `PIPELINE_STATE.totals`. What remains is
+measured tokens (`tokens`, `ROLE_USAGE`, `MODEL_USAGE` — unattributed tokens
+still surface as the `unattributed` role) and wall-clock time.
+`SESSION_MARKER` and `RUN_ENTRY`'s session-correlation fields stand: token
+measurement still needs them. Nothing is migrated: the schemas tolerate
+unknown keys, so a run entry or `metrics.json` written before this change
+keeps its cost fields, and nothing reads them.
+
+**Amendment (ADR 0104) — supersedes the MAR-1 and MAR-3 amendments above,
+and the tokens the ADR 0103 amendment kept.** acs records no usage
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)), so
+the diagram no longer draws `METRICS` (`metrics.json`), `SESSION_MARKER`
+(`sessions/<checkout_id>/session.json`), `ROLE_USAGE` or `MODEL_USAGE`, nor
+`RUN_ENTRY`'s `session_id`/`transcript_path`/`checkout_id`/`tokens` or
+`PIPELINE_STATE.totals`. A run entry keeps what the pipeline itself needs:
+timestamps, status, stop reason, summary, handoff summary and guard events.
+Nothing is migrated: a `metrics.json`, a `session.json`, a run entry's
+`tokens` or a `totals` object written earlier is ignored — the step-state
+schema tolerates unknown keys and the run schema still accepts a legacy
+`totals`. The per-checkout gate evidence (`sessions/<checkout_id>-gate.json`)
+was always a separate file and is unaffected.
 
 Invariants (enforced by `acs_lib` + schemas + tests):
 

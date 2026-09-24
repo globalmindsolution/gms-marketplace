@@ -1,7 +1,7 @@
 """MAR-164 spec 03 — create-spec reference sweep + DR-1 + CHANGELOG.
 
 Covers AC-2 (no live code-level reference to the deleted /acs:create-spec
-skill remains anywhere in src/acs/{skills,agents}/**), the consistency
+skill remains anywhere in plugins/acs/{skills,agents}/**), the consistency
 half of AC-4 (every Rule-1 site names /acs:code as the positive replacement,
 never merely absence-of-token; every Rule-2 site re-flows without a
 duplicated stage), and the sweep's share of AC-5 (no regression to the
@@ -9,7 +9,7 @@ duplicated stage), and the sweep's share of AC-5 (no regression to the
 surface).
 
 This is the LAST of the ticket's three executor tasks: its assertion-1
-predicate asserts the FINAL whole-tree state of src/acs/{skills,agents}/**
+predicate asserts the FINAL whole-tree state of plugins/acs/{skills,agents}/**
 and only holds once spec 01 has already removed create-ticket/SKILL.md's own
 two create-spec lines. Every assertion here is by file + substring (line-hit
 COUNTS, not line NUMBERS), so ordinary edits above a clause elsewhere in a
@@ -24,7 +24,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 HOOKS_SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
@@ -58,7 +58,6 @@ RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
 SHIP_SKILL = os.path.join(SKILLS_DIR, "ship", "SKILL.md")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
-SUBAGENT_STATUSLINE_PY = os.path.join(HOOKS_SCRIPTS, "subagent-statusline.py")
 
 # The pinned past-tense provenance substrings (Decision 3) — deliberately
 # permanent, asserted present, never removed.
@@ -128,7 +127,7 @@ def line_hit_counts(root_dirs):
 def changelog_unreleased_section(body):
     m = re.search(r"(?m)^## \[Unreleased\]\s*$", body)
     if m is None:
-        raise AssertionError("src/acs/CHANGELOG.md must retain the "
+        raise AssertionError("plugins/acs/CHANGELOG.md must retain the "
                               "'## [Unreleased]' heading")
     start = m.end()
     nxt = re.search(r"(?m)^## \[", body[start:])
@@ -160,13 +159,13 @@ def changelog_entry_section(body):
         if "(MAR-164" in candidate:
             return candidate
     raise AssertionError(
-        "src/acs/CHANGELOG.md must contain a '(MAR-164' marker inside a "
+        "plugins/acs/CHANGELOG.md must contain a '(MAR-164' marker inside a "
         "'## [...]' section span")
 
 
 class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
-    src/acs/{skills,agents}/** containing "create-spec" is exactly
+    plugins/acs/{skills,agents}/** containing "create-spec" is exactly
     {create-impl-plan/SKILL.md, create-impl-plan-executor.md} with per-file
     line-hit counts {1, 1}. Requires spec 01 already landed (see the
     spec's "Why this spec is last")."""
@@ -179,7 +178,7 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
         expected_files = {IMPL_PLAN_SKILL, IMPL_PLAN_PLANNER}
         self.assertEqual(
             set(self.counts.keys()), expected_files,
-            "src/acs/{skills,agents}/** must contain \"create-spec\" in "
+            "plugins/acs/{skills,agents}/** must contain \"create-spec\" in "
             "exactly {create-impl-plan/SKILL.md, "
             "create-impl-plan-executor.md} after the sweep, got: %r"
             % (sorted(self.counts.keys()),))
@@ -370,7 +369,7 @@ class ChangelogUnreleasedEntryTest(unittest.TestCase):
     def test_entry_section_non_empty(self):
         self.assertTrue(
             self.section.strip(),
-            "src/acs/CHANGELOG.md must carry this change's entry under "
+            "plugins/acs/CHANGELOG.md must carry this change's entry under "
             "[Unreleased] or, after a release cut, the cut version's section")
 
     def test_unreleased_heading_retained(self):
@@ -393,22 +392,19 @@ class ChangelogUnreleasedEntryTest(unittest.TestCase):
 
 
 class NegativeGuardsBackwardCompatTest(unittest.TestCase):
-    """Assertion 7 (over-eager-sweep catch): src/acs/hooks/** and
-    src/acs/schemas/** still carry their backward-compat create-spec
+    """Assertion 7 (over-eager-sweep catch): plugins/acs/hooks/** and
+    plugins/acs/schemas/** still carry their backward-compat create-spec
     anchors — asserted PRESENT, not absent; ship/SKILL.md stays free of the
     token.
 
     v0.5.0 retired the XML messaging surface (acs-messages.xsd,
-    validate_xml.py) and rewrote the statusline around runs, so the anchors
-    those three carried are gone with their subjects; the schema, subagent
-    statusline and plan-rule anchors below are the ones that remain.
+    validate_xml.py), and ADR-0103 removed the status lines, so the anchors
+    those carried are gone with their subjects; the schema anchor below is
+    the one that remains.
     """
 
     def test_clarifications_schema_enum_present(self):
         self.assertIn('"create-spec"', read(CLARIFICATIONS_SCHEMA))
-
-    def test_subagent_statusline_alternation_present(self):
-        self.assertIn("create-spec", read(SUBAGENT_STATUSLINE_PY))
 
     def test_ship_skill_free_of_create_spec(self):
         self.assertNotIn("create-spec", read(SHIP_SKILL))

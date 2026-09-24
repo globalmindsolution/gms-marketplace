@@ -1,0 +1,176 @@
+---
+name: install-hooks
+description: Write this clone's .git/hooks/commit-msg and .git/hooks/pre-push so the branch-name and commit-message formats (acs's defaults, or those changed with /acs:setup) are checked locally as you commit and before you push. Git hooks are per-clone, so each teammate runs this once per clone and nothing else installs them.
+when_to_use: Use when asked to install, set up, add or repair the local git hooks for this repository or clone; not for configuring what the conventions ARE (/acs:setup), and not for scaffolding a repo's missing tooling (/acs:project).
+---
+
+You are the coordinator of `/acs:install-hooks`. This is NOT a hooked pipeline
+skill: no `acs step start`, no pre/post hooks, no subagents, no reflection loop.
+You do everything yourself in this session with Bash, Read, Edit, and Write.
+
+The job: install this clone's local git hooks so the repo's conventions
+(`formats.branch_name`, `formats.commit_message` — acs's defaults unless changed
+with `/acs:setup` or by hand) are enforced **before push** — `commit-msg`
+validates the commit subject as it is written, `pre-push` validates the branch
+name and the push range's commit subjects. Both run
+`.acs/ci/check-conventions.py`, the checker CI runs, against the committed
+`.acs/settings.json` (over the same defaults). CI checks only that a PR's
+description names its ticket (ADR-0106), so branch names and commit subjects
+are checked here and nowhere else.
+
+Git hooks are **per-clone** — that is why this is a command each teammate runs
+once after cloning, exactly like `pre-commit install`. The hooks are
+`--no-verify`-bypassable, and CI does not re-check what they check.
+
+## Step 0 — Preflight
+
+Resolve the repo roots (operate on the main checkout so linked worktrees share
+the hooks via the common git dir):
+
+```bash
+python3 - "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" <<'PY'
+import os, sys
+sys.path.insert(0, sys.argv[1])
+import acs_lib
+cwd = os.getcwd()
+print("checkout_root:", acs_lib.checkout_root(cwd))
+print("main_repo_root:", acs_lib.main_repo_root(cwd))
+PY
+```
+
+If `checkout_root` is empty, stop: `/acs:install-hooks` must run inside the
+consumer repo. Use `main_repo_root` as `<repo>` below.
+
+## Step 1 — Check the conventions resolve
+
+No settings file is required: a key `.acs/settings.json` leaves out takes
+acs's default (ticket prefix `ACS`, the default formats), and the hooks check
+against those. A present but malformed value fails closed. Verify the
+conventions resolve with `ticket_prefix` + `formats`:
+
+```bash
+python3 - "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" "<repo>" <<'PY'
+import os, re, sys
+sys.path.insert(0, sys.argv[1])
+import acs_lib
+settings, _ = acs_lib.load_settings(sys.argv[2])
+prefix = settings.get("ticket_prefix")
+ok = (isinstance(prefix, str) and bool(re.fullmatch(r"[A-Z][A-Z0-9]*", prefix))
+      and isinstance(settings.get("formats"), dict))
+print("CONVENTIONS_OK" if ok else "MALFORMED")
+PY
+```
+
+On `MALFORMED`, stop and tell the user their `.acs/settings.json` sets a
+malformed `ticket_prefix` or `formats`: fix it, or remove it to use the
+default. Do not install hooks that would only block every commit.
+
+## Step 2 — Ensure the local-enforcement files are present
+
+The hooks and installer live in `<repo>/.acs/ci/`. Copy any that are missing
+from the plugin templates (this bootstraps a repo where `/acs:setup`'s CI step
+was never run), and make the scripts executable. Run from `<repo>`:
+
+```bash
+mkdir -p .acs/ci
+for f in check-conventions.py commit-msg pre-push install-hooks.sh; do
+  [ -f ".acs/ci/$f" ] || cp "${CLAUDE_PLUGIN_ROOT}/templates/ci/$f" ".acs/ci/$f"
+done
+chmod +x .acs/ci/check-conventions.py .acs/ci/commit-msg .acs/ci/pre-push .acs/ci/install-hooks.sh
+```
+
+If you copied any file, tell the user to **commit** `.acs/ci/` so teammates get
+it (do not commit yourself unless asked). Confirm `.acs/` is not gitignored
+(`git check-ignore -q .acs/ci/check-conventions.py` returning a hit means a
+broad rule hides it — warn the user).
+
+## Step 3 — Install the hooks
+
+Two paths; pick by what the repo already uses:
+
+- **Repo uses the pre-commit framework** (`.pre-commit-config.yaml` present and
+  the user wants shared, tracked hooks): ensure the two acs entries exist under
+  `repos:` (insert this managed block with Edit if `id: acs-commit-msg` is not
+  already present — never duplicate it, never disturb other entries), then run
+  the framework installer:
+
+  ```yaml
+    - repo: local
+      hooks:
+        - id: acs-commit-msg
+          name: acs commit message convention
+          entry: python3 .acs/ci/check-conventions.py --mode commit-msg --message-file
+          language: system
+          stages: [commit-msg]
+          pass_filenames: true
+          always_run: true
+        - id: acs-pre-push
+          name: acs branch + commit conventions
+          entry: python3 .acs/ci/check-conventions.py --mode pre-push
+          language: system
+          stages: [pre-push]
+          pass_filenames: false
+          always_run: true
+  ```
+
+  ```bash
+  pre-commit install --hook-type commit-msg --hook-type pre-push
+  ```
+
+  Adding the entries edits a tracked file — remind the user to commit
+  `.pre-commit-config.yaml`.
+
+- **Otherwise (raw git hooks)** — run the committed installer, which copies
+  `.acs/ci/commit-msg` and `.acs/ci/pre-push` into this clone's hooks dir and
+  refuses to clobber a non-acs hook:
+
+  ```bash
+  sh .acs/ci/install-hooks.sh
+  ```
+
+The installer also auto-delegates to `pre-commit install` when the config
+already declares the acs entries, so re-running it is always safe.
+
+## Step 4 — Verify
+
+Confirm the hooks are in place and actually fire:
+
+```bash
+ls -l "$(git rev-parse --git-path hooks)/commit-msg" "$(git rev-parse --git-path hooks)/pre-push" 2>/dev/null
+printf 'nope not a valid subject\n' | python3 .acs/ci/check-conventions.py --mode commit-msg --message-file /dev/stdin; echo "rc=$? (non-zero only if commit_message check is enabled)"
+```
+
+A clean (`rc=0`) result here just means the `commit_message` check is off in
+settings (default) — the `pre-push` branch-name check still applies. Do not
+treat `rc=0` as a failure.
+
+## Step 5 — Hand-off note
+
+Tell the user, concisely:
+
+- Each teammate runs `/acs:install-hooks` (or `sh .acs/ci/install-hooks.sh`)
+  once per clone — hooks are per-clone, like `pre-commit install`.
+- The hooks enforce the configured `formats.*`; change them with `/acs:setup`.
+- They are `--no-verify`-bypassable, and CI does not re-check branch names or
+  commit subjects: the required CI check (if configured) gates only that a PR
+  names its ticket.
+- Commit any newly created `.acs/ci/*` (and `.pre-commit-config.yaml` if edited).
+
+## Completion report (normative)
+
+Every terminal outcome of a direct invocation — completed, failed, or
+interrupted — ends your final message with the standard block (INTERNALS.md
+"Completion report"). Same labels, same order, `none` where empty; replace the
+Ticket line with **Scope** (no ticket):
+
+```markdown
+## /acs:install-hooks · <scope> · <status>
+
+- **Scope**: local hooks for <repo>
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
+- **Results**: install path (pre-commit framework / raw git hooks); hooks installed (commit-msg, pre-push) or skipped (with reason); files copied into `.acs/ci/` (and whether they still need committing); verification outcome
+- **Findings**: <malformed conventions / pre-existing non-acs hooks / clarifications, or "none">
+- **Artifacts**: `.acs/ci/` files, this clone's `.git/hooks/*`, edited `.pre-commit-config.yaml`
+- **Metrics**: <wall time>
+- **Next**: have teammates run `/acs:install-hooks` per clone; configure the required CI check via `/acs:setup` to gate every PR on naming its ticket
+```

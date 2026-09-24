@@ -33,11 +33,11 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 
-sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
 import citation_check  # noqa: E402
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py"
@@ -330,17 +330,30 @@ class DimensionFourInvocationTest(unittest.TestCase):
         self.assertIn("principles", block.lower())
 
 
+def input_contract(body):
+    """The verifier's `## Input contract` section, whitespace-normalized."""
+    m = re.search(r"(?ms)^## Input contract\b.*?(?=^## )", body)
+    assert m is not None, "## Input contract section not found"
+    return re.sub(r"\s+", " ", m.group(0))
+
+
 class PrdRootDeclaredTest(unittest.TestCase):
     """AC-2/C-7: all 4 verifiers' input-contract `<constraints>` enumeration
-    now names `prd_path` (baseline: 0 matches in all four)."""
+    names the PRD constraint the `--root prd=` argument is built from. Since
+    ADR-0102 that constraint is `prd` -- the located PRD file, resolved by the
+    coordinator -- and the `prd_path` settings key it replaced is gone."""
 
-    def test_all_four_declare_prd_path_constraint(self):
+    def test_all_four_declare_prd_constraint(self):
         for fname in VERIFIERS:
             with self.subTest(verifier=fname):
                 body = read(os.path.join(AGENTS, fname))
                 self.assertIn(
-                    "prd_path", body,
-                    "%s must declare prd_path as a verify-task constraint" % fname)
+                    "`prd`", input_contract(body),
+                    "%s must declare prd as a verify-task constraint" % fname)
+                self.assertNotIn("prd_path", body)
+                block = re.sub(r"\s+", " ", dimension_block(body, "authoring-conformance"))
+                self.assertIn('--root prd="$(dirname <prd>)"', block,
+                              "%s: the prd root must be derived from the prd constraint" % fname)
 
 
 class BlockingFindingMappingTest(unittest.TestCase):
@@ -419,7 +432,7 @@ class HybridMechanismTest(unittest.TestCase):
 
 class SharedIdenticallyTest(unittest.TestCase):
     """AC-4: exactly one citation_check.py exists under
-    src/acs/hooks/scripts/, and the corroboration clause normalizes
+    plugins/acs/hooks/scripts/, and the corroboration clause normalizes
     identically across the 4 verifiers."""
 
     def test_exactly_one_citation_check_script(self):
@@ -445,11 +458,13 @@ class SharedIdenticallyTest(unittest.TestCase):
 
 
 class PrinciplesRootConditionalTest(unittest.TestCase):
-    """F2 (AC-2/AC-4): the `--root principles=<principles_path>` clause in
+    """F2 (AC-2/AC-4): the `--root principles=<principles_dir>` clause in
     all 4 verifiers' authoring-conformance dimension must be conditional on
-    `principles_path` being non-null and the `principles/` set existing on
-    disk — an absent set is documented optional at
-    create-docs/SKILL.md (Inputs & mode) and must never manufacture a finding."""
+    the `principles_dir` constraint being present and the `principles/` set
+    existing on disk — an absent set is documented optional at
+    create-docs/SKILL.md (Inputs & mode) and must never manufacture a finding.
+    (ADR-0102 renamed the constraint from the removed `principles_path`
+    setting, and with it the old `null` case.)"""
 
     def test_principles_root_is_conditional_in_all_four(self):
         for fname in VERIFIERS:
@@ -457,7 +472,9 @@ class PrinciplesRootConditionalTest(unittest.TestCase):
                 body = read(os.path.join(AGENTS, fname))
                 block = dimension_block(body, "authoring-conformance")
                 clause = corroboration_clause(block)
-                self.assertIn("principles_path", clause)
+                self.assertIn("--root principles=<principles_dir>", clause)
+                self.assertIn("principles_dir", clause)
+                self.assertNotIn("principles_path", clause)
                 self.assertIn("only when", clause.lower())
                 self.assertIn("omit", clause.lower())
 
@@ -489,9 +506,9 @@ class PrinciplesRootConditionalTest(unittest.TestCase):
     def test_skill_md_principles_optional_contract_unchanged(self):
         body = read(os.path.join(SKILLS, "create-docs", "SKILL.md"))
         self.assertIn(
-            '<constraint name="principles-optional">principles_path may be '
-            "null, or the principles/ set may be absent — treat as grounding "
-            "N/A for this iteration, never a block.</constraint>",
+            '<constraint name="principles-optional">the principles/ set may be '
+            "absent — treat as grounding N/A for this iteration, never a "
+            "block.</constraint>",
             body)
 
 
@@ -564,19 +581,29 @@ class SkillMirrorTest(unittest.TestCase):
 
 class SkillVerifyConstraintPrdPathTest(unittest.TestCase):
     """C-7: each of the 4 SKILL.md verify-task `<constraints>` sentences
-    names `prd_path`, so the coordinator actually renders the root the
-    verifier's new authoring-conformance constraint needs."""
+    names the PRD constraint, so the coordinator actually renders the root the
+    verifier's authoring-conformance check needs. Since ADR-0102 that is
+    `prd` (the located file, not the removed `prd_path` setting), and every
+    location constraint the sentence names is one the verifier declares --
+    skill and agent agree on the names."""
 
-    def test_verify_constraints_sentence_names_prd_path(self):
+    def test_verify_constraints_sentence_names_prd(self):
+        verifier = input_contract(read(os.path.join(AGENTS, "create-docs-verifier.md")))
         for skill in CORROBORATION_SKILLS:
             with self.subTest(skill=skill):
                 body = read(os.path.join(SKILLS, skill, "SKILL.md"))
                 region = verify_phase_region(body, skill)
                 sentence = verify_constraints_sentence(region, skill)
                 self.assertIn(
-                    "prd_path", sentence,
+                    "`prd`", sentence,
                     "%s/SKILL.md: verify-task <constraints> sentence must name "
-                    "prd_path" % skill)
+                    "prd" % skill)
+                self.assertNotIn("prd_path", sentence)
+                for name in ("prd", "architecture_dir", "principles_dir"):
+                    self.assertIn("`%s`" % name, sentence)
+                    self.assertIn("`%s`" % name, verifier,
+                                  "the verifier must declare the %s constraint the "
+                                  "skill sends" % name)
 
 
 class DimensionFourStillNumberedFourTest(unittest.TestCase):

@@ -1,8 +1,9 @@
 """MAR-114 spec 04 — docs / eval / ADR / CHANGELOG consistency sweep.
 
 Prose-contract tests over every consumer-repo doc this spec touches: the
-`contracts.md` settings-key list, `configuration.md`'s Keys table, the
-`skills.md` count + new `/acs:test` section, one new `s04` routing CASE, the
+`contracts.md` settings-key list (which, since ADR-0102, names no document
+path key), `configuration.md`'s Keys table, the
+`skills.md` count + new `/acs:test` section, one new routing probe, the
 CHANGELOG's durable MAR-114 entry, ADR 0011's status flip (with ADR 0012 left
 untouched as a regression guard), and the two new ADRs.
 
@@ -12,12 +13,17 @@ Stdlib-only (ast, os, re, unittest). Run:
 
 import ast
 import glob
+import json
 import os
 import re
 import unittest
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
 
 
@@ -42,8 +48,9 @@ def section(body, heading):
 
 class ContractsMdSettingsKeyListTest(unittest.TestCase):
     """Approach item 1: contracts.md settings-key list gains suites +
-    e2e-deprecated-alias note, plus the boy-scout quality_path/operations_path
-    repair."""
+    e2e-deprecated-alias note. The boy-scout quality_path/operations_path
+    repair it also made is inverted: ADR-0102 removed those keys, so the list
+    must not name them and states that no key locates a document."""
 
     def _contracts(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md"))
@@ -60,15 +67,21 @@ class ContractsMdSettingsKeyListTest(unittest.TestCase):
             re.search(r"(?i)deprecated|alias", after),
             "contracts.md must note `e2e` is a deprecated alias near its mention")
 
-    def test_settings_key_list_boy_scout_repair(self):
-        """Boy-scout repair: quality_path/operations_path were missing from
-        this list (MAR-112/113 drift) — MAR-114 repairs the whole list."""
+    def test_settings_key_list_names_no_document_path_key(self):
+        """Boy-scout repair, inverted: MAR-114 added the missing
+        quality_path/operations_path (MAR-112/113 drift) so the list matched
+        the schema. ADR-0102 removed every document-locating key, so a list
+        that matches the schema names none of them and says why."""
         body = self._contracts()
         window = section(body, "## Settings (consumer repo)")
-        self.assertIn("quality_path", window,
-                      "contracts.md's settings-key list must gain `quality_path` (boy-scout repair)")
-        self.assertIn("operations_path", window,
-                      "contracts.md's settings-key list must gain `operations_path` (boy-scout repair)")
+        for key in ("quality_path", "operations_path", "principles_path", "standards_path",
+                    "prd_path", "architecture_path", "requirements_path", "adr_path",
+                    "contracts_path", "tickets_path", "workspace_path"):
+            with self.subTest(key=key):
+                self.assertNotIn(key, window,
+                                 "contracts.md's settings-key list must not name the removed "
+                                 "`%s` (ADR-0102)" % key)
+        self.assertIn("No key locates the workspace or a document", " ".join(window.split()))
 
 
 class ConfigurationMdKeysTableTest(unittest.TestCase):
@@ -141,39 +154,31 @@ class SkillsMdCountAndTestSectionTest(unittest.TestCase):
                       "the suite-runner section must reference the suites map")
 
 
-class S04SkillTriggersCaseTest(unittest.TestCase):
-    """Approach item 4: one suite-runner routing CASE, structurally parsed
-    (no paid model call).
+class RoutingProbeCaseTest(unittest.TestCase):
+    """Approach item 4: one suite-runner routing probe, read from the curated
+    dataset (no paid model call).
 
     MAR-114 added it as `test`; the skills-independence refactor renamed that
     skill to `run-e2e-tests` and left `test` behind as a deprecated alias
-    directory whose description points at the new name, so the probe must now
-    expect `run-e2e-tests` — pinning `test` would pin the alias, not the
-    skill that carries the prose."""
+    directory, which v0.5.0 then deleted. The probe must expect
+    `run-e2e-tests` — pinning `test` would pin an alias that no longer ships,
+    which is exactly the stale assertion the guide-format migration found and
+    removed from this dataset."""
 
-    def _cases(self):
-        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
-        tree = ast.parse(read(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == "CASES" for t in node.targets
-            ):
-                return ast.literal_eval(node.value)
-        raise AssertionError("CASES list not found in s04_skill_triggers.py")
+    @staticmethod
+    def _probes():
+        return eval_cases.probe_dicts()
+
+    @staticmethod
+    def _skill(probe):
+        return probe["skill"].split(":", 1)[1]
 
     def test_suite_runner_case_present_and_internally_consistent(self):
-        cases = self._cases()
-        matches = [c for c in cases if c[0] == "run-e2e-tests"]
-        self.assertTrue(
-            matches, "s04 CASES must contain an entry labeled 'run-e2e-tests'")
-        case = matches[0]
-        self.assertEqual(
-            case[-1], "run-e2e-tests",
-            "the suite-runner CASE's expected-skill (last element) must be "
-            "'run-e2e-tests'")
-        self.assertEqual(
-            [c for c in cases if c[0] == "test"], [],
-            "s04 must not probe the deprecated `test` alias directory")
+        probed = [self._skill(p) for p in self._probes()]
+        self.assertIn("run-e2e-tests", probed,
+                      "the suite must carry a run-e2e-tests routing case")
+        self.assertNotIn("test", probed,
+                         "no probe may name the deleted `test` alias directory")
 
 
 class ChangelogMar114EntryTest(unittest.TestCase):

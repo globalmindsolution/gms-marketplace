@@ -23,12 +23,12 @@ import unittest
 
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "src", "acs", "hooks", "scripts"))
+    "plugins", "acs", "hooks", "scripts"))
 
 from acs_lib import workflow  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
 IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
 CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")

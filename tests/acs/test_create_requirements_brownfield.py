@@ -1,12 +1,12 @@
 """MAR-143 spec 02 — /acs:create-requirements brownfield extraction,
-classification, interactive-confirm, docs (AC-2/3/4/5/6-settings-half/
+classification, interactive-confirm, docs (AC-2/3/4/5/6-write-target-half/
 7-remainder).
 
 Deepens the four prose files Spec 01 scaffolded (SKILL.md +
 create-requirements-{planner,executor,verifier}.md): architecture-aware
 feature-area enumeration + codebase-inventory fallback, code-cited DRAFT
 extraction, functional/non-functional classification-and-write
-(rubric quoted verbatim from `src/acs/skills/code/SKILL.md`, never
+(rubric quoted verbatim from `plugins/acs/skills/code/SKILL.md`, never
 paraphrased — the classification-drift regression), augment-only-absent
 no-overwrite, interactive-confirm; plus ADR 0061, the CHANGELOG
 `[Unreleased]` entry, and the `contracts.md` producer-registration line.
@@ -25,7 +25,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
 PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")  # the survey charter lives in the executor since ADR-0092
 EXECUTOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")
@@ -147,7 +147,7 @@ class VerifierCoverageCitationContractTest(unittest.TestCase):
         self.assertRegex(self.body, r"(?i)routing spot-check")
 
     def test_augment_only_absent_diff_dimension(self):
-        self.assertRegex(self.body, r"git diff -- <requirements_path>")
+        self.assertRegex(self.body, r"git diff -- <requirements_dir>")
 
     def test_interactive_confirm_dimension(self):
         self.assertRegex(self.body, r"(?i)Interactive-confirm discipline")
@@ -161,8 +161,8 @@ class ClassificationRubricRegressionTest(unittest.TestCase):
     VERBATIM from the rubric's producing-side source of truth — a
     regression test that fails if the two diverge (the plan's
     classification-drift risk). MAR-162 moved that source of truth from
-    `src/acs/skills/code/SKILL.md` to
-    `src/acs/agents/docs-sync-executor.md` (C-1); the rubric block
+    `plugins/acs/skills/code/SKILL.md` to
+    `plugins/acs/agents/docs-sync-executor.md` (C-1); the rubric block
     itself is unchanged, only its file of origin moved."""
 
     RUBRIC_RE = re.compile(
@@ -184,14 +184,18 @@ class ClassificationRubricRegressionTest(unittest.TestCase):
             "drift between the two producers",
         )
 
-    def test_executor_names_settings_resolved_subdir_keys(self):
+    def test_executor_names_constraint_resolved_subfolders(self):
+        """The rubric's two targets are the coordinator-resolved
+        `functional_dir` / `non_functional_dir` constraints (ADR-0102), not
+        the removed `requirements_layout` subdir keys."""
         body = read(EXECUTOR_PATH)
-        self.assertIn("requirements_layout.functional_subdir", body)
-        self.assertIn("requirements_layout.non_functional_subdir", body)
+        self.assertIn("`<functional_dir>/<feature>.md`", body)
+        self.assertIn("`<non_functional_dir>/<item>.md`", body)
+        self.assertNotIn("functional_subdir", body)
 
     def test_executor_no_overwrite_git_diff_self_check(self):
         body = read(EXECUTOR_PATH)
-        self.assertRegex(body, r"git diff -- <requirements_path>")
+        self.assertRegex(body, r"git diff -- <requirements_dir>")
         self.assertRegex(body, r"(?i)byte-for-byte")
 
 
@@ -220,17 +224,30 @@ class SkillInteractiveConfirmContractTest(unittest.TestCase):
 
 
 class SettingsDrivenWriteTargetContractTest(unittest.TestCase):
-    """AC-6 (settings-driven half): the executor references
-    settings.requirements_path / settings.requirements_layout at the
-    write-target sites, never a marketplace-specific hardcoded literal."""
+    """AC-6 (write-target half), re-expressed by ADR-0102: the executor
+    writes to the `requirements_dir` / `functional_dir` / `non_functional_dir`
+    locations its task constraints carry (the coordinator found them in the
+    repo, else used the `docs/requirements/` convention) — never a
+    marketplace-specific hardcoded literal, and never a path read out of
+    settings (`requirements_path` / `requirements_layout` are gone)."""
 
-    def test_executor_references_requirements_path_setting(self):
-        body = read(EXECUTOR_PATH)
-        self.assertIn("requirements_path", body)
+    def test_executor_takes_requirements_dir_constraint(self):
+        body = " ".join(read(EXECUTOR_PATH).split())
+        self.assertIn(
+            "`<constraints>` — at least `requirements_dir`, `functional_dir`, "
+            "`non_functional_dir`",
+            body,
+        )
 
-    def test_executor_references_requirements_layout_setting(self):
+    def test_executor_scopes_writes_to_requirements_dir(self):
+        body = " ".join(read(EXECUTOR_PATH).split())
+        self.assertIn("Mutate ONLY files under `requirements_dir`", body)
+
+    def test_executor_never_reads_a_requirements_path_setting(self):
         body = read(EXECUTOR_PATH)
-        self.assertIn("requirements_layout", body)
+        self.assertNotIn("requirements_path", body)
+        self.assertNotIn("requirements_layout", body)
+        self.assertNotRegex(body, r"settings\.requirements")
 
 
 class Adr0061ExistsAndOnTopicTest(unittest.TestCase):

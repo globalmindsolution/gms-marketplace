@@ -23,8 +23,8 @@ import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-HOOKS_JSON = os.path.join(REPO_ROOT, "src", "acs", "hooks", "hooks.json")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+HOOKS_JSON = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402

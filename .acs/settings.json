@@ -1,14 +1,5 @@
 {
   "ticket_prefix": "MAR",
-  "prd_path": "docs/product",
-  "architecture_path": "docs/architecture",
-  "requirements_path": "docs/requirements",
-  "requirements_layout": {
-    "functional_subdir": "functional",
-    "non_functional_subdir": "non-functional"
-  },
-  "adr_path": "docs/adr",
-  "principles_path": "docs/principles",
   "tracker": {
     "provider": "github",
     "github": {
@@ -32,101 +23,30 @@
   },
   "enforcement": {
     "checks": {
-      "branch_name": true,
-      "pr_title": true,
-      "pr_description": true,
-      "acs_label": true,
       "commit_message": true
-    },
-    "exempt_branches": [
-      "release/*",
-      "dependabot/*",
-      "renovate/*"
-    ],
-    "exempt_label": "acs-exempt",
-    "require_label": "ACS",
-    "pr_description_sections": [
-      "Summary",
-      "Ticket",
-      "Changes",
-      "Test plan"
-    ]
-  },
-  "formats": {
-    "branch_name": "{type}/{ticket_id}-{slug}",
-    "commit_message": "{ticket_id} {summary}",
-    "pr_title": "[{ticket_ref}] {title}",
-    "pr_description_template": "pr-default",
-    "tickets": {
-      "epic": {
-        "title": "[EPIC] {title}",
-        "description_template": "epic-default"
-      },
-      "story": {
-        "title": "{title}",
-        "description_template": "story-default"
-      },
-      "task": {
-        "title": "{title}",
-        "description_template": "task-default"
-      }
     }
   },
   "release": {
     "version_locations": [
-      {
-        "file": ".claude-plugin/marketplace.json",
-        "pointer": "/version"
-      },
-      {
-        "file": "src/acs/.claude-plugin/plugin.json",
-        "pointer": "/version"
-      },
-      {
-        "file": "src/acs/.devin-plugin/plugin.json",
-        "pointer": "/version"
-      },
-      {
-        "file": ".devin-plugin/plugin.json",
-        "pointer": "/version"
-      }
+      ".claude-plugin/marketplace.json",
+      "plugins/acs/.claude-plugin/plugin.json",
+      "plugins/acs/.devin-plugin/plugin.json",
+      ".devin-plugin/plugin.json"
     ],
     "extra_refs": [
-      {
-        "file": ".claude-plugin/marketplace.json",
-        "selector": {
-          "pointer": "/plugins",
-          "match": {
-            "name": "acs"
-          },
-          "set": "source/ref"
-        },
-        "value_format": "v{version}"
-      },
-      {
-        "file": ".claude-plugin/marketplace.json",
-        "selector": {
-          "pointer": "/plugins",
-          "match": {
-            "name": "acs"
-          },
-          "set": "source/path"
-        },
-        "value_format": "src/acs"
-      },
       {
         "file": ".devin-plugin/plugin.json",
         "selector": {
           "pointer": "/requiredPlugins",
           "match": {
-            "path": "src/acs"
+            "path": "plugins/acs"
           },
           "set": "ref"
         },
         "value_format": "v{version}"
       }
     ],
-    "changelog_path": "src/acs/CHANGELOG.md",
+    "changelog_path": "plugins/acs/CHANGELOG.md",
     "tag_format": "v{version}",
     "base_branch": "main",
     "release_branch_format": "release/v{version}",
@@ -137,11 +57,8 @@
       ]
     },
     "pre_release_gate": [
-      "make -C src/acs-evals eval-source",
-      "make -C src/acs-evals check",
-      "make -C src/acs-evals mutation",
-      "make -C src/acs-evals measure",
-      "make -C src/acs-evals perf"
+      "python3 -m unittest tests.acs.test_eval_cases",
+      "claude plugin eval plugins/acs --tag routing --ablation none --trust-plugin --no-publish --max-cost-usd 20"
     ]
   },
   "tests": {

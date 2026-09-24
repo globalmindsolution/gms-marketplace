@@ -2,7 +2,7 @@
 
 | Layer | Technology | Why |
 |-------|------------|-----|
-| acs Skills (32) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` |
+| acs Skills (30) | Markdown SKILL.md, Claude Code plugin skill format | acs coordinator protocols; user-invocable as `/acs:<name>` |
 | Subagents (32 files, all reachable) | Markdown agent definitions | Separate executor and verifier contexts for the twelve authoring skills (24 agents) — no planner since ADR 0092 — plus `create-docs` (2; ADR 0094); four executor-only skills, the three apply-work ones and `code`, whose review left for `/acs:review-code` (4); and `review-code`'s own lens + adjudicator, which are not a pair — five lenses raise findings in parallel and one fresh-context adjudicator per finding tries to refute each (2); no agent file is orphaned; tool allowlists in frontmatter |
 | Hooks & helpers | **Python ≥ 3.9, stdlib only** | Deterministic gating/persistence with zero consumer-machine installs |
 | State | JSON (pretty-printed, atomic writes), JSON Schema 2020-12 | Human-auditable, machine-validated |
@@ -22,10 +22,11 @@
 - **Writes**: temp-file + `os.replace` (atomic); counters guarded by an
   `O_EXCL` spin lock; corrupt JSON read as "absent", reported, never fatal.
 - **Failure policy**: gates fail **closed**; helper CLIs exit 2 with
-  actionable stderr; status-line scripts fail **open** (fallback line) —
-  observability must never block work.
+  actionable stderr; bookkeeping a gate does not depend on (the gate
+  evidence record, the guard-denial audit) fails **open** — it must never
+  block work.
 - **Python compatibility**: 3.9+ (no `match`, no `X | Y` unions); `python3`
   on PATH is the only assumption.
 - **Docs altitude**: requirements (`docs/0*.md`) → PRD (`docs/product/`) →
   this doc set (`docs/architecture/`) → implementation contract
-  (`src/acs/docs/INTERNALS.md`) → authoring standard (`AUTHORING.md`).
+  (`plugins/acs/docs/INTERNALS.md`) → authoring standard (`AUTHORING.md`).

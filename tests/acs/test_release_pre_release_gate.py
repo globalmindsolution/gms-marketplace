@@ -1,7 +1,7 @@
 """`/acs:release` runs the repo's pre-release gate, and never cuts past it.
 
 The gate is settings-driven, not hardcoded: the skill used to end by telling
-the human to run `python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid`, a path that
+the human to run `python3 evals/behavioural/run_evals.py --plugin acs --paid`, a path that
 exists only in this marketplace and that stopped being even this repo's gate
 when MAR-579 retired the per-ticket paid tier. It then read one from
 `release.pre_release_gate` -- and only REMINDED the human to run it, which is
@@ -16,7 +16,7 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL = os.path.join(PLUGIN, "skills", "release", "SKILL.md")
 SCHEMA = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
@@ -137,15 +137,36 @@ class TheGateBlocksTheCutTest(unittest.TestCase):
 
 class ThisRepoDeclaresItsOwnGateTest(unittest.TestCase):
 
-    def test_the_dogfood_repo_names_the_acs_evals_commands(self):
+    def test_the_dogfood_repo_gates_on_the_plugin_eval_suite(self):
         gate = json.load(open(SETTINGS))["release"]["pre_release_gate"]
         self.assertTrue(gate, "this repo has a gate; it must declare it")
         joined = " ".join(gate)
-        self.assertIn("src/acs-evals", joined,
-                      "the gate lives at src/acs-evals since the fold")
+        # The suite is `claude plugin eval` case files inside the plugin, so
+        # the gate runs the documented CLI against THIS repo's plugin source.
+        self.assertIn("claude plugin eval plugins/acs", joined)
+        # The retired bespoke tooling must not come back as the gate.
+        self.assertNotIn("make -C evals", joined,
+                         "root evals/ was retired with its Makefile")
         self.assertNotIn("run_evals.py", joined,
-                         "the in-repo paid tier is an on-demand tool, not the gate")
+                         "the behavioural harness was retired")
 
+    def test_the_free_check_runs_before_the_paid_one(self):
+        """The skill stops at the first non-zero exit, so ORDER is the cost
+        control: a malformed case must fail the free validator before the
+        gate spends anything on sessions that would only discover it."""
+        gate = json.load(open(SETTINGS))["release"]["pre_release_gate"]
+        free = [i for i, c in enumerate(gate) if "test_eval_cases" in c]
+        paid = [i for i, c in enumerate(gate) if "claude plugin eval" in c]
+        self.assertTrue(free and paid, gate)
+        self.assertLess(free[0], paid[0])
+
+    def test_the_paid_step_carries_a_cost_ceiling(self):
+        gate = json.load(open(SETTINGS))["release"]["pre_release_gate"]
+        paid = [c for c in gate if "claude plugin eval" in c]
+        for command in paid:
+            self.assertRegex(command, r"--max-cost-usd \d")
+            self.assertIn("--trust-plugin", command,
+                          "a gate cannot stop at the first-run trust prompt")
 
 if __name__ == "__main__":
     unittest.main()

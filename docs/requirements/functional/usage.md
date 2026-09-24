@@ -4,24 +4,42 @@ How a developer drives `acs` day to day. Commands are typed in a Claude Code
 session inside the consumer repo. Everything here follows the requirements
 in the sibling files; this doc adds no new rules, it shows them in action.
 
-## One-time setup (any repo)
+## Getting started (any repo)
+
+Nothing has to run first. Every setting has a working default, so any skill
+works in a repo that has no `.acs/settings.json`: tickets are `ACS-1`,
+`ACS-2`, …, a branch is `task/ACS-12-add-wishlist`, a commit
+`ACS-12 Add the wishlist endpoint`, and a PR title is the plain ticket title
+(`Add wishlist support`); coverage 90, merge strategy squash, tracker local,
+models inherited. The workspace is always `<main-checkout>/.acs/state-machine`
+and ignores itself on its first write.
+
+The `acme-shop` repo in these walkthroughs wants its own ticket prefix, so it
+sets one by hand in the committed `.acs/settings.json`:
+
+```json
+{ "ticket_prefix": "SHOP" }
+```
+
+`/setup` is optional: run it to change the branch/commit/PR formats or to
+install the CI gates.
 
 ```text
 cd acme-shop
 /setup
-  → scope?            project            (.acs/settings.json + gitignored .acs/settings.local.json)
-  → workspace_path?   (default: derives to <main-checkout>/.acs/state-machine — no answer needed;
-                        set it only to point somewhere else)
-  → ticket_prefix?    SHOP               (suggested from the repo name)
-  → coverage 90, merge_strategy squash, tracker local  (defaults, editable)
+  → conventions?      keep the defaults  (branch task/SHOP-12-slug, commit "SHOP-12 …", PR "Add wishlist support")
+  → CI?               conventions + tests gates   (optional; branch protection + labels offered after)
 ```
+
+Setup writes only what differs from a default, to the committed
+`.acs/settings.json`. Change any other setting by editing that file.
 
 ### Existing product (brownfield)
 
 ```text
 /create-prd            # reverse-engineers a baseline PRD from code + docs,
                        #   asks you to confirm open points
-                       # → delivery ticket SHOP-1, docs PR "[SHOP-1] Product definition"
+                       # → delivery ticket SHOP-1, docs PR "Product definition"
 /merge-pr SHOP-1       # after you review the PR yourself
 
 /create-architecture   # reverse-engineers HLD (C4 1–3, data model, deployment)
@@ -157,92 +175,14 @@ the tests for specs marked implemented) before continuing.
 | Location | Contents |
 |----------|----------|
 | Consumer repo | Code, `docs/product/` (PRD), `docs/architecture/` (HLD/LLD), ADRs, scaffold |
-| `<workspace>/<repo>/` | `tickets-index.json`, `counters.json`, `metrics.json`, `sessions/`, `archive/`, one partition per ticket (states, specs, designs, runs with time/tokens/cost) |
+| `<workspace>/<repo>/` | `tickets-index.json`, `counters.json`, `sessions/`, `archive/`, one partition per ticket (states, specs, designs, runs with their timestamps and statuses) |
 
-Inspect progress and spend anytime: `tickets-index.json` for status across
-tickets, `metrics.json` for per-repo totals, a ticket's
-`acs.py run show` / `acs.py run next` for where it stands in the pipeline.
+Inspect progress anytime: `tickets-index.json` for status across tickets, a
+ticket's `acs.py run show` / `acs.py run next` for where it stands in the
+pipeline.
 
-Or run the two read-only in-session dashboards — both write nothing and make
-no network call:
-
-- **`/metrics`** (PM view) — delivery summary (including an additive G25
-  escalation line: event count, fast-lane-escalated count, de-escalation
-  count, silent-reversal count), throughput by status/type,
-  pipeline funnel + distinct PRs, ISSUES, PROGRESS (per-epic burn-up),
-  DEADLINE (on-track/overdue derived from `due_date`; degrades to "not set" when
-  no ticket has a parseable `due_date` — B1),
-  coverage achieved vs target, review iterations before the verifier passed,
-  and lead + cycle time per ticket.
-- **`/usage`** (usage view) — usage summary (total cost, time, runs, API
-  duration, and six averages: avg working time and cost per ticket and per
-  merged PR, plus avg API duration per ticket and per merged PR), cost + time
-  per ticket by pipeline step with the four averages
-  (avg working time and cost per ticket and per merged PR). Each ticket row
-  also expands into a per-skill sub-row per pipeline step showing that
-  skill's own API-duration figure alongside its wall-clock **step span**
-  (`step_api_duration`/`step_order`) — mirroring Claude Code's own `/usage`
-  split between wall-clock and API time; the API-duration cell renders the
-  literal `unavailable` marker uniformly whether that skill's entry is
-  structurally absent (e.g. the unhooked `test` pipeline step) or present
-  with its own basis `unavailable`, never a bare "no data" at this per-skill
-  scope. Plus token burn by
-  role (coordinator/planner/executor/verifier/other, plus an `unattributed`
-  bucket for same-window tokens with no attribution or attributed to a
-  different acs skill than the run's own — `coordinator` is always rendered,
-  `other`/`unattributed` appear whenever the ticket has any such spend),
-  each bucket additionally showing its repo-scope **token-share** and
-  **cost-share** percentage of panel 6's own totals (`token_share_pct`/
-  `cost_share_pct`, computed once after all runs are summed),
-  and usage by model — input/output/cache-write/cache-read tokens and cost
-  per model, at both repo and per-ticket scope. Its cost figure apportions
-  the run's full charged delta by token share with no unattributed
-  exclusion, unlike the role-scoped figure above, so the by-model total can
-  exceed the role-scoped attributed-only total by the excluded/unattributed
-  share — a named reconciliation identity, not a discrepancy.
-  Plus usage by ticket — input/output/cache-write/cache-read tokens and cost
-  per role, per ticket, each role additionally showing its **token-share**
-  and **cost-share** percentage of that ticket's own totals (ticket-scoped,
-  distinct from panel 6's repo-scope shares above — a different denominator
-  over the same underlying data, not a conflicting figure). Each ticket also
-  opens with a ticket-scope API-duration figure (`api_duration_ms`/
-  `api_duration_basis`, folded across that ticket's own skills) and a
-  `skills[]` breakdown — one row per hooked skill the ticket ever ran, its
-  own run time, API duration, and basis, plus per-run detail — that degrades
-  independently of the role table above: a skill with run entries but no
-  duration ever measured/apportioned still gets a row (null duration, basis
-  `unavailable`) rather than being dropped, and the list is empty only when
-  the ticket has zero run entries for every hooked skill; a role with no
-  measured cost in that ticket renders `no data` for its cost figure and
-  `unavailable` for its cost-share, independent of any sibling role in the
-  same ticket.
-  This render-layer `unavailable` marker (used only on a cost-share cell
-  with no measured cost, in either panel) is a distinct thing from the
-  `cost_basis` field's own pre-existing `unavailable` enum value described
-  below — the former is a share computation with no denominator to divide
-  by, the latter is a run-level fact about how that run's cost was priced;
-  they happen to share a string but never the same field.
-  Every cost figure carries a `cost_basis` — `measured` (the
-  attributed-token share of the real session-window dollar delta sampled
-  from Claude Code's own statusLine cost payload — that delta net of the
-  excluded/unattributed token share, per the "drop, don't redistribute"
-  policy — still sourced directly from Claude Code's own real number, never
-  an acs-invented estimate), `apportioned` (that same attributed share split
-  further across roles by measured token share), or `unavailable` (no
-  fabricated number; excluded from sums, not zero-padded) — plus a
-  `cost_scope`: `session_total` or `main_session_only` (a statusLine total
-  proved not to include subagent spend) on a charge, reused as
-  `no_unconsumed_sample_in_window` or `cost_total_reset` to carry the
-  degraded reason when `cost_usd` is `null`. There is no
-  `pricing_snapshot_date`: acs owns no price table, so no derived-from-a-price-list
-  framing applies (MAR-1, ADR 0082).
-- **Accepted timestamp forms.** A transcript or sample record is counted only
-  when its timestamp parses as an ISO-8601 *instant*: a date and a time with
-  the `T` separator, optionally fractional seconds of any precision, and
-  optionally `Z` or a `±HH:MM` / `±HHMM` offset. A value with no timezone is
-  read as UTC; an offset is normalised to UTC. A **bare date does not parse**
-  — the panel-7 lead/cycle callers read that as "no data" and degrade rather
-  than anchoring to midnight (ADR 0020). Acceptance MUST NOT vary by Python
-  version: the set above holds identically on every interpreter in the CI
-  matrix, so a record counted on one is never silently dropped on another
-  (MAR-520).
+acs reports no usage: it records no tokens, spend or time totals and ships
+no dashboard for them
+([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+Tokens, spend and time per ticket are Claude Code's to report — its own
+`/cost`, the console, or its usage exports.

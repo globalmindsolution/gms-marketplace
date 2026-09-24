@@ -1,6 +1,6 @@
 """MAR-129 — settings.schema.json `release` sub-schema (Decision 5, ADR 0054).
 
-Structure-contract unit test over `src/acs/schemas/settings.schema.json`'s
+Structure-contract unit test over `plugins/acs/schemas/settings.schema.json`'s
 new `properties.release` sub-schema (Option A): shape presence, the
 `required` key list, a recursive no-secret-field walk (Security NFR (i)),
 and a hand-rolled structural conformance check of this repo's own committed
@@ -21,7 +21,7 @@ import os
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SETTINGS_PATH = os.path.join(REPO_ROOT, ".acs", "settings.json")
 
@@ -66,6 +66,10 @@ def is_structurally_valid_release_block(block):
     if not isinstance(locations, list) or not locations:
         return False
     for entry in locations:
+        if isinstance(entry, str):
+            if not entry:
+                return False
+            continue
         if not isinstance(entry, dict):
             return False
         if not isinstance(entry.get("file"), str) or not entry.get("file"):
@@ -130,8 +134,16 @@ class Mar129ReleaseSettingsSchemaShapeCase(unittest.TestCase):
             "extra_refs/publish_driver must NOT be required (§10's flagged assumption)",
         )
 
+    def _version_location_branches(self):
+        branches = self.object_branch["properties"]["version_locations"]["items"]["oneOf"]
+        return {branch["type"]: branch for branch in branches}
+
     def test_version_locations_items_shape(self):
-        items = self.object_branch["properties"]["version_locations"]["items"]
+        branches = self._version_location_branches()
+        self.assertEqual(sorted(branches), ["object", "string"],
+                         "an entry is a bare path or a {file, pointer} object")
+        self.assertEqual(branches["string"].get("minLength"), 1)
+        items = branches["object"]
         self.assertEqual(items.get("required"), ["file", "pointer"])
         kind = items["properties"]["kind"]
         self.assertEqual(kind.get("default"), "json-pointer")
@@ -160,7 +172,7 @@ class Mar129ReleaseSettingsSchemaShapeCase(unittest.TestCase):
     def test_additional_properties_true_everywhere_in_the_tree(self):
         object_branch = self.object_branch
         self.assertTrue(object_branch.get("additionalProperties"))
-        self.assertTrue(object_branch["properties"]["version_locations"]["items"].get("additionalProperties"))
+        self.assertTrue(self._version_location_branches()["object"].get("additionalProperties"))
         self.assertTrue(object_branch["properties"]["extra_refs"]["items"].get("additionalProperties"))
         self.assertTrue(object_branch["properties"]["extra_refs"]["items"]["properties"]["selector"].get("additionalProperties"))
         self.assertTrue(object_branch["properties"]["publish_driver"].get("additionalProperties"))
@@ -202,11 +214,12 @@ class Mar129ReleaseSettingsProfileOneConformanceCase(unittest.TestCase):
 
     def test_profile_one_version_locations_are_marketplace_and_plugin_manifest(self):
         settings = load_json(SETTINGS_PATH)
-        files = {entry["file"] for entry in settings["release"]["version_locations"]}
+        files = {entry if isinstance(entry, str) else entry["file"]
+                 for entry in settings["release"]["version_locations"]}
         self.assertEqual(
             files,
-            {".claude-plugin/marketplace.json", "src/acs/.claude-plugin/plugin.json",
-             "src/acs/.devin-plugin/plugin.json", ".devin-plugin/plugin.json"},
+            {".claude-plugin/marketplace.json", "plugins/acs/.claude-plugin/plugin.json",
+             "plugins/acs/.devin-plugin/plugin.json", ".devin-plugin/plugin.json"},
         )
 
 
@@ -225,6 +238,15 @@ class Mar129ReleaseSettingsSchemaMalformedRejectionCase(unittest.TestCase):
     def test_missing_changelog_path_rejected(self):
         self.assertFalse(is_structurally_valid_release_block({
             "version_locations": [{"file": "package.json", "pointer": "/version"}],
+            "tag_format": "v{version}",
+            "base_branch": "main",
+            "release_branch_format": "release/v{version}",
+        }))
+
+    def test_empty_bare_path_rejected(self):
+        self.assertFalse(is_structurally_valid_release_block({
+            "version_locations": [""],
+            "changelog_path": "CHANGELOG.md",
             "tag_format": "v{version}",
             "base_branch": "main",
             "release_branch_format": "release/v{version}",

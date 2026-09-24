@@ -4,9 +4,8 @@ MAR-520. Claude Code transcript records carry fractional seconds and explicit
 offsets, and the old strict `%Y-%m-%dT%H:%M:%SZ` parse dropped every one of
 them silently. Widening that is bounded by two invariants, both asserted here:
 
-* a bare date stays unparseable (ADR 0020 -- the panel-7 lead/cycle callers
-  read None as "no data"; a date parsed as midnight would render a
-  real-looking number instead);
+* a bare date stays unparseable (ADR 0020 -- a caller reads None as "no
+  data"; a date parsed as midnight would pass for a real instant);
 * acceptance does not vary by interpreter. `datetime.fromisoformat` gained
   most of this leniency in CPython 3.11, so a fromisoformat-backed
   implementation accepts records on 3.12 that it drops on 3.9 -- this repo's
@@ -22,7 +21,7 @@ import unittest
 from datetime import datetime, timezone
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
 
 import acs_lib as lib  # noqa: E402
 
@@ -85,18 +84,14 @@ class AcceptedFormsTest(unittest.TestCase):
 
 
 class BareDateStaysUnparseableTest(unittest.TestCase):
-    """ADR 0020: the panel-7 lead/cycle callers depend on None for a bare date.
+    """ADR 0020: a caller depends on None for a bare date.
 
     Widening parse_iso to accept one would turn "no data" into a
-    midnight-anchored number that looks measured. The directive is restated in
-    code at metrics_aggregate.py.
+    midnight-anchored number that looks measured.
     """
 
     def test_a_bare_date_returns_none(self):
         self.assertIsNone(lib.parse_iso("2026-06-20"))
-
-    def test_elapsed_seconds_between_bare_dates_stays_none(self):
-        self.assertIsNone(lib.elapsed_seconds("2026-01-01", "2026-01-02"))
 
     def test_lock_is_stale_does_not_break_a_lock_on_a_bare_date(self):
         self.assertFalse(lib.lock_is_stale(

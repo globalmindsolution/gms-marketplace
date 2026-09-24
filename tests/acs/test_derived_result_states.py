@@ -18,11 +18,11 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 #: ADR-0095 split /acs:code into a dispatcher plus the references its four
 #: delivery paths share, so what used to be one SKILL.md body is read from
 #: the reference that carries it: the Finish step and the result contract.
-CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "references", "protocol.md")
+CODE_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "code", "references", "protocol.md")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -426,7 +426,7 @@ class ProseTest(unittest.TestCase):
 
     def test_the_reviewer_is_told_not_to_assert_its_own_verdict(self):
         review = self._body(os.path.join(
-            REPO_ROOT, "src", "acs", "skills", "review-code", "SKILL.md"))
+            REPO_ROOT, "plugins", "acs", "skills", "review-code", "SKILL.md"))
         self.assertIn("`passed` is **not yours to assert**", review)
         self.assertIn("let the kernel conclude", review)
 

@@ -1,0 +1,44 @@
+# workflows/ship.yaml — the delivery pipeline /acs:ship drives.
+#
+# A LIST, and deliberately nothing more. No `when:`, `paths:`, `requires:`,
+# `needs:`, `id:`, `name:`, `stop_after:`, `max_parallel`, `exclusive:`,
+# `on_fail:`, `boundary:` or `delivery:` — the schema rejects every one of
+# them. The declared order IS the dependency order and every step runs on
+# every run; a step with nothing owed records an evidenced no-op from its own
+# pre-hook, at no token cost, rather than being skipped by a predicate here.
+#
+# That follows from the standalone-skill rule: a skill whose applicability is
+# decided by a workflow predicate cannot be run on its own and be trusted,
+# because invoked by hand it never evaluates the condition the workflow was
+# evaluating for it. Each skill decides for itself and records why.
+#
+# `loops:` is the only construct, and it is not a condition — it tests nothing
+# about the change, it declares that two steps form a cycle and how many
+# times. It cannot live inside a skill because it spans two of them.
+#
+# Order is VALIDATED, not declared: each skill's skills/<name>/acs.yaml says
+# what artifacts it reads and writes, and `acs workflow validate` checks that
+# every step's required reads are written by an earlier step. Swap two steps
+# whose order does not matter and it passes; swap two whose order does and it
+# names the pair.
+#
+# See plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md §2.
+version: 3
+
+steps:
+  - analyze-requirements
+  - create-impl-plan
+  - create-api-contract
+  - create-test-docs
+  - code
+  - review-code
+  - create-e2e-tests
+  - run-e2e-tests
+  - docs-sync
+  - create-pr
+
+loops:
+  - from: review-code
+    back_to: code             # on blocking findings, re-enter at `code`
+    max_iterations: 3         # counts code->review-code rounds
+    on_exhausted: fail        # never "pass with findings"

@@ -58,7 +58,7 @@ flowchart TB
     end
     subgraph AIW["AI workforce"]
         TRI["Reflection loops<br/>execute . verify per skill"]
-        GAT["Gates & dashboards<br/>hooks, forge checks, metrics/usage"]
+        GAT["Gates & dashboards<br/>hooks, forge checks"]
     end
     CEO --> PT
     PT --> AIW
@@ -109,10 +109,10 @@ releases — through the acs pipeline.
 
 | Seat | Mission | Decides on | Operates (skills) | Answers for | Failure mode to guard |
 |---|---|---|---|---|---|
-| **PdM** (1) | The right product gets built | PRD, roadmap, tickets, priorities, requirement clarifications | create-prd, create-ticket, metrics | Feature-to-goal tracing; **same-day clarification SLA**; release content | Clarification latency silently becoming pipeline latency |
+| **PdM** (1) | The right product gets built | PRD, roadmap, tickets, priorities, requirement clarifications | create-prd, create-ticket | Feature-to-goal tracing; **same-day clarification SLA**; release content | Clarification latency silently becoming pipeline latency |
 | **Principal AI Platform** (shared, dept-level) | The product is built right | Architecture, design sign-off, standards, platform + org policy — at a **declared capacity split** | create-architecture, create-design approval, setup; future standardize-project / create-standards | Architecture conformance; high-stakes review; policy floors | Two-hat overload; becoming the review bottleneck |
 | **AI Product Builder** (2-4) | Tickets land | Implementation choices within spec; lane escalation acceptance | code, create-pr, merge-pr, ship, handoff | TDD/coverage on own tickets; cross-review quota | Being measured on code written instead of tickets landed + review quality |
-| **AI Quality & Evals Engineer** (1, shareable across 2 small teams) | The gates stay trustworthy | Test strategy, eval suites, coverage/e2e policy, release quality bar | e2e config, metrics/usage gate-health; future create-quality, test | Verifier efficacy; per-release eval baselines; product evals (fairness, reproducibility, evidence) | Sliding into manual per-PR testing, duplicating the verifier |
+| **AI Quality & Evals Engineer** (1, shareable across 2 small teams) | The gates stay trustworthy | Test strategy, eval suites, coverage/e2e policy, release quality bar | e2e config; future create-quality, test | Verifier efficacy; per-release eval baselines; product evals (fairness, reproducibility, evidence) | Sliding into manual per-PR testing, duplicating the verifier |
 
 **Headcount:** 4-6 per product team, **minimum 4**, **typical 5**.
 
@@ -171,8 +171,10 @@ every team.
   triggerable from tracker, chat, or CLI. Always full-verify lane, always
   stops before merge (C-19).
 - **Gates and dashboards:** hook gating, forge checks, coverage/e2e
-  hard-fails; delivery metrics, AI-spend usage, failure-mode observability
-  dashboards.
+  hard-fails; failure-mode observability dashboards. acs itself ships no
+  delivery-metrics or usage dashboard
+  ([ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)): AI
+  spend is read where Claude Code reports it.
 
 ## 8. Cross-cutting responsibilities (RACI)
 
@@ -239,7 +241,7 @@ reading is unchanged — but the role does not invoke it directly.
 | Test strategy & regression | create-docs quality, run-e2e-tests | Evals engineer |
 | Release | release | Ops hat |
 | Deploy | *(no skill by design — release tag triggers repo CD)* | Ops hat |
-| Operate & observe | metrics, usage, failure-mode dashboards, create-docs operations | Ops hat / evals engineer |
+| Operate & observe | failure-mode dashboards, create-docs operations | Ops hat / evals engineer |
 | Governance | setup, install-hooks, org policy | Principal |
 
 ---

@@ -123,7 +123,7 @@ sequenceDiagram
         end
         CO->>WS: phases/<skill>/result.json
         CO->>POST: --result-file result.json
-        POST->>WS: finalize run, ledger, index, metrics, release lock
+        POST->>WS: finalize run, ledger, index, release lock
         CO-->>Dev: standard completion report
     end
 ```
@@ -139,17 +139,14 @@ and no `<result>` is returned, so there is no execute XML to validate and no
 `iter-<n>-execute.xml` snapshot to persist — the verify XML persistence in
 the `loop reflection` block above is unaffected in every lane.
 
-**Cost/time metering (MAR-1, ADR 0082).** Two of the diagram's steps carry
-additional, undrawn responsibility, detailed in full in the dedicated
-`acs-cost-metering.md` flow: the `PRE` participant's gate check now also
-writes a ticket-independent session-correlation marker (`session_id`/
-`transcript_path` off the real `PreToolUse(Skill)` envelope), in its own
-fail-open `try/except` so a marker bug can never turn into a blocked gate;
-and the `POST` participant's `finalize_run` no longer trusts a
-coordinator-supplied `tokens`/`cost_usd` estimate — it measures real token
-counts from the run's recorded transcript and apportions a real dollar
-figure sampled off the opt-in statusLine hook, both fail-open to
-`cost_basis="unavailable"` rather than a fabricated number.
+**Gate evidence.** One of the diagram's steps carries an undrawn
+responsibility: the `PRE` participant's gate check also records that it fired
+(the skill and the time, in `sessions/<checkout>-gate.json`) before it passes
+or blocks, in its own fail-open `try/except` so a write failure can never turn
+into a blocked gate, and `SS` spends that evidence once to record whether the
+run was gated. Neither step measures usage: `POST` records no token count and
+no dollar figure, and nothing reads a transcript
+([ADR 0104](../../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 **File-map guard denials (MAR-578).** The `PreToolUse` write-tool guard is not
 a participant in this diagram at all — it runs per write tool call inside the
@@ -208,8 +205,8 @@ The `PRE` participant's check changed kind, not position. It still runs
 in-process under `dispatch.py`'s bounded alarm, still fails closed, and exit 2
 is still the block. What it evaluates is now only:
 
-- the **inputs** the skill about to run reads — the partition resolves; the
-  PRD doc set for `/acs:create-architecture`; `plan.md` for `/acs:code`;
+- the **inputs** the skill about to run reads — the partition resolves;
+  `plan.md` for `/acs:code`;
   `plan.md` plus an `api_surface: true` `analysis.md` for
   `/acs:create-api-contract`; a configured e2e suite plus at least one
   e2e-typed case in `test-cases.md` for `/acs:create-e2e-tests`; and
@@ -217,6 +214,11 @@ is still the block. What it evaluates is now only:
   `/acs:create-pr`'s `verifier_passed` brake (narrowed to a ticket that HAS a
   recorded `code` run), `/acs:create-design`'s `needs_design` brake, and
   `/acs:merge-pr`'s recorded-PR requirement.
+
+A repo document is not among them: the PRD `/acs:create-architecture` needs,
+and the architecture set `/acs:create-project`, `/acs:standardize-project`
+and `/acs:create-docs` need, are checked by the skill itself at Start, since
+no setting says where either lives ([ADR-0102](../../../adr/0102-documents-are-found-not-configured.md)).
 
 No gate refuses a skill for a predecessor's POSITION: `_require_completed`
 is deleted. The one gate that reads another step's status is
@@ -246,5 +248,5 @@ now, not `/acs:code`: the plan phase, `code-planner.md` (as
 moved there, so a `/acs:code` run draws no plan-authoring step at all and
 enters the reflection loop directly with the approved plan as an input. And `WS` splits in two: the phase artifacts,
 verdicts, ledger and lock stay in the workspace partition, while the plan and
-the other human-facing ticket documents are written to
-`<settings.artifacts.tickets_path>/<ID>/` in the repo (ADR-0090).
+the other human-facing ticket documents are written to the fixed
+`docs/tickets/<ID>/` in the repo (ADR-0090, ADR-0102).

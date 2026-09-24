@@ -377,7 +377,7 @@ class TestCliContract(MigratorCase):
                 called.add(node.func.attr)
         allowed = {"repo_partition_id", "repo_dir", "archive_dir", "ticket_dir",
                    "sessions_dir", "read_json"}
-        forbidden = {"write_json", "update_index", "update_metrics", "acquire_lock",
+        forbidden = {"write_json", "update_index", "acquire_lock",
                      "release_lock", "save_ticket", "finalize_run", "build_context"}
         self.assertTrue(called)
         self.assertTrue(called.issubset(allowed), called - allowed)

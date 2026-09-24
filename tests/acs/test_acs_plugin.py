@@ -18,12 +18,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -49,18 +48,28 @@ class TestDispatcher(AcsWorkspaceCase):
 
 
 class TestGates(AcsWorkspaceCase):
-    def test_uninitialized_repo_blocks_with_setup_message(self):
+    def test_a_repo_that_never_ran_setup_is_not_blocked(self):
+        """ADR-0105: every setting has a default, so no /acs:setup is needed
+        first -- and the state the gate writes stays out of `git status`."""
         plain = os.path.join(self.tmp, "plain")
         os.makedirs(plain)
         subprocess.run(["git", "init", "-q", plain], check=True)
         result = self.pre("create-ticket", cwd=plain)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("setup", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("/acs:setup", result.stderr)
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=plain,
+                                capture_output=True, text=True, check=True)
+        self.assertEqual(status.stdout, "")
 
-    def test_create_architecture_requires_prd(self):
+    def test_the_prd_precondition_is_the_skills_not_the_hooks(self):
+        """ADR-0102: no setting says where the PRD lives, so the hook cannot
+        look for it. /acs:create-architecture finds it itself and stops."""
         result = self.pre("create-architecture")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("create-prd", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-architecture",
+                               "SKILL.md"), encoding="utf-8") as fh:
+            body = " ".join(fh.read().split())
+        self.assertIn("no PRD found — run /acs:create-prd first", body)
 
     def test_code_requires_resolvable_ticket(self):
         result = self.pre("code")
@@ -173,12 +182,12 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
     carry its footprint."""
 
     DELETED_PATHS = [
-        os.path.join("src", "acs", "skills", "create-spec", "SKILL.md"),
-        os.path.join("src", "acs", "agents", "create-spec-planner.md"),
-        os.path.join("src", "acs", "agents", "create-spec-executor.md"),
-        os.path.join("src", "acs", "agents", "create-spec-verifier.md"),
-        os.path.join("src", "acs", "hooks", "scripts", "pre-create-spec.py"),
-        os.path.join("src", "acs", "hooks", "scripts", "post-create-spec.py"),
+        os.path.join("plugins", "acs", "skills", "create-spec", "SKILL.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-planner.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-executor.md"),
+        os.path.join("plugins", "acs", "agents", "create-spec-verifier.md"),
+        os.path.join("plugins", "acs", "hooks", "scripts", "pre-create-spec.py"),
+        os.path.join("plugins", "acs", "hooks", "scripts", "post-create-spec.py"),
     ]
 
     def test_create_spec_absent_from_registries(self):
@@ -197,7 +206,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
         skill names against the skill directories, which is what makes a new
         workflow a YAML file and a new skill a directory (§4.3 I5)."""
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
+            REPO_ROOT, "plugins", "acs", "schemas", "run.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("propertyNames", schema["properties"]["steps"])
@@ -205,7 +214,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
 
     def test_settings_schema_drops_spec_template_and_sections(self):
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("spec_template", schema["properties"]["formats"]["properties"])
@@ -222,13 +231,13 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
         which is the drift MAR-516 exists to close.
         """
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
+            REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
             "propertyNames"]["enum"]
         self.assertEqual(sorted(overrides_enum), sorted(lib.HOOKED_SKILLS))
-        for field in ("requirements_path", "e2e"):
+        for field in ("e2e",):
             self.assertNotIn(
                 "/create-spec", schema["properties"][field]["description"],
                 "%s description must not reference the deleted /create-spec" % field)
@@ -254,14 +263,17 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotIn("KeyError", result.stderr)
 
-    def test_blocks_without_architecture_gateerror_not_keyerror(self):
+    def test_without_architecture_the_skill_stops_not_the_hook(self):
+        """ADR-0102: the architecture precondition moved into the skill, which
+        can find a set wherever the repo keeps it; the hook passes."""
         for skill in self.PRODUCERS:
             with self.subTest(skill=skill):
                 result = self.pre(skill)
-                self.assertEqual(result.returncode, 2)
-                self.assertIn("create-architecture", result.stderr)
+                self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotIn("KeyError", result.stderr)
-                self.assertNotIn("unexpected error in gate", result.stderr)
+                with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", skill,
+                                       "SKILL.md"), encoding="utf-8") as fh:
+                    self.assertIn("run /acs:create-architecture first", " ".join(fh.read().split()))
 
 
 class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
@@ -358,7 +370,7 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
         """The 18-name enum is gone: step names validate against the RESOLVED
         WORKFLOW, so a new workflow is a YAML file and touches no schema."""
         schema_path = os.path.join(
-            REPO_ROOT, "src", "acs", "schemas", "run.schema.json")
+            REPO_ROOT, "plugins", "acs", "schemas", "run.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
         self.assertNotIn("enum", schema["properties"]["steps"].get("propertyNames", {}))
@@ -377,11 +389,10 @@ class TestConcurrencyAndRecovery(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("locked", result.stderr)
 
-    def test_session_end_interrupts_the_step_and_counts_metrics(self):
+    def test_session_end_interrupts_the_step(self):
         """`interrupted` is the one resumable state, and `session_end` is the
-        stop_reason that says which kind of ending it was (§4.3)."""
-        with open(lib.metrics_path(self.ws, "acme-shop")) as fh:
-            before = json.load(fh).get("totals", {}).get("runs", 0)
+        stop_reason that says which kind of ending it was (§4.3). No
+        metrics.json is written (ADR-0104)."""
         result = self.run_script("dispatch.py", "session-end",
                                  stdin=json.dumps({"cwd": self.repo}))
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -392,9 +403,7 @@ class TestConcurrencyAndRecovery(AcsWorkspaceCase):
         self.assertEqual(entry["status"], "interrupted")
         self.assertEqual(entry["stop_reason"], "session_end")
         self.assertFalse(os.path.exists(os.path.join(rdir, ".lock")))
-        with open(lib.metrics_path(self.ws, "acme-shop")) as fh:
-            after = json.load(fh)["totals"]["runs"]
-        self.assertEqual(after, before + 1)
+        self.assertFalse(os.path.exists(os.path.join(self.ws, "acme-shop", "metrics.json")))
 
     def test_handoff_and_resume(self):
         out = self.run_script("handoff.py", "--run", self.ticket,
@@ -448,57 +457,14 @@ class TestClarifications(AcsWorkspaceCase):
         self.assertEqual(json.loads(self.clarify("list", "--open").stdout)["count"], 0)
 
 
-class TestStatusLines(AcsWorkspaceCase):
-    def payload(self, cwd):
-        return json.dumps({"model": {"display_name": "Opus"},
-                           "workspace": {"current_dir": cwd}})
+class TestNoStatusLine(unittest.TestCase):
+    """ADR-0103: acs ships no status line -- and so no cost sampler, the only
+    thing its payload fed."""
 
-    def test_statusline_states(self):
-        plain = os.path.join(self.tmp, "plain")
-        os.makedirs(plain)
-        out = self.run_script("statusline.py", stdin=self.payload(plain), cwd=plain)
-        self.assertEqual(out.returncode, 0)
-        self.assertIn("plain", out.stdout)
-
-        ticket = self.new_ticket("Fix rounding", "task")
-        self.start("code", ticket)
-        out = self.run_script("statusline.py", stdin=self.payload(self.repo))
-        self.assertEqual(out.returncode, 0, out.stderr)
-        for expected in (ticket, "code"):
-            self.assertIn(expected, out.stdout)
-
-    def test_subagent_statusline_rows(self):
-        """The row names the RUN, and the skill/role vocabulary is read from
-        the tree — a hard-coded list outlived two of its own entries."""
-        ticket = self.new_ticket("X", "task")
-        self.start("review-code", ticket)
-        payload = json.dumps({"columns": 80, "tasks": [
-            {"id": "a1", "type": "acs:review-code-lens", "status": "running",
-             "startTime": (time.time() - 95) * 1000, "tokenCount": 45200, "cwd": self.repo},
-            {"id": "a2", "type": "Explore", "description": "unrelated", "cwd": self.repo},
-        ]})
-        out = self.run_script("subagent-statusline.py", stdin=payload)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        rows = [json.loads(line) for line in out.stdout.splitlines()]
-        self.assertEqual([row["id"] for row in rows], ["a1"])  # non-acs row untouched
-        self.assertIn(ticket, rows[0]["content"])
-        self.assertIn("review-code-lens", rows[0]["content"])
-
-    def test_a_retired_agent_name_no_longer_matches(self):
-        """`code-verifier` left with the verifier (§3.5); a row for it is not
-        an acs subagent row any more."""
-        payload = json.dumps({"columns": 80, "tasks": [
-            {"id": "a1", "type": "acs:code-verifier", "status": "running",
-             "cwd": self.repo}]})
-        out = self.run_script("subagent-statusline.py", stdin=payload)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(out.stdout.strip(), "")
-
-    def test_statusline_never_crashes(self):
-        for bad in ("", "not json", '{"tasks": [{"id": "x", "type": 5}]}'):
-            for script in ("statusline.py", "subagent-statusline.py"):
-                out = self.run_script(script, stdin=bad)
-                self.assertEqual(out.returncode, 0, (script, bad, out.stderr))
+    def test_the_scripts_are_gone(self):
+        for name in ("statusline.py", "subagent-statusline.py", "cost_sampler.py"):
+            with self.subTest(script=name):
+                self.assertFalse(os.path.exists(os.path.join(SCRIPTS, name)))
 
 
 class ToolchainTests(unittest.TestCase):
@@ -538,474 +504,8 @@ class ToolchainTests(unittest.TestCase):
 # MAR-9 — pipeline-default CLAUDE.md guidance + exempt non-ticket merge-pr --pr
 # ---------------------------------------------------------------------------
 
-TEMPLATE_DIR = os.path.join(REPO_ROOT, "src", "acs", "templates")
+TEMPLATE_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
 
-
-class TestManagedBlock(unittest.TestCase):
-    """Spec 01 — the pure CLAUDE.md managed-block helpers in acs_lib (no fixture
-    needed; these are pure string functions)."""
-
-    def test_fresh_write_appends_block_and_preserves_user_prose(self):
-        # (a) Fresh write into surrounding user content.
-        existing = "# My project\n\nSome user notes.\n"
-        body = "Ship via /acs:ship."
-        out = lib.upsert_managed_block(existing, body)
-        self.assertIn(lib.ACS_BLOCK_BEGIN, out)
-        self.assertIn(lib.ACS_BLOCK_END, out)
-        self.assertIn(body, out)
-        # the original user prose survives byte-for-byte as a prefix
-        self.assertTrue(out.startswith(existing))
-        # exactly one blank line separates prior content from the BEGIN marker
-        before_marker = out.split(lib.ACS_BLOCK_BEGIN, 1)[0]
-        self.assertTrue(before_marker.endswith("\n\n"))
-        self.assertFalse(before_marker.endswith("\n\n\n"))
-
-    def test_idempotent_rerun_byte_identical(self):
-        # (b) AC-2 run-twice property.
-        existing = "# My project\n\nSome user notes.\n"
-        body = "Ship via /acs:ship."
-        first = lib.upsert_managed_block(existing, body)
-        second = lib.upsert_managed_block(first, body)
-        self.assertEqual(first, second)
-
-    def test_replace_changed_block_leaves_surrounding_bytes_intact(self):
-        # (c) Replace with a changed block; only the marker span changes.
-        prefix = "# Top\n\nintro prose\n"
-        suffix = "\n\n## Footer\n\ntrailing user text\n"
-        first = lib.upsert_managed_block(prefix, "label acs-exempt")
-        # add user content AFTER the block, then re-upsert with a different body
-        with_suffix = first + suffix
-        replaced = lib.upsert_managed_block(with_suffix, "label custom-exempt")
-        # surrounding content (before BEGIN and after END) is byte-identical
-        self.assertEqual(replaced.split(lib.ACS_BLOCK_BEGIN, 1)[0],
-                         with_suffix.split(lib.ACS_BLOCK_BEGIN, 1)[0])
-        self.assertEqual(replaced.split(lib.ACS_BLOCK_END, 1)[1],
-                         with_suffix.split(lib.ACS_BLOCK_END, 1)[1])
-        # the new body replaced the old one inside the span
-        self.assertIn("label custom-exempt", replaced)
-        self.assertNotIn("label acs-exempt", replaced)
-
-    def test_empty_existing_emits_just_block(self):
-        out = lib.upsert_managed_block("", "body text")
-        self.assertTrue(out.startswith(lib.ACS_BLOCK_BEGIN))
-        self.assertIn("body text", out)
-
-    def test_render_substitutes_both_placeholders(self):
-        # (d) render_managed_block fills {ticket_prefix} + {exempt_label}.
-        template = "prefix {ticket_prefix} and label {exempt_label} done"
-        rendered = lib.render_managed_block(template, "SHOP", "acs-exempt")
-        self.assertIn("SHOP", rendered)
-        self.assertIn("acs-exempt", rendered)
-        self.assertNotIn("{ticket_prefix}", rendered)
-        self.assertNotIn("{exempt_label}", rendered)
-
-    def test_template_exists_with_markers_and_placeholders(self):
-        # (e) AC-1 — template file content assertion.
-        path = os.path.join(TEMPLATE_DIR, "CLAUDE.acs.md")
-        self.assertTrue(os.path.isfile(path), path)
-        with open(path) as fh:
-            text = fh.read()
-        self.assertIn(lib.ACS_BLOCK_BEGIN, text)
-        self.assertIn(lib.ACS_BLOCK_END, text)
-        self.assertIn("{ticket_prefix}", text)
-        self.assertIn("{exempt_label}", text)
-        # guidance content: steer everyday work to /acs:ship and exempt PRs to --pr
-        self.assertIn("/acs:ship", text)
-        self.assertIn("/acs:merge-pr --pr", text)
-
-    # -- MAR-70 regression: doubling / non-idempotency of the /acs:setup writer ----
-    # The template ships a COMPLETE block (maintainer header + its own BEGIN/END);
-    # the writer must inject only the inner body wrapped in exactly ONE marker pair.
-
-    HEADER_MARKER = "CLAUDE.acs.md — acs managed block"
-
-    def _template_text(self):
-        with open(os.path.join(TEMPLATE_DIR, "CLAUDE.acs.md"), encoding="utf-8") as fh:
-            return fh.read()
-
-    def test_managed_body_from_template_drops_header_and_markers(self):
-        # The rendered body carries the guidance but NEITHER the maintainer header
-        # NOR the template's own markers (the writer owns the markers).
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        self.assertIn("/acs:ship", body)
-        self.assertIn("SHOP", body)
-        self.assertIn("acs-exempt", body)
-        self.assertNotIn(self.HEADER_MARKER, body)
-        self.assertNotIn(lib.ACS_BLOCK_BEGIN, body)
-        self.assertNotIn(lib.ACS_BLOCK_END, body)
-
-    def test_ac1_fresh_write_single_pair_no_header(self):
-        # AC-1: a fresh write from the real template yields EXACTLY one BEGIN/END
-        # pair around the body only; the maintainer header is never injected.
-        existing = "# My project\n\nSome user notes.\n"
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        out = lib.upsert_managed_block(existing, body)
-        self.assertEqual(out.count(lib.ACS_BLOCK_BEGIN), 1)
-        self.assertEqual(out.count(lib.ACS_BLOCK_END), 1)
-        self.assertNotIn(self.HEADER_MARKER, out)
-        self.assertIn("/acs:ship", out)
-        self.assertTrue(out.startswith(existing))  # AC-4: prior content preserved
-
-    def test_ac2_idempotent_double_run_from_template(self):
-        # AC-2: running the writer twice is byte-identical (whole real-template path).
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        existing = "# My project\n\nSome user notes.\n"
-        first = lib.upsert_managed_block(existing, body)
-        second = lib.upsert_managed_block(first, body)
-        self.assertEqual(first, second)
-        self.assertEqual(second.count(lib.ACS_BLOCK_BEGIN), 1)
-        self.assertEqual(second.count(lib.ACS_BLOCK_END), 1)
-
-    def _legacy_doubled_file(self, prefix_user, suffix_user):
-        """Reconstruct the pre-fix (buggy) artifact: the OLD writer wrapped the
-        WHOLE substituted template (header + inner BEGIN/END) in a second marker
-        pair, producing two BEGIN + two END with the header sandwiched between the
-        outer and inner BEGIN."""
-        whole_template = lib.render_managed_block(self._template_text(), "SHOP", "acs-exempt")
-        doubled = "%s\n%s\n%s" % (lib.ACS_BLOCK_BEGIN, whole_template, lib.ACS_BLOCK_END)
-        return prefix_user + doubled + suffix_user
-
-    def test_ac3_self_heals_legacy_doubled_block(self):
-        # AC-3 + AC-4: running the writer against an already-doubled/legacy block
-        # collapses it to a single clean pair with no orphaned markers, and the
-        # surrounding user content is preserved byte-for-byte.
-        prefix_user = "# My project\n\nSome user notes.\n\n"
-        suffix_user = "\n\n## More\n\ntrailing user text\n"
-        legacy = self._legacy_doubled_file(prefix_user, suffix_user)
-        # precondition: the fixture really is doubled
-        self.assertEqual(legacy.count(lib.ACS_BLOCK_BEGIN), 2)
-        self.assertEqual(legacy.count(lib.ACS_BLOCK_END), 2)
-
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        healed = lib.upsert_managed_block(legacy, body)
-        self.assertEqual(healed.count(lib.ACS_BLOCK_BEGIN), 1)
-        self.assertEqual(healed.count(lib.ACS_BLOCK_END), 1)
-        self.assertNotIn(self.HEADER_MARKER, healed)          # header no longer leaked
-        self.assertTrue(healed.startswith(prefix_user))       # AC-4 surrounding bytes
-        self.assertTrue(healed.endswith(suffix_user))         # AC-4 surrounding bytes
-        # and the heal is itself idempotent thereafter
-        self.assertEqual(lib.upsert_managed_block(healed, body), healed)
-
-    def test_ac3_self_heal_no_orphaned_marker_via_old_find_bug(self):
-        # Pin the specific non-idempotency root cause: a naive find(END) would match
-        # the INNER end and leave the OUTER end orphaned after the block. rfind(END)
-        # must consume the whole doubled span so the healed file is a single clean
-        # block immediately followed by the untouched user suffix.
-        legacy = self._legacy_doubled_file("intro\n\n", "\n\noutro\n")
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        healed = lib.upsert_managed_block(legacy, body)
-        self.assertEqual(healed.count(lib.ACS_BLOCK_END), 1)
-        # exactly one END, and the text after it is the user suffix — no orphan.
-        self.assertEqual(healed.split(lib.ACS_BLOCK_END, 1)[1], "\n\noutro\n")
-
-    def test_upsert_defensively_strips_body_that_carries_markers(self):
-        # Even a buggy caller that passes a body already wrapped in markers (the
-        # original defect) cannot cause doubling: the reducer strips them.
-        body_with_markers = "%s\nguidance\n%s" % (lib.ACS_BLOCK_BEGIN, lib.ACS_BLOCK_END)
-        out = lib.upsert_managed_block("", body_with_markers)
-        self.assertEqual(out.count(lib.ACS_BLOCK_BEGIN), 1)
-        self.assertEqual(out.count(lib.ACS_BLOCK_END), 1)
-        self.assertIn("guidance", out)
-
-    # -- MAR-74 (Deliverable 2): detect & self-heal a CLAUDE.md an earlier buggy
-    # run corrupted (doubled markers, accumulated orphan END markers) and report
-    # the repair. managed_block_is_malformed is the detector; upsert_managed_block
-    # (rfind span + _strip_stray_markers) is the repair; both are idempotent. ----
-
-    def _real_corrupted_file(self, prefix_user, suffix_user, n_orphan_end=1):
-        """Reconstruct the artifact a buggy /acs:setup actually produced and then
-        degraded: the WHOLE substituted template (maintainer header + its own
-        inner BEGIN/END) wrapped in an OUTER marker pair, followed by N orphaned
-        trailing END markers that accumulated on subsequent re-runs (the old
-        find(END) matched the inner END, leaving each outer END orphaned)."""
-        whole_template = lib.render_managed_block(self._template_text(), "SHOP", "acs-exempt")
-        doubled = "%s\n%s\n%s" % (lib.ACS_BLOCK_BEGIN, whole_template, lib.ACS_BLOCK_END)
-        orphans = ("\n" + lib.ACS_BLOCK_END) * n_orphan_end
-        return prefix_user + doubled + orphans + suffix_user
-
-    def test_managed_block_is_malformed_detector(self):
-        # The detector: exactly one BEGIN and one END -> well-formed; anything else
-        # (doubled, orphaned, or absent) -> malformed. True/false cases.
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        clean = lib.upsert_managed_block("# Repo\n\nnotes\n", body)
-        self.assertFalse(lib.managed_block_is_malformed(clean))                          # 1/1 clean
-        self.assertTrue(lib.managed_block_is_malformed(self._legacy_doubled_file("", ""))) # 2/2 doubled
-        self.assertTrue(lib.managed_block_is_malformed(clean + "\n" + lib.ACS_BLOCK_END))  # 1/2 orphan END
-        self.assertTrue(lib.managed_block_is_malformed(lib.ACS_BLOCK_BEGIN + "\nx\n"))     # lone BEGIN
-        self.assertTrue(lib.managed_block_is_malformed("# Repo\n\njust user prose\n"))     # absent (0/0)
-
-    def test_ac5_self_heal_doubled_plus_orphan_end_markers(self):
-        # AC-5 (+ AC-6, AC-7): a doubled block PLUS several accumulated orphan END
-        # markers collapses to exactly one clean pair with no orphan left behind,
-        # surrounding user content is preserved byte-for-byte, and the heal is a
-        # byte-identical no-op on the next run.
-        prefix_user = "# My project\n\nintro\n\n"
-        suffix_user = "\n\n## Footer\n\ntrailing\n"
-        corrupt = self._real_corrupted_file(prefix_user, suffix_user, n_orphan_end=3)
-        # precondition: genuinely corrupted (2 BEGIN; inner+outer+3 orphan = 5 END)
-        self.assertTrue(lib.managed_block_is_malformed(corrupt))
-        self.assertEqual(corrupt.count(lib.ACS_BLOCK_BEGIN), 2)
-        self.assertEqual(corrupt.count(lib.ACS_BLOCK_END), 5)
-
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        healed = lib.upsert_managed_block(corrupt, body)
-        self.assertEqual(healed.count(lib.ACS_BLOCK_BEGIN), 1)
-        self.assertEqual(healed.count(lib.ACS_BLOCK_END), 1)
-        self.assertFalse(lib.managed_block_is_malformed(healed))
-        self.assertNotIn(self.HEADER_MARKER, healed)                 # header no longer leaked
-        self.assertTrue(healed.startswith(prefix_user))              # AC-6 user bytes before
-        self.assertTrue(healed.endswith(suffix_user))                # AC-6 user bytes after
-        self.assertEqual(lib.upsert_managed_block(healed, body), healed)  # AC-7 idempotent
-
-    def test_heal_scrubs_orphan_marker_outside_the_span(self):
-        # Belt-and-suspenders: a lone orphan END *before* the block and a lone
-        # BEGIN *after* it fall outside [firstBEGIN..lastEND], so the rfind span
-        # replacement alone would leave them. _strip_stray_markers scrubs them too,
-        # so no orphan survives, while the user's actual text is preserved.
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        clean_block = "%s\n%s\n%s" % (lib.ACS_BLOCK_BEGIN, "old body", lib.ACS_BLOCK_END)
-        existing = (lib.ACS_BLOCK_END + "\n\nuser-before\n\n"
-                    + clean_block + "\n\nuser-after\n\n" + lib.ACS_BLOCK_BEGIN)
-        self.assertTrue(lib.managed_block_is_malformed(existing))
-        healed = lib.upsert_managed_block(existing, body)
-        self.assertEqual(healed.count(lib.ACS_BLOCK_BEGIN), 1)
-        self.assertEqual(healed.count(lib.ACS_BLOCK_END), 1)
-        self.assertFalse(lib.managed_block_is_malformed(healed))
-        self.assertIn("user-before", healed)
-        self.assertIn("user-after", healed)
-        self.assertEqual(lib.upsert_managed_block(healed, body), healed)  # idempotent
-
-    def test_deliverable2_full_matrix(self):
-        # One parametrized sweep over the whole fresh-write/heal matrix: every input
-        # (absent, user-prose, already-clean, doubled, doubled+orphans) converges to
-        # a single clean well-formed pair, never leaks the header, keeps the
-        # guidance, and is a byte-identical no-op on the immediate re-run.
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        cases = [
-            ("fresh_no_file", ""),
-            ("fresh_user_prose", "# Repo\n\nuser notes\n"),
-            ("already_clean", lib.upsert_managed_block("# Repo\n\nn\n", body)),
-            ("doubled", self._legacy_doubled_file("# Repo\n\nA\n\n", "\n\nB\n")),
-            ("doubled_plus_orphans", self._real_corrupted_file("# Repo\n\nA\n\n", "\n\nB\n", 2)),
-        ]
-        for name, existing in cases:
-            with self.subTest(case=name):
-                out = lib.upsert_managed_block(existing, body)
-                self.assertEqual(out.count(lib.ACS_BLOCK_BEGIN), 1, name)
-                self.assertEqual(out.count(lib.ACS_BLOCK_END), 1, name)
-                self.assertFalse(lib.managed_block_is_malformed(out), name)
-                self.assertNotIn(self.HEADER_MARKER, out)
-                self.assertIn("/acs:ship", out)
-                self.assertEqual(lib.upsert_managed_block(out, body), out, name)
-
-    # -- MAR-104: every upsert_managed_block return path ends with exactly one
-    # trailing newline, so /acs:setup Step 7e never writes a CLAUDE.md missing an
-    # EOF newline (which trips pre-commit's end-of-file-fixer in consumer CI). --
-
-    def _assert_single_trailing_newline(self, out):
-        self.assertTrue(out.endswith("\n"))
-        self.assertFalse(out.endswith("\n\n"))
-
-    def test_mar104_empty_insert_ends_with_single_newline(self):
-        # AC-1: fresh/empty-existing insert path (`return block`).
-        out = lib.upsert_managed_block("", "body text")
-        self._assert_single_trailing_newline(out)
-
-    def test_mar104_append_after_content_ends_with_single_newline(self):
-        # AC-1: append-after-content path (no existing markers).
-        out = lib.upsert_managed_block("# Repo\n\nnotes\n", "body text")
-        self._assert_single_trailing_newline(out)
-        self.assertIn("body text", out)
-
-    def test_mar104_replace_span_empty_after_ends_with_single_newline(self):
-        # AC-1: replace-span path where `after` (text past END) is empty — the
-        # path the pre-fix code left with no EOF newline at all.
-        first = lib.upsert_managed_block("# Top\n\nintro\n", "b1")
-        out = lib.upsert_managed_block(first, "b2")
-        self._assert_single_trailing_newline(out)
-        self.assertIn("b2", out)
-        self.assertNotIn("b1", out)
-
-    def test_mar104_self_heal_ends_with_single_newline(self):
-        # AC-1: self-heal path with no user suffix after the last END.
-        legacy = self._legacy_doubled_file("intro\n\n", "")
-        body = lib.managed_body_from_template(self._template_text(), "SHOP", "acs-exempt")
-        healed = lib.upsert_managed_block(legacy, body)
-        self._assert_single_trailing_newline(healed)
-        self.assertFalse(lib.managed_block_is_malformed(healed))
-
-    def test_mar104_collapses_multiple_trailing_newlines_to_one(self):
-        # AC-1 guard: exactly one trailing newline, never more, even when the
-        # surrounding content would otherwise yield several.
-        first = lib.upsert_managed_block("# Top\n\nintro\n", "b1")
-        out = lib.upsert_managed_block(first + "\n\n\n", "b2")
-        self._assert_single_trailing_newline(out)
-
-    def test_mar104_newline_guarantee_is_idempotent(self):
-        # AC-2: the newline normalization is a fixed point (rstrip + one "\n"),
-        # so re-running the writer stays byte-identical.
-        existing = "# My project\n\nSome user notes.\n"
-        body = "Ship via /acs:ship."
-        first = lib.upsert_managed_block(existing, body)
-        second = lib.upsert_managed_block(first, body)
-        self.assertEqual(first, second)
-        self._assert_single_trailing_newline(second)
-
-    def test_mar104_changelog_entry_present(self):
-        # AC-4: durable-invariant CHANGELOG assertion — findable anywhere in the
-        # file body, never pinned to the `[Unreleased]` heading (that pinned
-        # style breaks at the next release cut).
-        changelog_path = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
-        with open(changelog_path, encoding="utf-8") as fh:
-            body = fh.read()
-        self.assertIn("(MAR-104)", body)
-
-    def test_mar106_changelog_entry_present(self):
-        # AC-7: durable-invariant CHANGELOG assertion — findable anywhere in
-        # the file body, never pinned to [Unreleased] or a line window (the
-        # anti-pattern that broke at the v0.3.5 and v0.3.6 release cuts).
-        changelog_path = os.path.join(REPO_ROOT, "src", "acs", "CHANGELOG.md")
-        with open(changelog_path, encoding="utf-8") as fh:
-            body = fh.read()
-        self.assertIn("(MAR-106)", body)
-
-
-class TestBackfillDistinctPRCount(AcsWorkspaceCase):
-    """AC-4: idempotent backfill of inflated prs.created."""
-
-    def _write_create_pr_state(self, ws, repo_id, ticket_id, pr_number, archived=False):
-        """Seed one run's create-pr step state. A ticket's PRs are its RUNS'
-        PRs, and a ticket-subject run's id IS the ticket id (§4.2), which is
-        what keeps the bridge a path join."""
-        repo = os.path.join(ws, repo_id)
-        rdir = (os.path.join(repo, "archive", ticket_id) if archived
-                else lib.run_dir(repo, ticket_id))
-        os.makedirs(rdir, exist_ok=True)
-        lib.write_json(lib.state_path(rdir, "create-pr"), {
-            "skill": "create-pr", "run_id": ticket_id, "invocations": [],
-            "findings": [], "errors": [],
-            "states": {"pr": {"number": pr_number,
-                              "url": "https://example.com/pull/%d" % pr_number}},
-        })
-        return rdir
-
-    def _seed_workspace(self):
-        """Build a workspace with two ticket partitions (one active, one archived)
-        and an inflated metrics.json (created=99).  Returns (ws, repo_id)."""
-        ws = self.ws
-        repo_id = "acme-shop"
-        os.makedirs(os.path.join(ws, repo_id), exist_ok=True)
-        # tickets-index with two entries
-        lib.write_json(lib.index_path(ws, repo_id), {
-            "tickets": {
-                "SHOP-1": {"id": "SHOP-1", "status": "done", "type": "story"},
-                "SHOP-2": {"id": "SHOP-2", "status": "done", "type": "story"},
-            }
-        })
-        # active partition: SHOP-1 → PR 7
-        self._write_create_pr_state(ws, repo_id, "SHOP-1", pr_number=7, archived=False)
-        # archived partition: SHOP-2 → PR 8
-        self._write_create_pr_state(ws, repo_id, "SHOP-2", pr_number=8, archived=True)
-        # inflated metrics
-        lib.write_json(lib.metrics_path(ws, repo_id), {
-            "prs": {"created": 99, "merged": 3, "created_pr_numbers": []},
-            "tickets": {},
-            "totals": {},
-        })
-        return ws, repo_id
-
-    # AC-4: backfill heals inflated count
-    def test_ac4_backfill_heals_inflated_count(self):
-        ws, repo_id = self._seed_workspace()
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        m = lib.read_json(lib.metrics_path(ws, repo_id))
-        self.assertEqual(m["prs"]["created"], 2)
-        self.assertEqual(m["prs"]["created_pr_numbers"], [7, 8])
-
-    # AC-4: double run is idempotent (R1 mitigation)
-    def test_ac4_backfill_idempotent_on_double_run(self):
-        ws, repo_id = self._seed_workspace()
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        m = lib.read_json(lib.metrics_path(ws, repo_id))
-        self.assertEqual(m["prs"]["created"], 2)
-        self.assertEqual(m["prs"]["created_pr_numbers"], [7, 8])
-
-    # AC-4: backfill reads only metrics.json as a write (other files untouched)
-    def test_ac4_backfill_writes_only_metrics_json(self):
-        ws, repo_id = self._seed_workspace()
-        # record mtimes before
-        repo_dir = os.path.join(ws, repo_id)
-        before = {}
-        for fname in os.listdir(repo_dir):
-            p = os.path.join(repo_dir, fname)
-            if os.path.isfile(p):
-                before[fname] = os.path.getmtime(p)
-        # slight delay so mtime change is detectable
-        import time as _time
-        _time.sleep(0.05)
-
-        lib.backfill_distinct_pr_count(ws, repo_id)
-
-        after = {}
-        for fname in os.listdir(repo_dir):
-            p = os.path.join(repo_dir, fname)
-            if os.path.isfile(p):
-                after[fname] = os.path.getmtime(p)
-
-        for fname, mtime in before.items():
-            if fname == "metrics.json":
-                continue  # this one IS allowed to change
-            if fname in after:
-                self.assertAlmostEqual(after[fname], mtime, places=1,
-                                       msg="unexpected write to %s" % fname)
-
-    # AC-4: ticket with no create-pr-state.json contributes 0 numbers
-    def test_ac4_backfill_skips_ticket_with_no_state(self):
-        ws = self.ws
-        repo_id = "acme-shop"
-        os.makedirs(os.path.join(ws, repo_id), exist_ok=True)
-        # Only one ticket, no create-pr-state.json for it
-        lib.write_json(lib.index_path(ws, repo_id), {
-            "tickets": {"SHOP-1": {"id": "SHOP-1", "status": "done", "type": "story"}}
-        })
-        os.makedirs(os.path.join(ws, repo_id, "SHOP-1"), exist_ok=True)
-        lib.write_json(lib.metrics_path(ws, repo_id), {
-            "prs": {"created": 5, "merged": 0},
-        })
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        m = lib.read_json(lib.metrics_path(ws, repo_id))
-        self.assertEqual(m["prs"]["created"], 0)
-        self.assertEqual(m["prs"]["created_pr_numbers"], [])
-
-    # AC-4: ticket with states.pr.number=null is skipped gracefully
-    def test_ac4_backfill_skips_null_pr_number(self):
-        ws = self.ws
-        repo_id = "acme-shop"
-        os.makedirs(os.path.join(ws, repo_id), exist_ok=True)
-        lib.write_json(lib.index_path(ws, repo_id), {
-            "tickets": {"SHOP-1": {"id": "SHOP-1", "status": "done", "type": "story"}}
-        })
-        tdir = os.path.join(ws, repo_id, "SHOP-1")
-        os.makedirs(tdir, exist_ok=True)
-        lib.write_json(lib.state_path(tdir, "create-pr"),
-                       {"runs": [], "states": {"pr": {"number": None}}})
-        lib.write_json(lib.metrics_path(ws, repo_id), {
-            "prs": {"created": 5, "merged": 0},
-        })
-        lib.backfill_distinct_pr_count(ws, repo_id)
-        m = lib.read_json(lib.metrics_path(ws, repo_id))
-        self.assertEqual(m["prs"]["created"], 0)
-        self.assertEqual(m["prs"]["created_pr_numbers"], [])
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-# ---------------------------------------------------------------------------
-# MAR-15 spec 01 — due_date schema + write path
-# ---------------------------------------------------------------------------
 
 class TestDueDateSchema(unittest.TestCase):
     """AC-1: due_date is an optional, back-compatible addition to ticket.schema.json.
@@ -1020,7 +520,7 @@ class TestDueDateSchema(unittest.TestCase):
     and applied with `re.match`, so the tests track the real schema rule.
     """
 
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "ticket.schema.json")
+    SCHEMA_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "ticket.schema.json")
 
     @classmethod
     def setUpClass(cls):
@@ -1104,291 +604,6 @@ class TestDueDateWritePath(AcsWorkspaceCase):
             "--due-date", "2026-07-01T00:00:00Z",
         )
         self.assertNotEqual(result.returncode, 0)
-class TestQualityPathSettings(unittest.TestCase):
-    """AC-2/AC-3 (MAR-112): quality_path settings key mirrors adr_path's
-    oneOf string|null shape; DEFAULT_SETTINGS seeds it; load_settings resolves
-    the default when absent; validate_settings accepts both a string and an
-    explicit null without raising GateError.
-
-    Uses the same stdlib-only approach as TestDueDateSchema/
-    TestHighStakesPathsSettings (no jsonschema import).
-    """
-
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
-
-    @classmethod
-    def setUpClass(cls):
-        with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = json.load(fh)
-
-    def test_quality_path_in_schema(self):
-        """settings.schema.json must define quality_path."""
-        self.assertIn("quality_path", self.schema["properties"])
-
-    def test_quality_path_oneof_mirrors_adr_path(self):
-        """quality_path's oneOf must have exactly two branches: a non-empty
-        string branch and a null branch — the same shape as adr_path, read
-        live from the schema so the test tracks the real rule."""
-        prop = self.schema["properties"]["quality_path"]
-        branches = prop["oneOf"]
-        self.assertEqual(len(branches), 2)
-        self.assertIn({"type": "string", "minLength": 1}, branches)
-        self.assertIn({"type": "null"}, branches)
-
-    def test_quality_path_schema_default(self):
-        """The schema's default for quality_path must be 'docs/quality'."""
-        prop = self.schema["properties"]["quality_path"]
-        self.assertEqual(prop.get("default"), "docs/quality")
-
-    def test_default_settings_has_quality_path_seed(self):
-        """DEFAULT_SETTINGS['quality_path'] must equal 'docs/quality'."""
-        self.assertEqual(lib.DEFAULT_SETTINGS["quality_path"], "docs/quality")
-
-    def test_load_settings_resolves_default_when_absent(self):
-        """When quality_path is absent from every settings scope,
-        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
-        tmp = tempfile.mkdtemp(prefix="acs-quality-path-test-")
-        self.addCleanup(shutil.rmtree, tmp, True)
-        repo = os.path.join(tmp, "shop")
-        os.makedirs(os.path.join(repo, ".acs"))
-        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
-            json.dump({"ticket_prefix": "SHOP"}, fh)
-        merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["quality_path"], "docs/quality")
-
-    def test_validate_settings_accepts_string_quality_path(self):
-        """A settings dict with an explicit non-empty string quality_path
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "quality_path": "docs/quality"}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a string quality_path: %s" % exc)
-
-    def test_validate_settings_accepts_null_quality_path(self):
-        """A settings dict with quality_path explicitly set to null (disabled)
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "quality_path": None}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a null quality_path: %s" % exc)
-
-
-class TestOperationsPathSettings(unittest.TestCase):
-    """AC-2/AC-3 (MAR-113): operations_path settings key mirrors quality_path's
-    oneOf string|null shape; DEFAULT_SETTINGS seeds it; load_settings resolves
-    the default when absent; validate_settings accepts both a string and an
-    explicit null without raising GateError.
-
-    Uses the same stdlib-only approach as TestQualityPathSettings (no
-    jsonschema import).
-    """
-
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
-
-    @classmethod
-    def setUpClass(cls):
-        with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = json.load(fh)
-
-    def test_operations_path_in_schema(self):
-        """settings.schema.json must define operations_path."""
-        self.assertIn("operations_path", self.schema["properties"])
-
-    def test_operations_path_oneof_mirrors_quality_path(self):
-        """operations_path's oneOf must have exactly two branches: a non-empty
-        string branch and a null branch — the same shape as quality_path's/
-        adr_path's existing branches, read live from the schema so the test
-        tracks the real rule."""
-        prop = self.schema["properties"]["operations_path"]
-        branches = prop["oneOf"]
-        self.assertEqual(len(branches), 2)
-        self.assertIn({"type": "string", "minLength": 1}, branches)
-        self.assertIn({"type": "null"}, branches)
-
-    def test_operations_path_schema_default(self):
-        """The schema's default for operations_path must be 'docs/operations'."""
-        prop = self.schema["properties"]["operations_path"]
-        self.assertEqual(prop.get("default"), "docs/operations")
-
-    def test_default_settings_has_operations_path_seed(self):
-        """DEFAULT_SETTINGS['operations_path'] must equal 'docs/operations'."""
-        self.assertEqual(lib.DEFAULT_SETTINGS["operations_path"], "docs/operations")
-
-    def test_load_settings_resolves_default_when_absent(self):
-        """When operations_path is absent from every settings scope,
-        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
-        tmp = tempfile.mkdtemp(prefix="acs-operations-path-test-")
-        self.addCleanup(shutil.rmtree, tmp, True)
-        repo = os.path.join(tmp, "shop")
-        os.makedirs(os.path.join(repo, ".acs"))
-        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
-            json.dump({"ticket_prefix": "SHOP"}, fh)
-        merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["operations_path"], "docs/operations")
-
-    def test_validate_settings_accepts_string_operations_path(self):
-        """A settings dict with an explicit non-empty string operations_path
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "operations_path": "docs/operations"}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a string operations_path: %s" % exc)
-
-    def test_validate_settings_accepts_null_operations_path(self):
-        """A settings dict with operations_path explicitly set to null (disabled)
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "operations_path": None}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a null operations_path: %s" % exc)
-
-
-class TestPrinciplesPathSettings(unittest.TestCase):
-    """AC-5/AC-6 (MAR-117): principles_path settings key mirrors quality_path's/
-    operations_path's oneOf string|null shape; DEFAULT_SETTINGS seeds it;
-    load_settings resolves the default when absent; validate_settings accepts
-    both a string and an explicit null without raising GateError.
-
-    Uses the same stdlib-only approach as TestQualityPathSettings/
-    TestOperationsPathSettings (no jsonschema import).
-    """
-
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
-
-    @classmethod
-    def setUpClass(cls):
-        with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = json.load(fh)
-
-    def test_principles_path_in_schema(self):
-        """settings.schema.json must define principles_path."""
-        self.assertIn("principles_path", self.schema["properties"])
-
-    def test_principles_path_oneof_mirrors_quality_path(self):
-        """principles_path's oneOf must have exactly two branches: a non-empty
-        string branch and a null branch — the same shape as quality_path's/
-        operations_path's existing branches, read live from the schema so the
-        test tracks the real rule."""
-        prop = self.schema["properties"]["principles_path"]
-        branches = prop["oneOf"]
-        self.assertEqual(len(branches), 2)
-        self.assertIn({"type": "string", "minLength": 1}, branches)
-        self.assertIn({"type": "null"}, branches)
-
-    def test_principles_path_schema_default(self):
-        """The schema's default for principles_path must be 'docs/principles'."""
-        prop = self.schema["properties"]["principles_path"]
-        self.assertEqual(prop.get("default"), "docs/principles")
-
-    def test_default_settings_has_principles_path_seed(self):
-        """DEFAULT_SETTINGS['principles_path'] must equal 'docs/principles'."""
-        self.assertEqual(lib.DEFAULT_SETTINGS["principles_path"], "docs/principles")
-
-    def test_load_settings_resolves_default_when_absent(self):
-        """When principles_path is absent from every settings scope,
-        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
-        tmp = tempfile.mkdtemp(prefix="acs-principles-path-test-")
-        self.addCleanup(shutil.rmtree, tmp, True)
-        repo = os.path.join(tmp, "shop")
-        os.makedirs(os.path.join(repo, ".acs"))
-        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
-            json.dump({"ticket_prefix": "SHOP"}, fh)
-        merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["principles_path"], "docs/principles")
-
-    def test_validate_settings_accepts_string_principles_path(self):
-        """A settings dict with an explicit non-empty string principles_path
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "principles_path": "docs/principles"}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a string principles_path: %s" % exc)
-
-    def test_validate_settings_accepts_null_principles_path(self):
-        """A settings dict with principles_path explicitly set to null (disabled)
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "principles_path": None}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a null principles_path: %s" % exc)
-
-
-class TestStandardsPathSettings(unittest.TestCase):
-    """AC-5/AC-6 (MAR-118): standards_path settings key mirrors principles_path's
-    oneOf string|null shape; DEFAULT_SETTINGS seeds it; load_settings resolves
-    the default when absent; validate_settings accepts both a string and an
-    explicit null without raising GateError.
-
-    Uses the same stdlib-only approach as TestPrinciplesPathSettings (no
-    jsonschema import).
-    """
-
-    SCHEMA_PATH = os.path.join(REPO_ROOT, "src", "acs", "schemas", "settings.schema.json")
-
-    @classmethod
-    def setUpClass(cls):
-        with open(cls.SCHEMA_PATH) as fh:
-            cls.schema = json.load(fh)
-
-    def test_standards_path_in_schema(self):
-        """settings.schema.json must define standards_path."""
-        self.assertIn("standards_path", self.schema["properties"])
-
-    def test_standards_path_oneof_mirrors_principles_path(self):
-        """standards_path's oneOf must have exactly two branches: a non-empty
-        string branch and a null branch — the same shape as principles_path's
-        existing branches, read live from the schema so the test tracks the
-        real rule."""
-        prop = self.schema["properties"]["standards_path"]
-        branches = prop["oneOf"]
-        self.assertEqual(len(branches), 2)
-        self.assertIn({"type": "string", "minLength": 1}, branches)
-        self.assertIn({"type": "null"}, branches)
-
-    def test_standards_path_schema_default(self):
-        """The schema's default for standards_path must be 'docs/standards'."""
-        prop = self.schema["properties"]["standards_path"]
-        self.assertEqual(prop.get("default"), "docs/standards")
-
-    def test_default_settings_has_standards_path_seed(self):
-        """DEFAULT_SETTINGS['standards_path'] must equal 'docs/standards'."""
-        self.assertEqual(lib.DEFAULT_SETTINGS["standards_path"], "docs/standards")
-
-    def test_load_settings_resolves_default_when_absent(self):
-        """When standards_path is absent from every settings scope,
-        load_settings must resolve it to the DEFAULT_SETTINGS seed."""
-        tmp = tempfile.mkdtemp(prefix="acs-standards-path-test-")
-        self.addCleanup(shutil.rmtree, tmp, True)
-        repo = os.path.join(tmp, "shop")
-        os.makedirs(os.path.join(repo, ".acs"))
-        with open(os.path.join(repo, ".acs", "settings.json"), "w") as fh:
-            json.dump({"ticket_prefix": "SHOP"}, fh)
-        merged, _found = lib.load_settings(repo)
-        self.assertEqual(merged["standards_path"], "docs/standards")
-
-    def test_validate_settings_accepts_string_standards_path(self):
-        """A settings dict with an explicit non-empty string standards_path
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "standards_path": "docs/standards"}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a string standards_path: %s" % exc)
-
-    def test_validate_settings_accepts_null_standards_path(self):
-        """A settings dict with standards_path explicitly set to null (disabled)
-        passes validate_settings without raising GateError."""
-        settings = {"test_coverage_percent": 90, "standards_path": None}
-        try:
-            lib.validate_settings(settings, os.getcwd(), require_workspace=False)
-        except lib.GateError as exc:
-            self.fail("validate_settings must not reject a null standards_path: %s" % exc)
 class TestRecordExternal(AcsWorkspaceCase):
     """MAR-84 spec 01: record-external.py — the deterministic write seam that
     stamps external={provider,key} into one ticket's ticket.json. Drives the

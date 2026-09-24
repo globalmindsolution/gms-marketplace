@@ -1,7 +1,7 @@
 """MAR-137 spec 02 — wire the diagram-lint gate into the two verifiers.
 
-Prose-contract tests over `src/acs/agents/create-architecture-verifier.md`
-(dimension `mermaid-diagrams`) and `src/acs/agents/create-design-verifier.md`
+Prose-contract tests over `plugins/acs/agents/create-architecture-verifier.md`
+(dimension `mermaid-diagrams`) and `plugins/acs/agents/create-design-verifier.md`
 (dimension `completeness`): both dimensions must invoke the Spec-01-promoted
 `mermaid_lint.py` helper via `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py`
 and map any finding to `severity="blocking"`, replacing the old soft/LLM-judgment
@@ -29,7 +29,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 ARCH_VERIFIER = os.path.join(PLUGIN, "agents", "create-architecture-verifier.md")
 DESIGN_VERIFIER = os.path.join(PLUGIN, "agents", "create-design-verifier.md")
@@ -141,10 +141,14 @@ class DesignCompletenessDiagramSubCheckTest(unittest.TestCase):
         self.assertIn("an ER diagram exists", block)
         self.assertIn("when the data model changes", block)
         self.assertIn("`### Decision records` is", block)
+        # The one sub-check ADR-0102 rewrote: with the `adr_path: null`
+        # opt-out gone, Decision records is always required and names the
+        # located ADR folder the task constraints carry (`adr_dir`).
         self.assertIn(
-            "present if and only if the task constraints say `adr_path` is configured.",
-            block,
+            "present and names the `adr_dir` the task constraints carry.",
+            " ".join(block.split()),
         )
+        self.assertNotIn("adr_path", block)
 
 
 class DimensionListRegressionTest(unittest.TestCase):

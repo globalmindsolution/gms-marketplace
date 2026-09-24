@@ -1,33 +1,32 @@
-"""MAR-117 — /acs:setup Step 4 documents and defaults principles_path (AC-7),
-plus create-principles registry membership (AC-8).
+"""MAR-117 -- /acs:setup and `principles_path` (AC-7), plus the principles set's
+registry membership (AC-8).
 
-Prose-contract unit test for `src/acs/skills/setup/SKILL.md`. `principles_path`
-must be defaulted like `quality_path`/`operations_path` in the Step 4
-optional-settings batch, and must NOT be added to the "always ask explicitly"
-carve-out (which names only `### models` and `e2e`).
-
-Stdlib-only (os, re, sys, unittest), mirroring
-tests/acs/test_setup_quality_path.py's `section()` bounded-window
-technique so a stray mention elsewhere in the file cannot satisfy either
-assertion, plus direct acs_lib registry assertions mirroring
-tests/acs/test_test_skill_registry.py's shape.
+AC-7 was a prose-contract test that /acs:setup's optional-settings batch
+defaulted `principles_path` to `docs/principles`. ADR-0102 removed every
+document-locating settings key: the principles set is found where the repo
+keeps it, else created at the conventional `docs/principles/` that
+`acs_lib.DOC_SETS` declares. AC-7 is therefore inverted into a guard that
+setup -- its skill prose and its deterministic half, `setup_wizard.py` --
+never names the key and that `DEFAULT_SETTINGS` never seeds it. The
+"always ask explicitly" carve-out check was deleted with it: a key setup
+never offers has no batch placement to pin. AC-8's registry assertions
+are unchanged in intent.
 
 Renamed under MAR-1 (the skill formerly invoked as acs:initialize is now
-acs:setup): module name and internal skill-path/token references updated;
-behavior and originating ticket reference unchanged.
+acs:setup).
 
-Run:  python3 -m unittest tests.acs.test_mar117_principles_path_init -v
+Run:  python3 -m unittest tests.acs.test_setup_principles_path -v
 """
 
 import os
-import re
 import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "setup", "SKILL.md")
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
+WIZARD_PATH = os.path.join(HOOKS_DIR, "setup_wizard.py")
 sys.path.insert(0, HOOKS_DIR)
 
 import acs_lib  # noqa: E402
@@ -38,76 +37,17 @@ def read(path):
         return fh.read()
 
 
-def section(body, heading):
-    """Return the text of a markdown section: from the line whose start is
-    `heading` (matched at line-start) up to the next same-or-higher-level
-    heading (or end of file)."""
-    m = re.search(r"(?m)^" + re.escape(heading) + r"\b.*$", body)
-    if m is None:
-        raise AssertionError("heading %r not found in SKILL.md" % heading)
-    start = m.start()
-    level = len(heading) - len(heading.lstrip("#"))
-    nxt = re.search(r"(?m)^#{1,%d} \S" % level, body[m.end():])
-    end = m.end() + nxt.start() if nxt else len(body)
-    return body[start:end]
+class SetupOffersNoPrinciplesPathCase(unittest.TestCase):
+    """AC-7, inverted by ADR-0102: no setting locates the principles set, so
+    /acs:setup neither offers nor seeds `principles_path`."""
 
+    def test_setup_never_names_principles_path(self):
+        for path in (SKILL_PATH, WIZARD_PATH):
+            with self.subTest(file=os.path.relpath(path, REPO_ROOT)):
+                self.assertNotIn("principles_path", read(path))
 
-class Mar117PrinciplesPathInitCase(unittest.TestCase):
-    """Fixture: read the setup SKILL.md once and isolate its Step 4 section."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
-        # MAR-526 turned setup into a conversational skill: the optional-settings
-        # batch is its own `### Optional settings` section now, and the step
-        # numbering changed with it. The content these ACs pin is unmoved.
-        cls.step4 = section(cls.body, "### Optional settings")
-
-    def test_step4_batch_documents_principles_path_default(self):
-        """The Step 4 batch-default bullet list names principles_path with its
-        default 'docs/principles' in a bounded window after the marker, proving
-        the default is documented (not merely present in the schema)."""
-        m = re.search(r"`principles_path`", self.step4)
-        self.assertIsNotNone(
-            m, "Step 4 must document a `principles_path` bullet (AC-7)"
-        )
-        window = self.step4[m.start():m.start() + 300]
-        self.assertIn(
-            "docs/principles", window,
-            msg="the `principles_path` bullet must state its default "
-                "'docs/principles' within a bounded window of the marker (AC-7)",
-        )
-
-    def test_step4_names_create_principles_as_consumer(self):
-        """The principles_path bullet names /acs:create-docs principles as the
-        consuming skill, mirroring how the quality_path bullet names
-        /acs:create-quality."""
-        m = re.search(r"`principles_path`", self.step4)
-        self.assertIsNotNone(m)
-        window = self.step4[m.start():m.start() + 300]
-        self.assertIn(
-            "create-docs principles", window,
-            msg="the `principles_path` bullet must name /acs:create-docs principles "
-                "as the consumer (AC-7)",
-        )
-
-    def test_carveout_does_not_name_principles_path(self):
-        """The 'always ask explicitly' carve-out sentence (naming `### models`
-        and e2e) must NOT gain principles_path — proving principles_path is a
-        silently-defaultable batch entry, not an always-ask exception."""
-        carveout = re.search(
-            r"(?s)present these as a batch.{0,900}", self.step4, re.IGNORECASE
-        )
-        self.assertIsNotNone(
-            carveout, "Step 4 must retain the 'present these as a batch' framing"
-        )
-        window = carveout.group(0)
-        self.assertNotIn(
-            "principles_path", window,
-            msg="principles_path must NOT appear in the always-ask carve-out "
-                "window — it is defaulted like quality_path/operations_path, "
-                "not an always-ask exception (AC-7)",
-        )
+    def test_default_settings_never_seed_principles_path(self):
+        self.assertNotIn("principles_path", acs_lib.DEFAULT_SETTINGS)
 
 
 class PrinciplesRegistryCase(unittest.TestCase):
@@ -118,7 +58,9 @@ class PrinciplesRegistryCase(unittest.TestCase):
 
     def test_principles_is_a_declared_doc_set(self):
         self.assertIn("principles", acs_lib.DOC_SETS)
-        self.assertEqual(acs_lib.DOC_SETS["principles"]["settings_key"], "principles_path")
+        # ADR-0102: the row declares where a NEW set is created, not a key.
+        self.assertEqual(acs_lib.DOC_SETS["principles"]["default_dir"], "docs/principles")
+        self.assertNotIn("settings_key", acs_lib.DOC_SETS["principles"])
 
     def test_principles_delivery_ticket_title(self):
         self.assertEqual(acs_lib.DOC_SET_TITLES.get("principles"), "Product principles doc set")

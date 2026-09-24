@@ -21,13 +21,17 @@ Stdlib-only (ast, glob, importlib, os, re, unittest). Run:
 import ast
 import glob
 import importlib.util
+import json
 import os
 import sys
 import re
 import unittest
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 #: Skills whose only agent is an executor: the work is DOING something to the
 #: world (a ticket, a PR, a merge, a changeset) rather than authoring a
@@ -86,15 +90,16 @@ def _load_acs_lib():
     return mod
 
 
-def _s04_cases():
-    path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
-    tree = ast.parse(read(path))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and any(
-            isinstance(t, ast.Name) and t.id == "CASES" for t in node.targets
-        ):
-            return len(ast.literal_eval(node.value))
-    raise AssertionError("CASES list not found in s04_skill_triggers.py")
+def _routing_positive_skills():
+    """How many skills carry a positive routing case.
+
+    Was `len(s04_skill_triggers.CASES)` -- one entry per shipped skill -- and
+    then a count over a routing dataset; both are gone, and the case files are
+    the probe set. The equivalent is DISTINCT skills with a must-route case:
+    two skills carry two positives each (an explicit command and a
+    description), which a raw case count would double-count."""
+    return len({p["skill"] for p in eval_cases.probe_dicts() if p["must_route"]})
+
 
 
 def derive():
@@ -131,7 +136,7 @@ def derive():
         "reachable": reachable,
         "declared_roles": declared_roles,
         "orphaned": orphaned,
-        "s04_cases": _s04_cases(),
+        "s04_cases": _routing_positive_skills(),
     }
 
 
@@ -291,8 +296,8 @@ class RoadmapTopologyTest(unittest.TestCase):
 
     def test_ls_skills_and_agents_counts(self):
         body = self._body()
-        m1 = re.search(r"`ls src/acs/skills` = (\d+)", body)
-        m2 = re.search(r"`ls src/acs/agents` = (\d+)", body)
+        m1 = re.search(r"`ls plugins/acs/skills` = (\d+)", body)
+        m2 = re.search(r"`ls plugins/acs/agents` = (\d+)", body)
         self.assertIsNotNone(m1, "roadmap.md ls-skills count not found")
         self.assertIsNotNone(m2, "roadmap.md ls-agents count not found")
         self.assertEqual(int(m1.group(1)), D["n_skills"])
@@ -430,12 +435,13 @@ class SkillsMdUnchangedTest(unittest.TestCase):
 
     def test_skill_count_word_present(self):
         """The count in words, level with the directories on disk. It reached
-        32 by adding `/acs:review-code` and dropping the `test` alias, and the
-        word is pinned here because prose is where a count goes stale."""
+        32 by adding `/acs:review-code` and dropping the `test` alias, then 30
+        when ADR-0104 removed `/acs:metrics` and `/acs:usage`; the word is
+        pinned here because prose is where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Thirty-two skills", body)
-        self.assertEqual(D["n_skills"], 32)
-        for stale in ("Twenty-three skills", "Twenty-seven skills"):
+        self.assertIn("Thirty skills", body)
+        self.assertEqual(D["n_skills"], 30)
+        for stale in ("Twenty-three skills", "Twenty-seven skills", "Thirty-two skills"):
             self.assertNotIn(stale, body)
         self.assertNotIn("Twenty-five skills", body)
 

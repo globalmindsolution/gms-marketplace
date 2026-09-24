@@ -4,24 +4,29 @@
 Replaces the MAR-117 (`/acs:create-principles`) and MAR-118
 (`/acs:create-standards`) sweep tests, whose premise — one skill per doc
 set — the fold retired. What survives the fold is pinned here for every
-set at once: the `configuration.md` `<set>_path` rows, the `skills.md`
-`/acs:create-docs` section, the C4/architecture files naming the fold and
-not the retired legs as live skills, the `s04` routing CASE, and the two
-tickets' durable CHANGELOG entries.
+set at once: the `configuration.md` default-location row (the `<set>_path`
+keys it replaced are gone, ADR-0102), the `skills.md` `/acs:create-docs`
+section, the C4/architecture files naming the fold and not the retired legs
+as live skills, the routing probe, and the two tickets' durable CHANGELOG
+entries.
 
 Stdlib-only (ast, os, re, unittest). Run:
   python3 -m unittest tests.acs.test_create_docs_sets_docs_eval -v
 """
 
 import ast
+import json
 import os
 import re
 import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import eval_cases  # noqa: E402  (the case files are the probe set)
 
 import acs_lib  # noqa: E402
 
@@ -53,17 +58,18 @@ class DocSetsTableIsTheContractTest(unittest.TestCase):
     def test_the_four_sets_are_the_declared_ones(self):
         self.assertEqual(tuple(acs_lib.DOC_SETS), SETS)
 
-    def test_every_set_declares_its_settings_key_and_sentinel(self):
+    def test_every_set_declares_its_default_dir_and_sentinel(self):
         for name in SETS:
             row = acs_lib.DOC_SETS[name]
-            self.assertEqual(row["settings_key"], "%s_path" % name)
+            self.assertEqual(row["default_dir"], "docs/%s" % name)
+            self.assertNotIn("settings_key", row, "no setting locates a doc set (ADR-0102)")
             self.assertTrue(row["files"], name)
 
 
 class SkillsMdTest(unittest.TestCase):
     """skills.md carries one `/acs:create-docs` section that names every
-    set's settings key and default location, and no section for a retired
-    leg."""
+    set and its default location (no settings key: ADR-0102), and no section
+    for a retired leg."""
 
     def _skills_req(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
@@ -80,12 +86,16 @@ class SkillsMdTest(unittest.TestCase):
         m = re.search(r"(?m)^## .*/acs:create-docs.*$", body)
         self.assertIsNotNone(m, "skills.md must have a '## /acs:create-docs' section")
         window = section(body, m.group(0))
+        flat = " ".join(window.split())
         for name in SETS:
-            self.assertIn("`%s_path`" % name, window)
+            self.assertIn("`docs/%s/`" % name, window)
             self.assertIn("`%s`" % name, window)
+            self.assertNotIn("%s_path" % name, window)
         self.assertIn("DOC_SETS", window)
-        self.assertIn("pre-create-docs.py", window)
-        self.assertIn("principles_path", window,
+        self.assertRegex(flat, r"the skill checks for the architecture doc set \(its "
+                               r"`hld/tech-stack\.md`, not merely a directory\) at Start",
+                         "the shared precondition is the skill's Start check (ADR-0102)")
+        self.assertIn("principles set **when the repo has one**", flat,
                       "the standards set's soft upstream read must be stated")
 
     def test_no_section_survives_for_a_retired_leg(self):
@@ -97,17 +107,30 @@ class SkillsMdTest(unittest.TestCase):
 
 
 class ConfigurationMdRowsTest(unittest.TestCase):
-    """Each `<set>_path` row states its default and points at the fold."""
+    """Each set's default location sits in the "Document and workspace
+    locations" table and points at the fold; the `<set>_path` key rows are
+    gone with the keys (ADR-0102)."""
+
+    def _configuration(self):
+        return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "configuration.md"))
 
     def test_every_set_has_a_row_pointing_at_create_docs(self):
-        body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "configuration.md"))
+        table = section(self._configuration(), "### Document and workspace locations")
         for name in SETS:
-            m = re.search(r"(?m)^\|\s*`%s_path`\s*\|.*$" % name, body)
-            self.assertIsNotNone(m, "configuration.md needs a `%s_path` row" % name)
-            row = m.group(0)
-            self.assertIn("docs/%s" % name, row)
-            self.assertIn("/acs:create-docs %s" % name, row)
-            self.assertNotIn("/acs:create-%s" % name, row)
+            with self.subTest(set=name):
+                rows = [l for l in table.splitlines()
+                        if l.startswith("|") and "`docs/%s/`" % name in l]
+                self.assertEqual(len(rows), 1,
+                                 "configuration.md needs one row stating `docs/%s/`" % name)
+                row = rows[0]
+                self.assertIn("`/acs:create-docs <set>`", row)
+                self.assertNotIn("/acs:create-%s" % name, row)
+
+    def test_no_set_path_key_row_survives(self):
+        body = self._configuration()
+        for name in SETS:
+            with self.subTest(set=name):
+                self.assertIsNone(re.search(r"(?m)^\|\s*`%s_path`\s*\|" % name, body))
 
 
 class ArchitectureDocsTest(unittest.TestCase):
@@ -155,39 +178,43 @@ class ArchitectureDocsTest(unittest.TestCase):
                                  "%s names retired leg %s" % (name, retired))
 
 
-class S04SkillTriggersCaseTest(unittest.TestCase):
-    """One routing CASE for the fold, structurally parsed (no paid call): a
-    description-shaped probe that names two sets and routes to
-    create-docs; no CASE survives for a retired leg."""
+class RoutingProbeCaseTest(unittest.TestCase):
+    """One routing probe for the fold, read from the curated dataset (no paid
+    call): a description-shaped probe that names two sets and routes to
+    create-docs; no probe survives for a retired leg.
 
-    def _assign(self, name):
-        path = os.path.join(REPO_ROOT, "src", "acs-evals", "behavioural", "acs", "scenarios", "s04_skill_triggers.py")
-        tree = ast.parse(read(path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(t, ast.Name) and t.id == name for t in node.targets
-            ):
-                return ast.literal_eval(node.value)
-        raise AssertionError("%s list not found in s04_skill_triggers.py" % name)
+    The probe set used to live in s04_skill_triggers.py's CASES list, parsed
+    out of its AST. Routing consolidated onto the `claude plugin eval` tree, so
+    the probe set is the case files under plugins/acs/evals/, read through
+    tests/acs/eval_cases.py."""
+
+    @staticmethod
+    def _probes(positive=None):
+        probes = eval_cases.probe_dicts()
+        if positive is not None:
+            probes = [p for p in probes if p["must_route"] is positive]
+        return probes
+
+    @staticmethod
+    def _skill(probe):
+        return probe["skill"].split(":", 1)[1]
 
     def test_create_docs_case_present_and_internally_consistent(self):
-        cases = self._assign("CASES")
-        matches = [c for c in cases if c[0] == "create-docs"]
-        self.assertEqual(len(matches), 1, "exactly one create-docs CASE")
-        case = matches[0]
-        self.assertEqual(case[-1], "create-docs")
-        self.assertNotIn("create-docs", case[2],
+        matches = [p for p in self._probes(positive=True)
+                   if self._skill(p) == "create-docs"]
+        self.assertEqual(len(matches), 1, "exactly one create-docs probe")
+        prompt = matches[0]["prompt"]
+        self.assertNotIn("create-docs", prompt,
                          "the probe describes intent without naming the skill")
-        named = [s for s in SETS if s in case[2]]
+        named = [x for x in SETS if x in prompt]
         self.assertGreaterEqual(len(named), 2,
                                 "the probe should name more than one set, so "
                                 "routing must reach the umbrella and not a leg")
 
     def test_no_case_survives_for_a_retired_leg(self):
-        labels = {c[0] for c in self._assign("CASES")}
-        labels |= {c[0] for c in self._assign("NEGATIVE")}
+        probed = {self._skill(p) for p in self._probes()}
         for retired in RETIRED:
-            self.assertNotIn(retired, labels)
+            self.assertNotIn(retired, probed)
 
 
 class ChangelogEntriesTest(unittest.TestCase):

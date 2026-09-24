@@ -6,7 +6,7 @@ flowchart LR
         MR["globalmindsolution/gms-marketplace<br/>(marketplace repo)"]
         ACT["GitHub Actions<br/>CI: tests/acs/<br/>(per-plugin shape-conditional validation)<br/>Release: tag on version bump (via /acs:release's release/* PR + human merge)"]
         PRS["Consumer-repo PRs"]
-        EVALS["src/acs-evals/behavioural/&lt;plugin&gt;/<br/>(local only — NOT in CI)"]
+        EVALS["plugins/&lt;plugin&gt;/evals/<br/>claude plugin eval cases<br/>(local + release gate — NOT in CI)"]
         subgraph gates["Consumer-repo required-check gates (opt-in, /acs:setup-installed)"]
             G_CONV["acs-conventions.yml<br/>Branch / PR / commit conventions"]
             G_TEST["acs-tests.yml<br/>Tests & coverage"]
@@ -50,14 +50,13 @@ Key facts:
 - **Per-plugin install paths**: acs installs into Claude Code
   (`claude plugin install acs@gms-marketplace`). The catalog is designed so a
   plugin names its own runtime host (ADR 0021); acs is the only one today.
-- **In-repo by default, one workspace store per repo checkout** (ADR-0086):
-  the workspace defaults to `<main-checkout>/.acs/state-machine/`,
+- **In-repo, one workspace store per repo checkout** (ADR-0086):
+  the workspace is always `<main-checkout>/.acs/state-machine/`,
   gitignored, anchored to the repo's main checkout (`git rev-parse
   --git-common-dir`) so every linked worktree resolves to the same physical
-  partition. An explicit `workspace_path` override (`settings.local.json`,
-  gitignored) may still point anywhere — including a single external
-  location shared across repos, for anyone who wants the old topology — with
-  partitions keyed by repo identity derived from the git remote either way.
+  partition, with partitions keyed by repo identity derived from the git
+  remote. No setting overrides it ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)); acs must be
+  run from a regular git checkout.
 - **No server-side anything**: the plugins are files; all execution happens in
   the user's Claude Code session and shell. Tracker/PR access goes
   through the user's authenticated CLIs.
@@ -67,12 +66,16 @@ Key facts:
   measurement is a separate, single-interpreter run of that same suite,
   gated by its own **`Tests & coverage`** required check
   (`.github/workflows/acs-tests.yml`, run via `.acs/ci/run-tests.py`) —
-  graded repo-wide against the 90% floor. Behavioral evals
-  (`src/acs-evals/behavioural/<plugin>/`) run **locally only** — they make LLM calls and are not
-  coupled to CI.
+  graded repo-wide against the 90% floor. The plugin's eval suite
+  (`plugins/<plugin>/evals/`, `claude plugin eval` case files) runs **locally
+  and at the release gate only** — every case spawns a real session and costs
+  money, so it is not coupled to CI. What CI does run is a free structural check
+  of those case files (`tests/acs/test_eval_cases.py`), because otherwise the
+  first sign of a malformed case would be a paid run scoring it zero.
 - **Consumer-repo required-check gates**: `/acs:setup` can opt-in scaffold up
   to three independent GitHub Actions checks per consumer repo — conventions
-  (`acs-conventions.yml`), tests+coverage (`acs-tests.yml`), and e2e
+  (`acs-conventions.yml`, which since ADR-0106 checks one rule: the PR
+  description names its ticket), tests+coverage (`acs-tests.yml`), and e2e
   (`acs-e2e.yml`, this ticket) — each backed by a stdlib-only runner reading
   the committed `.acs/settings.json`. A committed workflow file is advisory
   until a repo admin makes its check a **required status check** on the

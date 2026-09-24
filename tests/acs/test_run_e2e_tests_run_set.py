@@ -19,7 +19,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 TEST_SKILL = os.path.join(PLUGIN, "skills", "run-e2e-tests", "SKILL.md")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 
@@ -151,8 +151,8 @@ class SelfDescriptionTest(unittest.TestCase):
         self.assertRegex(head, r"(?i)standing command")
 
     def test_it_is_honest_that_it_writes(self):
-        """Unlike /acs:metrics and /acs:usage, it mutates state -- and the
-        prose says so up front rather than leaving a reader to discover it."""
+        """It mutates state -- and the prose says so up front rather than
+        leaving a reader to discover it."""
         head = self._head()
         self.assertRegex(head, r"(?i)not read-only")
 

@@ -1,6 +1,6 @@
 # 0017 — acs:metrics renders deterministically across surfaces via metrics_render.py
 
-**Status**: Accepted · **Date**: 2026-06-16
+**Status**: Superseded — by [0104](0104-no-usage-dashboards-no-usage-recording.md) (`/acs:metrics` and `/acs:usage` are removed) · **Date**: 2026-06-16
 
 ## Context
 

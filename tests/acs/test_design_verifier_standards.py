@@ -1,14 +1,18 @@
 """MAR-119 spec 02 — create-design-verifier + create-design/SKILL.md
 standards re-anchor.
 
-Prose-contract tests over `src/acs/agents/create-design-verifier.md` and
-`src/acs/skills/create-design/SKILL.md`: the `consistency`/`nfr`
-dimensions gain a `standards` sub-check reading `standards/` at
-`standards_path`, applied to the design decisions this design.md introduces,
+Prose-contract tests over `plugins/acs/agents/create-design-verifier.md` and
+`plugins/acs/skills/create-design/SKILL.md`: the `consistency`/`nfr`
+dimensions gain a `standards` sub-check reading the standards set at
+`standards_dir`, applied to the design decisions this design.md introduces,
 with the same changeset-scoped block/surface + graceful-degradation rule as
 the code-verifier's re-anchor (spec 01), emitting `dimension="standards"`
-findings, and wired into both files' Input-contract / settings-fields
-sections.
+findings, and wired into the agent's Input contract and the skill's Start
+locate step and verify phase.
+
+Since ADR-0102 no setting locates the standards set: the skill finds it at
+Start and passes it as the `standards_dir` constraint, so these tests pin that
+name where they once pinned the removed `standards_path` key.
 
 Stdlib-only (re, os, unittest). Run:
   python3 -m unittest tests.acs.test_mar119_design_verifier_standards -v
@@ -19,7 +23,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 VERIFIER = os.path.join(PLUGIN, "agents", "create-design-verifier.md")
 SKILL = os.path.join(PLUGIN, "skills", "create-design", "SKILL.md")
@@ -89,7 +93,8 @@ class ConsistencyDimensionStandardsCheckTest(unittest.TestCase):
     def test_names_standards_doc_set(self):
         block = self._block()
         self.assertIn("standards/", block)
-        self.assertIn("standards_path", block)
+        self.assertIn("standards_dir", block)
+        self.assertNotIn("standards_path", block)
 
     def test_block_surface_wording(self):
         block = self._block()
@@ -106,10 +111,10 @@ class ConsistencyDimensionStandardsCheckTest(unittest.TestCase):
 
     def test_graceful_degradation_wording(self):
         block = self._block()
-        self.assertIn("standards_path", block)
+        self.assertIn("standards_dir", block)
         self.assertTrue(
             re.search(r"N/A|unset|absent", block),
-            "consistency block must cover the unset/absent standards_path case")
+            "consistency block must cover the unset/absent standards_dir case")
         self.assertTrue(
             re.search(r"never a|not a", block, re.I),
             "consistency block must negate a false block for the "
@@ -119,7 +124,7 @@ class ConsistencyDimensionStandardsCheckTest(unittest.TestCase):
 
 class NfrDimensionStandardsCheckTest(unittest.TestCase):
     """AC-3: dimension 4 (`nfr`) is the SECONDARY anchor — cross-references
-    dimension 2 for the full rule but still names standards/standards_path
+    dimension 2 for the full rule but still names standards/standards_dir
     itself (a bare 'see dimension 2' does not satisfy the spec)."""
 
     def _block(self):
@@ -129,7 +134,8 @@ class NfrDimensionStandardsCheckTest(unittest.TestCase):
     def test_names_standards_doc_set(self):
         block = self._block()
         self.assertIn("standards/", block)
-        self.assertIn("standards_path", block)
+        self.assertIn("standards_dir", block)
+        self.assertNotIn("standards_path", block)
 
 
 class FindingLabelTest(unittest.TestCase):
@@ -155,43 +161,59 @@ class DimensionListRegressionTest(unittest.TestCase):
 
 
 class InputContractWiringTest(unittest.TestCase):
-    """Design half of AC-4: the agent's Input contract names standards_path."""
+    """Design half of AC-4: the agent's Input contract names the
+    standards_dir constraint (standards_path until ADR-0102)."""
 
-    def test_input_contract_mentions_standards_path(self):
+    def test_input_contract_mentions_standards_dir(self):
         body = read(VERIFIER)
         window = section(body, "## Input contract")
-        self.assertIn("standards_path", window)
+        self.assertIn("standards_dir", window)
+        self.assertNotIn("standards_path", body)
 
 
 class SkillStartSettingsFieldsTest(unittest.TestCase):
-    """Design half of AC-4: create-design/SKILL.md's Start-phase settings
-    parenthetical (architecture_path/prd_path/adr_path) gains standards_path."""
+    """Design half of AC-4: create-design/SKILL.md's Start phase resolves the
+    standards set alongside the architecture set, the PRD and the ADR folder.
+    Until ADR-0102 these were settings fields (architecture_path/prd_path/
+    adr_path/standards_path) in the context-JSON bullet; now Start locates
+    each document and the context-JSON bullet names none of those keys."""
 
-    def test_settings_fields_bullet_mentions_standards_path(self):
+    def _bullet(self, pattern):
         body = read(SKILL)
-        m = re.search(r"(?m)^- Parse the printed context JSON\..*", body)
-        self.assertIsNotNone(m, "Start-phase settings-fields bullet not found")
+        m = re.search(pattern, body)
+        self.assertIsNotNone(m, "Start-phase bullet %r not found" % pattern)
         nxt = re.search(r"(?m)^- ", body[m.end():])
         end = m.end() + nxt.start() if nxt else len(body)
-        window = body[m.start():end]
-        self.assertIn("architecture_path", window)
-        self.assertIn("prd_path", window)
-        self.assertIn("adr_path", window)
-        self.assertIn("standards_path", window)
+        return body[m.start():end]
+
+    def test_settings_fields_bullet_names_no_location_key(self):
+        window = self._bullet(r"(?m)^- Parse the printed context JSON\..*")
+        for removed in ("architecture_path", "prd_path", "adr_path",
+                        "standards_path"):
+            self.assertNotIn(removed, window)
+
+    def test_locate_bullet_mentions_standards_dir(self):
+        window = self._bullet(r"(?m)^- Locate the repo documents this skill reads.*")
+        self.assertIn("<architecture_dir>", window)
+        self.assertIn("<prd>", window)
+        self.assertIn("<adr_dir>", window)
+        self.assertIn("<standards_dir>", window)
 
 
 class SkillVerifyPhaseWiringTest(unittest.TestCase):
     """Design half of AC-4: verify-phase section extends consistency/nfr
-    bullets with the standards sub-check and states standards_path is passed
-    into the verify <task>'s <constraints> when set."""
+    bullets with the standards sub-check and states standards_dir is passed
+    into the verify <task>'s <constraints> only when Start found a standards
+    set."""
 
     def _window(self):
         body = read(SKILL)
         return section(body, "### Phase: verify —")
 
-    def test_standards_path_present(self):
+    def test_standards_dir_present(self):
         window = self._window()
-        self.assertIn("standards_path", window)
+        self.assertIn("standards_dir", window)
+        self.assertNotIn("standards_path", window)
 
     def test_standards_mentioned_alongside_consistency_and_nfr(self):
         window = self._window()
@@ -202,8 +224,10 @@ class SkillVerifyPhaseWiringTest(unittest.TestCase):
     def test_conditional_pass_when_set_wording(self):
         window = self._window()
         self.assertTrue(
-            re.search(r"when set|present only when set|configured", window, re.I),
-            "verify-phase section must state standards_path is passed "
+            re.search(r"present only when (?:set|found)"
+                      r"|when Start (?:found|located) a standards set",
+                      " ".join(window.split()), re.I),
+            "verify-phase section must state standards_dir is passed "
             "conditionally, mirroring the other conditional constraints")
 
     def test_dimension_list_not_regressed(self):

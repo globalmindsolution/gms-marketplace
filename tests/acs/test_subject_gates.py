@@ -32,7 +32,14 @@ import acs_case  # noqa: E402
 
 lib = acs_case.lib
 
-GOLDENS = os.path.join(REPO_ROOT, "src", "acs-evals", "dataset", "cases", "06-gates.json")
+#: The refusal wording these gates emit, recorded verbatim. This used to be
+#: read out of the eval suite's `dataset/cases/06-gates.json`, a 355-case
+#: no-model tier that asserted the plugin's observable surface. That tier was
+#: replaced by `claude plugin eval`, whose format grades an agent session and
+#: cannot express a CLI's exact stderr -- so the five strings these tests need
+#: moved HERE, to the layer that was always the right home for them.
+GOLDENS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "subject_gate_goldens.json")
 
 #: The prefix the golden sandbox mints under, the one this fixture does, and
 #: the ticket id every recorded ticketed/epic case names.
@@ -45,15 +52,13 @@ def golden_messages(case_id, ticket=None):
     sandbox's ticket ids rewritten to this fixture's."""
     with open(GOLDENS, encoding="utf-8") as fh:
         doc = json.load(fh)
-    cases = doc["cases"] if isinstance(doc, dict) else doc
-    for case in cases:
-        if case.get("id") == case_id:
-            out = []
-            for text in (case.get("expect") or {}).get("stderr_contains") or []:
-                text = text.replace(GOLDEN_PREFIX + "-123", FIXTURE_PREFIX + "-123")
-                out.append(text.replace(GOLDEN_SUBJECT, ticket) if ticket else text)
-            return out
-    raise AssertionError("no case %s in %s" % (case_id, GOLDENS))
+    if case_id not in doc:
+        raise AssertionError("no case %s in %s" % (case_id, GOLDENS))
+    out = []
+    for text in doc[case_id]:
+        text = text.replace(GOLDEN_PREFIX + "-123", FIXTURE_PREFIX + "-123")
+        out.append(text.replace(GOLDEN_SUBJECT, ticket) if ticket else text)
+    return out
 
 
 class MergePrGateTest(acs_case.AcsWorkspaceCase):
@@ -118,6 +123,41 @@ class MergePrGateTest(acs_case.AcsWorkspaceCase):
                 out = self.pre("merge-pr", args_text)
                 self.assertEqual(out.returncode, 0, out.stderr)
                 self.assertNotIn("blocked", out.stderr)
+
+
+class CodeSubjectGateTest(acs_case.AcsWorkspaceCase):
+    """/acs:code refuses a ticket reference that names no ticket.
+
+    A `<PREFIX>-<n>` token is a ticket REFERENCE, and a run over a reference to
+    nothing is a run whose subject cannot be read -- so the gate refuses it up
+    front rather than letting the first step that needs ticket.json discover it.
+
+    Ported from the behavioural harness's s01 install-gate smoke when that
+    harness was retired: s01 was the ONLY thing asserting this refusal. Its
+    other gate checks were already pinned on the source tree here; this one was
+    not, and a coverage audit against the real gate's message found no test
+    carrying it. s01 ran it against the INSTALLED build -- that angle now
+    belongs to `claude plugin eval acs@gms-marketplace`, which no unit test can
+    stand in for."""
+
+    def test_code_is_refused_for_a_ticket_that_does_not_exist(self):
+        out = self.pre("code", "SHOP-1")
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("acs pre-code: blocked", out.stderr)
+        self.assertIn(
+            "no ticket SHOP-1 in this repo's workspace — run /acs:create-ticket "
+            "to make one, or give /acs:code a prompt or a document instead.",
+            out.stderr)
+
+    def test_the_same_reference_opens_once_the_ticket_exists(self):
+        """The refusal is about the missing SUBJECT, nothing else: mint the
+        ticket and the identical invocation passes."""
+        minted = self.run_script("new-ticket.py", "--title", "Add a /health endpoint",
+                                 "--type", "task", "--needs-design", "false")
+        self.assertEqual(minted.returncode, 0, minted.stderr)
+        self.assertEqual(json.loads(minted.stdout)["ticket_id"], "SHOP-1")
+        out = self.pre("code", "SHOP-1")
+        self.assertEqual(out.returncode, 0, out.stderr)
 
 
 class CreateDesignGateTest(acs_case.AcsWorkspaceCase):

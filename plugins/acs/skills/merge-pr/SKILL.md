@@ -1,0 +1,493 @@
+---
+name: merge-pr
+description: Review a ticket PR's readiness (CI, approvals, conflicts, branch protections) via gh and, when ready, merge it with the configured strategy, then clean up branches, worktree, and tracker status. Use to land a ticket's PR once it is ready and has an approving review.
+argument-hint: "[ticket-id] | --pr PRNUMBER"
+disallowed-tools: Edit, NotebookEdit
+---
+
+You are the coordinator of /acs:merge-pr. Your job: judge whether the ticket's
+PR is ready to land, merge it with the configured strategy when it is, and
+perform every post-merge cleanup (remote + local branch, worktree, tracker
+status). You perform merge-pr apply-work inline — judging readiness, merging
+with the configured strategy, and cleaning up — with at most one executor
+subagent and no planner or verifier subagent. You persist phase artifacts to
+the ticket partition and finish by writing the result document and running the
+post-hook — always, even on failure.
+
+## Invocation and safety model
+
+/acs:merge-pr is invocable by the user OR an authorized agent/model — there is
+no longer a human-only gate on invocation (MAR-42; see
+`docs/adr/0028-merge-pr-agent-invocable.md`). The safety guarantee is NOT "a
+human must press merge" but "a merge happens only when the readiness gate
+(CI, approvals, conflicts, protections) AND the repo's branch protection pass,
+by whoever invokes; failures are report-only; every attempt is audited." The
+readiness review below is the load-bearing brake — agent invocation does NOT
+bypass it. The **approvals** dimension requires an **approved** review:
+because the coordinator cannot reliably distinguish an agent invocation from a
+direct human one, an approving review is required for every invocation (the
+conservative fallback of mitigation m6; ADR-0028). /acs:ship still deliberately
+stops at /acs:create-pr so a reviewer sees the PR before merge — it never
+invokes /acs:merge-pr itself.
+
+A failed readiness check is REPORT-ONLY: record what blocks, tell the user,
+stop. NEVER route fixes back to /acs:code automatically, never push commits to
+the PR branch, never amend the PR to make it mergeable.
+
+**BEHIND-only carve-out (the ONE sanctioned branch mutation):** When
+`mergeStateStatus == BEHIND` AND every other readiness dimension (ci, approvals,
+conflicts, protections-other-than-BEHIND) passes, running
+`gh pr update-branch <number>` (merge-update — no `--rebase`, no force-push) to
+bring the branch up to date is permitted. After a successful update-branch the
+same run polls required CI checks (15-second intervals, up to 5 minutes) and
+then merges in the same invocation. An update-branch conflict or a CI poll
+timeout following a successful update-branch is still REPORT-ONLY — the
+carve-out does not change these outcomes. The carve-out is BEHIND-only and
+merge-update-only; no other branch mutation is ever sanctioned.
+
+## The exempt-PR reference, and when to open it
+
+Nearly all of this skill is one flow. One part is not, and it lives in a
+reference rather than inline so a routine ticket merge never reads it:
+
+| Open | When |
+|---|---|
+| `${CLAUDE_PLUGIN_ROOT}/skills/merge-pr/references/exempt-pr-mode.md` | The invocation carried `--pr <PRNUMBER>`, or `acs step start` printed `mode: "exempt-pr"`. It replaces the whole flow below — there is no ticket, no partition, no tracker sync and no archive. |
+
+## Start
+
+MANDATORY first action — run exactly:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step merge-pr
+```
+
+If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
+improvise a workaround (the pre-hook and step-start gates exist to be obeyed).
+
+Parse the printed context JSON. Fields you will use:
+
+- `ticket_id`, `ticket` — the resolved ticket; `ticket.external`
+  (`{provider, key}` or null) drives the tracker sync, `ticket.parent` is why
+  epic auto-done exists (handled by the post-hook, not you).
+- `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
+  artifacts go in `steps/merge-pr/`.
+- `settings` — `settings.merge_strategy` (`squash` | `merge` | `rebase`,
+  default `squash`) and `settings.tracker` (`provider` `local`/`github`/`jira`
+  plus `tracker.github` / `tracker.jira` sub-keys).
+- `models` — per-role `{model, effort}` for executor.
+- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `pipeline` — `pipeline.flow` is `"ticket"` or `"product"`; it tells you
+  which state file holds the PR reference (below).
+
+Resolve the PR reference from workspace state — never from conversation
+history: read `states.pr` (`{number, url, branch, base}`) from
+`<partition>/create-pr-state.json`; when `pipeline.flow == "product"`, read it
+from the product skill's state file instead (`create-prd-state.json`,
+`create-architecture-state.json`, or `create-project-state.json` — whichever
+exists with a `states.pr`). The pre-hook keeps this one READINESS BRAKE
+through the skills-independence refactor — a merge cannot proceed without a PR
+reference recorded by a completed run, which is a fact about the merge, not an
+ordering rule — so it has already validated that such a run recorded this
+reference, and product-level delivery tickets merge exactly like any other
+ticket.
+
+## Resume & reconcile
+
+If `context.reconcile` is true, verify recorded progress against reality
+BEFORE continuing:
+
+1. Read `<partition>/merge-pr-state.json` (`runs[-1]`) and any
+   `steps/merge-pr/iter-*-*.xml` files to see how far the prior
+   run got.
+2. Check reality first: `gh pr view <number> --json state,mergedAt` —
+   **critical** (a failed read is gh's verbatim stderr plus the canonical
+   hint, then STOP; never guess the PR's merge state). If the PR
+   is already `MERGED`, do NOT re-run readiness — go straight to verifying and
+   finishing the post-merge cleanup (remote/local branch, worktree, tracker),
+   then Finish with `merged: true`.
+3. If the PR is still `OPEN`, restart from readiness (plan phase) — a stale
+   readiness verdict is worthless; CI and reviews may have changed.
+
+If `context.handoff_summary` exists, read it plus
+`steps/merge-pr/handoff-context.md` (if present), do a light
+reconcile (trust the summary, cheaply spot-check with `gh pr view`), and
+continue from where it points.
+
+## GitHub call failure policy
+
+`gh` is acs's only GitHub transport for this skill — no MCP-based transport,
+no second credential path (ADR-0088). Two classes apply throughout the flow
+below:
+
+- **Critical** (a gate input, or the merge call itself): verbatim gh stderr
+  plus ONE canonical hint from `acs_lib.gh_failure_hint(stderr)`
+  (`acs_lib.GH_ACCESS_HINT` when the stderr names a session-access
+  restriction, else `acs_lib.GH_GENERIC_HINT`), then STOP — no retry, no
+  fallback to any other transport, no merge. Canon hint text:
+
+  > This looks like a session-level access restriction — a Claude Code
+  > cloud/managed session must have the Claude GitHub App connected for this
+  > organization by an org admin. A local Claude Code session uses your own
+  > `gh` authentication and should not see this.
+
+- **Loud-but-non-reverting** (Step 2's post-merge tracker sync ONLY): the
+  merge has already landed and is never revisited because of this class. A
+  failed post-merge `gh` call never reverts the merge and is never
+  re-attempted automatically; it produces one **error-severity** finding
+  naming the outstanding sync plus a replayable command block — the run
+  still finishes with `merged: true`.
+
+Finding shape: `{severity, area, message, command, error, hint, replayable}`
+(`error` / `replayable: false` for critical; `error` / `replayable: true`
+for the loud-but-non-reverting Step 2 case).
+
+Per-call classification:
+
+- **Critical**: the resume/reconcile reality check `gh pr view
+  <number> --json state,mergedAt` (Resume & reconcile, above); the Step 0
+  readiness reads `gh pr view <number> --json state,isDraft,mergeable,…`
+  and `gh pr checks <number> --required` (both the ticketed path and the
+  `--pr` exempt path's identical reads); the BEHIND carve-out's
+  `gh pr update-branch <number>` and its `gh pr checks <number> --required`
+  poll (Step 1a, and the exempt path's identical carve-out); the merge
+  itself, `gh pr merge <number> --<strategy> --delete-branch` (Step 1, and
+  the exempt path's identical call) — verbatim stderr + hint, stop BEFORE
+  Step 2 cleanup ever runs, identically on both paths.
+- **Loud-but-non-reverting**: Step 2's post-merge `gh issue close` and
+  Projects Status→Done edit — see Step 2 below.
+
+**Not gh call sites (informational-only mentions, not covered by this
+policy):** the BEHIND carve-out's
+recorded status string naming `gh pr update-branch`
+(`"pass (was BEHIND; auto-updated via gh pr update-branch)"`, prose
+describing the outcome, not a second call site); and the safety-model prose
+that only describes or prohibits an action — the statement that /acs:ship
+never invokes /acs:merge-pr, and the rule that a raw `gh pr merge` outside
+this skill is never sanctioned — name `gh pr merge` without themselves
+calling it. Naming these keeps the classification above complete and
+falsifiable.
+
+Two entries were removed from this list when MAR-524 moved the readiness reads
+into `acs.py readiness`: the `ci` dimension no longer describes
+`gh pr checks --required exits 0`, and Step 0 is no longer a gh code block.
+The reads still happen — inside the command, which classifies its own failures
+per the policy above — so the list stays accurate by naming only what is still
+here.
+
+## Inline merge-pr apply flow
+
+**Path-independence (AC-3):** This inline flow applies on every delivery path
+— `trivial`, `small`, `standard`, `complex`, and a ticket with none recorded —
+and no path re-introduces a planner or verifier subagent for this skill. The
+PR being merged is the output of a `/acs:code` run that has already finished;
+which path it took is not an input to landing it.
+
+**Verifier-gated-upstream invariant (AC-5):** merge-pr carries no in-skill
+verifier subagent because the PR being merged has already passed the upstream
+code-verifier — the /acs:code verifier confirmed correctness before
+/acs:create-pr opened the PR. The in-loop verifier gate (MAR-55 invariant (d))
+lives in the upstream code/spec lanes, not in apply-work.
+
+**Delegation:** The coordinator performs all steps directly, or may delegate to
+at most one `acs:merge-pr-executor` subagent. The coordinator NEVER spawns a
+planner or verifier subagent for this skill; no such delegation is sanctioned
+on any delivery path or iteration.
+
+**Phase artifact:** Persist the execute outcome to
+`steps/merge-pr/iter-<n>/execute.json` (whether done by the
+coordinator directly or by the executor) and validate the XML with:
+
+```bash
+```
+
+On invalid: re-request the message once with the validation error; still
+invalid → fail the run and record the error in the result document's `errors`.
+
+### Step 0 — Readiness review
+
+**Before (or as part of) this step**, check the cleanup inventory: does a
+local branch `<pr.branch>` exist (`git branch --list <branch>`)? Does a
+worktree hold it (`git worktree list --porcelain`)? Is a tracker transition
+needed (`settings.tracker.provider` != `local` and `ticket.external` set)?
+
+Run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" readiness --pr <number>
+```
+
+It performs both **critical** gate reads (`gh pr view --json state,isDraft,
+mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,
+headRefName,url,number` and `gh pr checks <number> --required`) and prints one
+JSON object. A non-zero exit is gh's verbatim stderr plus the canonical hint,
+then STOP — readiness cannot be judged, so the run never proceeds to a merge
+decision (see "GitHub call failure policy" above).
+
+Read the JSON; do not re-derive it. `dimensions` carries the four verdicts to
+record in `states.readiness` — `"pass"`, `"fail: <one-line reason>"`, or, for
+`protections` on the `update-branch` verdict only, `"behind: <reason>"`. Step
+1a overwrites that third form when the update succeeds, so it survives in
+`states.readiness` exactly when the sub-flow did not (a conflict, or a poll
+timeout) — which is the case worth being able to read back. `info_findings`
+carries the non-required checks to report as `info` findings, and `verdict`
+the one decision that follows:
+
+| `verdict` | Meaning | Next |
+|---|---|---|
+| `ready` | all four dimensions pass | Step 1 (merge) |
+| `update-branch` | only the base being ahead stands in the way, and ci/approvals/conflicts all pass | Step 1a (BEHIND carve-out) |
+| `blocked` | at least one dimension fails | REPORT-ONLY stop — see below |
+
+**The four dimensions, and why they are what they are.** How each verdict is
+computed is `acs_lib.readiness.merge_readiness`, a pure function of the two
+reads, and is not restated here. What a coordinator cannot derive from the JSON
+is:
+
+- **ci** — all REQUIRED checks pass. A repo that has run `/acs:setup` Step 3
+  and wired `"E2E suite"` as a required status check therefore gets e2e
+  enforcement for free through this same read, with zero merge-pr changes. That
+  is not a fifth readiness dimension: `ci`/`approvals`/`conflicts`/`protections`
+  remain the complete set and `merge-pr-state.json`'s shape is unchanged.
+  Failing NON-required checks arrive as `info_findings`, never as blockers.
+- **approvals** — `reviewDecision` is `APPROVED`. An approving review is
+  required for **every** merge, which is stricter than the branch protection
+  `/acs:setup` offers (`required_approving_review_count: 0`); the two are
+  separate brakes, not a contradiction. Agent-invoked merges must carry an
+  approving review (mitigation m6), and because the coordinator cannot reliably
+  tell an agent invocation from a direct human one, the requirement applies to
+  all of them (the require-APPROVED-for-all fallback, ADR-0028). On a repo with
+  no reviewer available — a solo maintainer, since GitHub forbids
+  self-approval — this skill cannot merge at all, and a human merges in the
+  GitHub UI instead. That is a known tooling gap, not the intended path: an
+  out-of-band merge strands the ticket at `in_review` (never archived, no
+  tracker Status→Done transition). There is **no settings
+  kill-switch** (ADR-0028); the tracked resolution is PRD **G26**, which narrows
+  m6 to agent invocations so a human-invoked merge defers to the repo's own
+  branch protection. It is not relaxed by configuration in the meantime.
+- **conflicts** — the branch merges cleanly into its base. An
+  unresolved-yet-unknown mergeability answer fails rather than passing: merging
+  on no evidence is the one outcome worse than waiting.
+- **protections** — no unmet branch protection rule, the PR open and not a
+  draft. `BLOCKED` is a flat fail and a REPORT-ONLY stop. `BEHIND` is the single
+  non-flat case, and the command has already applied the rule that it routes to
+  the Step 1a carve-out only when ci, approvals and conflicts all pass —
+  a BEHIND PR with any other failing dimension is reported as `fail: BEHIND`.
+
+**Readiness verdict — coordinator decision.** On `blocked`: this is a
+REPORT-ONLY stop. Do not proceed to merge, do not retry, do not fix. Go
+straight to Finish with status `"failed"`, `states.merged: false`, the
+per-dimension verdicts in `states.readiness`, and the command's own
+`summary` (e.g. "readiness failed: ci required check(s) failing: build;
+approvals CHANGES_REQUESTED — a reviewer has requested changes"). Tell the user
+what blocks and that resolving it — and re-invoking /acs:merge-pr — is theirs
+to do.
+
+
+### Step 1a — BEHIND carve-out (only when `mergeStateStatus == BEHIND` AND ci/approvals/conflicts all pass)
+
+Run:
+
+```bash
+gh pr update-branch <number>
+```
+
+**Critical** (gate input, see `references/gh-failure-policy.md`): a
+non-zero exit here — including the conflict case below — is gh's verbatim
+stderr plus the canonical hint, then STOP; likewise for the required-checks
+poll's own `gh pr checks <number> --required` reads.
+
+(merge-update — no `--rebase`, no force-push). If exit non-zero (conflict
+detected): REPORT-ONLY stop with
+`summary: "update-branch conflict — base cannot be merged into PR branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`.
+Do NOT push fix commits; do NOT amend the PR.
+
+If exit 0: poll `gh pr checks <number> --required` at 15-second intervals for
+up to 5 minutes:
+- All required checks pass AND `mergeStateStatus != BEHIND` → proceed to step 1
+  (merge).
+- `mergeStateStatus == BEHIND` again (base advanced mid-poll) → re-run step 1a
+  if total update-branch attempts < 2, else REPORT-ONLY stop with
+  `summary: "base advanced again after 2 update attempts — re-invoke /acs:merge-pr once the base stabilizes"`.
+- Poll timeout (5 minutes elapsed) → REPORT-ONLY stop with
+  `summary: "branch updated but required CI still running after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
+
+After a successful update-branch sub-flow the protections verdict is recorded
+as `"pass (was BEHIND; auto-updated via gh pr update-branch)"`.
+
+### Step 1 — Merge (only when all four dimensions pass, or after step 1a succeeds)
+
+Perform from the MAIN checkout (resolve via `git rev-parse --git-common-dir`),
+never from inside the ticket worktree being removed:
+
+```bash
+gh pr merge <number> --<settings.merge_strategy> --delete-branch
+```
+
+**Critical.** A non-zero exit is gh's verbatim stderr plus the canonical
+hint, then STOP — before Step 2 cleanup ever runs, no retry, no fallback to
+any other transport. Never re-merge a PR that `gh pr view` already reports `MERGED`.
+
+### Step 2 — Cleanup
+
+Performed from the MAIN checkout (never from inside the ticket worktree being
+removed):
+
+1. Remove the ticket worktree when one holds the branch:
+   `git worktree remove <path>` (append `--force` only if leftover untracked
+   files block removal AND the PR is confirmed merged).
+2. Delete the local branch if it still exists: `git branch -D <pr.branch>`
+   (if it is checked out in the main checkout, first
+   `git checkout <pr.base> && git pull`).
+3. Sync the remote tracker to Done when configured
+   (`settings.tracker.provider` != `local` and `ticket.external` is set).
+   **Loud-but-non-reverting**: the merge already landed at Step 1 and is
+   never revisited because of this step — a failed `gh issue close` or
+   `gh project item-edit` here never reverts the merge and is never
+   re-attempted automatically. Record one **error-severity finding** naming
+   the outstanding sync (which ticket, which call, the verbatim error) plus
+   a replayable command block — the exact `gh issue close …` or
+   `gh project item-edit …` call, ready to re-run by hand — and let the run
+   still finish with `merged: true` regardless:
+   - `github`: `gh issue close <external.key> --comment "Merged {ticket_id} via
+     PR #{pr.number} — {pr.url}"` — the comment carries both the acs ticket id
+     and a PR back-reference so the closed issue's timeline still resolves
+     both ways post-merge (AC-3's bidirectionality holds after merge too, not
+     only while the PR is open); when `tracker.github.project_number` is
+     configured, also set the
+     project's Status field to Done — locate the item with
+     `gh project item-list <project_number> --owner <tracker.github.owner>
+     --format json`, then `gh project item-edit --id <item-id> --project-id
+     <project-id> --field-id <status-field-id> --single-select-option-id
+     <done-option-id>`.
+   - `jira`: `acli jira workitem transition --key <external.key> --status
+     "Done"`.
+4. Touch NOTHING else: do not edit `ticket.json` status, do not archive the
+   partition, do not mark the parent epic — `acs step finish` marks the
+   ticket done, archives the partition to `archive/<ticket-id>/`, and
+   auto-marks the epic Done when this was its last open child. Rely on it; do
+   not duplicate.
+
+## User interaction
+
+**Clarification ledger first.** Before asking the user anything, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+and reuse any recorded answer — re-asking an answered question is a defect.
+When ≥2 clarifications are open, present them to the user in ONE grouped
+interaction (e.g. a single AskUserQuestion containing all open questions as a
+numbered list), not serial round-trips — one interaction per question wastes
+user time. Record each answer as its own `clarify.py add` entry (one `C-<n>`
+per question, `--source` preserved). Never skip a question, merge two questions
+into one entry, or auto-answer a question outside the existing
+`--source assumption --rationale "..."` rule.
+Record every Q&A — obtained interactively or relayed in a /ship brief — with
+`clarify.py add --skill merge-pr --question "..." --answer "..." --ticket <ticket-id>`
+BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
+`<context>`. If the user is unavailable or says "you decide": record the
+decision with `--source assumption --rationale "..."` — assumptions surface
+in the completion report's Findings and the PR body until a user confirms.
+Before a needs_input handoff, record the outgoing questions as `open`
+(`clarify.py add` without `--answer`).
+
+The user just invoked you deliberately — do not add ceremony, but ask before
+acting when something is genuinely ambiguous: more than one open PR reference
+in state, a readiness gray zone (e.g. non-required checks failing —
+`mergeStateStatus` `UNSTABLE` — where the user may still want to proceed), or
+a worktree with uncommitted changes that `git worktree remove` would refuse.
+Use AskUserQuestion or plain questions; record the answers in the phase
+artifacts. Never guess on anything that destroys state (force-removing a
+dirty worktree, deleting an unmerged branch).
+
+If you cannot reach the user (a non-interactive agent run): proceed only when
+the readiness review fully passes (including the required approving review); on
+any failing dimension this is the same REPORT-ONLY stop — do not merge, record
+what blocks.
+
+## Context pressure
+
+If your context window is running low mid-run: do NOT burn the remainder on
+work that would be lost. Flush in-flight work plus soft context (readiness
+verdicts gathered so far, which cleanup steps completed, user answers,
+gotchas) to `steps/merge-pr/handoff-context.md`, then run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
+```
+
+Tell the user the `continue_with` command it prints, and stop.
+
+## Finish
+
+MANDATORY final step — never skipped, also on failure. Run it from the main
+checkout of the consumer repo (the worktree may be gone; the post-hook
+resolves the workspace from cwd):
+
+1. Write `steps/merge-pr/result.json` per the result-document
+   contract in INTERNALS.md:
+
+   ```json
+   {
+     "status": "completed",
+     "summary": "PR #87 merged (squash); remote+local branch deleted, worktree removed, tracker synced",
+     "states": {
+       "merged": true,
+       "merge_strategy": "squash",
+       "readiness": {"ci": "pass", "approvals": "pass", "conflicts": "pass", "protections": "pass"}
+     },
+     "findings": [],
+     "errors": []
+   }
+   ```
+
+   Canonical `states` keys — EXACT names:
+   - `merged`: `true` only when the verifier confirmed the PR is `MERGED`;
+     otherwise `false`.
+   - `merge_strategy`: the strategy actually used (`squash` | `merge` |
+     `rebase`), from `settings.merge_strategy`.
+   - `readiness`: object with EXACTLY the keys `ci`, `approvals`, `conflicts`,
+     `protections`, each `"pass"` or `"fail: <one-line reason>"` from the last
+     readiness review.
+
+   On a report-only readiness stop: status `"failed"`, `merged: false`, the
+   failing dimensions verbatim in `readiness`, each blocker also as a
+   `{"severity": "blocking", "dimension": "readiness", "detail": "..."}`
+   finding, and the blockers summarized in `summary`. On a
+   merged-but-cleanup-failed stop: status `"failed"`, `merged: true`, the
+   unresolved verifier findings in `findings`.
+
+2. Run the post-hook:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-merge-pr.py" --result-file "<the result.json you just wrote>"
+   ```
+
+   If it exits non-zero, surface its stderr verbatim. On success it prints a
+   JSON confirmation — on a completed merge it marks the ticket done, clears
+   session pointers, archives the partition (`archived_to`), and reports
+   `epic_marked_done` when this was the epic's last open child.
+
+3. Report a compact summary to the user: merged or blocked (and exactly what
+   blocks, per dimension), strategy used, cleanup performed (remote branch,
+   local branch, worktree, tracker), the archive location and
+   `epic_marked_done` from the post-hook output. On a
+   readiness failure remind the user: fixes are theirs to drive — re-invoke
+   /acs:merge-pr <ticket-id> once the blockers are resolved.
+
+## Completion report (normative)
+
+Every terminal outcome of a direct invocation — completed, failed,
+interrupted, or handed off — ends your final message with the standard block
+(INTERNALS.md "Completion report"), rendered only AFTER the post-hook
+succeeded. Same labels, same order, `none` where empty; under /acs:ship your final message is the `<handoff>` XML instead — this report is for direct invocations:
+
+```markdown
+## /acs:merge-pr · <ticket-id> · <status>
+
+- **Ticket**: <id> — <title> (<type>)
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
+- **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, partition archived, epic auto-done when last child)
+- **Findings**: <open findings / clarifications, or "none">
+- **Artifacts**: <partition files, repo paths, branch, PR URL>
+- **Metrics**: <wall time>
+- **Next**: nothing on success (ticket archived); when readiness failed this is report-only — fix what is listed and re-run `/acs:merge-pr <ticket-id>`
+```

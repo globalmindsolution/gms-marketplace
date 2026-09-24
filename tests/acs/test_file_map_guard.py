@@ -24,13 +24,13 @@ import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-HOOKS_JSON = os.path.join(REPO_ROOT, "src", "acs", "hooks", "hooks.json")
-CODE_EXECUTOR = os.path.join(REPO_ROOT, "src", "acs", "agents", "code-executor.md")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+HOOKS_JSON = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json")
+CODE_EXECUTOR = os.path.join(REPO_ROOT, "plugins", "acs", "agents", "code-executor.md")
 #: ADR-0095 split /acs:code into a dispatcher plus the references its four
 #: delivery paths share, so what used to be one SKILL.md body is read from
 #: the reference that carries it: the execute instruction.
-CODE_SKILL = os.path.join(REPO_ROOT, "src", "acs", "skills", "code", "references", "execute.md")
+CODE_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "code", "references", "execute.md")
 sys.path.insert(0, SCRIPTS)
 
 import acs_lib as lib  # noqa: E402
@@ -375,10 +375,11 @@ class FilemapCliTest(FileMapGuardCase):
 class RefusalTextTest(FileMapGuardCase):
     """The whole stderr of each of the three refusals, in both partition shapes.
 
-    acs-evals' GUARD-* golden cases capture no state file and match their
-    `stderr_contains` fragments by CONTAINMENT (`runner/run_golden.py:163`), so
-    what actually keeps them green is two things, and neither is "the stderr is
-    unchanged". First, the three refusal texts themselves are untouched by
+    The eval suite's GUARD-* golden cases used to capture no state file and
+    matched their `stderr_contains` fragments by CONTAINMENT, so what kept them
+    green was two things and neither was "the stderr is unchanged". Those cases
+    are gone with the no-model tier, which leaves the arms below as the only
+    thing pinning these texts -- so they matter more now, not less. First, the three refusal texts themselves are untouched by
     MAR-578 -- the arms below pin them whole. Second, the recording is allowed
     to ADD exactly one line, the AC-3 "not recorded" note, and only when the
     append does not land; a containment match tolerates it, and nothing else

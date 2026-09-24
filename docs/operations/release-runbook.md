@@ -11,53 +11,63 @@ the step-by-step the maintainer follows.
 
 ## Steps
 
-1. **The pre-release quality gate — acs-evals — runs before the cut, and
-   the cut stops on its first failure.** It lives in this repo at
-   [`src/acs-evals/`](../../src/acs-evals/README.md) and is declared as
-   `release.pre_release_gate` in `.acs/settings.json`; `/acs:release
-   <version>` runs it verbatim, in order, from the checkout root before it
-   drafts, bumps, branches or pushes anything. To run it by hand first —
-   which is how you find out before the cut does:
+1. **The pre-release gate runs before the cut, and the cut stops on its first
+   failure.** It is declared as `release.pre_release_gate` in
+   `.acs/settings.json`; `/acs:release <version>` runs it verbatim, in order,
+   from the checkout root before it drafts, bumps, branches or pushes anything.
+   To run it by hand first — which is how you find out before the cut does:
    ```bash
-   cd src/acs-evals
-   make eval-source   # golden cases against ../../src/acs — the gate
-   make measure       # tier 3 — SPENDS MONEY; a no-op when this exact build is already measured
-   make perf          # judge the measurement; refuses one taken of any other build
+   python3 -m unittest tests.acs.test_eval_cases    # free: every eval case well-formed
+   claude plugin eval plugins/acs --tag routing --ablation none \
+     --trust-plugin --no-publish --max-cost-usd 20  # PAID (~$15): routing, 3 runs a case
    ```
-   A measurement records the content digest of the tree it exercised, so
-   `make perf` judges a measurement of *this* build or fails as
-   `UNMEASURED (stale)`, and `make measure` spends nothing on a build whose
-   complete measurement is already on disk — re-running the gate after a fix
-   costs exactly one measurement of the changed build.
-   Then run plain `make eval` as well, once the tag is cut and the build is
-   installed: it resolves the newest *installed* acs build and is the only run
-   that catches packaging drift between source and what a consumer receives.
-   Investigate any failing case, and any regression `make measure` /
-   `make perf` reports, before continuing — do not tag on red, and do not
-   cut past the gate: `/acs:release` will not. (The free in-repo smoke already ran on every commit via
-   pre-commit. The in-repo paid suite,
-   `python3 src/acs-evals/behavioural/run_evals.py --plugin acs --paid`, is an on-demand tool kept
-   for the forge-tier scenarios, not the gate.) When you do run that on-demand
-   suite, note that it can exit non-zero with **no** failing scenario, printing
-   `PRE-FLIGHT FAILED — the sandbox cannot see the plugin` and
-   `PRE-FLIGHT FAILED — the paid tier did not run.`; that is not a plugin
-   regression — the suite never ran and nothing was spent. Fix the environment
-   so the `acs` plugin is visible to a fresh sandbox session, then re-run
-   (MAR-575).
+   The second command runs the plugin's eval suite, `claude plugin eval` case
+   files at [`plugins/acs/evals/`](../../plugins/acs/evals/README.md). The free
+   check comes first so a malformed case fails for $0 rather than after the
+   paid run has spent. `--max-cost-usd` is a ceiling: hitting it exits **2**
+   with `partial: true`, which is an unfinished run, not a result.
+
+   Read a red run before acting on it. The command exits 1 when any case scores
+   below 1.0, and the suite's README records which cases are known to read low
+   for reasons that are not the plugin: explicit `/acs:<skill>` invocations are
+   not reliably observable, and three routing prompts presuppose context the
+   empty eval workspace lacks. A usage or rate limit reached mid-run also scores
+   later runs 0 without marking the run partial — check each case's NOTES for
+   the limit message before trusting the table.
+
+   Then run the suite against the **installed** build as well, once the tag is
+   cut and the build is installed:
+   ```bash
+   claude plugin eval acs@gms-marketplace --tag routing --ablation none
+   ```
+   A named target grades the installed copy with the installed copy loaded —
+   what a consumer receives — and is the only run that catches packaging drift
+   between source and release. Do not tag on red, and do not cut past the gate:
+   `/acs:release` will not.
 2. **Cut the release — recommended: `/acs:release <version>`.** This
    one-command skill runs `release_notes.py status` → `draft` → `bump`
    (drafting and dating the CHANGELOG section from the merged-ticket archive
-   plus the `base_branch` git-history fallback), bumps both manifests +
-   `source.ref`, and opens the exempt `release/*` PR, then stops for a
-   mandatory human merge (ADRs 0050-0052). The manual steps below are the
-   underlying mechanism it automates, and remain the documented fallback if
-   the skill is unavailable:
-   1. **Bump the version** — set the same `version` in both
-      `.claude-plugin/marketplace.json` and
-      `src/acs/.claude-plugin/plugin.json` (by convention both are kept in
-      sync), and point the acs `git-subdir` `source.ref` at the new tag.
+   plus the `base_branch` git-history fallback), bumps all four manifests +
+   the Devin meta-plugin's `ref`, and opens the exempt `release/*` PR, then
+   stops for a mandatory human merge (ADRs 0050-0052). The manual steps below
+   are the underlying mechanism it automates, and remain the documented
+   fallback if the skill is unavailable:
+   1. **Bump the version** — set the same `version` in all four files
+      `release.version_locations` lists: `.claude-plugin/marketplace.json`,
+      `plugins/acs/.claude-plugin/plugin.json`,
+      `plugins/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
+      CI checks each Devin manifest against `marketplace.json`, so skipping one
+      fails the cut (`.devin-plugin/plugin.json version != marketplace.json
+      version`). Leave the marketplace `acs` entry's `source` string
+      `"./plugins/acs"` **untouched** — that entry is no longer a pinned
+      `git-subdir` object, so there is nothing to repoint: the ref the
+      marketplace itself was installed at *is* the pin. Rewriting it back into
+      the pinned-object shape is what broke the install twice (recorded in
+      `.github/workflows/ci.yml`). The one ref to set is
+      `requiredPlugins[0].ref` in `.devin-plugin/plugin.json` → `v<version>`;
+      this is what `release.extra_refs` automates.
    2. **Update the changelog** — add the matching section to
-      [`src/acs/CHANGELOG.md`](../../src/acs/CHANGELOG.md) (Keep a Changelog
+      [`plugins/acs/CHANGELOG.md`](../../plugins/acs/CHANGELOG.md) (Keep a Changelog
       format); this becomes the release notes.
    3. **Open the release PR**, get CI green, and merge (squash). On merge the
       Release workflow cuts the immutable `v<version>` tag and publishes the
@@ -80,7 +90,7 @@ from `run_post_skill()`'s `skill == "merge-pr" and status == "completed"`
 branch). A ticket merged any other way never gets an archive entry, so it is
 invisible to the archive-only path. `enumerate_merged_tickets()` now also
 recovers such tickets from `base_branch` commit-subject history (see
-`src/acs/skills/release/SKILL.md`); this section records why the gap
+`plugins/acs/skills/release/SKILL.md`); this section records why the gap
 exists and what the fallback does and does not fix.
 
 ### Why `/acs:merge-pr` was not invoked for MAR-71..MAR-305 and PR #391
@@ -93,7 +103,9 @@ without any single cause being sufficient on its own:
    pipeline workspace, which by default is now anchored in-repo
    (ADR-0086), but this host's `.acs/settings.local.json` (gitignored)
    overrides it to an external, machine-local path
-   (`workspace_path: /home/user/acs-workspace`; as observed then, that
+   (`/home/user/acs-workspace`, through the workspace override setting
+   [ADR-0102](../adr/0102-documents-are-found-not-configured.md) later
+   removed; as observed then, that
    directory was created 2026-09-01). That workspace holds exactly one
    ticket (`MAR-306`) and no
    `archive/` directory at all — so even a history of perfectly-executed
@@ -115,7 +127,7 @@ without any single cause being sufficient on its own:
    "This GraphQL query is not enabled for this session"), so the skill
    cannot run here at all regardless of the review-gate question above.
 4. **Process seam.** `/acs:ship` deliberately stops at `create-pr` and
-   never runs `/acs:merge-pr` itself (`src/acs/skills/ship/SKILL.md:30`,
+   never runs `/acs:merge-pr` itself (`plugins/acs/skills/ship/SKILL.md:30`,
    `:89`); this repo's own `CLAUDE.md` names `/acs:merge-pr` only in its
    `--pr` exempt-PR form (`CLAUDE.md:23,28`). Nothing in the default
    pipeline path routes a ticket PR to the sanctioned merge step, so a human
@@ -159,7 +171,11 @@ open bugs to fix under this ticket:
   (`docs/adr/0035-pr-title-ticket-ref-token.md`), and the acs id appears
   nowhere else in the commit (verified: `git log -1 --format=%B` on that
   commit shows no `MAR-N` token anywhere in subject or body). Such tickets
-  under-count regardless of the fallback.
+  under-count regardless of the fallback. The same holds whenever the squash
+  subject is taken from a PR title rendered with the default `pr_title` of
+  `{title}` ([ADR-0105](../adr/0105-acs-runs-without-setup.md)): the subject
+  is the bare title plus `(#N)`, with no ticket id for the fallback to read,
+  so such a ticket is recovered from the archive or not at all.
 - **A shallow clone bounds recall to whatever history was actually
   fetched.** This checkout is shallow (`git rev-parse
   --is-shallow-repository` → `true`; as observed then, 49 commits on
@@ -170,10 +186,11 @@ open bugs to fix under this ticket:
   epic grouping or the docs-only flag, so such entries render as flat
   bullets categorized from the title alone.
 - The `--ticket-prefix` flag (`draft`/`bump`, passed by `/acs:release` as
-  the configured ticket prefix) narrows the match to this repo's own prefix
-  and reduces false positives from unrelated `XXX-123`-shaped tokens, but it
-  does not change which subjects carry a recoverable ticket id in the first
-  place — it cannot make a tracker-ref-only subject match.
+  the repo's ticket prefix, `ACS` unless one is set) narrows the match to
+  this repo's own prefix and reduces false positives from unrelated
+  `XXX-123`-shaped tokens, but it does not change which subjects carry a
+  recoverable ticket id in the first place — it cannot make a
+  tracker-ref-only subject match.
 
 The resulting count is **non-zero and honest about its source** (each
 enumerated ticket is stamped `"source": "archive"` or `"source": "git-log"`)
@@ -199,7 +216,8 @@ depend on its immutability.
 
 - [root README — Releasing & updating](../../README.md#releasing--updating)
 - [quality/testing-strategy.md](../quality/testing-strategy.md) — the layered
-  test pyramid, and why acs-evals is the pre-release gate while the in-repo
-  paid suite is an on-demand tool
+  test pyramid, and where the eval suite sits in it
+- [plugins/acs/evals/README.md](../../plugins/acs/evals/README.md) — the eval
+  suite: tags, grading, and the known limits to read before quoting a number
 - [m2-0-validation-spike.md](../product/m2-0-validation-spike.md) — the
   end-to-end install/run validation runbook

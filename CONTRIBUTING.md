@@ -13,7 +13,8 @@ discipline acs applies to consumer repos applies here.
   pre-commit install
   ```
   This wires the repo's [pre-commit hooks](.pre-commit-config.yaml) (secret
-  scanning, hygiene, and the `acs-free-evals` smoke) into `git commit`.
+  scanning, hygiene, and the commit-message and pre-push convention checks)
+  into `git commit`.
 
 ## Tests & quality
 
@@ -22,21 +23,21 @@ Quality is layered — see the strategy in
 run day to day:
 
 ```bash
-python3 -m unittest discover -s tests -v   # deterministic + contract suites (free)
-python3 src/acs-evals/behavioural/run_evals.py                 # free behavioral smoke (gate + cleanup)
-python3 src/acs-evals/behavioural/run_evals.py --paid          # full agentic suite — on demand, not a gate ($)
+python3 -m unittest discover -s tests -v          # deterministic + contract suites (free)
+python3 -m unittest tests.acs.test_eval_cases     # every eval case well-formed (free; part of the above)
+cd plugins/acs && claude plugin eval . --case route-code --runs 1 --ablation none   # one eval case ($)
 ```
 
-- The **free** layers gate every commit (pre-commit) and every PR (CI). Keep
-  them green — a red `acs-free-evals` hook means a gate or cleanup regression.
-- The **paid** evals are an **on-demand tool**, run locally when you need them
-  (they cost money and are non-deterministic) — kept for the forge-tier
-  scenarios, and not a gate on any ticket, PR or release.
-- The **pre-release gate is acs-evals**, in this repo at
-  [`src/acs-evals/`](src/acs-evals/README.md): `make eval-source`, then
-  `make measure` / `make perf` against the release candidate. Run it before
-  bumping `version` — see the
-  [release runbook](docs/operations/release-runbook.md).
+- The **free** layer gates every PR (CI). It includes a structural check of the
+  eval suite, because the eval CLI itself never runs in CI.
+- The **paid** eval suite is `claude plugin eval` case files at
+  [`plugins/acs/evals/`](plugins/acs/evals/README.md). Run a case or two while
+  you change a skill's `description` — that is what the routing cases measure —
+  and read that README for tags and known limits before quoting a number.
+- The **pre-release gate** is `release.pre_release_gate` in
+  [`.acs/settings.json`](.acs/settings.json): the free structural check, then
+  the routing suite, in that order. Run it before bumping `version` —
+  see the [release runbook](docs/operations/release-runbook.md).
 
 ### Reproducing the *Tests & coverage* gate locally
 
@@ -79,11 +80,14 @@ above:
 
 - Branch off `main`; never commit directly to `main` (it's protected).
 - Keep commit subjects imperative; reference the ticket id when there is one.
+- Name the ticket in the PR description (`MAR-<n>`, `#<n>` or an issue link):
+  it is the one rule the required `Branch / PR / commit conventions` check
+  enforces. A PR no ticket stands behind carries the `acs-exempt` label.
 - CI must be green (tests on 3.9 + 3.12, pre-commit, gitleaks, version
   consistency). PRs merge **squash**.
 - The repo ships one shared version across four manifests:
-  `.claude-plugin/marketplace.json`, `src/acs/.claude-plugin/plugin.json`,
-  `src/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
+  `.claude-plugin/marketplace.json`, `plugins/acs/.claude-plugin/plugin.json`,
+  `plugins/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
   `/acs:release` bumps all of them via `release.version_locations` — never
   bump one by hand.
 - Touching the plugin? Update the docs it affects in the same PR — acs treats
@@ -93,8 +97,12 @@ above:
 
 - [docs/README.md](docs/README.md) — the full-SDLC doc map (product →
   requirements → architecture → adr → quality → operations).
-- [src/acs/docs/](src/acs/docs/) — implementation contract for
+- [plugins/acs/](plugins/acs/README.md) — the shipped plugin: skills, agents,
+  hooks, workflows, schemas, templates.
+- [plugins/acs/docs/](plugins/acs/docs/) — implementation contract for
   contributors (INTERNALS, AUTHORING).
+- [plugins/acs/evals/README.md](plugins/acs/evals/README.md) — the eval suite:
+  running it, its tags, how routing is graded, and its known limits.
 - [docs/product/roadmap.md](docs/product/roadmap.md) — what's planned and why.
 
 ## Dogfooding

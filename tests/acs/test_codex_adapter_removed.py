@@ -19,7 +19,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 #: Where a reference is a record of the deletion rather than a live pointer.

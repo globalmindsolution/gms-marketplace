@@ -64,31 +64,29 @@ MAR1_TOKEN_RE = re.compile(r"\bMAR-1\b")
 # Confirmed-live baseline MAR-1 citation counts (unrelated, already-shipped
 # cost-metering content, ADR-0082) that this ticket's edits must not shift.
 # Every touched file not listed here has a baseline of 0.
+#: ADR-0103 removed the status line and the cost metering it fed, and with it
+#: the MAR-1 citations that sat on that content: C4_CONTAINER 5 -> 3,
+#: DATA_MODEL 26 -> 13, WORKSPACE_AND_STATE 6 -> 4, CONFIGURATION 1 -> 0. Those
+#: tokens went with the content they cited; no edit shifted a live one.
+#: ADR-0104 then removed usage recording altogether, and the rest of the
+#: metering citations went with it: C4_CONTAINER 3 -> 0, DATA_MODEL 13 -> 5
+#: (the amendments that record the history), CONTRACTS 4 -> 1,
+#: WORKSPACE_AND_STATE 4 -> 0, HOOKS 2 -> 0, USAGE 1 -> 0, PORTABILITY 1 -> 0.
 MAR1_BASELINE = {
-    C4_CONTAINER: 5,
     # DATA_MODEL: was 27 until the tabp plugin was removed. The 27th token was
     # the deleted "## tabp plugin data model" section's own source line
     # (`MAR-1/design.md:652-722`) -- a citation that went with the section it
     # cited, not a count this repo's edits shifted underneath live content.
-    DATA_MODEL: 26,
-    # CONTRACTS: 3 ADR-0082 citations + 1 from a separately-numbered MAR-1
-    # (doc-bootstrap parallel fan-out, merged to main after this ticket
-    # branched) -- both are pre-existing, unrelated MAR-1 tokens this
-    # ticket's own edits must not shift.
-    CONTRACTS: 4,
-    # WORKSPACE_AND_STATE: 5 pre-existing ADR-0082 citations + 1 more
-    # ADR-0082 citation added by a sibling PR (#410, merged to main after
-    # this ticket branched) -- still unrelated to this ticket's own edits.
-    WORKSPACE_AND_STATE: 6,
-    CONFIGURATION: 1,
-    HOOKS: 2,
-    USAGE: 1,
+    DATA_MODEL: 5,
+    # CONTRACTS: 1 from a separately-numbered MAR-1 (doc-bootstrap parallel
+    # fan-out, merged to main after this ticket branched) -- a pre-existing,
+    # unrelated MAR-1 token this ticket's own edits must not shift.
+    CONTRACTS: 1,
     # REQUIREMENTS_README: 1 legitimate citation from a separately-numbered
     # MAR-1 (the acs:initialize -> acs:setup bootstrap-skill rename,
     # merged to main after this ticket branched) -- its own dated ledger
     # row cites itself as "(MAR-1)"; unrelated to this ticket's own edits.
     REQUIREMENTS_README: 1,
-    PORTABILITY: 1,
 }
 
 # Stale "workspace lives outside the repo" claims each file must no longer

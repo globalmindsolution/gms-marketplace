@@ -1,6 +1,6 @@
 """Unit tests for the convention checker that /acs:setup ships into consumer repos.
 
-The checker (src/acs/templates/ci/check-conventions.py) runs in the
+The checker (plugins/acs/templates/ci/check-conventions.py) runs in the
 consumer's CI and as a local pre-push hook with ZERO acs dependencies — only the
 Python stdlib — so these tests load it straight from the template path and drive
 its pure `evaluate()` core plus the format->regex compiler.
@@ -9,11 +9,14 @@ Run:  python3 -m unittest discover -s tests -v
 """
 
 import importlib.util
+import json
 import os
+import sys
 import unittest
+from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CHECKER = os.path.join(REPO_ROOT, "src", "acs", "templates", "ci", "check-conventions.py")
+CHECKER = os.path.join(REPO_ROOT, "plugins", "acs", "templates", "ci", "check-conventions.py")
 
 _spec = importlib.util.spec_from_file_location("acs_check_conventions", CHECKER)
 cc = importlib.util.module_from_spec(_spec)
@@ -29,7 +32,7 @@ def settings(**overrides):
 def ctx(branch="task/MAR-12-add-foo", title="[MAR-12] Add foo",
         body=None, labels=None, commits=None):
     if body is None:
-        body = "## Summary\nx\n## Ticket\nx\n## Changes\nx\n## Test plan\nx\n"
+        body = "## Summary\nx\n## Ticket\nMAR-12\n## Changes\nx\n## Test plan\nx\n"
     return {
         "branch": branch,
         "title": title,
@@ -96,6 +99,8 @@ class FormatToRegexTests(unittest.TestCase):
 
 
 class EvaluatePrTests(unittest.TestCase):
+    """CI checks one thing (ADR-0106): the PR description names its ticket."""
+
     def assertPasses(self, res):
         self.assertEqual(res.errors, [], "unexpected errors: %s" % res.errors)
         self.assertIsNone(res.exempt)
@@ -104,55 +109,40 @@ class EvaluatePrTests(unittest.TestCase):
         self.assertIn(heading, [h for h, _ in res.errors],
                       "expected a %r error, got %s" % (heading, res.errors))
 
-    def test_conforming_pr_passes(self):
+    def test_a_description_naming_the_ticket_passes(self):
         self.assertPasses(cc.evaluate(settings(), ctx(), "pr"))
 
-    def test_bad_branch_fails(self):
-        self.assertFails(cc.evaluate(settings(), ctx(branch="claude/foo"), "pr"), "branch_name")
+    def test_an_issue_reference_or_link_names_a_ticket_too(self):
+        for body in ("Closes #161", "See https://github.com/acme/shop/issues/161"):
+            with self.subTest(body=body):
+                self.assertPasses(cc.evaluate(settings(), ctx(body=body), "pr"))
 
-    def test_bad_title_fails(self):
-        self.assertFails(cc.evaluate(settings(), ctx(title="Add foo"), "pr"), "pr_title")
+    def test_a_description_naming_no_ticket_fails(self):
+        for body in ("", "## Summary\nAdd foo\n", "Fixes the thing, step #one"):
+            with self.subTest(body=body):
+                self.assertFails(cc.evaluate(settings(), ctx(body=body), "pr"), "ticket_link")
 
-    def test_missing_acs_label_fails(self):
-        self.assertFails(cc.evaluate(settings(), ctx(labels=[]), "pr"), "acs_label")
+    def test_look_alikes_do_not_count(self):
+        """Another repo's prefix, an HTML entity and a URL fragment are not a
+        ticket reference."""
+        for body in ("SHOP-12", "caf&#233;", "docs/page#3"):
+            with self.subTest(body=body):
+                self.assertFails(cc.evaluate(settings(), ctx(body=body), "pr"), "ticket_link")
 
-    def test_missing_description_section_fails(self):
-        res = cc.evaluate(settings(), ctx(body=headings("Summary", "Ticket")), "pr")
-        self.assertFails(res, "pr_description")
+    def test_branch_title_label_and_commits_are_not_checked(self):
+        """What CI used to check and no longer does: a PR opened from any
+        branch, with any title, no label and any commit subjects passes as
+        long as its description names the ticket."""
+        s = settings(formats={"pr_title": "[{ticket_id}] {title}"},
+                     enforcement={"checks": {"commit_message": True, "pr_title": True,
+                                             "acs_label": True, "pr_description": True}})
+        res = cc.evaluate(s, ctx(branch="claude/whatever", title="wip", labels=[],
+                                 commits=["wip"], body="Work for MAR-12"), "pr")
+        self.assertPasses(res)
+        self.assertEqual(res.skipped, [])
 
-    def test_description_headings_case_insensitive(self):
-        body = headings("summary", "TICKET", "Changes") + "### Test plan\n\nok\n"
-        self.assertPasses(cc.evaluate(settings(), ctx(body=body), "pr"))
-
-    def test_commit_check_off_by_default(self):
-        # commit_message defaults OFF -> a bad commit subject is ignored.
-        self.assertPasses(cc.evaluate(settings(), ctx(commits=["wip"]), "pr"))
-
-    def test_commit_check_when_enabled(self):
-        s = settings(enforcement={"checks": {"commit_message": True}})
-        self.assertFails(cc.evaluate(s, ctx(commits=["wip"]), "pr"), "commit_message")
-        self.assertPasses(cc.evaluate(s, ctx(commits=["MAR-12 real subject"]), "pr"))
-
-    def test_merge_commits_ignored_when_commit_check_on(self):
-        s = settings(enforcement={"checks": {"commit_message": True}})
-        commits = ["Merge branch 'main' into x", "MAR-12 real work"]
-        self.assertPasses(cc.evaluate(s, ctx(commits=commits), "pr"))
-
-    def test_ticket_ref_pr_title_passes_unsynced_local_id(self):
-        s = settings(formats={"pr_title": "[{ticket_ref}] {title}"})
-        self.assertPasses(cc.evaluate(s, ctx(title="[MAR-80] Render PR title"), "pr"))
-
-    def test_ticket_ref_pr_title_passes_github_synced(self):
-        s = settings(formats={"pr_title": "[{ticket_ref}] {title}"})
-        self.assertPasses(cc.evaluate(s, ctx(title="[#161] Render PR title"), "pr"))
-
-    def test_ticket_ref_pr_title_passes_jira_synced(self):
-        s = settings(formats={"pr_title": "[{ticket_ref}] {title}"})
-        self.assertPasses(cc.evaluate(s, ctx(title="[ACME-9] Render PR title"), "pr"))
-
-    def test_ticket_ref_pr_title_fails_empty_bracket(self):
-        s = settings(formats={"pr_title": "[{ticket_ref}] {title}"})
-        self.assertFails(cc.evaluate(s, ctx(title="[] Render PR title"), "pr"), "pr_title")
+    def test_the_only_pr_mode_check_is_the_ticket_link(self):
+        self.assertEqual(cc.MODE_CHECKS["pr"], ["ticket_link"])
 
 
 class ExemptionTests(unittest.TestCase):
@@ -176,14 +166,25 @@ class ExemptionTests(unittest.TestCase):
                                              title="bad", commits=[]), "pr").exempt)
 
 
-class FailClosedTests(unittest.TestCase):
-    def test_no_settings_fails_closed(self):
-        res = cc.evaluate({}, ctx(), "pr")
-        self.assertFails_settings(res)
+class DefaultsAndMalformedSettingsTests(unittest.TestCase):
+    """ADR-0105: absent keys take the plugin's defaults; malformed ones fail."""
 
-    def test_prefix_without_formats_fails_closed(self):
-        res = cc.evaluate({"ticket_prefix": "MAR"}, ctx(), "pr")
-        self.assertFails_settings(res)
+    def test_no_settings_checks_against_the_default_prefix(self):
+        self.assertEqual(cc.evaluate({}, ctx(body="ACS-12"), "pr").errors, [])
+
+    def test_the_default_prefix_is_enforced(self):
+        res = cc.evaluate({}, ctx(body="MAR-12"), "pr")
+        self.assertIn("ticket_link", [h for h, _ in res.errors])
+
+    def test_the_default_formats_apply_to_the_local_hooks(self):
+        res = cc.evaluate({}, ctx(branch="task/ACS-12-add-foo"), "pre-push")
+        self.assertEqual(res.errors, [])
+
+    def test_malformed_prefix_fails_closed(self):
+        self.assertFails_settings(cc.evaluate({"ticket_prefix": "mar"}, ctx(), "pr"))
+
+    def test_non_object_formats_fails_closed(self):
+        self.assertFails_settings(cc.evaluate({"formats": "x"}, ctx(), "pr"))
 
     def assertFails_settings(self, res):
         self.assertIn("settings", [h for h, _ in res.errors])
@@ -206,13 +207,41 @@ class PrePushModeTests(unittest.TestCase):
         self.assertIn("commit_message", [h for h, _ in res.errors])
 
 
+class PrePushRangeTests(unittest.TestCase):
+    """What the pre-push hook reads for a branch the remote does not have yet."""
+
+    def test_a_new_branch_is_judged_on_its_own_commits_only(self):
+        """It used to run `git log <sha>` over the whole history, so with the
+        commit check on, main's plain squash subjects (ADR-0105) refused every
+        first push of every branch."""
+        import io, shutil, subprocess, tempfile
+        repo = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, repo, True)
+        git = lambda *a: subprocess.run(["git", "-C", repo, "-c", "user.email=e@x",
+                                         "-c", "user.name=e"] + list(a),
+                                        check=True, capture_output=True, text=True).stdout
+        git("init", "-q", "-b", "main")
+        git("commit", "-q", "--allow-empty", "-m", "Add wishlist support (#12)")
+        git("update-ref", "refs/remotes/origin/main", "HEAD")
+        git("checkout", "-q", "-b", "task/MAR-13-x")
+        git("commit", "-q", "--allow-empty", "-m", "MAR-13 add x")
+        head = git("rev-parse", "HEAD").strip()
+        push = "refs/heads/task/MAR-13-x %s refs/heads/task/MAR-13-x %s\n" % (head, "0" * 40)
+        with mock.patch("sys.stdin", io.StringIO(push)):
+            self.assertEqual(cc._commit_subjects_prepush(repo), ["MAR-13 add x"])
+
+
 class DisabledChecksTests(unittest.TestCase):
-    def test_disabling_a_check_skips_it(self):
-        s = settings(enforcement={"checks": {"pr_title": False, "acs_label": False}})
-        res = cc.evaluate(s, ctx(title="totally wrong", labels=[]), "pr")
+    def test_disabling_a_local_check_skips_it(self):
+        s = settings(enforcement={"checks": {"branch_name": False}})
+        res = cc.evaluate(s, ctx(branch="totally wrong"), "pre-push")
         self.assertEqual(res.errors, [])
-        self.assertIn("pr_title", res.skipped)
-        self.assertIn("acs_label", res.skipped)
+        self.assertIn("branch_name", res.skipped)
+
+    def test_the_ticket_link_is_not_a_toggle(self):
+        s = settings(enforcement={"checks": {"ticket_link": False}})
+        self.assertIn("ticket_link",
+                      [h for h, _ in cc.evaluate(s, ctx(body="none"), "pr").errors])
 
 
 class CommitMsgModeTests(unittest.TestCase):
@@ -266,6 +295,52 @@ class ReadCommitSubjectTests(unittest.TestCase):
         with open(path, "w") as fh:
             fh.write("\n# a comment\nMAR-9 real subject\n# more\nbody line\n")
         self.assertEqual(cc._read_commit_subject(path), "MAR-9 real subject")
+
+
+class DefaultsMatchThePluginTest(unittest.TestCase):
+    """The checker runs without the plugin, so it carries its own copy of the
+    defaults. The two copies had drifted (a `[{ticket_ref}] {title}` PR title
+    here against `[{ticket_id}] {title}` in the plugin); this is what keeps the
+    ones it still reads level."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+        import acs_lib
+        cls.lib = acs_lib
+
+    def test_the_ticket_prefix_default_matches(self):
+        self.assertEqual(cc.DEFAULT_TICKET_PREFIX, self.lib.DEFAULT_TICKET_PREFIX)
+
+    def test_every_format_default_matches(self):
+        for key, value in cc.FORMAT_DEFAULTS.items():
+            with self.subTest(format=key):
+                self.assertEqual(value, self.lib.DEFAULT_SETTINGS["formats"][key])
+
+    def test_the_schema_documents_the_same_defaults(self):
+        with open(os.path.join(REPO_ROOT, "plugins", "acs", "schemas",
+                               "settings.schema.json"), encoding="utf-8") as fh:
+            props = json.load(fh)["properties"]
+        self.assertEqual(props["ticket_prefix"]["default"], self.lib.DEFAULT_TICKET_PREFIX)
+        for key in cc.FORMAT_DEFAULTS:
+            default = props["formats"]["properties"][key].get("default")
+            if default is not None:
+                with self.subTest(format=key):
+                    self.assertEqual(default, self.lib.DEFAULT_SETTINGS["formats"][key])
+
+    def test_every_shared_enforcement_default_matches(self):
+        shared = set(cc.ENFORCEMENT_DEFAULTS) & set(self.lib.ENFORCEMENT_DEFAULTS)
+        self.assertTrue(shared)
+        for key in sorted(shared):
+            with self.subTest(key=key):
+                self.assertEqual(cc.ENFORCEMENT_DEFAULTS[key], self.lib.ENFORCEMENT_DEFAULTS[key])
+
+    def test_this_repos_installed_copy_is_the_template(self):
+        installed = os.path.join(REPO_ROOT, ".acs", "ci", "check-conventions.py")
+        with open(CHECKER, "rb") as a, open(installed, "rb") as b:
+            self.assertEqual(a.read(), b.read(),
+                             ".acs/ci/check-conventions.py is a copy of the template; "
+                             "re-copy it rather than editing it")
 
 
 if __name__ == "__main__":

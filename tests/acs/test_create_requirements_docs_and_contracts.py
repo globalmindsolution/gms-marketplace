@@ -22,7 +22,7 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 CONTRACTS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")

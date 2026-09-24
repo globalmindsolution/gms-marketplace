@@ -21,8 +21,8 @@ import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPTS = os.path.join(REPO_ROOT, "src", "acs", "hooks", "scripts")
-PLUGIN = os.path.join(REPO_ROOT, "src", "acs")
+SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
+PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 REVIEW_SKILL = os.path.join(PLUGIN, "skills", "review-code", "SKILL.md")
 LENS_AGENT = os.path.join(PLUGIN, "agents", "review-code-lens.md")
 ADJUDICATOR_AGENT = os.path.join(PLUGIN, "agents", "review-code-adjudicator.md")

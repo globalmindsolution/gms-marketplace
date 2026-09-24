@@ -11,60 +11,55 @@
 # and degrades TOTAL back toward 62% with no error.
 [run]
 parallel = true
-source = ${ACS_COV_ROOT}/src/acs/hooks/scripts
-# The behavioural eval tree is measured too: the eval harness decides whether a
-# paid run's misses are real findings, and it has deterministic unit tests under
-# tests/acs/ that must not be allowed to rot. It is a source_dirs entry rather
-# than a second `source` line so the hook-scripts source stays the single pinned
-# path it has always been; the absolute-via-${ACS_COV_ROOT} rule above applies to
-# it just the same. Measured TOTAL with it in: 95% (10845 stmts, 2026-09-16) --
-# no scenario omit needed to clear the 90 gate. The tree moved from evals/ to
-# src/acs-evals/behavioural/ (same files, so that move alone did not shift the
-# number); removing the tabp plugin then took its subtree out of both the
-# numerator and the denominator.
-source_dirs = ${ACS_COV_ROOT}/src/acs-evals/behavioural
+source = ${ACS_COV_ROOT}/plugins/acs/hooks/scripts
+# The behavioural eval harness used to be measured here too, as a source_dirs
+# entry. It was retired when the eval suite moved to `claude plugin eval` case
+# files, which are data rather than code -- so the measured source is the hook
+# scripts alone again. A missing source_dirs path would not error: coverage
+# would silently measure nothing for it, which is why the line is gone rather
+# than left pointing at an empty tree.
 data_file = ${ACS_COV_ROOT}/.coverage
 # The true pre-*/post-* argument forwarders (~6 stmts each: sys.path insert, import, run_pre/
-# run_post call — e.g. src/acs/hooks/scripts/pre-code.py, 10 lines, no def main()).
+# run_post call — e.g. plugins/acs/hooks/scripts/pre-code.py, 10 lines, no def main()).
 # post-merge-pr.py is deliberately NOT omitted: it has a real --pr branch
-# (src/acs/hooks/scripts/post-merge-pr.py:21-39) and is measured at 21 stmts / 100%.
+# (plugins/acs/hooks/scripts/post-merge-pr.py:21-39) and is measured at 21 stmts / 100%.
 # This list MUST stay under [run]: a [report] omit keyed on ${ACS_COV_ROOT} would silently omit
 # nothing whenever the variable is unset at report time.
 omit =
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-analyze-requirements.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-review-code.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-run-e2e-tests.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-code.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-api-contract.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-architecture.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-design.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-docs.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-e2e-tests.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-impl-plan.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-pr.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-prd.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-project.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-requirements.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-test-docs.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-create-ticket.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-docs-sync.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-merge-pr.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/pre-standardize-project.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-analyze-requirements.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-review-code.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-run-e2e-tests.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-code.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-api-contract.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-architecture.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-design.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-docs.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-e2e-tests.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-impl-plan.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-pr.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-prd.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-project.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-requirements.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-test-docs.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-create-ticket.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-docs-sync.py
-    ${ACS_COV_ROOT}/src/acs/hooks/scripts/post-standardize-project.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-analyze-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-review-code.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-run-e2e-tests.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-code.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-api-contract.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-architecture.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-docs.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-e2e-tests.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-impl-plan.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-pr.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-prd.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-project.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-test-docs.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-ticket.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-docs-sync.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-merge-pr.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-standardize-project.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-analyze-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-review-code.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-run-e2e-tests.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-code.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-api-contract.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-architecture.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-docs.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-e2e-tests.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-impl-plan.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-pr.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-prd.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-project.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-test-docs.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-ticket.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-docs-sync.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-standardize-project.py

@@ -89,7 +89,7 @@ e2e-presence rule.
 
 The instrument is superseded, not abandoned. Quality signal moves to the
 acs-evals suite — then the separate `globalmindsolution/acs-evals` repository,
-since folded into this one at `src/acs-evals/`: its **tier 1** is a
+since folded into this one at `evals/`: its **tier 1** is a
 deterministic golden suite (356 cases as of this amendment, no LLM calls, no
 per-PR cost) run with `ACS_PLUGIN_ROOT` pointed at the plugin build under
 test, and its **paid tier** — routing measurement across every shipped skill (30 probes × 5
@@ -98,7 +98,7 @@ drive `/acs:code` and `/acs:docs-sync` — runs at **release cadence**. That is
 already a strictly stronger release measurement than a per-ticket single
 sample. The tier-1 suite becomes this repo's per-PR CI brake once a workflow is
 wired to run it. The acs-evals suite has since been imported into this
-repository at `src/acs-evals/`, so the brake no longer waits on a sibling
+repository at `evals/`, so the brake no longer waits on a sibling
 checkout; the workflow itself is decided, not yet landed. Until then PRs here
 are gated by the plugin's unit suite, the coverage hard-fail and the free
 pre-commit eval tier; `.github/workflows/` carries no eval job.

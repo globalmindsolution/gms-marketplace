@@ -1,0 +1,401 @@
+---
+name: create-project
+description: Once dispatched it scaffolds a greenfield product's repository skeleton from the approved architecture doc set — directory layout, build config, test framework with coverage tooling, linter/formatter, pre-commit, CI, and a minimal green vertical slice. Runs exactly once on a fresh product repo after /acs:create-architecture and before the first ticket; never on an existing codebase, which is the standardize-project leg's job.
+when_to_use: Internal leg of /acs:project (bootstrap mode) — never the answer to a user request, even one that asks to scaffold a brand-new repo from its approved architecture. Route every such request to /acs:project, which detects greenfield vs existing from declared on-disk evidence and dispatches here itself with an explicit Skill call; do not invoke this leg directly.
+argument-hint: "(no arguments)"
+disallowed-tools: Edit, NotebookEdit
+---
+
+# /acs:create-project — coordinator instructions
+
+You are the coordinator of /acs:create-project. You scaffold a fresh product's repo
+skeleton from the approved architecture so the ticket pipeline — especially the
+/acs:code TDD gates — works from ticket #1. You orchestrate; subagents do the work.
+This is a product-level skill with its own delivery ticket, branch, and PR; the
+scaffolded CI workflow runs on that very PR. Greenfield only: existing codebases
+never need this skill.
+
+## Start
+
+MANDATORY first action — locate the architecture doc set, before anything is
+allocated. Documents are found, not configured: read CLAUDE.md and whatever docs
+index it or the repo points at (e.g. `docs/README.md`), then Glob/Grep for
+`hld/tech-stack.md`. Found → the directory holding it is `<architecture_dir>`. None
+found (a directory without `hld/tech-stack.md` does not count) → STOP and tell the
+user: "no architecture doc set found (expected hld/tech-stack.md) — run
+/acs:create-architecture first." Locate the PRD the same way (`<prd>`, a
+secondary input; none found → leave it out of the executor's inputs).
+
+Then run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-project --allocate
+```
+
+`--allocate` creates the delivery ticket (type `task`, title "Project scaffold",
+e.g. `SHOP-3`), its workspace partition, the `.lock`, and an `in_progress` run
+entry. Parse the printed context JSON; the fields you will use:
+
+- `ticket_id`, `ticket`, `partition` — the delivery ticket and its workspace partition
+- `checkout_root` — the consumer repo root (the only tree executors mutate)
+- `settings` — `test_coverage_percent`, `formats`, `tracker`
+- `models` — per-role `{model, effort}` resolved from settings
+- `reconcile`, `handoff_summary`, `prior_run_status`, `pipeline`
+
+If `acs step start` exits non-zero: stop and surface its stderr verbatim — do not improvise.
+
+Apply `context.models.<role>.model` / `.effort` when spawning each subagent, unless
+the value is `"inherit"`. If the runtime rejects the model id or effort, FAIL the run
+with that exact error — no silent fallback.
+
+## Resume & reconcile
+
+`--allocate` always creates a fresh ticket, so `context.reconcile` is normally false.
+Three cases:
+
+- **Prior unfinished scaffold run.** Check `<workspace>/<repo_id>/tickets-index.json`
+  for an earlier "Project scaffold" ticket that is not `done`. If one exists, resume
+  it instead of scaffolding twice: (1) close the just-allocated ticket — write its
+  `result.json` (see Finish) with `status: "failed"`, `summary: "duplicate
+  allocation; resumed <PRIOR-ID>"`, and run the post-hook for it; (2) re-run
+  `acs step start` with `--ticket <PRIOR-ID>` (no `--allocate`) and continue with that
+  context — it will report `reconcile: true`.
+- **`context.reconcile` is true** (resumed ticket): verify recorded progress against
+  reality BEFORE continuing — re-read `steps/create-project/` artifacts,
+  inspect `git -C <checkout_root> status` and `git log` on the scaffold branch, and
+  re-run any build/lint/test command recorded as passing. Trust nothing you cannot
+  re-verify; continue from the first unfinished phase.
+- **`context.handoff_summary` exists**: read it, plus
+  `steps/create-project/handoff-context.md` if present, do a light
+  reconcile (spot-check its claims against the repo and partition), and continue
+  from where it points.
+- There is no plan artifact to reuse: an execute with no verify -> verify it; a
+  verify with findings and no later execute -> execute with those findings as
+  `<context>`. The executor's iteration-1 authoring notes (`iter-1-authoring.md`)
+  carry the file manifest and commands every later iteration reads.
+
+## Greenfield gate
+
+Start already confirmed the architecture doc set exists
+(`<architecture_dir>/hld/tech-stack.md`). YOU verify the repo is actually
+greenfield before any planning:
+
+```bash
+git -C <checkout_root> ls-files | grep -vE '^(docs/|\.acs/|\.claude/|\.gitignore$|README[^/]*$|LICENSE[^/]*$|CLAUDE\.md$)'
+```
+
+Any output (source trees, package manifests, lockfiles, CI workflows) means
+substantive sources already exist; `<architecture_dir>` and `<prd>` count as docs
+even when they sit outside `docs/`. When resuming a prior scaffold ticket, run the
+scan against the default branch instead (`git -C <checkout_root> ls-tree -r
+--name-only origin/HEAD`) so the unfinished scaffold's own files do not trip it.
+
+If substantive sources exist, REFUSE politely:
+
+1. Tell the user /acs:create-project is greenfield-only and is never needed again
+   once a codebase exists — point them at the pipeline instead: `/acs:create-ticket`
+   then `/acs:ship` per change (and `/acs:create-architecture` re-runs keep the doc
+   set current on an existing codebase).
+2. Skip the reflection loop and go straight to Finish with `status: "failed"`,
+   `summary: "greenfield-only: repository already contains substantive sources"`,
+   all `states.scaffold` booleans `false`, and one blocking finding
+   (`dimension: "greenfield"`) listing the files found.
+
+## Reflection loop — execute -> verify, no planner
+
+The loop is execute -> verify, at most 3 iterations. There is no plan phase:
+iteration 1's executor reads the architecture doc set, pins the scaffold —
+layout, package/build config, test and coverage tooling, lint, CI, the
+vertical slice, the exact verification commands — in its authoring notes,
+and then builds it; the verifier re-runs the commands and judges the result
+fresh. On iterations 2-3 the verifier's findings go verbatim into the next
+executor `<task>` `<context>` and the executor authors the remediation.
+Decomposition is YOURS alone — subagents never spawn subagents. Before the
+loop: `mkdir -p steps/create-project`.
+
+**What an iteration counts:** one execute -> verify round. create-project
+has no path-driven verify-depth selection: the cap is a fixed 3 in every
+lane, and this ticket introduces none.
+
+Messaging rules for every phase:
+
+- Communicate per `the SubagentStop hook's message check`: you send a `<task>`, the subagent
+  returns a `<result>` as the final content of its reply.
+- Validate EVERY message, sent and received:
+
+```bash
+```
+
+- Invalid message from a subagent: re-request once; still invalid -> fail the run,
+  recording the validation error in result.json `errors`.
+- Persist every phase output to `steps/create-project/iter-<n>/<phase>.json`
+  at the phase boundary, BEFORE starting the next phase (parallel executors: suffix
+  `iter-<n>-execute-a.xml`, `-b.xml`, ...). The executor's own artifacts are
+  `iter-1-authoring.md` (authored once, on iteration 1: Analysis; File manifest;
+  Commands; Vertical slice; Delivery; Risks; Verifier checklist) and
+  `iter-<n>/execute.json`; every iteration's verifier `<inputs>` name the
+  iteration-1 notes.
+- Spawn with the Agent tool, `subagent_type`
+  `acs:create-project-executor` / `acs:create-project-verifier`; fall back to the
+  un-namespaced name only if the runtime rejects the namespaced one.
+
+**Spawn in the foreground and wait on the result, never on a clock.** Pass
+`run_in_background: false` to the Agent tool: the phase's `<result>` is your
+next input and nothing else can usefully happen while it runs. If the
+runtime moves the agent to the background anyway, wait for its completion
+notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
+sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
+agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
+### Execute — iteration 1 pins the scaffold before it builds
+
+Spawn the executor. Build the input paths from the `<architecture_dir>` and
+`<prd>` you located at Start (defaults shown); put `settings.test_coverage_percent`
+in the constraints. Example (iteration 1, repo-relative input paths):
+
+```xml
+<task skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1">
+  <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes steps/create-project/iter-1/authoring.md (list it in outputs), then build it green on the delivery branch.</objective>
+  <inputs>
+    <file>docs/architecture/hld/tech-stack.md</file>
+    <file>docs/architecture/hld/c4-container.md</file>
+    <file>docs/architecture/hld/c4-component.md</file>
+    <file>docs/architecture/hld/overview.md</file>
+    <file>docs/architecture/hld/deployment.md</file>
+    <file>docs/product/prd.md</file>
+  </inputs>
+  <constraints>
+    <constraint name="coverage_target">90</constraint>
+    <constraint name="decisions">pin every choice in the notes before building; flag anything tech-stack.md leaves open as a needs_input question, do not guess</constraint>
+  </constraints>
+</task>
+```
+
+The notes MUST pin, concretely, with nothing left open, before the executor builds:
+
+- directory layout mirroring the C4 container/component views;
+- package/build configuration files and the package manager;
+- an e2e harness (e.g. Playwright for a web UI, an API-level suite for
+  services) WHEN the architecture has a user-facing or cross-component
+  surface — wired into CI plus one smoke e2e test in the vertical slice, and
+  the matching `e2e` settings block proposed to the user (`command`, setup/
+  teardown) for `.acs/settings.json`;
+- the test framework AND coverage tooling, configured to fail below
+  `settings.test_coverage_percent`;
+- linter/formatter and pre-commit configuration;
+- a CI workflow (e.g. `.github/workflows/ci.yml`) running build, lint, tests, and
+  coverage;
+- `.gitignore` and a README skeleton;
+- the minimal GREEN vertical slice: one real entrypoint plus one smoke test that
+  exercises it;
+- the EXACT verification commands (install, build, lint, test-with-coverage) — the
+  contract for both the verifier and the CI workflow.
+
+If the executor returns `needs_input` with `<questions>` (a choice `tech-stack.md`
+leaves open), resolve them in User interaction and re-run execute for the same
+iteration with the answers in `<context>`. Findings never return to a plan phase —
+see Verify below for where iteration 2+ findings go.
+
+### Execute — the build
+
+Iteration 1 only — create the delivery branch before any executor runs (you do all
+git operations; executors never commit). Branch name per `settings.formats.branch_name`
+(default `{type}/{ticket_id}-{slug}`) with `type=task`, the real ticket id, and the
+slug of the ticket title:
+
+```bash
+git -C <checkout_root> checkout -b task/SHOP-3-project-scaffold
+```
+
+Spawn executor(s) with `<task skill="create-project" phase="execute" ticket-id="..."
+iteration="n">`: on iterations 2-3 `<inputs>` reference the iteration-1 authoring
+notes and the verifier's findings go verbatim into the executor `<task>`'s
+`<context>`, with no plan phase in between. `<constraints>` pin the exact file set
+each executor owns. Executors mutate ONLY `<checkout_root>`. Iteration 1 runs a single
+executor (the notes and the build are one act); on iterations 2-3 you MAY run several
+executors in parallel when their file sets cannot conflict — e.g. one owns build/test/lint/
+pre-commit config plus the CI workflow, another owns the directory layout, vertical
+slice, README, and `.gitignore`. The verifier runs only after ALL executors finish
+and judges the combined result. Persist executor `<result>`s to
+`iter-<n>-execute*.xml`.
+
+### Verify
+
+Spawn the verifier with `<task skill="create-project" phase="verify" ...>` whose
+inputs are artifacts only — the scaffold plan and the repo tree, never executor
+reasoning; it judges fresh. The verifier MUST actually run, from `<checkout_root>`,
+the exact commands the notes pinned, and see them pass:
+
+1. dependency install — exit 0;
+2. build — exit 0;
+3. lint — exit 0;
+4. tests with coverage — every test passes (the smoke test proves the vertical
+   slice), the coverage tool reports a percentage, AND its config fails the run
+   below `settings.test_coverage_percent`.
+
+Plus static checks: layout matches the container/component views; the CI workflow
+runs those same commands; `.gitignore` and README exist; the pre-commit config
+installs and its hooks pass on the tree.
+
+A scaffold that does not run green FAILS verification — every failing command is a
+blocking finding. ALL findings block: zero findings = pass. On findings, persist
+`iter-<n>/verify.md`, then AUTOMATICALLY re-execute, passing every finding to the
+next iteration's executor `<task>` as `<context>`, with no plan phase in between
+— the executor authors the remediation. After iteration 3 with findings remaining:
+stop and go to Finish with `status: "failed"` and the findings recorded.
+
+## Delivery — commit, PR, CI proof
+
+Only after a verify pass (zero findings):
+
+1. Commit on the scaffold branch, message per `settings.formats.commit_message`
+   (default `{ticket_id} {summary}`), and push. `git add -A` is right here and
+   only here: a scaffold is new files by definition, so there is no existing
+   source for a broad add to sweep up (contrast /acs:standardize-project, which
+   forbids the same command for exactly that reason):
+
+```bash
+git -C <checkout_root> add -A
+git -C <checkout_root> commit -m "SHOP-3 Scaffold project skeleton per architecture doc set"
+git -C <checkout_root> push -u origin task/SHOP-3-project-scaffold
+```
+
+2. **Open the PR** by following
+   `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label, the
+   rendered title, the body template, the pre-open self-check, `gh pr create`,
+   and recording `{number, url, branch}` as `states.pr`. Write the filled body
+   to `steps/create-project/pr-body.md` and pass that path as
+   `--body-file` to both the self-check and `gh pr create`; fill its
+   placeholders from workspace state (ticket.json, scaffold plan, verifier
+   results). Read the number back with
+   `gh pr view --json number,url,headRefName`.
+
+3. CI proof — the scaffolded workflow runs on this very PR; green locally is not
+   enough:
+
+```bash
+gh pr checks <number> --watch
+```
+
+   If CI fails: each failing check is a blocking finding. If the 3-iteration budget
+   is not exhausted, run another execute -> verify iteration to remediate (findings
+   to the executor's `<context>`; no plan phase), push to the same branch, and
+   re-watch. Budget exhausted or still red: Finish with
+   `status: "failed"`, findings recorded, and report the open PR.
+
+Merging stays a user action: after their review the user runs
+`/acs:merge-pr <ticket-id>`. Never invoke it yourself.
+
+## User interaction
+
+**Clarification ledger first.** Before asking the user anything, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+and reuse any recorded answer — re-asking an answered question is a defect.
+When ≥2 clarifications are open, present them to the user in ONE grouped
+interaction (e.g. a single AskUserQuestion containing all open questions as a
+numbered list), not serial round-trips — one interaction per question wastes
+user time. Record each answer as its own `clarify.py add` entry (one `C-<n>`
+per question, `--source` preserved). Never skip a question, merge two questions
+into one entry, or auto-answer a question outside the existing
+`--source assumption --rationale "..."` rule.
+Record every Q&A — obtained interactively or relayed in a /ship brief — with
+`clarify.py add --skill create-project --question "..." --answer "..." --ticket <ticket-id>`
+BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
+`<context>`. If the user is unavailable or says "you decide": record the
+decision with `--source assumption --rationale "..."` — assumptions surface
+in the completion report's Findings and the PR body until a user confirms.
+Before a needs_input handoff, record the outgoing questions as `open`
+(`clarify.py add` without `--answer`).
+
+Ask the user when genuinely ambiguous — e.g. `hld/tech-stack.md` names a language but
+not the test framework, package manager, or CI provider; or the repo has no `origin`
+remote to push to. Use AskUserQuestion (or plain questions) with concrete options and
+fold the answers into the executor's `<context>`. Do not re-ask anything the
+architecture doc set already pins.
+
+If you genuinely cannot reach the user (e.g. a non-interactive run): do NOT
+guess. Run Finish with `status: "handed_off"` and the open questions in
+`handoff_summary`, and return a `<handoff skill="create-project" ticket-id="..."
+status="needs_input">` carrying the `<questions>` as your final message.
+
+## Context pressure
+
+If your context runs low mid-run: flush in-flight work and soft context (user
+answers, decisions, partial findings, gotchas, current iteration/phase) to
+`steps/create-project/handoff-context.md`, then:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "done: <...>; in flight: <...>; next: <...>; decisions: <...>"
+```
+
+Tell the user the `continue_with` command it prints, then stop. handoff.py has
+already finalized the run as `handed_off` and released the lock — do NOT also run
+the post-hook in this path.
+
+## Finish
+
+MANDATORY final step — never skipped, also on failure and on the greenfield refusal
+(only the Context-pressure path above replaces it):
+
+1. Write `steps/create-project/result.json`:
+
+```json
+{
+  "status": "completed",
+  "summary": "scaffold verified green locally and on the PR CI run",
+  "states": {
+    "scaffold": {"build": true, "lint": true, "tests": true, "coverage_tooling": true},
+    "pr": {"number": 7, "url": "https://github.com/acme/shop/pull/7", "branch": "task/SHOP-3-project-scaffold"}
+  },
+  "findings": [],
+  "errors": []
+}
+```
+
+   - `status`: `completed | failed | interrupted | handed_off`.
+   - `states.scaffold` keys are EXACTLY `build`, `lint`, `tests`, `coverage_tooling`
+     — booleans reflecting what the VERIFIER (or the PR's CI) saw pass, not what an
+     executor claims. On failure keep whatever is true, e.g. build and lint green
+     but tests red -> `{"build": true, "lint": true, "tests": false,
+     "coverage_tooling": false}`.
+   - `states.pr` (`number`, `url`, `branch`) only when a PR was opened.
+   - `findings`: every open finding as
+     `{"severity": "blocking|info", "dimension": "...", "detail": "..."}`.
+   - `handoff_summary`: only when `status` is `handed_off`.
+
+2. Run the post-hook:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --result-file "<the result.json you just wrote>"
+```
+
+   It finalizes the run entry, updates `run.json` and `tickets-index.json`,
+   marks the delivery ticket `in_review` when a PR exists, and releases the
+   lock.
+
+3. Report a compact summary: ticket id, PR url, the four scaffold booleans, the
+   wired commands (build / lint / test / coverage plus the threshold), and the next
+   steps — review then `/acs:merge-pr <ticket-id>`, then `/acs:create-ticket` for
+   the first real ticket (typically the MVP epic from the PRD roadmap). If you
+   genuinely cannot reach the user (a non-interactive run): your final message is ONLY the `<handoff>` XML —
+   status, summary under 1 KB, artifact refs (result.json, scaffold plan, PR url),
+   and `<next-step>`.
+
+## Completion report (normative)
+
+Every terminal outcome of a direct invocation — completed, failed,
+interrupted, or handed off — ends your final message with the standard block
+(INTERNALS.md "Completion report"), rendered only AFTER the post-hook
+succeeded. Same labels, same order, `none` where empty; under /acs:ship your final message is the `<handoff>` XML instead — this report is for direct invocations:
+
+```markdown
+## /acs:create-project · <ticket-id> · <status>
+
+- **Ticket**: <id> — <title> (<type>)
+- **Status**: <status> — <summary; `stop_reason` when interrupted>
+- **Results**: scaffold summary — layout, build, test framework + coverage tooling, lint, CI, green vertical slice (build/lint/tests verified passing); delivery ticket id; PR number/URL
+- **Findings**: <open findings / clarifications, or "none">
+- **Artifacts**: <partition files, repo paths, branch, PR URL>
+- **Metrics**: iterations <n>/<cap> · <wall time>
+- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the bootstrap PR (CI runs on it); then `/acs:create-ticket` for the MVP epic
+```

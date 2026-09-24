@@ -63,7 +63,7 @@ sequenceDiagram
 `### Step 1 — Merge` (`merge-pr/SKILL.md`, gated only when all Step 0
 readiness dimensions pass or Step 1a's BEHIND carve-out succeeds) and
 `## Exempt non-ticket PR mode` (the `gh pr merge` call reached via the
-sanctioned `/acs:merge-pr --pr <PRNUMBER>` path named in `CLAUDE.md`) run the
+sanctioned `/acs:merge-pr --pr <PRNUMBER>` path for an `acs-exempt` PR) run the
 identical critical rule at the identical command: verbatim stderr + the
 canonical hint, stop **before** `### Step 2 — Cleanup` ever runs. Step 2's
 own tracker sync (`gh issue close`, Projects Status→Done) is the one

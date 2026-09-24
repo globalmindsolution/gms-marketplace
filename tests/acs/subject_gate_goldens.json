@@ -1,0 +1,22 @@
+{
+  "GATE-011": [
+    "acs pre-create-design: blocked",
+    "could not resolve a ticket id for /create-design (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:create-design TKT-123."
+  ],
+  "GATE-015": [
+    "acs pre-merge-pr: blocked",
+    "could not resolve a ticket id for /merge-pr (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:merge-pr TKT-123."
+  ],
+  "GATE-026": [
+    "acs pre-create-design: blocked",
+    "ticket TKT-1 is not flagged needs_design — /create-design only runs for design-significant tickets; go straight to /acs:code TKT-1."
+  ],
+  "GATE-030": [
+    "acs pre-merge-pr: blocked",
+    "no PR reference recorded for TKT-1 — /acs:create-pr (or the product-level skill) must complete first."
+  ],
+  "GATE-045": [
+    "acs pre-merge-pr: blocked",
+    "no PR reference recorded for TKT-1 — /acs:create-pr (or the product-level skill) must complete first."
+  ]
+}

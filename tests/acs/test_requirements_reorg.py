@@ -3,9 +3,11 @@
 Covers AC-4 (content-preservation across the flat -> functional/non-functional
 re-split), the positive topology half of AC-4/AC-5 (the move is complete, not
 a copy-and-leave), AC-2 (the README documents the functional/non-functional
-model + the requirements_layout setting), and the no-hardcoding half of AC-6
-(the /acs:code merge-routing prose resolves the subfolder via settings, never
-a literal marketplace path).
+model), and the no-hardcoding half of AC-6 (the merge-routing prose writes to
+the located `<functional_dir>` / `<non_functional_dir>`, never a literal
+marketplace path). ADR-0102 removed the `requirements_layout` setting MAR-145
+introduced: the subfolders are found in the repo, else created at the
+`functional/` / `non-functional/` convention.
 
 Stdlib-only (json, os, re, unittest). Run:
   python3 -m unittest tests.acs.test_mar145_requirements_reorg -v
@@ -229,6 +231,40 @@ RETIRED_BY_DELIVERY_PATH_ROUTING = {
     ),
 }
 
+#: MAR-592 cut /acs:setup to conventions + CI: it writes the committed project
+#: file only, never a default value, and wires no optional extra. These clauses
+#: described setup CHOOSING a scope, SETTING the coverage target and WIRING the
+#: status line; the settings themselves survive with their defaults, edited by
+#: hand, so the guarantee each clause carried is not lost -- the act it
+#: assigned to setup no longer exists.
+RETIRED_BY_SETUP_SIMPLIFICATION = {
+    'skills.md': (
+        '- MUST generate a `settings.json` in **user scope** (`~/.acs/settings.json`)',
+        '- MUST set `test_coverage_percent` with a default of **90** (user may',
+    ),
+    'configuration.md': (
+        '- `/setup` MUST let the user choose the scope (user or project) at setup time.',
+    ),
+    'overview.md(scoped:Packaging+Distribution+CorePrinciples)': (
+        '- MAY bundle optional extras wired by `/setup` on user consent — e.g. the',
+    ),
+}
+
+#: ADR-0105 made the ticket prefix optional (default `ACS`) and removed the
+#: setup-first refusal: no settings file is required. `ticket_prefix` survives
+#: as a hand-set setting, so nothing it guaranteed is lost -- what these
+#: clauses assigned (setup PROMPTING for it, the setting being REQUIRED input,
+#: every pre-hook REFUSING until setup ran) no longer exists.
+RETIRED_BY_ADR_0105 = {
+    'skills.md': (
+        '- MUST prompt for **`ticket_prefix`**, suggesting one derived from the',
+    ),
+    'configuration.md': (
+        '- Every pre-hook MUST fail (exit 2) with a "run /setup first" message if no',
+        '| `ticket_prefix` | string | — | **Yes — user input at setup time** | Per-repo prefix for generated ticket ids (`<prefix>-<sequence>`), e.g. `SHOP` for a shop product; `/setup` suggests one derived from the repo name. There is no global default — different consumer repos get different prefixes. The per-repo sequence counter lives in the workspace (`counters.json`). |',
+    ),
+}
+
 #: The v0.5.0 implementation-pipeline redesign REWORDED two clauses rather
 #: than retiring them: the guarantee each carried is still in the tree, under
 #: the name its carrier now has. That is a different fact from the four
@@ -276,15 +312,92 @@ REWORDED_BY_V050_REDESIGN = {
 }
 
 
+#: ADR-0102 ("documents are found, not configured") REWORDED the clauses that
+#: named a path setting. The location each setting carried is still stated --
+#: as the conventional default in configuration.md's "Document and workspace
+#: locations" table, or as the fixed workspace -- so each is a rewording with
+#: a live successor, not a retirement. What the decision did remove is the
+#: override/opt-out half some of them carried (`workspace_path` pointing
+#: elsewhere, `adr_path: null`); those halves have no successor by design.
+REWORDED_BY_ADR_0102 = {
+    'skills.md': {
+        # /setup still derives the workspace silently, with no prompt and no
+        # required input; the optional override is what went.
+        'workspace_path` derives silently to `<main-checkout>/.acs/state-machine`':
+            "- The workspace derives silently to `<main-checkout>/.acs/state-machine` —",
+        'no prompt, no required input; an explicit':
+            "no prompt, no required input, and no override (ADR-0086,",
+        # The PRD is still create-architecture's primary input and still
+        # required; the skill checks for it at Start instead of the pre-hook.
+        '- MUST take the **PRD** (`prd_path`) as its primary input — its pre-hook':
+            "- MUST take the **PRD** as its primary input — the skill locates it at",
+        '- MUST take the product architecture doc set (`architecture_path`) as':
+            "- MUST take the product architecture doc set (found in the repo) as",
+    },
+    'configuration.md': {
+        '`/setup` no longer requires `workspace_path`: when unset, it derives':
+            "- `/setup` derives the workspace (`<main-checkout>/.acs/state-machine`) —",
+        '| Project (local) | `<repo>/.acs/settings.local.json` | **gitignored** | Machine-specific keys — notably `workspace_path`. |':
+            "| Project (local) | `<repo>/.acs/settings.local.json` | **gitignored** | "
+            "Machine-specific overrides of any key. |",
+        # The settings-table rows became rows of the conventional-defaults
+        # table, which carry each set's producer/consumer obligations over.
+        '| `adr_path` | string (repo-relative path) or `null` | `"docs/adr"` | No | `/code` commits the accepted decision records from the ticket\'s `design.md` to this path as part of its documentation updates — on by default so decisions outlive archived ticket partitions. Explicit `null` disables (designs then stay workspace-only). |':
+            "| ADRs | `docs/adr/` | `/code` commits the accepted decision records "
+            "from the ticket's `design.md` here, so decisions outlive archived "
+            "ticket partitions. |",
+        '| `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |':
+            "| Architecture set | `docs/architecture/` (`hld/tech-stack.md` is its "
+            "sentinel file) | **HLD** (C4 levels 1–3, data model, deployment, "
+            "tech stack) and **LLD** (per-flow sequence diagrams, contracts). "
+            "Bootstrapped by `/create-architecture`, consumed by `/create-design`, "
+            "kept current by `/code`. |",
+        '| `prd_path` | string (repo-relative path) | `"docs/product"` | No | Location of the PRD doc set (`prd.md`, `roadmap.md`) in the consumer repo — bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |':
+            "| PRD | `docs/product/prd.md` + `docs/product/roadmap.md` | Bootstrapped "
+            "and amended by `/create-prd`; `/create-architecture` requires and is "
+            "verified against it; `/create-ticket` traces tickets to it. |",
+        '| `requirements_path` | string (repo-relative path) | `"docs/requirements"` | No | Location of the **living requirements** doc set — the standing behavioral contract, one file per feature area, accumulated ticket by ticket: `/code` merges each ticket\'s acceptance criteria and behavior-defining clarifications into the touched area\'s file as part of its documentation work; `/create-ticket` reads it as the area\'s current behavior and flags contradictions. Grows organically — no bootstrap skill required. |':
+            "| Living requirements | `docs/requirements/` with `functional/` and "
+            "`non-functional/` subfolders (an existing set's own subfolder names "
+            "are followed) | The standing behavioral contract, one file per "
+            "feature area: `/code` merges each ticket's acceptance criteria and "
+            "behavior-defining clarifications into the touched area's file; "
+            "`/create-ticket` reads it as the area's current behavior and flags "
+            "contradictions. |",
+        '| `workspace_path` | string (absolute path) | derived (`<main-checkout>/.acs/state-machine`)':
+            "hooks read/write ticket state — is always "
+            "`<main-checkout>/.acs/state-machine`,",
+    },
+}
+
+#: Every rewording table: each maps pre-reorg wording to a successor that
+#: must be live in the tree.
+#: ADR-0103 removed dollar-cost metering and ADR-0104 the usage recording
+#: behind it: a run records its timestamps and statuses, no tokens or cost, and
+#: there is no `metrics.json`. The workspace-layout row lost those and nothing
+#: else.
+REWORDED_BY_ADR_0103 = {
+    'usage.md': {
+        '| `<workspace>/<repo>/` | `tickets-index.json`, `counters.json`, `metrics.json`, `sessions/`, `archive/`, one partition per ticket (states, specs, designs, runs with time/tokens/cost) |':
+            "one partition per ticket (states, specs, designs, runs with their "
+            "timestamps and statuses) |",
+    },
+}
+
+REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103)
+
+
 def _retired():
     """Every allowlist, merged: a clause is exempt when any fold retired it."""
     merged = {}
     for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
-                  RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING):
+                  RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING,
+                  RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
-    for source, mapping in REWORDED_BY_V050_REDESIGN.items():
-        merged[source] = merged.get(source, ()) + tuple(mapping)
+    for rewording in REWORDING_TABLES:
+        for source, mapping in rewording.items():
+            merged[source] = merged.get(source, ()) + tuple(mapping)
     return merged
 
 class ContentPreservationTest(unittest.TestCase):
@@ -351,10 +464,11 @@ class ContentPreservationTest(unittest.TestCase):
         table becomes the escape hatch the retirement tables are guarded
         against being."""
         missing = []
-        for source, mapping in REWORDED_BY_V050_REDESIGN.items():
-            for old, successor in mapping.items():
-                if not self._homes(successor):
-                    missing.append((source, old, successor))
+        for rewording in REWORDING_TABLES:
+            for source, mapping in rewording.items():
+                for old, successor in mapping.items():
+                    if not self._homes(successor):
+                        missing.append((source, old, successor))
         self.assertEqual(
             missing, [],
             "reworded clauses whose successor is in no functional/"
@@ -362,11 +476,12 @@ class ContentPreservationTest(unittest.TestCase):
 
     def test_reworded_table_only_names_inventoried_clauses(self):
         unknown = []
-        for source, mapping in REWORDED_BY_V050_REDESIGN.items():
-            known = set(self.fixture.get(source, ()))
-            for clause in mapping:
-                if clause not in known:
-                    unknown.append((source, clause))
+        for rewording in REWORDING_TABLES:
+            for source, mapping in rewording.items():
+                known = set(self.fixture.get(source, ()))
+                for clause in mapping:
+                    if clause not in known:
+                        unknown.append((source, clause))
         self.assertEqual(
             unknown, [],
             "rewording entries not in the fixture: %r" % (unknown[:5],))
@@ -424,11 +539,18 @@ class ReadmeDocumentsModelTest(unittest.TestCase):
     """AC-2 (README half): docs/requirements/README.md documents the
     functional/non-functional model -- its Documents index lists the two
     subfolders (replacing the old flat 8-row table) and the prose names the
-    structure plus the requirements_layout setting."""
+    structure. MAR-145's prose also named the `requirements_layout` setting;
+    ADR-0102 removed it, so the model prose must no longer present it (or
+    `requirements_path`) as a live key. The dated decision-log rows are
+    history and are exempt."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(os.path.join(REQ, "README.md"))
+        # Everything but the dated decision-log rows ("| 2026-07-15 | ...").
+        cls.prose = "\n".join(
+            line for line in cls.body.splitlines()
+            if not re.match(r"\|\s*\d{4}-\d{2}-\d{2}\s*\|", line))
 
     def test_documents_index_lists_functional_subfolder(self):
         self.assertIn("functional/", self.body)
@@ -441,8 +563,12 @@ class ReadmeDocumentsModelTest(unittest.TestCase):
         self.assertIn("functional", lowered)
         self.assertIn("non-functional", lowered)
 
-    def test_mentions_requirements_layout_setting(self):
-        self.assertIn("requirements_layout", self.body)
+    def test_model_prose_no_longer_names_a_path_setting(self):
+        for key in ("requirements_layout", "functional_subdir", "requirements_path"):
+            self.assertNotIn(
+                key, self.prose,
+                "docs/requirements/README.md still describes the removed "
+                "%r setting outside its dated decision log (ADR-0102)" % key)
 
     def test_old_flat_table_rows_removed(self):
         # the old Documents table linked bare filenames directly under
@@ -454,9 +580,11 @@ class ReadmeDocumentsModelTest(unittest.TestCase):
 
 class NoMarketplacePathHardcodingTest(unittest.TestCase):
     """AC-6 (no-hardcoding half): the requirements-merge routing prose
-    resolves the functional/non-functional subfolder via
-    settings.requirements_layout (placeholder syntax), never a literal
-    marketplace-specific 'docs/requirements/functional/...' path. MAR-162
+    writes to the located functional/non-functional subfolder -- the
+    `<functional_dir>` / `<non_functional_dir>` placeholders its task
+    constraints carry (ADR-0102 removed the `requirements_layout` setting
+    that used to name them) -- never a literal marketplace-specific
+    'docs/requirements/functional/...' path. MAR-162
     moved the requirements-merge routing prose from /acs:code's producer
     files to /acs:docs-sync's executor (C-1).
 
@@ -467,7 +595,7 @@ class NoMarketplacePathHardcodingTest(unittest.TestCase):
     assertion below proves the set has not silently emptied."""
 
     SCOPED_FILES = (
-        os.path.join(REPO_ROOT, "src", "acs", "agents", "docs-sync-executor.md"),
+        os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-executor.md"),
     )
 
     LITERAL_PATH_RE = re.compile(
@@ -488,17 +616,21 @@ class NoMarketplacePathHardcodingTest(unittest.TestCase):
             self.assertIsNone(
                 m,
                 "%s hardcodes a literal marketplace requirements path (%r) "
-                "instead of resolving via settings.requirements_layout" % (
+                "instead of the located <functional_dir>/<non_functional_dir>" % (
                     path, m.group(0) if m else None))
 
-    def test_merge_routing_prose_uses_settings_placeholder(self):
+    def test_merge_routing_prose_uses_located_subfolder_placeholder(self):
         for path in self.SCOPED_FILES:
             body = read(path)
-            self.assertIn(
+            for placeholder in ("`<functional_dir>/", "`<non_functional_dir>/"):
+                self.assertIn(
+                    placeholder, body,
+                    "%s must route into the located subfolder (%s...), not a "
+                    "hardcoded path" % (path, placeholder))
+            self.assertNotIn(
                 "requirements_layout", body,
-                "%s must resolve the functional/non-functional subfolder "
-                "via settings.requirements_layout, not a hardcoded path"
-                % path)
+                "%s still names the removed requirements_layout setting "
+                "(ADR-0102)" % path)
 
 
 if __name__ == "__main__":

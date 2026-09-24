@@ -53,7 +53,7 @@ BINARY = b"\x00\x01\x02\x03binary payload\x00\xff"
 #: The third author-facing copy of the module's degraded-run and accepted-
 #: limitations prose -- the file an author opens when the conventions gate is
 #: already red.
-CI_REFERENCE = os.path.join(acs_case.REPO_ROOT, "src", "acs", "skills", "create-pr",
+CI_REFERENCE = os.path.join(acs_case.REPO_ROOT, "plugins", "acs", "skills", "create-pr",
                             "references", "ci-convention-check.md")
 
 
