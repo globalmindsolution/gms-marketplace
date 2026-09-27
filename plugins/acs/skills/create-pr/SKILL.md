@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Push the ticket's implementation branch and open (or update) the pull request — title and body composed entirely from workspace state, targeting the repo's default branch with the ACS label, ready for review. Use when a ticket's implementation branch is ready to ship for human review; the gate is a safety brake, not an order check — it refuses only a ticket whose recorded /acs:code run left the verifier failing. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
+description: Push the ticket's implementation branch and open (or update) the pull request — title and body composed entirely from workspace state, targeting the repo's default branch with the ACS label, ready for review. Use when a ticket's implementation branch is ready to ship for human review; the gate is a safety brake, not an order check — it refuses only a ticket whose recorded /acs:code run left the verifier failing. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---

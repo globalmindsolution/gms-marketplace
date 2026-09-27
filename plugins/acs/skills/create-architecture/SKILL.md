@@ -1,6 +1,6 @@
 ---
 name: create-architecture
-description: Bootstrap or regenerate the product architecture doc set (C4 HLD plus LLD flows and contracts, all Mermaid) from the PRD and the codebase, delivered as a docs-only PR on its own delivery ticket. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the docs after a major architectural shift. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
+description: Bootstrap or regenerate the product architecture doc set (C4 HLD plus LLD flows and contracts, all Mermaid) from the PRD and the codebase, delivered as a docs-only PR on its own delivery ticket. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the docs after a major architectural shift. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---

@@ -1,6 +1,6 @@
 ---
 name: create-test-docs
-description: Derive the ticket's test cases from its acceptance criteria, plan and API contract — each case with an id, the AC it traces, its type (unit/integration/e2e), preconditions, steps, expected result and target suite. Writes test-cases.md with every acceptance criterion traced by at least one case. Use after /acs:create-impl-plan and before /acs:code. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
+description: Derive the ticket's test cases from its acceptance criteria, plan and API contract — each case with an id, the AC it traces, its type (unit/integration/e2e), preconditions, steps, expected result and target suite. Writes test-cases.md with every acceptance criterion traced by at least one case. Use after /acs:create-impl-plan and before /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---

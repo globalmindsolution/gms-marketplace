@@ -1,6 +1,6 @@
 ---
 name: create-e2e-tests
-description: Write the end-to-end suites for a ticket's e2e-typed test cases, under the repo's configured e2e location and committed on the ticket branch. Requires a configured e2e suite and at least one e2e case in test-cases.md. Use after /acs:code, before the e2e suites are run with /acs:run-e2e-tests. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
+description: Write the end-to-end suites for a ticket's e2e-typed test cases, under the repo's configured e2e location and committed on the ticket branch. Requires a configured e2e suite and at least one e2e case in test-cases.md. Use after /acs:code, before the e2e suites are run with /acs:run-e2e-tests. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---

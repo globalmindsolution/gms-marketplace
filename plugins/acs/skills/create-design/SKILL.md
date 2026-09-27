@@ -1,6 +1,6 @@
 ---
 name: create-design
-description: Settle the system design for a design-significant ticket before implementation is specified — analyze the ticket, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md in the ticket's docs folder. Use when a ticket carries needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:code. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
+description: Settle the system design for a design-significant ticket before implementation is specified — analyze the ticket, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md in the ticket's docs folder. Use when a ticket carries needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
