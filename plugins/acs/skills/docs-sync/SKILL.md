@@ -1,6 +1,6 @@
 ---
 name: docs-sync
-description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final code-verify artifact, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR).
+description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final code-verify artifact, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR). Use whenever a change is done on its branch and the docs (README, API reference, configuration guide, runbook) must be brought in line with it — even a single stale value or sentence: a doc fix that follows from a ticket's change goes through this skill, not a direct edit. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it finds the branch, diff and docs itself.
 when_to_use: Use when a ticket has a changeset on its branch whose documentation still needs reconciling; workflows/ship.yaml places it after code and before create-pr, but it is runnable on its own whenever the docs have drifted from the diff.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit

@@ -1,6 +1,6 @@
 ---
 name: merge-pr
-description: Review a ticket PR's readiness (CI, approvals, conflicts, branch protections) via gh and, when ready, merge it with the configured strategy, then clean up branches, worktree, and tracker status. Use to land a ticket's PR once it is ready and has an approving review.
+description: Review a ticket PR's readiness (CI, approvals, conflicts, branch protections) via gh and, when ready, merge it with the configured strategy, then clean up branches, worktree, and tracker status. Use to land a ticket's PR once it is ready and has an approving review. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
 argument-hint: "[ticket-id] | --pr PRNUMBER"
 disallowed-tools: Edit, NotebookEdit
 ---

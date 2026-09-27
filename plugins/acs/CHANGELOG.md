@@ -373,6 +373,16 @@ JSON validated by JSON Schema, one central envelope plus a
     in any description case fails the release.
   - **Migration:** none for consumers. The pre-push `acs-evals` hook keeps
     three runs at 2/3.
+  - **Every described skill now tells the model to call it first.** A one-turn
+    routing run failed whenever the model searched the repo (Glob, Grep, Read,
+    ToolSearch for a shell) before invoking the skill, and `review-code` lost
+    requests to Claude Code's built-in `code-review`. Each of the 24 described
+    skills' descriptions now ends with "call it as your first action … it
+    locates the context itself", and seven weak skills (`review-code`,
+    `docs-sync`, `run-e2e-tests`, `code`, `create-api-contract`, `create-prd`,
+    `install-hooks`, `create-docs`) name the requests they own. On one-run and
+    three-run samples the suite went from about 80% to about 96%; negatives and
+    controls still pass every run.
 
 - **Nothing about the eval suite runs in CI** (ADR-0108, extends ADR-0022).
   - **The free eval checks moved out of CI discovery.** Case shape and coverage,

@@ -1,6 +1,6 @@
 ---
 name: code
-description: Implement an approved implementation plan in the consumer repo using TDD, targeted tests only. Dispatches to the delivery-path leg the plan recorded — code-trivial, code-small, code-standard or code-complex. The changeset review is a separate step, /acs:review-code. Takes a ticket id, a prompt or a document.
+description: Implement an approved implementation plan in the consumer repo using TDD, targeted tests only. Dispatches to the delivery-path leg the plan recorded — code-trivial, code-small, code-standard or code-complex. The changeset review is a separate step, /acs:review-code. Takes a ticket id, a prompt or a document. Use whenever a ticket's plan is approved and the user says to build, implement, execute or start writing it. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
 argument-hint: "[ticket-id | prompt | document]"
 disallowed-tools: Edit, NotebookEdit
 ---

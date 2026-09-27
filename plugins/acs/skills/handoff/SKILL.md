@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Deliberately hand the current run off to a fresh session — flush in-flight soft context to the run directory, finalize the in-flight step as interrupted with a stop_reason, release the run's lock, and print the exact command to continue. Use when the session has grown long, the user wants to stop and resume later, or the user says "hand off" / "continue this in a new session".
+description: Deliberately hand the current run off to a fresh session — flush in-flight soft context to the run directory, finalize the in-flight step as interrupted with a stop_reason, release the run's lock, and print the exact command to continue. Use when the session has grown long, the user wants to stop and resume later, or the user says "hand off" / "continue this in a new session". Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
 argument-hint: "[run-id]"
 ---
 

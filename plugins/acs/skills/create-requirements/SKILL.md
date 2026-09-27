@@ -1,6 +1,6 @@
 ---
 name: create-requirements
-description: Bootstrap or amend the consumer requirements/ doc set (functional + non-functional, one file per feature/item) — brownfield reverse-engineers it from the existing codebase (architecture-aware, code-cited, DRAFT), greenfield elicits it interactively, and amend augments only absent/ungrounded areas — shipped as a docs-only PR on its own delivery ticket. Use to bootstrap living requirements on an existing codebase, or to refresh the set after a gap is found.
+description: Bootstrap or amend the consumer requirements/ doc set (functional + non-functional, one file per feature/item) — brownfield reverse-engineers it from the existing codebase (architecture-aware, code-cited, DRAFT), greenfield elicits it interactively, and amend augments only absent/ungrounded areas — shipped as a docs-only PR on its own delivery ticket. Use to bootstrap living requirements on an existing codebase, or to refresh the set after a gap is found. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it locates the ticket, plan, diff and repo context itself.
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---
