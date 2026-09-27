@@ -5,7 +5,7 @@ description: >-
   on the word.
 expected_outcome: Invokes no skill at all.
 tags: [routing, control]
-max_turns: 1
+max_turns: 3
 allowed_tools: [Skill]
 ---
 

@@ -1,15 +1,10 @@
 ---
-type: tool_used
-tool: Skill
-input_match: '"skill"\s*:\s*"(?:[\w-]+:)?code-small"'
-min: 1
+type: regex
+target: trace
+pattern: '^(?:(?!"name":"Skill","input":)[\s\S])*"name":"Skill","input":\{"skill":"(?:[\w-]+:)?code-small"'
 ---
 
-Passes when `acs:code-small` is invoked at least once, bare or plugin-qualified.
-It reads the Skill tool call, not the reply, so a precondition gate
-refusing AFTER the skill routed still counts as a route.
-
-Explicit invocation: a typed `/acs:code-small` can be expanded by the CLI
-before any model turn, in which case no Skill call happens and this
-reads 0x for a probe that routed. Tagged `explicit` so it can be run
-or left out deliberately.
+Passes when the FIRST Skill call in the run names `acs:code-small`, bare or
+plugin-qualified. The run has 3 turns, so looking at the repo before routing
+is not a miss; a first Skill call to any other skill, or none at all, is. Later
+Skill calls -- a skill invoking its own steps or legs -- are not graded.

@@ -15,10 +15,10 @@ at run time. These tests read the case files as data
    skill that does not ship. This is the guard that, pointed at the old
    dataset, found `acs:test` probed after its deletion and `review-code` never
    probed at all.
-3. GRADERS DO WHAT THEY SAY -- each routing grader's `input_match` is run
-   against the JSON the Skill tool actually receives, so a regex that can never
-   match (or that matches a neighbour) fails here rather than scoring 0.00 on a
-   paid run for a probe that routed perfectly well.
+3. GRADERS DO WHAT THEY SAY -- each routing grader's first-Skill-call pattern
+   is run against traces shaped like the CLI's, so a regex that can never match
+   (or that matches a neighbour, or a later Skill call) fails here rather than
+   scoring 0.00 on a paid run for a probe that routed perfectly well.
 
 Pure: no `claude`, no network, no cost.
 """
@@ -39,9 +39,19 @@ sys.path.insert(0, os.path.join(ec.PLUGIN, "hooks", "scripts"))
 import acs_lib as lib  # noqa: E402  (the registry is the single source for legs)
 
 
-def _skill_input(name, args=""):
-    """The JSON-encoded input the Skill tool receives, as input_match sees it."""
-    return json.dumps({"skill": name, "args": args})
+def _trace(*skills, look_first=True):
+    """A run's trace as the `trace` target shows it: compact JSON, one message
+    per line, with the Skill calls in the order given (an optional look at the
+    repo first, as a three-turn run may take)."""
+    msgs = [{"type": "user", "message": {"content": "the prompt"}}]
+    if look_first:
+        msgs.append({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": "t0", "name": "Glob", "input": {"pattern": "**/*"}}]}})
+    for i, name in enumerate(skills):
+        msgs.append({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": "t%d" % (i + 1), "name": "Skill",
+             "input": {"skill": name, "args": "TKT-1"}}]}})
+    return "\n".join(json.dumps(m, separators=(",", ":")) for m in msgs)
 
 
 def _internal_legs():
@@ -163,24 +173,32 @@ class RoutingShapeTest(unittest.TestCase):
             with self.subTest(case=c.name):
                 self.assertEqual(c.fm.get("allowed_tools"), ["Skill"])
 
-    def test_routing_runs_are_one_turn(self):
-        """Only the model's FIRST move is the route. The grader counts Skill
-        calls across the whole run, and skills call skills: /acs:ship invokes
-        each step with the Skill tool, and /acs:code dispatches its leg the
-        same way. Given a second turn, a request misrouted to ship passes a
-        step's positive once ship reaches that step, and a request correctly
-        routed to code fails a leg's negative once code dispatches the leg.
-        One turn makes both impossible. The CLI still grades a run that stops
-        at the limit: it passes `--max-turns` to the child and scores the tool
-        calls in the trace whatever the exit status."""
+    def test_routing_runs_have_the_routing_turn_budget(self):
+        """The ROUTE is graded, not the first move (ADR-0110): a run may look
+        at the repo before routing, so it gets ec.ROUTING_TURNS turns, and the
+        grader reads only the FIRST Skill call. Skills call skills -- /acs:ship
+        invokes each step, /acs:code dispatches its leg -- and the first-call
+        pattern cannot see those later calls, so extra turns cannot turn a
+        misroute to ship into a pass or a correct route to code into a leg
+        negative's failure. The CLI grades a run that stops at the limit: it
+        passes `--max-turns` to the child and scores the trace whatever the
+        exit status."""
         for c in self.cases:
             with self.subTest(case=c.name):
-                self.assertEqual(c.fm.get("max_turns"), 1)
+                self.assertEqual(c.fm.get("max_turns"), ec.ROUTING_TURNS)
+
+    def test_every_probe_grades_the_first_skill_call(self):
+        for c in ec.probe_cases():
+            with self.subTest(case=c.name):
+                g = c.routing_grader()
+                self.assertEqual((g.type, g.fm.get("target")), ("regex", "trace"))
+                self.assertEqual(g.fm.get("match", "contains"),
+                                 "not_contains" if c.kind == "negative" else "contains")
 
     def test_every_probe_names_its_skill_in_the_canonical_form(self):
         for c in ec.probe_cases():
             with self.subTest(case=c.name):
-                self.assertIsNotNone(c.skill, "no `tool_used: Skill` grader with input_match")
+                self.assertIsNotNone(c.skill, "no first-Skill-call grader naming a skill")
 
     def test_negatives_are_scored_in_both_arms(self):
         """The reference names `arm: both` for exactly this shape: a "must not
@@ -191,7 +209,8 @@ class RoutingShapeTest(unittest.TestCase):
             with self.subTest(case=c.name):
                 g = c.graders[0]
                 self.assertEqual(g.fm.get("arm"), "both")
-                self.assertEqual((g.fm.get("min"), g.fm.get("max")), (0, 0))
+                if c.kind == "control":
+                    self.assertEqual((g.fm.get("min"), g.fm.get("max")), (0, 0))
 
     def test_the_kind_tag_agrees_with_the_grader(self):
         for c in ec.probe_cases():
@@ -216,28 +235,40 @@ class RoutingShapeTest(unittest.TestCase):
 
 
 class GraderMatchesTest(unittest.TestCase):
-    """Each input_match, run against the JSON the Skill tool really receives."""
+    """Each first-Skill-call pattern, run against traces shaped like the CLI's."""
 
-    def test_each_grader_matches_its_own_skill_both_spellings(self):
+    def rx(self, case):
+        return re.compile(case.routing_grader().fm["pattern"])
+
+    def test_each_grader_matches_its_own_skill_as_the_first_call(self):
         for c in ec.probe_cases():
+            rx = self.rx(c)
             with self.subTest(case=c.name):
-                rx = re.compile(c.routing_grader().fm["input_match"])
-                self.assertRegex(_skill_input("acs:" + c.skill), rx)
-                self.assertRegex(_skill_input(c.skill), rx)
-                self.assertRegex(_skill_input("acs:" + c.skill, "TKT-1"), rx)
+                self.assertRegex(_trace("acs:" + c.skill), rx)
+                self.assertRegex(_trace(c.skill), rx)
+                self.assertRegex(_trace("acs:" + c.skill, look_first=False), rx)
+                self.assertRegex(_trace("acs:" + c.skill, "acs:create-ticket"), rx,
+                                 "a later Skill call must not undo the route")
 
-    def test_no_grader_matches_a_different_shipped_skill(self):
-        """The closing quote is what keeps `code` from matching `code-small`.
-        Checked against every shipped skill, so a future `code-x` cannot quietly
-        turn a `code` probe into a pass for the wrong route."""
+    def test_no_grader_matches_a_different_first_skill(self):
+        """The closing quote keeps `code` from matching `code-small`, and the
+        tempered token keeps a LATER call to the case's skill from counting:
+        /acs:ship reaching a step, /acs:code dispatching a leg. Checked against
+        every shipped skill, and against a built-in one."""
         shipped = ec.shipped_skills()
         for c in ec.probe_cases():
-            rx = re.compile(c.routing_grader().fm["input_match"])
-            for other in shipped:
+            rx = self.rx(c)
+            for other in shipped + ["code-review"]:
                 if other == c.skill:
                     continue
                 with self.subTest(case=c.name, other=other):
-                    self.assertIsNone(rx.search(_skill_input("acs:" + other)))
+                    self.assertIsNone(rx.search(_trace("acs:" + other)))
+                    self.assertIsNone(rx.search(_trace("acs:" + other, "acs:" + c.skill)))
+
+    def test_no_skill_call_matches_nothing(self):
+        for c in ec.probe_cases():
+            with self.subTest(case=c.name):
+                self.assertIsNone(self.rx(c).search(_trace()))
 
 
 class CoverageTest(unittest.TestCase):

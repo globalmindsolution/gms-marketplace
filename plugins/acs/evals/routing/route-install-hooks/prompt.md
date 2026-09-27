@@ -10,7 +10,7 @@ description: >-
   those first before choosing is right, not misrouted (0/5 runs).
 expected_outcome: Routes to acs:install-hooks.
 tags: [routing, description]
-max_turns: 1
+max_turns: 3
 allowed_tools: [Skill]
 ---
 

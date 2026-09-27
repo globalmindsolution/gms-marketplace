@@ -20,7 +20,7 @@ the step-by-step the maintainer follows.
    python3 -m unittest discover -s tests/evals -p 'check_*.py'   # free, local eval checks
    CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude plugin eval plugins/acs --tag description --tag negative --tag control \
      --ablation none --runs 10 -j 8 --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
-     --trust-plugin --no-publish --max-cost-usd 250  # PAID: routing, 10 runs a case (~$190)
+     --trust-plugin --no-publish --max-cost-usd 300  # PAID: routing, 10 runs a case (~$230)
    python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
      --min-skill-rate 9/10 --min-suite-rate 1         # the judgement
    ```

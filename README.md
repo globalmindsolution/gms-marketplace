@@ -115,7 +115,7 @@ order and stops at the first failure:
 python3 -m unittest discover -s tests/evals -p 'check_*.py'   # free: every eval case well-formed, every skill covered
 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude plugin eval plugins/acs --tag description --tag negative --tag control \
   --ablation none --runs 10 -j 8 --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
-  --trust-plugin --no-publish --max-cost-usd 250  # PAID: does each prompt reach the right skill?
+  --trust-plugin --no-publish --max-cost-usd 300  # PAID: does each prompt reach the right skill?
 python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
   --min-skill-rate 9/10 --min-suite-rate 1        # the judgement: by skill and suite, not by prompt
 ```

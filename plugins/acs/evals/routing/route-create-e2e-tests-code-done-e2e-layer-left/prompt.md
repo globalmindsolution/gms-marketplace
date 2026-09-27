@@ -6,7 +6,7 @@ description: >-
   skill.
 expected_outcome: Routes to acs:create-e2e-tests.
 tags: [routing, description, confusable]
-max_turns: 1
+max_turns: 3
 allowed_tools: [Skill]
 ---
 

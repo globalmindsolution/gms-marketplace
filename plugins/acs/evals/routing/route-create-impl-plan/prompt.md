@@ -6,7 +6,7 @@ description: >-
   edits.
 expected_outcome: Routes to acs:create-impl-plan.
 tags: [routing, description]
-max_turns: 1
+max_turns: 3
 allowed_tools: [Skill]
 ---
 

@@ -9,7 +9,7 @@ description: >-
   to hold.
 expected_outcome: Does not invoke acs:code-small.
 tags: [routing, negative]
-max_turns: 1
+max_turns: 3
 allowed_tools: [Skill]
 ---
 
