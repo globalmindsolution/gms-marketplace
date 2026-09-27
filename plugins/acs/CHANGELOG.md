@@ -383,6 +383,10 @@ JSON validated by JSON Schema, one central envelope plus a
     `install-hooks`, `create-docs`) name the requests they own. On one-run and
     three-run samples the suite went from about 80% to about 96%; negatives and
     controls still pass every run.
+  - **Routing runs turn Claude Code's auto-memory off**
+    (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` on the gate command and in
+    `scripts/eval_changed.py`). Some misses were the model listing the
+    sandbox's always-empty memory directory with its one turn.
 
 - **Nothing about the eval suite runs in CI** (ADR-0108, extends ADR-0022).
   - **The free eval checks moved out of CI discovery.** Case shape and coverage,

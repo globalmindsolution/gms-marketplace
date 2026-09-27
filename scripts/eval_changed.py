@@ -84,6 +84,10 @@ SKILLS_PREFIX = PLUGIN_REL + "/skills/"
 EVALS_PREFIX = PLUGIN_REL + "/evals/"
 DEFAULT_BUDGET_USD = 25.0
 DEFAULT_RUNS = 3
+#: The eval sandbox is always empty, so Claude Code's auto-memory directory
+#: holds nothing; with it on, the model sometimes spends its one routing turn
+#: listing that directory. The CLI only takes this from the operator's shell.
+EVAL_ENV = {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
 
 #: Skills with a behaviour suite, and the cases that exercise them.
 BEHAVIOUR = {
@@ -227,7 +231,8 @@ def run_case(case, runs, budget_left, workdir):
     """{"status": ok|budget|error, "scores": [per run], "cost", "failed_graders", "message"}."""
     json_path = os.path.join(workdir, case.name + ".json")
     proc = subprocess.run(command(case, runs, budget_left, json_path), cwd=REPO_ROOT,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True,
+                          env=dict(os.environ, **EVAL_ENV))
     out = (proc.stderr or "") + (proc.stdout or "")
     if "not a trusted plugin directory" in out:
         return {"status": "error", "message": "this plugin directory is not trusted yet. Run one "

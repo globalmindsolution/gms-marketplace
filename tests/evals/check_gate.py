@@ -237,6 +237,12 @@ class ThisRepoWiresTheGateTest(unittest.TestCase):
         self.assertIn(" --min-skill-rate 9/10 ", " %s " % self.judge[0])
         self.assertIn(" --min-suite-rate 1 ", " %s " % self.judge[0])
 
+    def test_the_paid_run_turns_auto_memory_off(self):
+        """The sandbox's memory directory is always empty, and with auto-memory
+        on the model sometimes spends its one routing turn listing it. Case
+        files cannot set this; only the operator's shell can."""
+        self.assertTrue(self.paid[0].startswith("CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 "))
+
 
 if __name__ == "__main__":
     unittest.main()

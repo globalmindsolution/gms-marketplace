@@ -116,8 +116,8 @@ first non-zero exit stops the cut ([ADR-0107](../../../docs/adr/0107-routing-gat
 1. `python3 -m unittest discover -s tests/evals -p check_*.py` — free: a
    malformed case, or a grader that cannot fail, stops the cut before anything
    is spent.
-2. `claude plugin eval plugins/acs --tag description --tag negative --tag
-   control --ablation none --runs 10 -j 8 --threshold 0 --json …` — the paid
+2. `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude plugin eval plugins/acs --tag
+   description --tag negative --tag control --ablation none --runs 10 -j 8 --threshold 0 --json …` — the paid
    run, ten runs a case. `--threshold
    0` stops the CLI from judging; the result goes to a file.
 3. `python3 scripts/eval_gate.py <that file> --min-skill-rate 9/10
@@ -217,6 +217,13 @@ that needs a host where `--allow-tools Bash` works (see artifacts/README.md).
 Pilot with `--runs 1 --no-publish` first.
 
 ## Known limits — read before quoting a number
+
+- **Auto-memory is off for routing runs.** With it on, the model sometimes
+  spends its one turn listing Claude Code's memory directory, which is always
+  empty in the sandbox. A case file cannot set that (`env` accepts only
+  `EVAL_*` keys), so the gate prefixes the CLI with
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` and `scripts/eval_changed.py` sets it for
+  its runs. Run any routing number you mean to compare the same way.
 
 - **Explicit invocation is not reliably observable.** A typed `/acs:<skill>` can
   be expanded by the CLI before any model turn, in which case no `Skill` call

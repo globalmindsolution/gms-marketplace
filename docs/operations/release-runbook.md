@@ -18,7 +18,7 @@ the step-by-step the maintainer follows.
    To run it by hand first — which is how you find out before the cut does:
    ```bash
    python3 -m unittest discover -s tests/evals -p 'check_*.py'   # free, local eval checks
-   claude plugin eval plugins/acs --tag description --tag negative --tag control \
+   CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude plugin eval plugins/acs --tag description --tag negative --tag control \
      --ablation none --runs 10 -j 8 --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
      --trust-plugin --no-publish --max-cost-usd 250  # PAID: routing, 10 runs a case (~$190)
    python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
