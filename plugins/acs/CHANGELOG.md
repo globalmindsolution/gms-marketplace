@@ -378,7 +378,7 @@ JSON validated by JSON Schema, one central envelope plus a
     ToolSearch for a shell) before invoking the skill, and `review-code` lost
     requests to Claude Code's built-in `code-review`. Each of the 24 described
     skills' descriptions now ends with "call it as your first action … it
-    locates the context itself", and seven weak skills (`review-code`,
+    locates the context itself", and eight weak skills (`review-code`,
     `docs-sync`, `run-e2e-tests`, `code`, `create-api-contract`, `create-prd`,
     `install-hooks`, `create-docs`) name the requests they own. On one-run and
     three-run samples the suite went from about 80% to about 96%; negatives and
