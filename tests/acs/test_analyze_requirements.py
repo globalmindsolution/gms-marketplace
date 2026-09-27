@@ -21,7 +21,12 @@ markdown and would otherwise drift away from the deterministic layer:
     the delivery path is judged once from the plan by /acs:ship. What this step
     owes that judgement is evidence — load-bearing surfaces named in `## Risks`
     — not a rigor setting written ahead of it;
-  * the pair's shape (analyst -> impact review, artifacts, grounding).
+  * the pair's shape (analyst -> impact review, artifacts, grounding);
+  * the three stages, in order -- Impact (the analyst's survey pass, separate
+    from its draft pass, starting from the previously published analysis),
+    Clarify (one grouped ask, defaults asked as confirmations when the user
+    is reachable, confirmed criteria written into the ticket, one follow-up
+    round), Store (draft, review, publish the reusable record).
 
 Run:  python3 -m unittest tests.acs.test_analyze_requirements -v
 """
@@ -429,11 +434,14 @@ class TestNotReadyArm(unittest.TestCase):
         # and unmentioned argument counts -- three questions a competent
         # implementer settles by convention, asked of a run with nobody to
         # answer. The rule lives in the skill AND in the analyst's verdict
-        # contract, so neither can reintroduce the blocker alone.
+        # contract, so neither can reintroduce the blocker alone. Since the
+        # 2026-09-27 three-stage split it is the rule for an UNREACHABLE user
+        # only: a reachable one is asked the same defaults as confirmations.
         skill = " ".join(self.body.split())
         self.assertIn(
-            "**A question with a conventional default is an assumption, not a "
-            "blocker.**", skill)
+            "and no answers were relayed in a `/acs:ship` brief. Then, and only "
+            "then: **A question with a conventional default is an assumption, "
+            "not a blocker.**", skill)
         self.assertIn("keep `ready_for_planning: true`", skill)
         self.assertIn("where every default could build the wrong thing", skill)
         analyst = " ".join(
@@ -625,18 +633,40 @@ class TestParallelism(unittest.TestCase):
         self.assertIn('<result skill="analyze-requirements" '
                       'phase="impact-reviewer" slice=', self.reviewer)
 
-    def test_the_drafting_analyst_synthesizes_the_survey_slices(self):
+    def test_a_synthesis_pass_reconciles_the_survey_slices(self):
         """A join is not a synthesis: contradictions between area slices are
-        resolved with evidence under `## Synthesis`, or raised as questions."""
-        self.assertIn("The merge is a join, not a synthesis: this analyst MUST "
-                      "reconcile the slices.", self.skill)
+        resolved with evidence under `## Synthesis`, or raised as questions for
+        the user -- by a dedicated synthesis pass, not by the draft pass."""
+        self.assertIn("The merge is a join, not a synthesis: this run MUST "
+                      "reconcile the slices before anything is asked.", self.skill)
+        self.assertIn('Spawn ONE synthesis analyst (`slice="synthesis"`, '
+                      '`<constraint name="pass">synthesis</constraint>`)', self.skill)
         self.assertIn("under a `## Synthesis` section of the notes", self.skill)
         self.assertIn("never silently picks one", self.skill)
-        self.assertIn("Append a `## Synthesis` section to the merged "
-                      "`iter-1/authoring.md`", self.analyst)
+        self.assertIn("de-duplicates the slices' `## Questions for the user` into "
+                      "ONE list", self.skill)
+        self.assertIn("the draft pass consumes these reconciled notes — it does "
+                      "not reconcile slices itself", self.skill)
+        self.assertIn("## When you run the synthesis pass", self.analyst)
+        self.assertIn("Write a `## Synthesis` section to "
+                      "`iter-1/authoring-synthesis.md`", self.analyst)
         self.assertIn("Never silently pick one slice's claim", self.analyst)
-        self.assertIn("or an open question in `<questions>` when no source does",
-                      self.analyst)
+        self.assertIn("a group-(a) question in your `## Questions for the user` "
+                      "when no source does", self.analyst)
+        self.assertIn("Never write the merged `iter-1/authoring.md`", self.analyst)
+
+    def test_the_synthesis_is_joined_last_by_notes_merge(self):
+        raw = norm(read(SKILL_PATH))
+        self.assertRegex(
+            raw,
+            r'notes merge --out <partition>/steps/analyze-requirements/iter-1/'
+            r'authoring\.md (?:<partition>/steps/analyze-requirements/iter-1/'
+            r'authoring-<area-\d>\.md )+… <partition>/steps/analyze-requirements/'
+            r'iter-1/authoring-synthesis\.md')
+
+    def test_an_unsliced_survey_skips_the_synthesis_pass(self):
+        self.assertIn("A ticket inside one area runs the survey un-sliced, "
+                      "exactly as above, and skips the synthesis pass.", self.skill)
 
     def test_the_impact_reviewer_judges_the_synthesis(self):
         self.assertIn("judge that the notes' `## Synthesis` is honest", self.reviewer)
@@ -657,6 +687,235 @@ class TestParallelism(unittest.TestCase):
     def test_each_checker_runs_in_exactly_one_judge_slice(self):
         self.assertIn("`front_matter_check.py` and `structure_lint.py` belong "
                       "to `form`", self.reviewer)
+
+
+def _pos(body, needle):
+    index = body.find(needle)
+    assert index >= 0, "not found: %r" % needle
+    return index
+
+
+class TestThreeStages(unittest.TestCase):
+    """2026-09-27: the skill checks the codebase for impacts, clarifies with
+    the user, and stores the analysis in docs for reuse -- three stages, in
+    that order, and the SKILL.md reads that way."""
+
+    STAGES = ("## Stage 1 — Impact: survey the codebase",
+              "## Stage 2 — Clarify: make the requirements clear with the user",
+              "## Stage 3 — Store: write, review and publish the analysis for reuse")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = read(SKILL_PATH)
+        cls.skill = norm(cls.raw)
+        cls.analyst = norm(agent("analyst"))
+
+    def test_an_overview_near_the_top_names_the_three_stages_in_order(self):
+        overview = _pos(self.raw, "## Three stages")
+        self.assertLess(overview, _pos(self.raw, "## Start"))
+        for label in ("**1 — Impact: survey the codebase**",
+                      "**2 — Clarify: make the requirements clear with the user**",
+                      "**3 — Store: write, review and publish the analysis for reuse**"):
+            self.assertGreater(_pos(self.raw, label), overview)
+        self.assertIn("in this order — each finishes before the next starts",
+                      self.skill)
+
+    def test_the_stage_sections_appear_in_order(self):
+        positions = [_pos(self.raw, "\n%s\n" % heading) for heading in self.STAGES]
+        self.assertEqual(positions, sorted(positions))
+        # Publishing and the draft are Stage 3's; the ask is Stage 2's.
+        self.assertGreater(_pos(self.raw, "### Publish — the coordinator"),
+                           positions[2])
+        self.assertGreater(_pos(self.raw, "### Phase: analyst draft pass"),
+                           positions[2])
+        self.assertGreater(_pos(self.raw, "**Clarification ledger first.**"),
+                           positions[1])
+
+    def test_the_survey_pass_is_separate_from_the_draft_pass(self):
+        self.assertIn('`<constraint name="pass">survey</constraint>`', self.skill)
+        self.assertIn('`<constraint name="pass">draft</constraint>`', self.skill)
+        self.assertIn("The survey writes ONLY the notes and its report "
+                      "(`iter-1/analyst-survey.json`) — never the draft.", self.skill)
+        self.assertIn("The survey never writes the draft and the draft pass never "
+                      "re-surveys", self.skill)
+        self.assertIn("## Which pass you run", self.analyst)
+        self.assertIn("Run ONLY the pass your task names: a survey or synthesis "
+                      "pass never writes the draft; a draft pass never re-surveys.",
+                      self.analyst)
+        for row in ("| `survey` |", "| `synthesis` |", "| `draft` |"):
+            self.assertIn(row, agent("analyst"))
+
+    def test_each_pass_has_its_own_report_and_snapshot(self):
+        """The survey and the draft both run on iteration 1 as `analyst`; with
+        the same slice they would share a SubagentStop snapshot, and the
+        draft's would overwrite the survey's. The pass table names every file,
+        and the snapshots are exactly what the hook writes."""
+        from acs_lib import lifecycle
+        rows = re.findall(
+            r"(?m)^\| (survey, un-sliced|survey, one area|synthesis|draft) \| "
+            r"([^|]+) \| `([^`]+)` \| `([^`]+)` \|$", self.raw)
+        self.assertEqual([r[0] for r in rows],
+                         ["survey, un-sliced", "survey, one area", "synthesis", "draft"])
+        reports = [r[2] for r in rows]
+        snapshots = [r[3] for r in rows]
+        self.assertEqual(len(set(reports)), 4, reports)
+        self.assertEqual(len(set(snapshots)), 4, snapshots)
+        for (_, attrs, _report, snapshot) in rows:
+            slice_match = re.search(r'slice="([^"]+)"', attrs)
+            sid = slice_match.group(1) if slice_match else None
+            if sid == "<area>":
+                sid = "api"
+                snapshot = snapshot.replace("<area>", "api")
+            expected = lifecycle.phase_artifact_path(
+                "/r", "analyze-requirements", 1, "analyst", slice_id=sid)
+            self.assertEqual(os.path.basename(expected),
+                             os.path.basename(snapshot), attrs)
+        for name in ("iter-1/analyst-survey.json", "iter-1/analyst-synthesis.json",
+                     "iter-<n>/analyst.json"):
+            self.assertIn(name, self.analyst)
+        self.assertIn("`survey` and `synthesis` are reserved slice ids", self.skill)
+
+    def test_the_survey_starts_from_the_published_analysis(self):
+        self.assertIn("Stage 1's survey starts from it (reuse — see Stage 1)",
+                      self.skill)
+        self.assertIn("7. `<previous_analysis>` when `artifacts[\"analysis.md\"]` "
+                      "exists", self.skill)
+        for body in (self.skill, self.analyst):
+            self.assertIn("## Changes since the last analysis", body)
+            self.assertIn("still true / changed / gone", body)
+        self.assertIn("carries forward its answered `C-n` entries", self.skill)
+        self.assertIn("### Reuse — when a previous analysis exists", self.analyst)
+        self.assertIn("re-record it verbatim with `clarify.py add … --answer`",
+                      self.skill)
+
+    def test_the_survey_ends_with_four_groups_of_questions(self):
+        for body in (self.skill, self.analyst):
+            self.assertIn("## Questions for the user", body)
+            for group in ("(a) Open questions", "(b) Conventional defaults",
+                          "(c) Proposed refined acceptance criteria",
+                          "(d) A needs_design recommendation"
+                          if body is self.skill else "(d) needs_design recommendation"):
+                self.assertIn(group, body)
+            self.assertIn("Assumed: <default> — confirm or correct", body)
+        self.assertIn("Researchable facts are never questions", self.skill)
+
+    def test_the_synthesis_runs_before_the_ask(self):
+        synthesis = _pos(self.raw, 'Spawn ONE synthesis analyst (`slice="synthesis"`')
+        self.assertLess(synthesis, _pos(self.raw, "\n%s\n" % self.STAGES[1]))
+
+    def test_every_remaining_question_goes_in_one_grouped_ask(self):
+        self.assertIn("**Otherwise ask EVERY remaining question, from all four "
+                      "groups, in ONE grouped interaction** — a single "
+                      "AskUserQuestion", self.skill)
+
+    def test_defaults_are_confirmed_when_the_user_is_reachable(self):
+        self.assertIn("Conventional defaults (b) are asked as confirmations",
+                      self.skill)
+        self.assertIn("When the user IS reachable, the same defaults are asked — "
+                      "as confirmations, in the one grouped ask — never silently "
+                      "assumed", self.skill)
+        # The assumption arm is scoped to an unreachable user.
+        unreachable = _pos(self.raw, "### When the user is not reachable")
+        self.assertGreater(
+            _pos(self.raw, "**A question with a conventional default is an "
+                           "assumption, not a blocker.**"), unreachable)
+        self.assertNotIn("record the default as an assumption (`--source "
+                         "assumption --rationale \"...\"`), state it in "
+                         "`## Assumptions`, propose the matching criterion rewrite "
+                         "in `## Refined acceptance criteria`, and keep "
+                         "`ready_for_planning: true`. The 2026-09-15",
+                         self.skill[:self.skill.find("### When the user is not reachable")])
+
+    def test_confirmed_requirements_are_written_into_the_ticket(self):
+        self.assertIn("### Confirmed requirements go into the ticket", self.raw)
+        self.assertIn("so the ticket itself carries the clarified requirements "
+                      "every later skill plans from", self.skill)
+        self.assertIn("send the WHOLE confirmed criteria list", self.skill)
+        self.assertIn("A rejected proposal is recorded (its answer says so) and "
+                      "NOT applied.", self.skill)
+        section = self.raw[_pos(self.raw, "### Confirmed requirements go into the ticket"):
+                           _pos(self.raw, "### When the user is not reachable")]
+        self.assertIn('acs.py" ticket save --ticket <id> --from -', section)
+        self.assertIn('{"needs_design": true}', section)
+
+    def test_at_most_one_follow_up_round(self):
+        self.assertIn("**One follow-up round, at most.**", self.skill)
+        self.assertIn("in at most ONE more grouped AskUserQuestion", self.skill)
+        self.assertIn("Anything still open after that is a blocker: "
+                      "`references/not-ready-for-planning.md`", self.skill)
+        not_ready = norm(read(os.path.join(SKILL_REFERENCES,
+                                           "not-ready-for-planning.md")))
+        self.assertIn("still open after the grouped ask and its ONE follow-up round",
+                      not_ready)
+
+    def test_stage_two_is_skipped_when_nothing_is_open(self):
+        self.assertIn("Stage 2 is skipped; say so in the report", self.skill)
+        self.assertIn("Stage 2 skipped", self.skill)
+
+    def test_the_draft_is_written_from_the_answers(self):
+        self.assertIn("`## Questions` lists every `C-n` with its answer or status",
+                      self.skill)
+        self.assertIn("`## Refined acceptance criteria` states which criteria "
+                      "were confirmed into the ticket", self.skill)
+        self.assertIn("`## Assumptions` holds only what the user did not answer",
+                      self.skill)
+        self.assertIn("`confirmed into the ticket (C-n)`", self.analyst)
+        self.assertIn("Never present an unconfirmed rewrite as applied.",
+                      self.analyst)
+
+    def test_a_reviewer_question_goes_back_through_stage_two(self):
+        self.assertIn("A reviewer finding that is really a new question for the "
+                      "user — or a draft pass that returns `needs_input` — goes "
+                      "through Stage 2 again (ledger first, then one grouped ask)",
+                      self.skill)
+
+    def test_the_published_file_is_the_reusable_record(self):
+        self.assertIn("**The published file is the reusable record.**", self.skill)
+        for reader in ("/acs:create-impl-plan", "/acs:create-api-contract",
+                       "/acs:create-test-docs"):
+            self.assertIn(reader, self.skill[_pos(self.skill,
+                          "**The published file is the reusable record.**"):])
+        self.assertIn("what the next run of this skill starts from", self.skill)
+        self.assertIn("the partition fallback, for the no-checkout case only",
+                      self.skill)
+
+    def test_resume_knows_which_stage_it_is_in(self):
+        resume = norm(read(os.path.join(SKILL_REFERENCES, "resume.md")))
+        for question in ("**Survey report present?**", "**Answers recorded?**",
+                         "**Draft present?**"):
+            self.assertIn(question, resume)
+        self.assertIn("the first \"no\" is where you continue", resume)
+
+
+class TestReviewerQuestionCoverage(unittest.TestCase):
+    """The impact reviewer's new check: nothing asked of the user is lost
+    between the survey and the draft, and what the user confirmed is what the
+    ticket now says."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reviewer = norm(agent("impact-reviewer"))
+        cls.skill = norm(read(SKILL_PATH))
+
+    def test_every_question_for_the_user_is_accounted_for(self):
+        self.assertIn("**Questions and ticket coverage:** every item of the "
+                      "notes' `## Questions for the user`", self.reviewer)
+        self.assertIn("was either answered in the ledger or is carried in "
+                      "`## Questions` as an open or assumed `C-n` entry",
+                      self.reviewer)
+
+    def test_confirmed_criteria_match_the_ticket(self):
+        self.assertIn("matches the ticket's `acceptance_criteria` as the ticket "
+                      "file now reads", self.reviewer)
+        self.assertIn("a confirmed criterion the ticket does not carry, or "
+                      "carries differently, is a finding", self.reviewer)
+
+    def test_the_check_sits_in_the_completeness_dimension_of_the_surface_slice(self):
+        dim2 = agent("impact-reviewer").split("2. `completeness`", 1)[1].split(
+            "3. `api-surface`", 1)[0]
+        self.assertIn("Questions and ticket coverage", dim2)
+        self.assertIn("the questions/ticket coverage check", self.skill)
+        self.assertIn("the clarification ledger", self.reviewer)
 
 
 if __name__ == "__main__":

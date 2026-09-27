@@ -362,6 +362,51 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **`/acs:analyze-requirements` runs in three stages: impact, clarify, store.**
+  The skill now checks the codebase for impacts, makes the requirements clear
+  with you, and stores the analysis in the ticket's docs folder for reuse.
+  - **Impact.** The analyst's survey is its own pass
+    (`<constraint name="pass">survey</constraint>`), separate from the draft:
+    it derives the impact map from the code and writes only the authoring
+    notes. When `docs/tickets/<id>/analysis.md` already exists, the survey
+    starts from it — each impact row re-verified as still true / changed /
+    gone, answered `C-n` entries carried forward, and a
+    `## Changes since the last analysis` section in the notes. The notes end
+    with `## Questions for the user` in four groups: open questions,
+    conventional defaults to confirm ("Assumed: … — confirm or correct"),
+    proposed refined acceptance criteria, and a needs_design recommendation.
+    A survey sliced by repo area is now reconciled by a dedicated
+    `slice="synthesis"` analyst pass (`iter-1/authoring-synthesis.md`, joined
+    last with `acs.py notes merge`) BEFORE you are asked anything; the draft
+    pass no longer writes `## Synthesis`.
+  - **Clarify.** After the ledger check, every remaining question — defaults
+    included — is asked in ONE grouped AskUserQuestion, with at most one
+    follow-up round; anything still open after it makes the analysis
+    `needs_input`. Confirmed refined criteria and a confirmed `needs_design`
+    are written into the ticket with `acs.py ticket save`, so every later
+    skill plans from the clarified ticket; rejected proposals are recorded
+    and not applied. No questions → the stage is skipped and the report says
+    so. **Behaviour change:** conventional defaults used to be recorded as
+    assumptions without asking; that now happens only when no user is
+    reachable (a non-interactive run with no relayed answers), where
+    `ready_for_planning: true` is still kept.
+  - **Store.** One draft pass writes the analysis from the notes and the
+    answers (`## Questions` carries every `C-n` with its answer,
+    `## Refined acceptance criteria` says what was confirmed into the ticket,
+    `## Assumptions` only what went unanswered). The impact reviewer's
+    `completeness` dimension now also fails a question for the user that was
+    neither answered nor carried, and a confirmed criterion the ticket does
+    not carry. The published analysis is the reusable record
+    `/acs:create-impl-plan`, `/acs:create-api-contract`, `/acs:create-test-docs`
+    and the next analysis read.
+  - **Files.** Each analyst pass has its own report and snapshot:
+    `iter-1/analyst-survey.json` (a slice: `analyst-<area>.json`),
+    `iter-1/analyst-synthesis.json`, and the draft's `iter-<n>/analyst.json`;
+    `survey` and `synthesis` are reserved slice ids. A resumed run works out
+    which stage it reached from the survey notes, the ledger and the draft.
+  - **Migration:** none. Front matter, the seven sections, the result
+    `states`, the 3-iteration cap and the judge slices are unchanged.
+
 - **Parallelism by default: sliced fan-out inside a skill, parallel groups in
   the workflow** (ADR-0110, amends ADR-0096 and ADR-0109).
   - **Coordinators fan out wherever the work splits.** A coordinator runs N

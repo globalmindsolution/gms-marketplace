@@ -947,22 +947,67 @@ tickets where the change is architecturally significant.
 ## 2a. `/analyze-requirements`
 
 Purpose: the first Build step — understand the ticket against the product
-docs and the codebase before anything is planned, and say plainly whether it
-is ready to plan.
+docs and the codebase before anything is planned, make its requirements clear
+with the user, and say plainly whether it is ready to plan.
 
-- Input: the ticket, the PRD / requirements / architecture doc sets, and the
-  codebase, each read when present. Pre-hook check: the ticket resolves. Brake: an **epic** is
+- Input: the ticket, the PRD / requirements / architecture doc sets, the
+  codebase, the clarification ledger and the previously published
+  `analysis.md`, each read when present. Pre-hook check: the ticket resolves. Brake: an **epic** is
   refused (epics are designed and fanned out, never implemented).
+- MUST run three stages, in order (2026-09-27):
+  1. **Impact — survey the codebase.** The analyst's SURVEY pass
+     (`pass` = `survey`) MUST be separate from its DRAFT pass: it derives the
+     impact map from the CODE and writes only the authoring notes
+     (`iter-1/authoring.md`), never the draft. When a published analysis
+     exists the survey MUST start from it — re-verify each impact row against
+     the current code (still true / changed / gone), carry forward the
+     answered `C-n` entries, and record `## Changes since the last analysis`.
+     The notes MUST end with `## Questions for the user` in four groups:
+     (a) open questions the code and docs cannot answer, (b) conventional
+     defaults phrased "Assumed: <default> — confirm or correct",
+     (c) proposed refined acceptance criteria, (d) a needs_design
+     recommendation. Researchable facts are never questions. A survey sliced
+     by repo area MUST be reconciled, after `acs.py notes merge` and before
+     any question is asked, by one SYNTHESIS pass (`slice="synthesis"`) that
+     records `## Synthesis`, turns an unsettled contradiction into a
+     group-(a) question and de-duplicates the questions; its file is joined
+     last into the notes. An unsliced survey skips it.
+  2. **Clarify — make the requirements clear with the user.** After the
+     ledger check (recorded answers are never re-asked), every remaining
+     question from all four groups MUST be asked in ONE grouped
+     AskUserQuestion, conventional defaults included, as confirmations. Each
+     answer is its own `clarify.py add` entry. Confirmed refined criteria and
+     a confirmed `needs_design` MUST be written into the ticket through
+     `acs.py ticket save` (a PATCH), so every later skill plans from the
+     clarified ticket; a rejected proposal is recorded and not applied. At
+     most ONE follow-up grouped round; anything still open after it is a
+     blocker. No questions → the stage is skipped, and the report says so.
+     Only when the user is unreachable (a non-interactive run with no answers
+     relayed) is a conventional default recorded `--source assumption` with
+     a rationale, stated in `## Assumptions`, with `ready_for_planning: true`
+     kept; unanswered criterion and needs_design proposals stay open ledger
+     entries and the ticket's own criteria are left as written.
+  3. **Store — write, review and publish for reuse.** One un-sliced DRAFT pass
+     (`pass` = `draft`) writes the analysis from the reconciled notes and the
+     recorded answers; the impact reviewer judges it (analyse → impact
+     review, at most 3 rounds); the coordinator publishes it and commits the
+     ticket's docs folder on the ticket branch. A reviewer finding that is a
+     new question for the user goes back through Stage 2.
 - MUST write `analysis.md` to the ticket's docs folder with front matter
   `{ticket, ready_for_planning, api_surface, needs_design_recommendation}`
   and the sections: Problem restated; Impact
   map (components/files/tests likely touched); Questions; Assumptions;
-  Risks; Refined acceptance criteria; Verdict.
-- Every question MUST go through the clarification ledger — asked with
-  AskUserQuestion when the user is reachable, else recorded
-  `--source assumption` with a rationale. Refined acceptance criteria are
-  **proposals** recorded in the ledger; the ticket's own criteria are
-  amended only on user confirmation.
+  Risks; Refined acceptance criteria; Verdict. `## Questions` lists every
+  `C-n` with its answer or status, `## Refined acceptance criteria` states
+  which criteria were confirmed into the ticket, and `## Assumptions` holds
+  only what the user did not answer.
+- The published `docs/tickets/<ID>/analysis.md` is the reusable record:
+  `/create-impl-plan`, `/create-api-contract` and `/create-test-docs` read it,
+  and the next run of this skill starts from it. It falls back to the
+  workspace partition only when there is no checkout.
+- The impact reviewer MUST check that every `## Questions for the user` item
+  was answered in the ledger or carried as an open/assumed entry, and that
+  every criterion the analysis marks confirmed matches the ticket.
 - MUST NOT set any rigor itself. The stakes recommendation this step used to
   run over the impact paths went with the axis (ADR-0095); what replaces it is
   EVIDENCE, not a setting. When the impact map reaches a surface the repo
@@ -973,7 +1018,8 @@ is ready to plan.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
 - `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
   apply to this ticket; `api_surface: false` skips it.
-- Subagents: `analyze-requirements-analyst`, `analyze-requirements-impact-reviewer` (analyse → impact review — ADR-0109).
+- Subagents: `analyze-requirements-analyst` (survey, synthesis and draft
+  passes), `analyze-requirements-impact-reviewer` (analyse → impact review — ADR-0109).
 - State file: `analyze-requirements-state.json`; states `ready_for_planning`,
   `api_surface`, `questions_open`.
 

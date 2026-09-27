@@ -593,7 +593,7 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `steps/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| authoring | `iter-<n>/authoring.md` (every skill that authors a deliverable, ADR-0092/ADR-0094; no skill writes `iter-<n>/plan.md`. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its planner's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the planner) | the survey role on iteration 1 where the skill has one (`surveyor`, `auditor`), else the write role | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the judge corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the judge's `authoring-conformance` dimension judges the draft against these notes. Sliced survey instances write `authoring-<id>.md`, joined into this file by `acs notes merge`; a single writer consuming the merged notes adds a `## Synthesis` section reconciling the slices |
+| authoring | `iter-<n>/authoring.md` (every skill that authors a deliverable, ADR-0092/ADR-0094; no skill writes `iter-<n>/plan.md`. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its planner's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the planner) | the survey role on iteration 1 where the skill has one (`surveyor`, `auditor`), else the write role | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the judge corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the judge's `authoring-conformance` dimension judges the draft against these notes. Sliced survey instances write `authoring-<id>.md`, joined into this file by `acs notes merge`; a single writer consuming the merged notes adds a `## Synthesis` section reconciling the slices (`/acs:analyze-requirements` runs that reconciliation as its own `slice="synthesis"` analyst pass, `authoring-synthesis.md` joined last, BEFORE the user is asked, so its draft pass consumes reconciled notes) |
 | survey / write | `iter-<n>/<role>.json` — `surveyor.json`, `author.json`, `planner.json`, `implementer.json`; a sliced instance writes `<role>-<id>.json` (parallel implementers: `implementer-<k>.json`), and the integration pass `<role>-integration.json` listing every seam it changed, … | survey and write roles | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
 | judge | `iter-<n>/<role>.md` — `reviewer.md`, `plan-reviewer.md`, `build-checker.md`, …; a sliced judge writes `<role>-<id>.md`, joined into `<role>.md` by `acs notes merge` | judge roles | the full report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
@@ -793,7 +793,7 @@ runnable on its own:
 
 | Skill | Reads | Writes | Downstream use |
 |---|---|---|---|
-| `analyze-requirements` | the ticket, PRD/requirements/architecture, the codebase | `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `stakes_recommendation`, `needs_design_recommendation`) | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s planner plans from the impact map; a not-ready analysis returns `needs_input` |
+| `analyze-requirements` | the ticket, PRD/requirements/architecture, the codebase, the ledger, and its own previously published `analysis.md` (the survey starts from it) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria and `needs_design` written into the ticket via `acs.py ticket save`), store — ending in `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `needs_design_recommendation`) published to `docs/tickets/<id>/` | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s planner plans from the impact map, and `create-api-contract` / `create-test-docs` read it; the next analysis of the ticket starts from it; a not-ready analysis returns `needs_input` |
 | `create-impl-plan` | `analysis.md` and `design.md` when present, else the ticket | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
 | `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts where the repo keeps them (else `docs/api/`) | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
 | `create-test-docs` | the ticket's ACs, `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
@@ -861,7 +861,7 @@ setting.
 
 | Skill | Subagents (kind) |
 |---|---|
-| `analyze-requirements` | `analyst` (write) · `impact-reviewer` (judge) |
+| `analyze-requirements` | `analyst` (write — a `survey` pass, a `synthesis` pass after a sliced survey, then a `draft` pass after the user's answers) · `impact-reviewer` (judge) |
 | `create-prd`, `create-requirements` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
 | `create-architecture` | `architect` (write) · `reviewer` (judge) |
 | `create-design` | `designer` (write) · `design-reviewer` (judge) |
@@ -1158,11 +1158,16 @@ rationale for assumptions.
    /create-ticket, design trade-offs at /create-design, requirement
    clarification (impact, assumptions, refined acceptance criteria) at
    /analyze-requirements, execution-level behavior at /code — batched, not dribbled.
-   `/acs:analyze-requirements` is where requirement questions now belong: it asks the
-   user through `AskUserQuestion` when one is reachable and records each
-   question through `clarify.py`, falling back to `--source assumption`
-   otherwise; `/acs:create-ticket` parks anything needing the codebase read for
-   it rather than asking up front.
+   `/acs:analyze-requirements` is where requirement questions now belong: its
+   survey pass ends with `## Questions for the user` (open questions,
+   conventional defaults to confirm, refined criteria, a needs_design
+   recommendation), and between that survey and its draft pass the
+   coordinator asks every one the ledger does not answer in ONE grouped
+   `AskUserQuestion` (at most one follow-up round), records each through
+   `clarify.py`, and writes confirmed criteria into the ticket with
+   `acs.py ticket save`. Only when no user is reachable does a default fall
+   back to `--source assumption`; `/acs:create-ticket` parks anything needing
+   the codebase read for it rather than asking up front.
 3. **Record everything.** Every answer received — interactively or via a
    /ship relay when re-invoking a step — is recorded with `clarify.py add/answer`
    BEFORE acting on it; coordinators feed the ledger into subagent `<context>`,

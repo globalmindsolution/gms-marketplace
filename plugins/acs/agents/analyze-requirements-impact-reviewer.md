@@ -1,6 +1,6 @@
 ---
 name: analyze-requirements-impact-reviewer
-description: Re-derives a ticket's impact map from the repository and judges the analysis draft fresh (grounding, completeness, API-surface verdict, front matter, scope) for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
+description: Re-derives a ticket's impact map from the repository and judges the analysis draft fresh (grounding, completeness including every question for the user and every confirmed criterion, API-surface verdict, front matter, scope) for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -28,7 +28,18 @@ cosmetic defect — it is the wrong pipeline.
    already cover the area): a file the change must touch and the map omits is
    a finding. Every acceptance criterion of the ticket appears in
    `## Refined acceptance criteria` with a verdict; every open ledger entry
-   appears in `## Questions`.
+   appears in `## Questions`. **Questions and ticket coverage:** every item
+   of the notes' `## Questions for the user` (after a sliced survey, the
+   `<!-- slice: synthesis -->` list) was either answered in the ledger or is
+   carried in `## Questions` as an open or assumed `C-n` entry — an item that
+   is neither was dropped between the survey and the draft, and is a
+   finding. Every criterion `## Refined acceptance criteria` marks
+   `confirmed into the ticket` matches the ticket's `acceptance_criteria`
+   as the ticket file now reads (re-read it; the coordinator amends it in
+   Stage 2 through `acs.py ticket save`), and a confirmed `needs_design` is
+   `true` in the ticket — a confirmed criterion the ticket does not carry,
+   or carries differently, is a finding. `## Assumptions` holds only what the
+   ledger does not record as answered.
 3. `api-surface` — the front matter's `api_surface` matches what the repository
    shows: a changed endpoint, CLI flag, hook or skill contract, emitted
    message, published schema, depended-on signature or persisted format makes
@@ -43,8 +54,9 @@ cosmetic defect — it is the wrong pipeline.
 5. `structure` — exactly the seven required headings, in order, each
    substantive; no section is a placeholder, empty, or "see the ticket".
 6. `scope` — the analysis analyzes and does not plan: no file-by-file build
-   order, no executor decomposition, no proposed patch. A criterion rewrite is
-   a proposal, never presented as already applied to the ticket.
+   order, no executor decomposition, no proposed patch. A criterion rewrite
+   the ledger does not record as confirmed is a proposal, never presented as
+   already applied to the ticket.
 7. `authoring-conformance` — the draft is what the analyst's authoring notes
    (`steps/analyze-requirements/iter-<n>/authoring.md`) surveyed: every
    impact-surface entry in the notes is a row of the draft's impact map (or
@@ -54,11 +66,17 @@ cosmetic defect — it is the wrong pipeline.
    cites a file you can open and that says what the entry claims. Missing
    notes are a blocking finding on their own — a draft with no survey behind
    it is unverifiable work. When the survey ran sliced (the notes carry
-   `<!-- slice: <area> -->` markers), judge that the notes' `## Synthesis` is
-   honest: a missing `## Synthesis` section, a contradiction between slices
-   it does not record, a resolution whose cited evidence does not settle it,
-   or a draft that silently follows one slice's claim over another's is a
-   blocking finding.
+   `<!-- slice: <area> -->` markers), the synthesis pass reconciled the
+   slices before the user was asked anything: judge that the notes'
+   `## Synthesis` is honest: a missing `## Synthesis` section, a
+   contradiction between slices it does not record, a resolution whose cited
+   evidence does not settle it, an unsettled contradiction that is not a
+   question for the user, a slice question the de-duplicated
+   `## Questions for the user` list lost, or a draft that silently follows
+   one slice's claim over another's is a blocking finding. When the notes
+   carry `## Changes since the last analysis` (the survey started from a
+   previously published analysis), every carried-forward impact row is
+   marked still true / changed / gone with evidence from the current code.
 
 ## Re-run cheap checks yourself
 
@@ -120,7 +138,9 @@ ever perform.
 Your prompt contains an XML `<task skill="analyze-requirements" phase="impact-reviewer"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the analysis draft, the analyst's authoring notes
-(`iter-<n>/authoring.md`), the analyst report (`iter-<n>/analyst.json`), the ticket document, `design.md`
+(`iter-1/authoring.md`, and `iter-<n>/authoring.md` on iteration ≥ 2), the
+analyst report (`iter-<n>/analyst.json`), the ticket document as amended by
+the user's confirmations, the clarification ledger, `design.md`
 when it binds, and the repo paths the impact map names), `<constraints>` (at
 least `required_sections` and `audience_style_profile`, plus `dimensions` when
 you are one slice), and optional `<context>` (prior findings). A sliced task
