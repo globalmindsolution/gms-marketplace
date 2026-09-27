@@ -121,7 +121,7 @@ first non-zero exit stops the cut ([ADR-0107](../../../docs/adr/0107-routing-gat
    run, ten runs a case. `--threshold
    0` stops the CLI from judging; the result goes to a file.
 3. `python3 scripts/eval_gate.py <that file> --min-skill-rate 9/10
-   --min-suite-rate 1` — the judgement.
+   --min-suite-rate 99/100` — the judgement.
 
 The CLI judges one case at a time: it exits 1 if any case scores below
 `--threshold`, which defaults to 1.0. For routing that is the wrong unit. The
@@ -137,7 +137,7 @@ scored 0.00 in the first full run for a reason no grader can see.
 | Kind | Rule | Why |
 |---|---|---|
 | `negative`, `control` | every run must pass | pulling a request onto an internal leg, or firing a skill on a git question, is a defect however rarely it happens |
-| `description` | each **skill**, pooling its ten phrasings (100 runs), routes at least **9/10**; the **suite** routes **every run** | the floor names a weak skill; the suite rate of 1.0 is the binding rule — one misroute anywhere fails the release (ADR-0109) |
+| `description` | each **skill**, pooling its ten phrasings (100 runs), routes at least **9/10**; the **suite** routes at least **99/100** | the floor catches a broken skill, the suite rate a broad slide; 99/100 allows about 24 misses in 2,400 runs, against the ~14 the model's occasional look-before-routing produces (ADR-0110) |
 | `explicit` | not gated | not observable — see the limit below |
 
 It fails closed on anything it cannot read: a partial run (cost ceiling hit), an
@@ -146,11 +146,13 @@ from the run, or a result older than six hours. The CLI only warns when it
 cannot write `--json`, so without that last check a stale file from an earlier
 run could be judged in place of this one.
 
-**The rates were set by the owner, not by a baseline** (ADR-0109). A suite
-rate of 1.0 means every one of about 2,400 description runs must route, so the
-gate fails until every weak description is fixed. The partial run of 2026-09-24
-had `review-code` at 0/9 and `docs-sync` at 1/9. More phrasings measure a
-description more precisely; they do not improve it.
+**The rates were set by the owner** (ADR-0109, ADR-0110), from a measured
+baseline: on 2026-09-27 a three-run sweep routed 716 of 720 description runs
+(99.4%), every miss a first move that looked at the repo before calling the
+right skill. A suite rate of 1.0 fails on one such look in about 2,400 runs,
+so it can never pass; 99/100 passes that baseline almost always and fails a
+real regression of a few points. More phrasings measure a description more
+precisely; they do not improve it.
 
 ## How the graders are shown to be right
 

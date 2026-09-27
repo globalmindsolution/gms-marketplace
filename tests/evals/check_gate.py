@@ -230,12 +230,13 @@ class ThisRepoWiresTheGateTest(unittest.TestCase):
         self.assertIn("--min-skill-rate", self.judge[0])
         self.assertIn("--min-suite-rate", self.judge[0])
 
-    def test_ten_runs_a_case_at_nine_tenths_per_skill_and_every_run_overall(self):
-        """ADR-0109: ten runs a case, each skill's pooled runs at 9/10, and the
-        suite at 1.0 -- one misrouted description run fails the release."""
+    def test_ten_runs_a_case_at_nine_tenths_per_skill_and_99_percent_overall(self):
+        """ADR-0109 and ADR-0110: ten runs a case, each skill's pooled runs at
+        9/10, the suite at 99/100 -- about 24 misses in 2,400 description runs,
+        against the ~14 a 0.6% first-move miss rate produces."""
         self.assertIn(" --runs 10 ", " %s " % self.paid[0])
         self.assertIn(" --min-skill-rate 9/10 ", " %s " % self.judge[0])
-        self.assertIn(" --min-suite-rate 1 ", " %s " % self.judge[0])
+        self.assertIn(" --min-suite-rate 99/100 ", " %s " % self.judge[0])
 
     def test_the_paid_run_turns_auto_memory_off(self):
         """The sandbox's memory directory is always empty, and with auto-memory

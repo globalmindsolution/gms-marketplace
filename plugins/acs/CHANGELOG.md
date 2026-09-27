@@ -362,6 +362,14 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **The routing suite rate is 99/100** (ADR-0110, amends ADR-0109).
+  - A three-run sweep routes 716 of 720 description runs (99.4%); every miss
+    is the model looking at the repo before calling the right skill. A suite
+    rate of 1.0 fails on one such look in ~2,400 runs, so it could never pass.
+  - Each skill must still route 9/10 of its runs, and negatives and controls
+    every run.
+  - **Migration:** none for consumers.
+
 - **The routing gate runs ten phrasings ten times, and every run must route**
   (ADR-0109, amends ADR-0107).
   - **Each of the 24 described skills has ten phrasings,** up from three. The

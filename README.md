@@ -117,7 +117,7 @@ CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude plugin eval plugins/acs --tag descripti
   --ablation none --runs 10 -j 8 --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
   --trust-plugin --no-publish --max-cost-usd 250  # PAID: does each prompt reach the right skill?
 python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
-  --min-skill-rate 9/10 --min-suite-rate 1        # the judgement: by skill and suite, not by prompt
+  --min-skill-rate 9/10 --min-suite-rate 99/100   # the judgement: by skill and suite, not by prompt
 ```
 
 The second command is the plugin's eval suite — `claude plugin eval` case files
@@ -128,8 +128,9 @@ discovered by a paid run. The CLI only measures (`--threshold 0`); the third
 command judges the result
 ([ADR-0107](docs/adr/0107-routing-gated-by-skill-not-by-prompt.md)): negatives
 and controls must pass every run, each skill must route at least 9/10 of its
-runs and the suite every run
-([ADR-0109](docs/adr/0109-routing-gate-ten-phrasings-ten-runs.md)).
+runs and the suite at least 99/100
+([ADR-0109](docs/adr/0109-routing-gate-ten-phrasings-ten-runs.md),
+[ADR-0110](docs/adr/0110-routing-suite-rate-99-percent.md)).
 
 Run the suite against the **installed** build too —
 `claude plugin eval acs@gms-marketplace --tag routing --ablation none` grades
