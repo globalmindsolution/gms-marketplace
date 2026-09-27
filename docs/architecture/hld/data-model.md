@@ -280,6 +280,20 @@ wrote it: `steps/<skill>/iter-<n>/<role>.json` for a survey or write role
 `derive` still reads a pre-rename run's `execute*.json`. Zero migration: no
 new state key, no new schema field.
 
+**Amendment (ADR-0110).** A role a coordinator fans out over disjoint slices
+writes the same artifacts with the slice id appended —
+`iter-<n>/<role>-<id>.json`, `iter-<n>/<role>-<id>.md`,
+`iter-<n>/authoring-<id>.md` — and the SubagentStop hook files the slice's
+snapshot at `iter-<n>/<role>-<id>-message.xml`, the id taken from the
+message's `slice` attribute. An integration pass writes
+`iter-<n>/<role>-integration.json`. `acs.py notes merge` joins survey and
+judge slices into the unsliced `authoring.md` and `<role>.md`, so every reader
+still finds one file. On the run side, a `ship.yaml` step entry may be a
+parallel group, and the members of one group may all be `in_progress` at
+once (I1 now reads "one stage"); `run next` derives `due` beside the cursor.
+Zero migration: no new state key, no new schema field on a state file; an
+un-sliced run writes exactly what it wrote before.
+
 **Amendment (ADR-0086).** The physical root each `REPO_PARTITION` resolves
 under is now `<main-checkout>/.acs/state-machine/<repo-id>/` —
 gitignored, anchored to the repo's main checkout (`git rev-parse

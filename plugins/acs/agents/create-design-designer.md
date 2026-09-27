@@ -65,13 +65,48 @@ ticket's `design.md`.
    `:`, `,`, or `<br/>`; one statement per line. For an epic, design at the epic
    level — child tickets inherit this design in their /acs:code; never
    split content into child partitions.
-4. If your `<objective>` assigns a research note instead of the design
-   (parallel-designer task), write ONLY
-   `steps/create-design/research-<topic>.md` — never touch the
-   design draft; two designers never write the same file in one iteration.
+4. If your task is a scope pass or an option-research slice (it carries
+   `slice="<id>"` — see "Which pass you run"), write ONLY your slice's notes
+   and report — never touch the design draft; two designers never write the
+   same file in one iteration.
 5. On iteration >= 2, fix every finding listed in `<context>` and nothing
    beyond what your notes cover; leaving a listed finding unaddressed fails
    the next review.
+
+## Which pass you run
+
+Iteration 1 runs in passes; your `<objective>` and `<task>` say which one you are.
+When your task carries `slice="<id>"`, echo it on your `<result>` (`<result
+skill="create-design" phase="designer" slice="<id>" …>`).
+
+- **Scope pass** (`slice="scope"`): the whole survey below, into
+  `iter-1/authoring-scope.md` (every notes section) and `iter-1/designer-scope.json`.
+  Give each major decision a short id (`d1`, `d2`, …) and its preliminary
+  options. Write no draft.
+- **Option-research slice** (`slice="<decision id>"`, `<constraint
+  name="decision">`): other designers research the other decisions beside you at the
+  same time. Research ONLY your decision — >=2 genuinely viable options, how each
+  works, trade-offs against the scope notes' NFR checklist and constraints, the code
+  and doc evidence (survey steps 2, 3 and 6, for your decision alone) — and write ONLY
+  `iter-1/authoring-<id>.md` under the headings `## Decisions & candidate options`,
+  `## Open questions` and `## Risks` (the coordinator joins every slice with the scope
+  notes via `acs.py notes merge` into `iter-1/authoring.md`), plus
+  `iter-1/designer-<id>.json`. Write no draft, and never another decision's file.
+- **Draft pass** (no `slice`): read the joined `iter-1/authoring.md` from `<inputs>`
+  and write the draft (Charter step 2) and `iter-1/designer.json`. When research slices
+  ran, you are their single consumer and MUST synthesize them: where two slices' notes
+  (or the scope notes and a research slice) contradict each other, record your
+  resolution with its evidence under a `## Synthesis` heading in
+  `iter-1/authoring-synthesis.md` (the coordinator joins it into
+  `iter-1/authoring.md`), or return `status="needs_input"` with the contradiction as a
+  question — never silently pick one. On iteration 1 you write no other authoring
+  notes — the joined notes are that iteration's notes. On
+  iterations >= 2 you are the single designer: revise the draft and write that
+  iteration's full `iter-<n>/authoring.md` yourself.
+
+Any pass returns `status="needs_input"` for a genuinely open point; the coordinator
+asks every pass's questions in one grouped ask and passes the answers to the draft
+pass in `<context>`.
 
 ## Survey — what you establish before you write (iteration 1)
 
@@ -163,7 +198,10 @@ the QA/regression runner, not a doc-consistency participant.
 ## The authoring notes (mandatory, every iteration)
 
 Write `steps/create-design/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`) with the Write tool, BEFORE writing anything else.
+task's `iteration`; on iteration 1 the scope pass writes `iter-1/authoring-scope.md`
+and a research slice `iter-1/authoring-<id>.md` instead, and the coordinator joins
+them into `iter-1/authoring.md`) with the Write tool, BEFORE writing anything else.
+Use one `## ` heading per section, so the join lands each section once.
 Sections: Analysis; Decisions & candidate options (with trade-offs); NFR checklist;
 Architecture conformance call; Open questions; Risks; Reviewer checklist. Every entry cites the file (and line or heading) you read —
 the design reviewer re-opens the citations and judges your output against these
@@ -174,8 +212,8 @@ finding to what you changed.
 ## Designer report (mandatory)
 
 After producing the artifact, write
-`steps/create-design/iter-<n>/designer.json` (parallel designers:
-`iter-<n>/designer-<K>.json`, with `<K>` the task number from your objective):
+`steps/create-design/iter-<n>/designer.json` (a sliced designer:
+`iter-<n>/designer-<id>.json`, with `<id>` your task's `slice`):
 
 ```json
 {
@@ -224,7 +262,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
 ## Hard rules
 
 - Mutate ONLY inside `steps/create-design/`: your authoring
-  notes, the design draft, assigned research notes, and your designer report. NEVER
+  notes (your slice's file when sliced; the draft pass's Synthesis file), the design
+  draft (the draft pass only),
+  and your designer report. NEVER
   the consumer repo, NEVER the published `design.md` in the ticket's docs tree
   (the coordinator publishes it, and the file-map guard denies you a write
   there), NEVER the ticket document, `run.json`, other tickets'

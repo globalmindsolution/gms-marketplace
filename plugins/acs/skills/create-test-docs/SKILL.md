@@ -12,7 +12,11 @@ decide whether this ticket is done, each traced to the criterion it proves. You
 orchestrate two subagents over XML — the **test-designer** decides the case set
 and writes the draft, the **trace-reviewer** re-derives traceability from the
 ticket and judges the draft fresh (test-designer → trace-reviewer); you never
-write the case content yourself.
+write the case content yourself. The review fans out in parallel — the
+trace-reviewer's eight dimensions across three reviewer slices on every review
+(Reviewer slices), spawned by you in one message and joined with
+`acs.py notes merge`. The test-designer does not: one test-designer writes the
+one case table (see its phase for why).
 
 You specify tests; you never write them and you never implement. No production
 code, no test code, no repo docs other than `test-cases.md`: `/acs:code`'s
@@ -159,6 +163,11 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
 5. The test-designer's authoring notes (`iter-<n>/authoring.md`) belong to
    their iteration, and a resumed run never re-runs an iteration whose
    trace-reviewer report is already on disk.
+6. The review resumes slice by slice: a resumed iteration re-runs ONLY the
+   reviewer slices whose `iter-<n>/trace-reviewer-<slice>.md` is missing,
+   spawned together in one message, then runs the join. Every slice report on
+   disk but no joined `iter-<n>/trace-reviewer.md` → run the join alone; never
+   re-run a slice whose report is on disk.
 
 If `context.handoff_summary` exists, read it plus
 `steps/create-test-docs/handoff-context.md` (when present), do a
@@ -206,7 +215,8 @@ test-designer authors the remediation.
 
 **What an iteration counts:** one test-designer → trace-reviewer round.
 
-Decomposition is YOURS alone — subagents never spawn subagents.
+Decomposition is YOURS alone — subagents never spawn subagents, so the
+parallel review below is yours to spawn and yours to join.
 
 Messaging rules (`the SubagentStop hook's message check`):
 
@@ -217,6 +227,11 @@ Messaging rules (`the SubagentStop hook's message check`):
   below) and `<constraint name="audience_style_profile">implementers and
   reviewers (precise, executable cases)</constraint>`, plus `suites` (the
   configured suite names) and `quality_dir` when the repo has one.
+- A sliced instance's task carries its slice id,
+  `<task skill="create-test-docs" phase="trace-reviewer" slice="trace" …>`,
+  and its `<result … slice="trace" …>` echoes it, so the SubagentStop snapshot
+  lands at `iter-<n>/<phase>-<slice>-message.xml` and parallel results never
+  overwrite each other. A single, un-sliced instance omits `slice`.
 - Validate EVERY message you send and receive — the SubagentStop hook checks
   each returned `<result>`'s `skill=`, `phase=` and `iteration=`. On invalid:
   re-request once with the validation error quoted; still invalid → fail the
@@ -304,6 +319,14 @@ contracts matter here, because machines read them:
 On iteration ≥ 2 the test-designer fixes every finding in `<context>` and
 nothing else.
 
+**One test-designer, never sliced.** `test-cases.md` is one table whose `TC-`
+ids run contiguous from 1 and stay stable across revisions, whose cases may
+each prove several criteria, and whose counts the front matter must equal — a
+split by criterion group could neither number the rows before they exist nor
+share a case between groups, so there is nothing disjoint to hand out. With
+one writer there are no seams, so no integration pass runs, and with no survey
+slices there is no merged survey for it to synthesize.
+
 ### Phase: trace-reviewer — `acs:create-test-docs-trace-reviewer`
 
 Spawn `acs:create-test-docs-trace-reviewer` AFTER the draft is written, with
@@ -313,6 +336,47 @@ plan and contract when they exist, and the repo's test directories. It judges
 fresh — never forward the test-designer's reasoning — re-derives the
 traceability from the ticket's criteria itself, and writes
 `steps/create-test-docs/iter-<n>/trace-reviewer.md`.
+
+#### Reviewer slices — the eight dimensions in three parallel judges
+
+The trace-reviewer has eight check dimensions, so every review runs as three
+fresh instances of the SAME agent, one per slice, each told its dimensions in
+`<constraint name="dimensions">`:
+
+| slice | dimensions | owns the check |
+| --- | --- | --- |
+| `trace` | 1 `traceability`, 5 `contract-coverage`, 8 `authoring-conformance` | walking every acceptance criterion and contract item against the table |
+| `cases` | 2 `case-quality`, 3 `levels-and-suites`, 7 `scope` | reading the quality policy and every suite file the cases name |
+| `shape` | 4 `front-matter`, 6 `structure` | `front_matter_check.py`, `structure_lint.py` and the gate's `e2e_case_count` |
+
+Spawn the three in ONE message — one Agent call per slice, all in the same
+assistant message, in the foreground (three is within `max_parallel = 4`) —
+and wait for ALL of them. Each writes `iter-<n>/trace-reviewer-<slice>.md`;
+join them, in the table's order, into the one report every reader expects:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-test-docs/iter-<n>/trace-reviewer.md \
+  <partition>/steps/create-test-docs/iter-<n>/trace-reviewer-trace.md \
+  <partition>/steps/create-test-docs/iter-<n>/trace-reviewer-cases.md \
+  <partition>/steps/create-test-docs/iter-<n>/trace-reviewer-shape.md
+```
+
+**De-duplication — the join is the synthesis.** The slices own disjoint
+dimensions, so the merge is the synthesis; you additionally drop a finding
+that cites the same location and the same defect as another slice's finding,
+keeping the one with the higher severity, and say so in the joined report:
+append a `## De-duplicated findings` section to
+`iter-<n>/trace-reviewer.md` naming each dropped finding, its slice, and the
+kept finding it duplicates. Two findings on the same location for different
+defects are both kept.
+
+**The pass rule for sliced reviewers.** The iteration passes only if EVERY
+slice returned `status="completed"` with zero blocking findings. Any slice's
+blocking finding blocks, and all three slices' findings — de-duplicated,
+otherwise verbatim — go to the next test-designer. A slice that returned `status="failed"` or no usable
+`<result>` (after the one re-request) fails the iteration exactly as a
+blocking finding does — never "pass with a missing slice".
 
 ALL blocking findings block — zero blocking findings = pass.
 `status="completed"` means the review RAN; the empty `<findings>` is the

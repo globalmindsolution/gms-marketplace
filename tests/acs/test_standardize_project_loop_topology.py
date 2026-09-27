@@ -158,5 +158,99 @@ class FrozenAllowlistTest(unittest.TestCase):
         self.assertRegex(body, r"(?i)outside the frozen iteration-1 Additive-surface allowlist is \*\*NOT executable\*\*")
 
 
+class ParallelismTest(unittest.TestCase):
+    """The audit runs as category slices joined by `acs.py notes merge` into the
+    frozen notes, scaffolders fan out per allowlist slice from iteration 1, and
+    the additive-checker runs as dimension slices with the additive-only check
+    whole in one of them."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.norm = norm(read(SKILL))
+        cls.auditor = norm(read(AUDITOR))
+        cls.scaffolder = norm(read(SCAFFOLDER))
+        cls.checker = norm(read(CHECKER))
+
+    def test_every_fan_out_is_one_message_capped_at_four(self):
+        self.assertIn("### Parallelism — audit slices, scaffolder slices, additive-checker slices", self.norm)
+        self.assertRegex(self.norm, r"spawn the N instances of the SAME agent in ONE message")
+        self.assertIn("`max_parallel = 4`", self.norm)
+        self.assertRegex(self.norm, r"(?i)in waves of four")
+
+    def test_audit_slices_split_the_categories_and_join_into_the_frozen_notes(self):
+        self.assertIn("**Audit slices — iteration 1, the default.**", self.norm)
+        for slice_id in ("`structure`", "`docsets`", "`tooling`"):
+            self.assertIn("| %s |" % slice_id, self.norm)
+        self.assertIn('<constraint name="audit_categories">', self.norm)
+        self.assertRegex(self.norm, r"Only the `tooling` slice writes the `## Additive-surface allowlist` and `## Task list` sections, so the frozen allowlist has exactly one author")
+        self.assertIn("--out <partition>/steps/standardize-project/iter-1/authoring.md", self.norm)
+        for slice_id in ("structure", "docsets", "tooling"):
+            self.assertIn("iter-1/authoring-%s.md" % slice_id, self.norm)
+        self.assertRegex(self.norm, r"Open questions from ALL slices go to the user in ONE grouped clarification-ledger ask")
+
+    def test_scaffolder_slices_partition_the_task_list_by_path_from_iteration_one(self):
+        self.assertIn("**Scaffolder slices — the default, from iteration 1.**", self.norm)
+        for slice_id in ("`ci`", "`precommit`", "`coverage`", "`e2e`"):
+            self.assertIn("| %s |" % slice_id, self.norm)
+        self.assertRegex(self.norm, r"\*\*The no-overlap guarantee:\*\* slices are drawn by target PATH, never by concern")
+        self.assertIn('<constraint name="files">', self.norm)
+        self.assertRegex(self.norm, r"Scaffolders write files only — you commit once, after the pass")
+        self.assertNotIn("On iterations 2-3 you MAY run several scaffolders in parallel", self.norm)
+
+    def test_additive_checker_slices_keep_the_additive_only_check_whole(self):
+        self.assertIn("**Additive-checker slices — the default, every iteration.**", self.norm)
+        for slice_id in ("`diff`", "`conformance`"):
+            self.assertIn("| %s |" % slice_id, self.norm)
+        self.assertIn('<constraint name="dimensions">', self.norm)
+        self.assertIn("The additive-only check stays whole in the `diff` slice", self.norm)
+        self.assertIn("Grounding policing applies in every slice", self.norm)
+        self.assertIn("--out <partition>/steps/standardize-project/iter-<n>/additive-checker.md", self.norm)
+        for slice_id in ("diff", "conformance"):
+            self.assertIn("iter-<n>/additive-checker-%s.md" % slice_id, self.norm)
+
+    def test_the_sliced_judge_pass_rule(self):
+        self.assertRegex(self.norm, r"\*\*Pass rule for sliced judges:\*\* the iteration passes only if EVERY slice returned `status=\"completed\"` with zero blocking findings")
+        self.assertIn('never "pass with a missing slice"', self.norm)
+        self.assertRegex(self.norm, r"all slices' findings go verbatim to the next scaffolders")
+
+    def test_resume_reruns_only_the_missing_slices(self):
+        self.assertRegex(self.norm, r"A resumed iteration re-runs only the slices whose report is missing")
+        self.assertIn("iter-<n>/<phase>-<slice>-message.xml", self.norm)
+
+    def test_the_agents_know_how_to_run_as_one_slice(self):
+        for body in (self.auditor, self.scaffolder, self.checker):
+            self.assertIn("## When you are one slice", body)
+        self.assertIn("iter-1/authoring-<slice>.md", self.auditor)
+        self.assertIn("iter-1/auditor-<slice>.json", self.auditor)
+        self.assertIn("### slice: <id>", self.auditor)
+        self.assertIn("iter-<n>/scaffolder-<slice>.json", self.scaffolder)
+        self.assertIn("iter-<n>/additive-checker-<slice>.md", self.checker)
+        self.assertRegex(self.checker, r"\*\*Grounding policing always applies\*\*")
+        self.assertRegex(self.checker, r"never calls `classify_additive_diff` and never raises an `additive-only` finding")
+
+    def test_an_integration_pass_synthesizes_the_slices_before_the_additive_check(self):
+        self.assertIn("**The integration pass — synthesis before the additive-check.**", self.norm)
+        self.assertRegex(self.norm, r"BEFORE the additive-checker, spawn ONE more scaffolder with `slice=\"integration\"`")
+        self.assertIn("reconciles ONLY the seams between slices, never a slice's substance", self.norm)
+        for seam in ("**config files touched by more than one slice**", "**the README**",
+                     "**the survey synthesis**"):
+            self.assertIn(seam, self.norm)
+        self.assertRegex(self.norm, r"Its writable surface is the frozen allowlist and nothing more")
+        self.assertIn("iter-<n>/scaffolder-integration.json", self.norm)
+        self.assertRegex(self.norm, r"The integration pass is skipped when only one scaffolder ran")
+        self.assertIn('slice="integration"', self.scaffolder)
+        self.assertRegex(self.checker, r"You judge the INTEGRATED result")
+
+    def test_the_consumer_of_the_merged_audit_notes_keeps_a_synthesis(self):
+        self.assertIn("**Synthesis of the audit slices.**", self.norm)
+        self.assertRegex(self.norm, r"records the resolution with the evidence under a `## Synthesis` section of its own notes, `iter-1/scaffolder-notes\.md`, or raises it as an open question — never silently picks one")
+        self.assertRegex(self.scaffolder, r"`## Synthesis` section of your own notes, `iter-1/scaffolder-notes\.md`")
+        self.assertRegex(self.scaffolder, r"do not pick a side")
+
+    def test_the_join_is_followed_by_judge_de_duplication(self):
+        self.assertIn("**De-duplicate after the join.**", self.norm)
+        self.assertRegex(self.norm, r"Drop a finding that cites the same location and the same defect as another slice's finding, keeping the higher severity")
+        self.assertIn("`## De-duplicated findings`", self.norm)
+
 if __name__ == "__main__":
     unittest.main()

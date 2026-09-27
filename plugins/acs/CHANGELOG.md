@@ -362,6 +362,62 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **Parallelism by default: sliced fan-out inside a skill, parallel groups in
+  the workflow** (ADR-0110, amends ADR-0096 and ADR-0109).
+  - **Coordinators fan out wherever the work splits.** A coordinator runs N
+    instances of the SAME agent in one message, each over a disjoint slice,
+    at most `max_parallel = 4` per phase (a skill with its own cap keeps it:
+    `/acs:create-docs` stays at 2 for doc sets). Writers slice by default,
+    from iteration 1, whenever the deliverable splits into disjoint files;
+    judges slice at five or more check dimensions (two or three slices, each
+    deterministic checker and each one-off run in exactly one of them);
+    surveys slice when the scope spans two or more disjoint top-level repo
+    areas, with every slice's open questions in one grouped ask. Each
+    SKILL.md states its own partition rule.
+  - **Slices are named on the message and in the files.** Tasks and results
+    carry `slice="<id>"`; a slice writes `iter-<n>/<role>-<id>.json|.md` or
+    `iter-<n>/authoring-<id>.md`, and the SubagentStop hook files its snapshot
+    at `iter-<n>/<role>-<id>-message.xml`, so siblings never overwrite each
+    other. A slice id is letters, digits, `_` and `-`; the hook refuses
+    anything else.
+  - **New: `acs.py notes merge --out <file> <slice files…>`** joins slices
+    deterministically, by `## ` heading, into the one file every reader and
+    checker expects (`authoring.md`, `<role>.md`). Slice ids are each input's
+    stem minus the prefix the inputs share, so ids may contain hyphens. A
+    missing slice fails the merge.
+  - **Joining is not synthesizing.** After parallel writers, one more
+    instance of the same writer role runs with `slice="integration"` before
+    the judge (`/acs:code-complex`'s integration implementer, generalised): it
+    reconciles only the seams the skill names — shared terms and IDs,
+    cross-references, index and overview files, shared fixtures and config —
+    records them in `iter-<n>/<role>-integration.json`, returns an unsettled
+    conflict as `needs_input`, and is skipped when one writer ran. A single
+    writer consuming merged survey slices records their contradictions under
+    `## Synthesis`; the coordinator de-duplicates judge slices' findings.
+  - **A sliced judge passes only when every slice passed** — completed, zero
+    blocking findings. A failed or missing slice fails the iteration, and a
+    resumed iteration re-runs only the slices whose report is missing.
+  - **`ship.yaml` may declare a parallel group.** A step entry may be a list
+    of two or more skill names; the shipped workflow runs
+    `[create-e2e-tests, docs-sync]` as one, after `review-code` and before
+    `run-e2e-tests`. `acs.py run next` adds `due` (every unfinished member of
+    the cursor's stage) and `parallel`; invariant I1 now allows the members of
+    ONE stage to be `in_progress` at once, and `acs step start` refuses a step
+    only while a step of another stage is open. `/acs:ship` starts every
+    member, advances their coordinators in lockstep in its own session, asks
+    you once for all of them, and lets each finish itself. `acs workflow
+    validate` also refuses a skill named twice and a loop end inside a group.
+    The out-of-order advisory now names the cursor and stays silent for a
+    member that is due.
+  - **The file-map guard handles several live writers.** A write is judged
+    against its own writer's map when the hook payload names the agent, else
+    against the union of every live writer's scope — never against whichever
+    writer started last.
+  - **Migration:** none. A `ship.yaml` override without a group, and a skill
+    that never slices, behave exactly as before. Parallel commits on one
+    branch that meet git's `index.lock` wait and retry; the lock is never
+    deleted.
+
 - **⚠️ BREAKING: subagents follow each skill's logic, and a skill carries no
   manifest** (ADR-0109, amends ADR-0092, ADR-0096 and ADR-0101).
   - **Roles are named for the work.** The generic `acs:<skill>-executor` /

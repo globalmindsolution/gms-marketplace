@@ -14,7 +14,14 @@ This module owns:
                                       schema (acs_lib.schemasubset, since
                                       hooks may not import jsonschema) and the
                                       semantic checks below
-  steps_of / loop_for                 the list and its cycles
+  steps_of / stages_of / loop_for     the list, its parallel groups and its
+                                      cycles
+
+A step entry is a skill name, or a LIST of skill names -- a PARALLEL GROUP
+whose members `/acs:ship` runs side by side (`- [docs-sync, create-e2e-tests]`).
+Each entry is a STAGE; the stages run in order, and a group's members may all
+be in progress at once. A group is written by the author, never derived: the
+skills declare nothing about each other, so nothing could derive it.
 
 A workflow is an ORCHESTRATOR, not a contract. It keeps the order the skills
 run in and nothing else: each skill is independent, reads what it finds, and
@@ -153,29 +160,50 @@ def validate_workflow(doc, lines=None, path=None):
         node, message = errors[0]
         _fail("%s: %s" % (pointer(node), message), path, lines, node)
 
-    steps = doc["steps"]
-    for index, step in enumerate(steps):
-        node = ("steps", index)
-        if not is_skill(step):
-            _fail("steps[%d]: %r is not a skill that ships (no skills/%s/SKILL.md)"
-                  % (index, step, step), path, lines, node)
-        entry = entry_point_of(step)
-        if entry:
-            _fail("steps[%d]: %r is a leg of %r, not a step — name %r and let it dispatch"
-                  % (index, step, entry, entry), path, lines, node)
+    seen = set()
+    for index, entry in enumerate(doc["steps"]):
+        members = entry if isinstance(entry, list) else [entry]
+        for position, step in enumerate(members):
+            node = ("steps", index, position) if isinstance(entry, list) else ("steps", index)
+            label = ("steps[%d][%d]" % (index, position) if isinstance(entry, list)
+                     else "steps[%d]" % index)
+            if not is_skill(step):
+                _fail("%s: %r is not a skill that ships (no skills/%s/SKILL.md)"
+                      % (label, step, step), path, lines, node)
+            leg_entry = entry_point_of(step)
+            if leg_entry:
+                _fail("%s: %r is a leg of %r, not a step — name %r and let it dispatch"
+                      % (label, step, leg_entry, leg_entry), path, lines, node)
+            if step in seen:
+                _fail("%s: %r appears twice — a skill is one step of a run"
+                      % (label, step), path, lines, node)
+            seen.add(step)
 
-    _validate_loops(doc.get("loops") or [], steps, path, lines)
+    _validate_loops(doc.get("loops") or [], doc["steps"], path, lines)
     return doc
 
 
-def _validate_loops(loops, steps, path, lines):
-    order = dict((step, index) for index, step in enumerate(steps))
+def _validate_loops(loops, entries, path, lines):
+    """Loop endpoints are whole stages: a loop that started or ended inside a
+    parallel group would re-enter half of it, and what the other half had
+    already done would be neither kept nor redone."""
+    order = {}
+    grouped = set()
+    for index, entry in enumerate(entries):
+        for step in (entry if isinstance(entry, list) else [entry]):
+            order[step] = index
+            if isinstance(entry, list):
+                grouped.add(step)
     for index, loop in enumerate(loops):
         node = ("loops", index)
         for key in ("from", "back_to"):
             if loop[key] not in order:
                 _fail("loops[%d].%s: %r is not a step of this workflow"
                       % (index, key, loop[key]), path, lines, node)
+            if loop[key] in grouped:
+                _fail("loops[%d].%s: %r is inside a parallel group; a loop's ends "
+                      "must be steps of their own" % (index, key, loop[key]),
+                      path, lines, node)
         if order[loop["back_to"]] >= order[loop["from"]]:
             _fail("loops[%d]: back_to %r is not EARLIER than from %r — a loop that does "
                   "not go back is not a loop" % (index, loop["back_to"], loop["from"]),
@@ -192,9 +220,33 @@ def validate_workflow_file(path):
 # Reading a validated workflow
 # ---------------------------------------------------------------------------
 
+def stages_of(doc):
+    """The stages, in order: each a list of the skill names that may run at
+    once -- one name for a plain step, several for a parallel group."""
+    return [list(entry) if isinstance(entry, list) else [entry]
+            for entry in (doc.get("steps") or [])]
+
+
 def steps_of(doc):
-    """The step list: skill names, in order."""
-    return list(doc.get("steps") or [])
+    """Every step, flattened, in order: skill names. A group's members keep
+    their written order, which is the order `/acs:ship` starts them in."""
+    return [step for stage in stages_of(doc) for step in stage]
+
+
+def stage_of(doc, step):
+    """The stage (list of names) that holds `step`, else None."""
+    for stage in stages_of(doc):
+        if step in stage:
+            return stage
+    return None
+
+
+def stage_index(doc, step):
+    """The index of the stage that holds `step`, else None."""
+    for index, stage in enumerate(stages_of(doc)):
+        if step in stage:
+            return index
+    return None
 
 
 def loops_of(doc):

@@ -17,6 +17,13 @@ planner (ADR-0092): the suite layout is decided in the test-writer's own
 authoring notes, never in a separate plan. You never write the suite code
 yourself.
 
+Both roles fan out (see **Parallel test-writers** and **Parallel
+suite-runner** below): one test-writer per suite file, from iteration 1,
+followed by one integration test-writer over the seams between them, and the
+suite-runner's seven dimensions split across three slices, of which exactly
+one performs the single suite run. You spawn each fan-out in ONE message, join
+its outputs deterministically, and reconcile them before the next phase.
+
 You write tests; you never write product code. Not one line, not "a small fix
 to make the test pass": the implementation is `/acs:code`'s, and a suite that
 only passes because you changed the product is not an end-to-end test.
@@ -213,6 +220,14 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    suite-runner; a suite-runner report (`iter-<n>/suite-runner.md`) with
    findings and no later test-writer → spawn the test-writer with those
    findings as `<context>`; nothing on disk → iteration 1 test-writer.
+   **A sliced phase resumes slice by slice**: re-run only the slices whose
+   report is missing — a test-writer slice with no `iter-<n>/test-writer-<k>.json`,
+   a suite-runner slice with no `iter-<n>/suite-runner-<slice>.md` — in one
+   message, then the integration test-writer when more than one test-writer ran
+   and `iter-<n>/test-writer-integration.json` is missing, then the join
+   (`acs.py notes merge`) that has not produced its `--out` file yet. A slice whose report is on disk is never re-spawned; in
+   particular a `run` slice with its report on disk has already spent the
+   iteration's one suite run.
 5. There is no plan artifact to reuse: the test-writer's authoring notes
    (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
    never re-runs an iteration whose suite-runner report is already on disk.
@@ -254,9 +269,14 @@ fresh and runs it once. On iterations 2-3 the suite-runner's findings go
 verbatim into the next test-writer `<task>` `<context>` and the test-writer
 writes the remediation.
 
-**What an iteration counts:** one test-writer → suite-runner round.
+**What an iteration counts:** one test-writer → suite-runner round, however
+many slices each phase ran.
 
-Decomposition is YOURS alone — subagents never spawn subagents.
+Decomposition is YOURS alone — subagents never spawn subagents. Every fan-out
+below is yours: N instances of the SAME agent spawned in ONE message (one Agent
+call per slice, all in the same assistant message, foreground), all waited on,
+then joined before the next phase. At most `max_parallel = 4` instances per
+message; beyond that, waves of four, each wave one message.
 
 Messaging rules (`the SubagentStop hook's message check`):
 
@@ -264,6 +284,11 @@ Messaging rules (`the SubagentStop hook's message check`):
   phase="test-writer|suite-runner" ticket-id="<id>" iteration="n">` carrying
   `<objective>`, `<inputs>` (file refs) and `<constraints>`. The phase is the
   role; each returns a `<result skill="create-e2e-tests" phase="<role>" …>`.
+  A sliced instance's task carries `slice="<id>"` as well
+  (`<task skill="create-e2e-tests" phase="test-writer" slice="2" …>`) and its
+  result echoes it, so the SubagentStop snapshots of parallel slices land at
+  distinct names and never collide; a single, un-sliced instance omits
+  `slice`.
 - Every phase's `<constraints>` carry `e2e_command` (and `e2e_setup` /
   `e2e_teardown` when configured), `e2e_root` (the location resolved above),
   `tc_ids` (the `TC-<n>` ids in scope, comma-separated), and
@@ -274,7 +299,10 @@ Messaging rules (`the SubagentStop hook's message check`):
 - Each role writes its own per-iteration report — the test-writer
   `steps/create-e2e-tests/iter-<n>/test-writer.json`, the suite-runner
   `steps/create-e2e-tests/iter-<n>/suite-runner.md` — and the hook snapshots
-  each returned message as `iter-<n>/<phase>-message.xml`. Persist anything
+  each returned message as `iter-<n>/<phase>-message.xml`. A sliced instance
+  writes `iter-<n>/test-writer-<k>.json` (with its notes in
+  `iter-<n>/authoring-<k>.md`) or `iter-<n>/suite-runner-<slice>.md`, and its
+  snapshot is `iter-<n>/<phase>-<slice>-message.xml`. Persist anything
   else you decide under `iter-<n>/` at the phase boundary, BEFORE starting the
   next phase.
 - Spawn subagents with the Agent tool: `subagent_type:
@@ -296,6 +324,86 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
 ### Phase: test-writer — `acs:create-e2e-tests-test-writer`
 
+#### Parallel test-writers — one per suite file
+
+**The partition rule.** One slice is one **suite file**: the test-writer that
+owns it writes that file, the fixtures only it needs, and nothing else. Decide
+the suite files — not their contents — before you spawn anything, by the rule
+the test-writer's own survey applies: one suite file per ticket is the default,
+and a second exists only where the harness forces it — e2e cases in scope that
+belong to different harness projects or test roots (read the runner config),
+different app entry points, or different target suites in their `Suite` cell.
+Group the e2e cases by the suite file they land in; each group is one slice:
+
+- **Slice id** = the task number `k` (`1`, `2`, …) you declare its file map
+  under; its `<constraints>` carry `tc_ids` = only its group's ids.
+- **Its file map** = the directory that suite's harness root gives it when no
+  other slice's suite lives under it (the usual case: a harness project with
+  its own test root), else the exact suite file path. Declare one task per
+  slice (below). No path may be covered by two tasks — check
+  `acs.py filemap show --skill create-e2e-tests --iteration <n>` before
+  spawning; that check is what guarantees two slices cannot overlap. A new
+  fixture a slice needs outside its map comes back as `needs_input` naming the
+  file; add it to THAT slice's map only when no other slice's map covers it,
+  and otherwise run the two groups as one slice.
+- **One group → one un-sliced test-writer** (`--task 1`, the whole e2e
+  location, no `slice` attribute, `test-writer.json` and `authoring.md`). Most
+  tickets have one suite file, so this is the partition rule applied, not an
+  exception to it. On the acceptance-criteria fallback (no `test-cases.md`)
+  the flows are not derived until the test-writer's survey, so one un-sliced
+  test-writer runs.
+
+Several groups → spawn one test-writer per slice in ONE message (at most
+`max_parallel = 4`, waves beyond that), each task carrying `slice="<k>"`, and
+wait for all of them. Each sliced test-writer surveys its own group and writes
+`iter-<n>/authoring-<k>.md` and `iter-<n>/test-writer-<k>.json`. The
+test-writers never commit — you do, once, below — so there is no shared-branch
+commit race to manage here. Questions: when several slices return
+`needs_input`, wait for all of them, then ask every open question from every
+slice in ONE grouped clarification-ledger ask (User interaction), and re-run
+only the slices that asked, each under its own `k`, in one message.
+
+**Then the integration test-writer — a join is not a synthesis.** Suites
+written side by side can disagree where they meet, so after every slice has
+returned and BEFORE the suite-runner, spawn ONE more test-writer, alone, with
+`slice="integration"`. Its task names every slice's notes, reports and suite
+files; its file map is the whole resolved e2e location, declared as one more
+task (`--task <m>`, the next free number). It reconciles ONLY this skill's
+seams:
+
+- **shared fixtures and helpers** — the same fixture, seed or helper added by
+  two slices, twice or differently: one copy, every suite pointing at it;
+- **suite registration** — whatever the harness needs, inside the e2e
+  location, to collect every suite (an index, a `conftest.py`, a shared setup
+  module that lists them); never the runner config or the configured command,
+  which stay out of this skill's scope;
+- **shared ids and names** — a `TC-<n>` claimed by two suites, a test name, tag
+  or data key both use;
+- **contradictions between the slices' notes** — resolved with the evidence
+  under a `## Synthesis` section of its own notes, or raised as an open
+  question; never one side silently picked.
+
+It never rewrites a slice's tests, returns `needs_input` with a question on a
+conflict the evidence cannot settle, and writes
+`iter-<n>/authoring-integration.md` and `iter-<n>/test-writer-integration.json`
+(each seam it changed: file, what, why, which slices). It is skipped when only
+one test-writer ran. Then **join** the notes, deterministically, never by
+merging prose yourself — the integration notes last:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-e2e-tests/iter-<n>/authoring.md \
+  <partition>/steps/create-e2e-tests/iter-<n>/authoring-1.md <…/authoring-2.md> … \
+  <partition>/steps/create-e2e-tests/iter-<n>/authoring-integration.md
+```
+
+It merges by `## ` heading, so the suite-runner and every other reader still
+read ONE `authoring.md` with each section once. The suite-runner judges the
+integrated result, and a seam inconsistency it finds — a duplicated fixture, a
+suite the harness does not collect, an id two suites claim — is a finding for
+the next iteration's integration pass (or for the owning slice, when the
+defect sits inside one suite).
+
 **Declare the file map before you spawn the test-writer** — the PreToolUse
 guard enforces it while any `write`-kind agent runs, and an undeclared map
 means no enforcement at all:
@@ -307,7 +415,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" filemap set \
 
 `--skill create-e2e-tests` is not optional: the guard checks a writer against
 the map declared for ITS OWN skill, and `filemap set` defaults to `code`, so a
-map declared without it leaves the test-writer unguarded.
+map declared without it leaves the test-writer unguarded. With several slices,
+declare one task per slice, each with its own map:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" filemap set \
+  --skill create-e2e-tests --iteration <n> --task <k> --file <that slice's root or suite file>
+```
 
 Declare the resolved e2e location itself — the guard matches a directory
 entry as a prefix, so every suite and fixture path the test-writer decides on
@@ -335,16 +449,73 @@ User interaction and re-run the test-writer for the same iteration with the
 answers in `<context>`.
 
 On iteration ≥ 2 the test-writer fixes every finding in `<context>` and
-nothing else — no plan phase in between.
+nothing else — no plan phase in between. With slices, route each finding
+verbatim to the slice that owns it — the slice whose map holds the finding's
+`file`, or whose `tc_ids` hold its case id; a finding naming neither goes to
+every slice; a seam finding goes to the integration pass. Re-declare and
+re-spawn only the slices with a finding, in one message, then the integration
+pass whenever a slice re-ran or a seam finding was routed to it. A slice with
+none keeps its suites as they are, and its latest notes join this iteration's
+merge from where they are (`iter-<m>/authoring-<k>.md`), so
+`iter-<n>/authoring.md` still covers every suite.
 
 ### Phase: suite-runner — `acs:create-e2e-tests-suite-runner`
 
 Spawn `acs:create-e2e-tests-suite-runner` AFTER the suites are written, with
-`<inputs>` of the suite files, the authoring notes (`iter-<n>/authoring.md`),
-the test-writer report, `test-cases.md` (or the ticket, on the fallback), the
+`<inputs>` of the suite files, the authoring notes (`iter-<n>/authoring.md`,
+joined when the test-writers ran sliced), the test-writer report(s)
+(`iter-<n>/test-writer*.json`), `test-cases.md` (or the ticket, on the fallback), the
 API contract when it exists, and the existing suites it must match. It judges
 fresh — never forward the test-writer's reasoning — and writes
 `steps/create-e2e-tests/iter-<n>/suite-runner.md`.
+
+#### Parallel suite-runner — three slices, one suite run
+
+The suite-runner has seven check dimensions, so it runs as three fresh
+instances of the SAME agent, spawned in ONE message, each task carrying
+`slice="<id>"` and `<constraint name="dimensions">…</constraint>` naming its
+dimension numbers:
+
+| slice | dimensions | owns |
+|---|---|---|
+| `cases` | 1 `coverage`, 2 `fidelity`, 7 `authoring-conformance` | the two-way `TC-<n>` id comparison |
+| `style` | 4 `house-style`, 5 `determinism` | reading only |
+| `run` | 3 `wiring`, 6 `scope` | **the single suite run** (setup, command, teardown) and `git status --porcelain` |
+
+The run stays in exactly one slice: `run` is the only instance that executes
+the configured e2e command, once, and the only one that classifies a failure
+as wiring or product. `scope` lives beside it so the changeset is read in the
+same instance that knows what its own run left behind. The other two never run
+the suite. Grounding policing applies in every slice.
+
+Each slice writes `iter-<n>/suite-runner-<slice>.md`. Join them,
+deterministically, into the one report every reader expects:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-e2e-tests/iter-<n>/suite-runner.md \
+  <partition>/steps/create-e2e-tests/iter-<n>/suite-runner-cases.md \
+  <partition>/steps/create-e2e-tests/iter-<n>/suite-runner-style.md \
+  <partition>/steps/create-e2e-tests/iter-<n>/suite-runner-run.md
+```
+
+**De-duplicate after the merge.** The slices own disjoint dimensions, so the
+merge is the synthesis — but two slices can still land on one defect from two
+dimensions (an assertion that is both too weak for `fidelity` and flaky for
+`determinism`). Drop a finding that cites the same location and the same
+defect as another slice's finding, keep the higher severity, and append a
+`## De-duplicated findings` section to the joined `suite-runner.md` naming each finding
+dropped and the one it duplicated. Nothing else in the joined report is yours
+to change.
+
+**The pass rule for the sliced suite-runner:** the iteration passes only when
+EVERY slice returned `status="completed"` with zero blocking findings. Any
+slice's blocking finding blocks, and all three slices' findings go verbatim —
+de-duplicated, never reworded — to the next test-writer(s). A slice that failed or returned no usable result
+fails the iteration — never "pass with a missing slice". An invalid message is
+re-requested once, per the messaging rules; a slice still without a usable
+result, or reporting `failed`, leaves the iteration failed with that slice's
+errors recorded, and no second suite run is ever spent to rescue it.
 
 The suite-runner RUNS the configured e2e command once (with `setup` and, always,
 `teardown`) to prove the suites execute and are picked up by the harness, and
@@ -360,9 +531,9 @@ it reads the output with the distinction this skill turns on:
   to `/acs:code`. NEVER weaken, skip, or narrow a case's assertion to turn one
   green — that is the one failure mode this pair exists to prevent.
 
-ALL blocking findings block — zero blocking findings = pass.
-`status="completed"` means verification RAN; the empty `<findings>` is the
-pass. Never conclude a pass the suite-runner did not report. On findings:
+ALL blocking findings block — zero blocking findings = pass, across every
+slice. `status="completed"` means verification RAN; the empty `<findings>` of
+every slice is the pass. Never conclude a pass the suite-runner did not report. On findings:
 persist the suite-runner output, then AUTOMATICALLY re-spawn the test-writer
 with every finding in its `<context>`. After iteration 3 with findings remaining: stop with
 final status `"failed"`, findings recorded, and the suites left as they are on
@@ -451,7 +622,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    Canonical `states` keys — EXACT names; `acs step finish` documents
    them and the next step reads them:
    - `suites_written` (list): the repo-relative suite (and fixture) files this
-     run wrote, as committed on the ticket branch. Files only — a suite you
+     run wrote, as committed on the ticket branch — the union over every
+     test-writer slice's report. Files only — a suite you
      planned but did not write is not in this list.
    - `cases_covered` (list): the `TC-<n>` ids from `test-cases.md` those suites
      cover, exactly as the coverage check derived them. It must equal the set of

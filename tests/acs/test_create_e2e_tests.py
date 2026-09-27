@@ -413,5 +413,131 @@ class TestSubagentShape(unittest.TestCase):
                          r"never rewrite, wrap, or interpolate captured output")
 
 
+class TestParallelFanOut(unittest.TestCase):
+    """Both roles fan out. The test-writers split by suite file from iteration
+    1; the suite-runner's seven dimensions split across three slices, and the
+    single suite run stays in exactly one of them. Every fan-out is one message
+    of N instances of the same agent, joined deterministically by
+    `acs.py notes merge` so every reader still reads ONE file."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SKILL_PATH)
+        cls.norm = re.sub(r"\s+", " ", cls.body)
+
+    def slice_table(self):
+        """{slice id: [(number, name), ...]} from the suite-runner slice table."""
+        rows = re.findall(r"(?m)^\| `(\w+)` \| ([^|]+) \|", self.body)
+        self.assertTrue(rows, "the suite-runner slice table is missing")
+        return {sid: re.findall(r"(\d+) `([a-z-]+)`", dims) for sid, dims in rows}
+
+    def test_the_writer_partition_rule_is_one_suite_file_per_slice(self):
+        self.assertIn("#### Parallel test-writers — one per suite file", self.body)
+        self.assertIn("One slice is one **suite file**", self.norm)
+        self.assertIn("one suite file per ticket is the default", self.norm)
+        self.assertIn("that check is what guarantees two slices cannot overlap", self.norm)
+        self.assertIn("filemap show --skill create-e2e-tests --iteration <n>", self.norm)
+
+    def test_each_writer_slice_declares_its_own_map_for_this_skill(self):
+        self.assertRegex(self.body,
+                         r"filemap set \\\n\s+--skill create-e2e-tests --iteration <n> --task <k> --file")
+
+    def test_every_fan_out_is_one_message_under_the_cap(self):
+        self.assertIn("in ONE message", self.norm)
+        self.assertIn("max_parallel = 4", self.norm)
+        self.assertRegex(self.norm, r"waves of four, each wave one message")
+
+    def test_the_slice_is_on_the_wire(self):
+        self.assertIn('phase="test-writer" slice="2"', self.norm)
+        self.assertIn("a single, un-sliced instance omits `slice`", self.norm)
+        self.assertIn('slice="<k>" …>', re.sub(r"\s+", " ", agent(WRITER)))
+        self.assertIn('phase="suite-runner" slice="<id>"', re.sub(r"\s+", " ", agent(RUNNER)))
+
+    def test_both_joins_are_notes_merge_never_prose(self):
+        merges = re.findall(r'acs\.py" notes merge \\\n\s+--out (\S+)', self.body)
+        self.assertEqual(sorted(m.rsplit("/", 1)[-1] for m in merges),
+                         ["authoring.md", "suite-runner.md"])
+        self.assertIn("never by merging prose yourself", self.norm)
+
+    def test_the_slice_table_covers_every_dimension_once(self):
+        table = self.slice_table()
+        self.assertTrue(2 <= len(table) <= 3, table)
+        numbered = [pair for dims in table.values() for pair in dims]
+        agent_dims = re.findall(r"(?m)^(\d+)\. `([a-z-]+)`", agent(RUNNER))
+        self.assertEqual(sorted(numbered, key=lambda p: int(p[0])), agent_dims)
+
+    def test_the_suite_run_stays_in_exactly_one_slice(self):
+        table = self.slice_table()
+        owners = [sid for sid, dims in table.items() if ("3", "wiring") in dims]
+        self.assertEqual(owners, ["run"])
+        self.assertIn("The run stays in exactly one slice", self.norm)
+        runner = re.sub(r"\s+", " ", agent(RUNNER))
+        self.assertIn("Only the slice holding dimension 3 executes the configured e2e command", runner)
+        self.assertIn("NEVER runs the suite", runner)
+
+    def test_an_integration_test_writer_reconciles_the_seams_before_the_judge(self):
+        """A join is not a synthesis: after the per-suite writers, ONE more
+        test-writer (`slice="integration"`) reconciles shared fixtures and
+        helpers, suite registration and shared ids -- before the suite-runner,
+        and only when more than one test-writer ran."""
+        self.assertIn("**Then the integration test-writer — a join is not a synthesis.**",
+                      self.norm)
+        self.assertIn('with `slice="integration"`', self.norm)
+        self.assertIn("BEFORE the suite-runner", self.norm)
+        self.assertIn("It is skipped when only one test-writer ran", self.norm)
+        for seam in ("**shared fixtures and helpers**", "**suite registration**",
+                     "**shared ids and names**"):
+            with self.subTest(seam=seam):
+                self.assertIn(seam, self.norm)
+        self.assertIn("iter-<n>/test-writer-integration.json", self.norm)
+        self.assertIn("never the runner config or the configured command", self.norm)
+        # the integration notes join the merge, last
+        merge = re.search(r'--out \S+/authoring\.md(.*?)```', self.body, re.S).group(1)
+        self.assertTrue(merge.strip().endswith("authoring-integration.md"), merge)
+
+    def test_the_integration_writer_synthesizes_and_never_rewrites(self):
+        writer = re.sub(r"\s+", " ", agent(WRITER))
+        self.assertIn("### When you are the integration slice", agent(WRITER))
+        self.assertIn("`## Synthesis`", writer)
+        self.assertIn("never silently pick one", writer)
+        self.assertIn("Never rewrite a slice's tests", writer)
+        self.assertIn("`seams_changed`", writer)
+        self.assertIn("## Synthesis", self.norm)
+
+    def test_a_seam_finding_goes_back_to_the_integration_pass(self):
+        self.assertIn("a seam finding goes to the integration pass", self.norm)
+        self.assertIn("judge the INTEGRATED result", re.sub(r"\s+", " ", agent(RUNNER)))
+
+    def test_judge_slices_are_de_duplicated_after_the_merge(self):
+        self.assertIn("**De-duplicate after the merge.**", self.norm)
+        self.assertIn("same location and the same defect", self.norm)
+        self.assertIn("keep the higher severity", self.norm)
+        self.assertIn("`## De-duplicated findings` section to the joined `suite-runner.md`", self.norm)
+        self.assertIn("de-duplicated, never reworded", self.norm)
+
+    def test_the_sliced_pass_rule(self):
+        self.assertIn('EVERY slice returned `status="completed"` with zero blocking findings',
+                      self.norm)
+        self.assertIn('never "pass with a missing slice"', self.norm)
+        self.assertIn("all three slices' findings go verbatim", self.norm)
+
+    def test_questions_from_every_writer_slice_are_asked_once(self):
+        self.assertIn("in ONE grouped clarification-ledger ask", self.norm)
+
+    def test_a_resumed_phase_re_runs_only_the_missing_slices(self):
+        self.assertIn("re-run only the slices whose report is missing", self.norm)
+        self.assertIn("has already spent the iteration's one suite run", self.norm)
+
+    def test_each_agent_knows_its_sliced_files(self):
+        writer, runner = agent(WRITER), agent(RUNNER)
+        for body in (writer, runner):
+            self.assertIn("## When you are one slice", body)
+        self.assertIn("iter-<n>/authoring-<k>.md", writer)
+        self.assertIn("iter-<n>/test-writer-<k>.json", writer)
+        self.assertIn("iter-<n>/suite-runner-<id>.md", runner)
+        self.assertIn('<constraint name="dimensions">', runner)
+        self.assertIn("Grounding policing always applies", runner)
+
+
 if __name__ == "__main__":
     unittest.main()

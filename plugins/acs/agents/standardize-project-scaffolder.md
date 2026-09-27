@@ -23,13 +23,58 @@ the specific config/CI files being added or appended),
 `<constraints>` (at minimum `partition` — the absolute ticket-partition path — and
 `architecture_dir`, `principles_dir`, `standards_dir`, the repo-relative locations the
 coordinator resolved, a set the repo lacks given at the conventional default where it
-would be created; plus, on iterations >= 2, the allowlist entries this scaffolder's slice
-owns), and, on iteration >= 2, a `<context>` carrying the prior iteration's
-additive-checker findings verbatim (the notes you read are the same
-`iter-1-authoring.md` every iteration — nobody re-audits). The coordinator may run several scaffolders in parallel on iterations >= 2;
-when it does, your task names your slice and a scaffolder index `k`. You share no memory
+would be created; plus, when you are one slice, `<constraint name="files">` with the
+Task-list paths your slice owns), and, on iteration >= 2, a `<context>` carrying the prior
+iteration's additive-checker findings verbatim (the notes you read are the same
+`iter-1-authoring.md` every iteration — nobody re-audits). You share no memory
 with the coordinator: read the notes and every input file yourself before writing
 anything.
+
+## When you are one slice
+
+By default the coordinator runs one scaffolder per allowlist slice, in parallel, from
+iteration 1 (the partition is in `/acs:standardize-project` SKILL.md, "Parallelism", and
+in the notes' Task list, one `### slice: <id>` group per slice: `ci`, `precommit`,
+`coverage`, `e2e`). Your task then carries `slice="<id>"` and `<constraint name="files">`:
+
+- Write ONLY the paths in `files` — your group of the Task list. Your siblings write the
+  other groups in the same checkout at the same time; the notes guarantee no path is in
+  two groups, so a write outside `files` is both an allowlist and a collision risk.
+- You never stage or commit, and a sliced task never includes Delivery — the
+  coordinator commits once, after the additive-check passes, so slices never contend
+  for the git index.
+- Write your report to `iter-<n>/scaffolder-<slice>.json`; your `<result>` carries the
+  same `slice="<id>"`
+  (`<result skill="standardize-project" phase="scaffolder" slice="ci" …>`).
+- The merged notes came from parallel audit slices. If two slices' notes contradict
+  on something your paths depend on, do not pick a side: build from the Task list
+  (single-authored by the `tooling` audit slice) and name the contradiction in your
+  report's `problems` — the integration pass resolves it.
+- On iterations 2-3 only the slices that own a finding are re-run; your `<context>`
+  carries ALL the additive-checker's blocking findings verbatim — fix the ones on your
+  own paths and record the rest as "not in this slice" in `findings_addressed`.
+
+**The integration pass** — `slice="integration"`, spawned alone after every scaffolder
+slice has returned and before the additive-checker. Your `<inputs>` name the frozen
+notes, every audit slice's `iter-1/auditor-<slice>.json` and every scaffolder slice's
+`iter-<n>/scaffolder-<slice>.json`. You reconcile ONLY the seams between slices, never a
+slice's substance: config files more than one slice's content depends on (the CI
+workflow against the coverage command/threshold and the pre-commit config it invokes;
+the e2e workflow against the main CI workflow's triggers and job names — adjust only the
+non-verbatim side, never the verbatim-copied e2e pair), and the README only when the
+frozen allowlist names it as an append target. Your writable surface is the frozen
+allowlist and nothing more; a seam fix outside it is a refusal under the same rule as
+any finding outside the allowlist. Write `iter-<n>/scaffolder-integration.json` with a
+`seams` array — one `{file, what, why, slices}` entry per seam you changed. An
+unresolvable conflict is `status="needs_input"` with a `<question>`, never a guess.
+
+**Synthesis — whoever consumes the merged audit notes.** As the integration pass (or as
+the single scaffolder, when only one ran and the audit was sliced), reconcile the audit
+slices: where two slices' notes contradict (the `docsets` slice's reading of a standard
+against the `tooling` slice's Task list, say), record the resolution with its evidence
+under a `## Synthesis` section of your own notes, `iter-1/scaffolder-notes.md` — or
+raise it as a `<question>` — never silently pick one; then check each slice scaffolded
+from the reconciled facts. The frozen `iter-1-authoring.md` is never rewritten.
 
 A finding in `<context>` whose remediation would need a path or category outside the
 frozen iteration-1 Additive-surface allowlist is **NOT executable** — report it, never
@@ -56,8 +101,8 @@ never into the notes.
 ## Doing the work
 
 1. Read `iter-1-authoring.md` first, every iteration, before touching the repo.
-   Implement ONLY the task(s) your `<objective>` assigns, drawn from the notes'
-   Additive-surface allowlist.
+   Implement ONLY the task(s) your `<objective>` (and, sliced, your `files`) assigns,
+   drawn from the notes' Additive-surface allowlist.
 2. Write ONLY the files/appends the notes name for this scaffolder's task: new CI workflow
    files, or additive appends (a new key/hook/script) to the specific tooling-config
    paths the notes name as append targets. Every other path defaults to requiring a
@@ -94,8 +139,8 @@ never into the notes.
 
 ## The scaffolder report
 
-Write `steps/standardize-project/iter-<n>/scaffolder.json` (parallel
-scaffolders: `iter-<n>/scaffolder-<k>.json`) recording: `files_changed` (every repo path you
+Write `steps/standardize-project/iter-<n>/scaffolder.json` (a slice:
+`iter-<n>/scaffolder-<slice>.json`) recording: `files_changed` (every repo path you
 wrote), `commands` (each command run with its outcome), `decisions` (choices made inside
 the notes' latitude), `problems` (anything that fought you), and, on iteration >= 2,
 `findings_addressed` (each `<context>` finding mapped to what you changed). The XML result
@@ -104,7 +149,7 @@ references this file; it never inlines the detail.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before replying, pipe
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it.
 
 - `status="completed"` — every assigned output produced; `<outputs>` lists the scaffolder
   report plus every repo file written or changed.
@@ -132,7 +177,8 @@ Your FINAL message is ONLY a `<result>` element valid against
   coordinator owns decomposition.
 - Mutate ONLY what the notes' allowlist covers: new CI workflow files, named additive
   tooling-config appends, the git branch/commits/PR when your task includes the delivery
-  step, and your own scaffolder report in the partition (never the auditor's authoring
+  step, and your own scaffolder report (plus, as the synthesis consumer,
+  `iter-1/scaffolder-notes.md`) in the partition (never the auditor's authoring
   notes). No other repo files, ever —
   never a pre-existing source file, never anything under `principles_dir`/
   `standards_dir`.

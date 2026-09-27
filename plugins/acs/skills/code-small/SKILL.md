@@ -46,6 +46,21 @@ splits cleanly in two and neither half reads the other's changes — that is the
 same disjointness rule the deeper paths partition by, applied to a change small
 enough that it usually does not divide at all.
 
+**When there are two, they run in parallel.** The partition rule: each half is
+one task `k` of the plan's `### Executor tasks & file map`, declared with
+`filemap set --task <k>`, and no path appears under both in
+`acs.py filemap show --iteration <n>` — that is what guarantees they cannot
+overlap. The slice id is the task number. Spawn both in ONE message (two Agent
+calls in the same message, foreground) and wait for both. Each `<task>` and
+its `<result>` carry `slice="<k>"`, so the SubagentStop snapshots do not
+collide, and each writes `iter-<n>/implementer-<k>.json`. Two is this path's
+own cap, under the fan-out's `max_parallel = 4`, so a small plan never runs in
+waves. A single implementer omits `slice` and writes
+`iter-<n>/implementer.json`. The mechanics are `execute.md`'s **Parallel
+implementers**. When two ran and either report lists a `seams` entry, an
+integration implementer (`slice="integration"`) follows, alone, before the
+review, exactly as on `standard`; no seam reported → skipped.
+
 ### Inputs
 
 `test-cases.md` is the test contract: every `TC-n` it lists is a test this

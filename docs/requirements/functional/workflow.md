@@ -12,7 +12,9 @@ which a consumer repo MAY replace wholesale with
 `<repo>/.acs/workflows/ship.yaml` (an override, never a merge).
 
 **`ship.yaml` is a LIST, and deliberately nothing more.** Version 3 carries a
-`version`, a flat list of skill names, and one optional `loops:` entry. The
+`version`, a list of step entries, and one optional `loops:` entry. A step
+entry is a skill name, or a list of two or more skill names — a **parallel
+group** (ADR-0110). The
 schema REJECTS `when`, `paths`, `requires`, `needs`, `max_parallel`,
 `exclusive`, `on_fail`, `boundary`, `delivery`, `id`, `name` and `stop_after`
 (ADR-0096). Three requirements follow, and together they are what "pipeline"
@@ -38,6 +40,15 @@ now means:
 the sentence that says why. **Silence is not permission to skip** — a step
 with no Contract entry to stand on runs and decides for itself.
 
+**A parallel group is not a condition either.** Each entry of the list is a
+**stage**; a group's members MAY all be in progress at once, and the next
+stage MUST wait until every member has completed. A group declares only that
+its members may overlap — nothing about whether they have work — and it MUST
+be written by the workflow's author, never derived: the skills declare nothing
+about each other, so nothing could derive it. The shipped workflow declares
+one, `[create-e2e-tests, docs-sync]`: both follow the reviewed changeset and
+write disjoint files (suites vs docs).
+
 **`loops:` is the only construct that is not a step, and it is not a
 condition.** It tests nothing about the change; it declares that two steps
 form a cycle and how many times. The shipped workflow has exactly one:
@@ -48,8 +59,10 @@ them, which is the test for what belongs in a workflow file at all.
 **The list is an orchestrator, not a contract.** It keeps the order the
 skills run in and nothing else. `acs.py workflow validate` checks only what a
 list can get wrong on its own — every step is a skill that ships and not
-another skill's leg (`acs_lib.skills.SKILL_LEGS`), and every loop's
-`back_to` precedes its `from` — and never what a skill needs. An
+another skill's leg (`acs_lib.skills.SKILL_LEGS`), no skill appears twice,
+every loop's `back_to` precedes its `from`, and neither end of a loop sits
+inside a parallel group (a loop that re-entered half a group would leave the
+other half's work neither kept nor redone) — and never what a skill needs. An
 out-of-order override validates, and its steps run on their fallbacks.
 
 `/create-ticket` and `/create-design` are **design** work that runs before
@@ -95,11 +108,15 @@ flowchart LR
     C --> RV[/review-code/]
     RV -->|blocking findings, max 3 rounds| C
     RV --> E[/create-e2e-tests/]
+    RV --> DS[/docs-sync/]
     E --> RE[/run-e2e-tests/]
-    RE --> DS[/docs-sync/]
-    DS --> P[/create-pr/]
+    DS --> RE
+    RE --> P[/create-pr/]
     P --> M[/merge-pr/]
 ```
+
+`create-e2e-tests` and `docs-sync` fan out from `review-code` side by side:
+they are one parallel group, and `run-e2e-tests` waits for both.
 
 `/create-design` runs only for tickets flagged **`needs_design: true`** —
 set for **epics only**; stories/tasks are always `false`. Child tickets of
@@ -152,7 +169,7 @@ to the run's subject.
   owns it. A step with no Contract entry to stand on MUST run.
 - A pre-hook MUST NOT require that a *predecessor skill completed*. The
   primitive that did so was removed with the skills-independence refactor:
-  running `/docs-sync` before `/code`, or `/create-pr` before `/docs-sync`,
+  running `/docs-sync` before `/code`, or `/create-pr` before `/run-e2e-tests`,
   is allowed and produces whatever those skills can honestly produce from the
   inputs present.
 - **Safety brakes stay**, because they protect correctness rather than
@@ -167,9 +184,11 @@ to the run's subject.
 - **Out-of-order is an advisory, never a refusal.** When a hooked skill runs
   before a step that precedes it in the resolved `ship.yaml` has completed,
   the pre-hook MUST print exactly one stderr line naming the position — e.g.
-  `acs: docs-sync normally follows code in ship.yaml; code has not completed
-  for SHOP-123` — and exit **0**. The line is suppressed when
+  `acs: review-code normally follows code in ship.yaml; the cursor for
+  SHOP-123 is code` — and exit **0**. The line is suppressed when
   `settings.workflow.advisories` is `false` (default `true`), when the skill
+  is one of the steps due now (a parallel group's member running beside
+  another member is not out of order), when the skill
   is not a step of the resolved workflow, and whenever anything it needs
   cannot be read — an advisory MUST never turn into a blocked gate.
 - Each hooked skill MUST be followed by a **post-hook** that writes the
@@ -197,13 +216,31 @@ implemented.
    call**, never stored, so it cannot disagree with the ledger it is read
    from.
 2. Invoke that one skill and handle its handoff (`completed` / `needs_input`
-   / `failed` / `interrupted`).
+   / `failed` / `interrupted`). When the cursor sits in a parallel group,
+   `run next` also reports every unfinished member in `due` (with
+   `parallel: true`), and `/ship` MUST invoke all of them rather than one.
 3. Ask again. Repeat until `run next` reports the list is done.
 
-There is no parallel mode and no fan-out of steps: `max_parallel` and
-`exclusive` are rejected by the v3 schema, and a step that owes nothing costs
-an evidenced no-op rather than a worktree. Parallelism inside one step
-remains that skill's own business.
+Steps overlap **only where the list declares a parallel group**. `/ship` MUST
+NOT decide on its own that two steps may overlap: `max_parallel` and
+`exclusive` are still rejected by the v3 schema, and a step that owes nothing
+costs an evidenced no-op rather than a worktree. A group runs inside `/ship`'s
+own session — a step's coordinator runs in the invoking session, so two steps
+cannot each get a session of their own inside one run — and `/ship`:
+
+- MUST invoke every member (each through its own pre-hook and its own
+  `acs step start`) and advance their coordinators in lockstep, spawning each
+  phase's subagents for all members in ONE message;
+- MUST gather the questions of every member that needs input into ONE ask,
+  each labelled with its step, and hand each member back its own answers;
+- MUST let each member write its own result and run its own post-hook — it
+  never finishes a member on another's behalf;
+- on a member's failure, MUST let the others finish the phase in flight
+  (never abandoning a running subagent), record them `interrupted` through
+  their own Finish, and stop.
+
+Parallelism inside one step is that skill's own fan-out (see
+[Inside each step: Reflection](#inside-each-step-reflection)).
 
 - `/ship` MUST **stop before `/merge-pr`** — the PR is landed separately
   after review; `merge-pr` may not appear in a workflow file at all. It stops
@@ -321,7 +358,10 @@ The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
 run **inline** instead — the coordinator runs the steps from its
 `references/` and spawns no subagent in any lane. The coordinator
 orchestrates its subagents and communicates with them in a task/result
-message format. Details in [reflection.md](reflection.md).
+message format. Wherever a role's work splits into disjoint slices, the
+coordinator runs several instances of it at once, joins their outputs with
+`acs.py notes merge` and reconciles the seams before the next phase
+(ADR-0110). Details in [reflection.md](reflection.md).
 
 ## Review feedback loop
 
@@ -387,7 +427,8 @@ Resume works at three levels, all from workspace state alone:
 
 1. **Between steps** — `run.json` and `steps/<skill>/state.json` record what
    is complete; `acs.py run next` derives the cursor from that ledger and
-   names the step now due. Running any skill in any fresh session continues
+   names the step now due — every unfinished member when that is a parallel
+   group. Running any skill in any fresh session continues
    the pipeline — nothing has to be run in order to be allowed.
 2. **Within `/ship`** — re-running `/ship <ticket-id>` re-derives the cursor
    from the same ledger and continues from it
@@ -457,13 +498,19 @@ would require a shared or synced workspace — out of scope for now.
   primitive per leg, with each leg entering its own worktree at its own
   Branch step, before that leg's Execute phase.
   See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
-- **There is no step-level fan-out within one run.** `ship.yaml` v3 rejects
-  `max_parallel` and `exclusive`, so `acs.py run next` names one step and the
-  pipeline is a straight line. What the parallel mode bought — not paying for
-  a step that had nothing to do — is bought instead by the evidenced no-op,
-  which costs no tokens and no worktree. Parallelism inside a single step
-  (`/acs:create-docs`'s sets, `/acs:review-code`'s five lenses) remains that
-  skill's own business.
+- **Step-level parallelism within one run is declared, never computed.**
+  `ship.yaml` v3 rejects `max_parallel` and `exclusive`; the only overlap is a
+  parallel group the list itself declares (ADR-0110), whose members
+  `acs.py run next` reports together in `due`. Everywhere else the pipeline is
+  a straight line. What the old parallel mode bought — not paying for a step
+  that had nothing to do — is bought instead by the evidenced no-op, which
+  costs no tokens and no worktree.
+- **Inside a step, parallelism is the default wherever the work splits.** A
+  coordinator runs several instances of one role at once over disjoint slices
+  — writers, judges with five or more check dimensions, surveys spanning
+  disjoint repo areas — at most four per phase unless the skill sets its own
+  cap (`/acs:create-docs`'s sets run two at a time; `/acs:review-code` fans out
+  its five lenses). The rules are in [reflection.md](reflection.md#decomposition--concurrency-rules).
 
 ## Product-level architecture
 

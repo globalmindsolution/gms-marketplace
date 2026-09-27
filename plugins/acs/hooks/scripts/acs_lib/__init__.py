@@ -130,7 +130,7 @@ from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT,
     result_document, stop, stop_counter_key, subagent_start, subagent_stop, validate_message,
     write_handoff_context, write_phase_snapshot)  # noqa: F401
 from .lifecycle import stop as stop_hook  # noqa: F401
-from .filemap import (FILEMAP_FILENAME, WRITE_TOOL_PATH_KEYS, active_executor,
+from .filemap import (FILEMAP_FILENAME, WRITE_TOOL_PATH_KEYS, active_executor, active_writers,
     file_map_guard, filemap_path, load_filemap, normalize_repo_path, path_in_filemap,
     save_filemap_task)  # noqa: F401
 
@@ -147,7 +147,8 @@ from . import yamlsubset, workflow  # noqa: F401,E402
 from .yamlsubset import YamlSubsetError, split_front_matter  # noqa: F401
 from .workflow import (OVERRIDE_WORKFLOW_RELPATH,  # noqa: F401
     WORKFLOW_VERSION, WorkflowError,
-    default_workflow_path, has_step, load_workflow, loop_for, loops_of,
+    default_workflow_path, has_step, load_workflow, loop_for, loops_of, stage_index,
+    stage_of, stages_of,
     override_workflow_path, resolve_workflow, step_index,
     steps_of, validate_workflow, validate_workflow_file, workflow_name)
 
@@ -161,7 +162,8 @@ from .skills import (AGENT_ROLES, KIND_MODEL_TIERS, ROLE_KINDS,  # noqa: F401
 from . import run as run_machine  # noqa: F401,E402
 from .run import (RUN_STATUSES, STEP_STATUSES, STOP_REASONS, VERDICT_STEPS,  # noqa: F401
     SUBJECT_KINDS, TERMINAL_RUN_STATUSES, abandon_run, create_run, cursor,
-    derive_run_id, existing_run_ids, finish_step, in_progress_step,
+    derive_run_id, due_steps, existing_run_ids, finish_step, in_progress_step,
+    in_progress_steps,
     iteration_dir, iteration_of, latest_open_run, load_run, projected_run,
     require_run, partition_for_ticket, run_dir, run_path, save_run, start_step,
     step_completed, step_dir,
@@ -188,6 +190,9 @@ from .step import last_invocation, last_status  # noqa: F401
 from .step import load_state as load_step_state  # noqa: F401
 from .step import save_state as save_step_state  # noqa: F401
 from .step import state_path, state_path as step_state_path  # noqa: F401
+
+from . import notes  # noqa: F401,E402
+from .notes import merge_files as merge_notes, merge_texts, split_sections  # noqa: F401
 
 from . import artifacts  # noqa: F401,E402
 from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401

@@ -309,7 +309,7 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             self._advisories(result.stderr),
-            ["acs: docs-sync normally follows run-e2e-tests in ship.yaml; "
+            ["acs: docs-sync normally follows review-code in ship.yaml; "
              "the cursor for %s is analyze-requirements" % ticket])
 
     def test_the_advisory_names_the_cursor_not_a_needs_list(self):
@@ -321,6 +321,16 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("the cursor for %s is create-api-contract" % ticket,
                       result.stderr)
+
+    def test_a_member_of_the_due_parallel_group_is_advised_of_nothing(self):
+        """`create-e2e-tests` and `docs-sync` are one parallel group
+        (ADR-0110): once the review has passed, either may start first."""
+        ticket = self.new_ticket("Side by side", "task")
+        self.walk_to(ticket, "review-code")
+        for step in ("docs-sync", "create-e2e-tests"):
+            result = self.pre(step, ticket)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self._advisories(result.stderr), [], step)
 
     def test_the_advisory_can_be_switched_off(self):
         ticket = self.new_ticket("Quiet please", "task")
@@ -353,7 +363,7 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
 
     def test_create_pr_passes_quietly_after_a_passing_review(self):
         ticket = self.new_ticket("Bulk import", "task")
-        self.walk_to(ticket, "docs-sync")
+        self.walk_to(ticket, "run-e2e-tests")
         result = self.pre("create-pr", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self._advisories(result.stderr), [])

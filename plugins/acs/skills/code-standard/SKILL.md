@@ -50,6 +50,42 @@ Each implementer gets its own partition's file map and nothing else. The file-ma
 guard enforces that at the tool boundary, so an implementer that wanders is
 refused rather than reviewed.
 
+**The partitions run in parallel, from iteration 1.** The partition rule,
+concretely: one partition is one task `k` of the plan's
+`### Executor tasks & file map`, declared with `filemap set --task <k>`, and its
+slice id is `k`. No path may appear under two tasks in
+`acs.py filemap show --iteration <n>`; tasks that share one are merged into one
+partition before anything is spawned, which is what guarantees two slices never
+overlap.
+
+- Spawn every partition's implementer in ONE message — one Agent call per
+  slice, all in the same message, foreground — and wait for all of them.
+- Each `<task>` and its `<result>` carry `slice="<k>"`, so the SubagentStop
+  snapshots of parallel slices do not collide, and each slice writes
+  `iter-<n>/implementer-<k>.json`.
+- The cap is `max_parallel = 4` per message: more partitions run in waves of
+  at most four, each wave one message, the next only after the last returned.
+- A plan with one partition runs one un-sliced implementer (no `slice`,
+  `iter-<n>/implementer.json`).
+
+The mechanics shared with the other paths — commits on one branch, the
+`index.lock` retry, a failed slice re-run alone — are `execute.md`'s
+**Parallel implementers**.
+
+### The seams — an integration implementer only when a slice reports one
+
+Standard partitions were judged independent by the plan, so a pass over the
+seams between them is **not owed by default** — owing one unconditionally is
+what makes a plan `complex`. The judgement can still be wrong in the small, so
+the implementers say: when any slice's `iter-<n>/implementer-<k>.json` lists a
+`seams` entry, spawn ONE integration implementer after the last wave and before
+the review, alone, as `slice="integration"`, with every slice's report and the
+union of their diffs as context and a file map of exactly the files those seams
+name. It reconciles only those seams and writes
+`iter-<n>/implementer-integration.json`. No seam reported, or one implementer
+ran → skipped. A plan whose slices report seams on every run is a plan that
+should have been judged `complex`: say so in the handoff.
+
 ### Inputs
 
 `test-cases.md` is the test contract, and `api-contract.md` when the subject

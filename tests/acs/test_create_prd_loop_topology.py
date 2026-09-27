@@ -172,5 +172,114 @@ class ReviewerIndependenceUnchangedTest(unittest.TestCase):
         self.assertIn("independently and deterministically re-checks three families", norm(body))
 
 
+def slice_table(body, first_id):
+    """{slice id: (dimension numbers, owns-the-run-of cell)} from the reviewer
+    slice table that opens with the `first_id` row."""
+    rows = {}
+    for line in body.splitlines():
+        m = re.match(r"^\| `([a-z-]+)` \| ([^|]+) \| (.+) \|$", line)
+        if m:
+            rows[m.group(1)] = ([int(n) for n in re.findall(r"(?:^|, )(\d+) ", m.group(2))],
+                                m.group(3))
+    assert first_id in rows, "slice table with %r row not found" % first_id
+    return rows
+
+
+class ParallelFanOutTest(unittest.TestCase):
+    """The parallel fan-out: sliced surveys over disjoint repo areas, ONE
+    author (the PRD and roadmap are coupled), sliced reviewers over disjoint
+    dimensions, every join by `acs.py notes merge`, a synthesis after each."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(PRD_SKILL)
+        cls.norm = norm(cls.body)
+
+    def test_fan_out_spawns_in_one_message_and_joins_deterministically(self):
+        self.assertIn("### Fan-out — slices, the join, the cap", self.body)
+        self.assertRegex(self.norm, r"spawn N instances of the SAME agent in ONE message")
+        self.assertIn('slice="<id>"', self.body)
+        self.assertIn("iter-<n>/<role>-<id>-message.xml", self.body)
+        self.assertIn('hooks/scripts/acs.py" notes merge', self.body)
+        self.assertIn("never prose-merging by you", self.norm)
+
+    def test_cap_is_four_with_waves(self):
+        self.assertIn("`max_parallel = 4`", self.body)
+        self.assertRegex(self.norm, r"(?i)beyond the cap, run the slices in waves of 4")
+
+    def test_survey_slices_partition_rule(self):
+        self.assertIn("#### Survey slices — brownfield/amend over disjoint repo areas", self.body)
+        self.assertRegex(self.norm, r"\*\*two or more disjoint top-level areas\*\*")
+        self.assertIn("Greenfield never slices", self.norm)
+        self.assertIn("Slice `lead` owns", self.norm)
+        self.assertIn("no directory belongs to two slices", self.norm)
+        self.assertIn('<constraint name="survey_area">', self.body)
+        self.assertIn("--out <partition>/steps/create-prd/iter-1/authoring.md", self.norm)
+        self.assertIn("iter-1/authoring-lead.md", self.body)
+
+    def test_one_grouped_ask_for_all_survey_slices(self):
+        self.assertIn("ONE grouped clarification-ledger ask", self.norm)
+        self.assertIn("The open questions of ALL surveyor slices are one batch", self.norm)
+
+    def test_survey_consumer_keeps_a_synthesis_section(self):
+        self.assertIn("a mechanical join is not a synthesis", self.norm)
+        self.assertIn("`## Synthesis`", self.body)
+        self.assertIn("never silently picks one side", self.norm)
+        author = norm(read(PRD_AUTHOR))
+        self.assertIn("**Synthesis of a sliced survey**", author)
+        self.assertIn("`## Synthesis`", author)
+        self.assertIn("Never silently pick one side", author)
+
+    def test_the_author_is_never_sliced_and_says_why(self):
+        self.assertIn("**One author, never sliced — on every iteration.**", self.norm)
+        self.assertIn("`roadmap.md` derives from `prd.md`", self.norm)
+        self.assertNotRegex(self.norm, r"(?i)MAY run two authors in parallel")
+        self.assertNotIn("-<k>", read(PRD_AUTHOR))
+        self.assertIn("No integration pass follows", self.norm)
+
+    def test_reviewer_slices_cover_every_dimension_exactly_once(self):
+        rows = slice_table(self.body, "substance")
+        self.assertEqual(sorted(rows), ["delta", "floor", "substance"])
+        dims = sorted(d for ds, _ in rows.values() for d in ds)
+        self.assertEqual(dims, list(range(1, 12)))
+
+    def test_the_deterministic_floor_runs_in_exactly_one_slice(self):
+        rows = slice_table(self.body, "substance")
+        for checker in ("prd_conformance_check.py", "structure_lint.py"):
+            owners = [sid for sid, (_, owns) in rows.items() if checker in owns]
+            self.assertEqual(owners, ["floor"], checker)
+        self.assertEqual(sorted(rows["floor"][0]), [1, 7, 10])
+
+    def test_reviewer_slices_join_dedup_and_pass_rule(self):
+        self.assertIn("--out <partition>/steps/create-prd/iter-<n>/reviewer.md", self.norm)
+        for sid in ("substance", "floor", "delta", "dedup"):
+            self.assertIn("iter-<n>/reviewer-%s.md" % sid, self.body)
+        self.assertIn("the same location and the same defect", self.norm)
+        self.assertIn("keeping the one with the higher severity", self.norm)
+        self.assertIn("`## De-duplicated findings`", self.body)
+        self.assertIn("the iteration passes only if EVERY slice returned "
+                      "`status=\"completed\"` with zero blocking findings", self.norm)
+        self.assertIn("never \"pass with a missing slice\"", self.norm)
+
+    def test_resume_reruns_only_missing_slices(self):
+        window = section(self.norm, "## Resume & reconcile", "## Reflection loop")
+        self.assertIn("re-run ONLY the slices whose own report is missing", window)
+        self.assertIn("<role>-slices.json", window)
+
+    def test_agents_carry_their_slice_sections(self):
+        surveyor = norm(read(PRD_SURVEYOR))
+        self.assertIn("## When you are one slice", surveyor)
+        self.assertIn("iter-1/authoring-<id>.md", surveyor)
+        self.assertIn("iter-1/surveyor-<id>.json", surveyor)
+        self.assertIn('phase="surveyor" slice="<id>"', surveyor)
+        reviewer = norm(read(PRD_REVIEWER))
+        self.assertIn("## When you are one slice", reviewer)
+        self.assertIn("Run ONLY the listed dimensions", reviewer)
+        self.assertIn("iter-<n>/reviewer-<id>.md", reviewer)
+        self.assertIn('<constraint name="dimensions">', reviewer)
+        self.assertIn('phase="reviewer" slice="<id>"', reviewer)
+        self.assertIn("police grounding", reviewer)
+
+
 if __name__ == "__main__":
     unittest.main()

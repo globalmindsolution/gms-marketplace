@@ -18,7 +18,12 @@ tests your change touches and stop.
 
 **You own one subagent: the implementer.** `acs:code-implementer` implements
 one file-map partition of the plan with strict TDD; a leg spawns one per
-partition. There is no planner (the plan is `/acs:create-impl-plan`'s) and no
+partition — in parallel from iteration 1 whenever the partitions are disjoint:
+every implementer of a wave in ONE message, each a slice (`slice="<k>"` on its
+task and result, report `iter-<n>/implementer-<k>.json`), at most
+`max_parallel = 4` per wave
+(`${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md`, **Parallel
+implementers**). There is no planner (the plan is `/acs:create-impl-plan`'s) and no
 verifier (the review is `/acs:review-code`'s). The implementer is a `write`
 role and runs on the `executor` model tier.
 

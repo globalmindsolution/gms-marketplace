@@ -297,12 +297,14 @@ every set.
 | Role | Agent | Kind | Model tier | Writes |
 |---|---|---|---|---|
 | author | `acs:create-docs-author` | write | `executor` | the set's `output-files` under its location, `iter-<n>/authoring.md`, `iter-<n>/author.json` |
-| reviewer | `acs:create-docs-reviewer` | judge | `verifier` | `iter-<n>/reviewer.md` only |
+| reviewer | `acs:create-docs-reviewer` | judge | `verifier` | `iter-<n>/reviewer-<slice>.md` only, one per dimension slice — you join them into `iter-<n>/reviewer.md` |
 
 Drive this slice's sets together from this coordinator, in parallel phase
 batches — the mechanism `/acs:code`'s coordinator already uses to run several
 implementers whose file maps are disjoint (`code/SKILL.md`), reused, never a
-new one:
+new one. Every fan-out is yours: spawn every instance of a phase in ONE
+message, in the foreground, wait for all of them, and join their outputs
+before the next phase starts.
 
 ### Author
 
@@ -312,11 +314,81 @@ worktree on the branch that set's Branch step created, to that set's own
 location — disjoint by construction. Iteration 1 authors; iteration 2+
 remediates the findings in `<context>`.
 
+**Partition rule — one writer per set, never finer.** A writer owns exactly
+one set: its `output-files` under its own location, in its own worktree, on
+its own branch. Two sets never share a location (`DOC_SETS` gives each its
+own default directory, and a set found in the repo is found by its own
+sentinel file), so two authors cannot write the same file. A set is NOT split
+further into per-file authors: its mode, its authoring notes, its Upstream
+inventory and its consistency findings span the whole set, and the
+`max_parallel` cap is already spent on sets. Nor is there a survey role to
+slice: each author surveys its own set's upstream inputs, so the survey
+already runs one per set.
+
+**No integration pass — the sets are fully independent.** Parallel writers
+elsewhere are followed by an integration pass that reconciles the seams
+between their files; here there is no seam to reconcile. Each set is its own
+delivery ticket, branch, worktree, PR and review, and no set's files link
+into another set written in the same batch: the one cross-set read
+(`standards` grounding on `principles`) is a soft dependency that
+`fanout_batches` keeps out of the same batch, so `principles` is already on
+disk when `standards` is authored. Doc-graph drift between a set and its
+upstream docs is the author's ADR-0012 consistency step and the reviewer's
+`consistency` dimension, per set.
+
 ### Review
 
-After the slice's authors return, spawn this slice's reviewers
-(`acs:create-docs-reviewer`, one per set) in one message. The reviewer
-judges fresh from artifacts only (never the author's reasoning) and
+After the slice's authors return, spawn this slice's reviewers — for every
+set, one `acs:create-docs-reviewer` per **dimension slice** below, every
+reviewer of every set in one message. A *dimension slice* (the task's
+`slice=` attribute) is a disjoint subset of the reviewer's eight check
+dimensions, each run by a fresh instance of the same reviewer agent file —
+not to be confused with the *set slice* `max_parallel` caps
+(`references/fan-out.md`):
+
+| Dimension slice | Dimensions | Deterministic checker it owns |
+|---|---|---|
+| `files` | 1 doc-set-completeness · 3 required-sections · 5 docs-only-changeset · 7 structure | `structure_lint.py` |
+| `content` | 2 architecture-conformance · 4 authoring-conformance · 6 consistency · 8 audience-style | `citation_check.py` |
+
+Two dimension slices per set against at most `max_parallel` = 2 sets keeps
+every Review message at **at most 4 reviewer instances**, the per-phase
+fan-out cap. Each reviewer's `<task>` carries `slice="<id>"` and
+`<constraint name="dimensions">` listing its dimension numbers and names from
+this table; it runs only those (grounding is policed in every slice), writes
+`iter-<n>/reviewer-<slice>.md`, and returns a `<result … slice="<id>">`. When
+every dimension slice of a set has returned, join that set's reports
+deterministically — never by merging prose yourself:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-docs/iter-<n>/reviewer.md \
+  <partition>/steps/create-docs/iter-<n>/reviewer-files.md \
+  <partition>/steps/create-docs/iter-<n>/reviewer-content.md
+```
+
+`iter-<n>/reviewer.md` is then the one review report the next author, the
+resume reconcile and the result document read, each section once.
+
+**De-duplicate after the join.** The dimension slices own disjoint
+dimensions, so the merge is the synthesis — except that two slices can report
+one defect from two angles (a missing section is both `required-sections`
+and `structure`). After the join, drop a finding that cites the same
+location (file and section or line) and the same defect as another slice's
+finding, keeping the one with the higher severity, and append a
+`## De-duplicated findings` section to `iter-<n>/reviewer.md` naming each
+dropped finding and the one it duplicates. Only exact duplicates go: two
+defects at one location are two findings.
+
+**Pass rule (per set, all dimension slices).** A set's iteration passes only
+when EVERY one of its dimension slices returned `status="completed"` with
+zero blocking findings (the waived `audience-style` register, `severity="info"`,
+does not block). Any slice's blocking finding blocks the set, and every
+slice's findings (after de-duplication) go verbatim to that set's next author. A dimension slice
+that returned `status="failed"`, no usable `<result>`, or no report file
+fails the iteration — never "pass with a missing slice".
+
+The reviewer judges fresh from artifacts only (never the author's reasoning) and
 checks, all blocking: every planned file exists and no unplanned extra
 file; the tailored content conforms to the architecture set (when absent: to
 the repo evidence and the ledger-confirmed facts the notes cite); required
@@ -395,25 +467,44 @@ With no architecture set, drop `architecture_dir` and the architecture
 `<inputs>` entry and add
 `<constraint name="architecture-optional">no architecture set: architecture-derived tailoring falls back to the repo/PRD; confirm every such product fact through the clarification ledger.</constraint>`.
 The reviewer task carries the same constraints, and its `<inputs>` name the
-authoring notes and author report of the iteration under review.
+authoring notes and author report of the iteration under review. Each
+reviewer task is one dimension slice: `slice=` on the `<task>` and a
+`dimensions` constraint, e.g.
 
-Validate EVERY message you send and receive, for every set:
-
-```bash
+```xml
+<task skill="create-docs" phase="reviewer" slice="files" ticket-id="SHOP-2" iteration="1">
+  <objective>Review the quality/ doc set on dimensions 1, 3, 5 and 7 only.</objective>
+  <inputs>…the author task's inputs, plus iter-1/authoring.md and iter-1/author.json…</inputs>
+  <constraints>
+    …the author task's constraints, verbatim…
+    <constraint name="dimensions">1 doc-set-completeness; 3 required-sections; 5 docs-only-changeset; 7 structure</constraint>
+  </constraints>
+</task>
 ```
 
-On an invalid message, re-request it once; if still invalid, fail **that
+On iteration 2+ every dimension slice's `<context>` carries ALL the prior
+iteration's findings (the joined `iter-<n-1>/reviewer.md`); each slice
+confirms the ones in its own dimensions are fixed.
+
+Validate EVERY message you send and receive, for every set — the SubagentStop hook checks each returned
+`<result>`'s `skill=`, `phase=` and `iteration=` (and `slice=` when sliced).
+
+On an invalid message, re-request it once (for a reviewer, only that
+dimension slice); if still invalid, fail **that
 set's** run with the validation error recorded in its own `errors` — never
 another set's.
 
 Every phase output is persisted at the phase boundary, BEFORE the next phase
 starts: the SubagentStop hook snapshots each returned message to
-`steps/create-docs/iter-<n>/<phase>-message.xml`; if that snapshot is missing
+`steps/create-docs/iter-<n>/<phase>-message.xml` — a dimension-sliced
+reviewer's at `iter-<n>/reviewer-<slice>-message.xml`, so the slices never
+collide; if that snapshot is missing
 (a host that does not fire the hook), write the `<task>` and `<result>` there
 yourself. The author's own artifacts are `iter-<n>/authoring.md` (Mode;
 Upstream inventory with cited, verbatim-excerpted facts; Consistency
-findings; Decisions) and `iter-<n>/author.json`; the reviewer's is
-`iter-<n>/reviewer.md` — never write a message over them. Every iteration's
+findings; Decisions) and `iter-<n>/author.json`; each reviewer slice's is
+`iter-<n>/reviewer-<slice>.md`, joined into `iter-<n>/reviewer.md` — never
+write a message over them. Every iteration's
 reviewer `<inputs>` name that iteration's authoring notes.
 
 ## User interaction

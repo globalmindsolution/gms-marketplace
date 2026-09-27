@@ -90,7 +90,10 @@ Messaging rules (the SubagentStop hook checks them):
   resolved `plan.md`, `test-cases.md` and `api-contract.md` when they exist,
   the subject document, `design.md` when it applies, repo paths) and
   `constraints`. The implementer returns a `<result skill="code"
-  phase="implementer" …>` document as its final content.
+  phase="implementer" …>` document as its final content. When several
+  implementers run at once, each task and its result carry the slice id,
+  `slice="<k>"` (the plan task number the partition is), so the SubagentStop
+  snapshots of parallel slices never collide; a single implementer omits it.
 - Messages are **JSON**, validated in the hook. There is no XSD and no
   second validator in another language: a malformed message is refused with
   the reason, and you re-send it once before failing the run.
@@ -102,7 +105,10 @@ Messaging rules (the SubagentStop hook checks them):
 - Decomposition is YOURS alone — subagents never spawn subagents. Parallel
   implementers are allowed ONLY when their partitions touch disjoint files (per
   the plan's file map); any overlap — source, tests, or docs — means sequential
-  execution.
+  execution. When they are disjoint, parallel is the default from iteration 1:
+  every implementer of a wave is spawned in ONE message, at most
+  `max_parallel = 4` per wave, and you wait for all of them before the next
+  phase (`execute.md`, **Parallel implementers**).
 
 ---
 
@@ -165,7 +171,13 @@ continuing:
 3. Re-run **the tests your change touches** — once. Trust nothing that fails: a
    task whose tests fail or whose files are missing is NOT done, whatever the
    state file says. The full suite is the reviewer's gate, not yours.
-4. Continue from the first unfinished task of the recorded iteration.
+4. Continue from the first unfinished task of the recorded iteration. When
+   that iteration ran sliced, re-run only the slices whose report
+   (`iter-<n>/implementer-<k>.json`) is missing, or whose targeted tests step 3
+   found red — each under its original `k`, still in one message. A slice with
+   its report on disk and green tests is done and is never re-spawned. Then the
+   integration slice, when your leg owes one and
+   `iter-<n>/implementer-integration.json` is missing.
 
 If `context.handoff_summary` exists, read it plus
 `steps/code/handoff-context.md` (if present), do a light reconcile (trust the

@@ -18,7 +18,12 @@ You ship it yourself as a docs-only PR on a fresh delivery ticket —
 orchestrate three subagents — surveyor → author → review: a read-only surveyor
 classifies the mode and outlines the DRAFT baseline, you confirm it with the
 user, an author writes the area files, and a reviewer judges them fresh. You
-never write requirement content yourself.
+never write requirement content yourself. Every phase fans out: the survey
+runs as parallel surveyor slices over disjoint areas of the repo when a
+brownfield or amend survey spans two or more of them, the write runs as one
+author per area file from iteration 1 (the area files are disjoint), and the
+review always runs as three parallel reviewer slices over disjoint check
+dimensions.
 
 ## Start
 
@@ -89,7 +94,12 @@ If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
 1. Re-read `steps/create-requirements/iter-*/*-message.xml`, the role reports
-   (`iter-1/surveyor.json`, `iter-<n>/author.json`, `iter-<n>/reviewer.md`) and
+   (`iter-1/surveyor.json` or, for a sliced survey, `iter-1/surveyor-<id>.json`
+   and `iter-1/authoring-<id>.md` per slice; `iter-<n>/author-<id>.json` and
+   `iter-<n>/author-<id>.md` per author slice, or `iter-<n>/author.json` for a
+   single author; `iter-<n>/reviewer-<slice>.md` per reviewer slice and the
+   joined `iter-<n>/reviewer.md`), the slice plans
+   (`iter-<n>/<role>-slices.json`) and
    `<partition>/create-requirements-state.json` to see which phases completed.
 2. Re-read the `<requirements_dir>` tree against recorded author claims — does
    the actual `<functional_dir>`/`<non_functional_dir>` file set match what the
@@ -106,6 +116,16 @@ continuing:
    findings as `<context>`. A resume never re-runs the surveyor once its notes
    exist; the authoring notes (`iter-<n>/authoring.md`) belong to their
    iteration.
+6. A sliced phase resumes slice by slice: read its `iter-<n>/<role>-slices.json`
+   and re-run ONLY the slices whose own report is missing (a surveyor slice
+   without `iter-1/authoring-<id>.md` and `iter-1/surveyor-<id>.json`, an author
+   slice without `iter-<n>/author-<id>.json`, a reviewer slice without
+   `iter-<n>/reviewer-<id>.md`), all of them in ONE message, then run the join
+   (`acs.py notes merge`) over EVERY slice file of the plan. A slice whose
+   report exists is never re-run; every join reads only files it never writes,
+   so re-running a join is idempotent. When every author slice's report exists
+   but `iter-<n>/author-integration.json` does not (and two or more authors
+   ran), run the integration pass before the notes join and the review.
 
 If `context.handoff_summary` exists, read it (and
 `steps/create-requirements/handoff-context.md` if present), do a light
@@ -168,6 +188,51 @@ author carries them forward), `iter-1/surveyor.json`, `iter-<n>/author.json`
 and `iter-<n>/reviewer.md`; every iteration's reviewer `<inputs>` name that
 iteration's authoring notes. Decomposition is YOURS alone — subagents never
 spawn subagents.
+
+### Fan-out — slices, the join, the cap
+
+Every fan-out in this skill is yours: you spawn N instances of the SAME agent
+in ONE message (all foreground, all in the same Agent-tool batch), wait for
+ALL of them, and join their outputs before the next phase starts. The rules
+every sliced phase follows:
+
+- **Slice id on the wire.** Each parallel instance's `<task>` carries
+  `slice="<id>"` (`<task skill="create-requirements" phase="author"
+  slice="fn-checkout" …>`) and its `<result>` echoes it, so the SubagentStop
+  snapshot lands at `iter-<n>/<role>-<id>-message.xml` with no collision. An
+  un-sliced instance omits `slice` exactly as before. A slice id is a short
+  lowercase name (`api`, `checkout`, `fn-admin-cli`); the join derives each id
+  from the part of the file name after the prefix all its inputs share, so ids
+  may carry hyphens. `integration` is reserved for the author integration pass.
+- **Slice plan first.** Before spawning, write the partition to
+  `steps/create-requirements/iter-<n>/<role>-slices.json` (`{"<id>": [<the
+  paths, area files or dimension numbers it owns>], …}`), so a resume knows
+  which slices were planned.
+- **Per-slice files.** A surveyor slice writes `iter-1/authoring-<id>.md` and
+  `iter-1/surveyor-<id>.json`; an author slice writes `iter-<n>/author-<id>.json`
+  and its notes contribution `iter-<n>/author-<id>.md`; a reviewer slice writes
+  `iter-<n>/reviewer-<id>.md`.
+- **The join is deterministic, never prose-merging by you.** One command joins
+  the slice files by `## ` heading (first file's preamble; each H2 once, in
+  first-seen order; bodies concatenated in input order, each prefixed by a
+  `<!-- slice: <id> -->` line) into the ONE file every downstream reader and
+  checker reads:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+    --out <partition>/steps/create-requirements/iter-<n>/<joined file> \
+    <partition>/steps/create-requirements/iter-<n>/<slice file 1> <…slice file 2> …
+  ```
+
+  It prints `{ok, out, sections, inputs}` and refuses when a slice file is
+  missing — a missing slice is a failed slice, never a smaller join.
+- **Cap.** At most `max_parallel = 4` instances per phase; beyond the cap, run
+  the slices in waves of 4 (each wave one message) and join once after the last
+  wave.
+- **Failure.** A slice that returns `failed` or no usable `<result>` fails its
+  phase: re-run the failed slices once (together, in ONE message); still
+  failing → fail the run with the error recorded. No phase ever proceeds with
+  a missing slice.
 
 ### Survey — iteration 1 only
 
@@ -245,6 +310,51 @@ baseline plus the open points in `<questions>`. Confirm them with the user
 (Interactive-confirm below), then spawn the author with the answers in
 `<context>`.
 
+#### Survey slices — brownfield/amend over disjoint repo areas
+
+Slice the survey when the repo has real code (brownfield or amend) spread over
+**two or more disjoint top-level areas** — the containers/components the
+architecture doc set names when one exists, else the top-level packages,
+services, apps or CLI surfaces of the codebase inventory (the same candidates
+the surveyor's feature-area definition enumerates). Greenfield never slices
+(there is no code to survey; the elicitation plan is one piece), and a repo
+whose code sits in one area runs the single surveyor above.
+
+**Partition rule.** Slice `lead` owns the repo root's files, the docs tree
+(the existing `<requirements_dir>` set and the architecture doc set) and the
+whole-set sections: `## Mode & evidence` — it classifies the mode, applying
+the amend "majority of the enumerated feature areas" test to the full
+candidate list you partitioned, which its task carries — and the ADR-0012
+doc-consistency step. Every other slice is one area, named by its directory or
+container basename (`checkout`, `catalog`, `admin-cli`), and
+owns only that area's paths: it enumerates and code-grounds the feature areas
+inside them, outlines their `<functional_dir>/<feature>.md` files (with each
+file's `required_sections`) and any `<non_functional_dir>/<item>.md` item its
+code evidences under `## Requirement outline`, and records its own `[OPEN]`
+points, `## Risks` and `## Reviewer checklist` entries. An area is a set of
+top-level paths and no path belongs to two slices, so no two slices survey the
+same code. An NFR item two slices both evidence appears in the joined outline
+under both slice markers; it is still ONE file with ONE author (Author below).
+
+1. Write `iter-1/surveyor-slices.json`, then spawn `lead` plus one surveyor
+   per area in ONE message (cap 4, waves beyond it), each `<task
+   skill="create-requirements" phase="surveyor" slice="<id>" …>` carrying
+   `<constraint name="survey_area"><its top-level paths, or "lead"></constraint>`
+   and, for `lead`, `<constraint name="candidate_areas"><every area you
+   partitioned></constraint>`, beside the survey constraints above.
+2. Join the notes, `lead` first so `## Mode & evidence` opens the file:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+     --out <partition>/steps/create-requirements/iter-1/authoring.md \
+     <partition>/steps/create-requirements/iter-1/authoring-lead.md \
+     <partition>/steps/create-requirements/iter-1/authoring-<area-1>.md …
+   ```
+
+3. Present the DRAFT baseline and the open points of ALL slices to the user in
+   ONE grouped clarification-ledger ask (Interactive-confirm below) — never one
+   ask per slice.
+
 ### Interactive-confirm, between the surveyor and the author
 
 Present the surveyor's DRAFT baseline — which feature areas will be elicited,
@@ -320,12 +430,112 @@ Should the author return `needs_input` (a fact the confirmation does not
 settle), ask the user and re-run the author for the same iteration with the
 answer in `<context>`.
 
-Typically ONE author per run — the produced files are read once by a single
-reviewer pass. You MAY run multiple authors in parallel only when their target
-area files cannot conflict (e.g. disjoint feature areas); the reviewer always runs
-after all authors finish and judges the combined result. On iterations 2-3 the
-reviewer's findings go verbatim into the author `<task>`'s `<context>`; the
-surveyor does not re-run.
+**Synthesis of a sliced survey.** When the survey ran sliced, the joined
+`iter-1/authoring.md` is a mechanical join, not a synthesis: the author(s)
+reading it MUST reconcile it. Where two slices' notes contradict each other (a
+feature area claimed by two slices with different scope, an NFR item evidenced
+differently, a term defined two ways), the author records the resolution with
+the evidence that settles it under a `## Synthesis` heading of its own notes,
+or returns `needs_input` with the contradiction as a question — never silently
+picks one side. A single author keeps `## Synthesis` in `iter-1/authoring.md`;
+a sliced author keeps it in `iter-1/author-<id>.md` for the contradictions that
+touch its own file, and the integration pass (below) checks that every slice
+used the same reconciled facts.
+
+#### Author slices — one author per area file, the default from iteration 1
+
+The deliverable splits into disjoint files, so the write runs sliced from
+iteration 1 whenever the confirmed outline names two or more area files; an
+outline with a single area file runs one un-sliced author exactly as the task
+example above shows (it also writes the README decision-log row itself, and no
+integration pass runs).
+
+**Partition rule.** A slice owns exactly one area file of the confirmed
+outline — a `<functional_dir>/<feature>.md` or a `<non_functional_dir>/<item>.md`
+— together with that file's `.evidence.md` sidecar, and nothing else. The
+slice id is `fn-<basename>` for a functional file and `nfr-<basename>` for a
+non-functional one (`fn-checkout`, `nfr-performance`), so no two ids collide
+and none is `integration`. Each slice's task carries `<constraint
+name="files">` listing exactly the repo paths it may create or change, derived
+from the joined outline; every path is listed in exactly one slice's `files`,
+and an author never writes outside its own list — so no two slices can touch
+the same file. The run-level files that list or link the slices' outputs
+belong to no slice: they are the integration pass's.
+
+1. Write `iter-<n>/author-slices.json`, then spawn one author per slice in ONE
+   message (cap 4; beyond it, waves of 4, each wave one message), each
+   `<task skill="create-requirements" phase="author" slice="<id>" …>` carrying
+   its `files`, the `required_sections` of its own file, and the same inputs,
+   mode and `<context>` as the task example above.
+2. A sliced author never edits the shared notes: it writes its notes
+   contribution — only `## Deviations`, `## Synthesis` and, on iteration 2+,
+   `## Findings addressed` — to `iter-<n>/author-<id>.md`, and its report to
+   `iter-<n>/author-<id>.json`.
+3. **Integration pass — after ALL slices finish, BEFORE the reviewer.** Spawn
+   ONE more author with `slice="integration"` (the pattern code-complex's
+   final integration implementer uses). Its task names every slice's area
+   files, `author-<id>.md` notes and `author-<id>.json` reports in `<inputs>`,
+   and `<constraint name="seams">` lists the seams it owns — it reconciles
+   ONLY these, never a slice's substance:
+   - the **shared glossary** — a term, actor or identifier the slices' files
+     define or use must be defined once and used the same way everywhere (the
+     set's glossary file, when it keeps one, and the terms in the area files);
+   - the **NFR cross-references** — the tie-break's one-line cross-reference
+     from a non-functional file to its paired functional file, and every link
+     between functional and non-functional files, resolve both ways;
+   - the **requirements README index** — `<requirements_dir>/README.md`: the
+     ONE decision-log row for this run and any index that lists the area
+     files;
+   - duplicated or contradicting clauses across area files, and each slice's
+     use of the reconciled survey facts (`## Synthesis`);
+   - any ADR-0012 doc-consistency adjustment outside the area files.
+
+   It writes its notes contribution (`## Seams reconciled`) to
+   `iter-<n>/author-integration.md` and `iter-<n>/author-integration.json`
+   listing each seam it changed (file, what, why, which slices). A genuine
+   conflict it cannot resolve from the evidence comes back as
+   `status="needs_input"` with a question: ask the user, then re-run the
+   integration pass with the answer. The pass is skipped when only one author
+   ran.
+4. Join the notes deterministically, the integration contribution last. On
+   iteration 1, first freeze the survey's notes once — `cp -n
+   iter-1/authoring.md iter-1/survey-baseline.md` — so the join never reads its
+   own output:
+
+   ```bash
+   # iteration 1
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+     --out <partition>/steps/create-requirements/iter-1/authoring.md \
+     <partition>/steps/create-requirements/iter-1/survey-baseline.md \
+     <partition>/steps/create-requirements/iter-1/author-<id-1>.md … \
+     <partition>/steps/create-requirements/iter-1/author-integration.md
+   # iteration n >= 2 — the previous iteration's notes carried forward
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+     --out <partition>/steps/create-requirements/iter-<n>/authoring.md \
+     <partition>/steps/create-requirements/iter-<n-1>/authoring.md \
+     <partition>/steps/create-requirements/iter-<n>/author-<id-1>.md … \
+     <partition>/steps/create-requirements/iter-<n>/author-integration.md
+   ```
+
+   Leave out `author-integration.md` on an iteration the pass did not run.
+
+5. Authors never `git add` or commit; your single commit after the review
+   passes (Deliver) is the only git write, so no `index.lock` contention
+   arises. Should that commit ever hit a held `index.lock`, wait briefly and
+   retry the commit — never force anything, never delete the lock.
+
+The reviewer always runs after every author slice and the integration pass
+have finished, and judges the integrated result; a seam inconsistency is a
+finding like any other. On iterations 2-3 the reviewer's findings go verbatim
+into the author `<task>`'s `<context>`; the surveyor does not re-run. Every
+sliced author gets ALL findings verbatim, and re-runs only when a finding names
+a file in its `files`; a seam finding (glossary, cross-reference, README index,
+a contradiction between two slices' files) goes to that iteration's integration
+pass; a finding that names no slice's file and no seam (an uncovered area) is
+assigned by you to exactly one slice — a new slice for a new area file. Slices
+with no finding to fix do not re-run, and their files stand. The integration
+pass runs on every iteration in which two or more authors ran or a seam
+finding is open.
 
 ### Review
 
@@ -351,9 +561,48 @@ non-blocking):
   every existing area file is byte-identical;
 - iteration 2+: every prior finding from `<context>` is actually fixed.
 
-Zero findings = pass -> Deliver. Findings -> feed them verbatim into the next
-iteration's author `<task>` `<context>` — the surveyor does not re-run — and
-re-run author -> review. After iteration 3 with findings remaining: STOP —
+**Reviewer slices — every iteration, the default.** The reviewer has thirteen
+check dimensions (numbered in `create-requirements-reviewer.md`), so it always
+runs as three slices, each a fresh instance of `acs:create-requirements-reviewer`
+whose task carries `slice="<id>"` and `<constraint name="dimensions">` naming
+the dimension numbers it owns, beside every input and constraint above:
+
+| Slice | Dimensions | Owns the run of |
+|---|---|---|
+| `floor` | 1 required-file-presence, 7 DRAFT marker, 10 augment-only-absent / no-overwrite, 12 structure | the deterministic floor: `structure_lint.py` per produced area file and `git diff -- <requirements_dir>` — each run in this slice only, once per iteration |
+| `evidence` | 5 coverage, 6 citation, 8 no-fabrication, 9 functional/non-functional routing spot-check | the independent feature-area re-enumeration and the body-anchor → `.evidence.md` sidecar joins |
+| `conformance` | 2 mode-conformance, 3 authoring-conformance, 4 iteration 2+ regression check, 11 interactive-confirm discipline, 13 audience-style | `clarify.py list` and the judgement against the authoring notes |
+
+Grounding policing applies in every slice. Write `iter-<n>/reviewer-slices.json`,
+spawn the three slices in ONE message and wait for all three. Then
+**de-duplicate**: the slices own disjoint dimensions, so the join below is the
+synthesis, but two slices can still report one defect (a missing section seen
+by two dimensions). Drop a finding that cites the same location and the same
+defect as another slice's finding, keeping the one with the higher severity,
+and record every drop — which finding, from which slice, kept in favour of
+which — under `## De-duplicated findings` in `iter-<n>/reviewer-dedup.md`
+(write `none` there when nothing was dropped). Join the slices' reports, in the
+table's order, with the de-duplication record last, into the one report every
+later reader reads:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-requirements/iter-<n>/reviewer.md \
+  <partition>/steps/create-requirements/iter-<n>/reviewer-floor.md \
+  <partition>/steps/create-requirements/iter-<n>/reviewer-evidence.md \
+  <partition>/steps/create-requirements/iter-<n>/reviewer-conformance.md \
+  <partition>/steps/create-requirements/iter-<n>/reviewer-dedup.md
+```
+
+**Pass rule for sliced reviewers:** the iteration passes only if EVERY slice
+returned `status="completed"` with zero blocking findings. Any slice's blocking
+finding blocks the iteration. A slice that failed or returned no usable result
+fails the iteration — never "pass with a missing slice".
+
+Zero findings across all slices = pass -> Deliver. The findings that go on
+are the de-duplicated set. Findings -> feed every
+slice's findings verbatim into the next iteration's author `<task>` `<context>`
+— the surveyor does not re-run — and re-run author -> review. After iteration 3 with findings remaining: STOP —
 final status `failed`, findings recorded; go to Finish (no PR is opened).
 
 ## Deliver the docs-only PR
@@ -362,6 +611,7 @@ Only after the reviewer passes:
 
 ```bash
 git add "<functional_dir>" "<non_functional_dir>"
+git add "<requirements_dir>/README.md" 2>/dev/null || true   # the decision-log row / index, when the set has a README
 git commit -m "<rendered formats.commit_message>"      # default {ticket_id} {summary}
 git push -u origin "<branch>"
 gh label create ACS 2>/dev/null || true                # create the label if missing
@@ -421,7 +671,9 @@ and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction (e.g. a single AskUserQuestion containing all open questions as a
 numbered list), not serial round-trips — one interaction per question wastes
-user time. Record each answer as its own `clarify.py add` entry (one `C-<n>`
+user time. The DRAFT baseline and open points of ALL surveyor slices are one
+batch: wait for every slice, then ask them in that ONE grouped interaction (a
+question two slices raise word for word is asked once). Record each answer as its own `clarify.py add` entry (one `C-<n>`
 per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.

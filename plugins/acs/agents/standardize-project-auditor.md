@@ -28,6 +28,42 @@ opt-in state), and, when the coordinator re-runs you after a `needs_input`, a
 `<context>` carrying the user's recorded answers (`C-n` entries). You share no memory
 with the coordinator: read every input file yourself before writing anything.
 
+## When you are one slice
+
+By default the coordinator runs the audit as three parallel slices (the table is in
+`/acs:standardize-project` SKILL.md, "Parallelism"). Your task then carries
+`slice="<id>"` and `<constraint name="audit_categories">` naming the categories below
+that you own — `structure`: 1; `docsets`: 2 and 3; `tooling`: 4:
+
+- Audit ONLY your categories; the others are your siblings', running at the same time.
+  Reading a file another category also reads is fine; writing its sections is not.
+- Only the `tooling` slice writes the `## Additive-surface allowlist` and `## Task list`
+  sections and the report's `scaffold_gaps` and `allowlist`: the frozen allowlist has
+  exactly one author. The `structure` and `docsets` slices contribute Repo-readiness
+  inventory entries, Recommended follow-up candidates, Risks & open decisions and
+  Additive-checker checklist items only — every gap they find is
+  recommended-follow-up-only by contract.
+- Your report's `inventory` carries only your own keys (`structure`:
+  `project_structure`; `docsets`: `principles`, `standards`; `tooling`:
+  `readiness_tooling`) — the coordinator unions the three.
+- Write `steps/standardize-project/iter-1/authoring-<slice>.md` and
+  `steps/standardize-project/iter-1/auditor-<slice>.json` instead of
+  `iter-1/authoring.md` and `iter-1/auditor.json`. Use the section headings of "The
+  authoring notes" below verbatim (`## Repo-readiness inventory`, …) so the
+  coordinator's `acs.py notes merge` join lands each section once in the frozen
+  `iter-1/authoring.md`; put nothing but a one-line title before the first `## `.
+- Your `<result>` carries the same `slice="<id>"`
+  (`<result skill="standardize-project" phase="auditor" slice="tooling" …>`).
+
+**As the `tooling` slice, group the Task list into scaffolder slices** — a
+`### slice: <id>` sub-heading per group: `ci` (new CI workflow files other than the e2e
+pair), `precommit` (the pre-commit config), `coverage` (the coverage-tool config), `e2e`
+(the verbatim-copied `acs-e2e.yml` + `run-e2e.py` pair, always together). Group by target
+PATH: every Task-list path appears in exactly one group, and an append target two
+concerns would touch belongs to ONE group, which carries both appends — no two
+scaffolders may ever write the same file. Omit a group with no paths. An un-sliced
+auditor groups its Task list the same way.
+
 ## Survey — what you establish before you write (iteration 1)
 
 Audit each of the four categories independently — none gates the others:
@@ -88,7 +124,8 @@ explicit "N/A: <why>" for every unset/absent input); Additive-surface allowlist
 (frozen the moment you write it — CI workflow files and named tooling-config
 append targets only, NEVER `<principles_dir>/**` or `<standards_dir>/**`);
 Recommended follow-up candidates (`{title, rationale, target_path}`); Task list
-(exact output paths, drawn only from the allowlist — what the scaffolder builds);
+(exact output paths, drawn only from the allowlist — what the scaffolders build —
+grouped into `### slice: <id>` scaffolder slices);
 Risks & open decisions; Additive-checker checklist. Every entry cites the file (and
 line or heading) you read — the additive-checker re-opens the citations and judges
 the scaffold against these notes, so an uncited entry is a blocking finding.
@@ -105,7 +142,8 @@ candidate, never an allowlist entry.
 ## The auditor report
 
 Write `steps/standardize-project/iter-<n>/auditor.json` (always `iter-1/auditor.json`:
-you run on iteration 1 only; partition = the `partition` constraint) — the
+you run on iteration 1 only; partition = the `partition` constraint; a slice writes
+`iter-1/auditor-<slice>.json`) — the
 machine-readable summary of your notes, which the coordinator reads for the result
 document's `states.audit` and `recommended_follow_ups`:
 

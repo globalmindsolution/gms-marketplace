@@ -536,5 +536,108 @@ class TestTriadShape(unittest.TestCase):
         self.assertRegex(body, r"re-derive the\s+traceability yourself")
 
 
+
+def reviewer_slices(body):
+    """{slice_id: [dimension numbers]} from the Reviewer slices table."""
+    rows = re.findall(r"(?m)^\| `(\w+)` \| ([^|]+) \|", body)
+    return {sid: [int(n) for n in re.findall(r"(\d+) `", dims)] for sid, dims in rows}
+
+
+def agent_dimensions(body):
+    return dict((int(n), name) for n, name in
+                re.findall(r"(?m)^(\d+)\. `([\w-]+)`", body))
+
+
+class TestParallelFanOut(unittest.TestCase):
+    """PARALLEL judges: the trace-reviewer's eight dimensions run as three
+    slices spawned in one message and joined by `acs.py notes merge`. The
+    test-designer is deliberately NOT sliced — one contiguous TC- table."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SKILL_PATH)
+        cls.reviewer = agent("trace-reviewer")
+        cls.slices = reviewer_slices(cls.body)
+
+    def test_the_reviewer_runs_as_three_named_slices(self):
+        self.assertIn("#### Reviewer slices", self.body)
+        self.assertEqual(list(self.slices), ["trace", "cases", "shape"])
+
+    def test_every_dimension_is_owned_by_exactly_one_slice(self):
+        owned = sorted(n for dims in self.slices.values() for n in dims)
+        self.assertEqual(owned, sorted(agent_dimensions(self.reviewer)))
+
+    def test_the_table_names_match_the_agent_dimensions(self):
+        dims = agent_dimensions(self.reviewer)
+        for row in re.findall(r"(?m)^\| `\w+` \| ([^|]+) \|", self.body):
+            for n, name in re.findall(r"(\d+) `([\w-]+)`", row):
+                self.assertEqual(dims[int(n)], name)
+
+    def test_the_deterministic_checks_run_in_the_slice_that_owns_them(self):
+        shape = re.search(r"(?m)^\| `shape` \|.*$", self.body).group(0)
+        for check in ("front_matter_check.py", "structure_lint.py", "e2e_case_count"):
+            self.assertIn(check, shape)
+        self.assertIn("Run each deterministic check only in the slice that owns", self.reviewer)
+
+    def test_judge_slices_are_joined_by_notes_merge_in_table_order(self):
+        block = re.search(
+            r"(?s)notes merge \\\n  --out <partition>/steps/create-test-docs/"
+            r"iter-<n>/trace-reviewer\.md(.*?)```", self.body)
+        self.assertIsNotNone(block)
+        self.assertEqual(re.findall(r"trace-reviewer-(\w+)\.md", block.group(1)),
+                         list(self.slices))
+
+    def test_the_slices_are_spawned_in_one_message_under_the_cap(self):
+        self.assertIn("Spawn the three in ONE message", self.body)
+        self.assertIn("within `max_parallel = 4`", self.body)
+
+    def test_the_sliced_pass_rule(self):
+        self.assertIn("passes only if EVERY\nslice returned `status=\"completed\"` with zero blocking findings",
+                      self.body)
+        self.assertIn("never \"pass with a missing slice\"", self.body)
+        self.assertRegex(self.body, r"all three slices' findings — de-duplicated,\s+otherwise verbatim —\s+go to the next")
+
+    def test_the_reviewer_agent_knows_how_to_be_one_slice(self):
+        self.assertIn("## When you are one slice", self.reviewer)
+        self.assertIn('<constraint name="dimensions">', self.reviewer)
+        self.assertIn("steps/create-test-docs/iter-<n>/trace-reviewer-<id>.md", self.reviewer)
+        self.assertIn('phase="trace-reviewer" slice="<id>"', self.reviewer)
+        self.assertRegex(self.reviewer, r"Grounding policing always applies")
+
+    def test_the_test_designer_is_deliberately_one_writer(self):
+        self.assertIn("**One test-designer, never sliced.**", self.body)
+        self.assertNotIn("slice=", agent("test-designer"))
+
+    def test_resume_re_runs_only_the_missing_slices(self):
+        self.assertRegex(self.body, r"re-runs ONLY the\s+reviewer slices whose")
+        self.assertIn("never\n   re-run a slice whose report is on disk", self.body)
+
+    def test_the_slice_travels_on_the_wire(self):
+        self.assertIn("iter-<n>/<phase>-<slice>-message.xml", self.body)
+        self.assertRegex(self.body, r"un-sliced instance omits `slice`")
+
+
+class TestSynthesisAfterFanOut(unittest.TestCase):
+    """The join of the reviewer slices is the synthesis, plus de-duplication;
+    with one test-designer there are no seams and no merged survey, so no
+    integration pass and no `## Synthesis` section apply."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SKILL_PATH)
+
+    def test_judge_findings_are_de_duplicated_in_the_joined_report(self):
+        self.assertIn("**De-duplication — the join is the synthesis.**", self.body)
+        self.assertRegex(self.body, r"same location and the same defect as another slice's finding,\s+"
+                                    r"keeping the one with the higher severity")
+        self.assertIn("`## De-duplicated findings` section to\n`iter-<n>/trace-reviewer.md`", self.body)
+        self.assertRegex(self.body, r"de-duplicated,\s+otherwise verbatim")
+
+    def test_no_integration_pass_for_the_single_writer(self):
+        self.assertRegex(self.body, r"no integration pass runs")
+        self.assertNotIn('slice="integration"', self.body)
+        self.assertNotIn('slice="integration"', agent("test-designer"))
+
+
 if __name__ == "__main__":
     unittest.main()

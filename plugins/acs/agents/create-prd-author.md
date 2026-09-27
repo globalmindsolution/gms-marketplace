@@ -49,9 +49,21 @@ sections. Keep every heading the surveyor wrote.
   or `- C-<n> N/A: <why this answer produces no anchor>`), add a line for every
   answer the coordinator relayed so each ledger id appears exactly once, and
   bring `## Roadmap milestones` in line with the milestone headings you actually
-  wrote where an answer changed the outline. Record every such change to the
+  wrote where an answer changed the outline — or where a sliced survey left
+  candidate milestones from its area slices under `## Roadmap outline` (the
+  joined notes carry `<!-- slice: <id> -->` markers naming whose entry is
+  whose; keep them). Record every such change to the
   surveyor's outline, with the answer (`C-<n>`) that drove it, under a
   `## Deviations` heading. Never delete the surveyor's evidence.
+- **Synthesis of a sliced survey** (iteration 1, when the notes carry
+  `<!-- slice: <id> -->` markers) — the joined notes are a mechanical join, not
+  a synthesis, and you are their single consumer. Before writing, read every
+  slice's entries side by side; where two slices contradict each other (one
+  feature described two ways, an area's code evidence against a `lead` goal or
+  constraint, a candidate milestone no `lead` outline accounts for), record the
+  resolution and the evidence that settles it under a `## Synthesis` heading of
+  `iter-1/authoring.md`, or return `status="needs_input"` with the
+  contradiction as a question. Never silently pick one side.
 - **Iteration 2+** — write `steps/create-prd/iter-<n>/authoring.md` with the Write
   tool BEFORE changing any repo file: the previous iteration's notes carried
   forward, updated where the fixes change them, plus a **Findings addressed**
@@ -110,7 +122,8 @@ what fixing them requires.
 ## Phase artifact
 
 Write `steps/create-prd/iter-<n>/author.json` (`<n>` = the task's
-`iteration`; the coordinator tells you `-<k>` suffixing when parallel authors run):
+`iteration`). You are always the single author of your iteration — `prd.md`
+and `roadmap.md` are one coupled deliverable, so the author never runs sliced:
 
 ```json
 {

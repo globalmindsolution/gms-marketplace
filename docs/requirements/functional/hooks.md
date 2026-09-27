@@ -88,16 +88,17 @@ a PR exists. That brake names an artifact, never a position, and refuses
 nothing for being early ([ADR 0101](../../adr/0101-gating-skills-that-are-not-workflow-steps.md)).
 
 **3. Order advisory (never a refusal)** — when the skill IS a step of the
-resolved `ship.yaml` and that step's `needs` are not all satisfied for this
-ticket, the pre-hook MUST print exactly one line on stderr naming the
-position and exit **0**:
+resolved `ship.yaml` and is not one of the steps due now for this run (the
+cursor's stage), the pre-hook MUST print exactly one line on stderr naming the
+step before its stage and the run's cursor, and exit **0**:
 
 ```text
-acs: docs-sync normally follows code in ship.yaml; code has not completed for SHOP-123
+acs: review-code normally follows code in ship.yaml; the cursor for SHOP-123 is code
 ```
 
 The advisory MUST be suppressed when `settings.workflow.advisories` is
-`false` (default `true`), when the skill is not a step of the resolved
+`false` (default `true`), when the skill is due now — a member of a parallel
+group running beside another member is not out of order — when the skill is not a step of the resolved
 workflow, and whenever anything it needs cannot be read — it is best-effort
 by construction and MUST never turn into a blocked gate. A refusal path never
 carries it.
@@ -257,6 +258,12 @@ worth stating explicitly, because each used to be an order gate:
   handoff finalizes the invocation `interrupted` with
   `stop_reason: context_pressure` and releases the lock
   ([workflow.md](workflow.md#session-handoff)).
+- **One stage in progress (invariant I1)**: step start MUST refuse a step
+  while a step of ANOTHER stage of the workflow is `in_progress`. The members
+  of one parallel group MAY all be `in_progress` at once (ADR-0110); nothing
+  else may. `acs.py run check` MUST report a violation as an error, and a
+  step `in_progress` that is not due now as a warning only — a skill run on
+  its own is out of order, not inconsistent.
 - **Run resolution for hooks**: the coordinator writes a **per-checkout
   pointer file** at step start —
   `<workspace>/<repo>/sessions/<checkout-id>/pointer.json`, carrying the
@@ -302,5 +309,16 @@ completed" event exists):
 - A **`SessionEnd`** hook (`dispatch.py session-end`) finalizes any run this
   checkout left `in_progress` as `interrupted` and releases its lock, so
   abnormal endings still write state.
+- The **`SubagentStop`** hook files each returned message at
+  `steps/<skill>/iter-<n>/<phase>-message.xml`, or at
+  `<phase>-<slice>-message.xml` when the message carries `slice="<id>"` — one
+  of several parallel instances of one role — so siblings MUST never
+  overwrite each other. A slice id that is not a short name of letters,
+  digits, `_` and `-` MUST be refused as an invalid message.
+- The **file-map guard** (`PreToolUse` on `Write|Edit|MultiEdit|NotebookEdit`)
+  MUST judge a write against every live `write`-kind agent, not only the most
+  recent: against its own writer's map when the hook payload names the
+  calling agent, else against the union of every live writer's scope, and
+  never against whichever writer started last (ADR-0110).
 
 See `plugins/acs/docs/INTERNALS.md` for the full implementation contract.

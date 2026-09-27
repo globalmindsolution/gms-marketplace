@@ -45,6 +45,24 @@ it exists.
 as `standard` does: disjoint partitions, one file map each, the guard enforcing
 it at the tool boundary.
 
+**The partitions run in parallel, from iteration 1.** The partition rule: one
+partition is one task `k` of the plan's `### Executor tasks & file map`,
+declared with `filemap set --task <k>`, and its slice id is `k`. No path may
+appear under two tasks in `acs.py filemap show --iteration <n>`; tasks that
+share one are merged into one partition first, which is what guarantees two
+slices never overlap.
+
+- Spawn every partition's implementer in ONE message — one Agent call per
+  slice, all in the same message, foreground — and wait for all of them.
+- Each `<task>` and its `<result>` carry `slice="<k>"`, so the SubagentStop
+  snapshots of parallel slices do not collide, and each slice writes
+  `iter-<n>/implementer-<k>.json`.
+- The cap is `max_parallel = 4` per message: more partitions run in waves of
+  at most four, each wave one message, the next only after the last returned.
+
+The shared mechanics — commits on one branch, the `index.lock` retry, a failed
+slice re-run alone — are `execute.md`'s **Parallel implementers**.
+
 ### The integration implementer
 
 **This is what separates `complex` from `standard`.** After every partition
@@ -56,7 +74,17 @@ between them:
 - the migration that has to land in one commit with the code that reads it
 
 Give it the **union of the partitions' diffs** as context and a file map that
-is the **intersection of their boundaries**.
+is the **intersection of their boundaries**, plus every slice's report (their
+`seams` entries name what each side saw). It runs alone, after the last wave
+and before the review, in a message of its own — it cannot start before the
+seams exist — as the slice `integration`: its map declared as one more task
+(`filemap set --task <m>`, the next free number), `slice="integration"` on its
+task and result, report `iter-<n>/implementer-integration.json` listing each
+seam it changed (file, what, why, which slices). It reconciles ONLY the seams —
+never a slice's substance — and a conflict between slices the evidence cannot
+settle comes back as `needs_input` with a question. On this path it runs
+whenever more than one partition implementer ran, seams reported or not; a
+plan with a single partition has no seams between partitions, and skips it.
 
 This is the concern the four-lens verifier was implicitly covering: a changeset
 too large for any one agent to hold is also a changeset whose seams no single

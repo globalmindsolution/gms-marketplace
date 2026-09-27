@@ -162,8 +162,8 @@ Two subagents, each named for what it does in this skill:
 
 | Role | Agent | Kind | Model tier | Writes |
 |---|---|---|---|---|
-| analyst | `acs:analyze-requirements-analyst` | write | `executor` | `iter-<n>/authoring.md`, the draft `steps/analyze-requirements/analysis.md`, `iter-<n>/analyst.json` |
-| impact reviewer | `acs:analyze-requirements-impact-reviewer` | judge | `verifier` | `iter-<n>/impact-reviewer.md` |
+| analyst | `acs:analyze-requirements-analyst` | write | `executor` | `iter-<n>/authoring.md`, the draft `steps/analyze-requirements/analysis.md`, `iter-<n>/analyst.json`; as a survey slice, `iter-1/authoring-<area>.md` and `iter-1/analyst-<area>.json` only |
+| impact reviewer | `acs:analyze-requirements-impact-reviewer` | judge | `verifier` | `iter-<n>/impact-reviewer-<slice>.md`, one per judge slice, joined into `iter-<n>/impact-reviewer.md` |
 
 Run analyst → impact review until the impact reviewer returns zero blocking
 findings or the cap is reached. The cap is a fixed **3** on every run —
@@ -180,30 +180,121 @@ the remediation.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
+### Parallelism — survey slices and judge slices
+
+Every fan-out below is yours: spawn the N instances of the SAME agent in ONE
+message (all foreground, in the same message), wait for all of them, and join
+their outputs before the next phase. At most `max_parallel = 4` instances run
+per phase; beyond that, run the rest in waves of four.
+
+**Writer — one analyst, never sliced.** `analysis.md` is a single document:
+there is no disjoint-file partition of the deliverable, so one analyst writes
+the draft on every iteration — and with one writer there is no integration
+pass to run.
+
+**Survey slices (iteration 1, when the ticket spans areas).** The analyst's
+survey is a distinct pass — it writes its authoring notes before the draft —
+so iteration 1 may run it sliced. Slice it when the ticket's candidate impact
+spans **two or more disjoint top-level areas** of the repo (top-level
+packages, services or apps: the directories the architecture set, or failing
+that the repo root, names as separate components). Name each slice by its
+area's directory basename (`api`, `web`, `billing`); an area is a set of
+top-level directories and no directory belongs to two areas, so no two slices
+survey the same path. A ticket inside one area runs the survey un-sliced,
+exactly as the phase below describes.
+
+1. Spawn one analyst per area in ONE message, each `<task
+   skill="analyze-requirements" phase="analyst" slice="<area>" …>` carrying
+   `<constraint name="survey_area"><the area's top-level paths></constraint>`.
+   A survey slice writes ONLY `iter-1/authoring-<area>.md` and
+   `iter-1/analyst-<area>.json` — never the draft.
+2. Join the notes deterministically — never merge them in prose yourself:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+     --out <partition>/steps/analyze-requirements/iter-1/authoring.md \
+     <partition>/steps/analyze-requirements/iter-1/authoring-<area-1>.md \
+     <partition>/steps/analyze-requirements/iter-1/authoring-<area-2>.md …
+   ```
+
+3. The open questions from ALL slices go to the user in ONE grouped
+   clarification-ledger ask (User interaction), never one ask per slice.
+4. Spawn ONE un-sliced analyst (`phase="analyst"`, no `slice`) with the
+   merged `iter-1/authoring.md` in `<inputs>` and the answers in `<context>`:
+   it writes the draft and `iter-1/analyst.json` from the merged notes and
+   settles the whole-ticket verdicts (API surface, design significance) once.
+   The merge is a join, not a synthesis: this analyst MUST reconcile the
+   slices. Where two areas' notes contradict each other (a symbol one slice
+   calls unused and another finds called, an API-surface or design verdict the
+   areas disagree on, one file claimed by two seams), it records the
+   resolution with the evidence under a `## Synthesis` section of the notes,
+   or raises it as an open question — never silently picks one. The impact
+   reviewer judges that synthesis (dimension 7).
+
+**Judge slices (every iteration — the default).** The impact reviewer has
+seven check dimensions, so it always runs as three slices, each a fresh
+instance of `acs:analyze-requirements-impact-reviewer` whose task carries
+`slice="<id>"` and `<constraint name="dimensions">` naming the dimension
+numbers it owns:
+
+| Slice | Dimensions | Owns the run of |
+|---|---|---|
+| `surface` | 2 `completeness`, 3 `api-surface` | the re-derivation of the impact surface from the repository |
+| `form` | 4 `front-matter`, 5 `structure`, 6 `scope` | `front_matter_check.py` and `structure_lint.py` |
+| `evidence` | 1 `grounding`, 7 `authoring-conformance` | re-opening every citation in the notes and the draft |
+
+Grounding policing applies in every slice. Spawn the three slices in ONE
+message; each writes `iter-<n>/impact-reviewer-<slice>.md`. Join them, in the
+table's order, into the one report every later reader reads:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/analyze-requirements/iter-<n>/impact-reviewer.md \
+  <partition>/steps/analyze-requirements/iter-<n>/impact-reviewer-surface.md \
+  <partition>/steps/analyze-requirements/iter-<n>/impact-reviewer-form.md \
+  <partition>/steps/analyze-requirements/iter-<n>/impact-reviewer-evidence.md
+```
+
+**De-duplicate after the join.** The slices own disjoint dimensions, so the
+merge is the synthesis — but two slices can still report one defect (an
+uncited impact row is both a `grounding` and a `completeness` finding). Drop a
+finding that cites the same location and the same defect as another slice's
+finding, keep the higher severity, and say so in the joined report: append a
+`## De-duplicated findings` section to `iter-<n>/impact-reviewer.md` listing each
+dropped finding (slice, dimension, location) and the finding it duplicated
+(`_None._` when nothing was dropped). Never drop a finding for any other reason.
+
+**Pass rule for sliced judges:** the iteration passes only if EVERY slice
+returned `status="completed"` with zero blocking findings. Any slice's
+blocking finding blocks, and all slices' findings — de-duplicated as above,
+otherwise verbatim — go to the next analyst. A slice that failed or returned no usable result fails the
+iteration — never "pass with a missing slice".
+
 Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="analyze-requirements"
   phase="analyst|impact-reviewer" ticket-id="<id>" iteration="n">` — the
   `phase` is the role — carrying `<objective>`, `<inputs>` (file refs) and
   `<constraints>`. The subagent returns a `<result>` with the same `phase` as
-  its final content.
+  its final content. A sliced instance's task and result also carry
+  `slice="<id>"` (the area or judge-slice id); an un-sliced instance omits it.
 - Every phase's `<constraints>` carry `required_sections` (the seven headings
   below) and `<constraint name="audience_style_profile">implementers (evidence
   + impact narrative)</constraint>`.
-- Validate EVERY message you send and receive:
-
-  ```bash
-  ```
+- Validate EVERY message you send and receive — the SubagentStop hook checks each returned
+  `<result>`'s `skill=`, `phase=` and `iteration=` (and `slice=` when sliced).
 
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
 - Every phase output is persisted at the phase boundary, BEFORE the next
   phase starts: the SubagentStop hook snapshots each returned message to
-  `steps/analyze-requirements/iter-<n>/<phase>-message.xml`; if that snapshot
+  `steps/analyze-requirements/iter-<n>/<phase>-message.xml` (a sliced
+  instance's at `iter-<n>/<phase>-<slice>-message.xml`); if that snapshot
   is missing (a host that does not fire the hook), write the `<task>` and
   `<result>` there yourself. The roles' own reports are
-  `iter-<n>/analyst.json` and `iter-<n>/impact-reviewer.md` — never write a
-  message over them.
+  `iter-<n>/analyst.json` (`iter-1/analyst-<area>.json` per survey slice) and
+  `iter-<n>/impact-reviewer-<slice>.md`, joined into
+  `iter-<n>/impact-reviewer.md` — never write a message over them.
 - Spawn subagents with the Agent tool: `subagent_type:
   "acs:analyze-requirements-analyst"`, then `subagent_type:
   "acs:analyze-requirements-impact-reviewer"` — fall back to
@@ -235,7 +326,8 @@ significance, which acceptance criteria are ambiguous or untestable as
 written, the risks worth naming, and the genuinely open questions — then
 write the analysis draft from those notes. The notes are what the impact
 reviewer checks the draft against; a draft with no notes is a blocking
-finding.
+finding. When the survey ran sliced (Parallelism above), the notes are the
+merged `iter-1/authoring.md` and this analyst writes only the draft from them.
 
 If the analyst returns `needs_input` with `<questions>`, resolve them in User
 interaction and re-run the analyst for the same iteration with the answers in
@@ -276,19 +368,23 @@ else.
 
 ### Phase: impact reviewer — `acs:analyze-requirements-impact-reviewer`
 
-Spawn `acs:analyze-requirements-impact-reviewer` AFTER the draft is written, with `<inputs>`
+Spawn the three `acs:analyze-requirements-impact-reviewer` slices (Judge
+slices above) in ONE message AFTER the draft is written, each with `<inputs>`
 of the draft, the authoring notes (`iter-<n>/authoring.md`), the analyst
 report (`iter-<n>/analyst.json`), the ticket file, `design.md` when it binds,
-and the repo paths the impact map names. It judges fresh — never forward the
-analyst's reasoning — re-derives the impact map from the codebase itself, and
-writes `steps/analyze-requirements/iter-<n>/impact-reviewer.md`.
+and the repo paths the impact map names. Each judges fresh — never forward the
+analyst's reasoning — the `surface` slice re-derives the impact map from the
+codebase itself, and each writes
+`steps/analyze-requirements/iter-<n>/impact-reviewer-<slice>.md`; you join
+them into `steps/analyze-requirements/iter-<n>/impact-reviewer.md`.
 
-ALL blocking findings block — zero blocking findings = pass. `status="completed"`
-means the review RAN; the empty `<findings>` is the pass. Never conclude a
-pass the impact reviewer did not report. On findings: persist the review
-output, then AUTOMATICALLY re-run the analyst with every finding in its next
-`<context>`. After iteration 3 with findings remaining: stop with final status
-`"failed"`, findings recorded, and no published analysis.
+ALL blocking findings block — zero blocking findings = pass, in every slice.
+`status="completed"` means the review RAN; the empty `<findings>` is the
+pass. Never conclude a pass the impact reviewer did not report — a slice with
+no usable result is no pass. On findings: persist the review output, then
+AUTOMATICALLY re-run the analyst with every finding of every slice, verbatim
+once de-duplicated, in its next `<context>`. After iteration 3 with findings remaining: stop with
+final status `"failed"`, findings recorded, and no published analysis.
 
 ### Deterministic checks the coordinator runs before publishing
 
@@ -384,7 +480,8 @@ is workspace state and is never committed.
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them in ONE grouped interaction (a
 single AskUserQuestion containing all open questions as a numbered list), not
-serial round-trips. Record each answer as its own `clarify.py add` entry (one
+serial round-trips — and after a sliced survey, the questions of every slice
+go in that one ask. Record each answer as its own `clarify.py add` entry (one
 `C-<n>` per question, `--source` preserved). Never skip a question, merge two
 questions into one entry, or auto-answer outside the existing
 `--source assumption --rationale "..."` rule. Record every Q&A — obtained
@@ -492,7 +589,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published analysis, `<questions>` when `needs_input`, and
-     `<next-step>/acs:create-impl-plan <id></next-step>`. Validate it with
+     `<next-step>/acs:create-impl-plan <id></next-step>`.
 
 ## Completion report (normative)
 

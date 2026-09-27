@@ -6,7 +6,9 @@ through a complete, agentic software-delivery workflow: product definition
 implementation with an automatic review loop, a conditional post-code test
 gate, doc sync, pull request, and merge. Each skill spawns only the
 subagents its own work needs — a surveyor and an author and a reviewer for the
-PRD, a planner and a plan reviewer for the plan, implementers for the code —
+PRD, a planner and a plan reviewer for the plan, implementers for the code,
+several instances of one role at once wherever the work splits into disjoint
+slices —
 the pipeline's order is declared in `workflows/ship.yaml` (each skill's own
 hooks check only the safety brakes listed under *How gating works*, never a
 predecessor's position or a missing upstream artifact, so a skill is runnable
@@ -100,7 +102,11 @@ in the Design phase:
 run's **derived** cursor — the first step in the resolved `workflows/ship.yaml`
 (your `.acs/workflows/ship.yaml` when you ship one, else the plugin default)
 that is not `completed`. Ship invokes that step, asks again, and repeats until
-the list is done — always stopping before merge. The cursor is never stored, so
+the list is done — always stopping before merge. Where the list declares a
+**parallel group** (an entry that is itself a list — the default runs
+`[create-e2e-tests, docs-sync]` as one), `run next` reports every unfinished
+member in `due` and ship runs them side by side, spawning their subagents
+together and asking you once for all of them. The cursor is never stored, so
 it cannot disagree with the ledger it is read from. Print the file with
 `acs.py workflow show` rather than assuming an order. After reviewing each PR yourself:
 
@@ -234,7 +240,7 @@ different.
 | `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
-| `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step, then asks again, until the list is done. Never merges. |
+| `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step (every member at once when the cursor sits in a parallel group), then asks again, until the list is done. Never merges. |
 
 ## How gating works
 
@@ -251,8 +257,9 @@ different.
 - **Out-of-order runs get one advisory line, not a refusal.** When a hooked
   skill runs before a step that precedes it in the resolved workflow has
   completed, the pre-hook prints exactly one line on stderr —
-  `acs: docs-sync normally follows code in ship.yaml; code has not completed
-  for SHOP-12` — and exits 0. Set `workflow.advisories: false` to silence it.
+  `acs: review-code normally follows code in ship.yaml; the cursor for SHOP-12
+  is code` — and exits 0. A member of a parallel group that is due alongside
+  another member is not out of order and gets no line. Set `workflow.advisories: false` to silence it.
 - **The brakes that survive are facts, not order.** `/acs:code` refuses a
   standard or complex run whose plan approval is missing or is for a different
   revision of the plan on disk; `/acs:create-pr` refuses a run whose recorded
@@ -376,10 +383,10 @@ deleted.
   ticket, prompt or document and says so in its report. Run the producing
   step first (here `/acs:create-impl-plan SHOP-123`) when you want its output
   used.
-- **"acs: docs-sync normally follows code in ship.yaml …" (skill runs
+- **"acs: docs-sync normally follows review-code in ship.yaml …" (skill runs
   anyway).** That is the out-of-order ADVISORY, not a refusal — one stderr line,
-  exit 0. It means the step you invoked is ahead of its `needs` in the resolved
-  workflow; ignore it when that is deliberate, or run the named step first.
+  exit 0. It means the step you invoked is ahead of the run's cursor in the
+  resolved workflow; ignore it when that is deliberate, or run the named step first.
   `workflow.advisories: false` silences it.
 - **"/acs:review-code ran for this run and did not pass".** A brake, not an
   order check: `/acs:create-pr` refuses while the run's review has blocking

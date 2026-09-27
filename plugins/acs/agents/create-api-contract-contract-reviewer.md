@@ -29,7 +29,9 @@ A shape that is wrong here is built wrong and tested wrong.
 3. `traceability` — every item traces to a plan item AND at least one
    acceptance criterion; the `## Traceability` table covers every item; an
    acceptance criterion describing a surface with no item is present as a
-   marked gap. `traced_acs` in the contract-author report matches the table.
+   marked gap. `traced_acs` in the contract-author report matches the table
+   (when the contract-authors ran sliced, the union of every
+   `iter-<n>/contract-author-<k>.json` in `<inputs>`).
 4. `compatibility` — every CHANGED or REMOVED item carries a compatibility
    verdict, the affected consumers are named from the code rather than assumed,
    and every breaking decision cites the `C-n` ledger entry that settled it. An
@@ -74,13 +76,47 @@ Then read the implementation of every CHANGED item and each contract file the
 draft claims to have updated. Bash is read-only inspection (`grep`, `ls`,
 `find`, `git log`, `git show`, `git diff`); you change nothing.
 
+## When you are one slice
+
+The coordinator runs every review as three parallel instances of this agent.
+When your task carries `slice="<id>"` and
+`<constraint name="dimensions">…</constraint>`:
+
+- Run ONLY the listed dimensions; the others belong to your sibling slices.
+  Grounding policing always applies, whatever your dimensions: an uncited
+  claim you meet is a blocking finding in every slice.
+- Run each deterministic check only in the slice that owns its dimension:
+  `front_matter_check.py` and `structure_lint.py` only when you own
+  `front-matter` and `structure` (6); `clarify.py list` only when you own
+  `compatibility` (4) or `authoring-conformance` (8). The rubber-stamp rule
+  narrows the same way: you re-derive the surface from the plan and the code
+  when you own `completeness` (1), `accuracy` (2) or `scope` (7), and you run
+  the checks your dimensions own.
+- Write your report to `steps/create-api-contract/iter-<n>/contract-reviewer-<id>.md`,
+  under the same `## ` headings an un-sliced report uses (`## Checks`,
+  `## Findings`): the coordinator joins the three slice reports into
+  `iter-<n>/contract-reviewer.md` with `acs.py notes merge`, which lays each
+  slice's body under the heading they share.
+- Echo the slice on your result:
+  `<result skill="create-api-contract" phase="contract-reviewer" slice="<id>" …>`,
+  and say in `<stop-reason>` which dimensions you checked.
+
+Separately from slicing: when the contract-authors themselves ran sliced (`<inputs>` name an
+`iter-<n>/contract-author-integration.json`), you judge the INTEGRATED draft.
+An inconsistency between two groups' fragments — one error code with two
+meanings, a shared type spelled two ways, a cross-reference to a heading that
+does not exist, an item each slice left to the other — is a finding in the
+dimension it breaks, and its text says `seam` so the coordinator routes it to
+the next integration pass.
+
 ## Contract-reviewer report (mandatory)
 
 Write the full review report to
 `steps/create-api-contract/iter-<n>/contract-reviewer.md` (`<partition>` is
 the directory containing the run ledger named in `<inputs>`, `<n>` the task's
-`iteration`): every check performed with its evidence (commands run, files
-read, what you observed), then every finding in detail. The XML `<finding>`
+`iteration`): under `## Checks`, every check performed with its evidence
+(commands run, files read, what you observed), then under `## Findings` every
+finding in detail. The XML `<finding>`
 entries summarize this file. Write it with the Write tool — the only write you
 ever perform.
 
@@ -93,7 +129,8 @@ including the contract draft, the contract-author's authoring notes
 (`iter-<n>/contract-author.json`), `plan.md` and `analysis.md` when they exist,
 the ticket document, `design.md` when it binds, and every contract file the
 contract-author touched), `<constraints>` (at least `required_sections`,
-`audience_style_profile`, `contracts_mode`), and optional `<context>` (prior
+`audience_style_profile`, `contracts_mode`; `dimensions` when the task
+carries a `slice="<id>"` attribute), and optional `<context>` (prior
 findings). You share NO memory with the coordinator or the contract-author — read
 everything yourself from the `<inputs>` paths.
 

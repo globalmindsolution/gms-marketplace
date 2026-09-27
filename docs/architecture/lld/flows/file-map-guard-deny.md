@@ -10,6 +10,18 @@ and `acs.py guard events` can read the trail back. The guard is a two-half
 control — the scope half fails OPEN, the in-map half fails CLOSED — and the
 recording sits only on the closed half, after the verdict is already decided.
 
+**Several live writers (ADR-0110).** Writer slices of one skill, and the
+writers of a parallel group's members, can be recorded at once, so the guard
+reads every live writer (`filemap.active_writers`, most recent first) and
+decides which of them the call may belong to — its **candidates**. When the
+payload carries the calling subagent's `agent_id`, `filemap._writer_for`
+matches it and the only candidate is that writer: the check is exact, against
+its own skill's phase directory and map. Without one the call cannot be
+attributed and every live writer is a candidate: the write is allowed when ANY
+of them may make it (the union of their scopes), and denied only when none
+may, naming every candidate skill and the combined declared list. It is never
+judged against whichever writer started last.
+
 ## Sequence diagram
 
 ```mermaid
@@ -26,9 +38,10 @@ sequenceDiagram
     DP->>DP: arm the bounded alarm, then call file_map_guard
     DP->>SCOPE: does this guard apply at all
     SCOPE-->>DP: exit 0 when not a write tool, no acs partition or no active write-kind agent
-    SCOPE->>MAP: in scope - a write-kind agent is running in this partition
+    SCOPE->>MAP: in scope - one or more write-kind agents are running in this partition
+    MAP->>MAP: candidates - the writer the payload agent_id names, else every live writer
     MAP->>MAP: unreadable tool_input, a guard control input, or outside the declared map
-    MAP-->>DP: exit 0 when no path is named, the phase dir is the target, or nothing is declared
+    MAP-->>DP: exit 0 when no path is named, or for ANY candidate the target is its phase dir, it declared nothing, or its map covers the path
     MAP->>MAP: warn on stderr with the STOP and return needs_input instruction
     MAP->>REC: reason plus target plus declared_count plus iteration
     REC->>ST: one 7-field event - ts, skill, iteration, tool, target, reason, declared_count

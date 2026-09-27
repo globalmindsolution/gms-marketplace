@@ -69,7 +69,7 @@ onto the plugin hooks API like this:
 
    | Event | Matcher | `dispatch.py` mode | What it does |
    |---|---|---|---|
-   | `SubagentStart` | `^acs:` | `subagent-start` | records the running agent — its skill, role and the role's kind — in `<partition>/active-agents/<agent_id>.json` — **one file per agent**, so the parallel implementer fan-out this record exists for cannot lose an entry to a read-modify-write race. `review-code`'s lenses and adjudicators are not recorded: the coordinator persists what they return itself |
+   | `SubagentStart` | `^acs:` | `subagent-start` | records the running agent — its skill, role and the role's kind — in `<partition>/active-agents/<agent_id>.json` — **one file per agent**, so a parallel fan-out — slices of one writer role, or the writers of a parallel group's members (ADR-0110) — cannot lose an entry to a read-modify-write race. `review-code`'s lenses and adjudicators are not recorded: the coordinator persists what they return itself |
    | `SubagentStop` | `^acs:` | `subagent-stop` | validates the returned XML and writes the phase snapshot (see "Phase artifacts"); **exit 2** sends the subagent back, at most `BLOCK_LIMIT` times |
    | `Stop` | — | `stop` | **exit 2** refuses to end a turn that left a run `in_progress` with no result document, naming the finish command; at most `BLOCK_LIMIT` times per checkout and run |
    | `PreCompact` | — | `pre-compact` | writes `<partition>/handoff-context.md` from the ledger before the window shrinks |
@@ -98,8 +98,25 @@ onto the plugin hooks API like this:
    an acs agent of the **`write` kind** is running (`code-implementer`,
    `create-prd-author`, `standardize-project-scaffolder`, … —
    `acs_lib.skills.ROLE_KINDS`), with the agent told to return `needs_input`
-   for the file it needs. The guard's own function keeps its old name,
-   `filemap.active_executor`.
+   for the file it needs. The guard is `filemap.file_map_guard`; it reads
+   every live writer through `filemap.active_writers` (most recent first), and
+   `filemap.active_executor` survives as the first of them.
+
+   **Several writers can be live at once (ADR-0110).** A coordinator fans a
+   writer role out over disjoint slices, and `/acs:ship` runs a parallel
+   group's members side by side, so writers of two SKILLS can be recorded at
+   the same moment. The guard therefore never judges a write against
+   "whichever writer started last". When the hook payload carries the calling
+   subagent's `agent_id`, `filemap._writer_for` matches it to its own record
+   and the write is judged against exactly that writer's skill: its own
+   `steps/<skill>/` artifacts and its own iteration's map. When the payload
+   names no agent (an older Claude Code), the write cannot be attributed, and
+   it is allowed when ANY live writer may make it — the **union** of their
+   scopes. A candidate writer whose skill declared no map fails open as
+   before; the deny names every candidate skill and the combined declared
+   list. The price of the union is stated in ADR-0110: an unattributed write
+   may touch a sibling skill's mapped file; with `agent_id` on tool hooks the
+   check is exact.
 
    **Failure polarity is split, because the two questions carry opposite
    risks.** Deciding *whether the guard applies* fails OPEN — not an acs
@@ -166,11 +183,14 @@ onto the plugin hooks API like this:
    **What it checks is the UNION of the iteration's declared tasks, not the one
    task the running writer was given.** Per-task binding is not achievable
    with what Claude Code provides: neither `SubagentStart` nor `PreToolUse`
-   carries a task index, and parallel implementers of one `agent_type` run at
-   once, so there is nothing to bind an agent to its task by. The union still
+   carries a task index, and parallel instances of one `agent_type` — slices
+   of one writer role — run at once, so there is nothing to bind an agent to
+   its task by (`agent_id` names the agent, not its task). The union still
    enforces the property that actually goes wrong — a writer wandering outside the
    PLAN — while disjointness *between* tasks stays what the coordinator's
-   parallel-vs-sequential decision already exists to decide.
+   partition rule already exists to decide. Two unions stack under a parallel
+   group: the union of one skill's tasks, and — for an unattributed write —
+   the union across the live writers' skills (above).
 
 ## Gates: order lives in ship.yaml; skills keep safety brakes
 
@@ -245,17 +265,19 @@ renders it and `run_pre_payload` prints it — after the gate passes, on stderr,
 exit 0:
 
 ```
-acs: docs-sync normally follows code in ship.yaml; code has not completed for MAR-12
-acs: create-pr normally follows docs-sync and run-e2e-tests in ship.yaml; docs-sync has not completed for MAR-12
+acs: review-code normally follows code in ship.yaml; the cursor for MAR-12 is code
+acs: run-e2e-tests normally follows docs-sync in ship.yaml; the cursor for MAR-12 is create-e2e-tests
 ```
 
-`<needs>` are the step's declared `needs`, `<pending>` the unsatisfied ones,
-each a prose list ("a", "a and b", "a, b and c"); the verb agrees with the
-pending count. The line is suppressed when the skill is not a step of the
-resolved workflow, when `settings.workflow.advisories` is false (default true),
-or when anything at all cannot be read — `workflow_advisory()` never raises and
-never appears on a refusal path. It reads the same ledger the walk does through
-`workflow.pending_needs()`, which never writes.
+The line names the skill's predecessor — the step before its STAGE, and for a
+skill that follows a parallel group that group's last member — and the cursor,
+the step the run is actually waiting on. It is suppressed when the skill is one
+of the steps due now (`run.due_steps`), so the second member of a parallel
+group is never "out of order"; when the skill is not a step of the resolved
+workflow; when `settings.workflow.advisories` is false (default true); or when
+anything at all cannot be read — `workflow_advisory()` never raises and never
+appears on a refusal path. It reads the same ledger the walk does, and never
+writes.
 
 **The two brakes are facts, not ordering.** "Its review did not pass" and
 "no PR was ever opened" are properties of the ticket that no amount of running
@@ -313,9 +335,8 @@ steps:
   - create-test-docs
   - code
   - review-code
-  - create-e2e-tests
+  - [create-e2e-tests, docs-sync]   # a parallel group
   - run-e2e-tests
-  - docs-sync
   - create-pr
 
 loops:
@@ -326,9 +347,17 @@ loops:
 ```
 
 That is the entire file, and it is an orchestrator: it keeps the order the
-skills run in. `acs workflow validate` checks only what a list can get wrong
-on its own — every step is a skill that ships and not another skill's leg,
-and every loop's `back_to` precedes its `from`. It does not check the order
+skills run in. Each entry is a **stage**: a skill name, or a list of two or
+more skill names — a **parallel group** (ADR-0110), whose members
+`/acs:ship` starts together and which completes when every member has.
+`acs_lib.workflow` reads it through `stages_of` (the stages, each a list),
+`steps_of` (every step flattened, a group's members in written order),
+`stage_of` and `stage_index`. `acs workflow validate` checks only what a list
+can get wrong on its own — every step is a skill that ships and not another
+skill's leg, no skill appears twice (a skill is one step of a run), every
+loop's `back_to` precedes its `from`, and neither end of a loop sits inside a
+parallel group (a loop that re-entered half a group would leave the other
+half's work neither kept nor redone). It does not check the order
 against what the skills need, so an out-of-order override validates and its
 steps run on their fallbacks. `workflow.schema.json` **rejects** every key version 2
 carried — `when`, `paths`, `requires`, `needs`, `id`, `name`, `stop_after`,
@@ -342,7 +371,27 @@ be run on its own and be trusted, because invoked by hand it never evaluated
 the condition the workflow was evaluating for it. So each skill decides for
 itself and records why (see *Nothing owed*, below).
 
-`loops:` is the only construct, and it is not a condition: it tests nothing
+**A parallel group is not a condition either.** It declares that its members
+may overlap, nothing about whether they have work, and it is written by the
+workflow's author, never derived: the skills declare nothing about each other,
+so nothing could derive it. The shipped file declares one —
+`create-e2e-tests` and `docs-sync` both follow the reviewed changeset and write
+disjoint files (suites vs docs), and `run-e2e-tests` then runs the suites the
+first one wrote.
+
+`/acs:ship` runs a group inside its own session — a step's coordinator runs
+in the invoking session, so two steps cannot each get a session of their own
+inside one run. It invokes every member in written order (each call fires that
+member's pre-hook and its own `acs step start`), advances their coordinators
+in lockstep with each phase's subagents for all members spawned in ONE message,
+gathers every member's questions into one ask, and lets each member write its
+own result and run its own post-hook (`skills/ship/SKILL.md`, "Running a
+parallel group"). When one member fails, the others finish the phase in
+flight, are recorded `interrupted` through their own Finish, and the run
+stops. The cost is the coordinator's context: every member's coordinator
+prose is loaded together, which is why groups are declared, never derived.
+
+`loops:` is the only other construct, and it is not a condition: it tests nothing
 about the change, it declares that two steps form a cycle and how many times.
 It cannot live inside a skill because it spans two of them — which is exactly
 why the review could not be a separate skill until the loop moved here.
@@ -355,10 +404,32 @@ why the review could not be a separate skill until the loop moved here.
 | `acs step start \| finish \| show --step <name>` | one step's transition and its own state |
 | `acs result validate` | is this result document admissible? |
 | `acs workflow show \| validate` | which workflow file, and does it hold together? |
+| `acs notes merge --out <file> <slice files…>` | join what a parallel fan-out wrote into the one file every reader expects (see "Fan-out inside a skill") |
 
 `acs run next` is **the cursor**: the first step in workflow order that is not
 `completed`. With no graph there is no ready-set to compute and nothing to
-record as skipped. Every verb defaults to this checkout's current run and
+record as skipped. It also prints **`due`** — every unfinished step of the
+cursor's stage (`run.due_steps`): `[next]` for a plain step, each unfinished
+member for a parallel group — and **`parallel`**, true when `due` holds more
+than one step. `/acs:ship` starts everything in `due`; `next` stays the first
+of them.
+
+`acs run check` proves the ledger's invariants. The two that concern the
+cursor:
+
+- **I1 — one stage in progress.** Every step recorded `in_progress` belongs
+  to ONE stage: a parallel group's members may all be open at once, nothing
+  else may. `run.start_step` enforces it at the transition — it refuses a step
+  while a step of ANOTHER stage is `in_progress` — and `check` reports a
+  violation as an error. `run.in_progress_steps` lists the open steps;
+  `run.in_progress_step` is the first of them, the one a handoff or a Stop
+  reminder names.
+- **I2 — the cursor is derived.** The stored `cursor` must equal the first
+  step not `completed` (an error otherwise), and a step `in_progress` that is
+  not in `due` is a WARNING, not an error: a skill run on its own is out of
+  order, not inconsistent.
+
+Every verb defaults to this checkout's current run and
 takes `--run` only to name another, because nobody should have to type a run
 id — `sessions/<checkout-id>/pointer.json` already knows.
 
@@ -382,16 +453,26 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
                read-only on the repo; records mode, inputs, evidence and open
                questions in iter-1/authoring.md; an open decision comes back as
                needs_input BEFORE any file is written. Later iterations reuse
-               these notes as a fixed baseline.
+               these notes as a fixed baseline. Sliced per disjoint top-level
+               repo area when the scope spans two or more; the slices'
+               authoring-<id>.md are joined by `acs notes merge`.
      write  -> spawn <skill>-<write role> (author, planner, implementer, ...):
                produces the deliverable from the notes, the answers and, on
-               iteration 2+, the judge's findings. Parallel writers are allowed
-               when their outputs cannot conflict; decomposition is
+               iteration 2+, the judge's findings. Sliced BY DEFAULT, from
+               iteration 1, whenever the deliverable splits into disjoint
+               files; then one more writer instance, slice="integration",
+               reconciles the seams before the judge. Decomposition is
                coordinator-only. The file-map guard applies while one runs.
                A skill with no survey role has its writer survey first and
                record the survey in the same authoring notes.
      judge  -> spawn <skill>-<judge role> (reviewer, plan-reviewer, build-checker, ...):
                re-derives and judges fresh; returns a result with findings.
+               Sliced BY DEFAULT at five or more check dimensions: 2-3 slices
+               over disjoint dimensions, joined by `acs notes merge`; the
+               iteration passes only when every slice passed.
+     - a fan-out is N instances of the SAME agent spawned in ONE message,
+       each carrying slice="<id>", at most max_parallel = 4 per phase (see
+       "Fan-out inside a skill")
      - every task and result carries phase="<role>"
      - every subagent WRITES ITS OWN ITERATION ARTIFACT (see below) and names it
        in its outputs; the message itself stays compact
@@ -424,6 +505,86 @@ one role whose deliverable is a plan: `plan.md`, which the delivery path is
 judged from (ADR-0095), so the skill has no per-path shape and every run
 spawns the planner.
 
+### Fan-out inside a skill (ADR-0110)
+
+A subagent cannot spawn a subagent, so every fan-out is the coordinator's: it
+runs N instances of the SAME agent in ONE message, in the foreground, each over
+a disjoint **slice**, and waits for all of them before the next phase. The
+cap is **`max_parallel = 4` instances per phase**; a skill with its own cap
+keeps it (`/acs:create-docs` runs its doc sets at 2), and work beyond the cap
+runs in waves. Three kinds of work fan out:
+
+| Kind | When | Slice | Joined by |
+|---|---|---|---|
+| **Writers** | by default, from iteration 1, whenever the deliverable splits into disjoint files — authors per feature area, architects per HLD/LLD, scaffolders per allowlist slice, test-writers per suite file, doc-updaters per doc area, implementers per file-map partition. A deliverable that is one document keeps one writer, and its SKILL.md says so | one disjoint set of files, named by the skill's partition rule | the integration pass (below) |
+| **Judges** | by default when the judge has five or more check dimensions | two or three named slices over disjoint dimensions, as a table in the SKILL.md (slice id → dimension numbers), passed as `<constraint name="dimensions">`. Each deterministic checker runs in exactly one slice; a judge that runs something once (a build, a suite) keeps that run in one slice | `acs notes merge` into `iter-<n>/<role>.md`, then de-duplication |
+| **Surveys** | when the scope spans two or more disjoint top-level areas of the repo | one area | `acs notes merge` into `iter-1/authoring.md`, then the consumer's synthesis |
+
+**The slice is on the message and in every file name.** The task and the
+result carry `slice="<id>"` (`<task skill="S" phase="<role>" slice="<id>" …>`);
+an un-sliced instance omits it exactly as before. A sliced instance writes
+`iter-<n>/<role>-<id>.json` (write and survey report), `iter-<n>/<role>-<id>.md`
+(judge report) or `iter-<n>/authoring-<id>.md` (survey notes), and the
+SubagentStop hook files its snapshot at `iter-<n>/<role>-<id>-message.xml`
+(`lifecycle.phase_artifact_path(..., slice_id=)`), so siblings sharing a phase
+and an iteration never overwrite each other. `lifecycle.validate_message`
+holds a slice id to what a file name can safely be: letters, digits, `_` and
+`-`, at most 40 characters.
+
+**The join is deterministic: `acs notes merge`.** `acs.py notes merge --out
+<file> <slice files…>` (`acs_lib.notes.merge_files`) merges markdown by `## `
+heading: the preamble is the first input's; every H2 appears once, in the
+order first seen; each input's body under it is appended in input order behind
+a `<!-- slice: <id> -->` marker. Headings inside fenced code are body text, and
+`###` and deeper stay where their slice put them. It prints `{ok, out,
+sections, inputs}`. Slice ids come from the file names: the stem minus the
+prefix every input shares, cut back to a hyphen (`impact-reviewer-surface.md`,
+`impact-reviewer-form.md` → `surface`, `form`), so role names and slice ids
+may both contain hyphens. **A missing input fails the merge** — a missing slice
+is a failed slice, and a merge that quietly left it out would read as a pass.
+Every downstream reader and deterministic checker (`prd_conformance_check.py`
+parsing the notes' sections, the next writer reading the judge's report) still
+reads ONE file with each section once.
+
+**Joining is not synthesizing.** The merge is the whole join only where slices
+cannot disagree. Where they meet at a seam, the skill reconciles them before
+the next phase:
+
+- **Parallel writers → an integration pass.** After every writer slice
+  finished and BEFORE the judge, ONE more instance of the same writer role runs
+  with `slice="integration"` — `/acs:code-complex`'s final integration
+  implementer, generalised. Its task names every slice's outputs and reports.
+  It reconciles only the seams its SKILL.md names (shared terms and IDs,
+  cross-references, index and overview files, shared fixtures and config),
+  never a slice's substance; records each seam it changed (file, what, why,
+  which slices) in `iter-<n>/<role>-integration.json`; returns a conflict it
+  cannot settle from the evidence as `needs_input`; and is skipped when one
+  writer ran. The judge then judges the integrated result, and a seam
+  inconsistency is a finding for the next iteration.
+- **Parallel surveys → the consumer synthesizes.** A single writer that reads
+  the merged `authoring.md` reconciles contradictions between slices under a
+  `## Synthesis` section of its own notes — the resolution with its evidence,
+  or an open question — and never silently picks one.
+- **Parallel judges → the merge plus de-duplication.** Slices own disjoint
+  dimensions, so the merge is the synthesis; the coordinator additionally
+  drops a finding that cites the same location and the same defect as another
+  slice's (keeping the higher severity) and says so in the joined report.
+
+**A sliced judge passes only when every slice passed**: every slice returned
+`status="completed"` with zero blocking findings. Any slice's blocking finding
+blocks, every slice's findings go verbatim to the next writer, and a slice that
+failed or returned nothing usable fails the iteration — never "pass with a
+missing slice". A resumed iteration re-runs only the slices whose report is
+missing.
+
+**Commits from parallel writers** on one ticket branch meet git's
+`index.lock`. The rule is wait briefly and retry; never delete the lock and
+never force anything.
+
+**Cost.** Wall time falls wherever work splits; token cost rises with sliced
+judges, which re-read shared inputs once per slice, and the per-phase cap
+bounds it.
+
 ### Phase artifacts (written by the subagents themselves)
 
 Subagents persist their full work products into the partition — the XML result
@@ -432,9 +593,9 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `steps/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| authoring | `iter-<n>/authoring.md` (every skill that authors a deliverable, ADR-0092/ADR-0094; no skill writes `iter-<n>/plan.md`. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its planner's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the planner) | the survey role on iteration 1 where the skill has one (`surveyor`, `auditor`), else the write role | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the judge corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the judge's `authoring-conformance` dimension judges the draft against these notes |
-| survey / write | `iter-<n>/<role>.json` — `surveyor.json`, `author.json`, `planner.json`, `implementer.json` (parallel implementers: `implementer-<k>.json`), … | survey and write roles | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
-| judge | `iter-<n>/<role>.md` — `reviewer.md`, `plan-reviewer.md`, `build-checker.md`, … | judge roles | the full report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
+| authoring | `iter-<n>/authoring.md` (every skill that authors a deliverable, ADR-0092/ADR-0094; no skill writes `iter-<n>/plan.md`. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its planner's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the planner) | the survey role on iteration 1 where the skill has one (`surveyor`, `auditor`), else the write role | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the judge corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the judge's `authoring-conformance` dimension judges the draft against these notes. Sliced survey instances write `authoring-<id>.md`, joined into this file by `acs notes merge`; a single writer consuming the merged notes adds a `## Synthesis` section reconciling the slices |
+| survey / write | `iter-<n>/<role>.json` — `surveyor.json`, `author.json`, `planner.json`, `implementer.json`; a sliced instance writes `<role>-<id>.json` (parallel implementers: `implementer-<k>.json`), and the integration pass `<role>-integration.json` listing every seam it changed, … | survey and write roles | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
+| judge | `iter-<n>/<role>.md` — `reviewer.md`, `plan-reviewer.md`, `build-checker.md`, …; a sliced judge writes `<role>-<id>.md`, joined into `<role>.md` by `acs notes merge` | judge roles | the full report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
 **A judge also writes a verdict** (MAR-527):
 `steps/<skill>/iter-<n>/verdict.json`, or one `lens-<A..E>.md` per lens for
@@ -456,7 +617,9 @@ coordinator remembering to. The hook fires on `^acs:`-matched agents, validates
 the returned message, and files it at
 `steps/<skill>/iter-<iteration>/<phase>-message.xml` — a path taken entirely
 from the message's own `skill`, `phase` and `iteration` attributes (the phase
-is the role, so an implementer's snapshot is `implementer-message.xml`), so
+is the role, so an implementer's snapshot is `implementer-message.xml`; a
+sliced instance's lands at `<phase>-<slice>-message.xml`, so parallel
+siblings never overwrite each other), so
 nothing about it has to be carried in the coordinator's head. `-message`
 keeps the snapshot off the role's own `<role>.json` report. An invalid message sends the
 subagent back with the errors, at most twice (`BLOCK_LIMIT`); a still-invalid
@@ -653,7 +816,8 @@ for a three-element vocabulary bought a dependency on `xmllint` and a file
 nobody read. The **SubagentStop hook** validates what a subagent returns
 (`acs_lib.lifecycle.validate_message`): well-formed, one of the two permitted
 roots, and the three attributes the snapshot path is derived from —
-`skill`, `phase`, `iteration`.
+`skill`, `phase`, `iteration` — plus `slice` when a coordinator fanned the
+role out (a short id of letters, digits, `_` and `-`).
 
 - `phase` is the role the message belongs to (`surveyor`, `author`,
   `plan-reviewer`, `implementer`, …). `/acs:review-code` is the exception its
@@ -664,9 +828,12 @@ roots, and the three attributes the snapshot path is derived from —
   `<result>` as the final content of their reply — nothing after it.
 - `<handoff>` is only for step-coordinator -> /acs:ship returns: compact
   (~1 KB), referencing workspace files rather than inlining detail.
-- Subagents never spawn sub-subagents; parallel writers are the
-  coordinator's call; a judge runs after all writers of its iteration
-  complete.
+- Subagents never spawn sub-subagents; every fan-out is the coordinator's
+  (see "Fan-out inside a skill"); a judge runs after all writers of its
+  iteration — and the integration pass, when one runs — complete.
+- A sliced instance carries `slice="<id>"` on its task and echoes it on its
+  result; the SubagentStop hook takes the snapshot's file name from it. A
+  sliced judge's task also carries `<constraint name="dimensions">`.
 
 **Phase results are JSON.** What a step ends with is `result.json`, validated
 against `result.schema.json` by `acs result validate` and by the post-hook —
@@ -781,6 +948,7 @@ whole docs folder when it creates the branch.
       plan.md  api-contract.md  ...     #   CURRENT artifacts
       iter-<n>/                         #   the AUDIT TRAIL, one dir per iteration
         authoring.md  <role>.json  <role>.md  <role>-message.xml
+        authoring-<id>.md  <role>-<id>.json|.md  <role>-<id>-message.xml   # sliced
         verdict.json  lens-<A..E>.md ...
 ```
 

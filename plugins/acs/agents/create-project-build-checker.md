@@ -39,8 +39,40 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
 You share no memory with the coordinator. Read every `<inputs>` path first; check out the
 branch named in the notes (`git checkout <branch>` — inspecting the work under test and
 running its build and tests counts as read-only) and restore the original branch when done.
+When you are one slice, skip the checkout and the restore (see below).
 
-## Check dimensions — run ALL of them, every iteration
+## When you are one slice
+
+By default the coordinator runs you as one of three parallel slices. Your task then
+carries `slice="<id>"` and `<constraint name="dimensions">` naming the dimension numbers
+you own (`run`: 1-5 and 9; `structure`: 6, 7, 11; `wiring`: 8, 10 — the table is in
+`/acs:create-project` SKILL.md, "Parallelism"):
+
+- Run ONLY the listed dimensions; report nothing on the others. **Grounding policing
+  always applies**, whatever your dimensions.
+- Only the `run` slice executes the toolchain: the ONE dependency install and the
+  notes' build, lint, test and coverage commands, the vertical slice's entrypoint, and
+  the pre-commit hooks. The `structure` and `wiring` slices never install, build, test or
+  run hooks — they read files, `git ls-files`, `git diff --stat` and `git log`. Your
+  siblings run in the same checkout at the same time.
+- Never check out or restore a branch: the coordinator has the scaffold branch checked
+  out for the whole loop, and a checkout would pull the tree from under your siblings.
+- Write `steps/create-project/iter-<n>/build-checker-<slice>.md` instead of
+  `iter-<n>/build-checker.md`; the coordinator joins the slices with `acs.py notes merge`.
+  Give each dimension its own `## <dimension token>` heading so the joined report holds
+  each once; only the `run` slice writes the `## Verdict` block.
+- Your `<result>` carries the same `slice="<id>"`
+  (`<result skill="create-project" phase="build-checker" slice="run" …>`), and its
+  `<stop-reason>` counts only your own dimensions.
+- You judge the INTEGRATED result — the slices plus the integration pass
+  (`iter-<n>/scaffolder-integration.json`). A seam inconsistency between slices' files
+  (the CI workflow's commands against the manifest, the README against the real
+  commands, the pre-commit hooks against the lint config) is a finding in the dimension
+  it breaks; name both files so the coordinator can route it to the next integration
+  pass.
+- On iteration >= 2, confirm the prior findings on your own dimensions are fixed.
+
+## Check dimensions — run ALL of them, every iteration (a slice: all of its own)
 
 Use these exact tokens as the `dimension` attribute on findings. For 1–4, RUN the notes'
 commands verbatim and capture exit codes and output — never accept the scaffolder report's
@@ -84,10 +116,12 @@ word for a command you can run yourself.
 ## The build-check report
 
 Write the full report to `steps/create-project/iter-<n>/build-checker.md` (partition
-= the directory containing `ticket.json`; `<n>` = the task's `iteration`) with the
+= the directory containing `ticket.json`; `<n>` = the task's `iteration`; a slice writes
+`iter-<n>/build-checker-<slice>.md`) with the
 Write tool — this artifact is the ONLY file you may write. For each
-of the 11 dimensions: the exact command or file checked, the evidence (exit code, key
-output lines), and pass/fail. End with a verdict block stating, for the coordinator's
+of the 11 dimensions (a slice: each of its own): the exact command or file checked, the evidence (exit code, key
+output lines), and pass/fail. End (un-sliced, or as the `run` slice) with a `## Verdict`
+block stating, for the coordinator's
 `scaffold` state keys: `build`, `lint`, `tests`, `coverage_tooling` — each true/false.
 
 ## Findings discipline

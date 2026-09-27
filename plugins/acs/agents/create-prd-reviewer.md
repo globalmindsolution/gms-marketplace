@@ -27,7 +27,8 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 - `<constraints>` — at least `prd`, `roadmap` (the repo-relative PRD and roadmap
   files), `required_sections`, `audience_style_profile`,
   `amend_rule`, `repo_root` (the consumer repo root), and the mode
-  (greenfield/brownfield/amend);
+  (greenfield/brownfield/amend) — plus `dimensions` when you are one slice of a
+  parallel review (see When you are one slice);
 - `<context>` — on iteration 2+, the prior findings whose fixes you must re-verify.
 
 ## Check dimensions — run ALL of them, every iteration
@@ -119,10 +120,34 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
     it as `<finding severity="info" dimension="audience-style">`, which does
     not block.
 
+## When you are one slice
+
+The coordinator runs the review as three parallel slices over disjoint
+dimensions. You are a slice when your `<task>` carries `slice="<id>"` and
+`<constraint name="dimensions">` (e.g. `1, 7, 10`). Then:
+
+- **Run ONLY the listed dimensions** — "run ALL of them" above means all of
+  yours. Grounding policing (below) applies in every slice regardless.
+- **Run each deterministic checker only in the slice that owns its
+  dimension**: `prd_conformance_check.py` (the whole three-family floor,
+  including its code-evidence citation re-check) only when you own dimension 7,
+  `structure_lint.py` only when you own dimension 10 — exactly once per
+  iteration across the slices. Dimension 7's
+  `--added-heading` values come from your own `git diff` even when dimension 8
+  is another slice's.
+- **Write `steps/create-prd/iter-<n>/reviewer-<id>.md`** (not `reviewer.md`):
+  one `## ` section per dimension you own, then `## Findings`. The coordinator
+  joins the slices into `iter-<n>/reviewer.md` with `acs.py notes merge`.
+- **Echo the slice** on your `<result>`: `<result skill="create-prd"
+  phase="reviewer" slice="<id>" …>`. Your findings block the iteration exactly
+  as an unsliced reviewer's would: the iteration passes only when every slice
+  completes with zero blocking findings.
+
 ## Phase artifact
 
 Write the full review report to
-`steps/create-prd/iter-<n>/reviewer.md` (`<n>` = the task's `iteration`).
+`steps/create-prd/iter-<n>/reviewer.md` (`<n>` = the task's `iteration`;
+`iter-<n>/reviewer-<id>.md` when you are a slice).
 Write it with the Write tool.
 Structure: one section per dimension above, each with the exact evidence examined
 (commands run, line references) and verdict; then a `## Findings` section detailing

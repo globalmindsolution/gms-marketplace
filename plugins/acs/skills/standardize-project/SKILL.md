@@ -73,9 +73,10 @@ never stops it.
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-- Read `steps/standardize-project/` — the per-iteration reports (`iter-1/auditor.json`,
-  `iter-<n>/scaffolder*.json`, `iter-<n>/additive-checker.md`) and the SubagentStop
-  snapshots `iter-<n>/<phase>-message.xml` tell you the last completed phase and
+- Read `steps/standardize-project/` — the per-iteration reports (`iter-1/auditor*.json`,
+  `iter-<n>/scaffolder*.json`, `iter-<n>/additive-checker*.md`) and the SubagentStop
+  snapshots `iter-<n>/<phase>-message.xml` (a sliced instance's
+  `iter-<n>/<phase>-<slice>-message.xml`) tell you the last completed phase and
   iteration.
 - Re-read the actual artifacts: which files under `<checkout_root>` were scaffolded per
   the frozen iteration-1 notes; whether the ticket branch exists (`git branch --list`), is
@@ -83,11 +84,20 @@ continuing:
 - Distrust the record where it is cheap to re-check.
 - Continue from the first unfinished phase of the recorded iteration.
 - There is no plan artifact to reuse, and the audit is never re-run once it
-  completed: no `iter-1/auditor.json` → run the auditor; a scaffolder report with no
+  completed: no auditor report → run the auditor; a scaffolder report with no
   additive-check → additive-check it; an additive-check with blocking findings and no
   later scaffolder report → run the scaffolder with those findings as `<context>`. The
   auditor's iteration-1 authoring notes (`iter-1-authoring.md`) carry the frozen
   allowlist every later iteration reads.
+- **Slices (see Parallelism).** A resumed iteration re-runs only the slices whose
+  report is missing — an audit slice with no `iter-1/auditor-<slice>.json`, a
+  scaffolder slice with no `iter-<n>/scaffolder-<slice>.json`, an additive-checker
+  slice with no `iter-<n>/additive-checker-<slice>.md` — never a slice whose report
+  exists; scaffolder slice reports present but no
+  `iter-<n>/scaffolder-integration.json` → run the integration pass before any
+  additive-check. Then re-run the `acs.py notes merge` join for that phase (the audit slices
+  into `iter-1/authoring.md` — only while no scaffolder has run; the checker slices
+  into `iter-<n>/additive-checker.md`).
 
 If `context.handoff_summary` exists, read it plus
 `steps/standardize-project/handoff-context.md` (if present), do a light
@@ -232,14 +242,22 @@ Three subagents, each doing one thing, at most 3 iterations:
   model tier, read-only on the repo. Runs on **iteration 1 only**, before anything is
   scaffolded: it AUDITS the repo (read-only) and writes the run's authoring notes —
   the gap list, the frozen Additive-surface allowlist, the `recommended_follow_ups`
-  candidates — plus its report `iter-1/auditor.json`.
+  candidates — plus its report. It runs as three audit-category slices in parallel,
+  each writing `iter-1/authoring-<slice>.md` and `iter-1/auditor-<slice>.json`, joined
+  into `iter-1/authoring.md` (Parallelism below); an un-sliced auditor writes
+  `iter-1/auditor.json`.
 - **scaffolder** — `acs:standardize-project-scaffolder`, a `write` role on the
   `executor` model tier. Additively scaffolds exactly the allowlisted gaps from the
-  frozen notes; on iterations 2-3 it remediates the additive-checker's findings from
-  the same notes. Report: `iter-<n>/scaffolder.json`.
+  frozen notes, one scaffolder per allowlist slice in parallel from iteration 1, then
+  one integration scaffolder that reconciles the seams and the audit slices; on
+  iterations 2-3 it remediates the additive-checker's findings from the same notes.
+  Report: `iter-<n>/scaffolder-<slice>.json` (`iter-<n>/scaffolder.json` un-sliced;
+  the integration pass's `iter-<n>/scaffolder-integration.json`).
 - **additive-checker** — `acs:standardize-project-additive-checker`, a `judge` role on
   the `verifier` model tier, read-only on the repo. Re-runs the additive-only check and
-  its other dimensions fresh, EVERY iteration. Report: `iter-<n>/additive-checker.md`.
+  its other dimensions fresh, EVERY iteration, as two dimension slices in parallel.
+  Report: `iter-<n>/additive-checker-<slice>.md`, joined into
+  `iter-<n>/additive-checker.md`.
 
 The loop: auditor (iteration 1) → scaffolder → additive-checker; iterations 2-3 are
 scaffolder ← findings → additive-checker. The additive-checker's findings go verbatim
@@ -251,11 +269,13 @@ subagents via the Agent tool with `subagent_type` `acs:standardize-project-audit
 `context.models.<tier>.model`/`.effort` at spawn when not `"inherit"` — `planner` for
 the auditor, `executor` for the scaffolder, `verifier` for the additive-checker; fail
 the run (no silent fallback) if the runtime rejects the model/effort. Communicate in
-XML per message — every `<task>` and `<result>` carries `phase=` = the role — re-request
+XML per message — every `<task>` and `<result>` carries `phase=` = the role, and a
+sliced instance's also `slice="<id>"` (an un-sliced one omits it) — re-request
 an invalid message once, then fail with the validation error recorded in `errors`.
 Every phase's output is on disk before the next phase starts: each agent writes its
 own report, and the SubagentStop hook snapshots its `<result>` to
-`steps/standardize-project/iter-<n>/<phase>-message.xml`.
+`steps/standardize-project/iter-<n>/<phase>-message.xml` (a sliced instance's to
+`iter-<n>/<phase>-<slice>-message.xml`, so parallel instances never collide).
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -269,20 +289,179 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 round is preceded by the audit). `standardize-project` has no path-driven check-depth
 selection: the cap is a fixed 3 on every run, and this ticket introduces none.
 
-Example iteration-1 auditor task (illustrates the audit-inputs contract and the
-narrowed allowlist together):
+### Parallelism — audit slices, scaffolder slices, additive-checker slices
+
+Every fan-out here is yours: spawn the N instances of the SAME agent in ONE
+message (all foreground, all in the same message), wait for all of them, and
+join their outputs before the next phase. At most `max_parallel = 4` instances
+run per phase; beyond that, run the rest in waves of four.
+
+**Audit slices — iteration 1, the default.** The four audit categories are
+independent (none gates the others) and read disjoint parts of the repo, so the
+audit runs as three slices, each a fresh `acs:standardize-project-auditor` whose
+task carries `slice="<id>"` and `<constraint name="audit_categories">`:
+
+| Slice | Audit categories | Writes into the notes and its `auditor-<slice>.json` |
+|---|---|---|
+| `structure` | 1 `hld/project-structure.md` vs the repo layout | inventory key `project_structure`; structural-gap follow-up candidates (and "run `/acs:create-architecture`" when the file or set is absent) |
+| `docsets` | 2 the principles set, 3 the standards set | inventory keys `principles`, `standards`; doc-set follow-up candidates |
+| `tooling` | 4 acs-readiness tooling (CI, pre-commit, coverage, e2e) | inventory key `readiness_tooling`; the ENTIRE Additive-surface allowlist, the Task list grouped into scaffolder slices, `scaffold_gaps`, and the e2e follow-up candidates |
+
+Principles and standards share a slice because they get the identical treatment
+and each is one directory read. Only the `tooling` slice writes the
+`## Additive-surface allowlist` and `## Task list` sections, so the frozen
+allowlist has exactly one author and the join cannot interleave two versions of
+it; the other slices contribute inventory, follow-up candidates, risks and
+checklist items only — which is all the contract lets a structural or doc-set gap
+become anyway. Each slice writes `iter-1/authoring-<slice>.md` and
+`iter-1/auditor-<slice>.json`. Join the notes deterministically — never merge them
+in prose yourself:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/standardize-project/iter-1/authoring.md \
+  <partition>/steps/standardize-project/iter-1/authoring-structure.md \
+  <partition>/steps/standardize-project/iter-1/authoring-docsets.md \
+  <partition>/steps/standardize-project/iter-1/authoring-tooling.md
+```
+
+The slice reports are not merged into one JSON: their inventory keys are
+disjoint by the table above, so `states.audit` is the union of the three
+`inventory` objects, and `recommended_follow_ups` starts from their candidates
+concatenated in the table's order. Open questions from ALL slices go to the user
+in ONE grouped clarification-ledger ask (User interaction); re-run only the
+slices that returned `needs_input`, with the answers in `<context>`, then re-run
+the join. Once a scaffolder has run, the joined notes are frozen. An audit slice
+that failed is an auditor failure: a genuine run failure.
+
+**Scaffolder slices — the default, from iteration 1.** One scaffolder per
+allowlist slice, spawned in ONE message, each `<task … phase="scaffolder"
+slice="<id>">` carrying `<constraint name="files">` with exactly the Task-list
+paths the notes group under that slice. The partition rule, which the `tooling`
+audit slice applies when it writes the Task list (a `### slice: <id>` group per
+slice):
+
+| Slice | Owns |
+|---|---|
+| `ci` | new CI workflow file(s), other than the e2e pair |
+| `precommit` | the pre-commit config — new, or the named append target |
+| `coverage` | the coverage-tool config — new, or the named append target |
+| `e2e` | the verbatim-copied pair `.github/workflows/acs-e2e.yml` and `.acs/ci/run-e2e.py`, always together |
+
+**The no-overlap guarantee:** slices are drawn by target PATH, never by concern —
+every Task-list path belongs to exactly one slice, so an append target two
+concerns would touch (e.g. a `pyproject.toml` taking both a coverage and a lint
+key) belongs to ONE slice, which makes both appends, and no two scaffolders ever
+write the same file. Before spawning, check that every Task-list path appears in
+exactly one group; a path in none or in two is an auditor defect you surface as
+a failure, since the notes cannot be re-authored. A slice with no Task-list
+entries is not spawned, and when only one slice has entries, one un-sliced
+scaffolder runs. Scaffolders write files only — you commit once, after the pass
+(Delivery) — so the slices never contend for the git index.
+
+**The integration pass — synthesis before the additive-check.** After ALL
+scaffolder slices have returned and BEFORE the additive-checker, spawn ONE more
+scaffolder with `slice="integration"`, whose `<inputs>` name the frozen notes,
+every audit slice's `iter-1/auditor-<slice>.json` and every scaffolder slice's
+`iter-<n>/scaffolder-<slice>.json` and files. It reconciles ONLY the seams
+between slices, never a slice's substance:
+
+- **config files touched by more than one slice** — the CI workflow (`ci`)
+  against the coverage command and threshold (`coverage`) and the pre-commit
+  config (`precommit`) it invokes; the e2e workflow (`e2e`) against the main CI
+  workflow's triggers and job names — adjusting only the non-verbatim side,
+  since the e2e pair is a verbatim template copy that is never edited;
+- **the README** — only when the frozen allowlist names it as an append target;
+  otherwise a README seam is a recommended follow-up, never a write;
+- **the survey synthesis** — the merged audit notes came from three slices: it
+  reconciles them (below) and checks each slice scaffolded from the shared,
+  reconciled facts.
+
+Its writable surface is the frozen allowlist and nothing more — it widens
+nothing, and a seam fix that would need a path outside the allowlist is a
+refusal under the same rule as any scaffolder's. It writes
+`iter-<n>/scaffolder-integration.json` listing each seam it changed: file, what,
+why, and which slices. A conflict it cannot resolve from the notes and the
+evidence comes back as `status="needs_input"` with a question (User
+interaction), never a guess. The integration pass is skipped when only one
+scaffolder ran.
+
+**Synthesis of the audit slices.** Whoever consumes the merged audit notes —
+the integration pass, or the single scaffolder when only one ran — reconciles
+them: where two audit slices' notes contradict (e.g. the standards set, as the
+`docsets` slice recorded it, names a coverage threshold the `tooling` slice's
+Task list does not use), it records the resolution with the evidence under a
+`## Synthesis` section of its own notes, `iter-1/scaffolder-notes.md`, or raises
+it as an open question — never silently picks one. A per-slice scaffolder that
+meets such a contradiction on its own paths does not pick a side either: it
+builds from the Task list (single-authored by the `tooling` slice), names the
+contradiction in its report's `problems`, and leaves the resolution to the
+integration pass. The frozen notes themselves are never rewritten.
+
+On iterations 2-3 re-run only the slices that own a finding: route each finding
+by its `file` to the slice whose Task-list group names that path, or else whose
+previous `scaffolder-<slice>.json` `files_changed` lists it; a seam finding (a
+cross-slice inconsistency, or a path the integration pass changed) or a finding
+owned by no slice goes to the integration pass. Every re-run scaffolder gets ALL
+the additive-checker's blocking findings verbatim in its `<context>`, with no
+plan phase in between, and fixes the ones it owns. Whenever more than one
+scaffolder ran, the integration pass runs again after that iteration's slices
+(alone, when every finding is a seam's), before the additive-checker. The
+refusal-conversion rule below applies to each scaffolder's `failed` result on its
+own, the integration pass's included.
+
+**Additive-checker slices — the default, every iteration.** The additive-checker
+has five check dimensions, so it runs as two slices, each a fresh
+`acs:standardize-project-additive-checker` whose task carries `slice="<id>"` and
+`<constraint name="dimensions">`:
+
+| Slice | Dimensions | Owns the run of |
+|---|---|---|
+| `diff` | 1 `additive-only`, 2 `doc-set-authorship` | the `git diff --name-status` re-run and the `classify_additive_diff` call |
+| `conformance` | 3 `recommended-follow-ups-only`, 4 `plan-conformance`, 5 `completion-report` | the notes-vs-scaffold comparison and the result-document shape |
+
+The additive-only check stays whole in the `diff` slice: the one diff read, its
+classification and every `additive-only` finding come from one instance, so the
+safety-critical check is never split. Grounding policing applies in every slice.
+Spawn both in ONE message; each writes `iter-<n>/additive-checker-<slice>.md`.
+Join them:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/standardize-project/iter-<n>/additive-checker.md \
+  <partition>/steps/standardize-project/iter-<n>/additive-checker-diff.md \
+  <partition>/steps/standardize-project/iter-<n>/additive-checker-conformance.md
+```
+
+**De-duplicate after the join.** The slices own disjoint dimensions, so the
+join is the synthesis — but two slices can still report one defect at one path.
+Drop a finding that cites the same location and the same defect as another
+slice's finding, keeping the higher severity (`blocking` over `info`), and say
+so: append a `## De-duplicated findings` section to the joined
+`iter-<n>/additive-checker.md` naming each dropped finding and the one kept.
+Never de-duplicate an `additive-only` finding away in favour of a degradable
+one.
+
+**Pass rule for sliced judges:** the iteration passes only if EVERY slice
+returned `status="completed"` with zero blocking findings. Any slice's blocking
+finding blocks, and all slices' findings go verbatim to the next scaffolders (a
+degraded `severity="info"` finding is converted as below, never re-dispatched). A
+slice that failed or returned no usable result fails the iteration — never "pass
+with a missing slice".
+
+Example iteration-1 auditor task, the `tooling` slice (illustrates the
+audit-inputs contract and the narrowed allowlist together; the `structure` and
+`docsets` slices get the same shape with their own categories):
 
 ```xml
-<task skill="standardize-project" phase="auditor" ticket-id="SHOP-9" iteration="1">
-  <objective>Audit this repo against the principles and standards sets, hld/project-structure.md, and acs-readiness tooling; record in the authoring notes a gap list, an additive-surface allowlist scoped to CI/tooling config only, and structural-gap candidates as recommended follow-ups.</objective>
+<task skill="standardize-project" phase="auditor" slice="tooling" ticket-id="SHOP-9" iteration="1">
+  <objective>Audit this repo's acs-readiness tooling (audit category 4); record in iter-1/authoring-tooling.md its gap list, the additive-surface allowlist scoped to CI/tooling config only, the Task list grouped into scaffolder slices, and any e2e recommended follow-ups.</objective>
   <inputs>
-    <file>docs/architecture/hld/project-structure.md</file>
-    <file>docs/principles/</file>
-    <file>docs/standards/</file>
     <file>.github/workflows/</file>
     <file>.pre-commit-config.yaml</file>
   </inputs>
   <constraints>
+    <constraint name="audit_categories">4 acs-readiness tooling</constraint>
     <constraint name="architecture_dir">docs/architecture</constraint>
     <constraint name="principles_dir">docs/principles</constraint>
     <constraint name="standards_dir">docs/standards</constraint>
@@ -295,28 +474,32 @@ narrowed allowlist together):
 
 Phases:
 
-1. **Audit (iteration 1 only)** — the auditor reads the doc-set/target/readiness-tooling
-   inputs above and writes the authoring notes
+1. **Audit (iteration 1 only)** — the three audit slices (Parallelism above), spawned
+   in ONE message, read the doc-set/target/readiness-tooling inputs of their own
+   categories and write their notes, which you join into the authoring notes
    (`steps/standardize-project/iter-1/authoring.md`): a gap list
    classified into scaffold-able (CI/tooling config) vs recommended-follow-up-only
    (missing doc sets, missing `hld/project-structure.md`, structural gaps against it),
    the additive-surface allowlist the additive-checker will enforce, and the
    `recommended_follow_ups` candidates. That allowlist is frozen for the whole run (see
    Additive-surface contract). On `needs_input` (ambiguous build/CI/test tooling),
-   resolve the questions in User interaction and re-run the auditor for iteration 1
-   with the answers in `<context>`. The auditor writes nothing in the repo.
-2. **Scaffold** — spawn the scaffolder with `<task skill="standardize-project"
-   phase="scaffolder" …>` whose `<inputs>` name the frozen notes and
-   `iter-1/auditor.json`. It writes ONLY the allowlisted new files and named additive
-   config appends — never edits, renames, or deletes any pre-existing source file, and
-   never writes under `<principles_dir>/**` or `<standards_dir>/**`. Decomposition is
-   the coordinator's alone; subagents never spawn subagents. On iterations 2-3 you MAY
-   run several scaffolders in parallel on disjoint allowlist slices; the
-   additive-checker's findings go verbatim into each scaffolder's `<task>` `<context>`,
-   with no plan phase in between, and every later scaffolder reads the frozen
-   iteration-1 notes.
-3. **Additive-check** — after all scaffolders finish, spawn the additive-checker with
-   `phase="additive-checker"` on the combined result.
+   resolve the questions of every slice in User interaction and re-run the asking
+   slices for iteration 1 with the answers in `<context>`. The auditor writes nothing
+   in the repo.
+2. **Scaffold** — spawn the scaffolder slices in ONE message, each with `<task
+   skill="standardize-project" phase="scaffolder" slice="<id>" …>` whose `<inputs>` name
+   the frozen notes and the `iter-1/auditor-tooling.json` report, and whose
+   `<constraint name="files">` names its Task-list paths. Each writes ONLY its own
+   allowlisted new files and named additive config appends — never edits, renames, or
+   deletes any pre-existing source file, and never writes under `<principles_dir>/**` or
+   `<standards_dir>/**`. Decomposition is the coordinator's alone; subagents never
+   spawn subagents. Slices run in parallel from iteration 1 (Parallelism above); on
+   iterations 2-3 the additive-checker's findings go verbatim into each re-run
+   scaffolder's `<task>` `<context>`, with no plan phase in between, and every later
+   scaffolder reads the frozen iteration-1 notes.
+3. **Additive-check** — after all scaffolders finish, the integration pass last,
+   spawn the two additive-checker slices in ONE message with
+   `phase="additive-checker"` on the integrated result.
    Its `<constraints>` carry `principles_dir` and `standards_dir` (the same values the
    auditor and scaffolder got) for the doc-set-authorship boundary. It judges fresh from
    artifacts only — never the auditor's or scaffolders' reasoning — and re-runs,
@@ -327,7 +510,8 @@ Phases:
 git -C <checkout_root> diff --name-status <default_branch>...HEAD
 ```
 
-   passing that raw output plus the iteration-1 notes' allowlist entries to spec 01's
+   — in the `diff` slice, once — passing that raw output plus the iteration-1 notes'
+   allowlist entries to spec 01's
    `classify_additive_diff` helper in `acs_lib/planrules.py`. Every returned violation — any `R`,
    any `D`, any out-of-allowlist `M` — becomes `severity="blocking"
    dimension="additive-only"`, citing the exact path and status. The additive-checker's full
@@ -335,7 +519,8 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
    recommended-follow-ups-only, plan-conformance, completion-report shape) is defined in
    its own agent prose (`standardize-project-additive-checker.md`) and re-run every iteration.
 
-Zero blocking additive-checker findings = pass — proceed to Delivery. `additive-only` and
+Zero blocking additive-checker findings, in every slice (the sliced-judge pass rule
+above) = pass — proceed to Delivery. `additive-only` and
 `doc-set-authorship` findings always block. A `plan-conformance` finding degrades to
 `severity="info"` and is surfaced as a `recommended_follow_ups` entry, instead of
 blocking, only when the additive-checker's four-condition conjunction holds (fail-closed
@@ -409,7 +594,8 @@ auto-mint, it only adds an entry to `recommended_follow_ups`.
 `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
 and reuse any recorded answer — re-asking an answered question is a defect. When ≥2
 clarifications are open, present them to the user in ONE grouped interaction, not serial
-round-trips. Record each answer as its own `clarify.py add` entry (one `C-<n>` per
+round-trips — after a sliced audit, the questions of every audit slice go in that one
+ask. Record each answer as its own `clarify.py add` entry (one `C-<n>` per
 question, `--source` preserved). Never skip a question, merge two questions into one
 entry, or auto-answer a question outside the existing `--source assumption --rationale
 "..."` rule.
@@ -466,8 +652,10 @@ MANDATORY final step — never skipped, also on failure:
 }
 ```
 
-   `states.audit` is the auditor's `iter-1/auditor.json` `inventory`, and
-   `recommended_follow_ups` starts from its `recommended_follow_ups` candidates.
+   `states.audit` is the auditor's `iter-1/auditor.json` `inventory` — when the audit
+   ran sliced, the union of the three `iter-1/auditor-<slice>.json` `inventory` objects,
+   whose keys are disjoint — and `recommended_follow_ups` starts from its (their, in
+   `structure`, `docsets`, `tooling` order) `recommended_follow_ups` candidates.
    `states.audit.*` values for `principles`/`standards`/`project_structure` are one of
    `"present" | "absent"` (`"absent"` when the repo has no such set or file yet);
    `readiness_tooling.e2e` is boolean OR the literal string `"n/a"` when

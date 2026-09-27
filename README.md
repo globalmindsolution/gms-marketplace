@@ -172,15 +172,19 @@ The marketplace currently ships one plugin:
 
   The delivery **order** is declared in
   [`plugins/acs/workflows/ship.yaml`](plugins/acs/workflows/ship.yaml) — a version, a
-  flat list of skill names and one `loops:` entry, and deliberately nothing
-  more: no conditions, no `needs:`, no per-step keys. A consumer can replace
+  list of skill names and one `loops:` entry, and deliberately nothing
+  more: no conditions, no `needs:`, no per-step keys. An entry may itself be
+  a list — a **parallel group** whose members run side by side (the default
+  runs `create-e2e-tests` and `docs-sync` together). A consumer can replace
   it wholesale with its own `.acs/workflows/ship.yaml`. Every step runs on
   every run; a step that owes nothing records an evidenced no-op from the
   plan's `## Contract` block rather than being skipped by a predicate, which
   is what keeps each skill runnable on its own — a skill whose applicability
   a workflow decided for it could not be trusted when invoked by hand.
   `/acs:ship <ticket-id>` is a thin loop over `acs.py run next`, the run's
-  derived cursor. **`/acs:ship` takes a ticket id** — a new request starts in
+  derived cursor. Inside a step, a coordinator fans its writers, judges and
+  surveys out over disjoint slices (at most four at once) and joins them
+  deterministically with `acs.py notes merge`. **`/acs:ship` takes a ticket id** — a new request starts in
   the Design phase with `/acs:create-ticket`. Each skill's pre/post hooks
   check only a couple of *safety brakes*; a skill whose upstream artifact is
   missing works from the ticket, prompt or document instead, and running one

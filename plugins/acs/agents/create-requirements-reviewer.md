@@ -21,11 +21,12 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's mes
 - `<inputs>` — absolute paths: the produced area files, the authoring notes
   (`steps/create-requirements/iter-<n>/authoring.md` — the surveyor's survey as
   the author carried it forward), the delivery `ticket.json` (derive
-  `<partition>` from its directory), and the author report.
-  READ EVERY ONE — you share no memory with anyone;
+  `<partition>` from its directory), and the author report (`author.json`, or
+  every author slice's `author-<id>.json`). READ EVERY ONE — you share no memory with anyone;
 - `<constraints>` — at least `requirements_dir`, `functional_dir`,
   `non_functional_dir`, `required_sections`, `audience_style_profile`, and the
-  mode (brownfield/amend/greenfield);
+  mode (brownfield/amend/greenfield) — plus `dimensions` when you are one slice
+  of a parallel review (see When you are one slice);
 - `<context>` — on iteration 2+, the prior findings whose fixes you must re-verify.
 
 ## Check dimensions — run ALL of them, every iteration
@@ -125,11 +126,38 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's mes
    (surfaced in `<context>` on iteration 2+) is waived — emit it as `<finding
    severity="info" dimension="audience-style">`, which does not block.
 
+## When you are one slice
+
+The coordinator runs the review as three parallel slices over disjoint
+dimensions. You are a slice when your `<task>` carries `slice="<id>"` and
+`<constraint name="dimensions">` (e.g. `1, 7, 10, 12`). Then:
+
+- **Run ONLY the listed dimensions** — "run ALL of them" above means all of
+  yours. Grounding policing (below) applies in every slice regardless.
+- **Run each deterministic checker only in the slice that owns its
+  dimension**: `structure_lint.py` (per produced area file) only when you own
+  dimension 12, the no-overwrite `git diff -- <requirements_dir>` only when you
+  own dimension 10 — exactly once per iteration across the slices.
+- **Write `steps/create-requirements/iter-<n>/reviewer-<id>.md`** (not
+  `reviewer.md`): one `## ` section per dimension you own, then `## Findings`.
+  The coordinator joins the slices into `iter-<n>/reviewer.md` with
+  `acs.py notes merge`.
+- **Judge the integrated result.** When the write ran as parallel author
+  slices plus an integration pass, a seam inconsistency between two slices'
+  files — a term defined two ways, a functional ↔ non-functional
+  cross-reference that does not resolve, a README index out of line with the
+  files, two contradicting clauses — is a blocking finding under the dimension
+  it breaks, naming both files.
+- **Echo the slice** on your `<result>`: `<result skill="create-requirements"
+  phase="reviewer" slice="<id>" …>`. Your findings block the iteration exactly
+  as an unsliced reviewer's would: the iteration passes only when every slice
+  completes with zero blocking findings.
+
 ## Phase artifact
 
 Write the full review report to
 `steps/create-requirements/iter-<n>/reviewer.md` (`<n>` = the task's
-`iteration`). Write it with the Write tool.
+`iteration`; `iter-<n>/reviewer-<id>.md` when you are a slice). Write it with the Write tool.
 Structure: one section per dimension above, each with the exact evidence examined
 (commands run, line references) and verdict; then a `## Findings` section detailing
 every finding. The XML `<finding>` entries are one-line summaries of this file.

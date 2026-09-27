@@ -331,7 +331,9 @@ class ConcurrencyAndWorktreeTest(unittest.TestCase):
     def test_authors_then_reviewers_in_one_message_each(self):
         body = norm(_body())
         self.assertRegex(body, r"(?i)authors \(`acs:create-docs-author`, one per set, at most `max_parallel`\) in ONE message")
-        self.assertRegex(body, r"(?i)reviewers \(`acs:create-docs-reviewer`, one per set\) in one message")
+        # The review is sliced by dimension now: every reviewer of every set
+        # in this slice still goes out in one message.
+        self.assertRegex(body, r"(?i)one `acs:create-docs-reviewer` per \*\*dimension slice\*\* below, every reviewer of every set in one message")
 
     def test_cites_the_code_skill_parallel_mechanism(self):
         body = norm(_body())

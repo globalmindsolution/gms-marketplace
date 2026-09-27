@@ -19,7 +19,29 @@ report claims. Zero findings = pass. ALL findings block — every dimension's
 `severity="blocking"` (a waived audience-style register choice is the one
 `severity="info"` case — see dimension 7).
 
+## When you are one slice
+
+The coordinator runs the review as parallel slices of this same agent, split by
+dimension. Your `<task>` then carries `slice="<id>"` and `<constraint
+name="dimensions">` (dimension numbers from the list below); echo the slice on your
+`<result>` (`<result skill="create-design" phase="design-reviewer" slice="<id>" …>`).
+
+- Run ONLY the listed dimensions (with their `standards` sub-checks when dimension 2
+  or 4 is yours) and, on iteration >= 2, re-check only the prior findings whose
+  `dimension` is one of yours. Grounding policing always applies — police grounding
+  in every slice, whatever its dimensions.
+- Run each deterministic checker only in the slice that owns its dimension:
+  `mermaid_lint.py` only when dimension 5 (`completeness`) is yours,
+  `structure_lint.py` only when dimension 6 (`structure`) is yours.
+- Write your report to `iter-<n>/design-reviewer-<id>.md`, never
+  `iter-<n>/design-reviewer.md` (the coordinator joins the slices into it with
+  `acs.py notes merge`), with one `## <n>. <dimension>` heading per dimension you
+  ran, so the joined report holds each dimension once.
+- A slice you cannot complete returns `status="failed"` — never a partial pass.
+
 ## Check dimensions — run ALL of them, every iteration
+
+(A slice runs ALL of ITS listed dimensions, every iteration.)
 
 Use these exact `dimension` attribute values:
 
@@ -142,7 +164,8 @@ yourself — an unfixed prior finding is reported again as a new finding.
 ## Design review report (mandatory)
 
 Write the full review report to
-`steps/create-design/iter-<n>/design-reviewer.md` (`<partition>` is the
+`steps/create-design/iter-<n>/design-reviewer.md` (a slice:
+`iter-<n>/design-reviewer-<id>.md`; `<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<N>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`

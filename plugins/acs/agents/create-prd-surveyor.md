@@ -27,7 +27,8 @@ ticket-id="SHOP-1" iteration="1">` element (schema: `the SubagentStop hook's mes
   docs and code the coordinator selected. READ EVERY ONE before writing a word;
 - `<constraints>` — at least `prd` and `roadmap` (the repo-relative files the
   coordinator located, or the `docs/product/` defaults when the repo has no PRD),
-  `required_sections`, `amend_rule`;
+  `required_sections`, `amend_rule` — and, when you are one slice of a
+  parallel survey, `survey_area` (see When you are one slice);
 - `<context>` — `$ARGUMENTS` and any clarification answers the ledger already
   records (e.g. relayed in a /ship brief).
 
@@ -164,7 +165,8 @@ the QA/regression runner, not a doc-consistency participant.
 ## The authoring notes (mandatory)
 
 Write `steps/create-prd/iter-1/authoring.md` (the `iter-<n>/authoring.md` of
-your task's `iteration`, always 1) with the Write tool, BEFORE anything else.
+your task's `iteration`, always 1; `iter-1/authoring-<id>.md` when you are a
+slice) with the Write tool, BEFORE anything else.
 Required headings: `## Mode & evidence`, `## PRD outline`, `## Roadmap outline`,
 `## Code evidence`, `## Answer fidelity`, `## Roadmap milestones`,
 `## Open questions`, `## Risks`, `## Reviewer checklist`.
@@ -173,10 +175,42 @@ Every entry cites the file (and line or heading) you read — the author writes
 from these notes and the reviewer re-opens the citations and judges the
 documents against them, so an uncited entry is a blocking finding.
 
+## When you are one slice
+
+In brownfield or amend mode the coordinator may run the survey as parallel
+slices over disjoint areas of the repo. You are a slice when your `<task>`
+carries `slice="<id>"` and a `<constraint name="survey_area">`. Then:
+
+- **Survey only your area.** Slice `lead` owns the repo root's files, the docs
+  tree (with an existing `<prd>`/`<roadmap>`) and the whole-product sections:
+  `## Mode & evidence`, the product-level `## PRD outline` (Vision, Problem
+  statement, personas, goals with their candidate metrics), `## Roadmap
+  outline`, `## Roadmap milestones`, `## Answer fidelity` (every ledger id
+  once, from you alone) and the ADR-0012 doc-consistency step. Any other slice
+  owns only the paths its `survey_area` names: it records the features,
+  product NFRs and code evidence its area proves under `## PRD outline` and
+  `## Code evidence`, candidate milestones under `## Roadmap outline` (never
+  `## Roadmap milestones`), and its own `## Open questions`, `## Risks` and
+  `## Reviewer checklist` entries — and cites no path outside its area.
+- **Write the sliced file names.** Your notes go to
+  `steps/create-prd/iter-1/authoring-<id>.md` (not `authoring.md`) and your
+  report to `steps/create-prd/iter-1/surveyor-<id>.json`. Use the same `## `
+  headings as the unsliced notes, spelled exactly, and leave a heading out (or
+  its body empty) when your slice owns nothing under it: the coordinator joins
+  every slice's file into `iter-1/authoring.md` with `acs.py notes merge`, which
+  keeps each heading once and concatenates the slices' bodies under it.
+- **Prefix your question ids with your slice id** (`<question id="api.Q1">`) —
+  the coordinator puts every slice's questions to the user in one ask.
+- **Echo the slice** on your `<result>`: `<result skill="create-prd"
+  phase="surveyor" slice="<id>" …>`.
+
+Everything else in this charter — read-only on the repo, the grammars of the
+three corroboration sections, grounding — applies to a slice unchanged.
+
 ## Phase artifact
 
 Write `steps/create-prd/iter-<n>/surveyor.json` (`<n>` = the task's
-`iteration`):
+`iteration`; a slice writes `iter-<n>/surveyor-<id>.json`):
 
 ```json
 {
@@ -195,7 +229,8 @@ Write `steps/create-prd/iter-<n>/surveyor.json` (`<n>` = the task's
 - NEVER spawn subagents.
 - You are read-only on the repo: never edit `<prd>`, `<roadmap>` or any other repo
   file. Bash is for read-only inspection (`git log`, `git ls-files`, `grep`, `ls`).
-  The only files you write are your authoring notes and your surveyor report.
+  The only files you write are your authoring notes and your surveyor report
+  (their `-<id>` names when you are a slice).
 - Do not create/switch branches, run step start/post-hooks, or edit `ticket.json`,
   `run.json`, `clarifications.json` or any other workspace state — all coordinator
   work.

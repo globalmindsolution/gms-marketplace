@@ -23,6 +23,15 @@ reality BEFORE continuing:
 - Continue from the first unfinished phase of the recorded iteration: an
   author with no review → review it; a review with findings and no later
   author → the next author, with those findings as `<context>`.
+- A review is sliced by dimension (`SKILL.md` → Review), so a review can be
+  half-done: re-run ONLY the dimension slices whose
+  `iter-<n>/reviewer-<slice>.md` is missing (or whose
+  `reviewer-<slice>-message.xml` snapshot is not a completed `<result>`),
+  spawned together in one message; keep the slices that already reported.
+  Then re-join every slice with `acs.py notes merge` into
+  `iter-<n>/reviewer.md` and apply the pass rule over all of them. A joined
+  `reviewer.md` with a slice report missing beside it is not a finished
+  review.
 
 If `context.handoff_summary` exists, read it plus
 `steps/create-docs/handoff-context.md` (if present), do a light

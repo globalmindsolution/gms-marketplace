@@ -83,6 +83,50 @@ that from the artifacts alone), and you never write outside the workspace partit
    coordinator takes them to the user through the clarification ledger and
    re-runs you with the answers in `<context>`.
 
+## When you are one survey slice
+
+On iteration 1 of a ticket that spans two or more disjoint top-level areas,
+the coordinator runs the survey above sliced — several analysts at once, one
+per area — and your task then carries `slice="<area>"` and
+`<constraint name="survey_area">` naming the area's top-level paths:
+
+- Survey ONLY inside that area. Where a call, import or doc link crosses into
+  another area, name the seam (both paths, cited) and stop there — that area
+  has its own slice.
+- Write your notes to `steps/analyze-requirements/iter-1/authoring-<area>.md`
+  and your report to `steps/analyze-requirements/iter-1/analyst-<area>.json`
+  (same shape as the analyst report below, `analysis_path` null). Use the
+  authoring-notes headings below exactly, so the coordinator's deterministic
+  `acs.py notes merge` lines your sections up with every other slice's into
+  `iter-1/authoring.md`.
+- Your API-surface and design-significance entries are this area's evidence,
+  not the ticket's verdict: the verdict is settled once, in the draft.
+- Do NOT write the draft. Open questions still go in `<questions>`
+  (`status="needs_input"`); the coordinator asks every slice's questions in
+  one grouped ask.
+- Your result carries the slice:
+  `<result skill="analyze-requirements" phase="analyst" slice="api" …>`.
+
+**After a sliced survey** you are spawned un-sliced with the merged
+`iter-1/authoring.md` in `<inputs>`: those merged notes ARE your survey. Do
+not re-survey the areas; read the cited files you carry into the draft,
+settle the whole-ticket verdicts (API surface, design significance) from all
+areas' evidence, and append any cross-area entry you add to the matching
+section of the merged notes, so the draft stays a rendering of the notes.
+
+The merged notes are a join, not a synthesis — synthesizing them is your job.
+Read every section across its `<!-- slice: <area> -->` markers and find where
+two slices contradict each other: a fact one area states and another denies,
+API-surface or design-significance entries that point different ways, one path
+claimed by two areas' seams with different changes. Append a `## Synthesis`
+section to the merged `iter-1/authoring.md` with one entry per contradiction:
+the slices involved, what each claimed (cited), and either the resolution with
+the evidence you opened that settles it, or an open question in `<questions>`
+when no source does. Never silently pick one slice's claim; with no
+contradictions, the section says `_No contradictions between slices._` and
+names the seams you checked. Then write the draft and `iter-1/analyst.json` as
+usual.
+
 ## The authoring notes (mandatory, every iteration)
 
 Write `steps/analyze-requirements/iter-<n>/authoring.md` (`<n>` = your
@@ -190,8 +234,9 @@ silently lost.
 
 Your prompt contains an XML `<task skill="analyze-requirements" phase="analyst"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>`, `<constraints>`
-(at least `required_sections` and `audience_style_profile`), and optional
-`<context>`. You share NO memory with the coordinator — every fact comes from
+(at least `required_sections` and `audience_style_profile`, plus
+`survey_area` when you are a survey slice), and optional `<context>`. A survey
+slice's task also carries `slice="<area>"`. You share NO memory with the coordinator — every fact comes from
 the files in `<inputs>` or the `<context>` text.
 
 ## Output contract

@@ -258,7 +258,10 @@ against. **The `CO -->|task| WR` edge fires for every skill on every run.**
 It was lane-conditional for `/acs:create-impl-plan` (MAR-72, ADR-0074), which
 took a coordinator self-loop on TRIVIAL/SMALL and spawned no subagent;
 ADR-0095 removed both the lanes and that self-loop, so the diagram above has
-one write edge and no exception to it.
+one write edge and no exception to it. Each role node stands for one instance
+or a fan-out of the same role over disjoint slices (see
+[Fan-out](#fan-out-parallel-writers-judges-and-surveys-adr-0110)); a fanned-out
+`WR` is followed by its `slice="integration"` pass before `JG` runs.
 
 ## Coordinator ↔ subagent communication
 
@@ -307,8 +310,11 @@ Illustrative shape:
   survey or write role `<role>.json` (parallel implementers
   `implementer-<k>.json`: artifacts produced, repo files changed, commands run
   with outcomes), each judge `<role>.md` (every check with evidence, every
-  finding in detail). The SubagentStop hook files each returned message
-  beside them as `<role>-message.xml`. No skill writes a `plan.md` phase artifact any more
+  finding in detail). A sliced instance writes the same files with its slice
+  id appended (`<role>-<id>.json`, `<role>-<id>.md`, `authoring-<id>.md`),
+  joined into the unsliced names by `acs.py notes merge`. The SubagentStop
+  hook files each returned message beside them as `<role>-message.xml`
+  (`<role>-<id>-message.xml` for a slice). No skill writes a `plan.md` phase artifact any more
   (ADR-0092). `/acs:code` additionally persists
   `steps/code/plan-approval.json` on the `standard` and `complex` delivery
   paths — written by `plan-approval.py`, **not** by a subagent (MAR-73, slice
@@ -348,6 +354,79 @@ Illustrative shape:
   skill (e.g. one implementer per file-map partition in `/code`, one author
   per doc set in `/create-docs`), provided their outputs do not conflict; the
   judge runs after all parallel writers complete and judges the combined
-  result.
+  result. Since ADR-0110 this is the default rather than an option — see
+  below.
 - The exact XSD is defined during design; the XML shapes in this document
   are illustrative.
+
+### Fan-out: parallel writers, judges and surveys (ADR-0110)
+
+A subagent cannot spawn a subagent, so every fan-out is the coordinator's. A
+fan-out is N instances of the SAME agent, each over a disjoint **slice**,
+spawned in ONE message and awaited together before the next phase.
+
+- **Writers** MUST be fanned out by default, from iteration 1, whenever the
+  deliverable splits into disjoint files (authors per feature area, architects
+  per HLD/LLD file, scaffolders per allowlist slice, test-writers per suite
+  file, doc-updaters per doc area, implementers per file-map partition). Each
+  skill MUST state its partition rule: what one slice owns, how slices are
+  named, and why two slices cannot overlap. A deliverable that is a single
+  document keeps one writer, and the skill says so.
+- **Judges** with five or more check dimensions MUST be fanned out by default
+  into two or three named slices over disjoint dimensions. Each deterministic
+  checker MUST run in exactly one slice, and a judge whose job is to run
+  something once (a build, a suite) MUST keep that run in one slice.
+- **Surveys** MUST be fanned out when the scope spans two or more disjoint
+  top-level areas of the repo, one instance per area; the open questions of
+  every slice MUST go to the user in ONE grouped clarification-ledger ask.
+- **Cap.** At most `max_parallel = 4` instances per phase, unless the skill
+  already sets its own cap (`/acs:create-docs` keeps 2 for doc sets); beyond
+  the cap, instances run in waves.
+- **Identity.** Each instance's task and result MUST carry `slice="<id>"` (an
+  un-sliced instance omits it). A slice id is a short name of letters,
+  digits, `_` and `-`; hyphens are allowed. A sliced instance writes
+  `iter-<n>/<role>-<id>.json` (write or survey report),
+  `iter-<n>/<role>-<id>.md` (judge report) or `iter-<n>/authoring-<id>.md`
+  (survey notes), and the SubagentStop hook files its snapshot at
+  `iter-<n>/<role>-<id>-message.xml`, so parallel siblings never overwrite
+  each other.
+- **Join.** The join MUST be deterministic, never the model merging prose:
+  `acs.py notes merge` merges the slices' markdown by `## ` heading into the
+  one file every downstream reader and checker expects (`authoring.md`,
+  `<role>.md`) — the first input's preamble, each heading once in first-seen
+  order, each slice's body in input order behind a slice marker. A missing
+  slice MUST fail the merge.
+- **Synthesis — joining is not synthesizing.** Where slices meet at a seam,
+  the skill MUST reconcile them before the next phase:
+  - after parallel writers and BEFORE the judge, ONE more instance of the same
+    writer role MUST run with `slice="integration"` (generalising
+    `/acs:code-complex`'s final integration implementer). It reconciles only
+    the seams the skill names — shared terms and IDs, cross-references, index
+    and overview files, shared fixtures and config — never a slice's
+    substance; it MUST record every seam it changed in
+    `iter-<n>/<role>-integration.json` and MUST return a conflict it cannot
+    settle from the evidence as `needs_input`. It is skipped when one writer
+    ran. The judge then judges the integrated result;
+  - a single writer that consumes merged survey slices MUST reconcile
+    contradictions between them under a `## Synthesis` section of its notes —
+    the resolution with its evidence, or an open question — and MUST NOT
+    silently pick one;
+  - judge slices own disjoint dimensions, so the merge is their synthesis;
+    the coordinator additionally MUST drop a finding that cites the same
+    location and the same defect as another slice's finding, keeping the
+    higher severity, and say so in the joined report.
+- **Pass rule.** A sliced judge's iteration MUST pass only when EVERY slice
+  returned `status="completed"` with zero blocking findings. Any slice's
+  blocking finding blocks, every slice's findings go verbatim to the next
+  writer, and a slice that failed or returned no usable result MUST fail the
+  iteration — never "pass with a missing slice".
+- **Resume.** A resumed iteration re-runs only the slices whose report is
+  missing.
+- **Shared branch.** Parallel writers that commit on one branch MUST, on git
+  `index.lock` contention, wait briefly and retry — never delete the lock and
+  never force anything.
+- **Write guard.** With several writers live — slices of one skill, or the
+  writers of a parallel group's members — a write is judged against its own
+  writer's file map when the hook payload names the agent, else against the
+  union of every live writer's scope, never against whichever writer started
+  last ([hooks.md](hooks.md)).

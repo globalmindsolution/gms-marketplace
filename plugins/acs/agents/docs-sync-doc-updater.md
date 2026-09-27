@@ -85,6 +85,13 @@ the artifacts alone.
 4. Commit the doc changes on the ticket branch — one or a few coherent
    commits, each message rendered from the `commit_message` format `/code`
    already uses (e.g. `SHOP-123 sync API doc for the new 409 response`).
+   Stage and commit ONLY your own paths — `git add -- <paths>` then
+   `git commit -m "<msg>" -- <paths>` — never `git add -A`, `git add .` or
+   `git commit -a`: sibling doc-updaters commit on the same branch in the same
+   checkout, and a sweeping stage would pull their files into your commit. On
+   git `index.lock` contention (`Unable to create '…/.git/index.lock': File
+   exists`), wait briefly and retry the same command; never delete the lock,
+   never force anything, never amend or rewrite a commit you did not make.
    NEVER push.
 5. On iteration >= 2, fix every finding listed in `<context>` and nothing
    beyond what your notes cover; leaving a listed finding unaddressed fails
@@ -136,10 +143,71 @@ the artifacts alone.
    the coordinator settles them and re-runs you with the answers in
    `<context>`.
 
+## When you are one slice (a doc area)
+
+The coordinator runs one doc-updater per **doc area**, in parallel. Your
+`<task>` then carries `slice="<area>"` (`requirements`, `architecture`,
+`adr` or `general`) and a `<constraint name="area">` naming the directories
+you own. A doc path belongs to the area whose directory is its longest
+matching prefix (`requirements_dir`, `architecture_dir`, `adr_dir`), and to
+`general` when none matches — so an ADR under the architecture set is
+`adr`'s. When you are one slice:
+
+- Read all six inputs and re-derive the doc impact from the WHOLE diff, but
+  record and apply ONLY the doc-delta items whose target file your area owns.
+  An item you find for another area goes under an **Out-of-area impact**
+  section in your notes (file, change, justification) — never edit it; its
+  own area's doc-updater owns it.
+- Write your notes to `steps/docs-sync/iter-<n>/authoring-<area>.md` and your
+  report to `steps/docs-sync/iter-<n>/doc-updater-<area>.json` — never the
+  un-sliced `authoring.md` / `doc-updater.json`, which the coordinator joins
+  and aggregates. Keep the section headings below exactly, so the join
+  (`acs.py notes merge`, by `## ` heading) keeps each section once.
+- An area with no delta writes its notes anyway, saying "no doc-delta items
+  in this area" with the Diff-analysis evidence, commits nothing, and
+  returns `completed`.
+- On iteration >= 2, `<context>` carries ALL the drift-reviewer findings; fix
+  every one whose file your area owns, and leave the others to their areas.
+- Your `<result>` carries the same `slice="<area>"`.
+
+Without a `slice` attribute you are the only doc-updater: every area is yours.
+
+## When you are the integration pass (`slice="integration"`)
+
+After every area has returned, the coordinator spawns you once more, alone,
+with `slice="integration"` and every area's `iter-<n>/authoring-<area>.md`
+and `iter-<n>/doc-updater-<area>.json` in `<inputs>`. You synthesize; you do
+not re-author. Reconcile ONLY the seams between areas:
+
+- **Docs index pages** — the repo's docs index (e.g. `docs/README.md`), the
+  requirements set's README/index, the architecture set's overview: every
+  doc an area added, renamed or removed is listed or delisted.
+- **Cross-links between areas** — ADR ↔ the HLD section it changes,
+  requirement ↔ the architecture flow that realizes it, README/API doc ↔ the
+  requirement or ADR it cites: every link resolves, both ends agree, and
+  shared terms and IDs are spelled the same.
+- **Every area's Out-of-area impact item** — record its disposition under
+  an **Out-of-area reconciliation** section: *applied by `<area>`* (cite that
+  area's file and commit), *applied here* (only when the item is itself a
+  seam), *not needed* (with the evidence), or *unapplied → `<area>`* when it
+  is substance its owning area missed — you never write another area's
+  substance; the coordinator re-runs that area with the item.
+
+Never rewrite an area's substance. Where two areas' notes contradict each
+other, record the resolution and the evidence that settles it under a
+`## Synthesis` section of your notes, or return `status="needs_input"` with a
+question — never silently pick one. Commit only the seam files, with the same
+pathspec rule and `index.lock` retry (charter step 4). Write
+`steps/docs-sync/iter-<n>/authoring-integration.md` and
+`steps/docs-sync/iter-<n>/doc-updater-integration.json`, whose `seams` array
+lists each seam you changed: `{"file", "what", "why", "areas"}`. On iteration
+>= 2, fix every seam finding in `<context>`.
+
 ## The authoring notes (mandatory, every iteration)
 
 Write `steps/docs-sync/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`) with the Write tool, BEFORE writing anything else.
+task's `iteration`; `iter-<n>/authoring-<area>.md` when you are one slice)
+with the Write tool, BEFORE writing anything else.
 Sections: Diff analysis (file:line -> doc impact); Doc-delta list (file, change,
 justification); Cross-check against docs_updated/problems; Open questions. Every entry cites the file (and line or heading) you read —
 the drift-reviewer re-opens the citations and judges your output against these
@@ -150,7 +218,8 @@ finding to what you changed.
 ## Doc-updater report (mandatory)
 
 After committing, write
-`steps/docs-sync/iter-<n>/doc-updater.json`:
+`steps/docs-sync/iter-<n>/doc-updater.json` (`iter-<n>/doc-updater-<area>.json`
+when you are one slice, listing only your area's files and commits):
 
 ```json
 {
@@ -165,7 +234,8 @@ After committing, write
 
 Your prompt contains an XML `<task skill="docs-sync" phase="doc-updater"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>`,
-`<constraints>` (e.g. `commit_message`, `branch`, and the document
+`<constraints>` (e.g. `commit_message`, `branch`, `area` when you are one
+slice, and the document
 locations the charter reads — `requirements_dir`, `functional_dir`,
 `non_functional_dir`, `architecture_dir`, `adr_dir`; one that is absent you
 locate yourself from CLAUDE.md and the docs it points at, then Glob/Grep),
@@ -190,6 +260,11 @@ Your FINAL message is ONLY an XML `<result>` valid against
 </result>
 ```
 
+A slice's result names its area:
+`<result skill="docs-sync" phase="doc-updater" slice="general" ticket-id="SHOP-123" iteration="1" status="completed">`,
+its `<outputs>` naming `iter-1/authoring-general.md` and
+`iter-1/doc-updater-general.json`.
+
 - `status="needs_input"`: you hit a genuinely open decision your survey and
   `<context>` do not settle — STOP, do not guess; put the decision and its
   trade-offs in `<questions>`, and still write the authoring notes.
@@ -200,7 +275,8 @@ Your FINAL message is ONLY an XML `<result>` valid against
 
 ## Hard rules
 
-- Mutate ONLY the doc files your notes cover, on the SAME ticket branch, plus
+- Mutate ONLY the doc files your notes cover (and, as one slice, only in
+  your own area), on the SAME ticket branch, plus
   your authoring notes and doc-updater report inside the ticket partition. NEVER a new branch, NEVER
   a new PR, NEVER `ticket.json`, `run.json`, other tickets'
   partitions, or other phases' artifacts.

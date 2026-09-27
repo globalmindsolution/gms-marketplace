@@ -263,5 +263,123 @@ class Mar143CoordinatorContractCase(unittest.TestCase):
         self.assertIn('"pr"', self.body)
 
 
+AGENTS_DIR = os.path.join(PLUGIN, "agents")
+
+
+def slice_table(body, first_id):
+    rows = {}
+    for line in body.splitlines():
+        m = re.match(r"^\| `([a-z-]+)` \| ([^|]+) \| (.+) \|$", line)
+        if m:
+            rows[m.group(1)] = ([int(n) for n in re.findall(r"(?:^|, )(\d+) ", m.group(2))],
+                                m.group(3))
+    assert first_id in rows, "slice table with %r row not found" % first_id
+    return rows
+
+
+class ParallelFanOutCase(unittest.TestCase):
+    """Every phase fans out: surveyor slices over disjoint repo areas, one
+    author per area file from iteration 1 plus an integration pass on the
+    seams, reviewer slices over disjoint dimensions — each joined by
+    `acs.py notes merge`, never by the coordinator merging prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SKILL_PATH)
+        cls.flat = flat(cls.body)
+
+    def test_fan_out_spawns_in_one_message_and_joins_deterministically(self):
+        self.assertIn("### Fan-out — slices, the join, the cap", self.body)
+        self.assertIn("spawn N instances of the SAME agent in ONE message", self.flat)
+        self.assertIn('slice="<id>"', self.body)
+        self.assertIn("iter-<n>/<role>-<id>-message.xml", self.body)
+        self.assertIn('hooks/scripts/acs.py" notes merge', self.body)
+        self.assertIn("never prose-merging by you", self.flat)
+        self.assertIn("`max_parallel = 4`", self.body)
+        self.assertIn("beyond the cap, run the slices in waves of 4", self.flat)
+
+    def test_survey_slices_partition_and_one_grouped_ask(self):
+        self.assertIn("#### Survey slices — brownfield/amend over disjoint repo areas", self.body)
+        self.assertIn("**two or more disjoint top-level areas**", self.flat)
+        self.assertIn("Greenfield never slices", self.flat)
+        self.assertIn("Slice `lead` owns", self.flat)
+        self.assertIn("no path belongs to two slices", self.flat)
+        self.assertIn("--out <partition>/steps/create-requirements/iter-1/authoring.md", self.flat)
+        self.assertIn("ONE grouped clarification-ledger ask", self.flat)
+
+    def test_author_slices_are_the_default_with_a_disjoint_file_partition(self):
+        self.assertIn("#### Author slices — one author per area file, the default from iteration 1", self.body)
+        self.assertIn("A slice owns exactly one area file of the confirmed outline", self.flat)
+        self.assertIn("`fn-<basename>`", self.body)
+        self.assertIn("`nfr-<basename>`", self.body)
+        self.assertIn('<constraint name="files">', self.flat)
+        self.assertIn("every path is listed in exactly one slice's `files`", self.flat)
+        self.assertIn("no two slices can touch the same file", self.flat)
+        self.assertIn("iter-<n>/author-<id>.json", self.body)
+        self.assertIn("no `index.lock` contention", self.flat)
+
+    def test_integration_pass_runs_before_the_reviewer_on_the_named_seams(self):
+        self.assertIn('`slice="integration"`', self.body)
+        self.assertIn("**Integration pass — after ALL slices finish, BEFORE the reviewer.**", self.flat)
+        for seam in ("**shared glossary**", "**NFR cross-references**",
+                     "**requirements README index**"):
+            self.assertIn(seam, self.body)
+        self.assertIn("never a slice's substance", self.flat)
+        self.assertIn("iter-<n>/author-integration.json", self.body)
+        self.assertIn("The pass is skipped when only one author ran", self.flat)
+        integration = self.body.index("**Integration pass")
+        review = self.body.index("### Review")
+        slices = self.body.index("#### Author slices")
+        self.assertLess(slices, integration)
+        self.assertLess(integration, review)
+
+    def test_survey_consumers_keep_a_synthesis_section(self):
+        self.assertIn("**Synthesis of a sliced survey.**", self.flat)
+        self.assertIn("`## Synthesis`", self.body)
+        self.assertIn("never silently picks one side", self.flat)
+        self.assertIn("the integration pass (below) checks that every slice used the same reconciled facts", self.flat)
+
+    def test_reviewer_slices_cover_every_dimension_once_and_own_the_floor(self):
+        rows = slice_table(self.body, "floor")
+        self.assertEqual(sorted(rows), ["conformance", "evidence", "floor"])
+        dims = sorted(d for ds, _ in rows.values() for d in ds)
+        self.assertEqual(dims, list(range(1, 14)))
+        owners = [sid for sid, (_, owns) in rows.items() if "structure_lint.py" in owns]
+        self.assertEqual(owners, ["floor"])
+
+    def test_reviewer_join_dedup_and_pass_rule(self):
+        self.assertIn("--out <partition>/steps/create-requirements/iter-<n>/reviewer.md", self.flat)
+        for sid in ("floor", "evidence", "conformance", "dedup"):
+            self.assertIn("iter-<n>/reviewer-%s.md" % sid, self.body)
+        self.assertIn("the same location and the same defect", self.flat)
+        self.assertIn("keeping the one with the higher severity", self.flat)
+        self.assertIn("the iteration passes only if EVERY slice returned "
+                      "`status=\"completed\"` with zero blocking findings", self.flat)
+        self.assertIn("never \"pass with a missing slice\"", self.flat)
+
+    def test_resume_reruns_only_missing_slices(self):
+        start = self.flat.index("## Resume & reconcile")
+        window = self.flat[start:self.flat.index("## Reflection loop", start)]
+        self.assertIn("re-run ONLY the slices whose own report is missing", window)
+        self.assertIn("author-integration.json", window)
+
+    def test_agents_carry_their_slice_sections(self):
+        surveyor = flat(read(os.path.join(AGENTS_DIR, "create-requirements-surveyor.md")))
+        self.assertIn("## When you are one slice", surveyor)
+        self.assertIn("iter-1/authoring-<id>.md", surveyor)
+        author = flat(read(os.path.join(AGENTS_DIR, "create-requirements-author.md")))
+        self.assertIn("## When you are one slice", author)
+        self.assertIn("## When you are the integration pass", author)
+        self.assertIn("Write ONLY the paths in `files`", author)
+        self.assertIn('phase="author" slice="integration"', author)
+        self.assertIn("**Synthesis of a sliced survey**", author)
+        reviewer = flat(read(os.path.join(AGENTS_DIR, "create-requirements-reviewer.md")))
+        self.assertIn("## When you are one slice", reviewer)
+        self.assertIn("Run ONLY the listed dimensions", reviewer)
+        self.assertIn("iter-<n>/reviewer-<id>.md", reviewer)
+        self.assertIn("**Judge the integrated result.**", reviewer)
+        self.assertIn("police grounding", reviewer)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -36,11 +36,11 @@ The coordinator's prompt contains exactly one XML `<task>` conforming to
 ```
 
 You share no memory with the coordinator. Read every `<inputs>` path before touching the
-repo; on iteration 1 write your authoring notes first, on later iterations read
-`iter-1-authoring.md` first. The notes are binding: file manifest, commands, branch name,
-commit message. When the coordinator decomposed the work (iterations >= 2 only), your
-`<objective>` names your slice — build only that slice and assume nothing about parallel
-siblings beyond what the notes state.
+repo; on the iteration-1 pin pass write your authoring notes first, on every build
+slice and later iteration read `iter-1-authoring.md` first. The notes are binding: file
+manifest, Slices, commands, branch name, commit message. Which job this task is follows
+from its `pass` constraint and its `slice` attribute — see "When you are one slice"
+below.
 
 ## Survey — what you establish before you write (iteration 1)
 
@@ -68,16 +68,71 @@ siblings beyond what the notes state.
   `<question>` per open choice; the coordinator re-runs you with the answers in
   `<context>`.
 
+## When you are one slice
+
+The coordinator runs you in one of three shapes (the partition rule is in
+`/acs:create-project` SKILL.md, "Parallelism"):
+
+- **Pin pass** — iteration 1, un-sliced (no `slice` attribute),
+  `<constraint name="pass">pin</constraint>`. You do the Survey, write the authoring
+  notes (including their **Slices** section) and `iter-1/scaffolder.json`, and build
+  NOTHING: no branch, no repo file, no commit. `status="completed"` means the notes are
+  complete and every manifest file is assigned to exactly one slice.
+- **Build slice** — `slice="<id>"` (`core`, `ci`, `precommit` or `docs`),
+  `<constraint name="pass">build</constraint>` and `<constraint name="files">` listing
+  the files you own. Build ONLY those files, exactly as the notes pin them; never write,
+  stage or commit a file outside `files`, and assume nothing about your parallel
+  siblings beyond what the notes state — they write the other slices' files in the same
+  checkout at the same time. The coordinator has already checked out the delivery
+  branch: never check out, create or switch a branch. Your self-check is the one the
+  notes' Slices section gives your slice: `core` alone installs dependencies and runs the
+  four commands green; `ci` checks the workflow parses and runs the notes' Commands
+  verbatim; `precommit` runs `pre-commit validate-config` and never `pre-commit install`
+  (an installed hook would fire on your siblings' commits); `docs` checks the README
+  names the notes' real commands and `.gitignore` fits the stack. Commit with
+  `git add -- <your files>` (never `git add -A`, which would sweep up a sibling's
+  half-written files) and the notes' commit message; if git reports `index.lock`
+  contention, wait briefly and retry the commit — never force anything and never delete
+  the lock file. Write your report to `iter-<n>/scaffolder-<slice>.json`.
+
+- **Integration pass** — `slice="integration"`, `<constraint name="pass">integration</constraint>`,
+  spawned alone after every build slice has returned and before the build-checker. Your
+  `<inputs>` name the notes and every slice's `iter-<n>/scaffolder-<slice>.json`. You
+  reconcile ONLY the seams between slices, never a slice's substance: config files
+  more than one slice's content depends on (the CI workflow's commands and runtime
+  versions against `core`'s manifest; the pre-commit hooks against `core`'s lint/format
+  config and pinned versions; `.gitignore` against `core`'s build outputs, coverage
+  artefacts and dependency dirs), the README (its commands, layout and tooling against
+  what the slices actually wrote), and the whole tree building green together: install,
+  run the notes' four commands AND `pre-commit run --all-files` (never
+  `pre-commit install`) on the combined tree, and fix only what breaks at a seam. Commit
+  only the files you changed (`git add -- <those files>`, the same `index.lock` retry
+  rule; the branch is already checked out). Write `iter-<n>/scaffolder-integration.json`
+  with a `seams` array — one `{file, what, why, slices}` entry per seam you changed. A
+  seam conflict the notes and the evidence cannot settle (two slices each faithful to a
+  different reading of the notes) is `status="needs_input"` with a `<question>`, never a
+  guess. `status="completed"` means the combined tree passed all four commands and the
+  pre-commit hooks.
+
+On iterations 2-3 only the slices that own a finding are re-run, then the integration
+pass; your `<context>` carries ALL the build-checker's findings verbatim — fix the ones
+you own (a slice: on your own files; the integration pass: on the seams) and record the
+rest as "not in this slice" in `findings_addressed`.
+
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-project/iter-1/authoring.md` on iteration 1 with
+Write `steps/create-project/iter-1/authoring.md` on the iteration-1 pin pass with
 the Write tool, BEFORE touching the repo — this file is authored exactly once and
 never rewritten; later iterations read it and record their **Findings addressed** in
 `iter-<n>/scaffolder.json` instead.
 Sections: Analysis (stack decisions traced to `tech-stack.md`, or to the `C-n`
 entries that stand in for it; a container/component to directory mapping table); File manifest (every file with a one-line purpose,
 including the CI workflow path, `.gitignore`, `README.md`, the entrypoint and the
-smoke test); Commands (the exact build, lint, test and coverage commands with
+smoke test); Slices (every manifest file assigned to exactly one of `core`, `ci`,
+`precommit`, `docs` — `core` holds everything the four commands need to go green
+together: manifests and lockfile, test/coverage and lint config, layout, entrypoint,
+smoke test, and the e2e harness; a file two concerns share goes to `core`; a file in
+no slice or in two is a defect the coordinator sends back to you); Commands (the exact build, lint, test and coverage commands with
 their expected green outcomes — the build-checker runs these verbatim); Vertical
 slice; Delivery (the literal branch name and commit message); Risks; Build-checker
 checklist (every create-project check dimension instantiated with the concrete
@@ -89,11 +144,13 @@ finding to what you changed.
 
 ## Execution discipline
 
-Work in this order:
+Work in this order (a build slice does steps 2-7 for its own `files` only, with the
+self-check and commit rules of "When you are one slice"):
 
-1. Create and check out the branch named in the notes' Delivery section (it embeds the
-   ticket id per `formats.branch_name`). If it already exists from a prior iteration,
-   check it out and continue on it.
+1. Un-sliced only: create and check out the branch named in the notes' Delivery section
+   (it embeds the ticket id per `formats.branch_name`). If it already exists from a prior
+   iteration, check it out and continue on it. A build slice skips this step — the
+   coordinator has the branch checked out.
 2. Create every file in the notes' manifest. Wire the coverage threshold to the
    `coverage_target` constraint exactly (e.g. `fail_under`, `--cov-fail-under`,
    `coverageThreshold`) — `/acs:code`'s TDD gates depend on this from ticket #1.
@@ -126,8 +183,9 @@ four commands, and record per finding what you changed.
 ## The scaffolder report
 
 Write `steps/create-project/iter-<n>/scaffolder.json` (partition = the directory
-containing `ticket.json`; `<n>` = the task's `iteration`; parallel scaffolders append their
-slot: `iter-<n>/scaffolder-<k>.json` when the objective names one). Shape:
+containing `ticket.json`; `<n>` = the task's `iteration`) when un-sliced — the pin pass;
+a build slice writes `iter-<n>/scaffolder-<slice>.json` instead, so parallel slices never
+collide. Shape:
 
 ```json
 {
@@ -163,7 +221,11 @@ Escape `&` and `<` in text content. Self-check with
 ```
 
 List the scaffolder report plus every repo file you created or changed in `<outputs>`.
-`status="completed"` only when all four commands passed and the commit exists; otherwise
+A sliced result carries the same `slice="<id>"` attribute as its task
+(`<result skill="create-project" phase="scaffolder" slice="core" …>`).
+`status="completed"` only when all four commands passed and the commit exists (a pin
+pass: when the notes are complete; a `ci`/`precommit`/`docs` slice: when its slice
+self-check passed and its commit exists); otherwise
 `failed` (with `<errors>`) or `needs_input` (with `<questions>`).
 
 ## Grounding (anti-hallucination)

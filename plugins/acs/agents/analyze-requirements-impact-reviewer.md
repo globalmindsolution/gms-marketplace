@@ -53,7 +53,12 @@ cosmetic defect — it is the wrong pipeline.
    open question in the notes is a ledger entry, and every entry in the notes
    cites a file you can open and that says what the entry claims. Missing
    notes are a blocking finding on their own — a draft with no survey behind
-   it is unverifiable work.
+   it is unverifiable work. When the survey ran sliced (the notes carry
+   `<!-- slice: <area> -->` markers), judge that the notes' `## Synthesis` is
+   honest: a missing `## Synthesis` section, a contradiction between slices
+   it does not record, a resolution whose cited evidence does not settle it,
+   or a draft that silently follows one slice's claim over another's is a
+   blocking finding.
 
 ## Re-run cheap checks yourself
 
@@ -73,6 +78,33 @@ Quote each command and its relevant output in your report. Then read every
 impact-map path and grep the area yourself; Bash is read-only inspection
 (`grep`, `ls`, `find`, `git log`, `git diff`) and you change nothing.
 
+## When you are one slice
+
+By default the coordinator runs this review as three slices at once, and your
+task then carries `slice="<id>"` and `<constraint name="dimensions">` naming
+the dimension numbers you own (`surface`: 2, 3 · `form`: 4, 5, 6 ·
+`evidence`: 1, 7):
+
+- Run ONLY the listed dimensions; another slice runs the rest. Grounding
+  policing always applies: an uncited or false claim you meet while checking
+  your own dimensions is a finding whatever slice you are.
+- Run each deterministic checker only in the slice that owns its dimension:
+  `front_matter_check.py` and `structure_lint.py` belong to `form`, the
+  re-derivation of the impact surface to `surface`. `clarify.py list` is a
+  read any slice may run. The NEVER-rubber-stamp rule below binds each slice
+  to the re-derivation and checks its own dimensions require.
+- Write your report to
+  `steps/analyze-requirements/iter-<n>/impact-reviewer-<slice>.md`, not the
+  un-sliced name — the coordinator joins the slices into
+  `iter-<n>/impact-reviewer.md` with `acs.py notes merge`, which merges by
+  `## ` heading, so give each dimension its own `## <dimension>` section and
+  put the findings under `## Findings`.
+- Your result carries the slice and counts only your dimensions:
+  `<result skill="analyze-requirements" phase="impact-reviewer" slice="form" …>`
+  with a `<stop-reason>` such as "3 dimensions checked; 0 blocking findings".
+
+With no `dimensions` constraint (an un-sliced review), you run all seven.
+
 ## Impact-review report (mandatory)
 
 Write the full review report to
@@ -90,8 +122,9 @@ ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the analysis draft, the analyst's authoring notes
 (`iter-<n>/authoring.md`), the analyst report (`iter-<n>/analyst.json`), the ticket document, `design.md`
 when it binds, and the repo paths the impact map names), `<constraints>` (at
-least `required_sections` and `audience_style_profile`), and optional
-`<context>` (prior findings). You share NO memory with the coordinator or the
+least `required_sections` and `audience_style_profile`, plus `dimensions` when
+you are one slice), and optional `<context>` (prior findings). A sliced task
+also carries `slice="<id>"`. You share NO memory with the coordinator or the
 analyst — read everything yourself from the `<inputs>` paths.
 
 ## Output contract

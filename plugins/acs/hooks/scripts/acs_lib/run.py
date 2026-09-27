@@ -196,13 +196,18 @@ def step_completed(doc, step):
     return step_status(doc, step) == "completed"
 
 
+def in_progress_steps(doc):
+    """Every step recorded `in_progress`. I1 says they all belong to ONE stage
+    (a parallel group's members run together; nothing else does)."""
+    return [step for step, entry in (doc.get("steps") or {}).items()
+            if (entry or {}).get("status") == "in_progress"]
+
+
 def in_progress_step(doc):
-    """The one step recorded `in_progress`, or None. I1 says there is at most
-    one; `check` is what proves it."""
-    for step, entry in (doc.get("steps") or {}).items():
-        if (entry or {}).get("status") == "in_progress":
-            return step
-    return None
+    """The first step recorded `in_progress`, or None -- the one a handoff or a
+    Stop reminder names when a parallel group has several open."""
+    running = in_progress_steps(doc)
+    return running[0] if running else None
 
 
 def loop_iteration(doc, step):
@@ -231,10 +236,19 @@ def cursor(doc, wf):
     """The first step in workflow order that is not `completed`, or None when
     every step is. This is the whole of "what runs next" -- there is no graph
     to traverse and no ready-set to compute."""
-    for step in workflow_mod.steps_of(wf):
-        if not step_completed(doc, step):
-            return step
-    return None
+    due = due_steps(doc, wf)
+    return due[0] if due else None
+
+
+def due_steps(doc, wf):
+    """Every step of the first stage that is not complete, in written order:
+    one step for a plain stage, each unfinished member of a parallel group.
+    `/acs:ship` starts all of them; `[]` when the run is done."""
+    for stage in workflow_mod.stages_of(wf):
+        pending = [step for step in stage if not step_completed(doc, step)]
+        if pending:
+            return pending
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -291,15 +305,17 @@ def save_run(rdir, doc):
 def start_step(rdir, step, wf, iteration=None):
     """step -> `in_progress`. Writer: `acs step start`, on PreToolUse(Skill).
 
-    Refuses when another step is already `in_progress` (I1): two steps writing
-    one changeset is how a run loses track of which one owns a commit.
+    Refuses when a step of ANOTHER stage is already `in_progress` (I1): two
+    steps writing one changeset is how a run loses track of which one owns a
+    commit, unless the workflow's author declared them a parallel group.
     """
     doc = require_run(rdir)
-    running = in_progress_step(doc)
-    if running and running != step:
-        raise GateError("step %s is already in_progress in run %s — finish or interrupt it "
-                        "first (`acs step finish --step %s --interrupted`)"
-                        % (running, doc["run_id"], running))
+    stage = workflow_mod.stage_of(wf, step) or [step]
+    for running in in_progress_steps(doc):
+        if running != step and running not in stage:
+            raise GateError("step %s is already in_progress in run %s — finish or interrupt "
+                            "it first (`acs step finish --step %s --interrupted`)"
+                            % (running, doc["run_id"], running))
     entry = dict(step_entry(doc, step))
     entry["status"] = "in_progress"
     entry.setdefault("started_at", now_iso())
@@ -556,20 +572,22 @@ def check(rdir, wf, doc=None):
     steps = workflow_mod.steps_of(wf)
     errors, warnings = [], []
 
-    running = [s for s, e in (doc.get("steps") or {}).items()
-               if (e or {}).get("status") == "in_progress"]
-    if len(running) > 1:
-        errors.append("I1: %d steps are in_progress at once (%s); at most one may be"
-                      % (len(running), ", ".join(sorted(running))))
+    running = in_progress_steps(doc)
+    stages = set(workflow_mod.stage_index(wf, s) for s in running)
+    if len(running) > 1 and (len(stages) > 1 or None in stages):
+        errors.append("I1: %d steps are in_progress at once (%s); only the members of "
+                      "one parallel group may be" % (len(running), ", ".join(sorted(running))))
 
     expected = cursor(doc, wf)
     if doc.get("cursor") != expected:
         errors.append("I2: cursor is %r but the first step not completed is %r"
                       % (doc.get("cursor"), expected))
-    if running and running[0] != expected:
-        warnings.append("I2: %s is in_progress but the workflow's next step is %r — "
-                        "a skill run on its own is out of order, not inconsistent"
-                        % (running[0], expected))
+    due = due_steps(doc, wf)
+    for step in running:
+        if step not in due:
+            warnings.append("I2: %s is in_progress but the workflow's next step is %r — "
+                            "a skill run on its own is out of order, not inconsistent"
+                            % (step, expected))
 
     for step, entry in (doc.get("steps") or {}).items():
         if (entry or {}).get("status") != "completed":

@@ -535,5 +535,129 @@ class TestSubagentShape(unittest.TestCase):
         self.assertRegex(body, r"re-derive[sd]? the impact (map|surface)")
 
 
+def norm(body):
+    """Whitespace-normalized, with shell line continuations folded away."""
+    return re.sub(r"\s+", " ", body.replace("\\\n", " "))
+
+
+#: The judge slices and the dimension numbers each owns (SKILL.md's table).
+JUDGE_SLICES = {"surface": (2, 3), "form": (4, 5, 6), "evidence": (1, 7)}
+
+
+class TestParallelism(unittest.TestCase):
+    """The fan-out contract: one writer (a single document), survey slices
+    over disjoint top-level areas on iteration 1, and the impact reviewer split
+    into three dimension slices — each spawned in one message and joined by
+    `acs.py notes merge`, never by prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = norm(read(SKILL_PATH))
+        cls.contract = norm(skill_contract())
+        cls.analyst = norm(agent("analyst"))
+        cls.reviewer = norm(agent("impact-reviewer"))
+
+    def test_the_writer_stays_single_and_says_why(self):
+        self.assertIn("Writer — one analyst, never sliced.", self.skill)
+        self.assertIn("`analysis.md` is a single document", self.skill)
+
+    def test_every_fan_out_is_one_message_and_capped(self):
+        self.assertIn("in ONE message (all foreground, in the same message)",
+                      self.skill)
+        self.assertIn("`max_parallel = 4`", self.skill)
+        self.assertIn("waves of four", self.skill)
+
+    def test_survey_partition_rule(self):
+        self.assertIn("**two or more disjoint top-level areas**", self.skill)
+        self.assertIn("no directory belongs to two areas, so no two slices "
+                      "survey the same path", self.skill)
+        self.assertIn('phase="analyst" slice="<area>"', self.skill)
+        self.assertIn('<constraint name="survey_area">', self.skill)
+        self.assertIn("iter-1/authoring-<area>.md", self.skill)
+        self.assertIn("ONE grouped clarification-ledger ask", self.skill)
+
+    def test_survey_slices_are_joined_by_notes_merge(self):
+        self.assertIn(
+            '/hooks/scripts/acs.py" notes merge --out '
+            "<partition>/steps/analyze-requirements/iter-1/authoring.md",
+            self.skill)
+
+    def test_judge_slice_table_covers_all_seven_dimensions_once(self):
+        owned = []
+        for sid, dims in JUDGE_SLICES.items():
+            row = re.search(r"\| `%s` \| ([^|]+) \|" % sid, read(SKILL_PATH))
+            self.assertIsNotNone(row, sid)
+            numbers = tuple(int(n) for n in re.findall(r"\b(\d) `", row.group(1)))
+            self.assertEqual(numbers, dims)
+            owned += numbers
+        self.assertEqual(sorted(owned), list(range(1, 8)))
+        self.assertIn('<constraint name="dimensions">', self.skill)
+
+    def test_judge_slices_are_joined_into_the_one_report(self):
+        self.assertIn(
+            "notes merge --out "
+            "<partition>/steps/analyze-requirements/iter-<n>/impact-reviewer.md",
+            self.skill)
+        for sid in JUDGE_SLICES:
+            self.assertIn("iter-<n>/impact-reviewer-%s.md" % sid, self.skill)
+
+    def test_sliced_pass_rule(self):
+        self.assertIn("the iteration passes only if EVERY slice returned "
+                      '`status="completed"` with zero blocking findings', self.skill)
+        self.assertIn("never \"pass with a missing slice\"", self.skill)
+        self.assertIn("every finding of every slice, verbatim", self.skill)
+
+    def test_resume_reruns_only_missing_slices(self):
+        self.assertIn("re-run ONLY the slices whose report is missing", self.contract)
+
+    def test_the_agents_know_how_to_run_as_a_slice(self):
+        self.assertIn("## When you are one survey slice", self.analyst)
+        self.assertIn("steps/analyze-requirements/iter-1/authoring-<area>.md",
+                      self.analyst)
+        self.assertIn("Do NOT write the draft.", self.analyst)
+        self.assertIn('<result skill="analyze-requirements" phase="analyst" slice=',
+                      self.analyst)
+        self.assertIn("## When you are one slice", self.reviewer)
+        self.assertIn("Grounding policing always applies", self.reviewer)
+        self.assertIn(
+            "steps/analyze-requirements/iter-<n>/impact-reviewer-<slice>.md",
+            self.reviewer)
+        self.assertIn('<result skill="analyze-requirements" '
+                      'phase="impact-reviewer" slice=', self.reviewer)
+
+    def test_the_drafting_analyst_synthesizes_the_survey_slices(self):
+        """A join is not a synthesis: contradictions between area slices are
+        resolved with evidence under `## Synthesis`, or raised as questions."""
+        self.assertIn("The merge is a join, not a synthesis: this analyst MUST "
+                      "reconcile the slices.", self.skill)
+        self.assertIn("under a `## Synthesis` section of the notes", self.skill)
+        self.assertIn("never silently picks one", self.skill)
+        self.assertIn("Append a `## Synthesis` section to the merged "
+                      "`iter-1/authoring.md`", self.analyst)
+        self.assertIn("Never silently pick one slice's claim", self.analyst)
+        self.assertIn("or an open question in `<questions>` when no source does",
+                      self.analyst)
+
+    def test_the_impact_reviewer_judges_the_synthesis(self):
+        self.assertIn("judge that the notes' `## Synthesis` is honest", self.reviewer)
+        self.assertIn("silently follows one slice's claim over another's is a "
+                      "blocking finding", self.reviewer)
+
+    def test_judge_slice_findings_are_de_duplicated(self):
+        self.assertIn("Drop a finding that cites the same location and the same "
+                      "defect as another slice's finding, keep the higher severity",
+                      self.skill)
+        self.assertIn("append a `## De-duplicated findings` section to "
+                      "`iter-<n>/impact-reviewer.md`", self.skill)
+        self.assertIn("Never drop a finding for any other reason.", self.skill)
+
+    def test_a_single_writer_has_no_integration_pass(self):
+        self.assertIn("with one writer there is no integration pass to run", self.skill)
+
+    def test_each_checker_runs_in_exactly_one_judge_slice(self):
+        self.assertIn("`front_matter_check.py` and `structure_lint.py` belong "
+                      "to `form`", self.reviewer)
+
+
 if __name__ == "__main__":
     unittest.main()

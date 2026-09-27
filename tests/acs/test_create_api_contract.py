@@ -491,5 +491,215 @@ class TestTriadShape(unittest.TestCase):
         self.assertRegex(body, r"re-derive the surface")
 
 
+
+def reviewer_slices(body):
+    """{slice_id: [dimension numbers]} from the Reviewer slices table."""
+    rows = re.findall(r"(?m)^\| `(\w+)` \| ([^|]+) \|", body)
+    return {sid: [int(n) for n in re.findall(r"(\d+) `", dims)] for sid, dims in rows}
+
+
+def agent_dimensions(body):
+    return dict((int(n), name) for n, name in
+                re.findall(r"(?m)^(\d+)\. `([\w-]+)`", body))
+
+
+class TestParallelFanOut(unittest.TestCase):
+    """PARALLEL writers (one contract-author per contract-file group) and
+    PARALLEL judges (the reviewer's eight dimensions in three slices): the
+    coordinator spawns each fan-out in one message and joins it with the
+    deterministic `acs.py notes merge`, never by prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SKILL_PATH)
+        cls.author = agent("contract-author")
+        cls.reviewer = agent("contract-reviewer")
+        cls.slices = reviewer_slices(cls.body)
+
+    # -- judges ---------------------------------------------------------
+    def test_the_reviewer_runs_as_two_or_three_named_slices(self):
+        self.assertIn("#### Reviewer slices", self.body)
+        self.assertEqual(list(self.slices), ["surface", "trace", "files"])
+
+    def test_every_dimension_is_owned_by_exactly_one_slice(self):
+        owned = sorted(n for dims in self.slices.values() for n in dims)
+        self.assertEqual(owned, sorted(agent_dimensions(self.reviewer)))
+
+    def test_the_table_names_match_the_agent_dimensions(self):
+        dims = agent_dimensions(self.reviewer)
+        for row in re.findall(r"(?m)^\| `\w+` \| ([^|]+) \|", self.body):
+            for n, name in re.findall(r"(\d+) `([\w-]+)`", row):
+                self.assertEqual(dims[int(n)], name)
+
+    def test_the_deterministic_checks_run_in_the_slice_that_owns_them(self):
+        files_row = re.search(r"(?m)^\| `files` \|.*$", self.body).group(0)
+        self.assertIn("front_matter_check.py", files_row)
+        self.assertIn("structure_lint.py", files_row)
+        self.assertIn("clarify.py list", re.search(r"(?m)^\| `trace` \|.*$", self.body).group(0))
+        self.assertIn("Run each deterministic check only in the slice that owns", self.reviewer)
+
+    def test_judge_slices_are_joined_by_notes_merge_in_table_order(self):
+        block = re.search(
+            r"(?s)notes merge \\\n  --out <partition>/steps/create-api-contract/"
+            r"iter-<n>/contract-reviewer\.md(.*?)```", self.body)
+        self.assertIsNotNone(block)
+        self.assertEqual(re.findall(r"contract-reviewer-(\w+)\.md", block.group(1)),
+                         list(self.slices))
+
+    def test_the_sliced_pass_rule(self):
+        self.assertIn("passes only if EVERY\nslice returned `status=\"completed\"` with zero blocking findings",
+                      self.body)
+        self.assertIn("never \"pass with a missing slice\"", self.body)
+        self.assertRegex(self.body, r"all three slices' findings — de-duplicated,\s+otherwise verbatim —\s+go to the next")
+
+    def test_the_reviewer_agent_knows_how_to_be_one_slice(self):
+        self.assertIn("## When you are one slice", self.reviewer)
+        self.assertIn('<constraint name="dimensions">', self.reviewer)
+        self.assertIn("steps/create-api-contract/iter-<n>/contract-reviewer-<id>.md", self.reviewer)
+        self.assertIn('phase="contract-reviewer" slice="<id>"', self.reviewer)
+        self.assertRegex(self.reviewer, r"Grounding policing always applies")
+
+    # -- writers --------------------------------------------------------
+    def test_the_writer_partition_rule_is_stated(self):
+        self.assertIn("#### Writer slices — one contract-author per contract-file group", self.body)
+        self.assertIn("**The partition rule.**", self.body)
+        self.assertRegex(self.body, r"every item has exactly one owner: that is the guarantee two slices\s+cannot overlap")
+        self.assertRegex(self.body, r"ONE contract-author writes the whole draft, un-sliced")
+        self.assertIn('<constraint name="slice_scope">', self.body)
+
+    def test_writers_are_spawned_in_one_message_under_the_cap(self):
+        self.assertRegex(self.body, r"Spawn every slice of a wave in ONE message")
+        self.assertIn("At most `max_parallel = 4`", self.body)
+        self.assertRegex(self.body, r"run in waves of at most four")
+
+    def test_writers_commit_only_their_own_files_and_retry_on_lock(self):
+        for text in (self.body, self.author):
+            self.assertIn('git commit -m "<msg>" -- <', text)
+            self.assertIn("`index.lock` contention", text)
+            self.assertRegex(text, r"never force|Nothing is ever forced")
+
+    def test_the_notes_and_the_draft_are_joined_by_notes_merge(self):
+        self.assertRegex(self.body, r"--out <partition>/steps/create-api-contract/iter-<n>/authoring\.md")
+        self.assertRegex(self.body, r"notes merge --no-markers \\\n\s+"
+                                    r"--out <partition>/steps/create-api-contract/api-contract\.md \\\n"
+                                    r"\s+<partition>/steps/create-api-contract/api-contract-preamble\.md")
+        self.assertIn("every\n     value DERIVED", self.body)
+        # Only the published draft drops the markers; the workspace joins keep them.
+        self.assertEqual(self.body.count("--no-markers"), 2)  # the command + the prose
+
+    def test_a_derived_preamble_and_fragments_join_into_a_clean_draft(self):
+        """The join the prose promises really does yield ONE draft that the
+        coordinator's own two checks pass: the derived preamble's front matter
+        is kept and every heading appears once, in order."""
+        spec = fmc.parse_spec(flag_values(self.body, "--require")[0])
+        preamble = ('---\nticket: SHOP-123\nitems: 2\n'
+                    'contract_files: ["docs/api/openapi.yaml", "docs/api/events.yaml"]\n---\n\n'
+                    "# API contract — SHOP-123: Accept large imports\n")
+        frag = "\n".join("## %s\n%s for {k}\n" % (name, name) for name in SECTIONS)
+        text, order = lib.merge_texts([("preamble", preamble),
+                                       ("openapi", frag.format(k="openapi")),
+                                       ("events", frag.format(k="events"))],
+                                      markers=False)
+        self.assertEqual(order, SECTIONS)
+        self.assertNotIn("<!-- slice:", text, "the published draft carries no slice markers")
+        self.assertEqual(fmc.check_front_matter(text, spec, ticket="SHOP-123"), [])
+        self.assertEqual(structure_lint.lint_structure(text, SECTIONS, ordered=True), [])
+
+    def test_the_author_agent_knows_how_to_be_one_slice(self):
+        self.assertIn("## When you are one slice", self.author)
+        for path in ("steps/create-api-contract/iter-<n>/authoring-<k>.md",
+                     "steps/create-api-contract/iter-<n>/contract-author-<k>.json",
+                     "steps/create-api-contract/api-contract-<k>.md"):
+            self.assertIn(path, self.author)
+        self.assertIn('phase="contract-author" slice="<k>"', self.author)
+        self.assertRegex(self.author, r"NO front matter and no title\s+line")
+
+    def test_sliced_questions_are_one_grouped_ask(self):
+        self.assertRegex(self.body, r"go to the user in ONE grouped ask")
+
+    def test_resume_re_runs_only_the_missing_slices(self):
+        self.assertRegex(self.body, r"re-runs ONLY the\s+slices whose report is missing")
+        self.assertIn("never re-run a slice whose report is on disk", self.body)
+
+    def test_the_slice_travels_on_the_wire(self):
+        self.assertIn("iter-<n>/<phase>-<slice>-message.xml", self.body)
+        self.assertRegex(self.body, r"un-sliced instance omits `slice`")
+
+
+class TestSynthesisAfterFanOut(unittest.TestCase):
+    """A mechanical join is not a synthesis: parallel contract-authors are
+    followed by ONE integration contract-author that reconciles the seams
+    before the reviewer judges, contradictions between slices' notes are
+    resolved under `## Synthesis`, and duplicate findings across reviewer
+    slices are dropped by the coordinator."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SKILL_PATH)
+        cls.author = agent("contract-author")
+        cls.reviewer = agent("contract-reviewer")
+
+    def test_the_integration_pass_is_one_more_contract_author(self):
+        self.assertIn("spawn ONE more contract-author with `slice=\"integration\"`", self.body)
+        self.assertIn("## When you are the integration pass", self.author)
+        self.assertIn('phase="contract-author" slice="integration"', self.author)
+        self.assertIn("`integration` are reserved", self.body)
+
+    def test_it_runs_after_the_slices_and_before_the_join_and_the_reviewer(self):
+        integration = self.body.index("**The integration pass — synthesis")
+        self.assertLess(self.body.index("**One message.** Spawn every slice"), integration)
+        self.assertLess(integration, self.body.index("**The join — deterministic"))
+        self.assertLess(integration, self.body.index("### Phase: contract-reviewer"))
+        self.assertIn("Once the integration pass\n  completed", self.body)
+
+    def test_it_is_skipped_for_a_single_writer(self):
+        self.assertRegex(self.body, r"skipped only when the contract-author ran un-sliced — one writer has no\s+seams")
+
+    def test_the_seams_are_named(self):
+        for seam in ("error codes", "shared definitions", "cross-references",
+                     "compatibility decisions", "scope and traceability hand-offs",
+                     "indexes"):
+            with self.subTest(seam=seam):
+                self.assertIn("**%s**" % seam, self.body)
+                self.assertIn("**%s**" % seam.capitalize(), self.author)
+
+    def test_it_reconciles_seams_and_never_substance(self):
+        self.assertIn("It never rewrites a slice's substance and never adds or removes an item", self.body)
+        self.assertIn("Never rewrite a slice's substance, and never add or remove an item", self.author)
+        self.assertRegex(self.author, r"`status=\"needs_input\"` with the question")
+
+    def test_it_reports_every_seam_it_changed(self):
+        self.assertIn("iter-<n>/contract-author-integration.json", self.body)
+        self.assertIn("steps/create-api-contract/iter-<n>/contract-author-integration.json", self.author)
+        self.assertIn("(file, what, why, which slices)", self.body)
+
+    def test_contradicting_notes_are_resolved_under_synthesis(self):
+        for text in (self.body, self.author):
+            self.assertIn("`## Synthesis`", text)
+            self.assertIn("authoring-integration.md", text)
+        self.assertRegex(self.author, r"never\s+silently pick one")
+        block = re.search(r"(?s)--out <partition>/steps/create-api-contract/iter-<n>/authoring\.md(.*?)```",
+                          self.body).group(1)
+        self.assertTrue(block.strip().endswith("iter-<n>/authoring-integration.md"),
+                        "the integration notes join last")
+
+    def test_seam_findings_go_to_the_next_integration_pass(self):
+        self.assertRegex(self.body, r"(?s)A seam finding\b.*?goes to the next iteration's\s+integration pass")
+        self.assertRegex(self.reviewer, r"judge the INTEGRATED draft")
+        self.assertRegex(self.reviewer, r"routes it to\s+the next integration pass")
+
+    def test_hyphenated_slice_ids_join_as_the_prose_promises(self):
+        self.assertEqual(lib.notes.slice_ids(["api-contract-preamble.md",
+                                              "api-contract-billing-api.md",
+                                              "api-contract-events.md"]),
+                         ["preamble", "billing-api", "events"])
+
+    def test_judge_findings_are_de_duplicated_in_the_joined_report(self):
+        self.assertIn("**De-duplication — the join is the synthesis.**", self.body)
+        self.assertRegex(self.body, r"same location and the same defect as another slice's finding,\s+"
+                                    r"keeping the one with the higher severity")
+        self.assertIn("`## De-duplicated findings` section to\n`iter-<n>/contract-reviewer.md`", self.body)
+
+
 if __name__ == "__main__":
     unittest.main()

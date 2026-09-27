@@ -11,7 +11,34 @@
           "type": "array"
         },
         "docs_committed": {
-          "type": "boolean"
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Repo-relative paths of every doc file docs-sync itself changed (the union over every doc area's and the integration pass's doc-updater report), mirroring /code's docs_updated naming."
+        },
+        "commits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Short SHA + message of each additional commit docs-sync made on the ticket branch."
+        },
+        "review": {
+          "type": "object",
+          "properties": {
+            "iterations": {
+              "type": "integer"
+            },
+            "findings_open": {
+              "type": "integer"
+            },
+            "guard_denials": {
+              "type": "integer",
+              "description": "Derived by the post-hook when the file-map guard denied a write; never written by the skill."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

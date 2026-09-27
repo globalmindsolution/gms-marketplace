@@ -29,7 +29,9 @@ with:
   and existing area files in amend mode. READ EVERY ONE before writing a word;
 - `<constraints>` — at least `requirements_dir`, `functional_dir`,
   `non_functional_dir`, `audience_style_profile` (`required_sections` is yours
-  to propose — per file, in the outline);
+  to propose — per file, in the outline) — and, when you are one slice of a
+  parallel survey, `survey_area` (plus `candidate_areas` for slice `lead`; see
+  When you are one slice);
 - `<context>` — `$ARGUMENTS` (focus notes) and any clarification answers the
   ledger already records.
 
@@ -148,17 +150,53 @@ the QA/regression runner, not a doc-consistency participant.
 ## The authoring notes (mandatory)
 
 Write `steps/create-requirements/iter-1/authoring.md` (the `iter-<n>/authoring.md`
-of your task's `iteration`, always 1) with the Write tool, BEFORE anything else.
+of your task's `iteration`, always 1; `iter-1/authoring-<id>.md` when you are a
+slice) with the Write tool, BEFORE anything else.
 Sections: `## Mode & evidence`, `## Requirement outline`, `## Open questions`,
 `## Risks`, `## Reviewer checklist`. Every entry cites the file (and line or
 heading) you read — the author writes from these notes and the reviewer
 re-opens the citations and judges the area files against them, so an uncited
 entry is a blocking finding.
 
+## When you are one slice
+
+In brownfield or amend mode the coordinator may run the survey as parallel
+slices over disjoint areas of the repo. You are a slice when your `<task>`
+carries `slice="<id>"` and a `<constraint name="survey_area">`. Then:
+
+- **Survey only your area.** Slice `lead` owns the repo root's files, the docs
+  tree (the existing requirements set and the architecture doc set) and the
+  whole-set sections: `## Mode & evidence` — you classify the mode, applying
+  the amend "majority of the enumerated feature areas" test to the
+  `candidate_areas` your task carries — and the ADR-0012 doc-consistency step.
+  Any other slice owns only the paths its `survey_area` names: it enumerates
+  and code-grounds the feature areas inside them (by the same checkable
+  definition of "feature area" above, quoted in its notes), outlines their
+  `<functional_dir>/<feature>.md` files and any `<non_functional_dir>/<item>.md`
+  item its code evidences, with each file's `required_sections`, under
+  `## Requirement outline`, and records its own `[OPEN]` points, `## Risks` and
+  `## Reviewer checklist` entries — citing no path outside its area.
+- **Write the sliced file names.** Your notes go to
+  `steps/create-requirements/iter-1/authoring-<id>.md` (not `authoring.md`) and
+  your report to `steps/create-requirements/iter-1/surveyor-<id>.json`. Use the
+  same `## ` headings as the unsliced notes, spelled exactly, and leave a
+  heading out (or its body empty) when your slice owns nothing under it: the
+  coordinator joins every slice's file into `iter-1/authoring.md` with
+  `acs.py notes merge`, which keeps each heading once and concatenates the
+  slices' bodies under it.
+- **Prefix your question ids with your slice id** (`<question id="checkout.Q1">`)
+  — the coordinator puts every slice's DRAFT baseline and open points to the
+  user in one ask.
+- **Echo the slice** on your `<result>`: `<result skill="create-requirements"
+  phase="surveyor" slice="<id>" …>`.
+
+Everything else in this charter — read-only on the repo, never inventing an
+ungroundable area, grounding — applies to a slice unchanged.
+
 ## Phase artifact
 
 Write `steps/create-requirements/iter-<n>/surveyor.json` (`<n>` = the task's
-`iteration`):
+`iteration`; a slice writes `iter-<n>/surveyor-<id>.json`):
 
 ```json
 {
@@ -179,7 +217,8 @@ Write `steps/create-requirements/iter-<n>/surveyor.json` (`<n>` = the task's
 - You are read-only on the repo: never create or edit an area file, the
   requirements README, or any other repo file. Bash is for read-only
   inspection (`git log`, `git ls-files`, `grep`, `ls`). The only files you
-  write are your authoring notes and your surveyor report.
+  write are your authoring notes and your surveyor report (their `-<id>` names
+  when you are a slice).
 - Do not create/switch branches, run step start/post-hooks, or edit
   `ticket.json`, `run.json`, `clarifications.json` or any other workspace
   state — all coordinator work.

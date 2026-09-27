@@ -77,6 +77,62 @@ win — change them first, then the implementation.
    rendered only after the post-hook succeeded. Only the Results/Next content
    is skill-specific; under `/acs:ship` the `<handoff>` XML replaces it.
 
+### Declaring a fan-out (ADR-0110)
+
+Parallelism is the default wherever the work splits; running one instance at
+a time is what needs a reason. The contract is INTERNALS.md "Fan-out inside a
+skill"; what a SKILL.md must say is:
+
+1. **Which roles run sliced, and the partition rule.** For each of them, say
+   concretely what ONE slice owns, how slices are named, and why two slices
+   cannot overlap. Writers slice by default, from iteration 1, whenever the
+   deliverable splits into disjoint files (per feature area, per HLD/LLD file,
+   per suite file, per doc area, per file-map partition). Judges slice by
+   default at five or more check dimensions: give a table, slice id →
+   dimension numbers, two or three slices, each deterministic checker in
+   exactly one of them, and a run that happens once (a build, a suite) in one
+   slice. Surveys slice when the scope spans two or more disjoint top-level
+   areas of the repo. Where a role cannot be partitioned (a single document),
+   keep one instance and say why in one line.
+2. **Slice ids.** Short ids of letters, digits, `_` and `-` — the hook refuses
+   anything else, because the id names files. Hyphens are fine (`web-app`):
+   `acs notes merge` takes the slice id as what follows the prefix its inputs
+   share. `integration` is reserved for the integration pass.
+3. **One message, the cap, waves.** Spawn every instance of a phase in ONE
+   message, in the foreground, and wait for all of them. At most
+   `max_parallel = 4` per phase unless the skill has its own cap
+   (`/acs:create-docs` keeps 2 for doc sets); beyond it, run in waves.
+4. **The task carries the slice.** `<task skill="S" phase="<role>"
+   slice="<id>" …>`; a sliced judge's task also carries `<constraint
+   name="dimensions">`, and a survey slice names its area. The result echoes
+   `slice`, and every file the slice writes carries it:
+   `iter-<n>/<role>-<id>.json|.md`, `iter-<n>/authoring-<id>.md`.
+5. **The join is a command, never prose.** Join survey slices into
+   `iter-1/authoring.md` and judge slices into `iter-<n>/<role>.md` with
+   `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge --out
+   <joined file> <slice files…>`, so every downstream reader and checker still
+   reads one file with each section once. Never ask the model to merge the
+   prose itself.
+6. **Then synthesize.** A join is not a synthesis. After parallel writers,
+   name the integration pass: ONE more instance of the same writer role with
+   `slice="integration"`, before the judge, skipped when one writer ran, over
+   the seams THIS skill has (shared glossary and IDs, cross-links, index and
+   overview files, shared fixtures and config — list them). A single writer
+   that consumes merged survey slices records contradictions and their
+   resolution under `## Synthesis`. For judge slices, the coordinator drops a
+   finding another slice already raised at the same location for the same
+   defect, keeping the higher severity.
+7. **The sliced judge pass rule.** State it verbatim in spirit: the iteration
+   passes only when EVERY slice returned `status="completed"` with zero
+   blocking findings; all slices' findings go to the next writer; a slice that
+   failed or returned nothing usable fails the iteration — never "pass with a
+   missing slice".
+8. **Resume per slice.** The Resume & reconcile section re-runs only the
+   slices whose report is missing.
+9. **Commits on a shared branch.** A writer whose commit meets git's
+   `index.lock` waits briefly and retries; it never deletes the lock and
+   never forces anything.
+
 ## Subagent definitions (`agents/<skill>-<role>.md`)
 
 ### Frontmatter
@@ -121,8 +177,11 @@ win — change them first, then the implementation.
    before the deliverable; every survey and write role writes
    `iter-<n>/<role>.json` (parallel implementers: `iter-<n>/implementer-<k>.json`);
    every judge writes `iter-<n>/<role>.md` (see INTERNALS.md "Phase
-   artifacts") and references it in `<outputs>`. The SubagentStop snapshot is
-   `iter-<n>/<role>-message.xml`, so never name a report that. Resumption
+   artifacts") and references it in `<outputs>`. A role that can run sliced
+   writes `<role>-<id>.*` and `authoring-<id>.md` instead when its task
+   carries `slice="<id>"`. The SubagentStop snapshot is
+   `iter-<n>/<role>-message.xml` (`<role>-<id>-message.xml` for a slice), so
+   never name a report that. Resumption
    depends on these files existing even when the run dies right after the
    role. There is no `iter-<n>/plan.md` (ADR-0092). `/acs:create-impl-plan`'s
    deliverable is itself a plan — its planner's draft is the single
@@ -151,7 +210,15 @@ win — change them first, then the implementation.
    trusting recorded results. All findings block — write findings the
    write role can act on (file, expectation, observed behavior), one
    `<finding>` per issue, full detail in the judge's `iter-<n>/<role>.md`.
-8. **Length budget 60–140 lines** per agent (the grounding section counts).
+8. **Roles that run sliced say so.** An agent a coordinator fans out gains a
+   short `## When you are one slice` section: what its task's `slice` (and,
+   for a judge, `dimensions`) means, that it runs ONLY its own dimensions or
+   area (grounding policing applies in every slice), that each deterministic
+   checker runs only in the slice that owns its dimension, which sliced file
+   names it writes, and that it echoes `slice` on its `<result>`. A writer
+   role that can run as the integration pass says what `slice="integration"`
+   reconciles and that it never rewrites a slice's substance.
+9. **Length budget 60–140 lines** per agent (the grounding section counts).
 
 ## Tool-restriction policy (summary)
 
@@ -234,8 +301,13 @@ owns the agents named after it. In order:
 5. **Decide whether it is a PIPELINE STEP.** Adding a step is one line in
    `workflows/ship.yaml`'s `steps`, in the position it should run. The list
    only keeps the order: `acs workflow validate` checks that each step is a
-   skill that ships and not a leg, and that every loop goes back — never what
-   a step needs. `merge-pr` and `release` are never steps.
+   skill that ships and not a leg, that no skill appears twice, and that every
+   loop goes back with neither end inside a parallel group — never what a
+   step needs. `merge-pr` and `release` are never steps. A step MAY join a
+   **parallel group** — an entry that is a list, `- [a, b]` — only when its
+   members follow the same inputs and write disjoint files; a group is
+   declared by you, never derived, and costs `/acs:ship` every member's
+   coordinator prose in one context (ADR-0110).
 6. **Brake only on damage.** A pre-hook refusal is for a safety brake —
    running now would do something re-running cannot undo — added to `BRAKES`
    in `acs_lib/brakes.py` (a step) or `SUBJECT_GATES` in `acs_lib/gates.py`

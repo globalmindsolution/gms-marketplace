@@ -173,7 +173,7 @@ Two subagents, each named for what it does in this skill:
 | Role | Agent | Kind | Model tier | Writes |
 |---|---|---|---|---|
 | planner | `acs:create-impl-plan-planner` | write | `planner` | `iter-<n>/authoring.md`, the draft `steps/create-impl-plan/plan.md`, `iter-<n>/planner.json` |
-| plan reviewer | `acs:create-impl-plan-plan-reviewer` | judge | `verifier` | `iter-<n>/plan-reviewer.md` |
+| plan reviewer | `acs:create-impl-plan-plan-reviewer` | judge | `verifier` | `iter-<n>/plan-reviewer-<slice>.md`, one per judge slice, joined into `iter-<n>/plan-reviewer.md` |
 
 The planner is a `write`-kind role — it produces the deliverable, a workspace
 draft — but it runs on the `planner` model tier its name promises
@@ -204,27 +204,81 @@ guess ADR-0095 removed.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
+### Parallelism — judge slices; the planner stays single
+
+Every fan-out here is yours: spawn the N instances of the SAME agent in ONE
+message (all foreground, in the same message), wait for all of them, and join
+their outputs before the next phase. At most `max_parallel = 4` instances run
+per phase; beyond that, run the rest in waves of four.
+
+**Writer — one planner, never sliced.** `plan.md` is a single document, so
+the write is never partitioned. Its survey is not sliced either: the survey IS
+the decomposition — one file map whose tasks must be disjoint from each
+other, an AC-to-test matrix over every criterion — and that is one judgement
+over the whole ticket that per-area slices could only produce in pieces that
+collide. With one writer there is no integration pass, and with no survey
+slices no synthesis of merged notes.
+
+**Judge slices (every iteration — the default).** The plan reviewer has ten
+check dimensions, so it always runs as three slices, each a fresh instance of
+`acs:create-impl-plan-plan-reviewer` whose task carries `slice="<id>"` and
+`<constraint name="dimensions">` naming the dimension numbers it owns:
+
+| Slice | Dimensions | Owns the run of |
+|---|---|---|
+| `tests` | 1 acceptance-criteria coverage, 5 test strategy executability | the ONE run of the repo's existing suite command |
+| `map` | 4 file-map honesty, 6 design and architecture conformance, 7 scope | the `git ls-files` / `ls` check of every mapped path |
+| `document` | 2 completeness, 3 structure (fold only), 8 documentation map, 9 grounding, 10 authoring-conformance | `structure_lint.py` on the fold |
+
+Grounding policing applies in every slice. Spawn the three slices in ONE
+message; each writes `iter-<n>/plan-reviewer-<slice>.md`. Join them, in the
+table's order, into the one report every later reader reads:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-impl-plan/iter-<n>/plan-reviewer.md \
+  <partition>/steps/create-impl-plan/iter-<n>/plan-reviewer-tests.md \
+  <partition>/steps/create-impl-plan/iter-<n>/plan-reviewer-map.md \
+  <partition>/steps/create-impl-plan/iter-<n>/plan-reviewer-document.md
+```
+
+**De-duplicate after the join.** The slices own disjoint dimensions, so the
+merge is the synthesis — but two slices can still report one defect (a mapped
+path that does not exist is both a `file-map honesty` and a `grounding`
+finding). Drop a finding that cites the same location and the same defect as
+another slice's finding, keep the higher severity, and say so in the joined
+report: append a `## De-duplicated findings` section to `iter-<n>/plan-reviewer.md`
+listing each dropped finding (slice, dimension, location) and the finding it
+duplicated (`_None._` when nothing was dropped). Never drop a finding for any
+other reason.
+
+**Pass rule for sliced judges:** the iteration passes only if EVERY slice
+returned `status="completed"` with zero blocking findings. Any slice's
+blocking finding blocks, and all slices' findings — de-duplicated as above,
+otherwise verbatim — go to the next planner. A slice that failed or returned no usable result fails the
+iteration — never "pass with a missing slice".
+
 Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-impl-plan"
   phase="planner|plan-reviewer" ticket-id="<id>" iteration="n">` — the
   `phase` is the role — carrying `<objective>`, `<inputs>` (file refs) and
   `<constraints>`. The subagent returns a `<result>` with the same `phase` as
-  its final content.
-- Validate EVERY message you send and receive:
-
-  ```bash
-  ```
+  its final content. A plan-reviewer slice's task and result also carry
+  `slice="<id>"`; the un-sliced planner omits it.
+- Validate EVERY message you send and receive — the SubagentStop hook checks each returned
+  `<result>`'s `skill=`, `phase=` and `iteration=` (and `slice=` when sliced).
 
   On invalid: re-request once with the validation error; still invalid → fail
   the run and record the error in the result document's `errors`.
 - Every phase output is persisted at the phase boundary, BEFORE the next
   phase starts: the SubagentStop hook snapshots each returned message to
-  `steps/create-impl-plan/iter-<n>/<phase>-message.xml`; if that snapshot is
+  `steps/create-impl-plan/iter-<n>/<phase>-message.xml` (a slice's at
+  `iter-<n>/<phase>-<slice>-message.xml`); if that snapshot is
   missing (a host that does not fire the hook), write the `<task>` and
   `<result>` there yourself. The roles' own reports are
-  `iter-<n>/planner.json` and `iter-<n>/plan-reviewer.md` — never write a
-  message over them.
+  `iter-<n>/planner.json` and `iter-<n>/plan-reviewer-<slice>.md`, joined into
+  `iter-<n>/plan-reviewer.md` — never write a message over them.
 - Spawn subagents with the Agent tool: `subagent_type:
   "acs:create-impl-plan-planner"`, then `subagent_type:
   "acs:create-impl-plan-plan-reviewer"` — fall back to the un-namespaced name
@@ -384,18 +438,22 @@ its own remediation iterations. Record the returned `tasks` object as
 
 ### Plan review (per iteration) — `acs:create-impl-plan-plan-reviewer`
 
-Spawn `acs:create-impl-plan-plan-reviewer` AFTER the draft is written, with
+Spawn the three `acs:create-impl-plan-plan-reviewer` slices (Judge slices
+above) in ONE message AFTER the draft is written, each with
 `<inputs>` of the draft, the ticket file, `analysis.md` and `design.md` when
 they exist, every `<partition>/specs/*.md`, and the repo paths the file map
 names. The plan reviewer judges fresh — never forward the planner's reasoning —
-and writes `steps/create-impl-plan/iter-<n>/plan-reviewer.md`. Its
-`<result>`'s `<findings>` is the verdict: `status="completed"` means
-the review RAN, and an empty `<findings>` is the pass. Never conclude a pass
-the plan reviewer did not report.
+and each slice writes `steps/create-impl-plan/iter-<n>/plan-reviewer-<slice>.md`,
+which you join into `steps/create-impl-plan/iter-<n>/plan-reviewer.md`. The
+slices' `<result>` `<findings>` are the verdict: `status="completed"` means
+the review RAN, and an empty `<findings>` in every slice is the pass. Never
+conclude a pass the plan reviewer did not report — a slice with no usable
+result is no pass.
 
 ALL blocking findings block — zero blocking findings = pass. On findings:
 persist the review output, then AUTOMATICALLY re-run the planner, passing every
-finding to the next iteration's planner in `<context>`. After the ceiling of
+finding of every slice, verbatim once de-duplicated, to the next
+iteration's planner in `<context>`. After the ceiling of
 **3** planner → plan-review rounds with findings
 remaining: stop with final status `"failed"`, the findings recorded, and
 NOTHING published: on a first run `/acs:code`'s gate then stays shut because
@@ -507,7 +565,7 @@ If you genuinely cannot reach the user (a non-interactive run): do not guess.
 Record the outgoing questions as `open` (`clarify.py add` without `--answer`),
 write the result document with status `"needs_input"` and `stop_reason`
 "needs user input", run the Finish steps, and return a `<handoff
-status="needs_input">` whose `<questions>` carry them. Validate it with
+status="needs_input">` whose `<questions>` carry them.
 
 ## Context pressure
 

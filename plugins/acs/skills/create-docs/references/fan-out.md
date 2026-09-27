@@ -14,6 +14,13 @@ the Start snippet prints it as `max_parallel`. Walk each batch
 finishing one slice's sets before starting the next. Everything below that
 says "this slice" means those at-most-`max_parallel` sets.
 
+The cap bounds instances per phase too. The Author message spawns at most
+`max_parallel` authors (one per set). The Review message spawns every
+**dimension slice** of every set in this slice — two per set
+(`SKILL.md` → Review), so at most 2 × `max_parallel` = **4** reviewer
+instances, the per-phase fan-out cap. A dimension slice is not a set slice:
+it splits one set's review, never the batch.
+
 ## Worktrees — one per set, created before that set's Start
 
 For every set in this slice, create one git worktree outside the consumer

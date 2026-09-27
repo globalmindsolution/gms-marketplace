@@ -15,10 +15,11 @@ from the `<task>` XML and the files it points at.
 ## Input contract
 
 Your prompt contains one `<task skill="code" phase="implementer" ticket-id="SHOP-123"
-iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
+iteration="n">` element (schema: `the SubagentStop hook's message check`) — with
+a `slice="<k>"` attribute as well when the coordinator runs implementers in
+parallel (see **When you are one slice**) — and:
 
-- `<objective>` — which plan task (or which findings) this task implements, and your
-  implementer index `k` when the coordinator runs implementers in parallel;
+- `<objective>` — which plan task (or which findings) this task implements;
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
   the plan artifact `plan.md` — the path supplied in `<inputs>`, which the
   coordinator resolved (the ticket's docs folder,
@@ -148,13 +149,58 @@ never quietly do code work under a docs-only ticket.
    input) repairs it on the same branch/PR.
 5. **Commit** on the ticket branch, one or a few coherent commits, each message
    rendered from the `commit_message` format (e.g. `SHOP-123 add bulk import
-   endpoint`). NEVER push — /acs:create-pr pushes and opens the PR.
+   endpoint`). Stage and commit ONLY your file map's paths, by name
+   (`git add <paths>` then `git commit -m "<msg>" -- <paths>`) — never
+   `git add -A` or `git commit -a`, which would sweep a parallel sibling's work
+   into your commit. NEVER push — /acs:create-pr pushes and opens the PR.
+
+## When you are one slice
+
+When your `<task>` carries `slice="<k>"`, other implementers are running at the
+same moment, in the same working tree, on the same branch, each on a disjoint
+partition of the file map. Everything above still holds; in addition:
+
+- **Echo the slice.** Your result carries the same attribute —
+  `<result skill="code" phase="implementer" slice="<k>" …>` — so your snapshot
+  lands under your own slice name and never overwrites a sibling's.
+- **Write the sliced report**: `steps/code/iter-<n>/implementer-<k>.json`,
+  never the un-sliced `implementer.json`.
+- **Commit only your own paths, and retry on the lock.** A commit refused with
+  `index.lock` exists is a sibling committing at the same moment: wait a few
+  seconds and retry the same commit, a handful of times. Never delete the lock
+  file, never `--force` anything.
+- **A sibling's files are not yours.** A targeted test that fails on a file
+  outside your map is a sibling's work in flight: record it in `problems`,
+  never edit that file, and judge your own work by the tests your map owns.
+- **Name your seams.** List in your report's `seams` field every place your
+  change meets another partition: a call site across the boundary, a type,
+  name or ID both sides use, a migration and its reader. One entry each:
+  the file on the other side, what your change assumes there, and why. That
+  list is what the coordinator's integration pass reconciles; an empty list
+  says you saw none.
+
+Un-sliced (no `slice` attribute): omit it on your result and write
+`implementer.json`.
+
+### When you are the integration slice
+
+`slice="integration"` means every partition slice has returned and you are the
+one pass over the seams between them. Read every slice's report (their `seams`
+entries) and the union of their diffs from `<inputs>`. Reconcile ONLY the
+seams — a call site that crosses a boundary, a shared type or ID changed from
+two ends, a migration that has to land with its reader — and never rewrite a
+slice's substance. A conflict between two slices that the evidence cannot
+settle is `status="needs_input"` with the question, not a pick. TDD holds: a
+seam that changes behaviour gets its failing test first. Write
+`steps/code/iter-<n>/implementer-integration.json` with the usual shape plus a
+`seams_changed` list, one entry per seam: `file`, `what`, `why`, `slices` (the
+slice ids on either side).
 
 ## Phase artifact
 
 Write your full implementer report to `steps/code/iter-<n>/implementer.json`
-— or `steps/code/iter-<n>/implementer-<k>.json` when the objective gives you
-an index `k`. Shape:
+— or `steps/code/iter-<n>/implementer-<k>.json` when your task carries
+`slice="<k>"`. Shape:
 
 ```json
 {
@@ -165,6 +211,7 @@ an index `k`. Shape:
   "docs_updated": ["README.md", "docs/api/import.md", "docs/architecture/lld/flows/bulk-import.md"],
   "commits": ["a1b2c3d SHOP-123 add bulk import endpoint"],
   "problems": ["flaky test test_retry quarantined upstream; reran 3x green"],
+  "seams": ["src/import/queue.py: enqueue_rows() now takes a tenant_id — partition 3 owns the caller"],
   "clarifications_used": ["DELETE is soft-delete per user answer in task context"]
 }
 ```

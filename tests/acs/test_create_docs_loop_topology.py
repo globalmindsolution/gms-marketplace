@@ -133,6 +133,90 @@ class AuthorReviewLoopTest(unittest.TestCase):
         self.assertNotRegex(body, r"(?i)second planner")
 
 
+class ParallelFanOutTest(unittest.TestCase):
+    """Parallel writers are one author per set (never finer); the reviewer's
+    eight dimensions run as two dimension slices per set, joined by
+    `acs.py notes merge`, with every slice required to pass."""
+
+    #: slice id -> the dimension numbers it owns, as the SKILL.md table says.
+    SLICES = {"files": (1, 3, 5, 7), "content": (2, 4, 6, 8)}
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = read(SKILL)
+        cls.norm = norm(cls.skill)
+        cls.contract = norm(contract())
+        cls.reviewer = read(REVIEWER)
+
+    def test_writer_partition_rule_is_one_author_per_set(self):
+        self.assertIn("**Partition rule — one writer per set, never finer.**", self.skill)
+        self.assertRegex(self.norm, r"(?i)two authors cannot write the same file")
+        self.assertRegex(self.norm, r"(?i)A set is NOT split further into per-file authors")
+
+    def test_every_instance_of_a_phase_spawns_in_one_message(self):
+        self.assertRegex(self.norm, r"(?i)spawn every instance of a phase in ONE message")
+        self.assertRegex(self.norm, r"(?i)join their outputs before the next phase starts")
+
+    def test_dimension_slice_table_covers_the_eight_dimensions_once(self):
+        seen = []
+        for slice_id, dims in self.SLICES.items():
+            row = re.search(r"(?m)^\| `%s` \| ([^|]+)\|" % slice_id, self.skill)
+            self.assertIsNotNone(row, "no table row for dimension slice %r" % slice_id)
+            got = tuple(int(n) for n in re.findall(r"\b(\d)\b", row.group(1)))
+            self.assertEqual(got, dims)
+            seen.extend(got)
+        self.assertEqual(sorted(seen), list(range(1, 9)))
+
+    def test_each_checker_runs_in_exactly_one_slice(self):
+        self.assertRegex(self.skill, r"(?m)^\| `files` \|.*`structure_lint\.py` \|$")
+        self.assertRegex(self.skill, r"(?m)^\| `content` \|.*`citation_check\.py` \|$")
+
+    def test_review_join_is_notes_merge_into_reviewer_md(self):
+        self.assertIn('acs.py" notes merge', self.skill)
+        self.assertIn("--out <partition>/steps/create-docs/iter-<n>/reviewer.md", self.skill)
+        self.assertIn("iter-<n>/reviewer-files.md", self.skill)
+        self.assertIn("iter-<n>/reviewer-content.md", self.skill)
+        self.assertRegex(self.norm, r"(?i)never by merging prose yourself")
+
+    def test_sliced_task_carries_slice_and_dimensions(self):
+        self.assertIn('<task skill="create-docs" phase="reviewer" slice="files"', self.skill)
+        self.assertIn('<constraint name="dimensions">', self.skill)
+        self.assertIn("iter-<n>/reviewer-<slice>-message.xml", self.skill)
+
+    def test_pass_rule_requires_every_slice(self):
+        self.assertRegex(self.norm, r"(?i)passes only when EVERY one of its dimension slices returned `status=\"completed\"` with zero blocking findings")
+        self.assertRegex(self.norm, r"(?i)every slice'?s findings \(after de-duplication\) go verbatim to that set'?s next author")
+        self.assertIn('never "pass with a missing slice"', self.norm)
+
+    def test_cap_holds_at_four_reviewers_per_message(self):
+        self.assertIn("max_parallel = 2", self.skill)
+        self.assertRegex(self.norm, r"(?i)at most 4 reviewer instances")
+        self.assertRegex(self.contract, r"(?i)2 × `max_parallel` = \*\*4\*\* reviewer instances")
+
+    def test_resume_reruns_only_missing_slices(self):
+        self.assertRegex(self.contract, r"(?i)re-run ONLY the dimension slices whose `iter-<n>/reviewer-<slice>\.md` is missing")
+
+    def test_judge_slices_are_de_duplicated_after_the_join(self):
+        self.assertIn("**De-duplicate after the join.**", self.skill)
+        self.assertRegex(self.norm, r"(?i)drop a finding that cites the same location .{0,40}and the same defect as another slice'?s finding, keeping the one with the higher severity")
+        self.assertIn("## De-duplicated findings", self.skill)
+
+    def test_sets_are_fully_independent_so_no_integration_pass(self):
+        self.assertIn("**No integration pass — the sets are fully independent.**", self.skill)
+        self.assertNotIn('slice="integration"', self.skill)
+        self.assertRegex(self.norm, r"(?i)keeps out of the same batch")
+
+    def test_reviewer_agent_knows_how_to_be_one_slice(self):
+        self.assertIn("## When you are one slice", self.reviewer)
+        body = norm(self.reviewer)
+        self.assertIn("steps/create-docs/iter-<n>/reviewer-<slice>.md", body)
+        self.assertRegex(body, r"(?i)Run ONLY the listed dimensions")
+        self.assertRegex(body, r"(?i)Police grounding in every slice")
+        self.assertRegex(body, r"(?i)`structure_lint\.py` only when you own 7")
+        self.assertRegex(body, r"(?i)`citation_check\.py` only when you own 4")
+        self.assertIn('<result skill="create-docs" phase="reviewer" slice="content"', self.reviewer)
+
+
 class ReviewerIndependenceTest(unittest.TestCase):
 
     def test_reviewer_judges_from_artifacts_only(self):

@@ -45,6 +45,11 @@ it exists.
 coherent change; splitting it across implementers would cost two subagent spawns
 and a merge to save nothing. Give that implementer the whole file map.
 
+It is the un-sliced case of the fan-out in `execute.md`: spawned alone, its
+task and result carry no `slice` attribute, and it writes
+`iter-<n>/implementer.json`, never `implementer-<k>.json`. The one-message
+spawn and the `max_parallel = 4` cap never come into play on this path.
+
 ### Inputs
 
 `create-test-docs` records `no_cases_owed` on this path, so there is no

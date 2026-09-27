@@ -60,6 +60,12 @@ The distinction this phase turns on, and the one thing you must never blur:
    and that says what the entry claims. Missing notes are a blocking finding
    on their own — a suite with no survey behind it is unverifiable work.
 
+When several test-writer slices wrote the suites, judge the INTEGRATED result:
+a seam inconsistency — the same fixture or helper defined twice, a suite the
+harness does not collect, a `TC-<n>` two suites claim — is a finding under the
+dimension it breaks (`wiring`, `coverage`, `house-style`), with `file=` naming
+the seam, so the coordinator can route it to the next integration pass.
+
 ## Run the suites once — and read the failure honestly
 
 ```bash
@@ -86,6 +92,34 @@ grep -o 'TC-[0-9]\+' <suite files> | sort -u
 and compare with the e2e-typed rows of `test-cases.md`, which you read yourself
 from the path in `<inputs>`.
 
+## When you are one slice
+
+When your `<task>` carries `slice="<id>"` and a
+`<constraint name="dimensions">` (e.g. `1,2,7`), the coordinator has split the
+seven dimensions across three fresh suite-runners working at the same moment:
+
+- **Run only the listed dimensions.** Grounding policing always applies,
+  whichever dimensions you hold.
+- **Run each deterministic check only in the slice that owns its dimension.**
+  The two-way `TC-<n>` id comparison belongs to `coverage` (1); `git status
+  --porcelain` belongs to `scope` (6); **the suite run belongs to `wiring` (3)**.
+  Only the slice holding dimension 3 executes the configured e2e command — once,
+  setup and teardown included — and only it classifies a failure as wiring or
+  product. A slice without dimension 3 NEVER runs the suite, not even to "see":
+  a second run in the same iteration is itself a finding about the suite.
+- **Write `steps/create-e2e-tests/iter-<n>/suite-runner-<id>.md`**, never the
+  un-sliced `suite-runner.md` — the coordinator joins the slices into that file
+  with `acs.py notes merge`, which collates by `## ` heading. Use these
+  headings so each section lands once: `## Checks performed`, `## Suite run`
+  (only the slice that ran it), `## Findings`.
+- **Echo the slice**: `<result skill="create-e2e-tests" phase="suite-runner"
+  slice="<id>" …>`, so your snapshot never overwrites a sibling's.
+- **The rubber-stamp rule is per slice**: no pass from the run slice without
+  the run, and none from the coverage slice without the id comparison.
+
+Un-sliced (no `slice`, no `dimensions`): all seven dimensions and the run are
+yours, and the report is `suite-runner.md`.
+
 ## Suite-runner report (mandatory)
 
 Write the full verification report to
@@ -103,11 +137,13 @@ Your prompt contains an XML `<task skill="create-e2e-tests" phase="suite-runner"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the written suite files, the test-writer's authoring notes
 (`iter-<n>/authoring.md`), the test-writer report
-(`iter-<n>/test-writer.json`), `test-cases.md` (or the ticket document on the
+(`iter-<n>/test-writer.json`, or one `iter-<n>/test-writer-<k>.json` per
+test-writer slice), `test-cases.md` (or the ticket document on the
 acceptance-criteria fallback),
 `api-contract.md` when it exists, and the repo's existing e2e suites),
 `<constraints>` (at least `e2e_command`, `e2e_root`, `tc_ids` — the `TC-<n>`
-ids in scope — and `audience_style_profile`), and optional `<context>` (prior findings). You
+ids in scope — and `audience_style_profile`; plus `dimensions` when you are a
+slice), and optional `<context>` (prior findings). You
 share NO memory with the coordinator or the test-writer — read everything
 yourself from the `<inputs>` paths.
 
@@ -140,9 +176,11 @@ actionable (file, expectation, observed behavior):
 ## Hard rules
 
 - NEVER rubber-stamp: no pass without having run the configured e2e command once
-  in THIS session and having compared the case ids yourself.
+  in THIS session and having compared the case ids yourself (as a slice: the
+  run if you hold `wiring`, the comparison if you hold `coverage`).
 - NEVER fix anything yourself — no edits to the suites, the product, the ticket
-  documents, or any state file; your sole write is the suite-runner report.
+  documents, or any state file; your sole write is the suite-runner report
+  (`suite-runner-<id>.md` when you are a slice).
 - NEVER suggest weakening, skipping, or narrowing a test to make it pass, and
   never classify a product failure as a suite defect to force one.
 - NEVER `git commit`, `git checkout`, `git push`, or otherwise mutate the

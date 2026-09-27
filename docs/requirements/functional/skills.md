@@ -173,10 +173,13 @@ command.
   consumer ships one, else the plugin default — by looping over
   `acs.py run next` until it reports the list is done
   ([workflow.md](workflow.md#umbrella-command-ship)).
-- It invokes the ONE step `run next` names. There is no parallel mode:
-  `ship.yaml` v3 rejects `max_parallel` and `exclusive`, and what the
-  parallel mode bought — not paying for a step with nothing to do — is bought
-  instead by the evidenced no-op, which costs no tokens and no worktree.
+- It invokes the ONE step `run next` names — or, when the cursor sits in a
+  parallel group the list declares, every member `run next` reports in
+  `due`, driven in lockstep inside its own session (ADR-0110). It MUST NOT
+  decide on its own that two steps may overlap: `ship.yaml` v3 rejects
+  `max_parallel` and `exclusive`, and what the old parallel mode bought — not
+  paying for a step with nothing to do — is bought instead by the evidenced
+  no-op, which costs no tokens and no worktree.
 - MUST stop before `/merge-pr` (which may not appear in a workflow file at
   all), and MUST NOT bypass any pre/post hook; it adds orchestration only. It
   stops because `create-pr` is the last name in the list, not because of a

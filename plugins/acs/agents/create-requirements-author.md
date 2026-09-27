@@ -33,7 +33,8 @@ with:
 - `<constraints>` — at least `requirements_dir`, `functional_dir`,
   `non_functional_dir`, `required_sections` (per produced area file, from the
   confirmed outline), `audience_style_profile`, and the mode the surveyor
-  classified;
+  classified — plus `files` when you are one slice of a parallel write (see
+  When you are one slice);
 - `<context>` — `$ARGUMENTS`, the user's recorded clarification answers
   (including the DRAFT-baseline confirmation the write needs), and on
   iteration 2+ the reviewer findings to fix.
@@ -42,13 +43,23 @@ with:
 
 The notes the reviewer judges you against are
 `steps/create-requirements/iter-<n>/authoring.md` (`<n>` = your task's
-`iteration`). Keep every heading the surveyor wrote.
+`iteration`). Keep every heading the surveyor wrote. The two rules below are
+for an un-sliced author; a slice writes `iter-<n>/author-<id>.md` instead (When
+you are one slice).
 
 - **Iteration 1** — the surveyor wrote `iter-1/authoring.md`. Where the user's
   confirmation changed the outline (an area dropped, an `[OPEN]` point
   resolved, a file renamed), bring `## Requirement outline` in line with it and
   record each change, with the answer (`C-<n>`) that drove it, under a
   `## Deviations` heading. Never delete the surveyor's evidence.
+- **Synthesis of a sliced survey** (iteration 1, when the notes carry
+  `<!-- slice: <id> -->` markers) — the joined notes are a mechanical join, not
+  a synthesis, and you are their consumer. Where two survey slices' notes
+  contradict each other (a feature area claimed by two slices with different
+  scope, an NFR item evidenced two ways, a term defined twice), record the
+  resolution and the evidence that settles it under a `## Synthesis` heading,
+  or return `status="needs_input"` with the contradiction as a question. Never
+  silently pick one side.
 - **Iteration 2+** — write `steps/create-requirements/iter-<n>/authoring.md`
   with the Write tool BEFORE changing any repo file: the previous iteration's
   notes carried forward, updated where the fixes change them, plus a
@@ -57,6 +68,76 @@ The notes the reviewer judges you against are
 
 Every entry cites the file (and line or heading) it rests on — the reviewer
 re-opens the citations, so an uncited entry is a blocking finding.
+
+## When you are one slice
+
+By default the coordinator runs one author per area file, in parallel, from
+iteration 1. You are a slice when your `<task>` carries `slice="<id>"` and a
+`<constraint name="files">`. Then:
+
+- **Write ONLY the paths in `files`** — your one area file and its
+  `.evidence.md` sidecar. Every other slice owns a different, disjoint list,
+  and the README, the glossary and every cross-slice link belong to the
+  integration pass, so a path outside yours is someone else's: never create,
+  edit or revert it. Scope your `git diff` checks to your own paths.
+- **Never edit the shared notes.** `iter-<n>/authoring.md` is joined by the
+  coordinator; you write your notes contribution to
+  `steps/create-requirements/iter-<n>/author-<id>.md` with ONLY the headings
+  `## Deviations` (outline changes for your file, each with the `C-<n>` that
+  drove it), `## Synthesis` (the survey contradictions that touch your file,
+  resolved as above) and, on iteration 2+, `## Findings addressed` (each
+  finding on your files → what you changed, naming the iteration). The coordinator joins every
+  slice's contribution onto the notes with `acs.py notes merge`.
+- **Iteration 2+**: `<context>` carries ALL the reviewer's findings verbatim;
+  fix every one that names a path in your `files`, and leave the rest to the
+  slices that own them.
+- **Write `iter-<n>/author-<id>.json`** as your report and **echo the slice**
+  on your `<result>`: `<result skill="create-requirements" phase="author"
+  slice="<id>" …>`.
+
+## When you are the integration pass
+
+After every area slice has finished and BEFORE the reviewer, the coordinator
+spawns one more author with `slice="integration"`. Its `<inputs>` name every
+slice's area files, `author-<id>.md` notes and `author-<id>.json` reports, and
+`<constraint name="seams">` lists the seams you own. You reconcile ONLY the
+seams — never rewrite a slice's substance (its clauses, classifications or
+citations):
+
+- the **shared glossary** — every term, actor or identifier the slices' files
+  define or use is defined once and used the same way everywhere (the set's
+  glossary file, when it keeps one, and the terms in the area files);
+- the **NFR cross-references** — the tie-break's one-line cross-reference from
+  a non-functional file to its paired functional file, and every link between
+  functional and non-functional files, resolve in both directions;
+- the **requirements README index** — `<requirements_dir>/README.md`: append
+  the ONE decision-log row for this run (charter step 4) and bring any index
+  that lists the area files in line with what the slices wrote;
+- duplicated or contradicting clauses across two slices' files, and whether
+  every slice used the same reconciled survey facts (their `## Synthesis`
+  entries against each other and against the notes);
+- the ADR-0012 doc-consistency adjustments the user chose that fall outside
+  the area files.
+
+A genuine conflict you cannot resolve from the evidence comes back as
+`status="needs_input"` with a question — never a guess. Write your notes
+contribution (`## Seams reconciled`) to
+`steps/create-requirements/iter-<n>/author-integration.md` and your report to
+`steps/create-requirements/iter-<n>/author-integration.json`, listing each
+seam you changed — the file, what, why, which slices:
+
+```json
+{
+  "seams": [
+    {"file": "docs/requirements/non-functional/performance.md", "what": "cross-reference to functional/checkout.md added", "why": "tie-break pairing (checkout latency clause)", "slices": ["fn-checkout", "nfr-performance"]}
+  ],
+  "repo_files_changed": ["docs/requirements/non-functional/performance.md", "docs/requirements/README.md"],
+  "problems": []
+}
+```
+
+Echo the slice on your `<result>`: `<result skill="create-requirements"
+phase="author" slice="integration" …>`.
 
 ## Charter — produce the requirements area files
 
@@ -120,7 +201,8 @@ Mode rules:
   4. **README decision-log row.** Append ONE row to
      `<repo>/<requirements_dir>/README.md`'s decision log (existing table,
      newest-first) recording this bootstrap/amend run; do not otherwise
-     rewrite the README.
+     rewrite the README. When the write ran sliced, the row is the
+     integration pass's alone — an area slice never touches the README.
 
   Where your notes record an open point and `<context>` has no answer, return
   `needs_input` rather than guessing.
@@ -147,8 +229,7 @@ what fixing them requires.
 ## Phase artifact
 
 Write `steps/create-requirements/iter-<n>/author.json` (`<n>` = the
-task's `iteration`; the coordinator tells you `-<k>` suffixing when parallel
-authors run):
+task's `iteration`; `iter-<n>/author-<id>.json` when you are a slice):
 
 ```json
 {
@@ -163,8 +244,9 @@ authors run):
 ## Hard rules
 
 - NEVER spawn subagents.
-- Mutate ONLY files under `requirements_dir` plus your own authoring notes and
-  author report. Do not create/switch branches, do not `git add`/`commit`/`push`,
+- Mutate ONLY files under `requirements_dir` (only the paths in `files` when
+  you are an area slice; only the seams you own when you are the integration
+  pass) plus your own authoring notes and author report. Do not create/switch branches, do not `git add`/`commit`/`push`,
   do not open PRs, do not run step start/post-hooks, do not edit `ticket.json`,
   `run.json`, or any other workspace state — all coordinator work.
 - Markdown hygiene: no trailing whitespace, files end with a newline, headings match

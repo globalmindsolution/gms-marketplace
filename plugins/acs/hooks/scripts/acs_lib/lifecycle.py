@@ -91,6 +91,9 @@ RESULT_ROOTS = ("result", "handoff")
 #: A returned message, in either form the schema allows: a paired element, or
 #: an empty one written self-closing (`<result .../>` -- every child of `result`
 #: is minOccurs="0", so a subagent legitimately returns one with no body).
+#: A slice id names a file, so it is held to what a file name can safely be.
+_SLICE_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]{0,39}$")
+
 _MESSAGE_RE = re.compile(r"<(result|handoff)\b(?:[^>]*/>|.*?</\1>)", re.DOTALL)
 
 
@@ -254,10 +257,14 @@ def extract_message(text):
     return matches[-1].group(0) if matches else None
 
 
-def phase_artifact_path(rdir, skill, iteration, phase):
+def phase_artifact_path(rdir, skill, iteration, phase, slice_id=None):
     """The raw-message snapshot, in the iteration directory.
 
-    `<phase>-message.xml`, and both halves of that name are load-bearing.
+    `<phase>-message.xml`, and both halves of that name are load-bearing. A
+    SLICED instance -- one of several copies of the same agent a coordinator
+    ran in parallel over disjoint work -- lands at `<phase>-<slice>-message.xml`
+    instead: parallel siblings share a phase and an iteration, so without the
+    slice every one of them would overwrite the last.
 
     **`-message`**, because `<phase>.json` COLLIDES with the agent's own
     report: the phase is the role, and every agent writes its JSON report to
@@ -273,8 +280,9 @@ def phase_artifact_path(rdir, skill, iteration, phase):
     persists a raw XML message; naming the file `.json` did not make its bytes
     JSON, it only made every JSON reader downstream fail on it."""
     from .run import iteration_dir
+    name = "%s-%s" % (phase, slice_id) if slice_id else phase
     return os.path.join(iteration_dir(rdir, skill, int(iteration)),
-                        "%s-message.xml" % phase)
+                        "%s-message.xml" % name)
 
 
 def in_flight_step(rdir, ctx=None, run_id=None):
@@ -531,6 +539,10 @@ def validate_message(message):
     iteration = (root.get("iteration") or "").strip()
     if iteration and (not iteration.isdigit() or int(iteration) < 1):
         errors.append("iteration= must be a positive integer")
+    slice_id = root.get("slice")
+    if slice_id is not None and not _SLICE_RE.match(slice_id):
+        errors.append("slice= must be a short id of letters, digits, '_' or '-' "
+                      "(it names the snapshot file)")
     return errors
 
 
@@ -629,7 +641,8 @@ def write_phase_snapshot(tdir, skill, role, message):
     declared_skill = root.get("skill") or skill
     if not phase:
         return None
-    path = phase_artifact_path(tdir, declared_skill, iteration, phase)
+    path = phase_artifact_path(tdir, declared_skill, iteration, phase,
+                               slice_id=root.get("slice"))
     if declared_iteration is None and os.path.exists(path):
         with open(path, encoding="utf-8") as fh:
             if fh.read().strip() != message.strip():

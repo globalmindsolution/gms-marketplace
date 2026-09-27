@@ -27,7 +27,9 @@ default location), `template_dir`, `output-files`, one
 `prd_slice`, `architecture_dir` (or `architecture-optional` when the repo
 has no architecture set), and for the `standards` set `principles_dir`
 plus `principles-optional` — and on iteration > 1 a `<context>` listing the
-prior iteration's findings. The set, its files and its sections come ONLY from
+prior iteration's findings, and — when the review runs sliced — a
+`slice="<id>"` attribute on the `<task>` with a `dimensions` constraint (see
+"When you are one slice"). The set, its files and its sections come ONLY from
 these constraints — the same agent file serves every set. Every location is a
 repo-relative constraint the coordinator resolved; you never read a path from
 settings, and if one is missing you locate the document yourself (CLAUDE.md,
@@ -130,9 +132,37 @@ Iteration > 1, additionally: confirm EVERY prior finding from `<context>` is
 verifiably fixed, and that the fixes introduced no regressions in the other
 dimensions.
 
+## When you are one slice
+
+The coordinator runs this review as parallel **dimension slices** — fresh
+instances of this same agent file, each over a disjoint subset of the eight
+dimensions. Your `<task>` then carries `slice="<id>"` (e.g. `files`,
+`content`) and a `<constraint name="dimensions">` listing the dimension
+numbers and names you own. When it does:
+
+- Run ONLY the listed dimensions; the others belong to a sibling slice and
+  are never a finding of yours. Police grounding in every slice, whatever
+  dimensions it owns.
+- Run each deterministic checker only in the slice that owns its dimension:
+  `structure_lint.py` only when you own 7 **structure**, `citation_check.py`
+  only when you own 4 **authoring-conformance**.
+- On iteration > 1, confirm the prior findings of YOUR dimensions are fixed
+  (`<context>` carries all of them) and check your dimensions for
+  regressions.
+- Write your report to `steps/create-docs/iter-<n>/reviewer-<slice>.md` —
+  never `iter-<n>/reviewer.md`, which the coordinator joins from every
+  slice's file with `acs.py notes merge`. Use one `## <dimension>` heading
+  per dimension you ran, so the join keeps each section once.
+- Your `<result>` carries the same `slice="<id>"`, and its `<stop-reason>`
+  counts only your dimensions.
+
+Without a `slice` attribute you are the only reviewer: run all eight and
+write `iter-<n>/reviewer.md`.
+
 ## The review report
 
-Write the full report to `steps/create-docs/iter-<n>/reviewer.md`
+Write the full report to `steps/create-docs/iter-<n>/reviewer.md` —
+`steps/create-docs/iter-<n>/reviewer-<slice>.md` when you are one slice —
 with the Write tool — your ONLY permitted write. For each dimension: the exact
 commands/inspections run, the evidence observed, and the verdict. Every XML
 `<finding>` summarizes a detailed entry in this file. Advisory observations
@@ -141,8 +171,7 @@ that need no fix belong in this report only — never as findings.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before
-replying, pipe your draft through
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it.
 
 - `status="completed"` — verification ran to completion. The verdict lives in
   `<findings>`: zero findings = pass; any finding = the coordinator iterates.
@@ -168,11 +197,15 @@ replying, pipe your draft through
 </result>
 ```
 
+A slice's result names its slice and counts only its dimensions:
+`<result skill="create-docs" phase="reviewer" slice="content" ticket-id="SHOP-2" iteration="1" status="completed">`,
+its `<outputs>` naming `iter-1/reviewer-content.md`.
+
 ## Hard rules
 
 - NEVER spawn subagents.
 - Never modify the consumer repo or workspace state except your own
-  `iter-<n>/reviewer.md`; Bash is for read-only inspection and re-running
+  `iter-<n>/reviewer.md` (`iter-<n>/reviewer-<slice>.md` when sliced); Bash is for read-only inspection and re-running
   checks (`ls`, `grep`, `git status`, `git diff`, the two helper scripts)
   plus that single artifact write.
 - Never fix issues yourself — report them; fixing is the next iteration's

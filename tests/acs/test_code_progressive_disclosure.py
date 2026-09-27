@@ -178,23 +178,29 @@ class EachLegDeclaresItsOwnMachineryTest(unittest.TestCase):
                 self.assertIn("plan_sha256", body)
                 self.assertIn("An edited plan is an unapproved plan", body)
 
-    def test_only_the_complex_path_describes_the_integration_implementer(self):
-        """This is what now separates `complex` from `standard`. Both partition
-        the file map; only `complex` runs a final pass over the SEAMS between
-        the partitions -- the concern the four-lens verifier was implicitly
-        covering, answered on the implementation side and before the review
-        rather than after it."""
+    def test_only_the_complex_path_owes_the_integration_implementer(self):
+        """This is what still separates `complex` from `standard`. Both
+        partition the file map; only `complex` OWES a final pass over the SEAMS
+        between the partitions on every run -- the concern the four-lens
+        verifier was implicitly covering, answered on the implementation side
+        and before the review rather than after it. `standard` and `small` run
+        the same pass only when an implementer reports a seam (a join is not a
+        synthesis), and `trivial` never has two implementers to reconcile."""
         complex_body = norm(leg_body("code-complex"))
         for token in ("integration implementer", "union of the partitions' diffs",
-                      "intersection of their boundaries"):
+                      "intersection of their boundaries",
+                      "seams reported or not"):
             with self.subTest(token=token):
                 self.assertIn(token, complex_body)
-        for leg in ("code-trivial", "code-small", "code-standard"):
+        self.assertNotIn("integration implementer", norm(leg_body("code-trivial")),
+                         "trivial runs one implementer; there is no seam")
+        for leg in ("code-small", "code-standard"):
             body = norm(leg_body(leg))
             with self.subTest(leg=leg):
-                self.assertNotIn("integration implementer", body,
-                                 "%s does not run one; carrying the prose is the "
-                                 "drift this catches" % leg)
+                self.assertIn('slice="integration"', body)
+                self.assertRegex(body, r"lists a `seams` entry")
+                self.assertNotIn("seams reported or not", body)
+        self.assertIn("**not owed by default**", norm(leg_body("code-standard")))
 
     def test_no_leg_spawns_or_sizes_a_reviewer(self):
         """Every path gets the same review, and the reviewer measures itself
@@ -268,6 +274,99 @@ class TheSharedProtocolIsSharedNotCopiedTest(unittest.TestCase):
                 body = leg_body(leg)
                 self.assertNotIn("**Acceptance-criteria conformance**", body)
                 self.assertNotIn("## The dimensions", body)
+
+
+class ParallelImplementersTest(unittest.TestCase):
+    """Disjoint partitions run in parallel from iteration 1, and the fan-out is
+    the coordinator's: one message, one slice per partition, a slice id on the
+    wire so the SubagentStop snapshots cannot collide, one report per slice,
+    and a cap. The mechanics live once in `execute.md`; every leg says which of
+    them it uses, so a reader learns what a path runs from the path's file."""
+
+    FANNING_LEGS = ("code-small", "code-standard", "code-complex")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.execute = norm(read(os.path.join(REFERENCES, "execute.md")))
+        cls.protocol = norm(read(os.path.join(REFERENCES, "protocol.md")))
+        cls.implementer = norm(read(os.path.join(PLUGIN, "agents", "code-implementer.md")))
+
+    def test_the_shared_mechanics_state_the_partition_rule(self):
+        self.assertIn("## Parallel implementers", read(os.path.join(REFERENCES, "execute.md")))
+        self.assertIn("One partition is one task `k`", self.execute)
+        self.assertIn("no path may appear under two tasks", self.execute)
+        self.assertIn("filemap show --iteration <n>", self.execute)
+        self.assertRegex(self.execute, r"parallel from iteration 1")
+
+    def test_the_shared_mechanics_spawn_in_one_message_under_a_cap(self):
+        self.assertIn("in ONE message", self.execute)
+        self.assertIn("max_parallel = 4", self.execute)
+        self.assertRegex(self.execute, r"(?i)run in waves of at most four")
+
+    def test_the_slice_travels_on_task_and_result(self):
+        for body in (self.execute, self.protocol):
+            self.assertIn('slice="<k>"', body)
+        self.assertIn('<result skill="code" phase="implementer" slice="<k>"', self.implementer)
+        self.assertIn("## When you are one slice",
+                      read(os.path.join(PLUGIN, "agents", "code-implementer.md")))
+
+    def test_parallel_commits_on_one_branch_retry_and_never_force(self):
+        for body in (self.execute, self.implementer):
+            self.assertIn("index.lock", body)
+            self.assertRegex(body, r"(?i)never `git add -A`")
+        self.assertIn("Nothing is ever forced", self.execute)
+
+    def test_a_resumed_iteration_re_runs_only_the_missing_slices(self):
+        self.assertIn("re-run only the slices whose report", self.protocol)
+        self.assertIn("iter-<n>/implementer-<k>.json", self.protocol)
+
+    def test_every_fanning_leg_states_the_fan_out(self):
+        for leg in self.FANNING_LEGS:
+            body = norm(leg_body(leg))
+            for token in ("in ONE message", 'slice="<k>"', "implementer-<k>.json",
+                          "max_parallel = 4", "filemap show --iteration <n>"):
+                with self.subTest(leg=leg, token=token):
+                    self.assertIn(token, body)
+
+    def test_small_keeps_rarely_two_and_caps_itself_at_two(self):
+        body = norm(leg_body("code-small"))
+        self.assertIn("One implementer by default", body)
+        self.assertIn("Two is this path's own cap", body)
+
+    def test_trivial_is_the_un_sliced_case(self):
+        body = norm(leg_body("code-trivial"))
+        self.assertIn("Exactly one implementer. Never parallel.", body)
+        self.assertIn("no `slice` attribute", body)
+        self.assertIn("iter-<n>/implementer.json", body)
+
+    def test_the_integration_implementer_runs_alone_after_the_last_wave(self):
+        body = norm(leg_body("code-complex"))
+        self.assertIn("It runs alone, after the last wave and before the review", body)
+        self.assertIn('slice="integration"', body)
+        self.assertIn("implementer-integration.json", body)
+
+    def test_the_integration_pass_is_a_synthesis_of_the_seams_only(self):
+        """A mechanical join is not a synthesis: the integration slice runs
+        once, alone, after every slice and before the review, reconciles only
+        the seams, and is skipped when a single implementer ran."""
+        self.assertIn("a join is not a synthesis", self.execute)
+        self.assertIn('slice="integration"', self.execute)
+        self.assertIn("before `/acs:review-code`", self.execute)
+        self.assertIn("reconciles ONLY the seams — never a slice's substance", self.execute)
+        self.assertIn("it is skipped whenever only one implementer ran", self.execute)
+        for seam in ("call site", "migration", "type"):
+            with self.subTest(seam=seam):
+                self.assertIn(seam, self.execute)
+        self.assertIn("iter-<n>/implementer-integration.json", self.execute)
+        self.assertIn("(file, what, why, which slices)", self.execute)
+        self.assertRegex(self.execute, r"seam finding .{0,120}goes to the integration slice")
+
+    def test_the_implementer_names_its_seams_and_the_integration_slice_reports_them(self):
+        self.assertIn('"seams":', self.implementer)
+        self.assertIn("### When you are the integration slice",
+                      read(os.path.join(PLUGIN, "agents", "code-implementer.md")))
+        self.assertIn("`seams_changed`", self.implementer)
+        self.assertIn('status="needs_input"', self.implementer)
 
 
 class TheDispatcherDispatchesTest(unittest.TestCase):

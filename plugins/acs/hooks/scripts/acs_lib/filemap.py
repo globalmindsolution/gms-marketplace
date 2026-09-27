@@ -172,9 +172,32 @@ def active_executor(tdir, session_id=None):
     see _record_is_current. Nothing clears the record when a subagent dies
     mid-flight, and a guard that denies every write in a partition until
     someone hand-edits it is worse than the scope creep it prevents."""
-    for entry in active_agents(tdir):
-        if entry.get("kind") == "write" and _record_is_current(entry, session_id):
-            return entry
+    writers = active_writers(tdir, session_id)
+    return writers[0] if writers else None
+
+
+def active_writers(tdir, session_id=None):
+    """Every recorded `write`-kind agent still running, most recent first.
+
+    More than one is normal now: a coordinator fans writers out over disjoint
+    partitions, and `/acs:ship` can run a parallel group's steps side by side,
+    so two SKILLS' writers may be live at once."""
+    return [entry for entry in active_agents(tdir)
+            if entry.get("kind") == "write" and _record_is_current(entry, session_id)]
+
+
+def _writer_for(writers, payload):
+    """The writer this tool call came from, when the payload says so.
+
+    A hook fired inside a subagent carries that subagent's `agent_id`; match it
+    and the write is judged against exactly its own skill's map. Without one
+    (an older Claude Code) the call cannot be attributed, and the caller judges
+    it against every live writer."""
+    agent_id = cc.hook_agent_id(payload)
+    if agent_id:
+        for entry in writers:
+            if entry.get("agent_id") == agent_id:
+                return entry
     return None
 
 
@@ -199,9 +222,14 @@ def file_map_guard(payload):
         _ticket_id, tdir, ctx = resolve_partition(cc.payload_cwd(payload))
         if not tdir:
             return 0
-        executor = active_executor(tdir, cc.hook_session_id(payload))
-        if not executor:
+        writers = active_writers(tdir, cc.hook_session_id(payload))
+        if not writers:
             return 0
+        own = _writer_for(writers, payload)
+        # The writers this call may belong to: its own when the payload names
+        # it, else every live one -- never a guess at the most recent.
+        candidates = [own] if own else writers
+        executor = candidates[0]
     except Exception as exc:  # noqa: BLE001 - scope questions fail open
         _note("file-map guard not applied: %r" % exc)
         return 0
@@ -243,25 +271,32 @@ def file_map_guard(payload):
                              "control_input", target=target)
         return 2
 
-    # What IS exempt: this executor's own phase artifacts, and only those.
+    # What IS exempt: the writer's own phase artifacts, and only those. With
+    # several candidate writers the call is allowed when ANY of them may make
+    # it: an unattributable write is judged against the union of the live
+    # writers' scopes, never against whichever started last.
     from .run import step_dir as _step_dir
-    phase_dir = _step_dir(tdir, executor.get("skill") or "")
-    if _under(target, phase_dir):
-        return 0
-
+    declared = set()
+    for writer in candidates:
+        skill = writer.get("skill") or ""
+        if _under(target, _step_dir(tdir, skill)):
+            return 0
+        iteration = _current_iteration(tdir, skill)
+        tasks = load_filemap(tdir, skill, iteration)
+        if not tasks:
+            return 0  # nothing declared: that plan has no opinion, so neither has this
+        if path_in_filemap(target, tasks, ctx.get("checkout_root")):
+            return 0
+        declared.update(f for files in tasks.values() for f in files)
     iteration = _current_iteration(tdir, executor.get("skill"))
-    tasks = load_filemap(tdir, executor.get("skill"), iteration)
-    if not tasks:
-        return 0  # nothing declared: the plan has no opinion, so neither has this
-    if path_in_filemap(target, tasks, ctx.get("checkout_root")):
-        return 0
-    declared = sorted({f for files in tasks.values() for f in files})
+    declared = sorted(declared)
     _warn(
         "%s is outside this task's file map.\n"
         "Declared for /acs:%s iteration %s:\n  %s\n"
         "Do not improvise scope: STOP and return `needs_input` naming the file, "
         "so the coordinator can adjust the file map."
-        % (target, executor.get("skill"), iteration, "\n  ".join(declared)))
+        % (target, ", /acs:".join(sorted({w.get("skill") or "" for w in candidates})),
+           iteration, "\n  ".join(declared)))
     _record_guard_denial(payload, tdir, ctx, executor.get("skill"), "outside_map",
                          target=target, declared_count=len(declared),
                          iteration=iteration)

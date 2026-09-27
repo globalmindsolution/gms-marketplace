@@ -18,10 +18,15 @@ Ground rules, non-negotiable:
   offers, and never invent one it does not. Every skill name in this file is
   an example of a mechanism, never the pipeline itself: read the pipeline from
   the cursor.
-- **There is one step at a time.** `ship.yaml` is a LIST, with no `needs:`
-  graph to traverse and no predicates to evaluate, so there is no ready-set,
-  no parallel mode and no skipping. The cursor is the first step that is not
-  `completed`, and that is the step you run.
+- **There is one step at a time, except where the list says otherwise.**
+  `ship.yaml` is a LIST, with no `needs:` graph to traverse and no predicates
+  to evaluate, so there is no ready-set to compute and no skipping. The cursor
+  is the first step that is not `completed`, and that is the step you run.
+  The one exception is written into the list itself: an entry that is a list
+  of skill names is a **parallel group**, and `acs run next` reports every
+  unfinished member of it in `due`. You run those side by side (see "Running
+  a parallel group") — you never decide on your own that two steps may
+  overlap.
 - **A step with nothing owed is not your call either.** Its own pre-hook
   completes it from the plan's `## Contract` block and no coordinator is ever
   spawned — an evidenced no-op, at no token cost. You will simply see the
@@ -102,7 +107,9 @@ Add `--run <run-id>` only when you were given one. It prints one JSON object:
 | Field | What you do with it |
 |---|---|
 | `run_id` | the run you are driving; quote it in your report |
-| `next` | the cursor: the one step to run now, or `null` |
+| `next` | the cursor: the first step to run now, or `null` |
+| `due` | every step to run now — `[next]` for a plain step, each unfinished member for a parallel group |
+| `parallel` | `true` when `due` holds more than one step → "Running a parallel group" |
 | `status` | the run's own state — `in_progress`, `completed`, `failed`, `abandoned` |
 | `done` | `true` once the cursor is `null` → go to Finish |
 
@@ -115,7 +122,9 @@ Branch strictly on what comes back:
 3. **`status: "failed"`** → the run is over: a step failed, or the review loop
    exhausted its iterations (`on_exhausted: fail` — a run never "passes with
    findings"). Report it per "Handling the handoff" and stop.
-4. Otherwise invoke the step `next` names.
+4. `parallel: true` → run every step in `due` together, per "Running a
+   parallel group".
+5. Otherwise invoke the step `next` names.
 
 Invoking a step is always the same: the Skill tool with skill `acs:<next>` and
 args = the run's subject when it is a ticket (the id alone), else nothing.
@@ -163,6 +172,40 @@ question with the user's answer (`Q: … A: …` lines) as context. The re-invok
 coordinator records the relayed answers in the clarification ledger (per its
 own "Clarification ledger first" rule) — /acs:ship only relays; it never
 writes the ledger itself.
+
+## Running a parallel group
+
+A parallel group's members follow the same reviewed changeset and write
+disjoint files, so running them one after the other only costs wall time.
+Subagents cannot spawn subagents, so each member's coordinator still has to
+run here, in your context — what runs in parallel is their SUBAGENTS:
+
+1. **Start every member.** Invoke the Skill tool for each step in `due`, in
+   the order listed, one call after another. Each call fires that member's
+   own pre-hook and loads its coordinator prose; each member runs its own
+   Start (`acs step start --step <member>`). The run's ledger allows every
+   member of one group to be `in_progress` at once (invariant I1) and nothing
+   else. A member whose pre-hook settled an evidenced no-op, or refused, is
+   simply not running — carry on with the rest.
+2. **Advance them in lockstep, one batch per phase.** Keep one row per
+   member: its current phase and what it is waiting for. Whenever two or more
+   members each have subagents ready to spawn — the writers of one, the
+   writers or the judge of another — spawn ALL of them in ONE message, in the
+   foreground, and wait for every result before the next batch. A member that
+   must wait (for its own judge's input, or for the user) simply sits out
+   that batch.
+3. **Ask the user once.** When more than one member needs input, gather their
+   questions into one grouped ask, each question labelled with its step, and
+   hand each member back its own answers.
+4. **Each member finishes itself.** Every member writes its own result
+   document and runs its own post-hook; you never finish a member on another
+   one's behalf. The group is done when `acs run next` moves past it.
+5. **A failure stops the group cleanly.** If one member fails, let the
+   others finish the phase already in flight (never abandon a running
+   subagent), record them `interrupted` through their own Finish, then stop
+   and report per "Handling the handoff". Commits: members commit on the one
+   ticket branch; a commit that meets git's `index.lock` waits briefly and
+   retries — never delete the lock file.
 
 ## Handling the handoff
 

@@ -35,6 +35,8 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   repo's docs index, then a Glob/Grep — none found means the repo has none);
 - `<context>` — on iteration 2+, the previous findings: confirm each one is
   actually resolved, not merely claimed resolved.
+- when you are one slice (below): a `slice="<id>"` attribute on the `<task>`
+  and a `dimensions` constraint naming the dimension numbers you own.
 
 Judge artifacts, never narrative: do NOT read the planner's
 `iter-<n>/planner.json` report to form your verdict — your independence from
@@ -112,6 +114,36 @@ findings:
 
 On iteration 2+, additionally verify each prior finding from `<context>` is
 truly fixed; an unfixed one is re-reported.
+
+## When you are one slice
+
+By default the coordinator runs this review as three slices at once, and your
+task then carries `slice="<id>"` and `<constraint name="dimensions">` naming
+the dimension numbers you own (`tests`: 1, 5 · `map`: 4, 6, 7 · `document`:
+2, 3, 8, 9, 10):
+
+- Check ONLY the listed dimensions; another slice checks the rest. Grounding
+  policing always applies: an uncited or false claim you meet while checking
+  your own dimensions is a finding whatever slice you are.
+- Run each deterministic check only in the slice that owns its dimension:
+  the ONE run of the repo's existing suite command (dimension 5) belongs to
+  `tests` and runs nowhere else; `structure_lint.py` (dimension 3) belongs to
+  `document`; the `git ls-files` / `ls` check of the mapped paths (dimension
+  4) belongs to `map`.
+- On iteration 2+, re-check only the prior findings whose `dimension` you own.
+- Write your report to `steps/create-impl-plan/iter-<n>/plan-reviewer-<slice>.md`,
+  not the un-sliced name — the coordinator joins the slices into
+  `iter-<n>/plan-reviewer.md` with `acs.py notes merge`, which merges by
+  `## ` heading, so keep the section structure below: one `## <Dimension>`
+  section per dimension you own, then `## Findings` (and
+  `## Prior findings re-check`).
+- Your result carries the slice and counts only your dimensions:
+  `<result skill="create-impl-plan" phase="plan-reviewer" slice="map" …>`
+  with a `<stop-reason>` such as "Plan review complete: 3/3 dimensions pass,
+  0 blocking findings." Zero findings then means every dimension YOU own was
+  checked and passed.
+
+With no `dimensions` constraint (an un-sliced review), you check all ten.
 
 ## Phase artifact
 

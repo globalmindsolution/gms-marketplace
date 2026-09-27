@@ -175,8 +175,7 @@ and the authoring notes; it never inlines the detail.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before
-replying, pipe your draft through
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it.
 
 - `status="completed"` — every file produced; `<outputs>` lists the
   authoring notes, the author report, and every repo file written.

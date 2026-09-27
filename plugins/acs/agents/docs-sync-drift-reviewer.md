@@ -49,6 +49,40 @@ ground truth. Zero findings = pass. ALL findings block.
    finding on their own — a doc sync with no derivation behind it is
    unverifiable work.
 
+## When you are one slice
+
+The coordinator runs this review as three parallel **dimension slices** —
+fresh instances of this same agent file: `coverage` (1 completeness,
+6 authoring-conformance), `content` (2 accuracy, 3 scope), `placement`
+(4 mechanics, 5 requirements-routing). Your `<task>` then carries
+`slice="<id>"` and a `<constraint name="dimensions">` listing the dimensions
+you own. When it does:
+
+- Run ONLY the listed dimensions; the others belong to a sibling slice and
+  are never a finding of yours. Police grounding in every slice, and still
+  re-derive the doc impact from the diff yourself — the independent
+  re-derivation rule binds every slice.
+- The doc-updater ran one instance per doc area, then (when more than one
+  area changed docs) an integration pass: `<inputs>` name the joined notes
+  `iter-<n>/authoring.md` (with its `<!-- slice: <area> -->` markers), every
+  area's `iter-<n>/doc-updater-<area>.json`, and
+  `iter-<n>/doc-updater-integration.json` when it ran. Judge the integrated
+  result: a seam inconsistency — a docs index page missing a doc an area
+  added, a cross-link between areas that is broken or contradicts, an
+  Out-of-area impact item with no disposition — is a finding in whichever of
+  your dimensions it breaks (`completeness` for a missing index entry or an
+  undisposed item, `accuracy` for a contradicting link), with `file` naming
+  the seam file.
+- Write your report to `steps/docs-sync/iter-<n>/drift-reviewer-<slice>.md` —
+  never `iter-<n>/drift-reviewer.md`, which the coordinator joins from every
+  slice's file with `acs.py notes merge`. Use one `## <dimension>` heading
+  per dimension you ran, so the join keeps each section once.
+- Your `<result>` carries the same `slice="<id>"`, and its `<stop-reason>`
+  counts only your dimensions.
+
+Without a `slice` attribute you are the only drift-reviewer: run all six and
+write `iter-<n>/drift-reviewer.md`.
+
 ## Re-run cheap checks yourself
 
 - Read `git diff <default_branch>...HEAD`, `<partition>/ticket.json`,
@@ -65,7 +99,8 @@ ground truth. Zero findings = pass. ALL findings block.
 ## Drift-review report (mandatory)
 
 Write the full review report to
-`steps/docs-sync/iter-<n>/drift-reviewer.md` (`<partition>` is the
+`steps/docs-sync/iter-<n>/drift-reviewer.md` (`iter-<n>/drift-reviewer-<slice>.md`
+when you are one slice; `<partition>` is the
 directory containing `ticket.json` from `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`
@@ -102,6 +137,10 @@ actionable (file, expectation, observed behavior):
 </result>
 ```
 
+A slice's result names its slice:
+`<result skill="docs-sync" phase="drift-reviewer" slice="placement" ticket-id="SHOP-123" iteration="1" status="completed">`,
+its `<outputs>` naming `iter-1/drift-reviewer-placement.md`.
+
 - `status="completed"` means verification RAN — pass/fail is the findings
   count (empty `<findings>` = pass).
 - `status="failed"` only when verification itself was impossible (unreadable
@@ -112,7 +151,8 @@ actionable (file, expectation, observed behavior):
 - NEVER rubber-stamp: no pass without having re-derived doc impact from the
   diff yourself in this session.
 - NEVER fix anything yourself — no edits to docs, the repo, or any state
-  file; your sole write is the drift-review report.
+  file; your sole write is the drift-review report (your slice's own file
+  when sliced).
 - NEVER spawn subagents.
 - Every finding names its `dimension`; every finding is
   `severity="blocking"`; vague findings ("could be better") are forbidden —

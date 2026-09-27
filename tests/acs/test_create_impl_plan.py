@@ -686,8 +686,6 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
         self.assertRegex(review, r"(?i)`TC-n` / `AC-n`")
 
 
-if __name__ == "__main__":
-    unittest.main()
 class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
     """analyze-requirements promises that with no user answer create-impl-plan
     plans against the ticket as written; the plan skill has to keep that
@@ -710,3 +708,92 @@ class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
     def test_the_two_skills_state_the_same_contract(self):
         self.assertRegex(self.analyze, r"(?i)`/acs:create-impl-plan` plans against the ticket as written")
         self.assertRegex(self.norm, r"(?i)plans? against the ticket(?:'s acceptance criteria)? as written")
+
+
+#: The plan reviewer's judge slices and the dimension numbers each owns.
+PLAN_REVIEW_SLICES = {"tests": (1, 5), "map": (4, 6, 7), "document": (2, 3, 8, 9, 10)}
+
+
+def _flat(body):
+    """Whitespace-normalized, with shell line continuations folded away."""
+    return re.sub(r"\s+", " ", body.replace("\\\n", " "))
+
+
+class ParallelismTest(unittest.TestCase):
+    """The fan-out contract: the planner stays single (one document, one
+    decomposition), and the plan reviewer is split into three dimension slices
+    spawned in one message and joined by `acs.py notes merge`."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = _flat(read(IMPL_PLAN_SKILL))
+        cls.rerun = _flat(read(IMPL_PLAN_RERUN_REF))
+        cls.reviewer = _flat(read(IMPL_PLAN_REVIEWER))
+        cls.raw = read(IMPL_PLAN_SKILL)
+
+    def test_the_planner_stays_single_and_says_why(self):
+        self.assertIn("Writer — one planner, never sliced.", self.skill)
+        self.assertIn("`plan.md` is a single document", self.skill)
+        self.assertIn("Its survey is not sliced either: the survey IS the decomposition",
+                      self.skill)
+
+    def test_fan_out_is_one_message_and_capped(self):
+        self.assertIn("in ONE message (all foreground, in the same message)", self.skill)
+        self.assertIn("`max_parallel = 4`", self.skill)
+
+    def test_slice_table_covers_all_ten_dimensions_once(self):
+        owned = []
+        for sid, dims in PLAN_REVIEW_SLICES.items():
+            row = re.search(r"\| `%s` \| ([^|]+) \|" % sid, self.raw)
+            self.assertIsNotNone(row, sid)
+            numbers = tuple(int(n) for n in re.findall(r"\b(\d+) [a-z]", row.group(1)))
+            self.assertEqual(numbers, dims)
+            owned += numbers
+        self.assertEqual(sorted(owned), list(range(1, 11)))
+        self.assertIn('<constraint name="dimensions">', self.skill)
+
+    def test_the_single_suite_run_stays_in_one_slice(self):
+        self.assertIn("the ONE run of the repo's existing suite command", self.skill)
+        self.assertIn("belongs to `tests` and runs nowhere else", self.reviewer)
+
+    def test_slices_are_joined_by_notes_merge(self):
+        self.assertIn('/hooks/scripts/acs.py" notes merge --out '
+                      "<partition>/steps/create-impl-plan/iter-<n>/plan-reviewer.md",
+                      self.skill)
+        for sid in PLAN_REVIEW_SLICES:
+            self.assertIn("iter-<n>/plan-reviewer-%s.md" % sid, self.skill)
+
+    def test_sliced_pass_rule(self):
+        self.assertIn("the iteration passes only if EVERY slice returned "
+                      '`status="completed"` with zero blocking findings', self.skill)
+        self.assertIn('never "pass with a missing slice"', self.skill)
+        self.assertIn("every finding of every slice, verbatim", self.skill)
+
+    def test_judge_slice_findings_are_de_duplicated(self):
+        self.assertIn("Drop a finding that cites the same location and the same "
+                      "defect as another slice's finding, keep the higher severity",
+                      self.skill)
+        self.assertIn("append a `## De-duplicated findings` section to "
+                      "`iter-<n>/plan-reviewer.md`", self.skill)
+        self.assertIn("Never drop a finding for any other reason.", self.skill)
+        self.assertIn("verbatim once de-duplicated", self.skill)
+
+    def test_a_single_writer_needs_no_integration_or_synthesis(self):
+        self.assertIn("With one writer there is no integration pass, and with no "
+                      "survey slices no synthesis of merged notes.", self.skill)
+
+    def test_resume_reruns_only_missing_slices(self):
+        self.assertIn("re-run ONLY the slices whose "
+                      "`iter-<n>/plan-reviewer-<slice>.md` is missing", self.rerun)
+
+    def test_the_reviewer_knows_how_to_run_as_a_slice(self):
+        self.assertIn("## When you are one slice", self.reviewer)
+        self.assertIn("Grounding policing always applies", self.reviewer)
+        self.assertIn("steps/create-impl-plan/iter-<n>/plan-reviewer-<slice>.md",
+                      self.reviewer)
+        self.assertIn('<result skill="create-impl-plan" phase="plan-reviewer" slice=',
+                      self.reviewer)
+
+
+if __name__ == "__main__":
+    unittest.main()

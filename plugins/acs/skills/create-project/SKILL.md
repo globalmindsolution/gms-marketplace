@@ -77,8 +77,16 @@ Three cases:
 - There is no plan artifact to reuse: a scaffolder report with no build-check ->
   build-check it; a build-check with findings and no later scaffolder report ->
   run the scaffolder with those findings as `<context>`. The scaffolder's
-  iteration-1 authoring notes (`iter-1-authoring.md`) carry the file manifest and
-  commands every later iteration reads.
+  iteration-1 authoring notes (`iter-1-authoring.md`) carry the file manifest,
+  its Slices section and the commands every later iteration reads.
+- **Slices (see Parallelism).** A resumed iteration re-runs only the slices whose
+  report is missing: a scaffolder slice with no `iter-<n>/scaffolder-<id>.json`,
+  a build-checker slice with no `iter-<n>/build-checker-<id>.md` — never a slice
+  whose report exists; slice reports present but no
+  `iter-<n>/scaffolder-integration.json` → run the integration pass before any
+  build-check. Then re-join the build-checker slices with `acs.py notes
+  merge` before judging the pass. Iteration 1 with `iter-1/authoring.md` written
+  but no slice reports resumes at the build fan-out; the pin pass is not re-run.
 
 ## Greenfield gate
 
@@ -144,11 +152,16 @@ The loop is scaffold -> build-check, at most 3 iterations, between two subagents
   `executor` model tier. Iteration 1's scaffolder reads the architecture doc set (or,
   under the no-architecture fallback, the confirmed `C-n` entries), pins the
   scaffold — layout, package/build config, test and coverage tooling, lint, CI,
-  the vertical slice, the exact verification commands — in its authoring notes,
-  and then builds it green.
+  the vertical slice, the exact verification commands, and the Slices section
+  that partitions the file manifest — in its authoring notes (the **pin pass**,
+  one un-sliced scaffolder). The build then fans out: one scaffolder per slice,
+  in parallel, from iteration 1 (Parallelism below), each building its own files
+  green, and an integration scaffolder reconciles the seams and makes the whole
+  tree build green together before the build-check.
 - **build-checker** — `acs:create-project-build-checker`, a `judge` role on the
   `verifier` model tier, read-only on the repo. It re-runs the notes' commands
-  itself and judges the result fresh.
+  itself and judges the result fresh, as three dimension slices in parallel
+  (Parallelism below).
 
 On iterations 2-3 the build-checker's findings go verbatim into the next
 scaffolder `<task>` `<context>` and the scaffolder authors the remediation
@@ -165,16 +178,22 @@ Messaging rules for every phase:
 - Communicate per `the SubagentStop hook's message check`: you send a `<task>`
   whose `phase=` is the role (`scaffolder` or `build-checker`), the subagent
   returns a `<result>` with the same `phase=` as the final content of its reply.
+  A sliced instance's `<task>` and `<result>` also carry `slice="<id>"`; the
+  un-sliced pin pass omits it.
 - Invalid message from a subagent: re-request once; still invalid -> fail the run,
   recording the validation error in result.json `errors`.
 - Every phase's output is on disk before the next phase starts: the SubagentStop
   hook snapshots each `<result>` to `steps/create-project/iter-<n>/<phase>-message.xml`
-  (parallel scaffolders: one snapshot each), and each agent writes its own
-  report. The scaffolder's own artifacts are `iter-1-authoring.md` (authored once,
-  on iteration 1: Analysis; File manifest; Commands; Vertical slice; Delivery;
-  Risks; Build-checker checklist) and `iter-<n>/scaffolder.json`; the
-  build-checker's is `iter-<n>/build-checker.md`. Every iteration's build-checker
-  `<inputs>` name the iteration-1 notes.
+  (a sliced instance's to `iter-<n>/<phase>-<slice>-message.xml`, so parallel
+  instances never collide), and each agent writes its own report. The
+  scaffolder's own artifacts are `iter-1-authoring.md` (authored once, by the
+  iteration-1 pin pass: Analysis; File manifest; Slices; Commands; Vertical slice;
+  Delivery; Risks; Build-checker checklist), the pin pass's `iter-1/scaffolder.json`
+  each build slice's `iter-<n>/scaffolder-<slice>.json`, and the integration
+  pass's `iter-<n>/scaffolder-integration.json`; the build-checker
+  slices write `iter-<n>/build-checker-<slice>.md`, which you join into
+  `iter-<n>/build-checker.md`. Every iteration's build-checker `<inputs>` name the
+  iteration-1 notes.
 - Spawn with the Agent tool, `subagent_type`
   `acs:create-project-scaffolder` / `acs:create-project-build-checker`; fall back to the
   un-namespaced name only if the runtime rejects the namespaced one.
@@ -187,17 +206,141 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
+### Parallelism — scaffolder slices and build-checker slices
+
+Every fan-out here is yours: spawn the N instances of the SAME agent in ONE
+message (all foreground, all in the same message), wait for all of them, and
+join their outputs before the next phase. At most `max_parallel = 4` instances
+run per phase; beyond that, run the rest in waves of four.
+
+**Scaffolder slices — the default, from iteration 1.** Iteration 1 is two steps.
+First ONE un-sliced scaffolder runs the **pin pass**
+(`<constraint name="pass">pin</constraint>`): it writes the authoring notes,
+their Slices section included, and `iter-1/scaffolder.json`, and builds
+nothing. Then the build fans out: one scaffolder per slice, spawned in ONE
+message, each `<task skill="create-project" phase="scaffolder" slice="<id>" …>`
+carrying `<constraint name="pass">build</constraint>` and
+`<constraint name="files">` listing exactly the manifest files the notes' Slices
+section assigns it. The partition rule is fixed:
+
+| Slice | Owns | Its own check before it commits |
+|---|---|---|
+| `core` | the package/build manifest(s) and lockfile, the test framework and coverage config, the linter/formatter config, the directory layout, the entrypoint and its smoke test, and the e2e harness with its smoke e2e test when the notes pin one | the notes' install, build, lint and tests-with-coverage commands, all green |
+| `ci` | the CI workflow file(s) | the workflow parses as YAML and runs the notes' Commands verbatim |
+| `precommit` | the pre-commit config | `pre-commit validate-config` — never `pre-commit install`, whose hook would fire on the sibling slices' commits |
+| `docs` | `README.md` and `.gitignore` | the README names the notes' real commands; `.gitignore` covers the stack's build outputs, dependency dirs and caches |
+
+**What must stay in one slice:** everything the four commands need to go green
+together — the manifests, the test/coverage and lint configs, the layout, the
+entrypoint and smoke test, and the e2e harness — is ONE slice, `core`, because
+none of those files can be proven green without the others, and `core` is the
+only slice that installs dependencies or runs the four commands. A file two
+concerns would share (e.g. a `pyproject.toml` holding build, lint and coverage
+config) belongs to `core`. **The no-overlap guarantee:** the notes' Slices
+section assigns every manifest file to exactly one slice id. Before spawning the
+build, check that every manifest file appears in exactly one slice's list; a
+file in none or in two sends the notes back to the pin pass (still iteration 1,
+nothing built yet, so the notes are not frozen). A slice that owns no manifest
+file is not spawned. The slices share the delivery branch you created: none
+checks out or creates a branch; each stages only its own files (`git add --
+<its files>`, never `git add -A`) and commits with the notes' commit message; on
+git `index.lock` contention it waits briefly and retries the commit — it never
+forces anything and never deletes the lock file.
+
+**The integration pass — synthesis before the build-check.** A mechanical union
+of slices is not a scaffold that builds: after ALL build slices have returned and
+BEFORE the build-checker, spawn ONE more scaffolder with `slice="integration"`
+and `<constraint name="pass">integration</constraint>`, whose `<inputs>` name the
+notes and every slice's `iter-<n>/scaffolder-<slice>.json` and files. It
+reconciles ONLY the seams between slices, never a slice's substance:
+
+- **config files touched by more than one slice** — the CI workflow's commands
+  and runtime versions against `core`'s manifest scripts and engines; the
+  pre-commit hooks against `core`'s linter/formatter config and its pinned
+  versions; `.gitignore` against `core`'s build outputs, coverage artefacts and
+  dependency dirs;
+- **the README** — its setup commands, layout and tooling sections against what
+  `core`, `ci` and `precommit` actually wrote;
+- **the whole tree green together** — it installs and runs the notes' four
+  commands AND the pre-commit hooks (`pre-commit run --all-files`, never
+  `pre-commit install`) on the combined tree, and fixes only what breaks at a
+  seam.
+
+It commits only the files it changed (`git add -- <those files>`, the same
+`index.lock` retry rule) and writes `iter-<n>/scaffolder-integration.json`
+listing each seam it changed: file, what, why, and which slices. A seam conflict
+it cannot resolve from the notes and the evidence comes back as
+`status="needs_input"` with a question (User interaction), never a guess. The
+integration pass is skipped when only one scaffolder built (a single non-empty
+slice). The build-checker judges the integrated result only after it returns.
+
+On iterations 2-3 re-run only the slices that own a finding: route each finding
+by its `file` through the notes' Slices section; a finding on a seam — a file
+more than one slice's content depends on, the README, or a whole-tree command
+failure (`build`, `lint`, `tests`, `coverage-tooling`, `vertical-slice`,
+`pre-commit`) that no single slice's file explains — goes to the integration
+pass; any other finding with no file goes to `core`. Every re-run scaffolder gets
+ALL the build-checker's findings verbatim in its `<context>` — no plan phase in
+between — and fixes the ones it owns. Whenever the run's build had more than one
+slice, the integration pass runs again after that iteration's slices (alone, when
+every finding is a seam's), before the build-checker.
+
+**Build-checker slices — the default, every iteration.** The build-checker has
+11 check dimensions, so it always runs as three slices, each a fresh instance of
+`acs:create-project-build-checker` whose task carries `slice="<id>"` and
+`<constraint name="dimensions">` naming the dimension numbers it owns:
+
+| Slice | Dimensions | Owns the run of |
+|---|---|---|
+| `run` | 1 `build`, 2 `lint`, 3 `tests`, 4 `coverage-tooling`, 5 `vertical-slice`, 9 `pre-commit` | the ONE install/build/lint/test run, the pre-commit hooks on the tree, and the report's `## Verdict` block (the four `states.scaffold` booleans) |
+| `structure` | 6 `layout`, 7 `tech-stack`, 11 `plan-conformance` | the layout and stack comparison against the architecture set (or the `C-n` entries) and the manifest, Slices and Delivery conformance |
+| `wiring` | 8 `ci`, 10 `repo-hygiene` | the CI workflow read and the `git ls-files` hygiene scan |
+
+The build/lint/test run stays in exactly one slice: `run` is the only slice that
+executes the toolchain in the shared checkout, so two slices never install or
+build at once, and pre-commit sits with it because its hooks run that same
+toolchain on the same tree. Grounding policing applies in every slice. Spawn the
+three slices in ONE message; each writes `iter-<n>/build-checker-<slice>.md`.
+Join them, in the table's order, into the one report every later reader reads:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-project/iter-<n>/build-checker.md \
+  <partition>/steps/create-project/iter-<n>/build-checker-run.md \
+  <partition>/steps/create-project/iter-<n>/build-checker-structure.md \
+  <partition>/steps/create-project/iter-<n>/build-checker-wiring.md
+```
+
+**De-duplicate after the join.** The slices own disjoint dimensions, so the
+join is the synthesis — but two slices can still report one defect (a missing
+`.gitignore` entry as both `repo-hygiene` and `plan-conformance`). Drop a finding
+that cites the same location and the same defect as another slice's finding,
+keeping the higher severity (here both block), and say so: append a
+`## De-duplicated findings` section to the joined `iter-<n>/build-checker.md`
+naming each dropped finding and the one kept.
+
+**Pass rule for sliced judges:** the iteration passes only if EVERY slice
+returned `status="completed"` with zero blocking findings (every finding blocks
+here). Any slice's blocking finding blocks, and all slices' findings go verbatim
+to the next scaffolders. A slice that failed or returned no usable result fails
+the iteration — never "pass with a missing slice".
+
+**Survey — not sliced.** The pin pass is the scaffolder's survey, but it decides
+one coherent stack for a greenfield repo that has no top-level areas yet, so it
+always runs as a single instance — there are no survey slices to synthesize.
+
 ### Scaffold — iteration 1 pins the scaffold before it builds
 
-Spawn the scaffolder. Build the input paths from the `<architecture_dir>` and
-`<prd>` you located at Start (defaults shown); put `settings.test_coverage_percent`
-in the constraints. Under the no-architecture fallback the `hld/` inputs are absent
-and the `C-n` entries go in `<context>` instead (see No-architecture fallback).
-Example (iteration 1, repo-relative input paths):
+Spawn the pin-pass scaffolder (one instance, no `slice`). Build the input paths
+from the `<architecture_dir>` and `<prd>` you located at Start (defaults shown);
+put `settings.test_coverage_percent` in the constraints. Under the no-architecture
+fallback the `hld/` inputs are absent and the `C-n` entries go in `<context>`
+instead (see No-architecture fallback). Example (iteration 1, repo-relative input
+paths):
 
 ```xml
 <task skill="create-project" phase="scaffolder" ticket-id="SHOP-3" iteration="1">
-  <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes steps/create-project/iter-1/authoring.md (list it in outputs), then build it green on the delivery branch.</objective>
+  <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes steps/create-project/iter-1/authoring.md (list it in outputs), including the Slices section that assigns every manifest file to exactly one build slice. Build nothing: the build slices do that next.</objective>
   <inputs>
     <file>docs/architecture/hld/tech-stack.md</file>
     <file>docs/architecture/hld/c4-container.md</file>
@@ -208,12 +351,13 @@ Example (iteration 1, repo-relative input paths):
   </inputs>
   <constraints>
     <constraint name="coverage_target">90</constraint>
+    <constraint name="pass">pin</constraint>
     <constraint name="decisions">pin every choice in the notes before building; flag anything tech-stack.md leaves open as a needs_input question, do not guess</constraint>
   </constraints>
 </task>
 ```
 
-The notes MUST pin, concretely, with nothing left open, before the scaffolder builds:
+The notes MUST pin, concretely, with nothing left open, before any scaffolder builds:
 
 - directory layout mirroring the C4 container/component views;
 - package/build configuration files and the package manager;
@@ -231,10 +375,12 @@ The notes MUST pin, concretely, with nothing left open, before the scaffolder bu
 - the minimal GREEN vertical slice: one real entrypoint plus one smoke test that
   exercises it;
 - the EXACT verification commands (install, build, lint, test-with-coverage) — the
-  contract for both the build-checker and the CI workflow.
+  contract for both the build-checker and the CI workflow;
+- the Slices section: every manifest file assigned to exactly one of `core`, `ci`,
+  `precommit`, `docs` per the partition rule in Parallelism above.
 
-If the scaffolder returns `needs_input` with `<questions>` (a choice `tech-stack.md`
-leaves open), resolve them in User interaction and re-run the scaffolder for the same
+If the pin pass returns `needs_input` with `<questions>` (a choice `tech-stack.md`
+leaves open), resolve them in User interaction and re-run the pin pass for the same
 iteration with the answers in `<context>`. Findings never return to a plan phase —
 see Build-check below for where iteration 2+ findings go.
 
@@ -250,23 +396,28 @@ slug of the ticket title:
 git -C <checkout_root> checkout -b task/SHOP-3-project-scaffold
 ```
 
-Spawn scaffolder(s) with `<task skill="create-project" phase="scaffolder" ticket-id="..."
-iteration="n">`: on iterations 2-3 `<inputs>` reference the iteration-1 authoring
-notes and the build-checker's findings go verbatim into the scaffolder `<task>`'s
-`<context>`, with no plan phase in between. `<constraints>` pin the exact file set
-each scaffolder owns. Scaffolders mutate ONLY `<checkout_root>`. Iteration 1 runs a single
-scaffolder (the notes and the build are one act); on iterations 2-3 you MAY run several
-scaffolders in parallel when their file sets cannot conflict — e.g. one owns build/test/lint/
-pre-commit config plus the CI workflow, another owns the directory layout, vertical
-slice, README, and `.gitignore`. The build-checker runs only after ALL scaffolders finish
-and judges the combined result.
+Spawn the build slices in ONE message, each with `<task skill="create-project"
+phase="scaffolder" slice="<id>" ticket-id="..." iteration="n">` whose `<inputs>`
+reference the iteration-1 authoring notes; on iterations 2-3 the build-checker's
+findings go verbatim into each re-run scaffolder `<task>`'s `<context>`, with no
+plan phase in between. `<constraint name="files">` pins the exact file set each
+slice owns (from the notes' Slices section). Scaffolders mutate ONLY
+`<checkout_root>`, and each only its own files. Iteration 1 runs the pin pass
+alone, then every non-empty slice in parallel, then the integration pass;
+iterations 2-3 re-run only the slices that own a finding, then the integration
+pass (Parallelism above). A slice returning `needs_input` is resolved in User
+interaction and that slice alone is re-run with the answers in `<context>`. The
+build-checker runs only after ALL scaffolders, the integration pass last, finish
+and judges the integrated result.
 
 ### Build-check
 
-Spawn the build-checker with `<task skill="create-project" phase="build-checker" ...>` whose
-inputs are artifacts only — the authoring notes and the repo tree, never scaffolder
-reasoning; it judges fresh. The build-checker MUST actually run, from `<checkout_root>`,
-the exact commands the notes pinned, and see them pass:
+Spawn the three build-checker slices in ONE message, each with `<task
+skill="create-project" phase="build-checker" slice="<id>" ...>` and its
+`<constraint name="dimensions">` (Parallelism above), whose inputs are artifacts
+only — the authoring notes, every `iter-<n>/scaffolder*.json` and the repo tree,
+never scaffolder reasoning; each judges fresh. The build-checker MUST actually run, from `<checkout_root>`,
+the exact commands the notes pinned, and see them pass — in the `run` slice, once:
 
 1. dependency install — exit 0;
 2. build — exit 0;
@@ -280,11 +431,12 @@ runs those same commands; `.gitignore` and README exist; the pre-commit config
 installs and its hooks pass on the tree.
 
 A scaffold that does not run green FAILS the build-check — every failing command is a
-blocking finding. ALL findings block: zero findings = pass. On findings (the
-build-checker has written `iter-<n>/build-checker.md`), AUTOMATICALLY run the
-scaffolder again, passing every finding to the next iteration's scaffolder `<task>`
-as `<context>`, with no plan phase in between — the scaffolder authors the
-remediation. After iteration 3 with findings remaining: stop and go to Finish with
+blocking finding. ALL findings block: zero findings = pass, in every slice (the
+sliced-judge pass rule above). On findings (the slices have written
+`iter-<n>/build-checker-<slice>.md` and you have joined them into
+`iter-<n>/build-checker.md`), AUTOMATICALLY run the scaffolder again, passing every
+finding of every slice to the next iteration's scaffolder `<task>` as `<context>`,
+with no plan phase in between — the scaffolder authors the remediation. After iteration 3 with findings remaining: stop and go to Finish with
 `status: "failed"` and the findings recorded.
 
 ## Delivery — commit, PR, CI proof
@@ -398,8 +550,9 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 
    - `status`: `completed | failed | interrupted | handed_off`.
    - `states.scaffold` keys are EXACTLY `build`, `lint`, `tests`, `coverage_tooling`
-     — booleans reflecting what the BUILD-CHECKER (or the PR's CI) saw pass, not what
-     the scaffolder claims. On failure keep whatever is true, e.g. build and lint green
+     — booleans reflecting what the BUILD-CHECKER (its `run` slice's `## Verdict`
+     block in the joined report) or the PR's CI saw pass, not what the scaffolder
+     claims. On failure keep whatever is true, e.g. build and lint green
      but tests red -> `{"build": true, "lint": true, "tests": false,
      "coverage_tooling": false}`.
    - `states.pr` (`number`, `url`, `branch`) only when a PR was opened.

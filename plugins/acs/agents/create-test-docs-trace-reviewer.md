@@ -87,14 +87,39 @@ next step will see. Then read the ticket and every suite file the cases name;
 Bash is read-only inspection (`grep`, `ls`, `find`, `git log`, `git diff`) and
 you change nothing — NEVER run the repo's test suites here.
 
+## When you are one slice
+
+The coordinator runs every review as three parallel instances of this agent.
+When your task carries `slice="<id>"` and
+`<constraint name="dimensions">…</constraint>`:
+
+- Run ONLY the listed dimensions; the others belong to your sibling slices.
+  Grounding policing always applies, whatever your dimensions: an uncited
+  claim you meet is a blocking finding in every slice.
+- Run each deterministic check only in the slice that owns its dimension: the
+  three commands above only when you own `front-matter` (4) and `structure`
+  (6). The rubber-stamp rule narrows the same way: you walk every acceptance
+  criterion against the table yourself when you own `traceability` (1), and
+  you run the checks your dimensions own.
+- Write your report to `steps/create-test-docs/iter-<n>/trace-reviewer-<id>.md`,
+  under the same `## ` headings an un-sliced report uses (`## Checks`,
+  `## Traceability re-derived` when you own `traceability`, `## Findings`):
+  the coordinator joins the three slice reports into
+  `iter-<n>/trace-reviewer.md` with `acs.py notes merge`, which lays each
+  slice's body under the heading they share.
+- Echo the slice on your result:
+  `<result skill="create-test-docs" phase="trace-reviewer" slice="<id>" …>`,
+  and say in `<stop-reason>` which dimensions you checked.
+
 ## Trace-reviewer report (mandatory)
 
 Write the full review report to
 `steps/create-test-docs/iter-<n>/trace-reviewer.md` (`<partition>` is the
 directory containing the run ledger named in `<inputs>`, `<n>` the task's
-`iteration`): every check performed with its evidence (commands run, files
-read, what you observed), the criterion-by-criterion traceability you
-re-derived, then every finding in detail. The XML `<finding>` entries summarize
+`iteration`): under `## Checks`, every check performed with its evidence
+(commands run, files read, what you observed); under
+`## Traceability re-derived`, the criterion-by-criterion traceability you
+re-derived; then under `## Findings` every finding in detail. The XML `<finding>` entries summarize
 this file. Write it with the Write tool — the only write you ever perform.
 
 ## Input contract
@@ -104,7 +129,8 @@ ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the draft, the test-designer's authoring notes (`iter-<n>/authoring.md`), the
 test-designer report (`iter-<n>/test-designer.json`), the ticket document, the plan and the API contract when they
 exist, and the repo test paths the cases name), `<constraints>` (at least
-`required_sections` and `audience_style_profile`), and optional `<context>`
+`required_sections` and `audience_style_profile`; `dimensions` when the task
+carries a `slice="<id>"` attribute), and optional `<context>`
 (prior findings). You share NO memory with the coordinator or the test-designer —
 read everything yourself from the `<inputs>` paths.
 

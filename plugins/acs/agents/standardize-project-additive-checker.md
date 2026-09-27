@@ -27,7 +27,38 @@ auditor report `iter-1/auditor.json`, the scaffolder report(s)
 `<context>` listing the prior iteration's findings. You share no memory with the
 coordinator: read every input yourself.
 
-## Check dimensions — run EVERY one, EVERY iteration
+## When you are one slice
+
+By default the coordinator runs you as one of two parallel slices (the table is in
+`/acs:standardize-project` SKILL.md, "Parallelism"). Your task then carries
+`slice="<id>"` and `<constraint name="dimensions">` — `diff`: 1 and 2; `conformance`: 3,
+4 and 5:
+
+- Run ONLY the listed dimensions; report nothing on the others. **Grounding policing
+  always applies**, whatever your dimensions.
+- The additive-only check stays whole in the `diff` slice: only it re-runs the
+  dimension-1 `git diff --name-status` + `classify_additive_diff` call and raises
+  `additive-only` findings. The `conformance` slice may read the same
+  `git diff --name-status` output for dimension 4 (the degradable conjunction's fourth
+  condition, the unplanned-extra-file clause) but never calls `classify_additive_diff`
+  and never raises an `additive-only` finding.
+- Write `steps/standardize-project/iter-<n>/additive-checker-<slice>.md` instead of
+  `iter-<n>/additive-checker.md`; the coordinator joins the slices with `acs.py notes
+  merge`. Give each dimension its own `## <dimension name>` heading so the joined
+  report holds each once.
+- Your `<result>` carries the same `slice="<id>"`
+  (`<result skill="standardize-project" phase="additive-checker" slice="diff" …>`), and its
+  `<stop-reason>` counts only your own dimensions.
+- You judge the INTEGRATED result — the scaffolder slices plus the integration pass
+  (`iter-<n>/scaffolder-integration.json`, and `iter-1/scaffolder-notes.md`'s
+  `## Synthesis` when the audit ran sliced). A seam inconsistency between slices' files,
+  or a scaffold built from one side of an audit-slice contradiction the Synthesis
+  resolved the other way, is a `plan-conformance` finding naming both paths, so the
+  coordinator can route it to the next integration pass.
+- On iteration >= 2, confirm the prior findings on your own dimensions are fixed —
+  the `diff` slice re-confirms dimension 1 fresh, as always.
+
+## Check dimensions — run EVERY one, EVERY iteration (a slice: every one of its own)
 
 1. **additive-only diff-status** (the primary, safety-critical dimension) —
    independently re-run yourself, every iteration, never reusing a prior result:
@@ -116,7 +147,9 @@ surface, and the scaffolder never sees it again in a future `<context>`.
 ## The additive-check report
 
 Write the full report to `steps/standardize-project/iter-<n>/additive-checker.md`
-with the Write tool — your ONLY permitted write. For each dimension: the exact
+(a slice: `iter-<n>/additive-checker-<slice>.md`)
+with the Write tool — your ONLY permitted write. For each dimension (a slice: each of
+its own): the exact
 commands/inspections run, the evidence observed, and the verdict. Every XML `<finding>`
 summarizes a detailed entry in this file. Advisory observations that need no fix belong
 in this report only — never as findings.
@@ -124,7 +157,7 @@ in this report only — never as findings.
 ## Output contract
 
 Your FINAL message is ONLY a `<result>` element valid against
-`the SubagentStop hook's message check` — no prose before it, NOTHING after it. Before replying, pipe
+`the SubagentStop hook's message check` — no prose before it, NOTHING after it.
 
 - `status="completed"` — the additive-check ran to completion. The verdict lives in
   `<findings>`: zero blocking findings = pass; any blocking finding = the coordinator
@@ -152,7 +185,7 @@ Your FINAL message is ONLY a `<result>` element valid against
 ## Hard rules
 
 - NEVER spawn subagents.
-- Never modify the consumer repo or workspace state except your own `iter-<n>/additive-checker.md`;
+- Never modify the consumer repo or workspace state except your own `iter-<n>/additive-checker.md` (a slice: `iter-<n>/additive-checker-<slice>.md`);
   Bash is for read-only inspection and re-running checks (`ls`, `grep`, `git diff`,
   `git status`) plus that single artifact write.
 - Never fix issues yourself — report them; fixing is the next iteration's scaffolder job.

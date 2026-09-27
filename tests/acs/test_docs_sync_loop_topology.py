@@ -151,6 +151,144 @@ class DocUpdaterDriftReviewerLoopTest(unittest.TestCase):
         self.assertNotRegex(self.norm, r"(?i)second planner")
 
 
+class ParallelFanOutTest(unittest.TestCase):
+    """The doc-updater runs one instance per doc area from iteration 1
+    (disjoint by longest-prefix ownership, committing on the shared branch
+    with pathspec commits and an index.lock retry); the drift-reviewer's six
+    dimensions run as three slices; both joins are `acs.py notes merge`."""
+
+    AREAS = ("requirements", "architecture", "adr", "general")
+    SLICES = {"coverage": (1, 6), "content": (2, 3), "placement": (4, 5)}
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = read(SKILL)
+        cls.norm = norm(cls.skill)
+        cls.doc_updater = read(DOC_UPDATER)
+        cls.drift_reviewer = read(DRIFT_REVIEWER)
+
+    def test_one_doc_updater_per_area_from_iteration_one(self):
+        self.assertRegex(self.norm, r"(?i)runs \*\*one instance per doc area, from iteration 1\*\*")
+        for area in self.AREAS:
+            self.assertRegex(self.skill, r"(?m)^\| `%s` \|" % area)
+            self.assertIn("iter-<n>/authoring-%s.md" % area, self.skill)
+
+    def test_partition_rule_is_longest_prefix_with_a_general_fallback(self):
+        self.assertRegex(self.norm, r"(?i)\*\*longest matching prefix\*\*, and to `general` when none matches")
+        self.assertRegex(self.norm, r"(?i)two doc-updaters can never write the same file")
+
+    def test_shared_branch_commits_are_pathspec_scoped_with_lock_retry(self):
+        for body in (self.norm, norm(self.doc_updater)):
+            self.assertIn('git commit -m "<msg>" -- <paths>', body)
+            self.assertRegex(body, r"(?i)never `git add -A`, `git add \.` or `git commit -a`")
+            self.assertRegex(body, r"(?i)`index\.lock` contention .{0,120}wait briefly and retry the same command")
+            self.assertRegex(body, r"(?i)never delete the lock, never force anything")
+
+    def test_every_instance_of_a_phase_spawns_in_one_message_under_the_cap(self):
+        self.assertRegex(self.norm, r"(?i)spawn every instance of a phase in ONE message")
+        self.assertIn("`max_parallel = 4`", self.norm)
+
+    def test_both_joins_use_notes_merge(self):
+        self.assertIn('acs.py" notes merge', self.skill)
+        self.assertIn("--out <partition>/steps/docs-sync/iter-<n>/authoring.md", self.skill)
+        self.assertIn("<partition>/steps/docs-sync/iter-<n>/drift-reviewer.md", self.norm)
+        self.assertRegex(self.norm, r"(?i)never by merging prose yourself")
+
+    def test_drift_review_slices_cover_the_six_dimensions_once(self):
+        seen = []
+        for slice_id, dims in self.SLICES.items():
+            row = re.search(r"(?m)^\| `%s` \| ([^|]+)\|" % slice_id, self.skill)
+            self.assertIsNotNone(row, "no table row for drift-review slice %r" % slice_id)
+            got = tuple(int(n) for n in re.findall(r"\b(\d)\b", row.group(1)))
+            self.assertEqual(got, dims)
+            seen.extend(got)
+        self.assertEqual(sorted(seen), list(range(1, 7)))
+
+    def test_pass_rule_requires_every_slice(self):
+        self.assertRegex(self.norm, r"(?i)passes only if EVERY slice returned `status=\"completed\"` with zero blocking findings")
+        self.assertRegex(self.norm, r"(?i)every slice'?s findings \(after de-duplication\) go verbatim to the next doc-updaters")
+        self.assertIn('never "pass with a missing slice"', self.norm)
+
+    def test_open_questions_from_every_area_are_one_grouped_ask(self):
+        self.assertRegex(self.norm, r"(?i)resolve ALL the areas'? open questions in ONE grouped ledger ask")
+
+    def test_resume_reruns_only_missing_slices(self):
+        self.assertRegex(self.norm, r"(?i)re-runs ONLY the slices whose report is missing")
+        self.assertIn("iter-<n>/doc-updater-<area>.json", self.skill)
+
+    def test_integration_pass_runs_after_the_areas_and_before_the_judge(self):
+        self.assertIn("**Integration pass — synthesis, not just a join.**", self.skill)
+        self.assertIn('`slice="integration"`', self.skill)
+        self.assertRegex(self.norm, r"(?i)after every area has returned and BEFORE the drift-reviewer, spawn ONE more `acs:docs-sync-doc-updater`")
+        integ = self.skill.index("**Integration pass")
+        self.assertLess(integ, self.skill.index("### Drift-review slices"))
+        self.assertLess(integ, self.skill.index("**Join.**"),
+                        "the notes join includes the integration notes, so it follows the pass")
+        self.assertIn("iter-<n>/authoring-integration.md", self.skill)
+        self.assertIn("iter-<n>/doc-updater-integration.json", self.skill)
+
+    def test_integration_pass_is_skipped_for_a_single_writer(self):
+        self.assertRegex(self.norm, r"(?i)\*\*Skipped when only one area had changes\*\*")
+
+    def test_integration_pass_names_its_seams(self):
+        for seam in ("**docs index pages**", "**cross-links between areas**",
+                     "**each area's \"Out-of-area impact\" notes**"):
+            self.assertIn(seam, self.skill)
+        self.assertRegex(self.norm, r"(?i)every out-of-area item must be applied by the owning area or explicitly resolved")
+        self.assertRegex(self.norm, r"(?i)It commits only the seam files, with the same pathspec rule")
+        self.assertRegex(self.norm, r"(?i)It never rewrites an area'?s substance")
+
+    def test_integration_pass_synthesizes_contradictions(self):
+        for body in (self.norm, norm(self.doc_updater)):
+            self.assertIn("`## Synthesis`", body)
+            self.assertRegex(body, r"(?i)never silently picks? one")
+
+    def test_seam_findings_route_to_the_integration_pass(self):
+        self.assertRegex(self.norm, r"(?i)A \*\*seam finding\*\* .{0,200}goes to that iteration'?s integration pass")
+        self.assertRegex(norm(self.drift_reviewer), r"(?i)a seam inconsistency .{0,200}is a finding")
+
+    def test_judge_slices_are_de_duplicated_after_the_join(self):
+        self.assertIn("**De-duplicate after the join.**", self.skill)
+        self.assertRegex(self.norm, r"(?i)drop a finding that cites the same location .{0,40}and the same defect as another slice'?s finding, keeping the one with the higher severity")
+        self.assertIn("## De-duplicated findings", self.skill)
+
+    def test_doc_updater_knows_the_integration_role(self):
+        self.assertIn('## When you are the integration pass (`slice="integration"`)', self.doc_updater)
+        body = norm(self.doc_updater)
+        self.assertIn("steps/docs-sync/iter-<n>/doc-updater-integration.json", body)
+        self.assertRegex(body, r"(?i)Never rewrite an area'?s substance")
+        self.assertIn('`{"file", "what", "why", "areas"}`', body)
+
+    def test_agents_know_how_to_be_one_slice(self):
+        self.assertIn("## When you are one slice (a doc area)", self.doc_updater)
+        self.assertIn("steps/docs-sync/iter-<n>/authoring-<area>.md", self.doc_updater)
+        self.assertIn("steps/docs-sync/iter-<n>/doc-updater-<area>.json", self.doc_updater)
+        self.assertIn('<result skill="docs-sync" phase="doc-updater" slice="general"', self.doc_updater)
+        self.assertIn("## When you are one slice", self.drift_reviewer)
+        body = norm(self.drift_reviewer)
+        self.assertIn("steps/docs-sync/iter-<n>/drift-reviewer-<slice>.md", body)
+        self.assertRegex(body, r"(?i)Run ONLY the listed dimensions")
+        self.assertRegex(body, r"(?i)Police grounding in every slice")
+        self.assertRegex(body, r"(?i)the independent re-derivation rule binds every slice")
+        self.assertIn('<result skill="docs-sync" phase="drift-reviewer" slice="placement"', self.drift_reviewer)
+
+
+class StateFragmentTest(unittest.TestCase):
+    """`states.docs_committed` is the list of paths SKILL.md and the
+    post-hook's result carry, not a boolean; `commits` and `review` are
+    declared beside it."""
+
+    def test_docs_committed_is_an_array_of_paths(self):
+        import json
+        with open(os.path.join(PLUGIN, "skills", "docs-sync", "state.schema.json"), encoding="utf-8") as fh:
+            states = json.load(fh)["properties"]["states"]["properties"]
+        self.assertEqual(states["docs_committed"]["type"], "array")
+        self.assertEqual(states["docs_committed"]["items"], {"type": "string"})
+        self.assertEqual(states["commits"]["type"], "array")
+        self.assertEqual(set(states["review"]["properties"]), {"iterations", "findings_open", "guard_denials"})
+        self.assertIn('"docs_committed": ["docs/api/import.md", "README.md"]', read(SKILL))
+
+
 class DriftReviewerIndependenceUnchangedTest(unittest.TestCase):
     """The drift-reviewer still re-derives the doc impact from the same
     six-input contract itself — it never trusts the doc-updater's doc-delta

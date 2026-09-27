@@ -80,6 +80,15 @@ silently switch branches.
   review it; a drift-reviewer with findings and no later doc-updater → the
   doc-updater with those findings as `<context>`. The doc-updater's authoring
   notes (`iter-<n>/authoring.md`) belong to their iteration.
+- Both phases run sliced, so a phase can be half-done. A resumed iteration
+  re-runs ONLY the slices whose report is missing: a doc area with no
+  `iter-<n>/doc-updater-<area>.json` (check `git log` for its commits first —
+  a commit that landed is kept, never redone), an integration pass that was
+  due and has no `iter-<n>/doc-updater-integration.json` (run after the
+  areas, as always), or a drift-review slice with
+  no `iter-<n>/drift-reviewer-<slice>.md` — spawned together in one message.
+  Then re-join with `acs.py notes merge` before moving on; a joined file with
+  a slice report missing beside it is not a finished phase.
 
 ## Inputs — gather before the loop
 
@@ -158,7 +167,12 @@ commits the doc updates from them; the drift-reviewer re-derives the impact
 itself and judges the result fresh. On iterations 2-3 the drift-reviewer's
 findings go verbatim into the next doc-updater `<task>` `<context>` and the
 doc-updater authors the remediation. Decomposition is YOURS alone —
-subagents never spawn subagents.
+subagents never spawn subagents. Both phases run as parallel slices of the
+same agent file (Doc areas and Drift-review slices, below): spawn every
+instance of a phase in ONE message, in the foreground, wait for all of them,
+and join their outputs before the next phase starts. At most **4** instances
+per phase (`max_parallel = 4`); both phases have at most four slices, so
+neither needs a second wave.
 
 **What an iteration counts:** one doc-updater → drift-reviewer round.
 docs-sync has no path-driven review-depth selection: the cap is a fixed 3 on
@@ -166,8 +180,150 @@ every run, and this ticket does not introduce one.
 
 | Role | Agent | Kind | Model tier | Writes |
 |---|---|---|---|---|
-| doc-updater | `acs:docs-sync-doc-updater` | write | `executor` | the doc files its notes name (committed on the ticket branch), `iter-<n>/authoring.md`, `iter-<n>/doc-updater.json` |
-| drift-reviewer | `acs:docs-sync-drift-reviewer` | judge | `verifier` | `iter-<n>/drift-reviewer.md` only |
+| doc-updater | `acs:docs-sync-doc-updater` | write | `executor` | one instance per doc area: the doc files in its area its notes name (committed on the ticket branch), `iter-<n>/authoring-<area>.md`, `iter-<n>/doc-updater-<area>.json` — you join the notes into `iter-<n>/authoring.md` |
+| drift-reviewer | `acs:docs-sync-drift-reviewer` | judge | `verifier` | one instance per dimension slice: `iter-<n>/drift-reviewer-<slice>.md` only — you join them into `iter-<n>/drift-reviewer.md` |
+
+### Doc areas — the doc-updater partition
+
+The doc delta splits into disjoint files by where each doc lives, so the
+doc-updater runs **one instance per doc area, from iteration 1**. The areas
+are fixed, and each is a slice id (`slice="<area>"`, carried with
+`<constraint name="area">`):
+
+| Area | Owns |
+|---|---|
+| `requirements` | every path under `requirements_dir` (functional and non-functional files and their `.evidence.md` sidecars) |
+| `architecture` | every path under `architecture_dir` that is not under `adr_dir` (HLD, `lld/flows/`) |
+| `adr` | every path under `adr_dir` |
+| `general` | every other doc path: README, API/usage docs, and any doc outside the three directories |
+
+**Partition rule.** A doc path belongs to the area whose directory is its
+**longest matching prefix**, and to `general` when none matches — so an ADR
+directory nested inside the architecture set is `adr`'s, never both. Every
+path has exactly one owner, so two doc-updaters can never write the same
+file. Each instance reads all six inputs and re-derives the doc impact from
+the whole diff, but records and applies ONLY the doc-delta items whose target
+file its area owns; an item it finds for another area it names under
+"Out-of-area impact" in its notes, never edits. An area with no delta writes
+notes saying so, with the Diff-analysis evidence, and commits nothing.
+There is no separate survey role to slice: each area's doc-updater surveys
+the diff itself, so the area split is the survey split too.
+
+**Shared branch, one index.** The doc-updaters commit on the SAME ticket
+branch in the same checkout, so each stages and commits only its own paths
+(`git add -- <paths>` then `git commit -m "<msg>" -- <paths>`), never
+`git add -A`, `git add .` or `git commit -a`, which would sweep a sibling's
+staged files into its commit. On git `index.lock` contention (`Unable to
+create '…/.git/index.lock': File exists`), wait briefly and retry the same
+command; never delete the lock, never force anything, never amend or rewrite
+a sibling's commit.
+
+A doc-updater that returned `failed` or no usable `<result>` is re-requested
+once; still failing, the run fails — the drift-reviewer never judges a
+partial doc-updater phase.
+
+**Integration pass — synthesis, not just a join.** Four areas written in
+parallel can disagree where they meet, so after every area has returned and
+BEFORE the drift-reviewer, spawn ONE more `acs:docs-sync-doc-updater` with
+`slice="integration"` — the pattern `/acs:code-complex`'s final integration
+implementer already uses. Its task names every area's
+`iter-<n>/authoring-<area>.md` and `iter-<n>/doc-updater-<area>.json`. It
+runs alone, after the areas, so its edits cannot race theirs. It reconciles
+ONLY the seams:
+
+- **docs index pages** — `docs/README.md` or whatever docs index the repo
+  keeps, the requirements set's README/index, the architecture set's
+  overview: every doc an area added, renamed or removed is listed (or
+  delisted) there;
+- **cross-links between areas** — an ADR ↔ the HLD section it changes, a
+  requirement ↔ the architecture flow that realizes it, a README/API doc ↔
+  the requirement or ADR it cites: every link resolves and both ends say the
+  same thing; shared terms and IDs are spelled the same across areas;
+- **each area's "Out-of-area impact" notes** — every out-of-area item must
+  be applied by the owning area or explicitly resolved. The integration pass
+  records each item's disposition: *applied by `<area>`* (citing that area's
+  file and commit), *applied here* (only when the item is itself a seam),
+  or *not needed* (with the evidence). An item that is substance its owning
+  area missed is not the integration pass's to write: it lists it as
+  *unapplied → `<area>`*, you re-run that area's doc-updater once for the
+  same iteration with the item in `<context>`, then re-run the integration
+  pass; still unapplied, it goes to the drift-reviewer as-is.
+
+It never rewrites an area's substance. Where two areas' notes contradict each
+other, it records the resolution and its evidence under a `## Synthesis`
+section of its notes, or returns `status="needs_input"` with a question —
+never silently picks one. It commits only the seam files, with the same
+pathspec rule and `index.lock` retry as the areas, and writes
+`iter-<n>/authoring-integration.md` and `iter-<n>/doc-updater-integration.json`
+listing each seam it changed (file, what, why, which areas). **Skipped when
+only one area had changes** (at most one area's report lists a committed
+doc, and no area recorded an out-of-area item): with a single writer there is
+no seam.
+
+**Join.** Then join the notes deterministically — never by merging prose
+yourself — with the integration pass's notes last when it ran:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/docs-sync/iter-<n>/authoring.md \
+  <partition>/steps/docs-sync/iter-<n>/authoring-requirements.md \
+  <partition>/steps/docs-sync/iter-<n>/authoring-architecture.md \
+  <partition>/steps/docs-sync/iter-<n>/authoring-adr.md \
+  <partition>/steps/docs-sync/iter-<n>/authoring-general.md \
+  <partition>/steps/docs-sync/iter-<n>/authoring-integration.md
+```
+
+`iter-<n>/authoring.md` is then the one set of notes the drift-reviewer
+reads, each section once; the `iter-<n>/doc-updater-<slice>.json` reports stay
+per slice, and Finish takes the union of their `docs_committed` and `commits`.
+
+**Iterations 2-3.** Re-spawn, in one message, one doc-updater per area that
+owns the `file` of at least one finding; a finding with no `file`, or a file
+no area claims, re-spawns every area. A **seam finding** — an index page
+missing a doc, a cross-link between areas that is broken or contradicts, an
+out-of-area item left without a disposition — goes to that iteration's
+integration pass instead (or to the owning area, when the fix is that area's
+substance), and the integration pass runs again whenever any area was
+re-spawned or a seam finding is open. Every re-spawned doc-updater gets ALL
+the findings verbatim in `<context>` and fixes only those in its own area. An
+area not re-spawned keeps the notes of the iteration that last ran it, so
+that iteration's join lists only the re-spawned slices' `authoring-<slice>.md`,
+and the drift-reviewer's `<inputs>` name every iteration's joined
+`authoring.md` so far.
+
+### Drift-review slices
+
+The drift-reviewer has six check dimensions, so it runs as three
+**dimension slices** — fresh instances of the same agent file, spawned in one
+message, each over a disjoint subset:
+
+| Slice | Dimensions |
+|---|---|
+| `coverage` | 1 completeness · 6 authoring-conformance |
+| `content` | 2 accuracy · 3 scope |
+| `placement` | 4 mechanics · 5 requirements-routing |
+
+Each task carries `slice="<id>"` and `<constraint name="dimensions">` listing
+that row; every slice still re-derives the doc impact from the diff itself.
+Join the reports with `acs.py notes merge --out
+<partition>/steps/docs-sync/iter-<n>/drift-reviewer.md` over
+`iter-<n>/drift-reviewer-coverage.md`, `iter-<n>/drift-reviewer-content.md`
+and `iter-<n>/drift-reviewer-placement.md`.
+
+**De-duplicate after the join.** The slices own disjoint dimensions, so the
+merge is the synthesis — except that two slices can report one defect from
+two angles. After the join, drop a finding that cites the same location (file
+and line or section) and the same defect as another slice's finding, keeping
+the one with the higher severity, and append a `## De-duplicated findings`
+section to `iter-<n>/drift-reviewer.md` naming each dropped finding and the
+one it duplicates. Only exact duplicates go: two defects at one location are
+two findings.
+
+**Pass rule.** The iteration passes only if EVERY slice returned
+`status="completed"` with zero blocking findings. Any slice's blocking finding
+blocks, and every slice's findings (after de-duplication) go verbatim to the next doc-updaters. A
+slice that returned `status="failed"`, no usable `<result>`, or no report
+file fails the iteration — never "pass with a missing slice".
 
 For every phase:
 
@@ -175,10 +331,8 @@ For every phase:
    hook's message check` — `phase="doc-updater"` or `phase="drift-reviewer"`,
    the role's own name — with `<inputs>` listing the six artifacts above by
    path.
-2. Validate EVERY message you send and receive:
-
-   ```bash
-   ```
+2. Validate EVERY message you send and receive — the SubagentStop hook checks each returned
+   `<result>`'s `skill=`, `phase=` and `iteration=` (and `slice=` when sliced).
 
    On an invalid message from a subagent: re-request once with the
    validation error quoted; still invalid → fail the run, recording the
@@ -193,15 +347,19 @@ For every phase:
    the run with that exact error — no silent fallback.
 4. Every phase output is persisted at the phase boundary, BEFORE the next
    phase starts: the SubagentStop hook snapshots each returned message to
-   `steps/docs-sync/iter-<n>/<phase>-message.xml`; if that snapshot is
+   `steps/docs-sync/iter-<n>/<phase>-message.xml` — a sliced instance's at
+   `iter-<n>/<phase>-<slice>-message.xml`, so parallel instances never
+   collide; if that snapshot is
    missing (a host that does not fire the hook), write the `<task>` and
    `<result>` there yourself. The doc-updater's own artifacts are
    `iter-<n>/authoring.md` (Diff analysis; Doc-delta list; Cross-check
-   against docs_updated/problems; Open questions) and
-   `iter-<n>/doc-updater.json`; the drift-reviewer's is
-   `iter-<n>/drift-reviewer.md` — never write a message over them. Every
-   iteration's drift-reviewer `<inputs>` name that iteration's authoring
-   notes.
+   against docs_updated/problems; Open questions) — written per area as
+   `iter-<n>/authoring-<area>.md` and joined — and
+   `iter-<n>/doc-updater.json` (per area, `iter-<n>/doc-updater-<area>.json`);
+   the drift-reviewer's is `iter-<n>/drift-reviewer.md`, joined from
+   `iter-<n>/drift-reviewer-<slice>.md` — never write a message over them.
+   Every iteration's drift-reviewer `<inputs>` name that iteration's joined
+   authoring notes and every area's doc-updater report.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -226,10 +384,25 @@ drift-reviewer's `iter-<n>/drift-reviewer.md`; every authoring skill's
 writer keeps its `iter-<n>/authoring.md`). No new artifact type, no
 settings-driven template, no new `settings.schema.json` keys.
 
-If the doc-updater returns `needs_input` with `<questions>` (which of two
-conflicting docs is authoritative, whether a doc edit is in scope), resolve
-them in User interaction and re-run the doc-updater for the same iteration
-with the answers in `<context>`.
+Each instance's `<task>` carries `slice="<area>"` and
+`<constraint name="area">` naming its area and the directories it owns, e.g.
+
+```xml
+<task skill="docs-sync" phase="doc-updater" slice="requirements" ticket-id="SHOP-123" iteration="1">
+  <objective>Re-derive the doc impact of the changeset and apply only the doc-delta items under the requirements area.</objective>
+  <inputs>…the six inputs…</inputs>
+  <constraints>
+    …the constraints above…
+    <constraint name="area">requirements — owns every path under docs/requirements</constraint>
+  </constraints>
+</task>
+```
+
+If a doc-updater returns `needs_input` with `<questions>` (which of two
+conflicting docs is authoritative, whether a doc edit is in scope), wait for
+every area to return, then resolve ALL the areas' open questions in ONE
+grouped ledger ask (User interaction) and re-run only the areas that asked,
+in one message, for the same iteration with the answers in `<context>`.
 
 ### Phase: drift-reviewer — `acs:docs-sync-drift-reviewer`
 
@@ -237,11 +410,13 @@ Spawned fresh (sees artifacts, never the doc-updater's reasoning);
 re-derives doc impact from the same six-input contract itself (not exempt
 from the independent-re-derivation rule) and checks each committed doc
 change is accurate, complete against the diff, and consistent with
-`docs_updated` / `problems` / the final review verdict. ALL findings block;
-zero findings = pass. On findings: persist, then AUTOMATICALLY re-run the
+`docs_updated` / `problems` / the final review verdict. It runs as the three
+dimension slices above, all in one message, joined into
+`iter-<n>/drift-reviewer.md`. ALL findings block;
+zero findings = pass, across every slice. On findings: persist, then AUTOMATICALLY re-run the
 doc-updater, passing every finding to the next iteration's doc-updater
 `<task>` as `<context>`, with no plan phase in between — the doc-updater
-authors the remediation. After iteration 3 with findings remaining: stop,
+authors the remediation, one instance per area the findings touch. After iteration 3 with findings remaining: stop,
 final status `failed`.
 
 ## User interaction
@@ -302,7 +477,8 @@ MANDATORY final step — never skipped, including on failure or handoff:
 
    `docs_committed`: repo-relative paths of every doc file docs-sync itself
    changed, mirroring `/code`'s `docs_updated` naming. `commits`: short SHA +
-   message list of the additional commits docs-sync made. `review`:
+   message list of the additional commits docs-sync made. Both are the union
+   over every doc area's `iter-<n>/doc-updater-<area>.json`, every iteration. `review`:
    `{iterations, findings_open}` — to which the post-hook's derivation may add
    `guard_denials` when the file-map guard denied a write during THIS run
    (the derivation reads `steps/<skill>/state.json` for every step,

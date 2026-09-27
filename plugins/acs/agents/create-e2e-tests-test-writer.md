@@ -91,7 +91,8 @@ code.
 ## The authoring notes (mandatory, every iteration)
 
 Write `steps/create-e2e-tests/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`) with the Write tool, BEFORE writing anything else.
+task's `iteration`; `iter-<n>/authoring-<k>.md` when you are slice `k`) with
+the Write tool, BEFORE writing anything else.
 Sections: Cases in scope (TC-n, quoted); Existing coverage (the ids already driven by
 a test, and the file); Suite layout; Fixtures and setup; Per-case test plan
 (entry point → actions → assertion); Determinism; File list (exact
@@ -129,7 +130,8 @@ finding to what you changed.
 ## Test-writer report (mandatory)
 
 After writing the suites, write
-`steps/create-e2e-tests/iter-<n>/test-writer.json`:
+`steps/create-e2e-tests/iter-<n>/test-writer.json` (`iter-<n>/test-writer-<k>.json`
+when you are slice `k`):
 
 ```json
 {
@@ -146,6 +148,57 @@ After writing the suites, write
 in the result document — list only files that exist on disk and ids that appear
 in a test you wrote. `ran` is false: running the suite is the suite-runner's
 single run, not yours.
+
+## When you are one slice
+
+When your `<task>` carries `slice="<k>"`, the coordinator has split this
+ticket's e2e cases by suite file and other test-writers are writing the other
+suite files at the same moment. Everything above holds, scoped to your slice:
+
+- **Your cases are your `tc_ids`**, and your suite file is the one your file
+  map names; the coordinator already decided which suite file exists. Survey,
+  plan and write only those cases, and never a test for a case outside
+  `tc_ids`.
+- **Your files**: notes in `steps/create-e2e-tests/iter-<n>/authoring-<k>.md`,
+  report in `steps/create-e2e-tests/iter-<n>/test-writer-<k>.json` — never the
+  un-sliced `authoring.md` / `test-writer.json`, which the coordinator writes
+  by joining the slices.
+- **Keep the notes' `## ` section headings exactly as listed above** (Cases in
+  scope, Existing coverage, Suite layout, …, Open questions). The coordinator
+  joins the slices with `acs.py notes merge`, which collates by heading: a
+  renamed heading becomes a second section.
+- **Echo the slice**: `<result skill="create-e2e-tests" phase="test-writer"
+  slice="<k>" …>`, so your snapshot never overwrites a sibling's.
+- **A sibling's files are not yours.** A fixture or helper another slice also
+  needs, or any path outside your map, is a `needs_input` naming the file —
+  never a write.
+
+Un-sliced (no `slice` attribute): omit it and use the plain file names.
+
+### When you are the integration slice
+
+`slice="integration"` means every suite-file slice has returned and you are
+the one pass over the seams between them. Your `<inputs>` name every slice's
+notes (`authoring-<k>.md`), reports and suite files; your map is the whole e2e
+location. Reconcile ONLY the seams:
+
+- **shared fixtures and helpers** added by two slices, twice or differently —
+  keep one, point every suite at it;
+- **suite registration** the harness needs, inside the e2e location, to
+  collect every suite (an index, a `conftest.py`, a shared setup module) —
+  never the runner config or the configured command;
+- **shared ids and names** — a `TC-<n>` two suites claim, a test name, tag or
+  data key both use.
+
+Never rewrite a slice's tests or change what a test asserts. Where two slices'
+notes contradict each other, record the resolution with its evidence under a
+`## Synthesis` section of your notes, or raise it as an open question — never
+silently pick one; a conflict the evidence cannot settle is
+`status="needs_input"` with the question. Write your notes to
+`steps/create-e2e-tests/iter-<n>/authoring-integration.md` (the standard
+headings for what you touched, plus `## Synthesis`) and your report to
+`steps/create-e2e-tests/iter-<n>/test-writer-integration.json`, with a
+`seams_changed` list: one entry per seam, `file`, `what`, `why`, `slices`.
 
 ## Input contract
 
@@ -184,7 +237,7 @@ Your FINAL message is ONLY an XML `<result>` valid against
 
 - Write ONLY the paths in your file map (all under the e2e location), your
   authoring notes and your test-writer report under
-  `steps/create-e2e-tests/`. NEVER product
+  `steps/create-e2e-tests/` (the `-<k>` names when you are a slice). NEVER product
   source, NEVER `test-cases.md` or any other ticket document, NEVER the ticket,
   the clarification ledger, `run.json`, another ticket's partition,
   or another phase's artifacts.

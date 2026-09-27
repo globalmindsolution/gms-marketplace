@@ -73,7 +73,7 @@ sequenceDiagram
         PRE-->>CC: exit 2 + stderr naming the brake (lock held, epic, plan approval stale, review did not pass)
         CC-->>Dev: skill blocked, actionable message
     else no brake
-        PRE-->>CC: exit 0 (plus one stderr advisory when a step before this one in ship.yaml has not completed)
+        PRE-->>CC: exit 0 (plus one stderr advisory when this step is not due now in ship.yaml)
         CC->>CO: run SKILL.md
         CO->>SS: --step <skill> --args "$ARGUMENTS"
         SS->>WS: lock, pointer, in_progress run, ledger
@@ -83,21 +83,33 @@ sequenceDiagram
         end
         CO->>WS: read the upstream artifacts that exist, else fall back to the subject
         opt the skill has a survey role (iteration 1 only)
-            CO->>SV: task phase="surveyor|auditor"
-            SV->>WS: iter-1/authoring.md (frozen) + iter-1/role.json
+            CO->>SV: task phase="surveyor|auditor", one slice per disjoint repo area when there are two or more, all in ONE message
+            SV->>WS: iter-1/authoring.md, or authoring-id.md per slice (frozen) + iter-1/role.json
             SV-->>CO: result, or needs_input with open questions
+            opt survey slices ran
+                CO->>WS: acs notes merge joins the slices into iter-1/authoring.md
+            end
         end
         opt open questions
             CO->>Dev: clarify (ledger first, record answers)
         end
         loop reflection (write → judge, max 3 iterations)
-            CO->>WR: task phase="role" with notes, answers, prior findings (parallel if file maps disjoint)
-            WR->>WS: deliverable + iter-n/role.json (and iter-n/authoring.md when the writer surveyed)
-            WR-->>CO: result
-            CO->>JG: task phase="role"
-            JG->>WS: iter-n/role.md (re-runs the checks it judges)
-            JG-->>CO: result + findings
-            Note over CO,WS: the SubagentStop hook files each message as iter-n/role-message.xml
+            CO->>WR: task phase="role" with notes, answers, prior findings, slice="id" per disjoint file slice, all in ONE message (max 4)
+            WR->>WS: deliverable + iter-n/role.json or role-id.json (and iter-n/authoring.md when the writer surveyed)
+            WR-->>CO: result per slice
+            opt more than one writer slice ran
+                CO->>WR: task slice="integration" naming every slice's outputs
+                WR->>WS: reconciled seams + iter-n/role-integration.json
+                WR-->>CO: result, or needs_input on a conflict the evidence cannot settle
+            end
+            CO->>JG: task phase="role", sliced by check dimension when there are 5 or more, all in ONE message
+            JG->>WS: iter-n/role.md, or role-id.md per slice (re-runs the checks it judges)
+            JG-->>CO: result + findings per slice
+            opt judge slices ran
+                CO->>WS: acs notes merge joins them into iter-n/role.md, duplicate findings dropped
+                Note over CO,WS: the iteration passes only when EVERY slice passed
+            end
+            Note over CO,WS: the SubagentStop hook files each message as iter-n/role-message.xml, or role-id-message.xml for a slice
         end
         CO->>WS: steps/<skill>/result.json
         CO->>POST: --result-file result.json
@@ -109,6 +121,20 @@ sequenceDiagram
 Failure shapes: iteration cap → `failed` with findings recorded; a failed
 review → `/create-pr` gate stays closed; crash → `in_progress` left behind,
 SessionEnd marks `interrupted`, next run reconciles.
+
+**Fan-out (ADR-0110).** Each of `SV`, `WR` and `JG` may be several instances
+of the same agent over disjoint slices, spawned in one message and capped at
+four per phase. A slice's task and result carry `slice="<id>"`, which is how
+its report (`<role>-<id>.*`, `authoring-<id>.md`) and its snapshot
+(`<role>-<id>-message.xml`) avoid their siblings'. The joins are
+deterministic (`acs.py notes merge`, by `## ` heading; a missing slice fails
+it), and a join is followed by a synthesis: the `slice="integration"` writer
+pass over the seams, a `## Synthesis` section in a single writer's notes over
+merged survey slices, and the coordinator's de-duplication of judge findings.
+A resumed iteration re-runs only the slices whose report is missing. With
+several writers live, the file-map guard judges a write against its own
+writer's map when the payload names the agent, else against the union of
+every live writer's scope (`file-map-guard-deny.md`).
 
 **Gate evidence.** One of the diagram's steps carries an undrawn
 responsibility: the `PRE` participant's gate check also records that it fired
@@ -195,11 +221,12 @@ is deleted. The one gate that reads another step's status is
 `/acs:merge-pr`'s subject brake, which asks whether the step that recorded
 the PR reference completed (`gates._pr_recorded_for`) — an artifact, not a
 position.
-When the skill IS a step of the resolved `workflows/ship.yaml` and that step's
-a step that precedes it in `ship.yaml` has not completed, the gate passes and
-prints one stderr line — `acs: docs-sync normally follows code in ship.yaml;
-code has not completed for SHOP-123` — suppressed by
-`settings.workflow.advisories: false` and by any read it cannot complete. The
+When the skill IS a step of the resolved `workflows/ship.yaml` and is not one
+of the steps due now (the cursor's stage — every unfinished member of a
+parallel group is due together), the gate passes and prints one stderr line —
+`acs: review-code normally follows code in ship.yaml; the cursor for SHOP-123
+is code` — suppressed by `settings.workflow.advisories: false` and by any read
+it cannot complete. The
 order itself is enforced one layer up, by `/acs:ship`'s loop over
 `acs.py run next` (`ship-pipeline.md`).
 
