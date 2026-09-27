@@ -338,7 +338,7 @@ def normalize_login(value):
 
     CODEOWNERS writes owners `@`-prefixed; `--author` is passed bare in one
     document (`create-pr/SKILL.md`) and as "the @me login" in another
-    (`create-pr-executor.md`); GitHub itself is case-insensitive. Comparing the
+    (`create-pr/references/publish.md`); GitHub itself is case-insensitive. Comparing the
     raw strings therefore failed to drop the author from their own reviewer
     set, and since the owners are comma-joined into ONE `gh pr edit
     --add-reviewer` call, GitHub rejected the whole call and NOBODY was

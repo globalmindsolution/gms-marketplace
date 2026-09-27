@@ -1,6 +1,6 @@
 ---
 name: code-small
-description: Implement a subject's plan on the SMALL delivery path — one executor (rarely two), test-cases.md as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path small; never chosen by hand.
+description: Implement a subject's plan on the SMALL delivery path — one implementer (rarely two), test-cases.md as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path small; never chosen by hand.
 argument-hint: "[ticket-id | prompt | document]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -25,23 +25,23 @@ path only carries what makes it different:
 | Read | For |
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the execute phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
 
 Everything below is what THIS path does differently. Where this file and a
-reference disagree about executors, this file wins — that is the whole reason
+reference disagree about implementers, this file wins — that is the whole reason
 it exists.
 
 ## The machinery of this path
 
 | | this path |
 |---|---|
-| Executors | one, rarely two |
+| Implementers | one, rarely two |
 | Test contract | `test-cases.md` |
 | Plan approval | not required |
 
-### Executors
+### Implementers
 
-**One executor by default.** Spawn a second only when the plan's file map
+**One implementer by default.** Spawn a second only when the plan's file map
 splits cleanly in two and neither half reads the other's changes — that is the
 same disjointness rule the deeper paths partition by, applied to a change small
 enough that it usually does not divide at all.

@@ -1,6 +1,6 @@
 ---
 name: code-complex
-description: Implement a subject's plan on the COMPLEX delivery path — one executor per disjoint file-map partition plus a final integration executor for the seams between them, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path complex; never chosen by hand.
+description: Implement a subject's plan on the COMPLEX delivery path — one implementer per disjoint file-map partition plus a final integration implementer for the seams between them, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path complex; never chosen by hand.
 argument-hint: "[ticket-id | prompt | document]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -25,30 +25,30 @@ path only carries what makes it different:
 | Read | For |
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the execute phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
 
 Everything below is what THIS path does differently. Where this file and a
-reference disagree about executors, this file wins — that is the whole reason
+reference disagree about implementers, this file wins — that is the whole reason
 it exists.
 
 ## The machinery of this path
 
 | | this path |
 |---|---|
-| Executors | one per disjoint file-map partition **+ an integration executor** |
+| Implementers | one per disjoint file-map partition **+ an integration implementer** |
 | Test contract | `test-cases.md` |
 | Plan approval | **enforced** |
 
-### Executors
+### Implementers
 
-**Partition the plan's file map and spawn one executor per partition**, exactly
+**Partition the plan's file map and spawn one implementer per partition**, exactly
 as `standard` does: disjoint partitions, one file map each, the guard enforcing
 it at the tool boundary.
 
-### The integration executor
+### The integration implementer
 
 **This is what separates `complex` from `standard`.** After every partition
-executor finishes, spawn one more that owns what no partition owns — the seams
+implementer finishes, spawn one more that owns what no partition owns — the seams
 between them:
 
 - the call sites that cross a partition boundary
@@ -60,13 +60,13 @@ is the **intersection of their boundaries**.
 
 This is the concern the four-lens verifier was implicitly covering: a changeset
 too large for any one agent to hold is also a changeset whose seams no single
-executor saw. Moving the review out leaves that gap on the implementation side,
+implementer saw. Moving the review out leaves that gap on the implementation side,
 and an integration pass is the direct answer to it — cheaper than a second
 review, and applied before the review rather than after.
 
 > **A note on the word "lane."** This fan-out is deliberately *not* called a
 > lane. In this repo `lane` names the retired `size` × `stakes` grid that
-> ADR-0095 replaced with delivery paths. They are executors, spawned per
+> ADR-0095 replaced with delivery paths. They are implementers, spawned per
 > partition.
 
 ### Inputs

@@ -381,7 +381,7 @@ worktree per ticket**:
   narrower parallelism shape layered on top of worktree-per-ticket: one
   unhooked coordinator mints **two independent delivery tickets** (one per
   eligible doc-bootstrap skill) via real `Skill`-tool Starts in the shared
-  session checkout, then runs each phase (plan → execute → verify) as a
+  session checkout, then runs each role (author → reviewer) as a
   parallel batch across both legs; each leg enters its own worktree at its
   own Delivery step's **Branch** sub-step, before that leg's Execute phase.
   Both tickets share the run's `checkout_id`

@@ -32,13 +32,13 @@ class TestHookEnvelope(unittest.TestCase):
     """Interface 1: the JSON a hook receives on stdin."""
 
     ENVELOPE = {"session_id": "s-1", "cwd": "/repo", "agent_id": "a-1",
-                "agent_type": "acs:code-executor",
+                "agent_type": "acs:code-implementer",
                 "last_assistant_message": "<result/>"}
 
     def test_reads_each_field(self):
         self.assertEqual(cc.hook_session_id(self.ENVELOPE), "s-1")
         self.assertEqual(cc.hook_agent_id(self.ENVELOPE), "a-1")
-        self.assertEqual(cc.hook_agent_type(self.ENVELOPE), "acs:code-executor")
+        self.assertEqual(cc.hook_agent_type(self.ENVELOPE), "acs:code-implementer")
         self.assertEqual(cc.hook_last_assistant_message(self.ENVELOPE), "<result/>")
 
     def test_absent_fields_are_none_never_constructed(self):

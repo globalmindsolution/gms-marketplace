@@ -11,9 +11,9 @@ against its principles and standards doc sets,
 `<architecture_dir>/hld/project-structure.md`, and acs-readiness tooling, then
 ADDITIVELY scaffold only what is missing as one reviewed PR — you never move, rename,
 delete, or rewrite existing source. This is the brownfield counterpart to the
-greenfield-only `/acs:create-project`; it is a dedicated triad-keeping workflow skill,
-not a doc-set producer (D5 Option B). You orchestrate subagents; you never
-scaffold anything yourself.
+greenfield-only `/acs:create-project`; it is a dedicated workflow skill with its own
+auditor, scaffolder and additive-checker, not a doc-set producer (D5 Option B). You
+orchestrate subagents; you never audit or scaffold anything yourself.
 
 ## Start
 
@@ -23,8 +23,11 @@ it or the repo points at (e.g. `docs/README.md`), then Glob/Grep by file name or
 
 - **The architecture set** — the directory holding `hld/tech-stack.md` is
   `<architecture_dir>`. None found (a directory without `hld/tech-stack.md` does not
-  count) → STOP and tell the user: "no architecture doc set found (expected
-  hld/tech-stack.md) — run /acs:create-architecture first."
+  count) → never a stop: the run audits against what exists (the principles and
+  standards sets if present, the acs-readiness tooling) and records the note "no
+  architecture set: project-structure checks skipped" — pass `architecture_dir` as
+  `none` to the auditor. "Run `/acs:create-architecture`" then reaches the user only
+  as a recommendation (a `recommended_follow_ups` entry and the completion report).
 - **The principles and standards sets** — found → that directory is `<principles_dir>` /
   `<standards_dir>`; not found → the conventional `docs/principles/` /
   `docs/standards/`, where `/acs:create-docs principles` / `/acs:create-docs
@@ -61,25 +64,30 @@ per the tracker config.
 doc set of its own: it is not a doc-set producer. The Start phase never blocks on a
 missing principles or standards set — the audit always proceeds (see Brownfield
 orientation below); a set the repo does not have is a grounding-input condition handled
-in Inputs & mode, not a Start-time concern. Only the architecture set is a Start-time
-precondition.
+in Inputs & mode, not a Start-time concern. The same holds for the architecture set:
+no document is a Start-time precondition, and a set the repo lacks narrows the audit,
+never stops it.
 
 ## Resume & reconcile
 
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-- Read `steps/standardize-project/` — the persisted `iter-<n>-<phase>.xml`
-  files tell you the last completed phase and iteration.
+- Read `steps/standardize-project/` — the per-iteration reports (`iter-1/auditor.json`,
+  `iter-<n>/scaffolder*.json`, `iter-<n>/additive-checker.md`) and the SubagentStop
+  snapshots `iter-<n>/<phase>-message.xml` tell you the last completed phase and
+  iteration.
 - Re-read the actual artifacts: which files under `<checkout_root>` were scaffolded per
-  the last recorded plan; whether the ticket branch exists (`git branch --list`), is
+  the frozen iteration-1 notes; whether the ticket branch exists (`git branch --list`), is
   committed, pushed, or already has a PR (`gh pr list --head <branch>`).
 - Distrust the record where it is cheap to re-check.
 - Continue from the first unfinished phase of the recorded iteration.
-- There is no plan artifact to reuse: an execute with no verify → verify it; a
-  verify with findings and no later execute → execute with those findings as
-  `<context>`. The iteration-1 authoring notes (`iter-1-authoring.md`) carry the
-  frozen allowlist every later iteration reads.
+- There is no plan artifact to reuse, and the audit is never re-run once it
+  completed: no `iter-1/auditor.json` → run the auditor; a scaffolder report with no
+  additive-check → additive-check it; an additive-check with blocking findings and no
+  later scaffolder report → run the scaffolder with those findings as `<context>`. The
+  auditor's iteration-1 authoring notes (`iter-1-authoring.md`) carry the frozen
+  allowlist every later iteration reads.
 
 If `context.handoff_summary` exists, read it plus
 `steps/standardize-project/handoff-context.md` (if present), do a light
@@ -93,23 +101,26 @@ normal case this skill operates on. There is no greenfield-style refusal path he
 `standardize-project` assumes an EXISTING repo with substantive sources and never
 refuses on their presence — auditing them is its entire purpose.
 
-This is a dedicated triad rather than a fold into `create-project` because the
-additive-only guardrail (D6) needs its own independent verifier, which an inline
-extension of `create-project` could not host (D5 Option C's rejection,
+This is a dedicated skill rather than a fold into `create-project` because the
+additive-only guardrail (D6) needs its own independent checker — the additive-checker —
+which an inline extension of `create-project` could not host (D5 Option C's rejection,
 `design.md:265-274`).
 
 ## Inputs & mode
 
-The audit inputs, read before spawning the executor:
+The audit inputs — what you pass to the auditor, which reads them before anything is
+scaffolded:
 
 - `<architecture_dir>/hld/project-structure.md` — the structural target (D4, MAR-120's
-  `/acs:create-architecture` output). **May not exist** on a given consumer repo. When
-  absent, note it explicitly as N/A for the structural-gap dimension and surface "run
+  `/acs:create-architecture` output). **May not exist** on a given consumer repo — and
+  with no architecture set at all (`architecture_dir` is `none`) there is nothing to
+  look for: the note reads "no architecture set: project-structure checks skipped".
+  When absent, note it explicitly as N/A for the structural-gap dimension and surface "run
   `/acs:create-architecture`" as a `recommended_follow_ups` entry — never a block, never
   invoked inline (mirrors the graceful-degradation NFR, `prd.md:611-616`).
 - `<principles_dir>/` and `<standards_dir>/` — read WHEN a doc set actually exists
   there (Start found it). **Graceful degradation (mandatory):** when no such set exists
-  in the repo yet, note this explicitly in the plan's audit inventory as N/A and
+  in the repo yet, note this explicitly in the auditor's audit inventory as N/A and
   PROCEED — this grounding step is N/A for this run,
   never a hard block. A missing/absent set surfaces as a `recommended_follow_ups` entry
   ("run `/acs:create-principles`" / "run `/acs:create-standards`") — see
@@ -139,13 +150,13 @@ The audit inputs, read before spawning the executor:
       `recommended_follow_ups` entry instead of an in-place modification.
 
   When the repo's existing build/test/CI tooling is genuinely ambiguous (no package
-  manifest, or multiple candidate stacks/CI providers), the executor surfaces this as an
+  manifest, or multiple candidate stacks/CI providers), the auditor surfaces this as an
   open question (`needs_input`) rather than guessing.
 
 **No bootstrap/re-run mode split.** Unlike the doc-set producers, `standardize-project`
 has no `bootstrap` vs `re-run` distinction on its own output — there is no fixed doc set
 it owns. Every run performs a fresh audit of current repo state and scaffolds whatever
-remains missing; this is naturally idempotent because the executor only ever adds (never
+remains missing; this is naturally idempotent because the scaffolder only ever adds (never
 rewrites) — a second run against an already-standardized repo finds nothing left to
 scaffold and reports zero gaps.
 
@@ -153,16 +164,16 @@ scaffold and reports zero gaps.
 
 Unlike the fixed-file-set producers (`create-standards`' exactly 3 files,
 `create-principles`' exactly 1), `standardize-project`'s scaffold surface is VARIABLE per
-audited repo — computed fresh by the executor's iteration-1 audit, not a static table.
-This section pins the FIXED parts of the contract: the allowlist CATEGORIES the executor may draw from
+audited repo — computed fresh by the auditor's iteration-1 audit, not a static table.
+This section pins the FIXED parts of the contract: the allowlist CATEGORIES the auditor may draw from
 (never the literal path list, which varies per run) and the `recommended_follow_ups`
 shape.
 
-**Additive-surface allowlist categories.** The executor's iteration-1 audit emits, and the verifier enforces
+**Additive-surface allowlist categories.** The auditor's iteration-1 audit emits, and the additive-checker enforces
 every iteration (via spec 01's `classify_additive_diff` helper), an allowlist drawn ONLY
 from:
 
-1. New CI workflow file(s) the executor adds (e.g. under `.github/workflows/`) — `A`
+1. New CI workflow file(s) the scaffolder adds (e.g. under `.github/workflows/`) — `A`
    (added) status only.
 2. New or additively-appended tooling config the skill itself owns and the notes name
    explicitly — coverage-tool config, pre-commit config, e2e runner scaffold config. `A`
@@ -173,29 +184,31 @@ from:
    the Delivery section below, not by this file-diff allowlist — it is not a path in the
    `git diff --name-status` output.
 
-Everything else the executor's diff touches must be `A` status (a wholly new file) —
+Everything else the scaffolder's diff touches must be `A` status (a wholly new file) —
 never `R`, `D`, or an `M` outside the two categories above.
 
-**The allowlist is frozen.** The executor authors the Additive-surface allowlist exactly
-once, in its iteration-1 authoring notes (`iter-1-authoring.md`), before it scaffolds
-anything; that allowlist is authoritative for the whole run — the
-executor's writable surface is monotonically non-increasing across iterations 1-3: it
-can shrink (a category the notes named can become moot once scaffolded), never grow. This
-freeze bounds, and does not close, the trust gap: the allowlist remains
-executor-authored prose, not a mechanically derived allowlist — the verifier checks it
-against the two categories above every iteration, and closing the gap mechanically is
-a named future follow-up, not built by this ticket.
+**The allowlist is frozen.** The auditor authors the Additive-surface allowlist exactly
+once, in its iteration-1 authoring notes (`iter-1-authoring.md`), before anything is
+scaffolded; that allowlist is authoritative for the whole run — the
+scaffolder's writable surface is monotonically non-increasing across iterations 1-3: it
+can shrink (a category the notes named can become moot once scaffolded), never grow.
+Splitting the audit from the scaffold means the agent that draws the allowlist is not
+the agent that writes within it, but this freeze still bounds, and does not close, the
+trust gap: the allowlist remains auditor-authored prose, not a mechanically derived
+allowlist — the additive-checker checks it against the two categories above every
+iteration, and closing the gap mechanically is a named future follow-up, not built by
+this ticket.
 
 **Deviation from the design's broader allowlist — resolved report-only.** The design's
 own allowlist text additionally lists `<principles_dir>/**` and `<standards_dir>/**`
 (new files only, or invoking the producer skill) as scaffold-able categories. This spec
-DROPS both from the executor's allowlist entirely — the executor NEVER writes into
-`<principles_dir>/**` or `<standards_dir>/**`, under either mechanism: it cannot
-invoke a producer skill inline (subagents never spawn subagents; the executor's
-`disallowedTools: Agent, Skill`), and it does not author doc-set content directly either
-(ADR 0011's one-skill-per-set invariant). A missing/absent `principles/` or `standards/`
-doc set is therefore ALWAYS a `recommended_follow_ups` entry — never an executor
-scaffold target.
+DROPS both from the allowlist entirely — the auditor NEVER allowlists and the
+scaffolder NEVER writes into `<principles_dir>/**` or `<standards_dir>/**`, under either
+mechanism: the scaffolder cannot invoke a producer skill inline (subagents never spawn
+subagents; the scaffolder's `disallowedTools: Agent, Skill`), and it does not author
+doc-set content directly either (ADR 0011's one-skill-per-set invariant). A
+missing/absent `principles/` or `standards/` doc set is therefore ALWAYS a
+`recommended_follow_ups` entry — never a scaffold target.
 
 **`recommended_follow_ups` shape** — an array of objects, ALWAYS present on the result
 document (empty array when no structural gaps found):
@@ -211,22 +224,38 @@ Option A / C-5) — the user decides whether to act on it. This covers both doc-
 AND structural gaps versus `hld/project-structure.md` (AC-6) — both categories flow
 through this same one array, never a second output channel.
 
-## Reflection loop — execute -> verify, no planner
+## Reflection loop — audit, then scaffold -> additive-check
 
-The loop is execute -> verify, at most 3 iterations. There is no plan phase: iteration
-1's executor AUDITS the repo (read-only) and writes its authoring notes — the gap list,
-the frozen Additive-surface allowlist, the `recommended_follow_ups` candidates — and
-then scaffolds the allowlisted gaps from them; the verifier judges the result fresh. On
-iterations 2-3 the verifier's findings go verbatim into the next executor `<task>`
-`<context>` and the executor authors the remediation. Spawn subagents via the Agent
-tool: `subagent_type` `acs:standardize-project-executor` /
-`acs:standardize-project-verifier` (fall back to the
-un-namespaced name if the runtime rejects the namespaced one). Apply
-`context.models.<role>.model`/`.effort` at spawn when not `"inherit"`; fail the run (no
-silent fallback) if the runtime rejects the model/effort. Communicate in XML per
-message, re-request once, then fail with the validation error recorded in `errors`.
-Persist every phase output to `steps/standardize-project/iter-<n>/<phase>.json`
-before starting the next phase.
+Three subagents, each doing one thing, at most 3 iterations:
+
+- **auditor** — `acs:standardize-project-auditor`, a `survey` role on the `planner`
+  model tier, read-only on the repo. Runs on **iteration 1 only**, before anything is
+  scaffolded: it AUDITS the repo (read-only) and writes the run's authoring notes —
+  the gap list, the frozen Additive-surface allowlist, the `recommended_follow_ups`
+  candidates — plus its report `iter-1/auditor.json`.
+- **scaffolder** — `acs:standardize-project-scaffolder`, a `write` role on the
+  `executor` model tier. Additively scaffolds exactly the allowlisted gaps from the
+  frozen notes; on iterations 2-3 it remediates the additive-checker's findings from
+  the same notes. Report: `iter-<n>/scaffolder.json`.
+- **additive-checker** — `acs:standardize-project-additive-checker`, a `judge` role on
+  the `verifier` model tier, read-only on the repo. Re-runs the additive-only check and
+  its other dimensions fresh, EVERY iteration. Report: `iter-<n>/additive-checker.md`.
+
+The loop: auditor (iteration 1) → scaffolder → additive-checker; iterations 2-3 are
+scaffolder ← findings → additive-checker. The additive-checker's findings go verbatim
+into the next scaffolder `<task>` `<context>` and the scaffolder authors the
+remediation; the audit is never re-run and the notes are never re-authored. Spawn
+subagents via the Agent tool with `subagent_type` `acs:standardize-project-auditor` /
+`acs:standardize-project-scaffolder` / `acs:standardize-project-additive-checker`
+(fall back to the un-namespaced name if the runtime rejects the namespaced one). Apply
+`context.models.<tier>.model`/`.effort` at spawn when not `"inherit"` — `planner` for
+the auditor, `executor` for the scaffolder, `verifier` for the additive-checker; fail
+the run (no silent fallback) if the runtime rejects the model/effort. Communicate in
+XML per message — every `<task>` and `<result>` carries `phase=` = the role — re-request
+an invalid message once, then fail with the validation error recorded in `errors`.
+Every phase's output is on disk before the next phase starts: each agent writes its
+own report, and the SubagentStop hook snapshots its `<result>` to
+`steps/standardize-project/iter-<n>/<phase>-message.xml`.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -236,16 +265,16 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-**What an iteration counts:** one execute -> verify round. `standardize-project` has
-no path-driven verify-depth selection: the cap is a fixed 3 on every run, and this
-ticket introduces none.
+**What an iteration counts:** one scaffold -> additive-check round (iteration 1's
+round is preceded by the audit). `standardize-project` has no path-driven check-depth
+selection: the cap is a fixed 3 on every run, and this ticket introduces none.
 
-Example iteration-1 execute task (illustrates the audit-inputs contract and the
+Example iteration-1 auditor task (illustrates the audit-inputs contract and the
 narrowed allowlist together):
 
 ```xml
-<task skill="standardize-project" phase="execute" ticket-id="SHOP-9" iteration="1">
-  <objective>Audit this repo against the principles and standards sets, hld/project-structure.md, and acs-readiness tooling; record in the authoring notes a gap list, an additive-surface allowlist scoped to CI/tooling config only, and structural-gap candidates as recommended follow-ups; then scaffold the allowlisted gaps.</objective>
+<task skill="standardize-project" phase="auditor" ticket-id="SHOP-9" iteration="1">
+  <objective>Audit this repo against the principles and standards sets, hld/project-structure.md, and acs-readiness tooling; record in the authoring notes a gap list, an additive-surface allowlist scoped to CI/tooling config only, and structural-gap candidates as recommended follow-ups.</objective>
   <inputs>
     <file>docs/architecture/hld/project-structure.md</file>
     <file>docs/principles/</file>
@@ -266,26 +295,33 @@ narrowed allowlist together):
 
 Phases:
 
-1. **Execute** — iteration 1's executor first AUDITS (read-only): it reads the
-   doc-set/target/readiness-tooling inputs above and writes its authoring notes
+1. **Audit (iteration 1 only)** — the auditor reads the doc-set/target/readiness-tooling
+   inputs above and writes the authoring notes
    (`steps/standardize-project/iter-1/authoring.md`): a gap list
    classified into scaffold-able (CI/tooling config) vs recommended-follow-up-only
    (missing doc sets, missing `hld/project-structure.md`, structural gaps against it),
-   the additive-surface allowlist the verifier will enforce, and the
+   the additive-surface allowlist the additive-checker will enforce, and the
    `recommended_follow_ups` candidates. That allowlist is frozen for the whole run (see
-   Additive-surface contract). Then the executor writes ONLY the allowlisted new files
-   and named additive config appends — never edits, renames, or deletes any
-   pre-existing source file, and never writes under `<principles_dir>/**` or
-   `<standards_dir>/**`. Decomposition is the coordinator's alone; subagents never
-   spawn subagents. On iterations 2-3 the verifier's findings go verbatim into the
-   executor's `<task>` `<context>`, with no plan phase in between, and every later
-   executor reads the frozen iteration-1 notes.
-2. **Verify** — after all executors finish, spawn the verifier on the combined result.
+   Additive-surface contract). On `needs_input` (ambiguous build/CI/test tooling),
+   resolve the questions in User interaction and re-run the auditor for iteration 1
+   with the answers in `<context>`. The auditor writes nothing in the repo.
+2. **Scaffold** — spawn the scaffolder with `<task skill="standardize-project"
+   phase="scaffolder" …>` whose `<inputs>` name the frozen notes and
+   `iter-1/auditor.json`. It writes ONLY the allowlisted new files and named additive
+   config appends — never edits, renames, or deletes any pre-existing source file, and
+   never writes under `<principles_dir>/**` or `<standards_dir>/**`. Decomposition is
+   the coordinator's alone; subagents never spawn subagents. On iterations 2-3 you MAY
+   run several scaffolders in parallel on disjoint allowlist slices; the
+   additive-checker's findings go verbatim into each scaffolder's `<task>` `<context>`,
+   with no plan phase in between, and every later scaffolder reads the frozen
+   iteration-1 notes.
+3. **Additive-check** — after all scaffolders finish, spawn the additive-checker with
+   `phase="additive-checker"` on the combined result.
    Its `<constraints>` carry `principles_dir` and `standards_dir` (the same values the
-   executor got) for the doc-set-authorship boundary. It judges fresh from artifacts
-   only — never the executors' reasoning — and re-runs,
+   auditor and scaffolder got) for the doc-set-authorship boundary. It judges fresh from
+   artifacts only — never the auditor's or scaffolders' reasoning — and re-runs,
    itself, EVERY iteration (never reusing a prior iteration's result, never trusting the
-   execute report's `files_changed` list as a substitute):
+   scaffolder report's `files_changed` list as a substitute):
 
 ```bash
 git -C <checkout_root> diff --name-status <default_branch>...HEAD
@@ -294,43 +330,44 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
    passing that raw output plus the iteration-1 notes' allowlist entries to spec 01's
    `classify_additive_diff` helper in `acs_lib/planrules.py`. Every returned violation — any `R`,
    any `D`, any out-of-allowlist `M` — becomes `severity="blocking"
-   dimension="additive-only"`, citing the exact path and status. The verifier's full
+   dimension="additive-only"`, citing the exact path and status. The additive-checker's full
    check-dimension list (additive-only diff-status, doc-set-authorship boundary,
    recommended-follow-ups-only, plan-conformance, completion-report shape) is defined in
-   its own agent prose (`standardize-project-verifier.md`) and re-run every iteration.
+   its own agent prose (`standardize-project-additive-checker.md`) and re-run every iteration.
 
-Zero blocking verifier findings = pass — proceed to Delivery. `additive-only` and
+Zero blocking additive-checker findings = pass — proceed to Delivery. `additive-only` and
 `doc-set-authorship` findings always block. A `plan-conformance` finding degrades to
 `severity="info"` and is surfaced as a `recommended_follow_ups` entry, instead of
-blocking, only when the verifier's four-condition conjunction holds (fail-closed
-otherwise) — see `standardize-project-verifier.md` for the exact conjunction. On
-remaining blocking findings, they go verbatim into the executor's `<task>` `<context>`,
-with no plan phase in between, and the run continues execute -> verify. When an
-executor instead returns `status="failed"` whose `<errors>` unambiguously name the
+blocking, only when the additive-checker's four-condition conjunction holds (fail-closed
+otherwise) — see `standardize-project-additive-checker.md` for the exact conjunction. On
+remaining blocking findings, they go verbatim into the scaffolder's `<task>` `<context>`,
+with no plan phase in between, and the run continues scaffold -> additive-check. When a
+scaffolder instead returns `status="failed"` whose `<errors>` unambiguously name the
 reason as outside the frozen iteration-1 allowlist, that refusal is not a run failure:
 convert it into a `{title, rationale, target_path}` entry in the result document's
-`recommended_follow_ups` array, exactly as for a degraded `severity="info"` verifier
+`recommended_follow_ups` array, exactly as for a degraded `severity="info"` additive-checker
 finding, so it reaches the PR body's `## Recommended follow-ups` section. Convert ONLY
-when the refused finding is itself of the degradable class the verifier's own
-four-condition route uses: the finding this coordinator routed into that executor's
+when the refused finding is itself of the degradable class the additive-checker's own
+four-condition route uses: the finding this coordinator routed into that scaffolder's
 `<context>` must carry `dimension="plan-conformance"` AND be of the missing-scaffold /
-under-coverage class — the plan's task breakdown expected path or category X and it was
+under-coverage class — the notes' task list expected path or category X and it was
 not scaffolded — never the over-scaffold "unplanned extra scaffold file" class, and
 never any other dimension. A refusal whose underlying finding is `additive-only`,
 `doc-set-authorship`, `recommended-follow-ups-only`, `completion-report-shape`, or an
 over-scaffold `plan-conformance` finding is NEVER convertible: it remains a genuine run
 failure however truthfully its `<errors>` name the frozen allowlist. Judge that class
-from the verifier's own prior `<finding>`, which you hold verbatim — never from the
-executor's self-report — and fail closed: if the class is undetermined, or the refusal
+from the additive-checker's own prior `<finding>`, which you hold verbatim — never from the
+scaffolder's self-report — and fail closed: if the class is undetermined, or the refusal
 cannot be mapped to exactly one such finding, there is no conversion and the `failed`
-status stands. (The verifier's fourth condition, the target being absent from this
-iteration's diff, holds by construction here: the executor refused, so it wrote nothing
+status stands. (The additive-checker's fourth condition, the target being absent from this
+iteration's diff, holds by construction here: the scaffolder refused, so it wrote nothing
 for that target.) This does not
-count against the pass/fail verdict: never re-dispatch the finding to a future executor
-`<context>`, and never widen the frozen allowlist. Every other executor `failed`
-result — missing input, plan/repo mismatch, or `<errors>` that do not unambiguously name
+count against the pass/fail verdict: never re-dispatch the finding to a future scaffolder
+`<context>`, and never widen the frozen allowlist. Every other scaffolder `failed`
+result — missing input, notes/repo mismatch, or `<errors>` that do not unambiguously name
 that reason — remains a genuine run failure and is never silently converted; the
-executor's own `failed` status stands as reported. After
+scaffolder's own `failed` status stands as reported. An auditor `failed` result is
+always a genuine run failure: with no frozen notes there is nothing to scaffold. After
 iteration 3 with blocking findings remaining: stop, final status `failed`, findings
 recorded in the result document; commit whatever was written to the local ticket branch
 so nothing is lost, but do NOT push or open the PR.
@@ -339,12 +376,12 @@ so nothing is lost, but do NOT push or open the PR.
 
 The delivery-ticket pattern, done by the coordinator itself:
 
-1. **Branch** (before the first executor writes, so the verifier's `git diff
+1. **Branch** (before the first scaffolder writes, so the additive-checker's `git diff
    --name-status <default_branch>...HEAD` has a meaningful base): require a clean
    working tree; render `settings.formats.branch_name` with `type=task`, the ticket id,
    and the slugified title (e.g. `task/SHOP-9-brownfield-project-standardization`);
    `git checkout -b` from the default branch.
-2. **Commit** (after the verifier passes): stage exactly the files the verifier's final
+2. **Commit** (after the additive-checker passes): stage exactly the files the additive-checker's final
    passing diff-status check confirmed — **never a broader `git add -A`**, which could
    sweep up source this skill is forbidden to touch. (/acs:create-project uses `git add
    -A` on its own scaffold, where every file is new; that carve-out does not reach
@@ -382,7 +419,7 @@ entries to subagents in `<context>`. If the user is unavailable, record the deci
 with `--source assumption --rationale "..."`. Before a needs_input handoff, record
 outgoing questions as `open`.
 Ask clarifying questions when genuinely ambiguous — at minimum, any ambiguity the
-executor's audit surfaces about the repo's build/CI/test tooling (see Inputs & mode); do not ask
+auditor's audit surfaces about the repo's build/CI/test tooling (see Inputs & mode); do not ask
 about anything the repo's own config already answers. If genuinely unreachable, return a
 `<handoff skill="standardize-project" ticket-id="<id>" status="needs_input">` with
 `<questions>` instead of guessing.
@@ -429,12 +466,15 @@ MANDATORY final step — never skipped, also on failure:
 }
 ```
 
+   `states.audit` is the auditor's `iter-1/auditor.json` `inventory`, and
+   `recommended_follow_ups` starts from its `recommended_follow_ups` candidates.
    `states.audit.*` values for `principles`/`standards`/`project_structure` are one of
    `"present" | "absent"` (`"absent"` when the repo has no such set or file yet);
    `readiness_tooling.e2e` is boolean OR the literal string `"n/a"` when
    `settings.e2e` is unset. On failure: `status: "failed"`, blocking findings in
    `findings`, reason in `summary`, keep whatever is true in `states`,
-   `recommended_follow_ups` still reflects whatever the last passing plan found. On
+   `recommended_follow_ups` still reflects whatever the auditor's frozen notes found
+   (plus any converted refusals). On
    handoff: `status: "handed_off"` plus `handoff_summary`.
 2. Run:
 
@@ -442,7 +482,7 @@ MANDATORY final step — never skipped, also on failure:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-standardize-project.py" --result-file "<the result.json you just wrote>"
 ```
 
-3. Report a compact summary to the user: audit findings, files scaffolded, verifier
+3. Report a compact summary to the user: audit findings, files scaffolded, additive-check
    iterations, PR URL, the `recommended_follow_ups` list, and that `/acs:merge-pr` lands
    it after review. If genuinely unreachable, return ONLY the `<handoff>` XML.
 
@@ -460,7 +500,7 @@ same labels/order, `none` where empty; under `/acs:ship` the final message is th
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: audit summary (doc sets / project-structure / readiness tooling); files additively scaffolded; delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
-- **Recommended follow-ups**: <recommended_follow_ups titles, or "none">
+- **Recommended follow-ups**: <recommended_follow_ups titles, or "none"> — with no architecture set, this includes "run `/acs:create-architecture`" as a recommendation
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/<cap> · <wall time>
 - **Next**: `/acs:merge-pr <ticket-id>` after reviewing the scaffold PR; consider the recommended follow-ups

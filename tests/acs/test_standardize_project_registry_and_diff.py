@@ -25,8 +25,11 @@ sys.path.insert(0, HOOKS_DIR)
 
 import acs_lib  # noqa: E402
 
+#: The refusal Start used to carry. Skills independence removed it: a missing
+#: architecture set narrows the audit, it never stops the run.
 ARCHITECTURE_REFUSAL = ("no architecture doc set found (expected hld/tech-stack.md) "
                         "— run /acs:create-architecture first.")
+ARCHITECTURE_FALLBACK_NOTE = "no architecture set: project-structure checks skipped"
 
 
 def _section(body, heading):
@@ -85,23 +88,25 @@ class Mar121GateStandardizeProjectCase(unittest.TestCase):
     """AC-3 boundary + R1 non-reproduction.
 
     Until ADR-0102, `gate_outcome` ran the shared
-    `_require_architecture_doc_set` for every member of ARCHITECTURE_GATED. A
-    hook cannot find a document no setting locates, so the check moved into
-    the skill's Start (ADR-0102 decision 3) with the same refusal. The
-    PRECONDITION is unchanged, so it is still asserted here -- against the
-    Start prose that now owns it -- and the hook half is guarded as gone."""
+    `_require_architecture_doc_set` for every member of ARCHITECTURE_GATED.
+    ADR-0102 moved the check into the skill's Start; the skills-independence
+    rule then removed the refusal itself -- no skill refuses because an
+    upstream skill has not run. Start still LOOKS for the architecture set;
+    without one the audit proceeds against what exists and records that the
+    project-structure checks were skipped. The hook half stays guarded as
+    gone."""
 
     @classmethod
     def setUpClass(cls):
         with open(SKILL_PATH, encoding="utf-8") as fh:
             cls.body = fh.read()
         cls.start = _norm(_section(cls.body, "## Start"))
-        stops = [b for b in re.split(r"(?m)^- ", _section(cls.body, "## Start"))
-                 if "STOP" in b]
-        if len(stops) != 1:
-            raise AssertionError("Start must carry exactly one STOP bullet, found %d"
-                                 % len(stops))
-        cls.stop = _norm(stops[0])
+        arch = [b for b in re.split(r"(?m)^- ", _section(cls.body, "## Start"))
+                if "**The architecture set**" in b]
+        if len(arch) != 1:
+            raise AssertionError("Start must carry exactly one architecture-set bullet, "
+                                 "found %d" % len(arch))
+        cls.arch = _norm(arch[0])
 
     def test_the_hook_no_longer_gates_on_the_architecture_set(self):
         """Inverted: the pre-hook's document gate is deleted, and no subject
@@ -109,30 +114,44 @@ class Mar121GateStandardizeProjectCase(unittest.TestCase):
         self.assertFalse(hasattr(acs_lib.gates, "_require_architecture_doc_set"))
         self.assertNotIn("standardize-project", acs_lib.SUBJECT_GATES)
 
-    def test_blocks_without_architecture_tech_stack(self):
-        self.assertIn("hld/tech-stack.md", self.stop)
-        self.assertIn(ARCHITECTURE_REFUSAL, self.stop)
+    def test_start_never_stops_on_a_missing_architecture_set(self):
+        self.assertNotIn("STOP", self.start)
+        self.assertNotIn(ARCHITECTURE_REFUSAL, self.start)
+        self.assertIn("never a stop", self.arch)
+
+    def test_a_missing_architecture_set_falls_back_to_what_exists(self):
+        self.assertIn(ARCHITECTURE_FALLBACK_NOTE, self.arch)
+        self.assertIn("audits against what exists", self.arch)
+        self.assertIn("pass `architecture_dir` as `none` to the auditor", self.arch)
+        self.assertIn("only as a recommendation", self.arch)
+        with open(os.path.join(PLUGIN, "agents", "standardize-project-auditor.md"),
+                  encoding="utf-8") as fh:
+            auditor = _norm(fh.read())
+        self.assertIn(ARCHITECTURE_FALLBACK_NOTE, auditor)
+
+    def test_the_completion_report_recommends_create_architecture(self):
+        # The report's own template holds `## ` lines, so read to the end.
+        report = self.body[self.body.index("## Completion report"):]
+        self.assertIn("/acs:create-architecture", report)
 
     def test_an_empty_architecture_directory_is_not_a_doc_set(self):
         """What a half-finished /acs:create-architecture leaves behind: the
         directory without the file it exists to hold."""
-        self.assertIn("a directory without `hld/tech-stack.md` does not count", self.stop)
+        self.assertIn("a directory without `hld/tech-stack.md` does not count", self.arch)
 
     def test_passes_with_tech_stack_present(self):
         self.assertIn("the directory holding `hld/tech-stack.md` is `<architecture_dir>`",
-                      self.stop)
+                      self.arch)
 
     def test_passes_with_principles_and_standards_sets_absent(self):
-        self.assertNotIn("principles", self.stop)
-        self.assertNotIn("standards", self.stop)
         self.assertIn("Not finding either is never a stop", self.start)
 
     def test_does_not_hard_require_project_structure_md(self):
-        self.assertNotIn("project-structure.md", self.stop)
+        self.assertNotIn("project-structure.md", self.arch)
         inputs = _norm(_section(self.body, "## Inputs & mode"))
         self.assertIsNotNone(
             re.search(r"hld/project-structure\.md`.{0,200}\*\*May not exist\*\*"
-                      r".{0,300}never a block", inputs))
+                      r".{0,600}never a block", inputs))
 
 
 class Mar121AdditiveDiffHelperCase(unittest.TestCase):

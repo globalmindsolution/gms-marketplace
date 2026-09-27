@@ -25,8 +25,8 @@ Note what is deliberately NOT asserted: that any file is under a particular
 length. The <500-line guidance suits skills Claude *consults*; a `code` leg is
 a coordinator protocol *executed* start to finish, so most of its body is hot
 path by construction. The saving that matters here is machinery, not bytes: a
-trivial ticket runs one executor and one verifier where a complex one runs
-parallel executors and four merged lenses.
+trivial ticket runs one implementer where a complex one runs parallel
+implementers and an integration pass.
 
 Stdlib-only. Run:  python3 -m unittest tests.acs.test_code_progressive_disclosure -v
 """
@@ -42,7 +42,7 @@ SKILLS = os.path.join(PLUGIN, "skills")
 CODE_DIR = os.path.join(SKILLS, "code")
 REFERENCES = os.path.join(CODE_DIR, "references")
 
-#: The four delivery-path legs, cheapest first, and the executor shape each
+#: The four delivery-path legs, cheapest first, and the implementer shape each
 #: declares. The ITERATION CEILING used to live here, one number per leg; it is
 #: `ship.yaml`'s `loops[].max_iterations` now, the same cap on every path,
 #: because it was a review property rather than an implementation one (§3.5).
@@ -50,7 +50,7 @@ LEGS = {
     "code-trivial": "one, always",
     "code-small": "one, rarely two",
     "code-standard": "one per disjoint file-map partition",
-    "code-complex": "one per disjoint file-map partition **+ an integration executor**",
+    "code-complex": "one per disjoint file-map partition **+ an integration implementer**",
 }
 
 #: The shared protocol, split by what a reader needs it for. `verify.md` left
@@ -144,7 +144,7 @@ class EachLegDeclaresItsOwnMachineryTest(unittest.TestCase):
     sends them back to a table somewhere else -- which is the indirection the
     split removed."""
 
-    def test_each_leg_states_its_executor_shape(self):
+    def test_each_leg_states_its_implementer_shape(self):
         for leg, shape in LEGS.items():
             with self.subTest(leg=leg):
                 self.assertIn(shape, leg_body(leg))
@@ -178,21 +178,21 @@ class EachLegDeclaresItsOwnMachineryTest(unittest.TestCase):
                 self.assertIn("plan_sha256", body)
                 self.assertIn("An edited plan is an unapproved plan", body)
 
-    def test_only_the_complex_path_describes_the_integration_executor(self):
+    def test_only_the_complex_path_describes_the_integration_implementer(self):
         """This is what now separates `complex` from `standard`. Both partition
         the file map; only `complex` runs a final pass over the SEAMS between
         the partitions -- the concern the four-lens verifier was implicitly
         covering, answered on the implementation side and before the review
         rather than after it."""
         complex_body = norm(leg_body("code-complex"))
-        for token in ("integration executor", "union of the partitions' diffs",
+        for token in ("integration implementer", "union of the partitions' diffs",
                       "intersection of their boundaries"):
             with self.subTest(token=token):
                 self.assertIn(token, complex_body)
         for leg in ("code-trivial", "code-small", "code-standard"):
             body = norm(leg_body(leg))
             with self.subTest(leg=leg):
-                self.assertNotIn("integration executor", body,
+                self.assertNotIn("integration implementer", body,
                                  "%s does not run one; carrying the prose is the "
                                  "drift this catches" % leg)
 
@@ -248,12 +248,19 @@ class TheSharedProtocolIsSharedNotCopiedTest(unittest.TestCase):
                 self.assertIn(token, body)
 
     def test_the_agent_name_lives_in_the_shared_protocol(self):
-        """All four legs spawn the same ONE agent -- the verifier left with the
-        review -- and they own no agent files themselves, so the name belongs
-        in one place."""
+        """All four legs spawn the same ONE agent, the implementer -- the
+        verifier left with the review -- and they own no agent files
+        themselves, so the name belongs in one place."""
         body = read(os.path.join(REFERENCES, "protocol.md"))
-        self.assertIn("acs:code-executor", body)
-        self.assertNotIn("acs:code-verifier", body)
+        self.assertIn('subagent_type: "acs:code-implementer"', body)
+        for stale in ("acs:code-verifier", "acs:code-executor", "acs:code-planner"):
+            with self.subTest(stale=stale):
+                self.assertNotIn(stale, body)
+        for leg in LEGS:
+            with self.subTest(leg=leg):
+                self.assertFalse(os.path.exists(os.path.join(
+                    PLUGIN, "agents", "%s-implementer.md" % leg)),
+                    "a leg owns no agent of its own; it spawns code's")
 
     def test_no_leg_restates_the_review(self):
         for leg in LEGS:

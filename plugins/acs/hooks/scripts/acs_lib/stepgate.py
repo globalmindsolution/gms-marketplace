@@ -1,32 +1,13 @@
-"""acs_lib.stepgate — the pre-hook gate, driven by what the skill declares.
+"""acs_lib.stepgate — the pre-hook gate's generic half.
 
-Replaces `GATE_INPUTS` and the seventeen per-skill gate functions that grew
-around it. A gate answers exactly two questions, and `INTERNALS.md` has said so
-since the skills-independence refactor:
-
-  INPUT         does the artifact this skill READS exist?
-  SAFETY BRAKE  would running now do damage that re-running cannot undo?
-
-It never answers a third — *is this skill next?* Order is `/acs:ship`'s
-business, via `acs run next`; a skill invoked by hand is never asked whether
-it is next, and that is what makes every skill independently invocable
-(§3.11). Running out of order costs one advisory line on stderr, exit 0.
-
-**The input half is now generic.** It reads `skills/<name>/acs.yaml`'s
-`reads.required` and resolves each artifact through `acs_lib.run.artifact_path`
-— the same declaration `acs workflow validate` checks a step list's order
-against, so the validator and the gate cannot disagree about what a skill
-needs. Adding a skill declares its inputs once, in its own directory, and both
-enforcers pick it up.
-
-**Standalone, a missing required read is a FALLBACK, not a refusal.** Every
-artifact has a chain that ends at the run's subject (§3.11): the requirement
-falls back to the plan's restatement and then to the ticket's acceptance
-criteria, the prompt or the document. `reads.required` is therefore a
-statement about a WORKFLOW — under `/acs:ship` a required read no earlier step
-writes is a validation error, because the author wrote a list that makes a
-step run on its fallback when it did not have to. This module refuses only
-when the chain bottoms out with no subject at all.
+A gate answers exactly one question: would running now do damage that
+re-running cannot undo? It never asks whether this skill is next, and it never
+asks whether an upstream artifact exists. Order is `/acs:ship`'s business, via
+`acs run next`; inputs are the skill's own business. Each skill is independent:
+it reads what it finds and falls back to the run's subject (the ticket's
+acceptance criteria, the prompt or the document) when an upstream artifact is
+absent, so it runs the same whether `/acs:ship` invoked it or a user did.
+Running out of order costs one advisory line on stderr, exit 0.
 
 **The no-op decision lives here too** (§2.2). Four of the ten steps owe
 nothing on a change that owes nothing, and the pre-hook is where that is
@@ -43,7 +24,6 @@ import os
 from ._common import GateError
 from . import plan_contract
 from . import run as run_machine
-from . import skills as skills_registry
 from . import step as step_machine
 
 #: skill -> (artifact-name-in-the-plan's-contract, outcome, what it checked).
@@ -66,39 +46,7 @@ NO_OP_STEPS = {
 }
 
 
-def check_inputs(rdir, step, manifests=None, wf=None, standalone=False, doc=None):
-    """Raise GateError when a required artifact is absent and nothing can
-    stand in for it. Returns the list of artifacts that fell back, for the
-    caller to report.
-
-    `standalone=True` is a hand invocation: a missing artifact becomes a
-    fallback the skill resolves from the subject, and only a run with no
-    subject at all is refused.
-
-    `doc` is the run's ledger when the caller already holds it -- a projected
-    run (`run.projected_run`) has none on disk to load.
-    """
-    manifests = manifests if manifests is not None else skills_registry.load_manifests()
-    missing = run_machine.missing_reads(rdir, step, manifests, wf)
-    if not missing:
-        return []
-    if not standalone:
-        artifact, producer = missing[0]
-        raise GateError(
-            "no %s for this run (expected %s) — run /acs:%s first."
-            % (artifact, run_machine.artifact_path(rdir, artifact, manifests, wf),
-               producer or "<the skill that writes it>"))
-    doc = doc if doc is not None else run_machine.load_run(rdir)
-    if doc is None or not (doc.get("subject") or {}).get("kind"):
-        artifact, producer = missing[0]
-        raise GateError(
-            "no %s for this run and no subject to derive one from — give %s a ticket id, "
-            "a prompt or a document, or run /acs:%s first."
-            % (artifact, step, producer or "<the skill that writes it>"))
-    return [artifact for artifact, _producer in missing]
-
-
-def noop_decision(rdir, step, manifests=None, wf=None):
+def noop_decision(rdir, step):
     """(outcome, reason) when this step owes nothing on this run, else None.
 
     Read from the plan's `## Contract` block -- the plan is where the decision
@@ -110,7 +58,7 @@ def noop_decision(rdir, step, manifests=None, wf=None):
     if spec is None:
         return None
     key, outcome, default_reason = spec
-    plan_path = run_machine.artifact_path(rdir, "plan", manifests, wf)
+    plan_path = run_machine.artifact_path(rdir, "plan")
     if not plan_path or not os.path.isfile(plan_path):
         return None
     contract = plan_contract.read(plan_path)
@@ -122,12 +70,12 @@ def noop_decision(rdir, step, manifests=None, wf=None):
     return outcome, owes.get("reason") or default_reason
 
 
-def settle_no_op(rdir, step, run_id, wf, manifests=None):
+def settle_no_op(rdir, step, run_id, wf):
     """Record the evidenced no-op and return its outcome, or None when this
     step has work. The caller (the pre-hook) refuses the invocation when this
     returns a value -- the step is already completed and the coordinator is
     never spawned."""
-    decision = noop_decision(rdir, step, manifests, wf)
+    decision = noop_decision(rdir, step)
     if decision is None:
         return None
     outcome, reason = decision
@@ -137,7 +85,7 @@ def settle_no_op(rdir, step, run_id, wf, manifests=None):
     return outcome, reason
 
 
-def check_invariants(rdir, wf, manifests=None, doc=None):
+def check_invariants(rdir, wf, doc=None):
     """I1-I5 before any transition (§4.3). A run that has drifted is refused
     here rather than discovered three steps later, when the artifacts no
     longer say which state was the true one.
@@ -145,7 +93,7 @@ def check_invariants(rdir, wf, manifests=None, doc=None):
     `doc` is the ledger to judge when the caller already holds it -- a
     projected run (`run.projected_run`) has none on disk to load.
     """
-    errors, warnings = run_machine.check(rdir, wf, manifests, doc=doc)
+    errors, warnings = run_machine.check(rdir, wf, doc=doc)
     if errors:
         raise GateError(
             "this run's ledger is inconsistent and acs will not write to it:\n  %s\n"

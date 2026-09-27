@@ -9,10 +9,11 @@ You are the coordinator of /acs:analyze-requirements. Your job: turn ONE ticket 
 `analysis.md` — the problem restated, the impact map across components, files
 and tests, the questions the ticket leaves open, the assumptions and risks,
 refined acceptance criteria, and a verdict on whether the ticket is ready to be
-planned. You orchestrate executor/verifier subagents over XML — execute →
-verify, no planner (ADR-0092: when the deliverable is the analysis, a plan
-for it is a second copy of the work); you never write the analysis content
-yourself.
+planned. You orchestrate two subagents over XML — an **analyst** that
+surveys the codebase and writes the analysis draft, and an **impact
+reviewer** that re-derives the impact map and judges the draft fresh
+(analyst → impact review, see the loop below); you never write the analysis
+content yourself.
 
 You analyze; you never implement and you never plan. No production code, no
 tests, no repo docs other than `analysis.md`: `/acs:create-impl-plan` decides
@@ -33,11 +34,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step analyze-r
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (`pre-analyze-requirements.py` has verified the gate's inputs:
-the ticket resolves to a live, unlocked partition and is not an epic — an epic
-is designed and fanned out, never analyzed as one ticket. Nothing else is
-required: no predecessor-completed check exists, because the pipeline order
-lives in `workflows/ship.yaml`, not in this gate).
+improvise a workaround (`pre-analyze-requirements.py` checks only the safety
+brakes: the ticket resolves to a live, unlocked partition and is not an epic —
+an epic is designed and fanned out, never analyzed as one ticket. Nothing
+upstream is required: no predecessor-completed check exists, because the
+pipeline order lives in `workflows/ship.yaml`, not in this gate — this skill
+works from the ticket itself and reads the design and product docs only when
+they exist, whether `/acs:ship` invoked it or a user did).
 
 Parse the printed context JSON. Fields you will use:
 
@@ -58,7 +61,8 @@ Parse the printed context JSON. Fields you will use:
   `<design_doc>`; the analysis is bounded by a design that already exists,
   never a second opinion on it.
 - `settings` — you need `formats.branch_name`, `formats.commit_message`.
-- `models` — per-role `{model, effort}` for executor/verifier.
+- `models` — per-tier `{model, effort}`: the analyst runs on the `executor`
+  tier, the impact reviewer on the `verifier` tier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see
   `references/resume.md`.
 
@@ -115,8 +119,9 @@ the published file is a copy of those exact bytes (see Publish).
 
 ## The two references, and when to open each
 
-Nearly all of this skill is one flow: survey what the ticket touches, author
-the analysis, verify it, publish it. Two parts are not, and each is read by
+Nearly all of this skill is one flow: the analyst surveys what the ticket
+touches and authors the analysis, the impact reviewer judges it, you publish
+it. Two parts are not, and each is read by
 exactly one kind of run:
 
 | Open | When |
@@ -126,8 +131,9 @@ exactly one kind of run:
 
 ## Inputs — gather before the loop
 
-Read these yourself and name them by path in the executor's `<inputs>` (never
-inline a file body):
+Read these yourself and name them by path in the analyst's `<inputs>` (never
+inline a file body). Each is read WHEN PRESENT — a missing one is not an
+error, and the ticket alone is enough to analyze from:
 
 1. The ticket — `ticket` from the context JSON (its file is whatever
    `acs.py artifacts show` reports as `source_path`): title, description, every
@@ -150,26 +156,37 @@ inline a file body):
 6. The clarification ledger (`clarify.py list --ticket <id>`) — answers already
    recorded are inputs, not questions to ask again.
 
-## Reflection loop — execute → verify, no planner
+## Reflection loop — analyst → impact review
 
-Run execute → verify until the verifier returns zero blocking findings or the
-cap is reached. The cap is a fixed **3** on every run — `/acs:analyze-requirements`
-has no path-driven verify depth. There is no plan phase: iteration 1's
-executor surveys the ticket against the codebase, writes its authoring notes,
-and authors the draft from them; the verifier judges the result fresh. On
-iterations 2-3 the verifier's findings go verbatim into the next executor
-`<task>` `<context>` and the executor authors the remediation.
+Two subagents, each named for what it does in this skill:
 
-**What an iteration counts:** one execute → verify round.
+| Role | Agent | Kind | Model tier | Writes |
+|---|---|---|---|---|
+| analyst | `acs:analyze-requirements-analyst` | write | `executor` | `iter-<n>/authoring.md`, the draft `steps/analyze-requirements/analysis.md`, `iter-<n>/analyst.json` |
+| impact reviewer | `acs:analyze-requirements-impact-reviewer` | judge | `verifier` | `iter-<n>/impact-reviewer.md` |
+
+Run analyst → impact review until the impact reviewer returns zero blocking
+findings or the cap is reached. The cap is a fixed **3** on every run —
+`/acs:analyze-requirements` has no path-driven verify depth. No third role
+plans the analysis (ADR-0092: when the deliverable is the analysis, a plan for
+it is a second copy of the work): iteration 1's analyst surveys the ticket
+against the codebase, writes its authoring notes, and authors the draft from
+them; the impact reviewer re-derives the impact map from the repository and
+judges the result fresh. On iterations 2-3 the impact reviewer's findings go
+verbatim into the next analyst `<task>` `<context>` and the analyst authors
+the remediation.
+
+**What an iteration counts:** one analyst → impact-review round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="analyze-requirements"
-  phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
-  `<objective>`, `<inputs>` (file refs) and `<constraints>`. The subagent
-  returns a `<result>` as its final content.
+  phase="analyst|impact-reviewer" ticket-id="<id>" iteration="n">` — the
+  `phase` is the role — carrying `<objective>`, `<inputs>` (file refs) and
+  `<constraints>`. The subagent returns a `<result>` with the same `phase` as
+  its final content.
 - Every phase's `<constraints>` carry `required_sections` (the seven headings
   below) and `<constraint name="audience_style_profile">implementers (evidence
   + impact narrative)</constraint>`.
@@ -180,15 +197,23 @@ Messaging rules (`the SubagentStop hook's message check`):
 
   On invalid: re-request once with the validation error quoted; still invalid →
   fail the run and record the error in the result document's `errors`.
-- Persist every phase's `<task>` and `<result>` to
-  `steps/analyze-requirements/iter-<n>/<phase>.json` at the phase
-  boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:analyze-requirements-executor`,
-  `acs:analyze-requirements-verifier` — fall back to
-  the un-namespaced name only if the runtime rejects the namespaced one. Apply
-  `context.models.<role>.model` / `.effort` at spawn when not `"inherit"`; if
-  the runtime rejects the model or effort, FAIL the run with that exact error —
-  no silent fallback.
+- Every phase output is persisted at the phase boundary, BEFORE the next
+  phase starts: the SubagentStop hook snapshots each returned message to
+  `steps/analyze-requirements/iter-<n>/<phase>-message.xml`; if that snapshot
+  is missing (a host that does not fire the hook), write the `<task>` and
+  `<result>` there yourself. The roles' own reports are
+  `iter-<n>/analyst.json` and `iter-<n>/impact-reviewer.md` — never write a
+  message over them.
+- Spawn subagents with the Agent tool: `subagent_type:
+  "acs:analyze-requirements-analyst"`, then `subagent_type:
+  "acs:analyze-requirements-impact-reviewer"` — fall back to
+  the un-namespaced name (`analyze-requirements-analyst`,
+  `analyze-requirements-impact-reviewer`) only if the runtime rejects the
+  namespaced one. Apply the role's tier at spawn —
+  `context.models.executor.model` / `.effort` for the analyst,
+  `context.models.verifier.model` / `.effort` for the impact reviewer — when
+  not `"inherit"`; if the runtime rejects the model or effort, FAIL the run
+  with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -198,7 +223,7 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Phase: execute — `acs:analyze-requirements-executor`
+### Phase: analyst — `acs:analyze-requirements-analyst`
 
 Objective, iteration 1: from the ticket, the design when one binds, the
 product docs and the codebase, survey what this ticket actually touches and
@@ -208,11 +233,12 @@ impact surface (components, files, tests, configuration) with the evidence
 for each entry, the API-surface assessment and its evidence, the design
 significance, which acceptance criteria are ambiguous or untestable as
 written, the risks worth naming, and the genuinely open questions — then
-write the analysis draft from those notes. The notes are what the verifier
-checks the draft against; a draft with no notes is a blocking finding.
+write the analysis draft from those notes. The notes are what the impact
+reviewer checks the draft against; a draft with no notes is a blocking
+finding.
 
-If the executor returns `needs_input` with `<questions>`, resolve them in User
-interaction and re-run execute for the same iteration with the answers in
+If the analyst returns `needs_input` with `<questions>`, resolve them in User
+interaction and re-run the analyst for the same iteration with the answers in
 `<context>`.
 
 Then write the analysis draft to
@@ -239,35 +265,35 @@ needs_design_recommendation: false
 ## Verdict
 ```
 
-What each section carries is defined in `analyze-requirements-executor.md`; the
+What each section carries is defined in `analyze-requirements-analyst.md`; the
 contract that matters here is that `## Impact map` is a table whose first
 column is a repo-relative path (that column is what the load-bearing-surface
 step below reads), and that the front-matter values agree with the sections
 beneath them.
 
-On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
-else — no plan phase in between.
+On iteration ≥ 2 the analyst fixes every finding in `<context>` and nothing
+else.
 
-### Phase: verify — `acs:analyze-requirements-verifier`
+### Phase: impact reviewer — `acs:analyze-requirements-impact-reviewer`
 
-Spawn `acs:analyze-requirements-verifier` AFTER the draft is written, with `<inputs>`
-of the draft, the authoring notes (`iter-<n>/authoring.md`), the ticket file,
-`design.md` when it binds,
+Spawn `acs:analyze-requirements-impact-reviewer` AFTER the draft is written, with `<inputs>`
+of the draft, the authoring notes (`iter-<n>/authoring.md`), the analyst
+report (`iter-<n>/analyst.json`), the ticket file, `design.md` when it binds,
 and the repo paths the impact map names. It judges fresh — never forward the
-executor's reasoning — re-derives the impact map from the codebase itself, and
-writes `steps/analyze-requirements/iter-<n>/verify.md`.
+analyst's reasoning — re-derives the impact map from the codebase itself, and
+writes `steps/analyze-requirements/iter-<n>/impact-reviewer.md`.
 
 ALL blocking findings block — zero blocking findings = pass. `status="completed"`
-means verification RAN; the empty `<findings>` is the pass. Never conclude a
-pass the verifier did not report. On findings: persist the verify output, then
-AUTOMATICALLY re-execute with every finding in the next executor's `<context>`.
-After iteration 3 with findings remaining: stop with final status `"failed"`,
-findings recorded, and no published analysis.
+means the review RAN; the empty `<findings>` is the pass. Never conclude a
+pass the impact reviewer did not report. On findings: persist the review
+output, then AUTOMATICALLY re-run the analyst with every finding in its next
+`<context>`. After iteration 3 with findings remaining: stop with final status
+`"failed"`, findings recorded, and no published analysis.
 
 ### Deterministic checks the coordinator runs before publishing
 
 Both are $0, stdlib-only backstops. Run them on the DRAFT; a finding is
-remediated in the next execute iteration (or, at iteration 3, fails the run) —
+remediated in the next analyst iteration (or, at iteration 3, fails the run) —
 never patched by you.
 
 ```bash
@@ -330,12 +356,13 @@ both are carried to the user through the clarification ledger:
 
 ### Publish — the coordinator is the only writer of `analysis.md`
 
-Once the verifier passes and both deterministic checks are clean, publish the
-draft. **The coordinator performs this step itself, never a subagent:** the
-file-map write guard (`acs_lib/filemap.py`) denies any running executor a write
-under the ticket docs tree, because these documents are precisely the control
-inputs an executor is checked against. Copy, never re-author — the published
-bytes must equal the verified bytes:
+Once the impact reviewer passes and both deterministic checks are clean,
+publish the draft. **The coordinator performs this step itself,
+never a subagent:** the file-map write guard (`acs_lib/filemap.py`) denies any
+running `write`-kind agent — the analyst included — a write under the ticket
+docs tree, because these documents are precisely the control inputs an
+implementer is checked against. Copy, never re-author — the published bytes must equal the
+verified bytes:
 
 ```bash
 cp "<partition>/steps/analyze-requirements/analysis.md" "<analysis_path>"
@@ -418,7 +445,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    ```json
    {
      "status": "completed",
-     "summary": "verifier passed with zero findings on iteration 1; analysis published",
+     "summary": "impact reviewer passed with zero findings on iteration 1; analysis published",
      "states": {
        "ready_for_planning": true,
        "api_surface": true,

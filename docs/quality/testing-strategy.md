@@ -20,7 +20,7 @@ deterministic at the base, most expensive and least deterministic at the top.
 | 4 | Eval-suite structure and grader calibration | every eval case is well-formed and every shipped skill has a routing case; every free setup and artifact grader passes an ideal run and fails a bad one; the gate's judgement is itself tested — all caught before a paid run discovers it | free, deterministic, **local only** (ADR-0108) | [`tests/evals/`](../../tests/evals/) — `check_cases.py`, `check_grader_calibration.py`, `check_gate.py`, `check_probe_expectations.py` | the `acs-eval-checks` pre-commit hook, and the release gate's first step |
 | 5 | Routing evals | the *right skill fires* first for a natural-language request, internal legs do not, and a request answered in prose fires nothing | paid (one-turn runs; cost not yet measured), non-deterministic — 3 runs a case, judged per skill and suite by `scripts/eval_gate.py` ([ADR-0107](../adr/0107-routing-gated-by-skill-not-by-prompt.md)) | [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) — 90 `claude plugin eval` cases, three phrasings per described skill | pre-release gate |
 | 6 | Artifact evals | a *real run* writes the right workspace state | paid (costly), non-deterministic | [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md) — 2 cases, `--tag artifacts --scaffold` | on demand |
-| 7 | Runtime reflection verifier | each individual run's output is correct (in-band, per-run) | part of normal use | the plan→execute→verify cycle inside every skill | every real invocation |
+| 7 | Runtime reflection judge | each individual run's output is correct (in-band, per-run) | part of normal use | the write → judge cycle inside every authoring skill (its reviewer, plan-reviewer, build-checker, …) and `/acs:review-code` for `/acs:code` | every real invocation |
 | 8 | Dogfooding (E3) | end-to-end quality under real use | the cost of using acs | shipping acs changes via `/acs:ship` | ongoing |
 | 9 | LLM-as-judge *(not built)* | subjective quality — is the PRD/design *sound*? | paid + noisy | future | pre-release for product skills |
 
@@ -60,8 +60,8 @@ nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
 [`acs_lib/_common.py:28-54`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
 into **19 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
-`pre-*.py`/`post-*.py` pair and the subagent roles `skills/<name>/acs.yaml`
-declares for it) and **7 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
+`pre-*.py`/`post-*.py` pair and the subagent roles its `agents/<skill>-<role>.md`
+files name, when it owns any) and **7 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
 four delivery-path legs, which are gated as their entry point and own neither
 scripts nor agents (ADR-0095). Re-derive with `ls -1 plugins/acs/skills | wc -l`
 (→ `30`) and a Python one-liner importing `acs_lib` and printing
@@ -194,8 +194,8 @@ whole surface, while whether a skill produced the *right* output mostly is not.
 3. **One run, many assertions.** The live-agent run is the expensive part —
    once you've paid for it, validate *everything* about its output (schema
    conformance + completeness + gate progression), not just one field.
-4. **The verifier is the runtime gate; tests are the regression net.** The
-   reflection verifier catches a bad run in the moment; evals catch a regression
+4. **The judge is the runtime gate; tests are the regression net.** A
+   skill's judge role catches a bad run in the moment; evals catch a regression
    in the skill across changes. They are complementary, not redundant.
 5. **Cost-aware tiering.** Free tiers gate every commit/PR; the
    **pre-release gate** runs the free eval-structure check and then the paid

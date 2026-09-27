@@ -728,7 +728,7 @@ class TestGuardControlInput(FileMapGuardCase):
 
     def test_the_ticket_docs_tree_is_denied_even_when_declared(self):
         self.declare("docs/", "src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         for target in ("docs/tickets/%s/plan.md" % self.ticket,
                        "docs/tickets/OTHER-9/design.md",
                        os.path.join(self.repo, "docs", "tickets", self.ticket, "ticket.md")):
@@ -745,7 +745,7 @@ class TestGuardControlInput(FileMapGuardCase):
         self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90,
                              "artifacts": {"tickets_path": None}})
         self.declare("docs/")
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("docs/tickets/%s/plan.md" % self.ticket).returncode, 2)
 
 

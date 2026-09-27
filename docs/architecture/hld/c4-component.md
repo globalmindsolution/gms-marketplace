@@ -11,7 +11,7 @@ C4Component
     Container_Boundary(hooks, "Hook & helper layer") {
         Component(dispatch, "dispatch.py", "hook entry", "PreToolUse(Skill): route to pre-<skill>.py, exit-2 blocks; SessionEnd: safety net")
         Component(cli, "acs.py / acs_cli.py / acs_commands.py", "deterministic CLI front door", "ADR 0001's single entry point for the verbs a SKILL.md names, so no coordinator improvises heredoc Python: context, gate, run (new|show|next|check|abandon), step (start|finish|show), result validate, ticket, pr, tracker, readiness, lock, filemap, guard, verdict, slug, fanout, doctor, workflow (show|validate) and artifacts are implemented in-process, while plan (check|path) and setup detect/apply forward argv to the scripts that already implement them and return their exit code unchanged; stdout is exactly one pretty-printed JSON object, a usage or precondition failure exits 2, and exit 0 means the command ran, not that the answer was yes; guard events is MAR-578's read side over invocations[-1].guard_events, emitting ok/run_id/skill/count/events/path")
-        Component(pre, "pre-<skill>.py x19", "gates", "artifacts the skill READS exist, lock free, settings/formats valid, safety brakes; a step owing nothing per the plan's ## Contract block is completed here as an evidenced no-op; no gate refuses a skill for a predecessor's POSITION in the workflow, though /acs:merge-pr's subject brake does read whether the step that recorded the PR reference completed — an artifact, not a position (gates.SUBJECT_GATES); fail closed; acs_lib.run_pre_payload also records the gate evidence (sessions/<checkout>-gate.json: skill and time, no session or transcript field) via record_gate_evidence, wrapped in its own fail-open try/except so a write failure never blocks the gate")
+        Component(pre, "pre-<skill>.py x19", "gates", "lock free, settings/formats valid, safety brakes (never whether an upstream artifact exists: a skill falls back to the run's subject); a step owing nothing per the plan's ## Contract block is completed here as an evidenced no-op; no gate refuses a skill for a predecessor's POSITION in the workflow, though /acs:merge-pr's subject brake does read whether the step that recorded the PR reference completed — an artifact, not a position (gates.SUBJECT_GATES); fail closed; acs_lib.run_pre_payload also records the gate evidence (sessions/<checkout>-gate.json: skill and time, no session or transcript field) via record_gate_evidence, wrapped in its own fail-open try/except so a write failure never blocks the gate")
         Component(post, "post-<skill>.py x19", "persistence", "finalize the step invocation; update ledger and index; release lock; merge extras (archive, epic auto-done); no usage is recorded -- a tokens or cost figure in the result document is legacy and ignored (ADR 0104)")
         Component(start, "acs.py step start", "step registration", "resolve the run (ticket id, prompt or document); allocate ids; acquire the lock; write sessions/<checkout>/pointer.json; record the step in_progress; reconcile/handoff detection; spends the gate evidence once and records the verdict as the invocation's gate_enforcement")
         Component(mint, "new-ticket.py", "ticket factory", "id allocation, partition + ticket.json, epic backlinks, mint-time create-ticket state")
@@ -27,7 +27,7 @@ C4Component
         Component(structurelint, "structure_lint.py", "doc lint", "stdlib-only structure/section-conformance linter — blocking presence/non-empty/declared-order gate for generated docs against a skill-declared required-section list; read-only")
         Component(citationcheck, "citation_check.py", "doc lint", "stdlib-only citation-corroboration linter — blocking mechanical-floor gate (path containment, whitespace-normalized quoted-excerpt match) over the Upstream inventory citations of create-quality/-standards/-operations/-principles plan artifacts; read-only")
         Component(prdconformancecheck, "prd_conformance_check.py", "doc lint", "stdlib-only three-family corroboration linter — blocking mechanical-floor gate (code-evidence via imported citation_check helpers, answer-fidelity via clarifications.json reflection anchors, roadmap-outline via verbatim milestone-heading match) over /acs:create-prd's plan artifacts; read-only")
-        Component(lib, "acs_lib/", "shared core", "settings resolution, repo/checkout identity, state files, ledger, index, counters, locks, gates; default_state_root() derives the in-repo, main-checkout-anchored .acs/state-machine root from git plumbing, with no override (ADR-0102); plan_contract.read()/delivery_path()/owes() — the read side of the judged delivery path and the always-run steps' owes flags, both taken from the PLAN's ## Contract block, which is their only home; there is no writer here at all, because /acs:create-impl-plan judges the path once and writes it into the plan (ADR-0098, superseding record_delivery_path()/recorded_delivery_path() and, before them, derive_lane()/recommend_stakes()/verify_depth() and the escalation writers); record_guard_event() the file-map guard's fail-soft audit writer, appending one denial to invocations[-1].guard_events and returning False instead of raising when the invocation is absent, because its sole caller is a deny path whose verdict must not depend on the recording (MAR-578); plan_approval_eligible() pure plan-conformance predicate; allocate_ticket_id()'s fail-closed reconciliation gate — inside its existing O_EXCL critical section, the first allocation from a fresh/unreconciled (repo_id, prefix) partition refuses with exit 2 (ReconciliationRequired, a GateError subclass) unless a confirmable local-evidence proposal is confirmed via --seed-next; an already-populated counters.json is treated as already reconciled, no prompt (MAR-402); scan_local_ticket_evidence() — the ranked, bounded, network-free local-evidence scan helper backing that gate (committed-files grep, then git subjects+bodies, then branch names, each shelled out via the existing _git seam; MAR-402); DOC_BOOTSTRAP_DEPENDENCIES declared-dependency table + DOC_SET_DEFAULT_DIR new-set default directory + DOC_BOOTSTRAP_FANOUT_V1 declared v1 fan-out pair + fanout_batches() pure eligibility helper, fed the sets the coordinator found present (ADR-0102), for /acs:create-docs's cross-skill fan-out + parse_fanout_for_arg() pure --for argument parser gated on the declared v1 set, and an O_EXCL-guarded critical section around update_index() that serializes two concurrently-running legs' updates on the normal path (fail-closed since MAR-530: a bounded-spin timeout raises GuardTimeout and REFUSES the write rather than performing it unguarded; a guard left by a crashed writer is reclaimed only once it outlives twice the configured budget and its recorded holder is not a live local process) (MAR-1); GH_ACCESS_DENIED_MARKER/GH_ACCESS_HINT/GH_GENERIC_HINT constants + the pure gh_failure_hint(stderr_text) predicate -- the canonical gh-failure diagnostic (verbatim stderr substring match, wording-only, no I/O, no network, no subprocess), quoted verbatim by the three apply-work skills and their executor agents as the single source of truth for the critical-failure hint sentence (MAR-403, ADR-0088; no new component -- Option F, not Option E)")
+        Component(lib, "acs_lib/", "shared core", "settings resolution, repo/checkout identity, state files, ledger, index, counters, locks, gates; default_state_root() derives the in-repo, main-checkout-anchored .acs/state-machine root from git plumbing, with no override (ADR-0102); plan_contract.read()/delivery_path()/owes() — the read side of the judged delivery path and the always-run steps' owes flags, both taken from the PLAN's ## Contract block, which is their only home; there is no writer here at all, because /acs:create-impl-plan judges the path once and writes it into the plan (ADR-0098, superseding record_delivery_path()/recorded_delivery_path() and, before them, derive_lane()/recommend_stakes()/verify_depth() and the escalation writers); record_guard_event() the file-map guard's fail-soft audit writer, appending one denial to invocations[-1].guard_events and returning False instead of raising when the invocation is absent, because its sole caller is a deny path whose verdict must not depend on the recording (MAR-578); plan_approval_eligible() pure plan-conformance predicate; allocate_ticket_id()'s fail-closed reconciliation gate — inside its existing O_EXCL critical section, the first allocation from a fresh/unreconciled (repo_id, prefix) partition refuses with exit 2 (ReconciliationRequired, a GateError subclass) unless a confirmable local-evidence proposal is confirmed via --seed-next; an already-populated counters.json is treated as already reconciled, no prompt (MAR-402); scan_local_ticket_evidence() — the ranked, bounded, network-free local-evidence scan helper backing that gate (committed-files grep, then git subjects+bodies, then branch names, each shelled out via the existing _git seam; MAR-402); DOC_BOOTSTRAP_DEPENDENCIES declared-dependency table + DOC_SET_DEFAULT_DIR new-set default directory + DOC_BOOTSTRAP_FANOUT_V1 declared v1 fan-out pair + fanout_batches() pure eligibility helper, fed the sets the coordinator found present (ADR-0102), for /acs:create-docs's cross-skill fan-out + parse_fanout_for_arg() pure --for argument parser gated on the declared v1 set, and an O_EXCL-guarded critical section around update_index() that serializes two concurrently-running legs' updates on the normal path (fail-closed since MAR-530: a bounded-spin timeout raises GuardTimeout and REFUSES the write rather than performing it unguarded; a guard left by a crashed writer is reclaimed only once it outlives twice the configured budget and its recorded holder is not a live local process) (MAR-1); GH_ACCESS_DENIED_MARKER/GH_ACCESS_HINT/GH_GENERIC_HINT constants + the pure gh_failure_hint(stderr_text) predicate -- the canonical gh-failure diagnostic (verbatim stderr substring match, wording-only, no I/O, no network, no subprocess), quoted verbatim by the three apply-work skills and their inline references as the single source of truth for the critical-failure hint sentence (MAR-403, ADR-0088; no new component -- Option F, not Option E)")
     }
     ContainerDb_Ext(ws, "Workspace store")
 
@@ -53,72 +53,71 @@ work loop (XML tasks → phase artifacts → validation → persistence) →
 User interaction (clarification ledger) → Context pressure (handoff) →
 Finish (result document → post-hook → completion report).
 
-The work loop has two shapes. The **twelve authoring skills** (create-prd,
-create-architecture, create-project, create-design, docs-sync,
-standardize-project, create-requirements, analyze-requirements, create-impl-plan,
-create-api-contract, create-test-docs, create-e2e-tests), `code` and
-`create-docs` run the execute→verify reflection loop, spawning a separate
-executor and verifier subagent per phase —
-**12 authoring pairs (24 agents in pairs)** plus the 2 + 2 of `code` and
-`create-docs`. No skill has a plan
-phase: every one of the fourteen runs execute→verify with no planner (ADR
-0092; `code` against the plan `/acs:create-impl-plan` approved, ADR 0089;
-`create-docs` first, ADR 0094; the other twelve in ADR 0092's stage 2) —
-iteration 1's executor surveys and records `iter-<n>-authoring.md` before it
-writes, and the verifier judges the deliverable against those notes. The
-**three apply-work skills** (create-ticket, create-pr, merge-pr) run
-**inline** (MAR-60): the coordinator does the work directly, or delegates to
-**at most one** executor — never a verifier, any lane; correctness is gated
-instead (create-ticket by schema + Step-2 confirmation; create-pr/merge-pr by
-`/code`'s verifier). 24 agents in the authoring pairs, the 4 of `code`'s and
-`create-docs`'s executor + verifier pairs, and the 3 apply-work executors
-give **31 agent files, all reachable**; the apply-work skills' plan/verify
-files and the twelve authoring planners were deleted under ADR 0092, so no
-agent file is orphaned. Within the fourteen, `/create-impl-plan`'s execute
-leg is lane-conditional since MAR-72: its executor (whose survey is the
-former `code-planner` charter) is spawned on STANDARD/COMPLEX; on
-TRIVIAL/SMALL the coordinator authors the plan artifact itself, with zero
-executor spawns (ADR 0074). The verify leg stays unconditional in every lane,
-for every skill that runs the loop — so the counts above are unaffected.
+The work loop follows each skill's own logic, and a skill spawns only the
+subagents that logic needs, each named for its work (ADR 0109). Every role
+has a kind — `survey`, `write` or `judge` (`acs_lib.skills.ROLE_KINDS`) — and
+the kind picks its model tier and whether the file-map guard is armed. The
+**twelve authoring skills** and `create-docs` run a write → judge reflection
+loop over their own roles: `analyze-requirements` (analyst, impact-reviewer), `create-prd`
+and `create-requirements` (surveyor, author, reviewer), `create-architecture`
+(architect, reviewer), `create-design` (designer, design-reviewer),
+`create-docs` (author, reviewer), `create-impl-plan` (planner,
+plan-reviewer), `create-api-contract` (contract-author, contract-reviewer),
+`create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
+(test-writer, suite-runner), `docs-sync` (doc-updater, drift-reviewer),
+`create-project` (scaffolder, build-checker) and `standardize-project`
+(auditor, scaffolder, additive-checker) — **29 agents**. No skill has a plan
+phase before its writer (ADR 0092): a surveyor or auditor runs on iteration 1
+only and freezes its notes, and where there is none the writer surveys first
+and records `iter-<n>/authoring.md`; the judge judges the deliverable against
+those notes. `code` spawns `code-implementer`s (1 agent) and is judged by
+`/acs:review-code`'s lenses and adjudicators (2 agents). The **three
+apply-work skills** (create-ticket, create-pr, merge-pr) run **inline**: the
+coordinator does the work directly from its `references/` and spawns no
+subagent in any lane; correctness is gated instead (create-ticket by schema +
+Step-2 confirmation; create-pr/merge-pr by `/acs:review-code`). That gives
+**32 agent files, all reachable**: every file name resolves to a shipped
+skill and a known role, so no agent file is orphaned. `/create-impl-plan`'s
+planner is spawned on every run: MAR-72/ADR 0074's coordinator-authored fast
+path went with the lanes (ADR 0095).
 
 `/acs:project` is an unhooked coordinator: like `/acs:ship` it has no
-executor/verifier pair, no gate and no hook scripts of its own. It is the
-**entry point** of the design-phase fold (ADR 0091; a leg is marked by
-`disable-model-invocation: true` in its own front matter, not by a registry
-entry — `workflows/phases.yaml` is gone, ADR-0096), and it spawns the *existing* pairs above as
-ordinary execute→verify runs on their own delivery tickets — over exactly
+subagents, no gate and no hook scripts of its own. It is the
+**entry point** of the design-phase fold (ADR 0091; the legs are one table,
+`acs_lib.skills.SKILL_LEGS`, ADR 0109), and it invokes a leg whose own
+subagents run their ordinary loop on their own delivery tickets — over exactly
 one of its two legs (`create-project` or `standardize-project`), chosen by
 `acs_lib.project_mode` from declared on-disk evidence. `/acs:create-docs`,
 once an unhooked umbrella over four such legs, is since ADR 0094 a hooked
-product skill of its own: one executor + verifier pair authors and judges any
+product skill of its own: one author + reviewer pair authors and judges any
 of the four doc sets (the set rides in the task constraints), one delivery
 ticket per set, the eligible sets run in slices of at most 2 — a limit
 `/acs:create-docs` sets for itself, since `ship.yaml` v3 carries no
-`max_parallel`. Because the fold moved no pair, no gate and no agent file, the
-authoring-skill list and the 12/24/31 counts above are unaffected by it
+`max_parallel`. Because the fold moved no subagent, no gate and no agent
+file, the authoring-skill list and the counts above are unaffected by it
 (MAR-1; fold per ADR 0091).
 
 `/code` adapts to the recorded DELIVERY PATH, and it does so by DISPATCH
 rather than by branching inside one body: `skills/code/SKILL.md` reads the
 path with `acs.py plan path` — from the PLAN's `## Contract` block, its only
 home (ADR-0098) — and calls the matching leg: `code-trivial`, `code-small`,
-`code-standard` or `code-complex`. Each states its own executor shape and
+`code-standard` or `code-complex`. Each states its own implementer shape and
 shares the protocol and execute references under `skills/code/references/`.
 The two axes the legs used to differ by are gone, and both left for the same
 reason — they were review properties, not implementation properties: the
-verifier's shape is `/acs:review-code`'s business on every run, and the
+review's shape is `/acs:review-code`'s business on every run, and the
 iteration ceiling is the workflow's `loops[].max_iterations` (ADR-0099). The
 legs own no agents and no hook scripts: each runs
 `acs.py step start --step code`, so the run directory, the step state, the
 ledger key and the post-hook are `code`'s throughout, and each spawns
-`code-executor`. There is no `code-verifier`.
+`code-implementer`. `code` owns no judge.
 
 The REVIEW runs on **every** path, as `/acs:review-code`: five read-only
 lenses in parallel, one fresh-context adjudicator per candidate finding, and
 a final gate running build, lint, the full unit suite and coverage — the only
 place the suite runs. The ceiling counts `code` → `review-code` rounds, with
 the plan authored once before the loop (MAR-71, slice 1b of MAR-69).
-Exactly one plan-authoring `create-impl-plan-executor` is spawned per
+Exactly one plan-authoring `create-impl-plan-planner` is spawned per
 `/create-impl-plan` run, on every run — MAR-72/ADR-0074's coordinator-authored
 fast path went with the lanes, because that skill runs before any path exists.
 Spec authoring folds into `/create-impl-plan`'s plan whenever

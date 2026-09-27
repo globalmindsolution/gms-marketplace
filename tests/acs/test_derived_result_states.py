@@ -7,7 +7,8 @@ wrote. The /acs:create-pr gate therefore checked whether a model had written
 whatever number the prose happened to carry.
 
 Each now has a recorded source: the verifier's verdict (MAR-527), the
-executors' execute reports, the forge, and the verify artifacts on disk.
+implementers' reports (`iter-<n>/implementer*.json`), the forge, and the
+review artifacts on disk.
 Derivation WINS, and a disagreement is recorded rather than silently resolved —
 "the document said X and the artifacts said Y" is worth more than either value.
 """
@@ -43,8 +44,12 @@ class DeriveCase(AcsWorkspaceCase):
         self.ticket = self.new_ticket("Bulk import", "task")
         self.rdir_path = self.ensure_run(self.ticket)
 
-    def write_execute(self, iteration=1, index=None, tests=None, coverage=None):
-        name = "execute.json" if index is None else "execute-%d.json" % index
+    def write_execute(self, iteration=1, index=None, tests=None, coverage=None,
+                      stem="implementer"):
+        """The implementer's report: `implementer.json`, or `implementer-<k>.json`
+        per parallel implementer. `stem="execute"` writes the name it had while
+        the role was the generic executor, which a resumed run may still hold."""
+        name = "%s.json" % stem if index is None else "%s-%d.json" % (stem, index)
         path = os.path.join(self.rdir_path, "steps", "code",
                             "iter-%d" % iteration, name)
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -174,6 +179,14 @@ class TestsAndCoverageTest(DeriveCase):
         value, why = lib.derive_tests(self.rdir_path, "code", {"test_coverage_percent": 90})
         self.assertEqual(value, {"passed": 84, "failed": 0,
                                  "coverage_percent": 93.4, "coverage_target": 90})
+        self.assertIn("implementer.json", why)
+
+    def test_a_legacy_execute_report_still_derives(self):
+        """A run started before the executor became the implementer wrote
+        `execute.json`; resuming it must derive the same numbers."""
+        self.write_execute(tests={"passed": 12, "failed": 0}, stem="execute")
+        value, why = lib.derive_tests(self.rdir_path, "code")
+        self.assertEqual((value["passed"], value["failed"]), (12, 0))
         self.assertIn("execute.json", why)
 
     def test_only_the_last_iterations_reports_count(self):
@@ -183,7 +196,7 @@ class TestsAndCoverageTest(DeriveCase):
         value, _why = lib.derive_tests(self.rdir_path, "code")
         self.assertEqual((value["passed"], value["failed"]), (84, 0))
 
-    def test_a_suite_that_was_red_for_any_parallel_executor_is_red(self):
+    def test_a_suite_that_was_red_for_any_parallel_implementer_is_red(self):
         self.write_execute(index=1, tests={"passed": 84, "failed": 0})
         self.write_execute(index=2, tests={"passed": 80, "failed": 2})
         value, _why = lib.derive_tests(self.rdir_path, "code")
@@ -207,7 +220,7 @@ class TestsAndCoverageTest(DeriveCase):
         self.assertIn("record no tests or coverage", why)
 
     def test_unreadable_reports_are_skipped_not_fatal(self):
-        path = os.path.join(self.rdir_path, "steps", "code", "iter-1", "execute.json")
+        path = os.path.join(self.rdir_path, "steps", "code", "iter-1", "implementer.json")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
             fh.write("{not json")
@@ -382,7 +395,7 @@ class PostHookDerivationTest(DeriveCase):
         self.assertEqual(review, {"iterations": 1, "findings_open": 2, "guard_denials": 1})
 
     def test_a_derivation_that_cannot_run_leaves_the_coordinators_value(self):
-        """No execute report means no recorded run to read; inventing a number
+        """No implementer report means no recorded run to read; inventing a number
         would be worse than keeping the one the coordinator wrote."""
         self.seed_verdict(self.ticket)
         supplied = {"passed": 12, "failed": 0, "coverage_percent": 91.0, "coverage_target": 90}

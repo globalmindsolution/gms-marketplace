@@ -9,11 +9,12 @@ You are the coordinator of /acs:create-pr. Your job: ship the ticket's
 implementation as a pull request. Everything in the PR — title, body, ticket
 reference, change list, test plan — is composed from WORKSPACE STATE
 (`ticket.json`, `specs/`, `design.md`, `code-state.json` including its review
-summary), never from conversation history. You perform the apply-work inline
-(or delegate to at most one executor subagent), persist every phase artifact to
-the ticket partition, and finish by writing the result document and running the
-post-hook — always, even on failure. You never spawn a planner or verifier
-subagent for this skill.
+summary), never from conversation history. You perform all of the apply-work
+yourself, inline, following `references/publish.md`, and **spawn no subagent** —
+no planner, no executor, no verifier: pushing a branch and opening a PR is a
+fixed sequence of commands with nothing for a separate agent to judge. You
+persist every phase artifact to the ticket partition, and finish by writing the
+result document and running the post-hook — always, even on failure.
 
 ## Start
 
@@ -49,8 +50,6 @@ Parse the printed context JSON. Fields you will use:
   `pr_description_template` (default `pr-default`).
 - `settings.tracker` — `provider` is `local` (no sync), `github`, or `jira`.
 - `checkout_root`, `plugin_root` — for template resolution.
-- `models` — per-role `{model, effort}` for the executor (the only subagent
-  role used by this skill; planner and verifier are not spawned).
 - `reconcile`, `handoff_summary`, `prior_run_status` — see
   `references/resume.md`.
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
@@ -103,13 +102,14 @@ that a code run exist at all. The human checkpoint is the PR review.
 /acs:create-pr carries no in-skill verifier; invariant (d) lives in the
 upstream code/spec lanes, not in apply-work.
 
-The coordinator performs the following numbered steps directly, or delegates
-the entire numbered flow to at most one `acs:create-pr-executor` subagent when
-run complexity warrants it. When delegating, send one `<task>` message
-executor returns one `<result>` with the phase artifact reference. The
-coordinator never delegates to a planner or verifier. If the runtime rejects a
-model or effort setting from `context.models.executor`, FAIL the run with that
-exact error — no silent fallback.
+**No subagent is spawned — you run the numbered steps inline.** The
+coordinator performs every step below itself, in order; it never delegates
+them to any subagent, on any delivery path or iteration. Open
+`${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/publish.md` before step 1
+and follow it alongside these steps: it carries the ordering and safety rules
+that bind them (what may be mutated, no force-push, no fabricated body
+content), how each outcome ends the run, and the publish report's shape. There
+is no `<task>`/`<result>` exchange and no model tier to apply.
 
 1. **Branch, base, and the stacked-base pre-flight.** Verify the ticket branch
    from `code-state.json` `states.branch` exists locally
@@ -325,8 +325,8 @@ exact error — no silent fallback.
    PR discoverable from the issue and vice versa — the bidirectional
    cross-reference (AC-3) holds from both directions.
 
-Write a phase artifact `steps/create-pr/iter-1/execute.json`
-(commands run with outcomes, pushed SHA, PR number/url/base, sync result,
+Write the publish report `steps/create-pr/iter-<n>/publish.json`
+(`references/publish.md` shows its shape: commands run with outcomes, pushed SHA, PR number/url/base, sync result,
 problems hit, the pre-open self-check's pass/fail result and, on retry, how
 many attempts were used, plus the tracker-metadata-fill result — assignee/
 label/Project outcomes and any findings — additive, alongside the existing
@@ -387,8 +387,8 @@ into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
 `clarify.py add --skill create-pr --question "..." --answer "..." --ticket <ticket-id>`
-BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
-`<context>`. If the user is unavailable or says "you decide": record the
+BEFORE acting on it, and apply the relevant `C-n` entries yourself as you
+publish (no subagent receives them). If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
 in the completion report's Findings and the PR body until a user confirms.
 Before a needs_input handoff, record the outgoing questions as `open`
@@ -415,9 +415,6 @@ final message a handoff like:
   <next-step>Answer, then re-run /acs:ship SHOP-123.</next-step>
 </handoff>
 ```
-
-re-request the message once with the validation error; still invalid → fail the
-run and record the error in the result document's `errors`.
 
 ## Context pressure
 
@@ -459,9 +456,9 @@ MANDATORY final step — never skipped, also on failure:
    Canonical `states` key — EXACT name and shape, the /acs:merge-pr gate reads
    it: `pr` `{number, url, branch, base}` (`base` is the default branch the PR
    targets). On failure keep whatever is true: if the PR was created or
-   updated but verification failed, still record the real `pr` object; if no
+   updated but a later step failed, still record the real `pr` object; if no
    PR exists, omit `pr` entirely (never a stub) — the /acs:merge-pr gate stays
-   closed. Put verifier findings in `findings`, errors in `errors`, the reason
+   closed. Put the run's findings in `findings`, errors in `errors`, the reason
    in `summary`.
 
 2. Run the post-hook:

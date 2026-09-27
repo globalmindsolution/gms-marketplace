@@ -1,6 +1,6 @@
 ---
 name: create-project
-description: Once dispatched it scaffolds a greenfield product's repository skeleton from the approved architecture doc set — directory layout, build config, test framework with coverage tooling, linter/formatter, pre-commit, CI, and a minimal green vertical slice. Runs exactly once on a fresh product repo after /acs:create-architecture and before the first ticket; never on an existing codebase, which is the standardize-project leg's job.
+description: Once dispatched it scaffolds a greenfield product's repository skeleton from the approved architecture doc set (or, when there is none, from a stack and layout the user confirms) — directory layout, build config, test framework with coverage tooling, linter/formatter, pre-commit, CI, and a minimal green vertical slice. Runs exactly once on a fresh product repo after /acs:create-architecture and before the first ticket; never on an existing codebase, which is the standardize-project leg's job.
 when_to_use: Internal leg of /acs:project (bootstrap mode) — never the answer to a user request, even one that asks to scaffold a brand-new repo from its approved architecture. Route every such request to /acs:project, which detects greenfield vs existing from declared on-disk evidence and dispatches here itself with an explicit Skill call; do not invoke this leg directly.
 argument-hint: "(no arguments)"
 disallowed-tools: Edit, NotebookEdit
@@ -9,7 +9,8 @@ disallowed-tools: Edit, NotebookEdit
 # /acs:create-project — coordinator instructions
 
 You are the coordinator of /acs:create-project. You scaffold a fresh product's repo
-skeleton from the approved architecture so the ticket pipeline — especially the
+skeleton from the approved architecture — or, when the repo has none, from a stack,
+layout and coverage tooling the user confirms — so the ticket pipeline — especially the
 /acs:code TDD gates — works from ticket #1. You orchestrate; subagents do the work.
 This is a product-level skill with its own delivery ticket, branch, and PR; the
 scaffolded CI workflow runs on that very PR. Greenfield only: existing codebases
@@ -20,11 +21,14 @@ never need this skill.
 MANDATORY first action — locate the architecture doc set, before anything is
 allocated. Documents are found, not configured: read CLAUDE.md and whatever docs
 index it or the repo points at (e.g. `docs/README.md`), then Glob/Grep for
-`hld/tech-stack.md`. Found → the directory holding it is `<architecture_dir>`. None
-found (a directory without `hld/tech-stack.md` does not count) → STOP and tell the
-user: "no architecture doc set found (expected hld/tech-stack.md) — run
-/acs:create-architecture first." Locate the PRD the same way (`<prd>`, a
-secondary input; none found → leave it out of the executor's inputs).
+`hld/tech-stack.md`. Found → the directory holding it is `<architecture_dir>`, and
+the scaffold is derived from it. None found (a directory without
+`hld/tech-stack.md` does not count) → this is never a stop: the run takes the
+**no-architecture fallback** (below) and works from the run's subject — what the
+user asked for when invoking `/acs:project` or this leg, and the PRD if one is
+found — and from the repo. Tell the user no architecture doc set was found and that
+you will confirm the stack with them instead. Locate the PRD the same way (`<prd>`, a
+secondary input; none found → leave it out of the scaffolder's inputs).
 
 Then run:
 
@@ -37,16 +41,17 @@ e.g. `SHOP-3`), its workspace partition, the `.lock`, and an `in_progress` run
 entry. Parse the printed context JSON; the fields you will use:
 
 - `ticket_id`, `ticket`, `partition` — the delivery ticket and its workspace partition
-- `checkout_root` — the consumer repo root (the only tree executors mutate)
+- `checkout_root` — the consumer repo root (the only tree the scaffolder mutates)
 - `settings` — `test_coverage_percent`, `formats`, `tracker`
-- `models` — per-role `{model, effort}` resolved from settings
+- `models` — per-tier `{model, effort}` resolved from settings
 - `reconcile`, `handoff_summary`, `prior_run_status`, `pipeline`
 
 If `acs step start` exits non-zero: stop and surface its stderr verbatim — do not improvise.
 
-Apply `context.models.<role>.model` / `.effort` when spawning each subagent, unless
-the value is `"inherit"`. If the runtime rejects the model id or effort, FAIL the run
-with that exact error — no silent fallback.
+Apply `context.models.<tier>.model` / `.effort` when spawning each subagent, unless
+the value is `"inherit"`: the scaffolder (a `write` role) runs on the `executor` tier,
+the build-checker (a `judge` role) on the `verifier` tier. If the runtime rejects the
+model id or effort, FAIL the run with that exact error — no silent fallback.
 
 ## Resume & reconcile
 
@@ -69,15 +74,16 @@ Three cases:
   `steps/create-project/handoff-context.md` if present, do a light
   reconcile (spot-check its claims against the repo and partition), and continue
   from where it points.
-- There is no plan artifact to reuse: an execute with no verify -> verify it; a
-  verify with findings and no later execute -> execute with those findings as
-  `<context>`. The executor's iteration-1 authoring notes (`iter-1-authoring.md`)
-  carry the file manifest and commands every later iteration reads.
+- There is no plan artifact to reuse: a scaffolder report with no build-check ->
+  build-check it; a build-check with findings and no later scaffolder report ->
+  run the scaffolder with those findings as `<context>`. The scaffolder's
+  iteration-1 authoring notes (`iter-1-authoring.md`) carry the file manifest and
+  commands every later iteration reads.
 
 ## Greenfield gate
 
-Start already confirmed the architecture doc set exists
-(`<architecture_dir>/hld/tech-stack.md`). YOU verify the repo is actually
+Start located the architecture doc set (`<architecture_dir>/hld/tech-stack.md`)
+or chose the no-architecture fallback. Either way, YOU verify the repo is actually
 greenfield before any planning:
 
 ```bash
@@ -101,42 +107,76 @@ If substantive sources exist, REFUSE politely:
    all `states.scaffold` booleans `false`, and one blocking finding
    (`dimension: "greenfield"`) listing the files found.
 
-## Reflection loop — execute -> verify, no planner
+## No-architecture fallback
 
-The loop is execute -> verify, at most 3 iterations. There is no plan phase:
-iteration 1's executor reads the architecture doc set, pins the scaffold —
-layout, package/build config, test and coverage tooling, lint, CI, the
-vertical slice, the exact verification commands — in its authoring notes,
-and then builds it; the verifier re-runs the commands and judges the result
-fresh. On iterations 2-3 the verifier's findings go verbatim into the next
-executor `<task>` `<context>` and the executor authors the remediation.
-Decomposition is YOURS alone — subagents never spawn subagents. Before the
-loop: `mkdir -p steps/create-project`.
+Only when Start found no architecture doc set. Nothing refuses: the stack, the
+layout and the coverage tooling that `hld/tech-stack.md` and the C4 views would have
+pinned are confirmed with the user instead, BEFORE the scaffolder builds anything.
 
-**What an iteration counts:** one execute -> verify round. create-project
-has no path-driven verify-depth selection: the cap is a fixed 3 in every
+1. Draft a concrete proposal from the run's subject, the PRD (if found) and the repo
+   (whatever docs, READMEs or notes it holds): the stack (languages, frameworks,
+   package manager, test framework, linter/formatter, CI provider); the directory
+   layout (the top-level components and where each lives); the coverage tooling and
+   its threshold (`settings.test_coverage_percent`); and whether an e2e harness is
+   wanted.
+2. Run the clarification ledger (User interaction below): reuse any recorded answer,
+   and ask everything still open in ONE grouped interaction — stack, layout and
+   coverage tooling together, each with your proposal as the default option. Record
+   each answer as its own `clarify.py add --skill create-project` entry before acting
+   on it.
+3. Spawn the scaffolder with those `C-n` entries in `<context>` in place of the
+   `hld/` inputs, and `<constraint name="architecture_source">clarifications</constraint>`.
+   Its authoring notes record that these clarification entries stand in for the
+   architecture set and cite the `C-n` ids wherever they would cite `tech-stack.md`
+   or the C4 views; the build-checker judges `tech-stack` and `layout` against those
+   same entries.
+
+If the user cannot be reached, the existing rule holds — never guess a stack: Finish
+with `status: "handed_off"` and the open questions. The completion report recommends
+`/acs:create-architecture` so a doc set catches up with the scaffold; that
+recommendation is advice, never a precondition.
+
+## Reflection loop — scaffold -> build-check
+
+The loop is scaffold -> build-check, at most 3 iterations, between two subagents:
+
+- **scaffolder** — `acs:create-project-scaffolder`, a `write` role on the
+  `executor` model tier. Iteration 1's scaffolder reads the architecture doc set (or,
+  under the no-architecture fallback, the confirmed `C-n` entries), pins the
+  scaffold — layout, package/build config, test and coverage tooling, lint, CI,
+  the vertical slice, the exact verification commands — in its authoring notes,
+  and then builds it green.
+- **build-checker** — `acs:create-project-build-checker`, a `judge` role on the
+  `verifier` model tier, read-only on the repo. It re-runs the notes' commands
+  itself and judges the result fresh.
+
+On iterations 2-3 the build-checker's findings go verbatim into the next
+scaffolder `<task>` `<context>` and the scaffolder authors the remediation
+against the same iteration-1 notes — they are never re-authored, and no plan
+phase sits in between. Decomposition is YOURS alone — subagents never spawn
+subagents. Before the loop: `mkdir -p steps/create-project`.
+
+**What an iteration counts:** one scaffold -> build-check round. create-project
+has no path-driven check-depth selection: the cap is a fixed 3 in every
 lane, and this ticket introduces none.
 
 Messaging rules for every phase:
 
-- Communicate per `the SubagentStop hook's message check`: you send a `<task>`, the subagent
-  returns a `<result>` as the final content of its reply.
-- Validate EVERY message, sent and received:
-
-```bash
-```
-
+- Communicate per `the SubagentStop hook's message check`: you send a `<task>`
+  whose `phase=` is the role (`scaffolder` or `build-checker`), the subagent
+  returns a `<result>` with the same `phase=` as the final content of its reply.
 - Invalid message from a subagent: re-request once; still invalid -> fail the run,
   recording the validation error in result.json `errors`.
-- Persist every phase output to `steps/create-project/iter-<n>/<phase>.json`
-  at the phase boundary, BEFORE starting the next phase (parallel executors: suffix
-  `iter-<n>-execute-a.xml`, `-b.xml`, ...). The executor's own artifacts are
-  `iter-1-authoring.md` (authored once, on iteration 1: Analysis; File manifest;
-  Commands; Vertical slice; Delivery; Risks; Verifier checklist) and
-  `iter-<n>/execute.json`; every iteration's verifier `<inputs>` name the
-  iteration-1 notes.
+- Every phase's output is on disk before the next phase starts: the SubagentStop
+  hook snapshots each `<result>` to `steps/create-project/iter-<n>/<phase>-message.xml`
+  (parallel scaffolders: one snapshot each), and each agent writes its own
+  report. The scaffolder's own artifacts are `iter-1-authoring.md` (authored once,
+  on iteration 1: Analysis; File manifest; Commands; Vertical slice; Delivery;
+  Risks; Build-checker checklist) and `iter-<n>/scaffolder.json`; the
+  build-checker's is `iter-<n>/build-checker.md`. Every iteration's build-checker
+  `<inputs>` name the iteration-1 notes.
 - Spawn with the Agent tool, `subagent_type`
-  `acs:create-project-executor` / `acs:create-project-verifier`; fall back to the
+  `acs:create-project-scaffolder` / `acs:create-project-build-checker`; fall back to the
   un-namespaced name only if the runtime rejects the namespaced one.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
@@ -147,14 +187,16 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Execute — iteration 1 pins the scaffold before it builds
+### Scaffold — iteration 1 pins the scaffold before it builds
 
-Spawn the executor. Build the input paths from the `<architecture_dir>` and
+Spawn the scaffolder. Build the input paths from the `<architecture_dir>` and
 `<prd>` you located at Start (defaults shown); put `settings.test_coverage_percent`
-in the constraints. Example (iteration 1, repo-relative input paths):
+in the constraints. Under the no-architecture fallback the `hld/` inputs are absent
+and the `C-n` entries go in `<context>` instead (see No-architecture fallback).
+Example (iteration 1, repo-relative input paths):
 
 ```xml
-<task skill="create-project" phase="execute" ticket-id="SHOP-3" iteration="1">
+<task skill="create-project" phase="scaffolder" ticket-id="SHOP-3" iteration="1">
   <objective>Pin the complete scaffold for this greenfield repo per the architecture doc set in the authoring notes steps/create-project/iter-1/authoring.md (list it in outputs), then build it green on the delivery branch.</objective>
   <inputs>
     <file>docs/architecture/hld/tech-stack.md</file>
@@ -171,7 +213,7 @@ in the constraints. Example (iteration 1, repo-relative input paths):
 </task>
 ```
 
-The notes MUST pin, concretely, with nothing left open, before the executor builds:
+The notes MUST pin, concretely, with nothing left open, before the scaffolder builds:
 
 - directory layout mirroring the C4 container/component views;
 - package/build configuration files and the package manager;
@@ -189,17 +231,18 @@ The notes MUST pin, concretely, with nothing left open, before the executor buil
 - the minimal GREEN vertical slice: one real entrypoint plus one smoke test that
   exercises it;
 - the EXACT verification commands (install, build, lint, test-with-coverage) — the
-  contract for both the verifier and the CI workflow.
+  contract for both the build-checker and the CI workflow.
 
-If the executor returns `needs_input` with `<questions>` (a choice `tech-stack.md`
-leaves open), resolve them in User interaction and re-run execute for the same
+If the scaffolder returns `needs_input` with `<questions>` (a choice `tech-stack.md`
+leaves open), resolve them in User interaction and re-run the scaffolder for the same
 iteration with the answers in `<context>`. Findings never return to a plan phase —
-see Verify below for where iteration 2+ findings go.
+see Build-check below for where iteration 2+ findings go.
 
-### Execute — the build
+### Scaffold — the build
 
-Iteration 1 only — create the delivery branch before any executor runs (you do all
-git operations; executors never commit). Branch name per `settings.formats.branch_name`
+Iteration 1 only — create the delivery branch before any scaffolder runs (you own the
+branch, the push and the PR; a scaffolder commits on the branch its notes name but
+never pushes or opens the PR). Branch name per `settings.formats.branch_name`
 (default `{type}/{ticket_id}-{slug}`) with `type=task`, the real ticket id, and the
 slug of the ticket title:
 
@@ -207,23 +250,22 @@ slug of the ticket title:
 git -C <checkout_root> checkout -b task/SHOP-3-project-scaffold
 ```
 
-Spawn executor(s) with `<task skill="create-project" phase="execute" ticket-id="..."
+Spawn scaffolder(s) with `<task skill="create-project" phase="scaffolder" ticket-id="..."
 iteration="n">`: on iterations 2-3 `<inputs>` reference the iteration-1 authoring
-notes and the verifier's findings go verbatim into the executor `<task>`'s
+notes and the build-checker's findings go verbatim into the scaffolder `<task>`'s
 `<context>`, with no plan phase in between. `<constraints>` pin the exact file set
-each executor owns. Executors mutate ONLY `<checkout_root>`. Iteration 1 runs a single
-executor (the notes and the build are one act); on iterations 2-3 you MAY run several
-executors in parallel when their file sets cannot conflict — e.g. one owns build/test/lint/
+each scaffolder owns. Scaffolders mutate ONLY `<checkout_root>`. Iteration 1 runs a single
+scaffolder (the notes and the build are one act); on iterations 2-3 you MAY run several
+scaffolders in parallel when their file sets cannot conflict — e.g. one owns build/test/lint/
 pre-commit config plus the CI workflow, another owns the directory layout, vertical
-slice, README, and `.gitignore`. The verifier runs only after ALL executors finish
-and judges the combined result. Persist executor `<result>`s to
-`iter-<n>-execute*.xml`.
+slice, README, and `.gitignore`. The build-checker runs only after ALL scaffolders finish
+and judges the combined result.
 
-### Verify
+### Build-check
 
-Spawn the verifier with `<task skill="create-project" phase="verify" ...>` whose
-inputs are artifacts only — the scaffold plan and the repo tree, never executor
-reasoning; it judges fresh. The verifier MUST actually run, from `<checkout_root>`,
+Spawn the build-checker with `<task skill="create-project" phase="build-checker" ...>` whose
+inputs are artifacts only — the authoring notes and the repo tree, never scaffolder
+reasoning; it judges fresh. The build-checker MUST actually run, from `<checkout_root>`,
 the exact commands the notes pinned, and see them pass:
 
 1. dependency install — exit 0;
@@ -237,16 +279,17 @@ Plus static checks: layout matches the container/component views; the CI workflo
 runs those same commands; `.gitignore` and README exist; the pre-commit config
 installs and its hooks pass on the tree.
 
-A scaffold that does not run green FAILS verification — every failing command is a
-blocking finding. ALL findings block: zero findings = pass. On findings, persist
-`iter-<n>/verify.md`, then AUTOMATICALLY re-execute, passing every finding to the
-next iteration's executor `<task>` as `<context>`, with no plan phase in between
-— the executor authors the remediation. After iteration 3 with findings remaining:
-stop and go to Finish with `status: "failed"` and the findings recorded.
+A scaffold that does not run green FAILS the build-check — every failing command is a
+blocking finding. ALL findings block: zero findings = pass. On findings (the
+build-checker has written `iter-<n>/build-checker.md`), AUTOMATICALLY run the
+scaffolder again, passing every finding to the next iteration's scaffolder `<task>`
+as `<context>`, with no plan phase in between — the scaffolder authors the
+remediation. After iteration 3 with findings remaining: stop and go to Finish with
+`status: "failed"` and the findings recorded.
 
 ## Delivery — commit, PR, CI proof
 
-Only after a verify pass (zero findings):
+Only after a build-check pass (zero findings):
 
 1. Commit on the scaffold branch, message per `settings.formats.commit_message`
    (default `{ticket_id} {summary}`), and push. `git add -A` is right here and
@@ -266,8 +309,8 @@ git -C <checkout_root> push -u origin task/SHOP-3-project-scaffold
    and recording `{number, url, branch}` as `states.pr`. Write the filled body
    to `steps/create-project/pr-body.md` and pass that path as
    `--body-file` to both the self-check and `gh pr create`; fill its
-   placeholders from workspace state (ticket.json, scaffold plan, verifier
-   results). Read the number back with
+   placeholders from workspace state (ticket.json, the authoring notes,
+   build-checker results). Read the number back with
    `gh pr view --json number,url,headRefName`.
 
 3. CI proof — the scaffolded workflow runs on this very PR; green locally is not
@@ -278,9 +321,9 @@ gh pr checks <number> --watch
 ```
 
    If CI fails: each failing check is a blocking finding. If the 3-iteration budget
-   is not exhausted, run another execute -> verify iteration to remediate (findings
-   to the executor's `<context>`; no plan phase), push to the same branch, and
-   re-watch. Budget exhausted or still red: Finish with
+   is not exhausted, run another scaffold -> build-check iteration to remediate
+   (findings to the scaffolder's `<context>`; no plan phase), push to the same
+   branch, and re-watch. Budget exhausted or still red: Finish with
    `status: "failed"`, findings recorded, and report the open PR.
 
 Merging stays a user action: after their review the user runs
@@ -310,8 +353,9 @@ Before a needs_input handoff, record the outgoing questions as `open`
 Ask the user when genuinely ambiguous — e.g. `hld/tech-stack.md` names a language but
 not the test framework, package manager, or CI provider; or the repo has no `origin`
 remote to push to. Use AskUserQuestion (or plain questions) with concrete options and
-fold the answers into the executor's `<context>`. Do not re-ask anything the
-architecture doc set already pins.
+fold the answers into the scaffolder's `<context>`. Do not re-ask anything the
+architecture doc set already pins. With no architecture doc set, the stack, layout and
+coverage tooling are always asked — once, grouped (see No-architecture fallback).
 
 If you genuinely cannot reach the user (e.g. a non-interactive run): do NOT
 guess. Run Finish with `status: "handed_off"` and the open questions in
@@ -354,8 +398,8 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 
    - `status`: `completed | failed | interrupted | handed_off`.
    - `states.scaffold` keys are EXACTLY `build`, `lint`, `tests`, `coverage_tooling`
-     — booleans reflecting what the VERIFIER (or the PR's CI) saw pass, not what an
-     executor claims. On failure keep whatever is true, e.g. build and lint green
+     — booleans reflecting what the BUILD-CHECKER (or the PR's CI) saw pass, not what
+     the scaffolder claims. On failure keep whatever is true, e.g. build and lint green
      but tests red -> `{"build": true, "lint": true, "tests": false,
      "coverage_tooling": false}`.
    - `states.pr` (`number`, `url`, `branch`) only when a PR was opened.
@@ -378,7 +422,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-project.py" --result-fi
    steps — review then `/acs:merge-pr <ticket-id>`, then `/acs:create-ticket` for
    the first real ticket (typically the MVP epic from the PRD roadmap). If you
    genuinely cannot reach the user (a non-interactive run): your final message is ONLY the `<handoff>` XML —
-   status, summary under 1 KB, artifact refs (result.json, scaffold plan, PR url),
+   status, summary under 1 KB, artifact refs (result.json, authoring notes, PR url),
    and `<next-step>`.
 
 ## Completion report (normative)
@@ -397,5 +441,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the bootstrap PR (CI runs on it); then `/acs:create-ticket` for the MVP epic
+- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the bootstrap PR (CI runs on it); then `/acs:create-ticket` for the MVP epic. When the run took the no-architecture fallback, also recommend `/acs:create-architecture` to document the confirmed stack and layout
 ```

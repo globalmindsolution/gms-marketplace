@@ -495,8 +495,7 @@ def cmd_workflow_validate(args):
         die("workflow validate", str(exc))
     emit({"ok": True, "source": source, "path": path,
           "name": lib.workflow_name(path), "version": doc.get("version"),
-          "steps": lib.steps_of(doc), "loops": lib.loops_of(doc),
-          "warnings": lib.order_warnings(doc)})
+          "steps": lib.steps_of(doc), "loops": lib.loops_of(doc)})
 
 
 def cmd_artifacts_migrate(args):

@@ -1,18 +1,17 @@
-"""The pre-hook gate, driven by what the skill declares (§2.4, §3.11).
+"""The pre-hook gate's generic half (§3.11).
 
 Replaces tests/acs/test_acs_lib_gates.py, whose subject was the seventeen
 per-skill `gate_*` functions and the four-family `GATE_INPUTS` partition that
-classified them. Both are gone: the input half is generic now, and what
-stayed per-skill is only what is genuinely a safety brake.
+classified them. Both are gone, and so is the generic input gate that replaced
+them: what stayed is only what is genuinely a safety brake.
 
 The claims that matter:
 
   * a gate NEVER checks position. Order is /acs:ship's, via the cursor, and a
     skill invoked by hand is never asked whether it is next -- which is the
     whole of what makes every skill independently invocable.
-  * the input check and `acs workflow validate` read ONE declaration, so they
-    cannot disagree about what a skill needs
-  * standalone, a missing required read is a FALLBACK, not a refusal
+  * a gate NEVER checks inputs either: each skill reads what it finds and
+    falls back to the run's subject
   * a step that owes nothing is COMPLETED by the pre-hook, with the plan's own
     reason, and its coordinator never runs
 
@@ -66,56 +65,20 @@ class GateBase(unittest.TestCase):
 
     def write_plan(self, path="standard", api="false", cases="true", e2e="false",
                    reason="CLI-only change; no HTTP surface, no browser flow"):
-        target = R.artifact_path(self.rdir, "plan", None, self.wf)
+        target = R.artifact_path(self.rdir, "plan")
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "w", encoding="utf-8") as handle:
             handle.write(PLAN % (path, api, cases, e2e, reason))
         return target
 
 
-class InputCheckTest(GateBase):
+class NoInputGateTest(GateBase):
 
-    def test_a_missing_required_read_is_refused_under_a_workflow(self):
-        with self.assertRaises(GateError) as caught:
-            G.check_inputs(self.rdir, "code", wf=self.wf, standalone=False)
-        message = str(caught.exception)
-        self.assertIn("plan", message)
-        self.assertIn("create-impl-plan", message, "the refusal names the PRODUCER")
-
-    def test_standalone_the_same_gap_is_a_fallback(self):
-        """§3.11: every artifact has a chain that ends at the subject."""
-        fell_back = G.check_inputs(self.rdir, "code", wf=self.wf, standalone=True)
-        self.assertEqual(fell_back, ["plan"])
-
-    def test_standalone_with_no_subject_at_all_is_refused(self):
-        doc = R.require_run(self.rdir)
-        doc["subject"] = {}
-        R.save_run(self.rdir, doc)
-        with self.assertRaises(GateError) as caught:
-            G.check_inputs(self.rdir, "code", wf=self.wf, standalone=True)
-        self.assertIn("no subject", str(caught.exception))
-
-    def test_a_present_input_passes(self):
-        self.write_plan()
-        self.assertEqual(G.check_inputs(self.rdir, "code", wf=self.wf,
-                                        standalone=False), [])
-
-    def test_the_gate_reads_the_same_declaration_the_validator_does(self):
-        """One declaration, two enforcers. If these ever diverge, a skill can
-        pass validation and then be refused at runtime for an input the
-        workflow was never asked to provide."""
-        from acs_lib import skills as K
-        manifests = K.load_manifests()
-        for step in W.steps_of(self.wf):
-            required, _optional = K.reads_of(step, manifests)
-            missing = [a for a, _p in R.missing_reads(self.rdir, step, manifests, self.wf)]
-            self.assertTrue(set(missing).issubset(set(required)), step)
-
-    def test_an_artifact_that_is_not_a_file_is_not_checked(self):
-        """`changeset` is the working tree against a base ref; the gate asks
-        git about it rather than looking for a path."""
-        self.assertEqual(G.check_inputs(self.rdir, "docs-sync", wf=self.wf,
-                                        standalone=False), [])
+    def test_there_is_no_input_gate(self):
+        """Skills are independent: nothing refuses one because an upstream
+        artifact is absent."""
+        self.assertFalse(hasattr(G, "check_inputs"))
+        self.assertFalse(hasattr(R, "missing_reads"))
 
 
 class NoOpTest(GateBase):
@@ -153,19 +116,19 @@ class NoOpTest(GateBase):
         """A plan that does not mention an artifact leaves the step to do its
         work. The alternative -- treating absence as `false` -- would make an
         old plan silently disable the contract step."""
-        target = R.artifact_path(self.rdir, "plan", None, self.wf)
+        target = R.artifact_path(self.rdir, "plan")
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "w", encoding="utf-8") as handle:
             handle.write("# Plan\n\nProse only; no Contract block.\n")
-        self.assertIsNone(G.noop_decision(self.rdir, "create-api-contract", wf=self.wf))
+        self.assertIsNone(G.noop_decision(self.rdir, "create-api-contract"))
 
     def test_no_plan_at_all_owes_work(self):
-        self.assertIsNone(G.noop_decision(self.rdir, "create-api-contract", wf=self.wf))
+        self.assertIsNone(G.noop_decision(self.rdir, "create-api-contract"))
 
     def test_a_step_that_always_has_work_never_settles(self):
         self.write_plan(api="false", cases="false", e2e="false")
         for step in ("code", "review-code", "docs-sync", "create-pr"):
-            self.assertIsNone(G.noop_decision(self.rdir, step, wf=self.wf), step)
+            self.assertIsNone(G.noop_decision(self.rdir, step), step)
 
 
 class InvariantGateTest(GateBase):
@@ -194,17 +157,15 @@ class InvariantGateTest(GateBase):
 
 
 class OrderIsNotGatedTest(GateBase):
-    """The property the whole redesign rests on: a gate checks inputs and
-    brakes, never position."""
+    """The property the whole redesign rests on: a gate checks brakes, never
+    position and never inputs."""
 
-    def test_a_later_step_passes_with_its_inputs_and_nothing_before_it_run(self):
-        self.write_plan()
+    def test_a_later_step_passes_with_nothing_before_it_run(self):
         self.assertEqual(R.load_run(self.rdir)["steps"], {},
                          "nothing has run yet")
-        self.assertEqual(G.check_inputs(self.rdir, "code", wf=self.wf,
-                                        standalone=False), [],
-                         "code gates on its PLAN, not on analyze-requirements "
-                         "having completed")
+        self.assertEqual(G.check_invariants(self.rdir, self.wf), [])
+        self.assertIsNone(G.noop_decision(self.rdir, "code"),
+                          "code has work without analyze-requirements having run")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Dependency-free corroboration checker for a create-prd plan's three
 required plan sections (`Code evidence`, `Answer fidelity`, `Roadmap
-milestones`) -- the deterministic floor of create-prd-verifier.md's
+milestones`) -- the deterministic floor of create-prd-reviewer.md's
 dimension 7, "Plan conformance" (MAR-304).
 
 Rule families:

@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "outcome": {
-      "description": "Whether the plan's ## Contract block declared an API surface.",
+      "description": "Whether an API surface was owed: `contract_written` when the contract-author \u2192 contract-reviewer loop ran, `no_surface_owed` when the plan's ## Contract block owed none (the pre-hook settles it) or the contract-author's survey found none.",
       "enum": [
         "contract_written",
         "no_surface_owed"

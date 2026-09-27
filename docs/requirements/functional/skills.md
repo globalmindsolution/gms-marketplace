@@ -2,9 +2,10 @@
 
 Thirty skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
-whole of what makes it a skill (§2.4). `skills/<name>/acs.yaml` declares what
-each one reads and writes; nothing declares which group it belongs to, because
-nothing needs to.
+whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
+writes, or which group it belongs to, because nothing needs to: each skill
+reads what it finds and falls back to the run's subject when an upstream
+artifact is absent.
 
 The groups below are a reader's aid, not a structure the code knows about:
 
@@ -42,39 +43,40 @@ no position in a run. `/run-e2e-tests` is a hooked step like any other; the
 
 Every **workflow** skill MUST:
 
-- Nine **workflow/product skills** (docs-sync, code, create-prd,
-  create-design, create-architecture, create-project, create-docs,
-  standardize-project, create-requirements) run the Reflection cycle with
-  their own `<skill>-executor` and `<skill>-verifier` subagents — and no
-  `<skill>-planner`: no skill has a plan phase (ADR-0092;
-  [reflection.md](reflection.md)). Three
+- spawn only the subagents its own work needs, each named for what it does
+  (ADR-0109; [reflection.md](reflection.md)): a `survey` role that reads
+  and records notes and questions, a `write` role that produces the
+  deliverable, a `judge` role that re-derives and judges it fresh. The
+  twelve **authoring skills** and `create-docs` run a write → judge Reflection cycle over
+  their own roles — `analyze-requirements` (analyst, impact-reviewer),
+  `create-prd` and `create-requirements` (surveyor, author, reviewer),
+  `create-architecture` (architect, reviewer), `create-design` (designer,
+  design-reviewer), `create-docs` (author, reviewer), `create-impl-plan`
+  (planner, plan-reviewer), `create-api-contract` (contract-author,
+  contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
+  `create-e2e-tests` (test-writer, suite-runner), `docs-sync` (doc-updater,
+  drift-reviewer), `create-project` (scaffolder, build-checker) and
+  `standardize-project` (auditor, scaffolder, additive-checker). No skill has
+  a plan phase before its writer (ADR-0092). `code` spawns implementers only —
+  its review is `/review-code`, which runs lenses and adjudicators. Three
   **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
-  per MAR-55 invariant (b): the coordinator, optionally delegating to at
-  most one executor subagent, performs the apply-work directly — no
-  verifier subagent, on every delivery path. The skills-independence refactor moved
-  `/code`'s plan phase out into `/create-impl-plan` and added five
-  Build/Test skills (analyze-requirements, create-impl-plan, create-api-contract,
-  create-test-docs, create-e2e-tests); ADR-0092 then retired the planner
-  role everywhere: the twelve **authoring skills** (the nine above minus
-  `code` and `create-docs`, plus those five) run **execute → verify** with an
-  executor that surveys first and records its survey in `iter-<n>-authoring.md`
-  (`create-docs` took that shape first, ADR-0094, because its deliverable is a
-  template-bootstrapped document; the other twelve followed in ADR-0092's
-  stage 2), and `code` runs execute → verify against the plan
-  `/create-impl-plan` approved. Fourteen hooked skills therefore run the
-  execute → verify cycle today.
-- have its inputs checked by a pre-hook and its outcome persisted by a
-  post-hook ([hooks.md](hooks.md)) — neither hook enforces pipeline order;
+  per MAR-55 invariant (b): the coordinator performs the apply-work directly
+  from its `references/` and spawns no subagent, on every delivery path.
+- have its safety brakes checked by a pre-hook and its outcome persisted by a
+  post-hook ([hooks.md](hooks.md)) — neither hook enforces pipeline order,
+  and neither refuses because an upstream artifact is missing;
 - write state **only** inside `<workspace>/<repo>/<ticket-id>/`, and write
   the ticket's human-facing documents only under the fixed
   `docs/tickets/<ticket-id>/` (the consumer repo is
   otherwise touched only where the skill's job requires it, e.g. `/code`
   edits source files);
 - read configuration from the `.acs` `settings.json`
-  ([configuration.md](configuration.md)), and spawn its
-  executor/verifier on the models and effort levels configured there
-  ([configuration.md](configuration.md#subagent-models)) (applies to the fourteen
-  reflection-loop skills only — apply-work skills run inline);
+  ([configuration.md](configuration.md)), and spawn each subagent on the
+  model and effort of its role's tier configured there — `planner` for survey
+  roles and `create-impl-plan`'s planner, `executor` for write roles,
+  `verifier` for judge roles
+  ([configuration.md](configuration.md#subagent-models)) (apply-work skills
+  run inline and spawn none);
 - (except `/create-ticket`) resolve the target `<ticket-id>` before doing
   anything — explicit argument, else session context, else branch name
   ([workflow.md](workflow.md#ticket-context));
@@ -146,8 +148,8 @@ validated against `settings.schema.json`.
   its own `.gitignore` of `*`, written on the first state write (ADR-0105).
 - MUST name every retired settings key (ADR-0102) still in a settings file
   and say it is ignored.
-- `/setup` is not part of the gated pipeline (no executor/verifier
-  subagents); it is a simple setup skill.
+- `/setup` is not part of the gated pipeline (no subagents); it is a
+  simple setup skill.
 - No other skill waits on `/setup`: a repo with no `settings.json` runs every
   skill on the defaults. A pre-hook still refuses (exit 2) a malformed
   hand-set value, such as a lowercase `ticket_prefix`.
@@ -190,7 +192,7 @@ command.
 - MUST re-enter `code` when `/acs:review-code` records blocking findings —
   the workflow's single `loops:` entry, at most `max_iterations` (3) rounds;
   a further round MUST fail the run rather than pass it with findings.
-- No executor/verifier of its own; each step skill is **invoked
+- No subagents of its own; each step skill is **invoked
   directly by the ship coordinator in its own context** and runs its own
   reflection cycle, returning only a compact handoff — `/ship` reads the
   derived cursor rather than a stored position, so its context can be cleared
@@ -208,7 +210,7 @@ when the current one grows long
   summary, and releases the run's lock.
 - Prints the exact command to continue in a new session (e.g.
   `/code SHOP-123`).
-- Not part of the gated pipeline; no executor/verifier subagents.
+- Not part of the gated pipeline; no subagents.
 - Workflow coordinators SHOULD trigger the same flush proactively on context
   pressure, without waiting for the user to invoke `/handoff`.
 
@@ -232,7 +234,7 @@ this skill owns the workflow around it.
   removing that setting), workspace reachable.
 - Reloading is the user's action (`/reload-plugins` or a new session); the
   skill states this explicitly — the current session keeps the old version.
-- Not part of the gated pipeline; no executor/verifier subagents.
+- Not part of the gated pipeline; no subagents.
 
 ## /acs:run-e2e-tests (test)
 
@@ -247,7 +249,7 @@ closing the loop on failures with a regression ticket.
 - **Argument contract:** no `--suite` flag runs every suite in `suites`; one
   or more `--suite <name>` flags run only the named subset.
 - **Unhooked** — like `/setup`/`/update`,
-  `/acs:run-e2e-tests` has no executor/verifier pair, no pre- or
+  `/acs:run-e2e-tests` spawns no subagents, has no pre- or
   post-hook, and no skill-start ticket allocation.
 - **`/acs:test` is removed, not deprecated.** The alias that was to survive
   one release goes with the rename instead, because the surface it aliased
@@ -297,7 +299,7 @@ the repo's `.acs/settings.json` `release` block, dates the section, and opens
 an exempt `release/*` PR for a mandatory human merge.
 
 - **Unhooked** — like `/setup`/`/update`,
-  `/acs:release` has no executor/verifier pair, no `release-state.json`
+  `/acs:release` spawns no subagents, has no `release-state.json`
   skill-start ticket allocation, no `.lock`, no pointer file, no partition.
   It is not part of the gated pipeline.
 - **Fails fast** when no `release` block is configured in `.acs/settings.json`
@@ -364,7 +366,7 @@ Purpose: define the product — the **PRD** is the root document everything
 else is verified against.
 
 - Product-level and ticket-independent. Runs before `/create-architecture`
-  (which checks for the PRD at Start). Re-running **amends the PRD in
+  (which takes the PRD as its primary input). Re-running **amends the PRD in
   place**, preserving sections it does not touch.
 - For a **greenfield** product: elicits the definition from the user. For
   an **existing** product: reverse-engineers a baseline PRD from the
@@ -379,8 +381,9 @@ else is verified against.
   - `roadmap.md` — milestones/phases mapped to intended epics, plus a
     **"Release versions"** mapping table (each release version → its
     milestone/wave and the epic(s) it delivers).
-- Reflection cycle (execute → verify, no planner — ADR-0092):
-  `create-prd-executor`, `create-prd-verifier`. The verifier checks: all required sections
+- Reflection cycle (survey → author → review — ADR-0109):
+  `create-prd-surveyor` (iteration 1 only: mode, outline, open questions),
+  `create-prd-author`, `create-prd-reviewer`. The reviewer checks: all required sections
   present, features trace to goals, success metrics are measurable,
   nothing contradicts the stated constraints, and every roadmap milestone
   resolves to exactly one release version (0 orphan milestones) — plus a
@@ -388,8 +391,8 @@ else is verified against.
   and a blocking `audience-style` check (declared audience/style profile; an
   unwaived audience-mismatch blocks, a `clarify.py --source assumption` waiver
   makes it `severity="info"`, non-blocking).
-- **Independent corroboration (MAR-304).** The executor additionally records
-  three sections in its authoring notes (`iter-<n>-authoring.md`) that the
+- **Independent corroboration (MAR-304).** The authoring notes additionally record
+  three sections (`iter-<n>-authoring.md`) that the
   deterministic floor parses: `## Code evidence`
   (brownfield/amend only, one citation per brownfield code claim in the
   house grammar; `N/A — greenfield, no code to cite` in greenfield),
@@ -397,7 +400,7 @@ else is verified against.
   answered/assumed entry, naming a verbatim anchor in `prd.md`/`roadmap.md`,
   or an `N/A: <why>` escape), and `## Roadmap milestones` (one line per
   declared milestone, its verbatim `roadmap.md` heading text). The
-  verifier's `Plan conformance` dimension runs the shared deterministic
+  reviewer's `Plan conformance` dimension runs the shared deterministic
   `prd_conformance_check.py` floor over these three families — importing
   `citation_check.py`'s own resolution helpers unchanged for the
   code-evidence family — then itself judges the semantic ceiling: whether
@@ -408,7 +411,7 @@ else is verified against.
   script are `severity="blocking"`; there is no `severity="info"`
   carve-out. `clarifications.json` and the repo root are declared
   verify-task inputs/constraints for this skill.
-- The executor's survey also runs the shared ADR-0012 design-time
+- The surveyor's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - State lives in the delivery ticket's partition
@@ -429,9 +432,11 @@ living system documentation the whole pipeline designs and verifies against.
   pipeline. Run once when starting a product (or onboarding `acs` onto an
   existing repo); re-run to regenerate after major shifts.
 - MUST take the **PRD** as its primary input — the skill locates it at
-  Start and stops when none is found: "no PRD found — run /acs:create-prd
-  first (it also baselines existing products)"
-  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)). For an
+  Start ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+  With no PRD it does not stop: it works from the run's subject — a document
+  named in its arguments, else the user's focus notes plus the codebase —
+  and confirms the goals, NFRs and constraints it designs to through the
+  clarification ledger, saying in its report that no PRD existed. For an
   **existing codebase** it additionally
   reverse-engineers the current architecture from the code and docs,
   confirming open points with the user; for a **greenfield** product it
@@ -453,13 +458,13 @@ living system documentation the whole pipeline designs and verifies against.
     `/acs:standardize-project` audits an existing repo against;
   - `lld/flows/<flow>.md` — **sequence diagrams** for the key runtime
     flows, one file per flow — bootstrapped for the main flows (selected by
-    the executor's survey, confirmed with the user) and grown ticket by ticket;
+    the architect's survey, confirmed with the user) and grown ticket by ticket;
   - `lld/contracts.md` — interface/API contracts between components.
 - All diagrams are **Mermaid** (C4, ER, sequence, and state diagrams as
   code: diffable, reviewable, rendered by GitHub, maintainable by agents).
-- Runs the Reflection cycle as execute → verify (no planner — ADR-0092) —
-  `create-architecture-executor`, `create-architecture-verifier`. The
-  verifier checks: the design **satisfies the PRD** (goals, product-level
+- Runs the Reflection cycle as author → review (ADR-0109) —
+  `create-architecture-architect`, `create-architecture-reviewer`. The
+  reviewer checks: the design **satisfies the PRD** (goals, product-level
   NFRs, constraints); the docs match the actual codebase; they are
   internally consistent; diagrams agree with the prose; and **HLD and LLD
   agree with each other** (every participant in a sequence diagram exists
@@ -468,7 +473,7 @@ living system documentation the whole pipeline designs and verifies against.
   and a blocking `audience-style` check (an unwaived audience-mismatch blocks;
   a `clarify.py --source assumption` waiver makes it `severity="info"`,
   non-blocking).
-- The executor's survey also runs the shared ADR-0012 design-time
+- The architect's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - State lives in the delivery ticket's partition
@@ -517,7 +522,7 @@ internal leg skills that differed only in a table row, and that table,
   architecture is upstream of every set. `standards` additionally reads the
   principles set **when the repo has one** (the conformance
   chain `architecture → principles → standards`); when the set is absent
-  the executor notes the grounding step as not
+  the author notes the grounding step as not
   applicable and proceeds — never a block. `principles` has no cross-read on
   `standards/`. That soft edge is why `principles` lands in an earlier
   fan-out batch than `standards`.
@@ -532,13 +537,13 @@ internal leg skills that differed only in a table row, and that table,
   branch and lands as its own docs-only PR; sets run in capped parallel
   (at most `max_parallel`, default 2). Failures are isolated per set; a set
   resumes by its ticket id.
-- Runs the Reflection cycle as **execute → verify, no planner** (ADR-0092
-  class D): `create-docs-executor` authors the set — decides bootstrap vs
+- Runs the Reflection cycle as **author → review** (ADR-0109):
+  `create-docs-author` authors the set — decides bootstrap vs
   re-run from the disk, bootstraps each file from
   `templates/<set>/` verbatim, tailors it to the detected stack (and, for
   `standards`, to the stated principles), and writes its authoring notes
   (`iter-<n>-authoring.md`: mode, Upstream inventory, ADR-0012 consistency
-  findings, decisions); `create-docs-verifier` judges it fresh — doc-set
+  findings, decisions); `create-docs-reviewer` judges it fresh — doc-set
   completeness, architecture conformance (stack/technology claims agree with
   `architecture/hld/tech-stack.md`), required sections, authoring
   conformance, docs-only changeset, consistency, a deterministic `structure`
@@ -547,7 +552,7 @@ internal leg skills that differed only in a table row, and that table,
   `clarify.py --source assumption` waiver makes it `severity="info"`,
   non-blocking). The set, its files and its sections reach both agents as
   task constraints; the same two agent files serve every set.
-- **Citation corroboration (MAR-303).** The executor MUST record every
+- **Citation corroboration (MAR-303).** The author MUST record every
   `Upstream inventory` citation in the one-line grammar
 
   ```
@@ -556,7 +561,7 @@ internal leg skills that differed only in a table row, and that table,
 
   The path is backtick-quoted exactly as shown, the optional
   `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
-  verbatim and mandatory. The verifier's `authoring-conformance` dimension
+  verbatim and mandatory. The reviewer's `authoring-conformance` dimension
   MUST independently re-open and check every such citation: it runs the
   shared deterministic `citation_check.py` floor over the located PRD +
   architecture set (plus the principles set for `standards`, when
@@ -565,9 +570,9 @@ internal leg skills that differed only in a table row, and that table,
   and an exit 2 from the script are `severity="blocking"`; there is **no**
   `severity="info"` carve-out. The located PRD is a declared verify-task
   constraint.
-- The executor also runs the shared ADR-0012 design-time doc-consistency
+- The author also runs the shared ADR-0012 design-time doc-consistency
   step, surfacing gap/staleness findings through the existing clarification
-  ledger; the verifier's `consistency` dimension confirms any such findings
+  ledger; the reviewer's `consistency` dimension confirms any such findings
   were resolved or explicitly deferred.
 - State lives in each set's delivery-ticket partition
   (`steps/create-docs/state.json`; the run's own `workflow` field
@@ -588,7 +593,7 @@ and one file per NFR item under `non-functional/`.
   pipeline. Run once to bootstrap a repo's requirements set, or re-run to
   amend it; either way `/acs:code`'s documentation step keeps accreting into
   the same files afterward.
-- **Three modes**, classified by the executor's survey from the located
+- **Three modes**, classified by the surveyor from the located
   requirements set's content and the codebase:
   - **brownfield** — reverse-engineer the set from an existing codebase
     (architecture-aware feature-area enumeration, codebase-inventory
@@ -609,8 +614,9 @@ and one file per NFR item under `non-functional/`.
   ([configuration.md](configuration.md#document-and-workspace-locations)),
   with `functional/` and `non-functional/` subfolders — or the subfolder
   names an existing set already uses.
-- Runs the Reflection cycle as execute → verify (no planner — ADR-0092) —
-  `create-requirements-executor`, `create-requirements-verifier` —
+- Runs the Reflection cycle as survey → author → review (ADR-0109) —
+  `create-requirements-surveyor` (iteration 1 only), `create-requirements-author`,
+  `create-requirements-reviewer` —
   including a deterministic `structure` floor over each produced area file
   (blocking) and a blocking `audience-style` check (an unwaived
   audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
@@ -654,9 +660,9 @@ architecture, so the ticket pipeline works from the very first ticket.
   - a CI workflow running build, lint, tests, and coverage;
   - `.gitignore`, README skeleton, and a **minimal green vertical slice**
     (entrypoint + smoke test) proving the harness works.
-- Reflection cycle (execute → verify, no planner — ADR-0092):
-  `create-project-executor`, `create-project-verifier` — the executor pins
-  the scaffold in `iter-1-authoring.md` before writing it, and the verifier
+- Reflection cycle (scaffold → build-check — ADR-0109):
+  `create-project-scaffolder`, `create-project-build-checker` — the scaffolder pins
+  the scaffold in `iter-1-authoring.md` before writing it, and the build-checker
   MUST actually run build, lint,
   and tests and see them pass; a scaffold that doesn't run green fails
   verification.
@@ -689,7 +695,7 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
   to fewer audit inputs, never a hard block.
 - Scaffolds **additively only**: it may add missing docs/config/CI/tooling
   files, but never moves, renames, deletes, or rewrites existing source —
-  the verifier re-runs `git diff --name-status` every iteration
+  the additive-checker re-runs `git diff --name-status` every iteration
   (`classify_additive_diff`) and blocks on any status outside the
   allowlist (D6).
 - **e2e CI-gate scaffold (E2E-2):** when `settings.e2e`/`suites.e2e` is set and
@@ -699,24 +705,24 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
   allowlist categories 1+2. An existing `acs-e2e.yml` is never overwritten; the
   gap becomes a `recommended_follow_ups` entry instead. This skill never wires branch protection itself
   — that stays with `/acs:setup`, surfaced as a `recommended_follow_ups` entry pointing there.
-- Runs the Reflection cycle as execute → verify (no planner — ADR-0092) —
-  `standardize-project-executor`, `standardize-project-verifier` — as two
-  separate subagent contexts: iteration 1's executor audits first and
-  records the audit in its authoring notes (`iter-1-authoring.md`), then
-  scaffolds from them (the per-iteration re-plan went with MAR-302, the
-  plan phase itself with ADR-0092). The loop body is execute → verify only,
-  cap 3 on every run, counting execute+verify rounds.
+- Runs the Reflection cycle as audit → scaffold → additive-check (ADR-0109) —
+  `standardize-project-auditor`, `standardize-project-scaffolder`,
+  `standardize-project-additive-checker` — as three separate subagent
+  contexts: iteration 1's auditor audits read-only and records the audit in
+  the authoring notes (`iter-1-authoring.md`); the scaffolder scaffolds from
+  them. The loop body on every later iteration is scaffold → additive-check,
+  cap 3 on every run, counting scaffold + additive-check rounds.
 - **Allowlist provenance and immutability (MAR-302).** The Additive-surface
-  allowlist is authored exactly once, by the iteration-1 executor, in
+  allowlist is authored exactly once, by the iteration-1 auditor, in
   `iter-1-authoring.md`, and is frozen and authoritative for the whole run: the
-  executor's writable surface is monotonically non-increasing across
+  scaffolder's writable surface is monotonically non-increasing across
   iterations 1-3 (it may shrink, e.g. via a narrowing finding, but never
-  grow), and the verifier re-reads that same literal frozen path every
+  grow), and the additive-checker re-reads that same literal frozen path every
   iteration rather than trusting a per-iteration re-derivation. This bounds,
   and does not close, the iteration-1 trust gap (ADR-0079).
-- **Out-of-scope-finding route (MAR-302).** A verifier finding whose
+- **Out-of-scope-finding route (MAR-302).** An additive-checker finding whose
   remediation would need a path/category outside the frozen iteration-1
-  allowlist is never silently added to the executor's writable surface. It
+  allowlist is never silently added to the scaffolder's writable surface. It
   degrades to `severity="info"` and is surfaced as a `recommended_follow_ups`
   entry **only** when all four of these hold (fail-closed otherwise, i.e.
   undetermined stays blocking): `dimension="plan-conformance"`; the finding
@@ -728,12 +734,12 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
   `completion-report` shape findings, and dimension 4's second clause ("no
   unplanned extra scaffold file") are **never** degradable — they always
   block (ADR-0079).
-- **Executor-refusal route, class-scoped (MAR-302).** An executor refusal
+- **Scaffolder-refusal route, class-scoped (MAR-302).** A scaffolder refusal
   for an out-of-frozen-allowlist finding converts to a
-  `recommended_follow_ups` entry **only** when the underlying verifier
+  `recommended_follow_ups` entry **only** when the underlying additive-checker
   finding is of that same degradable `plan-conformance` missing-scaffold
-  class, judged from the verifier's own prior finding — never from the
-  executor's self-report. Every other refusal class — including an
+  class, judged from the additive-checker's own prior finding — never from the
+  scaffolder's self-report. Every other refusal class — including an
   over-scaffold `plan-conformance` finding, or any `additive-only` /
   `doc-set-authorship` / `recommended-follow-ups-only` / `completion-report`
   shape finding — remains a genuine run failure. This is **not** an
@@ -797,10 +803,9 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 - MUST persist the ticket (and its `<ticket-id>`) into the workspace; the
   `<ticket-id>` names the workspace partition for the whole pipeline.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
-  directly, optionally delegating to at most one `create-ticket-executor`
-  subagent; no planner subagent; no verifier subagent. Correctness is gated by
+  directly from `references/materialize.md` and spawns no subagent. Correctness is gated by
   schema validation and the user-confirmation gate (`docs_only`, and the
-  child breakdown in a `--fan-out` run), not an in-skill verifier.
+  child breakdown in a `--fan-out` run), not an in-skill reviewer.
 - Ticket ids use the **per-repo prefix + sequence** (e.g. `SHOP-123`); the
   per-repo counter lives in `<workspace>/<repo>/counters.json`. The
   **first** allocation for a `(repo_id, prefix)` partition is fail-closed —
@@ -831,7 +836,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   default `false`): `true` only when the change touches no executable code or
   tests. The flag relaxes `/code`'s tests-first and coverage hard-fail — the
   full suite still runs once and must stay green, and a diff line touching
-  executable code under the flag is a blocking verifier finding.
+  executable code under the flag is a blocking review finding.
 - MUST NOT classify the ticket's rigor. `/create-ticket` used to capture a
   `size` and a `stakes` axis (MAR-56) and derive a `lane` from them; ADR-0095
   retired all three. Rigor is now ONE judgement, made once, by `/ship`, from
@@ -899,8 +904,8 @@ tickets where the change is architecturally significant.
   requires — which `/code` then applies to the doc set as part of the
   change.
 - Produces **`design.md`** in the ticket's docs folder
-  (`docs/tickets/<ID>/`) — the executor drafts it
-  under `phases/create-design/` and the coordinator publishes the verified
+  (`docs/tickets/<ID>/`) — the designer drafts it
+  under `steps/create-design/` and the coordinator publishes the reviewed
   bytes — with required sections:
   **context & constraints (incl. NFRs such as security and performance),
   options considered, decision & rationale, architecture (components,
@@ -909,7 +914,7 @@ tickets where the change is architecturally significant.
 - Child tickets of an epic do NOT repeat design: their `/code` reads
   the **parent epic's** `design.md` (cross-partition read,
   [workspace-and-state.md](workspace-and-state.md)).
-- The `create-design-verifier` checks: alternatives genuinely weighed,
+- The `create-design-design-reviewer` checks: alternatives genuinely weighed,
   consistency with the existing codebase and docs (including conformance
   with the repo's `standards/` doc set when it has one),
   feasibility, NFR coverage, and a deterministic `structure` floor
@@ -919,9 +924,9 @@ tickets where the change is architecturally significant.
   blocking `audience-style` check (declared audience/style profile; an unwaived
   audience-mismatch blocks, a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking) — same 3-iteration reflection cap.
-- Subagents: `create-design-executor`, `create-design-verifier` (execute →
-  verify, no planner — ADR-0092).
-- The executor's survey also runs the shared ADR-0012 design-time
+- Subagents: `create-design-designer`, `create-design-design-reviewer`
+  (design → review — ADR-0109).
+- The designer's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - The design's accepted decision records are committed into the consumer
@@ -943,7 +948,7 @@ docs and the codebase before anything is planned, and say plainly whether it
 is ready to plan.
 
 - Input: the ticket, the PRD / requirements / architecture doc sets, and the
-  codebase. Pre-hook input check: the ticket resolves. Brake: an **epic** is
+  codebase, each read when present. Pre-hook check: the ticket resolves. Brake: an **epic** is
   refused (epics are designed and fanned out, never implemented).
 - MUST write `analysis.md` to the ticket's docs folder with front matter
   `{ticket, ready_for_planning, api_surface, needs_design_recommendation}`
@@ -965,7 +970,7 @@ is ready to plan.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
 - `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
   apply to this ticket; `api_surface: false` skips it.
-- Subagents: `analyze-requirements-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
+- Subagents: `analyze-requirements-analyst`, `analyze-requirements-impact-reviewer` (analyse → impact review — ADR-0109).
 - State file: `analyze-requirements-state.json`; states `ready_for_planning`,
   `api_surface`, `questions_open`.
 
@@ -976,20 +981,20 @@ an approved `plan.md`.
 
 - Input: the ticket, `analysis.md` and `design.md` when present (the API
   contract comes *after* the plan — the plan is what names the API surface
-  to build). Pre-hook input check: the ticket resolves. Brake: an epic is
-  refused.
+  to build); with neither, the ticket alone. Pre-hook check: the ticket
+  resolves. Brake: an epic is refused.
 - MUST keep every mechanism the phase had inside `/code`, unchanged: the
-  survey (the former planner charter, carried by the executor since
-  ADR-0092), the spec fold, the executor file map, plan approval
+  survey (the former planner charter, carried by the `planner` role), the
+  spec fold, the executor file map, plan approval
   (`standard`/`complex` only, run by those legs) and the plan-revocation path
   (`plan-superseded-<k>.md` in the workspace).
 - MUST write `plan.md` to the ticket's docs folder (`docs/tickets/<ID>/`).
-  It is always authored by the executor:
+  It is always authored by the planner:
   the ADR-0074 fast path, on which the coordinator authored the plan itself
-  with no executor spawn, went with the lanes it forked on (ADR-0095). The
-  verifier judges every draft, and on blocking findings the executor authors
+  with no subagent spawn, went with the lanes it forked on (ADR-0095). The
+  plan-reviewer judges every draft, and on blocking findings the planner authors
   the remediation (ceiling 3
-  verify rounds — ADR-0074's 2026-09-14 amendment), so a fixable draft does
+  review rounds — ADR-0074's 2026-09-14 amendment), so a fixable draft does
   not fail the run on its first verdict.
 - MUST plan against the ticket as written when `analysis.md` says
   `ready_for_planning: true`: the ledger entries `/analyze-requirements` left open
@@ -999,9 +1004,9 @@ an approved `plan.md`.
   ("with no user answer … `/acs:create-impl-plan` plans against the ticket as
   written"). Only the plan's own genuine ambiguities and the oversize
   question are asked.
-- Subagents: `create-impl-plan-executor`, `-verifier` (execute → verify, no
-  planner — ADR-0092; the executor's survey inherited the `code-planner`
-  charter).
+- Subagents: `create-impl-plan-planner`, `create-impl-plan-plan-reviewer`
+  (plan → review — ADR-0109; the planner's survey inherited the
+  `code-planner` charter). The planner runs on the `planner` model tier.
 - State file: `create-impl-plan-state.json`; states `plan_path`,
   `plan_approved`, `file_map`.
 
@@ -1013,10 +1018,10 @@ it.
 
 - Input: `plan.md`, `analysis.md`, the ticket, the architecture doc set, and
   the repo's existing contract files, wherever the repo keeps them (else
-  `docs/api/`). Pre-hook input checks:
-  `plan.md` exists **and** `analysis.md` declares `api_surface: true` —
-  otherwise the skill is refused with a pointer at `/create-impl-plan` or
-  `/analyze-requirements`.
+  `docs/api/`), each read when present; with no plan, the ticket's
+  acceptance criteria bound the contract. Pre-hook check: the ticket
+  resolves. A plan whose contract declares no API surface makes the step an
+  evidenced no-op (`no_surface_owed`).
 - MUST write `api-contract.md`: every endpoint/command/message the plan adds
   or changes, request/response shapes, error codes, compatibility and
   versioning notes, and examples — each traced to an acceptance criterion
@@ -1024,7 +1029,7 @@ it.
 - MUST update the repo's machine-readable contract files where the repo
   keeps them (else create them under `docs/api/`), committed on the ticket
   branch.
-- Subagents: `create-api-contract-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
+- Subagents: `create-api-contract-contract-author`, `create-api-contract-contract-reviewer` (author → review — ADR-0109).
 - State file: `create-api-contract-state.json`; states `contract_path`,
   `items`, `traced_acs`.
 
@@ -1035,7 +1040,7 @@ contract when they exist) into an explicit, traceable set of test cases,
 before any test is written.
 
 - Input: the ticket's acceptance criteria; `plan.md` when present;
-  `api-contract.md` when present. Pre-hook input check: the ticket resolves.
+  `api-contract.md` when present. Pre-hook check: the ticket resolves.
 - MUST write `test-cases.md` with front matter `{ticket, cases}` and a
   table/list of cases: id `TC-n`, traced acceptance criterion, type
   `unit | integration | e2e`, preconditions, steps, expected result, target
@@ -1044,7 +1049,7 @@ before any test is written.
   completed run leaves `untraced_acs` empty.
 - The e2e-typed rows are the input `/create-e2e-tests` reads, and the count
   of them is what decides whether that step has anything to do.
-- Subagents: `create-test-docs-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
+- Subagents: `create-test-docs-test-designer`, `create-test-docs-trace-reviewer` (design → trace review — ADR-0109).
 - State file: `create-test-docs-state.json`; states `cases`, `e2e_cases`,
   `untraced_acs` (MUST be empty on a completed run).
 
@@ -1055,16 +1060,16 @@ Purpose: implement the run's approved plan in the consumer repo using TDD.
 > **`/code` neither plans nor reviews.** The plan phase left for
 > `/create-impl-plan` (§2b) and the review left for `/review-code` (§3b).
 > What remains is the implementation itself: read the plan, write the tests
-> first, write the code, commit on the run's branch. `/code` REQUIRES an
-> approved `plan.md` and produces none; it writes no verdict and grades
-> nothing. Since ADR-0092 the plan charter is the survey of
-> `create-impl-plan-executor.md`, and every `code-planner` mention below
-> reads as that executor's survey. When execution finds the plan itself
+> first, write the code, commit on the run's branch. `/code` implements the
+> approved `plan.md` and produces none (invoked on its own with no plan, it
+> derives an implicit plan from the subject); it writes no verdict and grades
+> nothing. The plan charter is the survey of `create-impl-plan-planner.md`,
+> and every `code-planner` mention below reads as that planner's survey. When execution finds the plan itself
 > wrong, `/code` ends `failed` with `stop_reason: plan_superseded`, which
 > `ship.yaml`'s loop routes back to `/create-impl-plan`.
 
 **Plan authoring (folded into `/create-impl-plan` — ADR 0066).** The plan's
-author — always `create-impl-plan-executor` — writes the implementation
+author — always `create-impl-plan-planner` — writes the implementation
 content itself inside `plan.md`. The obligations below bind that step; they
 are stated here because `/code`'s execute phase anchors on their outputs:
 
@@ -1113,7 +1118,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
 - **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by
   MAR-73).** The plan artifact is a single per-run
   `<run>/steps/create-impl-plan/plan.md`, authored by
-  `create-impl-plan-executor`, written exactly once per run, before `/code`
+  `create-impl-plan-planner`, written exactly once per run, before `/code`
   starts. `plan.md` is the only name ever read or written for it, in every
   case. The approval mirror under `steps/code/` is retired: one file, one
   path, read by every step that needs it.
@@ -1127,7 +1132,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   `ship.yaml`'s `loops[]` sends the cursor from `review-code` back to `code`
   when the verdict records blocking findings, up to
   `loops[].max_iterations` — one cap, the same on every delivery path. On
-  iteration 2+ the confirmed findings are delivered to the executor's
+  iteration 2+ the confirmed findings are delivered to the implementer's
   `<context>`; no planner runs between the review and the fix (ADR-0092).
 - **Plan approval (MAR-73, slice 3 of MAR-69).** On the **`standard`** and
   **`complex`** delivery paths only, at the leg's Start, `/code` MUST record a
@@ -1182,7 +1187,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
 - **ADR-0012 participation (bounded, touched-area, post-plan — third
   amendment).** The plan survey's item 4 detects, for the touched area
   only, four bounded missing doc-graph edges (E1-E4; full table at
-  `create-impl-plan-executor.md`'s item 4): a touched/added component missing
+  `create-impl-plan-planner.md`'s item 4): a touched/added component missing
   from the C4 component doc, a touched/added persisted entity or state
   shape missing from the data model, a touched/added runtime flow
   missing an `lld/flows/` sequence diagram, and a user-visible
@@ -1215,11 +1220,11 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   the epic has no design yet), then `/acs:create-ticket <id> --fan-out`, then
   `/acs:code` on a child. The epic brake is unconditional and runs for every
   implementation step, not only this one.
-- Subagents: `code-executor` and nothing else. `/code` ships **no planner**
+- Subagents: `code-implementer` and nothing else. `/code` ships **no planner**
   (the plan phase moved to `/create-impl-plan`, §2b) and **no verifier** (the
   review moved to `/review-code`, §3b). The four delivery-path legs
   `code-trivial`, `code-small`, `code-standard` and `code-complex` own no
-  agents of their own: each spawns this same executor, and what varies is how
+  agents of their own: each spawns this same implementer, and what varies is how
   many and over which partition of the plan's file map.
 - When the coverage target cannot be reached, the run MUST **hard fail** at
   the review's gate: coverage is a `kind: gate` blocking finding with the
@@ -1230,7 +1235,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   the gate and must stay green, and executable-code diffs under the flag are
   blocking findings.
 - When **`e2e`** is configured ([configuration.md](configuration.md)):
-  executors author the e2e tests their tasks declared (same changeset) and run
+  implementers author the e2e tests their tasks declared (same changeset) and run
   the affected subset; the full e2e suite is `/acs:run-e2e-tests`' own step
   (setup → command → teardown, always).
 - `/code` works on a dedicated git branch (and optionally a worktree) per run;
@@ -1296,7 +1301,7 @@ full unit suite runs.
 
 - `/acs:review-code` is a **step of the workflow**, not a phase inside
   `/acs:code`, and it runs on **every** delivery path. It reviews the
-  changeset — not one executor's output, not one iteration's diff — against
+  changeset — not one implementer's output, not one iteration's diff — against
   the gated upstream contracts.
 - It MUST review in three stages:
     1. **Five read-only lenses in parallel**, each bounded by what it may
@@ -1341,9 +1346,9 @@ full unit suite runs.
   cursor to `code`, up to `loops[].max_iterations`, and `on_exhausted: fail`
   means a run that cannot clear its findings fails rather than passing with
   them.
-- Subagents: `review-code-lens` and `review-code-adjudicator`. That is not an
-  executor/verifier pair and is not meant to be — the two roles fan out
-  independently of each other.
+- Subagents: `review-code-lens` and `review-code-adjudicator`, both judges.
+  They are not a write → judge pair and are not meant to be — the two roles
+  fan out independently of each other.
 
 ## 3a. `/create-e2e-tests`
 
@@ -1361,7 +1366,7 @@ test cases, so the post-code e2e run has something ticket-specific to run.
 - Runs **in parallel with `/docs-sync`** in the default workflow — both need
   only `code` — as two legs in two worktrees
   ([workflow.md](workflow.md#parallel-work)).
-- Subagents: `create-e2e-tests-executor`, `-verifier` (execute → verify, no planner — ADR-0092).
+- Subagents: `create-e2e-tests-test-writer`, `create-e2e-tests-suite-runner` (write → run — ADR-0109).
 - State file: `create-e2e-tests-state.json`; states `suites_written`,
   `cases_covered`.
 
@@ -1378,9 +1383,9 @@ summary alone.
   commits to the existing changeset (same PR/review).
 - MUST gather, and never substitute a bare hand-off summary for: the live
   `git diff <default_branch>...HEAD`, the ticket JSON, `/code`'s
-  `result.json` (`states.docs_updated`), `/code`'s execute report(s)
+  `result.json` (`states.docs_updated`), `/code`'s implementer report(s)
   `problems` field, and the final code-verify artifact.
-- Subagents: `docs-sync-executor`, `docs-sync-verifier` (execute → verify, no planner — ADR-0092).
+- Subagents: `docs-sync-doc-updater`, `docs-sync-drift-reviewer` (update → drift review — ADR-0109).
 - State file: `docs-sync-state.json`, written by the post-hook
   ([workspace-and-state.md](workspace-and-state.md)).
 - Declared position: in the default `ship.yaml`, `docs-sync` needs only
@@ -1402,8 +1407,7 @@ Purpose: ship the implementation as a pull request.
   conversation history.
 - MUST record the PR reference (number/URL) in the workspace state.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
-  directly, optionally delegating to at most one `create-pr-executor`
-  subagent; no planner subagent; no verifier subagent. Correctness was gated
+  directly from `references/publish.md` and spawns no subagent. Correctness was gated
   by the upstream review (`/acs:review-code`); the human checkpoint is the PR review.
 - PR title and PR description MUST follow the formats configured in
   `settings.json` ([configuration.md](configuration.md)). The default
@@ -1507,8 +1511,7 @@ Purpose: land the change.
   auto-marked done ([workflow.md](workflow.md#epic-fan-out)) —
   performed by the `post-merge-pr` hook.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
-  directly, optionally delegating to at most one `merge-pr-executor`
-  subagent; no planner subagent; no verifier subagent. Correctness was gated
+  directly from `references/merge.md` and spawns no subagent. Correctness was gated
   by the upstream review (`/acs:review-code`).
 - Merge strategy is configurable via `merge_strategy` in `settings.json`
   (`squash` | `merge` | `rebase`), default **`squash`**.

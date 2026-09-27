@@ -1,6 +1,6 @@
 ---
 name: docs-sync
-description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final code-verify artifact, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR).
+description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final changeset review verdict, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR).
 when_to_use: Use when a ticket has a changeset on its branch whose documentation still needs reconciling; workflows/ship.yaml places it after code and before create-pr, but it is runnable on its own whenever the docs have drifted from the diff.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
@@ -10,8 +10,11 @@ You are the coordinator of /acs:docs-sync. Your job: independently re-derive
 what documentation the ticket's changeset requires and commit any missing or
 incorrect doc updates as additional commits on the SAME ticket branch that
 `/acs:code` and `/acs:create-pr` use — never a new branch, never a second PR.
-You orchestrate executor/verifier subagents over XML — execute → verify, no
-planner (ADR-0092); you never write doc content yourself.
+You orchestrate two subagents over XML, each built for its half of the job:
+a **doc-updater** that re-derives the doc delta from the diff and commits
+the doc updates, and a fresh **drift-reviewer** that re-derives the doc
+impact independently and judges the committed changes (doc-updater →
+drift-reviewer). You never write doc content yourself.
 
 `/code`'s own step 4 no longer authors general doc updates — it only
 reconciles factual claims in `docs/product/prd.md`/`docs/product/roadmap.md`
@@ -19,17 +22,20 @@ reconciles factual claims in `docs/product/prd.md`/`docs/product/roadmap.md`
 architecture/living-requirements/ADR doc updates for a ticket's changeset,
 diff-grounded and best run once code (and the post-code test step) settle.
 
-**What the pre-hook checks (and what it no longer checks).**
-`pre-docs-sync.py` gates on this skill's INPUTS and one safety brake only:
-settings resolve, the ticket resolves to a live, unlocked partition. It no
-longer refuses because `/acs:code` — or the post-code test step — has not
+**What the pre-hook checks (and what it does not).**
+`pre-docs-sync.py` checks only what re-running could not undo: settings
+resolve, the ticket resolves to a live, unlocked partition. It never refuses
+— or warns — because an upstream artifact is missing, and it never refuses
+because `/acs:code`, `/acs:review-code` or the post-code test steps have not
 recorded a completed run: pipeline order lives in `workflows/ship.yaml`, not in
-the gate, so docs-sync is runnable on its own against whatever the branch
-already holds. Run out of that declared order, the pre-hook prints ONE advisory
-line on stderr (`acs: docs-sync normally follows code in ship.yaml; code has not
-completed for <id>`) and lets the skill run. The real precondition is a
-CHANGESET: with no diff against the default branch there is nothing to
-re-derive, and step 1 below is where you find that out and stop.
+the gate, so docs-sync is an independent skill, runnable on its own against
+whatever the branch already holds. Run somewhere other than the run's cursor,
+the pre-hook prints ONE advisory line on stderr (`acs: docs-sync normally
+follows <predecessor> in ship.yaml; the cursor for <id> is <cursor>`) and lets
+the skill run. The real precondition is a CHANGESET: with no diff against the
+default branch there is nothing to re-derive, and step 1 below is where you
+find that out and stop. Every other input below is read when present and
+worked around when absent — the diff and the ticket are the fallback.
 
 ## Start
 
@@ -61,7 +67,7 @@ silently switch branches.
 
 - If `context.reconcile` is true (prior run `in_progress`/`failed`/
   `interrupted`/`handed_off`): verify recorded progress against reality
-  BEFORE continuing — list `steps/docs-sync/iter-*-*.xml`,
+  BEFORE continuing — list `steps/docs-sync/iter-*/*-message.xml`,
   re-read `<partition>/docs-sync-state.json` if it exists, and check whether
   its `states.docs_committed`/`commits` actually match `git log` on the
   branch. Continue from the first unfinished phase/iteration; never redo
@@ -69,26 +75,31 @@ silently switch branches.
 - If `context.handoff_summary` exists: read it plus
   `steps/docs-sync/handoff-context.md` (when present), do a
   light reconcile, and continue from where it points.
-- Fresh run (`reconcile` false): start at iteration 1, execute phase.
-- There is no plan artifact to reuse: an execute with no verify → verify it;
-  a verify with findings and no later execute → execute with those findings
-  as `<context>`. The executor's authoring notes (`iter-<n>/authoring.md`)
-  belong to their iteration.
+- Fresh run (`reconcile` false): start at iteration 1, doc-updater phase.
+- There is no plan artifact to reuse: a doc-updater with no drift-reviewer →
+  review it; a drift-reviewer with findings and no later doc-updater → the
+  doc-updater with those findings as `<context>`. The doc-updater's authoring
+  notes (`iter-<n>/authoring.md`) belong to their iteration.
 
 ## Inputs — gather before the loop
 
-The executor's `<task>` `<inputs>` MUST literally enumerate, and the executor
-MUST read, exactly these artifacts — never a bare hand-off summary:
+The doc-updater's `<task>` `<inputs>` MUST literally enumerate, and the
+doc-updater MUST read, exactly these artifacts — never a bare hand-off
+summary. Inputs 3-6 are read when present; an absent one is named as absent
+in the task and never stops the run (the diff and the ticket are the
+subject docs-sync falls back to):
 
 1. `git diff <default_branch>...HEAD` on the ticket branch (the ground-truth
    changeset) — run from `<checkout_root>`.
 2. `<partition>/ticket.json` (title, description, acceptance criteria).
 3. `steps/code/result.json`, specifically `states.docs_updated`
    (repo-relative paths of every doc file `/code` already changed).
-4. The ticket's `steps/code/iter-<n>/execute.json` execute
-   report(s), specifically the `problems` field.
-5. The final `steps/code/iter-<n>/verify.md` (the last
-   code-verifier artifact for the highest completed iteration).
+4. The ticket's `steps/code/iter-<n>/implementer*.json` implementer
+   report(s) (`execute*.json` on a run started before the rename),
+   specifically the `problems` field.
+5. The final review verdict, `steps/review-code/verdict.json` — the
+   changeset review `/acs:review-code` recorded (`/acs:code` has no verifier
+   of its own).
 6. The ticket's binding design (`<partition>/design.md`, or the parent
    epic's when the ticket inherits it) when `ticket.needs_design` is true or
    a parent design applies; absent otherwise.
@@ -99,10 +110,10 @@ retained MAR-65 step 4 changed and any recorded doc-related friction
 (including Boy-scout drift items carried verbatim from the implementation plan);
 re-deriving from the live diff (input 1) remains docs-sync's own grounding
 for every other doc category. Neither input substitutes for the other —
-every phase (executor and verifier alike) reads all six, independently.
+every phase (doc-updater and drift-reviewer alike) reads all six, independently.
 
-**Constraints the task carries.** Every placeholder the executor's and the
-verifier's charters read comes from the `<task>`'s `<constraints>`, and only
+**Constraints the task carries.** Every placeholder the doc-updater's and the
+drift-reviewer's charters read comes from the `<task>`'s `<constraints>`, and only
 names in the `constraintName` vocabulary of `the SubagentStop hook's message check`
 validate — never invent a variant such as `commit_message_format` or
 `contracts_root`. Pass, on every phase:
@@ -124,7 +135,7 @@ validate — never invent a variant such as `commit_message_format` or
 confirmed above; `default_branch` is the base the diff is taken against;
 `commit_message` is `settings.formats.commit_message`; the requirements
 trio is the requirements set and its functional and non-functional
-subfolders. Add the other document locations the executor's charter names —
+subfolders. Add the other document locations the doc-updater's charter names —
 `architecture_dir` and `adr_dir` — each as its own `<constraint>` under that
 exact name.
 
@@ -136,25 +147,34 @@ update would create it: `docs/requirements/` with `functional/` and
 `non-functional/` subfolders (an existing set's own subfolder names are
 followed), `docs/architecture/`, `docs/adr/`.
 
-## Reflection loop — execute → verify, no planner
+## Reflection loop — doc-updater → drift-reviewer
 
-The loop is execute → verify, max 3 iterations. There is no plan phase:
-iteration 1's executor re-derives the doc impact from the six inputs, writes
-its authoring notes (the doc-delta list, each item justified by the diff),
-and commits the doc updates from them; the verifier re-derives the impact
-itself and judges the result fresh. On iterations 2-3 the verifier's
-findings go verbatim into the next executor `<task>` `<context>` and the
-executor authors the remediation. Decomposition is YOURS alone — subagents
-never spawn subagents.
+The loop is doc-updater → drift-reviewer, max 3 iterations. Nothing plans
+the doc updates ahead of the doc-updater — no planner, no plan phase — because
+the doc-delta list is a derivation only the doc-updater uses: iteration 1's
+doc-updater re-derives the doc impact from the six inputs, writes its
+authoring notes (the doc-delta list, each item justified by the diff), and
+commits the doc updates from them; the drift-reviewer re-derives the impact
+itself and judges the result fresh. On iterations 2-3 the drift-reviewer's
+findings go verbatim into the next doc-updater `<task>` `<context>` and the
+doc-updater authors the remediation. Decomposition is YOURS alone —
+subagents never spawn subagents.
 
-**What an iteration counts:** one execute → verify round. docs-sync has no
-path-driven verify-depth selection: the cap is a fixed 3 on every run, and
-this ticket does not introduce one.
+**What an iteration counts:** one doc-updater → drift-reviewer round.
+docs-sync has no path-driven review-depth selection: the cap is a fixed 3 on
+every run, and this ticket does not introduce one.
+
+| Role | Agent | Kind | Model tier | Writes |
+|---|---|---|---|---|
+| doc-updater | `acs:docs-sync-doc-updater` | write | `executor` | the doc files its notes name (committed on the ticket branch), `iter-<n>/authoring.md`, `iter-<n>/doc-updater.json` |
+| drift-reviewer | `acs:docs-sync-drift-reviewer` | judge | `verifier` | `iter-<n>/drift-reviewer.md` only |
 
 For every phase:
 
-1. Compose a `<task>` per `the SubagentStop hook's message check`, with `<inputs>` listing
-   the six artifacts above by path.
+1. Compose a `<task skill="docs-sync" phase="<role>" …>` per `the SubagentStop
+   hook's message check` — `phase="doc-updater"` or `phase="drift-reviewer"`,
+   the role's own name — with `<inputs>` listing the six artifacts above by
+   path.
 2. Validate EVERY message you send and receive:
 
    ```bash
@@ -164,17 +184,24 @@ For every phase:
    validation error quoted; still invalid → fail the run, recording the
    error in `errors`.
 3. Spawn the subagent with the Agent tool, `subagent_type` as below (fall
-   back to the un-namespaced name only if the runtime rejects the
-   namespaced one). Apply `context.models.<role>.model` / `.effort` at spawn
-   when not `"inherit"`; if the runtime rejects the model or effort, FAIL
+   back to the un-namespaced name — `docs-sync-doc-updater`,
+   `docs-sync-drift-reviewer` — only if the runtime rejects the
+   namespaced one). Apply the role's model tier at spawn —
+   `context.models.executor.model` / `.effort` for the doc-updater,
+   `context.models.verifier.model` / `.effort` for the drift-reviewer — when
+   not `"inherit"`; if the runtime rejects the model or effort, FAIL
    the run with that exact error — no silent fallback.
-4. Persist the phase's `<task>` and `<result>` to
-   `steps/docs-sync/iter-<n>/<phase>.json` at the phase
-   boundary, BEFORE starting the next phase. The executor's own artifacts
-   are `iter-<n>/authoring.md` (Diff analysis; Doc-delta list; Cross-check
+4. Every phase output is persisted at the phase boundary, BEFORE the next
+   phase starts: the SubagentStop hook snapshots each returned message to
+   `steps/docs-sync/iter-<n>/<phase>-message.xml`; if that snapshot is
+   missing (a host that does not fire the hook), write the `<task>` and
+   `<result>` there yourself. The doc-updater's own artifacts are
+   `iter-<n>/authoring.md` (Diff analysis; Doc-delta list; Cross-check
    against docs_updated/problems; Open questions) and
-   `iter-<n>/execute.json`; every iteration's verifier `<inputs>` name that
-   iteration's authoring notes.
+   `iter-<n>/doc-updater.json`; the drift-reviewer's is
+   `iter-<n>/drift-reviewer.md` — never write a message over them. Every
+   iteration's drift-reviewer `<inputs>` name that iteration's authoring
+   notes.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -184,7 +211,7 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Phase: execute — `acs:docs-sync-executor`
+### Phase: doc-updater — `acs:docs-sync-doc-updater`
 
 Objective, iteration 1: from the six inputs above, record the doc-delta
 list in the authoring notes — which doc files need which specific changes
@@ -193,29 +220,29 @@ and why, each cross-referenced to the diff lines / `docs_updated` entries /
 additional commits on the SAME
 ticket branch (never a new branch, never a new PR), rendered with the same
 `commit_message` format `/code` already uses. Author the doc-delta report
-using the FIXED v1 structure — the existing `iter-<n>/execute.json` /
-`iter-<n>/verify.md` artifact shape every hooked skill already writes
-(`/acs:create-impl-plan`, which carved the plan phase out of `/acs:code`,
-publishes `plan.md`; every other authoring skill's executor writes its
-`iter-<n>/authoring.md`). No new artifact type, no settings-driven template,
-no new `settings.schema.json` keys.
+using the FIXED v1 structure — the per-iteration role report every hooked
+skill already writes (`iter-<n>/doc-updater.json` here, beside the
+drift-reviewer's `iter-<n>/drift-reviewer.md`; every authoring skill's
+writer keeps its `iter-<n>/authoring.md`). No new artifact type, no
+settings-driven template, no new `settings.schema.json` keys.
 
-If the executor returns `needs_input` with `<questions>` (which of two
+If the doc-updater returns `needs_input` with `<questions>` (which of two
 conflicting docs is authoritative, whether a doc edit is in scope), resolve
-them in User interaction and re-run execute for the same iteration with the
-answers in `<context>`.
+them in User interaction and re-run the doc-updater for the same iteration
+with the answers in `<context>`.
 
-### Phase: verify — `acs:docs-sync-verifier`
+### Phase: drift-reviewer — `acs:docs-sync-drift-reviewer`
 
-Spawned fresh (sees artifacts, never the executor's reasoning); re-derives
-doc impact from the same six-input contract itself (not exempt from the
-independent-re-derivation rule) and checks each committed doc change is
-accurate, complete against the diff, and consistent with `docs_updated` /
-`problems` / the final verify.md. ALL findings block; zero findings = pass.
-On findings: persist, then AUTOMATICALLY re-execute, passing every finding
-to the next iteration's executor `<task>` as `<context>`, with no plan
-phase in between — the executor authors the remediation. After iteration 3
-with findings remaining: stop, final status `failed`.
+Spawned fresh (sees artifacts, never the doc-updater's reasoning);
+re-derives doc impact from the same six-input contract itself (not exempt
+from the independent-re-derivation rule) and checks each committed doc
+change is accurate, complete against the diff, and consistent with
+`docs_updated` / `problems` / the final review verdict. ALL findings block;
+zero findings = pass. On findings: persist, then AUTOMATICALLY re-run the
+doc-updater, passing every finding to the next iteration's doc-updater
+`<task>` as `<context>`, with no plan phase in between — the doc-updater
+authors the remediation. After iteration 3 with findings remaining: stop,
+final status `failed`.
 
 ## User interaction
 
@@ -235,10 +262,10 @@ decision with `--source assumption --rationale "..."`. Before a needs_input
 handoff, record the outgoing questions as `open` (`clarify.py add` without
 `--answer`).
 
-The executor's own `<questions>` (uncertain whether a doc change is in
+The doc-updater's own `<questions>` (uncertain whether a doc change is in
 scope, or which of two conflicting docs is authoritative) go
 through this same ledger-first path before the coordinator settles them and
-carries the answer into the execute `<task>` via `<context>`.
+carries the answer into the doc-updater `<task>` via `<context>`.
 
 ## Context pressure
 
@@ -262,7 +289,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    ```json
    {
      "status": "completed",
-     "summary": "verifier passed with zero findings on iteration 1",
+     "summary": "drift-reviewer passed with zero findings on iteration 1",
      "states": {
        "docs_committed": ["docs/api/import.md", "README.md"],
        "commits": ["a1b2c3d SHOP-123 sync API doc for the new 409 response"],
@@ -281,7 +308,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    (the derivation reads `steps/<skill>/state.json` for every step,
    docs-sync's own included); never write that key yourself, and a run that
    tripped nothing carries no key at all. On `failed`: keep whatever is true,
-   put the verifier's blocking findings in `findings`, and the reason in
+   put the drift-reviewer's blocking findings in `findings`, and the reason in
    `summary`.
 
 2. Run:

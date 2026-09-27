@@ -9,13 +9,21 @@ You are the coordinator of /acs:create-api-contract. Your job: turn the API
 surface the ticket's implementation plan declares into a specification others
 can build and test against — `api-contract.md` for the ticket, plus the repo's
 machine-readable contract files when it keeps any. Every item traces back to an
-acceptance criterion AND to the plan item that introduces it. You orchestrate executor/verifier subagents over XML — execute → verify, no
-planner (ADR-0092); you never write the contract
-content yourself.
+acceptance criterion AND to the plan item that introduces it. You orchestrate
+two subagents over XML — the **contract-author** enumerates the surface and
+writes the draft, the **contract-reviewer** re-derives the surface and judges
+the draft fresh (contract-author → contract-reviewer); you never write the
+contract content yourself.
 
 You specify; you never implement. No production code, no tests: `/acs:code`
 implements this contract, `/acs:create-test-docs` derives contract cases from
-it, and `/acs:code`'s verifier checks the changeset against it.
+it, and `/acs:review-code` checks the changeset against it.
+
+This skill is independent: it runs the same whether `/acs:ship` invoked it or a
+user did, and it never refuses because an earlier skill has not run. It works
+from what it finds — the plan, the analysis, the design — and falls back to the
+run's subject (the ticket's acceptance criteria, the prompt or the document)
+when an upstream artifact is absent.
 
 ## When nothing is owed
 
@@ -41,23 +49,30 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ap
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround. `pre-create-api-contract.py` has verified this skill's
-inputs, and its refusals are the map of what must already be true:
+improvise a workaround. `pre-create-api-contract.py` refuses only what would do
+damage re-running cannot undo: a ticket that does not resolve to a live,
+unlocked partition, and an epic (an epic is designed and fanned out, never
+given one contract). It never refuses because an upstream artifact is missing,
+and there is no predecessor-completed check: order lives in
+`workflows/ship.yaml`, not in this gate.
 
-- the ticket resolves to a live, unlocked partition;
-- `plan.md` exists for the ticket — the plan is what names the surface this
-  contract covers. Missing → "run /acs:create-impl-plan <id> first";
-- `analysis.md` exists. Missing → "run /acs:analyze-requirements <id> first";
-- `analysis.md` declares `api_surface: true`. Otherwise the gate refuses:
-  `/acs:create-api-contract` only runs for a ticket whose analysis found an API
-  surface change, and the pointer is to re-run `/acs:analyze-requirements <id>` if
-  the analysis is stale. Do not work around it by editing `analysis.md`
-  yourself — the analysis is `/acs:analyze-requirements`'s artifact, and
-  `workflows/ship.yaml` skips this step for a ticket whose analysis says there
-  is no surface to specify.
+What you find decides how you scope the run, never whether it runs:
 
-There is no predecessor-completed check: order lives in `workflows/ship.yaml`,
-not in this gate.
+- `plan.md` present — **the primary input**; the contract covers exactly the
+  surface this plan adds or changes.
+- `plan.md` absent — work from the subject: the ticket's acceptance criteria
+  (or the prompt / document) and the code are the scope. Say so in
+  `## Scope & sources` and in the completion report, where the pointer is
+  "run /acs:create-impl-plan <id> first" for a contract scoped by a plan.
+- `analysis.md` present — its API-surface assessment (`api_surface`) and its
+  evidence inform the survey. When it declares `api_surface: false` and you
+  were invoked anyway, run: the contract-author's survey either finds the
+  surface the analysis missed — report that disagreement — or finds none, and
+  the run completes with `outcome: no_surface_owed`.
+  Do not work around it by editing `analysis.md` yourself — the analysis is
+  `/acs:analyze-requirements`'s artifact; a stale one is re-run there.
+- `analysis.md` absent — the survey assesses the surface from the plan (or
+  the subject) and the code alone.
 
 Parse the printed context JSON. Fields you will use:
 
@@ -74,7 +89,8 @@ Parse the printed context JSON. Fields you will use:
   and read it for the interface decisions it already settled. Call it
   `<design_doc>`.
 - `settings` — you need `formats.branch_name`, `formats.commit_message`.
-- `models` — per-role `{model, effort}` for executor/verifier.
+- `models` — per-tier `{model, effort}`: the contract-author runs on the
+  `executor` tier, the contract-reviewer on the `verifier` tier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -119,7 +135,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id
 
 Call it `<contract_path>`; record it as `states.contract_path`. The same call
 reports `artifacts["plan.md"]` and `artifacts["analysis.md"]` — the exact paths
-the gate resolved. Pass THOSE paths to every subagent `<inputs>`; do not
+the gate resolved (`null` when one does not exist). Pass THOSE paths to every
+subagent `<inputs>`; do not
 re-derive them.
 
 The working draft lives at
@@ -134,8 +151,8 @@ whatever this repo already uses — live where the repo keeps them, else at
 `docs/api/`, the conventional default. Locate them the way any session finds a
 document: CLAUDE.md and whatever docs index it or the repo points at (e.g.
 `docs/README.md`), then a Glob/Grep by file name or content, and `docs/api/`.
-Resolve the mode ONCE, before planning, and state it in the plan's
-`<constraints>`:
+Resolve the mode ONCE, before the first subagent is spawned, and state it in
+every task's `<constraints>`:
 
 - none found → mode `no-machine-readable-contracts`. Do NOT invent the
   convention: record that in `## Contract files` and leave the tree absent.
@@ -148,8 +165,8 @@ Resolve the mode ONCE, before planning, and state it in the plan's
   in the format they already use.
 
 Those two token values are what `<constraint name="contracts_mode">` carries
-into every phase, so the executor and the verifier judge against the same
-resolution.
+into every phase, so the contract-author and the contract-reviewer work against
+the same resolution.
 
 ## Resume & reconcile
 
@@ -161,12 +178,15 @@ continuing:
 2. Re-resolve `<contract_path>` and read it if it exists; check `git status` /
    `git log` for contract-file changes a prior run committed. Trust nothing you
    cannot see in a file or a commit.
-3. Continue from the first unfinished phase — an execute with no verify →
-   verify it; a verify with findings and no later execute → execute with
-   those findings as `<context>`; nothing on disk → iteration 1 execute.
-4. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
-   never re-runs an iteration whose verify is already on disk.
+3. Continue from the first unfinished phase — a contract-author report
+   (`iter-<n>/contract-author.json`) with no contract-reviewer report →
+   review it; a contract-reviewer report (`iter-<n>/contract-reviewer.md`)
+   with findings and no later contract-author → re-run the contract-author
+   with those findings as `<context>`; nothing on disk → iteration 1
+   contract-author.
+4. The contract-author's authoring notes (`iter-<n>/authoring.md`) belong to
+   their iteration, and a resumed run never re-runs an iteration whose
+   contract-reviewer report is already on disk.
 
 If `context.handoff_summary` exists, read it plus
 `steps/create-api-contract/handoff-context.md` (when present), do
@@ -174,14 +194,17 @@ a light reconcile, and continue from where it points.
 
 ## Inputs — gather before the loop
 
-Name these by path in the executor's `<inputs>` (never inline a file body):
+Name these by path in the contract-author's `<inputs>` (never inline a file
+body); an input that does not exist is named as absent, never invented:
 
-1. `plan.md` (the path `artifacts show` reported) — **the primary input**. The
-   contract covers the surface THIS plan adds or changes: its executor tasks,
-   file map and API/data-changes content are the scope boundary. A surface the
-   plan does not touch is out of scope, however tempting.
-2. `analysis.md` — the API-surface assessment and its evidence, the impact map,
-   the assumptions and the refined acceptance criteria.
+1. `plan.md` (the path `artifacts show` reported), when it exists — **the
+   primary input**. The contract covers the surface THIS plan adds or changes:
+   its executor tasks, file map and API/data-changes content are the scope
+   boundary. A surface the plan does not touch is out of scope, however
+   tempting. With no plan, the ticket's acceptance criteria are the boundary.
+2. `analysis.md`, when it exists — the API-surface assessment and its
+   evidence, the impact map, the assumptions and the refined acceptance
+   criteria.
 3. The ticket document (`source_path` from `artifacts show`) — the acceptance
    criteria every item traces to.
 4. `<design_doc>` when `design.required` — interface decisions the
@@ -194,44 +217,48 @@ Name these by path in the executor's `<inputs>` (never inline a file body):
    handler, the parser, the emitter) — the current shape is what "changed" is
    measured against.
 
-## Reflection loop — execute → verify, no planner
+## Reflection loop — contract-author → contract-reviewer
 
-Run execute → verify until the verifier returns zero blocking findings or the
-cap is reached. The cap is a fixed **3** on every run — `/acs:create-api-contract`
-has no path-driven verify depth. There is no plan phase: iteration 1's
-executor surveys the inputs, writes its authoring notes, and authors the contract draft
-from them; the verifier judges the result fresh. On iterations 2-3 the
-verifier's findings go verbatim into the next executor `<task>` `<context>`
-and the executor authors the remediation.
+Run contract-author → contract-reviewer until the contract-reviewer returns
+zero blocking findings or the cap is reached. The cap is a
+fixed **3** on every run — `/acs:create-api-contract` has
+no path-driven verify depth. Iteration 1's
+contract-author surveys the inputs, writes its authoring notes, and authors the
+contract draft from them; the contract-reviewer re-derives the surface and
+judges the result fresh. On iterations 2-3 the contract-reviewer's findings go
+verbatim into the next contract-author `<task>` `<context>` and the
+contract-author authors the remediation.
 
-**What an iteration counts:** one execute → verify round.
+**What an iteration counts:** one contract-author → contract-reviewer round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-api-contract"
-  phase="execute|verify" ticket-id="<id>" iteration="n">` with
+  phase="contract-author|contract-reviewer" ticket-id="<id>" iteration="n">` with
   `<objective>`, `<inputs>` (file refs) and `<constraints>` — always
   `required_sections` (the seven headings below), `audience_style_profile`
   (`integrators (precise shapes + examples)`), and `contracts_mode` (the mode
   resolved above).
-- Validate EVERY message you send and receive:
-
-  ```bash
-  ```
-
-  On invalid: re-request once with the validation error quoted; still invalid →
-  fail the run and record the error in the result document's `errors`.
-- Persist every phase's `<task>` and `<result>` to
-  `steps/create-api-contract/iter-<n>/<phase>.json` at the phase
-  boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:create-api-contract-executor`,
-  `acs:create-api-contract-verifier` — fall
-  back to the un-namespaced name only if the runtime rejects the namespaced
-  one. Apply `context.models.<role>.model` / `.effort` at spawn when not
-  `"inherit"`; if the runtime rejects the model or effort, FAIL the run with
-  that exact error — no silent fallback.
+- Validate EVERY message you send and receive — the SubagentStop hook checks
+  each returned `<result>`'s `skill=`, `phase=` and `iteration=`. On invalid:
+  re-request once with the validation error quoted; still invalid → fail the
+  run and record the error in the result document's `errors`.
+- Every phase output is persisted at the phase boundary, BEFORE the next phase
+  starts: the SubagentStop hook snapshots each returned message to
+  `steps/create-api-contract/iter-<n>/<phase>-message.xml` (`<phase>` is the
+  role); if that snapshot is missing (a host that does not fire the hook),
+  write the `<task>` and `<result>` there yourself.
+- Spawn subagents with the Agent tool: `subagent_type:
+  "acs:create-api-contract-contract-author"` and
+  `"acs:create-api-contract-contract-reviewer"` — fall back to the
+  un-namespaced name (`create-api-contract-contract-author`,
+  `create-api-contract-contract-reviewer`) only if the runtime rejects the
+  namespaced one. Apply `context.models.<tier>.model` / `.effort` at spawn when
+  not `"inherit"` — tier `executor` for the contract-author, `verifier` for the
+  contract-reviewer; if the runtime rejects the model or effort, FAIL the run
+  with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -241,10 +268,11 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Phase: execute — `acs:create-api-contract-executor`
+### Phase: contract-author — `acs:create-api-contract-contract-author`
 
 Objective, iteration 1: enumerate the surface. From the plan, the analysis,
-the design and the code, record in the authoring notes
+the design and the code (or, with no plan, the subject and the code), record in
+the authoring notes
 (`steps/create-api-contract/iter-<n>/authoring.md`) one entry per
 endpoint/command/message/schema/signature the plan adds or changes — each
 with its kind, its current shape (or "new"), the plan item and acceptance
@@ -252,15 +280,20 @@ criterion it traces to, the compatibility question it raises, and which
 machine-readable contract file (when the tree exists) describes it — plus the
 genuinely open questions (a versioning or breaking-change decision the plan
 does not settle is exactly such a question). Then write the contract draft
-from those notes. The notes are what the verifier checks the draft against.
+from those notes. The notes are what the contract-reviewer checks the draft
+against.
 
-If the executor returns `needs_input` with `<questions>`, resolve them in User
-interaction and re-run execute for the same iteration with the answers in
-`<context>`.
+If the contract-author returns `needs_input` with `<questions>`, resolve them
+in User interaction and re-run the contract-author for the same iteration with
+the answers in `<context>`.
 
-### Phase: execute — `acs:create-api-contract-executor`
+If the survey finds no surface at all — nothing the plan or the subject adds or
+changes is an endpoint, command, message, schema, signature or persisted
+format — the contract-author says so in its report (`items: 0`) and writes no
+draft. Skip the contract-reviewer, publish nothing, and complete with
+`outcome: no_surface_owed` and the survey's reason in `summary`.
 
-Objective: write the contract draft to
+The same phase then writes the contract draft to
 `steps/create-api-contract/api-contract.md` — one draft per run,
 revised in place across iterations — and, when the mode says the repo keeps
 machine-readable contracts, update those files in the consumer repo and commit
@@ -287,26 +320,28 @@ contract_files: ["docs/api/openapi.yaml"]
 ```
 
 `## Surface` carries one `### ` subsection per item — what each holds is
-defined in `create-api-contract-executor.md`. `items` in the front matter is
+defined in `create-api-contract-contract-author.md`. `items` in the front matter is
 the number of those subsections, and `contract_files` is the repo-relative list
 of machine-readable files this run changed (`[]` when none).
 
-On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
-else — no plan phase in between.
+On iteration ≥ 2 the contract-author fixes every finding in `<context>` and
+nothing else.
 
-### Phase: verify — `acs:create-api-contract-verifier`
+### Phase: contract-reviewer — `acs:create-api-contract-contract-reviewer`
 
-Spawn `acs:create-api-contract-verifier` AFTER the draft is written, with
-`<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`), `plan.md`, `analysis.md`, the
-ticket document, `design.md` when it binds, and every contract file the
-executor touched. It judges fresh, re-derives the surface from the plan and the
-code itself, and writes
-`steps/create-api-contract/iter-<n>/verify.md`.
+Spawn `acs:create-api-contract-contract-reviewer` AFTER the draft is written,
+with `<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`),
+the contract-author report (`iter-<n>/contract-author.json`), `plan.md` and
+`analysis.md` when they exist, the ticket document, `design.md` when it binds,
+and every contract file the contract-author touched. It judges fresh — never
+forward the contract-author's reasoning — re-derives the surface from the plan
+(or the subject) and the code itself, and writes
+`steps/create-api-contract/iter-<n>/contract-reviewer.md`.
 
 ALL blocking findings block — zero blocking findings = pass.
-`status="completed"` means verification RAN; the empty `<findings>` is the
-pass. On findings: persist, then AUTOMATICALLY re-execute with every finding in
-the next executor's `<context>`. After iteration 3 with findings remaining:
+`status="completed"` means the review RAN; the empty `<findings>` is the
+pass. On findings: persist, then AUTOMATICALLY re-run the contract-author with
+every finding in its `<context>`. After iteration 3 with findings remaining:
 stop with final status `"failed"`, findings recorded, and no published
 contract — `/acs:code` then implements against the plan alone, which is exactly
 the ambiguity this step exists to remove, so say so in `summary`.
@@ -323,16 +358,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --ordered "steps/create-api-contract/api-contract.md"
 ```
 
-A finding from either is remediated in the next execute iteration (or, at
-iteration 3, fails the run) — never patched by you.
+A finding from either is remediated in the next contract-author iteration
+(or, at iteration 3, fails the run) — never patched by you.
 
 ### Publish — the coordinator is the only writer of `api-contract.md`
 
-Once the verifier passes and both checks are clean, publish the draft. **The
-coordinator performs this step itself, never a subagent:** the file-map write
-guard (`acs_lib/filemap.py`) denies any running executor a write under the
-ticket docs tree, because the contract is a control input the executors of
-`/acs:code` are later checked against. Copy, never re-author:
+Once the contract-reviewer passes and both checks are clean, publish the
+draft. **The coordinator performs this step itself, never a subagent:** the
+file-map write guard (`acs_lib/filemap.py`) denies any running `write`-kind
+agent a write under the ticket docs tree, because the contract is a control
+input the implementers of `/acs:code` are later checked against. Copy, never re-author:
 
 ```bash
 cp "<partition>/steps/create-api-contract/api-contract.md" "<contract_path>"
@@ -396,7 +431,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    ```json
    {
      "status": "completed",
-     "summary": "verifier passed with zero findings on iteration 2; contract published and committed",
+     "outcome": "contract_written",
+     "summary": "contract-reviewer passed with zero findings on iteration 2; contract published and committed",
      "states": {
        "contract_path": "docs/tickets/SHOP-123/api-contract.md",
        "items": 3,
@@ -417,6 +453,13 @@ MANDATORY final step — never skipped, also on failure or handoff:
      `### ` subsections under `## Surface`.
    - `traced_acs` (list): the acceptance-criteria ids the items trace to, each
      appearing at least once in `## Traceability`.
+
+   `outcome` is required on every result document — the post-hook refuses one
+   without it, because this step completes in two ways: `contract_written`
+   when the loop ran, `no_surface_owed` when the survey found no surface to
+   specify (then `items` is `0` and `traced_acs` is `[]`). The pre-hook
+   records `no_surface_owed` itself when the plan's `## Contract` block owes
+   no contract, and this coordinator never runs.
 
    The machine-readable contract files are committed on the ticket branch, not
    recorded in `states`; name them in the completion report instead. On failure

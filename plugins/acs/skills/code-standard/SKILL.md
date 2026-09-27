@@ -1,6 +1,6 @@
 ---
 name: code-standard
-description: Implement a subject's plan on the STANDARD delivery path — one executor per disjoint file-map partition, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path standard; never chosen by hand.
+description: Implement a subject's plan on the STANDARD delivery path — one implementer per disjoint file-map partition, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path standard; never chosen by hand.
 argument-hint: "[ticket-id | prompt | document]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -25,29 +25,29 @@ path only carries what makes it different:
 | Read | For |
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the execute phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
 
 Everything below is what THIS path does differently. Where this file and a
-reference disagree about executors, this file wins — that is the whole reason
+reference disagree about implementers, this file wins — that is the whole reason
 it exists.
 
 ## The machinery of this path
 
 | | this path |
 |---|---|
-| Executors | one per disjoint file-map partition |
+| Implementers | one per disjoint file-map partition |
 | Test contract | `test-cases.md` |
 | Plan approval | **enforced** |
 
-### Executors
+### Implementers
 
-**Partition the plan's file map and spawn one executor per partition.** A
+**Partition the plan's file map and spawn one implementer per partition.** A
 partition is disjoint: no two partitions name the same file, and no partition's
 work depends on reading another's edits mid-flight. Partitions that cannot be
 made disjoint are one partition.
 
-Each executor gets its own partition's file map and nothing else. The file-map
-guard enforces that at the tool boundary, so an executor that wanders is
+Each implementer gets its own partition's file map and nothing else. The file-map
+guard enforces that at the tool boundary, so an implementer that wanders is
 refused rather than reviewed.
 
 ### Inputs

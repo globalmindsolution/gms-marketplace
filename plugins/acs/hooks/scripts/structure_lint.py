@@ -8,7 +8,7 @@ which must sit beside this file on sys.path.
 The acs doc-producing skills (create-prd, create-architecture, create-design,
 and create-docs for the quality, operations, principles and standards sets)
 each declare a required-section list — in their SKILL.md, or for the doc sets
-in acs_lib.DOC_SETS, which /acs:create-docs hands its verifier as constraints. This linter is the
+in acs_lib.DOC_SETS, which /acs:create-docs hands its reviewer as constraints. This linter is the
 deterministic ($0, stdlib-only) backstop that checks a generated doc against
 that declared list: every required section present, non-empty, and (when
 asked) in the declared order.

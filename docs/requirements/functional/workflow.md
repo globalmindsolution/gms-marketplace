@@ -2,11 +2,11 @@
 
 ## Pipeline
 
-The `acs` plugin implements a multi-step delivery workflow. Every skill
-declares its own **phase** — design, build, test, ship, utility — in
-`plugins/acs/skills/<name>/acs.yaml`, beside the artifacts it reads and writes.
-There is no registry file: the surfaces that need the grouping read the skill
-directories. The ORDER in which a ticket's build/test/ship steps run is
+The `acs` plugin implements a multi-step delivery workflow. Every skill is
+an independent skill — a directory under `plugins/acs/skills/` — grouped by
+**phase** (design, build, test, ship, utility) only as a reader's aid. There
+is no registry file and no per-skill manifest: nothing declares what a skill
+reads or writes. The ORDER in which a ticket's build/test/ship steps run is
 **declared data, not hook code**: it lives in `plugins/acs/workflows/ship.yaml`,
 which a consumer repo MAY replace wholesale with
 `<repo>/.acs/workflows/ship.yaml` (an override, never a merge).
@@ -20,8 +20,10 @@ now means:
 
 - **Every skill MUST be runnable on its own**, from a ticket id, a prompt or
   a document. A skill's pre-hook MUST NOT refuse it for running before or
-  after another skill; it checks only the inputs that skill reads plus a small
-  set of safety brakes ([hooks.md](hooks.md)).
+  after another skill, or because an upstream artifact is missing; it checks
+  only a small set of safety brakes ([hooks.md](hooks.md)). A skill whose
+  upstream artifact is absent falls back to the run's subject — the ticket's
+  acceptance criteria, the prompt or the document.
 - **No workflow construct may decide whether a skill applies.** A predicate in
   the workflow makes a skill untrustworthy standalone: invoked by hand it
   never evaluates the condition the workflow was evaluating for it. Each skill
@@ -43,11 +45,12 @@ form a cycle and how many times. The shipped workflow has exactly one:
 `on_exhausted: fail`. It cannot live inside a skill because it spans two of
 them, which is the test for what belongs in a workflow file at all.
 
-**Order is VALIDATED, not declared twice.** Each `skills/<name>/acs.yaml`
-declares `reads.required`, `reads.optional` and `writes`, and
-`acs.py workflow validate` checks that every step's required reads are
-written by an earlier step. Swap two steps whose order does not matter and it
-passes; swap two whose order does and it names the pair and the line.
+**The list is an orchestrator, not a contract.** It keeps the order the
+skills run in and nothing else. `acs.py workflow validate` checks only what a
+list can get wrong on its own — every step is a skill that ships and not
+another skill's leg (`acs_lib.skills.SKILL_LEGS`), and every loop's
+`back_to` precedes its `from` — and never what a skill needs. An
+out-of-order override validates, and its steps run on their fallbacks.
 
 `/create-ticket` and `/create-design` are **design** work that runs before
 `/ship`; `/merge-pr` is **ship** work a human drives after review.
@@ -57,7 +60,7 @@ passes; swap two whose order does and it names the pair and the line.
 | — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. Runs before `/ship`. |
 | — `/create-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
 | `analyze-requirements` | build | Read the subject, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict. A not-ready analysis returns `needs_input`. |
-| `create-impl-plan` | build | The plan phase carved out of `/code`: the executor's survey, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. **It also judges the delivery path**, once, from the plan's own scope, and writes it into the plan's `## Contract` block (ADR-0098). |
+| `create-impl-plan` | build | The plan phase carved out of `/code`: the planner's survey, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. **It also judges the delivery path**, once, from the plan's own scope, and writes it into the plan's `## Contract` block (ADR-0098). |
 | `create-api-contract` | build | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files where the repo keeps them (else `docs/api/`). Records an evidenced no-op when the Contract says `owes.api_contract: false`. |
 | `create-test-docs` | build | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. Records an evidenced no-op when the Contract says `owes.test_cases: false`. |
 | `code` | build | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. It dispatches to the delivery-path leg the plan recorded. **It has no verifier, does not judge the changeset, and never runs the full suite** — targeted tests only. |
@@ -128,17 +131,19 @@ the ticket's own fields, so the two can no longer disagree
 
 ## Step gating
 
-Gating is **input gating and safety braking**, not order enforcement. The
-pipeline's order lives in `ship.yaml` ([Pipeline](#pipeline)); a pre-hook's
-job is to make sure the skill it guards can do its work at all, and to stop a
-run that would be unsafe.
+Gating is **safety braking**, not order enforcement and not input
+checking. The pipeline's order lives in `ship.yaml` ([Pipeline](#pipeline));
+a pre-hook's job is to stop a run that would be unsafe. Whether the skill has
+what it needs is the skill's own question, and it answers it by falling back
+to the run's subject.
 
 - Each hooked skill MUST be guarded by a **pre-hook**. Readiness means, at
   minimum: the settings validate (no `.acs/settings.json` is needed — every
-  key has a default, ADR-0105), the run resolves, no other
-  session holds the run's lock, and every **input artifact the skill itself
-  reads** exists. Examples: `/code` requires an approved `plan.md`;
-  `/create-architecture` requires the PRD doc set.
+  key has a default, ADR-0105), the run resolves, and no other session holds
+  the run's lock. A pre-hook MUST NOT refuse because an upstream artifact is
+  missing: `/code` with no `plan.md` derives an implicit plan from the
+  subject, and `/create-architecture` with no PRD works from the subject and
+  confirms goals, NFRs and constraints through the clarification ledger.
 - **A pre-hook may also COMPLETE its step, from evidence, without running
   it.** When the plan's `## Contract` block says the step owes nothing —
   `owes.api_contract: false`, say — the pre-hook records an evidenced no-op
@@ -157,10 +162,8 @@ run that would be unsafe.
   `verifier_passed != true` (a run with **no** recorded review is allowed
   through); `/merge-pr` requires a recorded PR reference; every hooked skill
   refuses while another session holds the lock.
-- If a required input is missing, the pre-hook MUST exit with code **2**,
-  which blocks the skill, and MUST name the artifact and the skill that
-  produces it (e.g. "no plan.md found for SHOP-123 … — run
-  /acs:create-impl-plan SHOP-123 first.").
+- When a brake fires, the pre-hook MUST exit with code **2**, which blocks
+  the skill, and MUST name the brake and what clears it.
 - **Out-of-order is an advisory, never a refusal.** When a hooked skill runs
   before a step that precedes it in the resolved `ship.yaml` has completed,
   the pre-hook MUST print exactly one stderr line naming the position — e.g.
@@ -219,7 +222,7 @@ remains that skill's own business.
   gone — a `/acs:code` step that finds the plan wrong ends `failed` with a
   summary naming the plan as superseded, and the run re-enters
   `/acs:create-impl-plan`.
-- `/ship` has no executor/verifier of its own; each invoked skill
+- `/ship` has no subagents of its own; each invoked skill
   runs its own reflection cycle.
 
 ### Context handoff between steps
@@ -229,7 +232,7 @@ every skill's transcript in one context:
 
 - The `/ship` coordinator **invokes each step skill directly in its own
   context** (it holds the Agent tool the step needs to spawn its own
-  executor/verifier). Between steps it reads only `run.json`, the subject's
+  subagents). Between steps it reads only `run.json`, the subject's
   own document (`ticket.md` in the docs tree), the output of
   `acs.py run next`, and
   the step's handoff / `result.json` — never the step's transcript — so its
@@ -300,25 +303,25 @@ Done.
 
 ## Inside each step: Reflection
 
-Every one of the fourteen skills that run a reflection loop (the twelve
-**authoring** skills plus `/acs:code` and `/acs:create-docs`)
-MUST internally run an **execute → verify** cycle using a dedicated
-subagent per phase (e.g. `docs-sync-executor`, `docs-sync-verifier`). No
-skill has a plan phase (ADR 0092): an authoring skill's executor surveys
-first and records the survey in `iter-<n>-authoring.md`, which the verifier
-judges the deliverable against — with
-one exception: for `/create-impl-plan`, the execute phase's dedicated subagent is
-spawned on STANDARD/COMPLEX only; on TRIVIAL/SMALL the coordinator authors the
-plan artifact itself, with zero executor spawns (MAR-72, ADR 0074). `/acs:code`
-has **no plan of its own** — its plan phase became
-`/create-impl-plan` — and runs execute → verify against that approved plan;
-the execute and verify phases keep dedicated subagents in every lane, for
-`/acs:code` and for every other skill that runs the loop.
+Each skill spawns only the subagents its own logic needs, each named for
+the work it does (ADR-0109). The twelve **authoring** skills and `/acs:create-docs` MUST
+internally run a **write → judge** cycle with a dedicated subagent per role
+(e.g. `docs-sync-doc-updater`, `docs-sync-drift-reviewer`); `create-prd` and
+`create-requirements` add a read-only `surveyor`, and `standardize-project`
+an `auditor`, that run on iteration 1 only and freeze the notes the writer
+works from. No skill has a plan phase before its writer (ADR 0092): a writer
+with no survey role before it surveys first and records the survey in
+`iter-<n>/authoring.md`, which the judge judges the deliverable against.
+`/create-impl-plan`'s `planner` authors the plan on every run (ADR-0095
+removed the TRIVIAL/SMALL fork on which the coordinator authored it itself).
+`/acs:code` has **no plan of its own** — its plan phase became
+`/create-impl-plan` — and spawns `code-implementer`s against that approved
+plan; its review is `/acs:review-code`, a step of its own.
 The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
-run **inline** instead — the coordinator, optionally delegating to at most
-one `<skill>-executor` subagent, spawns no verifier in any
-lane. The coordinator orchestrates these subagents and communicates with
-them in XML. Details in [reflection.md](reflection.md).
+run **inline** instead — the coordinator runs the steps from its
+`references/` and spawns no subagent in any lane. The coordinator
+orchestrates its subagents and communicates with them in a task/result
+message format. Details in [reflection.md](reflection.md).
 
 ## Review feedback loop
 
@@ -349,7 +352,7 @@ the review now, and the loop is **automatic**:
   to say so and the tree it would measure is about to change.
 - When the review records blocking findings, the workflow's single `loops:`
   entry returns the cursor to `code`, which passes every confirmed finding to
-  the next iteration's executor(s) in its context **with no intervening plan
+  the next iteration's implementer(s) in its context **with no intervening plan
   phase** — a finding already says what is wrong and what would make it
   right, and carries a `resolved_when`. The plan `/create-impl-plan` approved
   is an input, authored before iteration 1.
@@ -365,7 +368,7 @@ the review now, and the loop is **automatic**:
 - The loop runs at most **3 iterations** (execute+verify rounds); if findings
   remain, `/code` stops and records the findings and stop reason in
   `code-state.json`.
-- Only when the verifier passes does the `/create-pr` pre-hook gate open.
+- Only when the review passes does the `/create-pr` pre-hook gate open.
 - Every iteration is recorded in the workspace state files (findings, fixes,
   stop reasons), so the loop is resumable and auditable like everything else.
 
@@ -391,8 +394,8 @@ Resume works at three levels, all from workspace state alone:
    ([Context handoff](#context-handoff-between-steps)).
 3. **Mid-skill** — a run entry is appended with status **`in_progress`** by
    the coordinator at skill start and finalized by the post-hook, and the
-   coordinator persists every phase output (plan, executor results, verifier
-   verdicts) to the partition at each phase boundary. Even a hard crash that
+   coordinator persists every role's output (authoring notes, writer
+   results, judge verdicts) to the partition at each phase boundary. Even a hard crash that
    skips the post-hook therefore leaves evidence: `runs[-1].status ==
    "in_progress"` plus a stale `.lock` — downstream gates read "not
    completed". On re-run, the coordinator enters **reconcile mode**: verify
@@ -493,7 +496,7 @@ capability that diverges from it.
   impact without matching doc changes in the same changeset is a blocking
   finding, and "no impact" is a conclusion, never a default. Drift from
   commits that bypassed the pipeline is repaired **boy-scout style**: the
-  design and implementation executors' surveys check the touched area's docs against current code and
+  designer's and implementation planner's surveys check the touched area's docs against current code and
   schedule stale sections for repair with the ticket; widespread drift
   triggers a recommended `/create-architecture` re-run.
 

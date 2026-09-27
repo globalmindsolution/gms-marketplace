@@ -23,16 +23,16 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 
-REQUIREMENTS_EXECUTOR = os.path.join(AGENTS, "create-requirements-executor.md")
-REQUIREMENTS_VERIFIER = os.path.join(AGENTS, "create-requirements-verifier.md")
-ARCHITECTURE_EXECUTOR = os.path.join(AGENTS, "create-architecture-executor.md")
-ARCHITECTURE_VERIFIER = os.path.join(AGENTS, "create-architecture-verifier.md")
-DOCS_SYNC_EXECUTOR = os.path.join(AGENTS, "docs-sync-executor.md")
+REQUIREMENTS_AUTHOR = os.path.join(AGENTS, "create-requirements-author.md")
+REQUIREMENTS_REVIEWER = os.path.join(AGENTS, "create-requirements-reviewer.md")
+ARCHITECTURE_EXECUTOR = os.path.join(AGENTS, "create-architecture-architect.md")
+ARCHITECTURE_VERIFIER = os.path.join(AGENTS, "create-architecture-reviewer.md")
+DOCS_SYNC_EXECUTOR = os.path.join(AGENTS, "docs-sync-doc-updater.md")
 #: The guard side of the merge. MAR-162 moved the requirements merge onto
 #: /acs:docs-sync, and v0.5.0 retired code-verifier.md with the in-skill
-#: review, so the verifier that guards the routing is the one paired with the
-#: executor that performs it.
-DOCS_SYNC_VERIFIER = os.path.join(AGENTS, "docs-sync-verifier.md")
+#: review, so the judge that guards the routing is the drift-reviewer paired
+#: with the doc-updater that performs it.
+DOCS_SYNC_VERIFIER = os.path.join(AGENTS, "docs-sync-drift-reviewer.md")
 CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 
 SIDECAR_TOKEN_RE = re.compile(r"(?i)\.evidence\.md")
@@ -73,14 +73,14 @@ def window_around(body, token, span=400):
     return body[max(0, idx - span):idx + len(token) + span]
 
 
-class RequirementsExecutorSidecarContractTest(unittest.TestCase):
-    """AC-3: the executor's step 2 ("DRAFT, code-cited write") routes the
+class RequirementsAuthorSidecarContractTest(unittest.TestCase):
+    """AC-3: the author's step 2 ("DRAFT, code-cited write") routes the
     code-evidence citation to a companion `.evidence.md` sidecar, keyed by the
     clause's stable anchor, with no inline `path:line` left in the body."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(REQUIREMENTS_EXECUTOR)
+        cls.body = read(REQUIREMENTS_AUTHOR)
 
     def test_draft_marker_still_present(self):
         self.assertRegex(self.body, r"(?i)DRAFT\s*(—|-)\s*human-confirm-required")
@@ -101,14 +101,14 @@ class RequirementsExecutorSidecarContractTest(unittest.TestCase):
     def test_body_states_no_inline_path_line(self):
         self.assertRegex(
             self.body, r"(?i)no\s+inline\s*`?path:line`?",
-            "the executor charter must state the body carries no inline "
+            "the author charter must state the body carries no inline "
             "path:line citation",
         )
 
     def test_canonical_strip_form_sidecar_naming(self):
         self.assertIn(
             "<doc-basename-without-.md>.evidence.md", self.body,
-            "the executor must encode the canonical strip-form sidecar "
+            "the author must encode the canonical strip-form sidecar "
             "filename rule (C-4)",
         )
 
@@ -118,14 +118,14 @@ class RequirementsExecutorSidecarContractTest(unittest.TestCase):
         )
 
 
-class RequirementsVerifierGroundingContractTest(unittest.TestCase):
+class RequirementsReviewerGroundingContractTest(unittest.TestCase):
     """AC-3: dimension 6 "Citation (100%)" is reframed IN PLACE to check the
     sidecar — body-grep-to-0, sidecar existence, anchor-join, and (amend
     mode) count-not-reduced."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(REQUIREMENTS_VERIFIER)
+        cls.body = read(REQUIREMENTS_REVIEWER)
         cls.block = dimension_block(cls.body, "Citation (100%)", "DRAFT marker")
 
     def test_no_tests_path_hardcode(self):
@@ -167,7 +167,7 @@ class RequirementsVerifierGroundingContractTest(unittest.TestCase):
 
 
 class ArchitectureExecutorSidecarContractTest(unittest.TestCase):
-    """AC-3: create-architecture-executor's "Doing the work" gains the same
+    """AC-3: create-architecture-architect's "Doing the work" gains the same
     body+sidecar split rule, reusing the identical convention."""
 
     @classmethod
@@ -224,8 +224,9 @@ class DocsSyncExecutorRequirementsMergeSidecarContractTest(unittest.TestCase):
     """AC-3 (MAR-162 retarget): the requirements-merge write path routes any
     in-scope citation it would otherwise embed to the target area file's
     companion sidecar. MAR-162 re-homed this write path out of
-    `/acs:code`'s `code/SKILL.md` step 4 into `docs-sync-executor.md`'s
-    charter (C-1); the rubric+sidecar block itself moved byte-identical."""
+    `/acs:code`'s `code/SKILL.md` step 4 into docs-sync's writer charter
+    (C-1; `docs-sync-doc-updater.md` since the per-skill subagents); the
+    rubric+sidecar block itself moved byte-identical."""
 
     @classmethod
     def setUpClass(cls):
@@ -243,7 +244,7 @@ class DocsSyncExecutorRequirementsMergeSidecarContractTest(unittest.TestCase):
         near = self.body[m.end():m.end() + 1200]
         self.assertRegex(
             near, SIDECAR_TOKEN_RE,
-            "docs-sync-executor.md must route in-scope citations to a "
+            "docs-sync-doc-updater.md must route in-scope citations to a "
             "'.evidence.md' sidecar near the classification rubric",
         )
 

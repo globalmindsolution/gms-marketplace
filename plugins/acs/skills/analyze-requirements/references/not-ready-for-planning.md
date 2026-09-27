@@ -23,8 +23,8 @@ missing in `## Verdict`, and finish as `needs_input`:
 
 1. Record every outgoing question as `open` (`clarify.py add` without
    `--answer`).
-2. Publish the analysis anyway when it verified — a not-ready analysis is still
-   the artifact the answers come back to.
+2. Publish the analysis anyway when it passed the impact review — a
+   not-ready analysis is still the artifact the answers come back to.
 3. Write result.json with `"status": "needs_input"`, `stop_reason` "needs user
    input", `states.ready_for_planning: false`, run the Finish steps, and return
    a `<handoff status="needs_input">` whose `<questions>` carry them.

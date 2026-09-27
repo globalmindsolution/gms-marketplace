@@ -3,7 +3,7 @@ verify only. The skills-independence refactor completed what MAR-71 started:
 the plan phase left this skill entirely for /acs:create-impl-plan, so the
 one-planner-spawn-per-run and plan-section contracts now live in
 tests/acs/test_create_impl_plan.py, and what is pinned here is the loop that
-remains. Verifier findings on iteration 2+ route straight to the executor's
+remains. Review findings on iteration 2+ route straight to the implementer's
 <context>, with no intervening planner spawn. Mid-flight escalation's
 detection point and monotone-ceiling guarantee are unaffected and are pinned
 here as regressions.
@@ -30,8 +30,8 @@ from acs_lib import workflow  # noqa: E402
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
-IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
-CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
+CODE_IMPLEMENTER = os.path.join(PLUGIN, "agents", "code-implementer.md")
 
 
 def _code_contract():
@@ -101,8 +101,8 @@ class NoPlanPhaseInCodeTest(unittest.TestCase):
                 "un-negated 're-plan' instruction found: %r" % window)
 
 
-class FindingsRouteStraightToExecutorTest(unittest.TestCase):
-    """AC-2: review findings on iteration 2+ go straight to the executor's
+class FindingsRouteStraightToImplementerTest(unittest.TestCase):
+    """AC-2: review findings on iteration 2+ go straight to the implementer's
     <context>, with no intervening planner spawn.
 
     v0.5.0 moved the review itself out of /acs:code into /acs:review-code,
@@ -110,20 +110,20 @@ class FindingsRouteStraightToExecutorTest(unittest.TestCase):
     verifier inside this skill. The routing property the AC pinned is
     unchanged and is what is asserted here."""
 
-    def test_findings_feed_the_executor_context_with_no_planner_in_between(self):
+    def test_findings_feed_the_implementer_context_with_no_planner_in_between(self):
         body_norm = norm(_code_contract())
         no_planner_re = re.compile(r"(?i)(no|never|without)\W{0,20}planner")
         for m in re.finditer(r"(?i)findings", body_norm):
             window = body_norm[max(0, m.start() - 300):m.end() + 300]
-            if ("executor" in window.lower() and "<context>" in window
+            if ("implementer" in window.lower() and "<context>" in window
                     and no_planner_re.search(window)):
                 return
         self.fail(
-            "code/SKILL.md must co-locate 'findings', 'executor', "
+            "code/SKILL.md must co-locate 'findings', 'implementer', "
             "'<context>' and a no-planner clause within ~300 chars")
 
-    def test_executor_input_contract_still_carries_iteration_2plus_findings(self):
-        body_norm = norm(read(CODE_EXECUTOR))
+    def test_implementer_input_contract_still_carries_iteration_2plus_findings(self):
+        body_norm = norm(read(CODE_IMPLEMENTER))
         self.assertIn(
             "on iteration 2+ the review's confirmed findings assigned to you",
             body_norm)
@@ -188,12 +188,12 @@ class IterationCapCountsExecuteVerifyRoundsTest(unittest.TestCase):
         self.assertRegex(
             contract_norm,
             r"(?i)no planner runs between the review and the fix")
-class ExecutorScopeEscapeHatchTest(unittest.TestCase):
-    """AC-2 corollary: the executor's out-of-map escape hatch no longer
+class ImplementerScopeEscapeHatchTest(unittest.TestCase):
+    """AC-2 corollary: the implementer's out-of-map escape hatch no longer
     promises a coordinator re-plan."""
 
     def test_out_of_map_escape_hatch_does_not_promise_a_replan(self):
-        body_norm = norm(read(CODE_EXECUTOR))
+        body_norm = norm(read(CODE_IMPLEMENTER))
         self.assertNotRegex(body_norm, r"(?i)coordinator\s+re-?plans")
         self.assertRegex(
             body_norm,

@@ -226,7 +226,7 @@ class PluginInternalDocReconciliationTest(unittest.TestCase):
 
     def test_internals_living_requirements_names_docs_sync(self):
         body = read(INTERNALS)
-        self.assertIn("`/acs:docs-sync`'s executor\nmerges the merged ticket's acceptance criteria", body)
+        self.assertIn("`/acs:docs-sync`'s doc-updater\nmerges the merged ticket's acceptance criteria", body)
 
     def test_docs_sync_skill_framing_preserves_six(self):
         body = read(DOCS_SYNC_SKILL)

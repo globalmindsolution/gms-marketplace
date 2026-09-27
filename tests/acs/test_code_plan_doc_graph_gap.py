@@ -31,7 +31,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
-IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 ADR_0012 = os.path.join(REPO_ROOT, "docs", "adr", "0012-design-time-doc-consistency.md")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
@@ -176,7 +176,7 @@ class PlanSkillPointerSentenceTest(unittest.TestCase):
         cls.bullet_norm = norm(cls.bullet)
 
     def test_pointer_names_the_planner_item_4(self):
-        self.assertIn("create-impl-plan-executor", self.bullet)
+        self.assertIn("create-impl-plan-planner", self.bullet)
         self.assertRegex(self.bullet_norm, r"(?i)item 4")
 
     def test_pointer_names_bounded_touched_area(self):

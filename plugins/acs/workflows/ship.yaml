@@ -16,11 +16,12 @@
 # about the change, it declares that two steps form a cycle and how many
 # times. It cannot live inside a skill because it spans two of them.
 #
-# Order is VALIDATED, not declared: each skill's skills/<name>/acs.yaml says
-# what artifacts it reads and writes, and `acs workflow validate` checks that
-# every step's required reads are written by an earlier step. Swap two steps
-# whose order does not matter and it passes; swap two whose order does and it
-# names the pair.
+# The list is an ORCHESTRATOR and nothing more: it keeps the order the skills
+# run in. Each skill is independent -- it reads what it finds and falls back
+# to the run's subject when an upstream artifact is absent -- so no skill is
+# refused for running before another, and `acs workflow validate` checks only
+# that every step is a skill that ships (and not another skill's leg) and that
+# every loop goes back.
 #
 # See plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md §2.
 version: 3

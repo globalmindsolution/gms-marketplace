@@ -63,13 +63,16 @@ class TestGates(AcsWorkspaceCase):
 
     def test_the_prd_precondition_is_the_skills_not_the_hooks(self):
         """ADR-0102: no setting says where the PRD lives, so the hook cannot
-        look for it. /acs:create-architecture finds it itself and stops."""
+        look for it. /acs:create-architecture looks for it itself and, when
+        there is none, falls back to the run's subject rather than stopping:
+        a skill never refuses because an upstream skill has not run."""
         result = self.pre("create-architecture")
         self.assertEqual(result.returncode, 0, result.stderr)
         with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-architecture",
                                "SKILL.md"), encoding="utf-8") as fh:
             body = " ".join(fh.read().split())
-        self.assertIn("no PRD found — run /acs:create-prd first", body)
+        self.assertIn("no PRD found — working from <the subject>", body)
+        self.assertNotIn("run /acs:create-prd first", body)
 
     def test_code_requires_resolvable_ticket(self):
         result = self.pre("code")
@@ -263,9 +266,11 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotIn("KeyError", result.stderr)
 
-    def test_without_architecture_the_skill_stops_not_the_hook(self):
-        """ADR-0102: the architecture precondition moved into the skill, which
-        can find a set wherever the repo keeps it; the hook passes."""
+    def test_without_architecture_neither_the_skill_nor_the_hook_stops(self):
+        """ADR-0102: the architecture check moved into the skill, which can
+        find a set wherever the repo keeps it; the hook passes. Since the
+        per-skill subagents the skill does not stop either: it falls back to
+        the PRD/repo and only RECOMMENDS /acs:create-architecture."""
         for skill in self.PRODUCERS:
             with self.subTest(skill=skill):
                 result = self.pre(skill)
@@ -273,7 +278,10 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
                 self.assertNotIn("KeyError", result.stderr)
                 with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", skill,
                                        "SKILL.md"), encoding="utf-8") as fh:
-                    self.assertIn("run /acs:create-architecture first", " ".join(fh.read().split()))
+                    body = " ".join(fh.read().split())
+                self.assertIn("run /acs:create-architecture first", body)
+                self.assertIn("(a recommendation, never a precondition)", body)
+                self.assertNotIn("None found → STOP", body)
 
 
 class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):

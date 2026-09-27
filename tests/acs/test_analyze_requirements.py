@@ -5,11 +5,11 @@ enum) is tests/acs/test_build_test_skill_registry.py's; the gate bodies are
 tests/acs/test_acs_lib_gates.py's. THIS module pins the part that lives in
 markdown and would otherwise drift away from the deterministic layer:
 
-  * the analysis's front matter — the five keys, checked here with the SAME
+  * the analysis's front matter — the four keys, checked here with the SAME
     checker and the SAME `--require` spec the SKILL.md tells the coordinator to
     run, so the documented example actually passes it;
   * the seven required sections, declared byte-identically in the skill and in
-    the verifier's re-run, and linted here against a doc built from the skill's
+    the impact reviewer's re-run, and linted here against a doc built from the skill's
     own skeleton;
   * the `states` keys the result document records, cross-checked against
     post-analyze-requirements.py's docstring;
@@ -21,7 +21,7 @@ markdown and would otherwise drift away from the deterministic layer:
     the delivery path is judged once from the plan by /acs:ship. What this step
     owes that judgement is evidence — load-bearing surfaces named in `## Risks`
     — not a rigor setting written ahead of it;
-  * the pair's shape (execute -> verify, no planner, artifacts, grounding).
+  * the pair's shape (analyst -> impact review, artifacts, grounding).
 
 Run:  python3 -m unittest tests.acs.test_analyze_requirements -v
 """
@@ -60,7 +60,7 @@ import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
 
-ROLES = ("executor", "verifier")
+ROLES = ("analyst", "impact-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
 STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open")
@@ -98,7 +98,7 @@ def flag_values(body, flag):
 
 def doc_front_matter_example(body):
     """The `---` block of the first fenced example whose front matter names a
-    ticket — the shape the executor is told to emit."""
+    ticket — the shape the analyst is told to emit."""
     match = re.search(r"(?ms)^```markdown\n(---\nticket:.*?\n---\n)", body)
     assert match, "no fenced front-matter example found"
     return match.group(1)
@@ -158,7 +158,7 @@ class TestLifecycleWiring(unittest.TestCase):
         self.assertIn("clarify.py", self.body)
         self.assertIn("## Completion report (normative)", self.body)
 
-    def test_it_names_its_own_triad(self):
+    def test_it_names_its_own_subagents(self):
         for role in ROLES:
             with self.subTest(role=role):
                 self.assertIn("acs:analyze-requirements-%s" % role, self.body)
@@ -184,16 +184,15 @@ class TestIndependence(unittest.TestCase):
                 self.assertNotIn(dead, self.body)
 
     def test_the_gate_it_describes_is_the_gate_that_exists(self):
-        """One gate for every step now (`gate_outcome`), and what it checks is
-        the skill's OWN declaration: `reads` in skills/<name>/acs.yaml drives
-        both the runtime input check and `acs workflow validate`'s order
-        check, so the two cannot disagree."""
-        self.assertTrue(lib.is_step_candidate("analyze-requirements"))
-        required, optional = lib.reads_of("analyze-requirements")
-        self.assertEqual(required, ["subject"],
-                         "the first implementation step reads the run's SUBJECT "
-                         "and nothing another step wrote")
-        self.assertEqual(optional, [])
+        """The skill is independent: it ships as a skill a workflow may name
+        (not a leg), no manifest declares what it reads, and the gate has no
+        input check left to refuse it on -- it works from the ticket alone."""
+        self.assertTrue(lib.is_skill("analyze-requirements"))
+        self.assertIsNone(lib.entry_point_of("analyze-requirements"))
+        self.assertFalse(os.path.exists(
+            os.path.join(PLUGIN, "skills", "analyze-requirements", "acs.yaml")))
+        self.assertFalse(hasattr(lib.stepgate, "check_inputs"))
+        self.assertIn("Nothing\nupstream is required", self.body)
 
     def test_the_epic_refusal_points_at_design_then_fan_out_then_a_child(self):
         self.assertIn("/acs:create-design <id>", self.body)
@@ -221,15 +220,16 @@ class TestGateAgreement(unittest.TestCase):
 
     def test_the_gate_requires_no_artifact_of_its_own(self):
         """analyze-requirements is the first implementation step: its only
-        input is the run's subject, so its `reads` list is empty and the input
-        gate asks for nothing."""
-        required, optional = lib.reads_of("analyze-requirements")
-        self.assertEqual((required, optional), (["subject"], []))
+        input is the run's subject. No gate asks for an upstream artifact --
+        the generic input check is gone, and no brake names this skill for
+        anything but the epic refusal."""
+        self.assertFalse(hasattr(lib.stepgate, "check_inputs"))
+        self.assertNotIn("missing_reads", self.brakes_source)
 
 
 class TestAnalysisFrontMatterContract(unittest.TestCase):
     """The machine-read half: four keys, and the documented example passes the
-    checker the skill tells the coordinator (and the verifier) to run."""
+    checker the skill tells the coordinator (and the impact reviewer) to run."""
 
     @classmethod
     def setUpClass(cls):
@@ -252,12 +252,12 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
                                           ticket="SHOP-123")
         self.assertEqual(findings, [])
 
-    def test_the_executor_emits_the_same_four_keys(self):
-        example = doc_front_matter_example(agent("executor"))
+    def test_the_analyst_emits_the_same_four_keys(self):
+        example = doc_front_matter_example(agent("analyst"))
         self.assertEqual(findings_of(example, self.specs[0]), [])
 
-    def test_the_verifier_re_runs_the_same_spec(self):
-        self.assertIn(self.specs[0], agent("verifier"))
+    def test_the_impact_reviewer_re_runs_the_same_spec(self):
+        self.assertIn(self.specs[0], agent("impact-reviewer"))
 
     def test_a_missing_api_surface_key_is_caught_by_that_spec(self):
         broken = re.sub(r"(?m)^api_surface: .*\n", "", self.example)
@@ -294,12 +294,12 @@ class TestAnalysisSectionContract(unittest.TestCase):
         found = re.findall(r"(?m)^## (.+)$", doc_skeleton(self.body))
         self.assertEqual(found, SECTIONS)
 
-    def test_the_executor_skeleton_matches_the_skill_skeleton(self):
-        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("executor")))
+    def test_the_analyst_skeleton_matches_the_skill_skeleton(self):
+        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("analyst")))
         self.assertEqual(found, SECTIONS)
 
-    def test_the_verifier_re_runs_the_same_section_list(self):
-        self.assertIn(self.sections[0], agent("verifier"))
+    def test_the_impact_reviewer_re_runs_the_same_section_list(self):
+        self.assertIn(self.sections[0], agent("impact-reviewer"))
 
     def test_a_doc_built_from_the_skeleton_lints_clean(self):
         doc = synthesized_analysis(SECTIONS)
@@ -428,24 +428,25 @@ class TestNotReadyArm(unittest.TestCase):
         # `ready_for_planning: false` on stdout-vs-stderr, case sensitivity
         # and unmentioned argument counts -- three questions a competent
         # implementer settles by convention, asked of a run with nobody to
-        # answer. The rule lives in the skill AND in the executor's verdict
-        # contract, so neither role can reintroduce the blocker alone.
+        # answer. The rule lives in the skill AND in the analyst's verdict
+        # contract, so neither can reintroduce the blocker alone.
         skill = " ".join(self.body.split())
         self.assertIn(
             "**A question with a conventional default is an assumption, not a "
             "blocker.**", skill)
         self.assertIn("keep `ready_for_planning: true`", skill)
         self.assertIn("where every default could build the wrong thing", skill)
-        executor = " ".join(
-            read(os.path.join(AGENTS, "analyze-requirements-executor.md")).split())
-        self.assertIn("A detail with a conventional default", executor)
-        self.assertIn("never a reason for `false`", executor)
-        self.assertIn("every default could build the wrong thing", executor)
+        analyst = " ".join(
+            read(os.path.join(AGENTS, "analyze-requirements-analyst.md")).split())
+        self.assertIn("A detail with a conventional default", analyst)
+        self.assertIn("never a reason for `false`", analyst)
+        self.assertIn("every default could build the wrong thing", analyst)
 
 
 class TestPublishing(unittest.TestCase):
     """Only the coordinator writes the published analysis — the write guard
-    denies an executor any write under the ticket docs tree."""
+    denies a `write`-kind agent (the analyst) any write under the ticket docs
+    tree."""
 
     @classmethod
     def setUpClass(cls):
@@ -463,19 +464,19 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("never a subagent", self.body)
         self.assertIn("acs_lib/filemap.py", self.body)
 
-    def test_the_executor_is_barred_from_the_published_file(self):
-        self.assertRegex(agent("executor"),
+    def test_the_analyst_is_barred_from_the_published_file(self):
+        self.assertRegex(agent("analyst"),
                          r"NEVER the published\n  `analysis.md`")
 
 
-class TestTriadShape(unittest.TestCase):
-    """House shape for the three agents (the shared suite covers the hooked set;
-    these keep this triad honest on its own)."""
+class TestSubagentShape(unittest.TestCase):
+    """House shape for the two agents (the shared suite covers every skill;
+    these keep this pair honest on its own)."""
 
     def test_role_tool_restrictions(self):
-        fm, _ = frontmatter(agent("verifier"), "verifier")
+        fm, _ = frontmatter(agent("impact-reviewer"), "impact-reviewer")
         self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
-        fm, _ = frontmatter(agent("executor"), "executor")
+        fm, _ = frontmatter(agent("analyst"), "analyst")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
 
@@ -487,9 +488,10 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("steps/analyze-requirements/iter-<n>/authoring.md", agent("executor"))
-        self.assertIn("steps/analyze-requirements/iter-<n>/execute.json", agent("executor"))
-        self.assertIn("steps/analyze-requirements/iter-<n>/verify.md", agent("verifier"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/authoring.md", agent("analyst"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/analyst.json", agent("analyst"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/impact-reviewer.md",
+                      agent("impact-reviewer"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:
@@ -499,17 +501,18 @@ class TestTriadShape(unittest.TestCase):
                 self.assertIn("FINAL message", body)
                 self.assertIn("Nothing follows the closing `</result>` tag.", body)
 
-    def test_grounding_everywhere_and_policing_in_the_verifier(self):
+    def test_grounding_everywhere_and_policing_in_the_impact_reviewer(self):
         for role in ROLES:
             with self.subTest(role=role):
                 self.assertIn("## Grounding (anti-hallucination)", agent(role))
-        self.assertIn("police grounding", agent("verifier"))
+        self.assertIn("police grounding", agent("impact-reviewer"))
 
     def test_no_planner_and_a_capped_loop(self):
         """ADR-0092 class D: the deliverable is the analysis, so a plan for it
-        would be a second copy of the work — execute -> verify only."""
+        would be a second copy of the work — analyst -> impact review only."""
         body = read(SKILL_PATH)
-        self.assertRegex(body, r"execute → verify, no planner")
+        self.assertRegex(body, r"analyst → impact review")
+        self.assertRegex(body, r"No third role\s+plans the analysis")
         self.assertNotIn("acs:analyze-requirements-planner", body)
         self.assertNotIn("iter-1-plan.md", body)
         self.assertFalse(os.path.exists(os.path.join(AGENTS, "analyze-requirements-planner.md")))
@@ -517,17 +520,17 @@ class TestTriadShape(unittest.TestCase):
         self.assertRegex(body, r"no path-driven verify depth")
         self.assertIn("never spawn subagents", body.lower())
 
-    def test_the_executor_surveys_first_and_does_not_plan_the_implementation(self):
-        """The survey the planner used to do is the executor's first job, and
+    def test_the_analyst_surveys_first_and_does_not_plan_the_implementation(self):
+        """The survey the planner used to do is the analyst's first job, and
         the boundary with /acs:create-impl-plan is stated where it is enforced."""
-        body = agent("executor")
+        body = agent("analyst")
         self.assertIn("## Survey — what you establish before you write (iteration 1)", body)
         self.assertIn("## The authoring notes (mandatory, every iteration)", body)
         self.assertRegex(body, r"NEVER plan the implementation")
-        self.assertRegex(agent("verifier"), r"(?m)^7\. `authoring-conformance`")
+        self.assertRegex(agent("impact-reviewer"), r"(?m)^7\. `authoring-conformance`")
 
-    def test_the_verifier_re_derives_rather_than_trusting_the_draft(self):
-        body = agent("verifier")
+    def test_the_impact_reviewer_re_derives_rather_than_trusting_the_draft(self):
+        body = agent("impact-reviewer")
         self.assertIn("NEVER rubber-stamp", body)
         self.assertRegex(body, r"re-derive[sd]? the impact (map|surface)")
 

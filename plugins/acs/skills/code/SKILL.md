@@ -16,14 +16,20 @@ gave per-finding adjudication to only one of four paths. Do not spawn a
 verifier, do not judge the changeset, and do not run the full suite — write the
 tests your change touches and stop.
 
+**You own one subagent: the implementer.** `acs:code-implementer` implements
+one file-map partition of the plan with strict TDD; a leg spawns one per
+partition. There is no planner (the plan is `/acs:create-impl-plan`'s) and no
+verifier (the review is `/acs:review-code`'s). The implementer is a `write`
+role and runs on the `executor` model tier.
+
 Four legs implement this step:
 
-| Path | Leg | Executors | Plan approval |
+| Path | Leg | Implementers | Plan approval |
 |---|---|---|---|
 | `trivial` | `acs:code-trivial` | one, always | not required |
 | `small` | `acs:code-small` | one, rarely two | not required |
 | `standard` | `acs:code-standard` | one per disjoint file-map partition | **enforced** |
-| `complex` | `acs:code-complex` | one per partition **+ an integration executor** | **enforced** |
+| `complex` | `acs:code-complex` | one per partition **+ an integration implementer** | **enforced** |
 
 The two axes the legs used to differ by are gone, and both left for the same
 reason — they were review properties, not implementation properties. The
@@ -64,8 +70,11 @@ gate) and its own post-hook finalises it. You add nothing: no extra context, no
 instructions of your own, no interpretation of the plan.
 
 **No plan at all** → you were invoked standalone, on a subject rather than
-after `/acs:create-impl-plan` (§3.11). Derive an **implicit plan** from your own
-read-only survey of the repo and the subject, then judge its path with
+after `/acs:create-impl-plan` (§3.11). That is a supported way to run, not an
+error: nothing gates `/acs:code` on an upstream step. Derive an **implicit
+plan** from your own read-only survey of the repo and the subject (the
+ticket's acceptance criteria, the prompt, or the document), record it at
+`steps/code/plan.md`, then judge its path with
 `${CLAUDE_PLUGIN_ROOT}/skills/code/references/classify.md`.
 
 > **The implicit plan is for the cheap paths only.** If your survey judges the
@@ -116,7 +125,7 @@ from the review — not the lens reports, not the adjudication transcripts. Ever
 Each finding carries a `resolved_when` — what the fix must make true. Work to
 that, not to your own reading of the claim.
 
-The findings go straight into the executor's `<context>` — no planner runs
+The findings go straight into the implementer's `<context>` — no planner runs
 between the review and the fix, on this or any path. A finding already says
 what is wrong and what would make it right; re-deriving that through a
 planning pass would spend a round restating the verdict, and the plan

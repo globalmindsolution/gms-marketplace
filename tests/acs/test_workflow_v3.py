@@ -1,5 +1,5 @@
-"""A workflow is a list (§2.1), and its order is validated from the skills'
-own declarations rather than from edges in the file.
+"""A workflow is a list (§2.1): an orchestrator that keeps the order of
+independent skills, and asks nothing of what they read or write.
 
 Replaces the version-2 half of tests/acs/test_workflow_resolution.py.
 
@@ -8,9 +8,9 @@ The load-bearing claims:
   * every v2 key is REJECTED, not ignored — a workflow that tries to decide
     for a skill whether it has work fails validation rather than working
     silently, and the error says where the key went
-  * order is checked WITHOUT any edge in the file: a step's required reads
-    must be written by an earlier step, which is derived from acs.yaml
-  * the check is loop-aware, so `code` reading `verdict` is not a warning
+  * order is the author's: any order of skills that ship validates, because
+    each skill falls back to the run's subject when an upstream artifact is
+    absent
   * `back_to` must precede `from`, because a loop that does not go back is
     not a loop
 
@@ -78,11 +78,6 @@ class ShippedWorkflowTest(unittest.TestCase):
         self.assertEqual(W.loop_for(self.doc, "review-code"),
                          {"from": "review-code", "back_to": "code",
                           "max_iterations": 3, "on_exhausted": "fail"})
-
-    def test_the_shipped_order_raises_no_warnings(self):
-        """In particular: `code` reads `verdict`, which review-code writes one
-        step later, and the LOOP is what carries it back."""
-        self.assertEqual(W.order_warnings(self.doc), [])
 
     def test_the_name_is_the_file_name(self):
         self.assertEqual(W.workflow_name(SHIP), "ship")
@@ -163,46 +158,25 @@ class StepAdmissionTest(unittest.TestCase):
     def test_a_leg_may_not_be_a_step(self):
         self._refuse("version: 3\nsteps:\n  - code-standard\n", "is a leg of 'code'")
 
-    def test_a_skill_with_no_io_may_not_be_a_step(self):
-        self._refuse("version: 3\nsteps:\n  - setup\n", "declares no reads and no writes")
+    def test_a_project_leg_may_not_be_a_step(self):
+        self._refuse("version: 3\nsteps:\n  - create-project\n", "is a leg of 'project'")
 
 
-class OrderValidationTest(unittest.TestCase):
-    """The check that replaced `needs:` — derived from the skills, not from
-    an edge list an author maintains."""
+class OrderIsTheAuthorsTest(unittest.TestCase):
+    """The workflow only orders skills. Each skill is independent, so no order
+    of skills that ship is refused for what one of them reads."""
 
-    def test_a_required_read_before_its_producer_is_refused(self):
-        with self.assertRaises(WorkflowError) as caught:
-            W.validate_workflow_file(write(
-                "version: 3\nsteps:\n  - analyze-requirements\n"
-                "  - create-api-contract\n  - create-impl-plan\n"))
-        message = str(caught.exception)
-        self.assertIn("create-api-contract", message)
-        self.assertIn("'plan'", message)
-        self.assertIn("create-impl-plan", message)
-
-    def test_a_required_read_nobody_writes_is_refused(self):
-        with self.assertRaises(WorkflowError) as caught:
-            W.validate_workflow_file(write("version: 3\nsteps:\n  - create-impl-plan\n"))
-        self.assertIn("no step in this workflow writes", str(caught.exception))
-
-    def test_a_swap_that_does_not_matter_passes(self):
-        """docs-sync and the e2e pair: neither reads the other's output."""
+    def test_any_order_of_real_skills_validates(self):
         doc = W.validate_workflow_file(write(
-            "version: 3\nsteps:\n  - analyze-requirements\n  - create-impl-plan\n"
-            "  - code\n  - docs-sync\n  - create-e2e-tests\n  - run-e2e-tests\n"))
-        self.assertIn("docs-sync", W.steps_of(doc))
+            "version: 3\nsteps:\n  - analyze-requirements\n"
+            "  - create-api-contract\n  - create-impl-plan\n"))
+        self.assertEqual(W.steps_of(doc)[1], "create-api-contract")
 
-    def test_the_subject_is_a_run_level_input(self):
-        """analyze-requirements requires `subject`, which no step writes."""
-        W.validate_workflow_file(write("version: 3\nsteps:\n  - analyze-requirements\n"))
+    def test_a_single_step_validates(self):
+        W.validate_workflow_file(write("version: 3\nsteps:\n  - create-impl-plan\n"))
 
-    def test_an_optional_read_out_of_order_is_a_warning_not_an_error(self):
-        doc = W.validate_workflow_file(write(
-            "version: 3\nsteps:\n  - analyze-requirements\n  - create-impl-plan\n"
-            "  - create-test-docs\n  - create-api-contract\n"))
-        warnings = W.order_warnings(doc)
-        self.assertTrue(any("api-contract" in w for w in warnings), warnings)
+    def test_a_utility_skill_may_be_a_step(self):
+        W.validate_workflow_file(write("version: 3\nsteps:\n  - setup\n"))
 
 
 class LoopValidationTest(unittest.TestCase):

@@ -1,6 +1,6 @@
 ---
 name: create-e2e-tests
-description: Write the end-to-end suites for a ticket's e2e-typed test cases, under the repo's configured e2e location and committed on the ticket branch. Requires a configured e2e suite and at least one e2e case in test-cases.md. Use after /acs:code, before the e2e suites are run with /acs:run-e2e-tests.
+description: Write the end-to-end suites for a ticket's e2e-typed test cases (or, with no test-cases.md, the end-to-end flows its acceptance criteria describe), under the repo's configured e2e location and committed on the ticket branch. Needs a configured e2e suite to run them with. Use after /acs:code, before the e2e suites are run with /acs:run-e2e-tests.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -8,8 +8,14 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-e2e-tests. Your job: turn the e2e-typed
 rows of ONE ticket's `test-cases.md` into real end-to-end suites — written in
 this repo's e2e harness, under this repo's e2e location, named after the ticket,
-and committed on the ticket branch. You orchestrate executor/verifier subagents over XML — execute → verify, no
-planner (ADR-0092); you never write the suite code yourself.
+and committed on the ticket branch. You orchestrate two subagents over XML —
+the **test-writer** (`acs:create-e2e-tests-test-writer`, a `write` role on the
+`executor` model tier) decides and writes the suites, and the **suite-runner**
+(`acs:create-e2e-tests-suite-runner`, a `judge` role on the `verifier` model
+tier) judges them fresh and RUNS them once. Test-writer → suite-runner, no
+planner (ADR-0092): the suite layout is decided in the test-writer's own
+authoring notes, never in a separate plan. You never write the suite code
+yourself.
 
 You write tests; you never write product code. Not one line, not "a small fix
 to make the test pass": the implementation is `/acs:code`'s, and a suite that
@@ -45,23 +51,35 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-e2
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround. `pre-create-e2e-tests.py` has verified this skill's
-inputs, and its refusals are the map of what must already be true:
+improvise a workaround. `pre-create-e2e-tests.py` refuses only what running
+now would damage — a ticket that does not resolve to a live, unlocked
+partition, or an epic. It never refuses because an upstream artifact is
+missing: this skill is independent, and decides for itself what it can do with
+what it finds. Before the loop, check three things yourself:
 
-- the ticket resolves to a live, unlocked partition;
-- an e2e suite is configured (`settings.e2e` or `settings.suites.e2e`).
-  Missing → add a `suites.e2e` entry to `.acs/settings.json` by hand
-  (`/acs:setup` no longer configures suites); `workflows/ship.yaml` skips this
-  step entirely until then (`when: e2e_configured`), so a hand run without it
-  has nothing to write INTO;
-- `test-cases.md` exists for the ticket. Missing → "run /acs:create-test-docs
-  <id> first";
-- `test-cases.md` lists at least one e2e case. Zero → nothing to write; the
-  pointer is to re-run `/acs:create-test-docs <id>` if the ticket needs
-  end-to-end coverage. Do NOT work around this by editing `test-cases.md`
-  yourself — the case set is `/acs:create-test-docs`'s artifact, and the count
-  the gate uses (`acs_lib.gate_inputs.e2e_case_count`) is the same one the case
-  document's own checks pin.
+- **An e2e suite is configured** (`settings.e2e` or `settings.suites.e2e`).
+  That is the repo's configuration, not an upstream step, and the suite-runner
+  needs its command to run the suites at all. Missing → do NOT invent a
+  runner: add a `suites.e2e` entry to `.acs/settings.json` by hand
+  (`/acs:setup` no longer configures suites). If the repo already has an e2e
+  harness, ask the user to confirm its command and record the answer (User
+  interaction); if it has none, finish `needs_input` with that question — a
+  harness is a repo-structure decision, not this skill's.
+- **`test-cases.md`** — when `/acs:create-test-docs` wrote one, its e2e rows
+  are the specification. When there is none (it has not run, or you were
+  invoked on your own), fall back to the ticket itself: its acceptance
+  criteria are the specification, the test-writer derives the end-to-end flows
+  they describe in its authoring notes, and each derived case carries the
+  acceptance criterion it proves (`AC-<n>`) wherever this file says `TC-<n>`.
+  Say in the report that no case document existed.
+- **`test-cases.md` lists at least one e2e case.** Zero → nothing to write:
+  finish `completed` with `outcome: "no_e2e_owed"` and a summary saying the
+  case document types no case e2e; the pointer is to re-run
+  `/acs:create-test-docs <id>` if the ticket needs end-to-end coverage.
+  Do NOT work around this by editing `test-cases.md` yourself — the case set is
+  `/acs:create-test-docs`'s artifact, and the count you use
+  (`acs_lib.gate_inputs.e2e_case_count`) is the same one the case document's
+  own checks pin.
 
 There is no predecessor-completed check: order lives in `workflows/ship.yaml`,
 not in this gate. In the declared order this step runs after `/acs:code`, so the
@@ -80,7 +98,8 @@ Parse the printed context JSON. Fields you will use:
   optional `setup`/`teardown`; `settings.e2e` is normalized into it at load
   time, so read `suites["e2e"]` and never the raw alias),
   `formats.branch_name`, `formats.commit_message`.
-- `models` — per-role `{model, effort}` for executor/verifier.
+- `models` — per-tier `{model, effort}`: the test-writer runs on the
+  `executor` tier, the suite-runner on the `verifier` tier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -120,11 +139,12 @@ keeps its e2e suites (resolved below).
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id>
 ```
 
-`artifacts["test-cases.md"]` is the exact path the gate resolved — pass THAT
-path to every subagent, and read it yourself now. The e2e cases are the rows of
+`artifacts["test-cases.md"]` is the exact path acs resolved — pass THAT
+path to every subagent, and read it yourself now (absent → the acceptance
+criteria fallback above). The e2e cases are the rows of
 its `## Cases` table whose `Type` cell is `e2e`; their `TC-<n>` ids are what
 this run covers and what it reports as `cases_covered`. Count them with the
-gate's own counter, so your idea of the work equals the gate's:
+case document's own counter, so your idea of the work equals the no-op's:
 
 ```bash
 python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import acs_lib; print(acs_lib.e2e_case_count(sys.argv[2]))" \
@@ -137,8 +157,8 @@ they exist: the contract gives the exact shapes an e2e assertion checks, and the
 plan names what the change actually built.
 
 **A case may already have a test.** `/acs:code` writes a test per `TC-<n>` in
-its own file map, naming the id in the test's docstring, and its executor is
-told to cover an e2e flow its spec's Test plan names. So before planning
+its own file map, naming the id in the test's docstring, and its implementer
+is told to cover an e2e flow its spec's Test plan names. So before planning
 anything, grep the repo for the ids in scope — an existing test that already
 drives the case end to end is ADOPTED (extended where the case asks for more,
 left alone where it does not) and reported in `cases_covered`; writing a second
@@ -188,12 +208,14 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    this run's to finish.
 3. Re-read `test-cases.md` — its e2e rows may have changed since the prior run,
    and a suite covering a case that no longer exists is a suite to remove.
-4. Continue from the first unfinished phase — an execute with no verify →
-   verify it; a verify with findings and no later execute → execute with
-   those findings as `<context>`; nothing on disk → iteration 1 execute.
-5. There is no plan artifact to reuse: the executor's authoring notes
+4. Continue from the first unfinished phase — a test-writer report
+   (`iter-<n>/test-writer.json`) with no suite-runner report → spawn the
+   suite-runner; a suite-runner report (`iter-<n>/suite-runner.md`) with
+   findings and no later test-writer → spawn the test-writer with those
+   findings as `<context>`; nothing on disk → iteration 1 test-writer.
+5. There is no plan artifact to reuse: the test-writer's authoring notes
    (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
-   never re-runs an iteration whose verify is already on disk.
+   never re-runs an iteration whose suite-runner report is already on disk.
 
 If `context.handoff_summary` exists, read it plus
 `steps/create-e2e-tests/handoff-context.md` (when present), do a
@@ -201,11 +223,13 @@ light reconcile, and continue from where it points.
 
 ## Inputs — gather before the loop
 
-Read these yourself and name them by path in the executor's `<inputs>` (never
-inline a file body):
+Read these yourself and name them by path in the test-writer's `<inputs>`
+(never inline a file body):
 
 1. `test-cases.md` — the e2e rows are the specification: preconditions, steps,
-   expected result, and the criterion each proves.
+   expected result, and the criterion each proves. With no `test-cases.md`,
+   the ticket document instead: its acceptance criteria are the
+   specification.
 2. The existing e2e suites, fixtures, helpers and harness config — the style
    this run writes in.
 3. `plan.md` and `api-contract.md` when they exist — what was built, and the
@@ -219,45 +243,48 @@ inline a file body):
    runnable by THAT command with no new runner, no new flag and no new
    dependency; needing one is a question for the user, not a silent addition.
 
-## Reflection loop — execute → verify, no planner
+## Reflection loop — test-writer → suite-runner, no planner
 
-Run execute → verify until the verifier returns zero blocking findings or the
-cap is reached. The cap is a fixed **3** on every run — `/acs:create-e2e-tests`
-has no path-driven verify depth. There is no plan phase: iteration 1's
-executor surveys the inputs, writes its authoring notes, and authors the suites
-from them; the verifier judges the result fresh. On iterations 2-3 the
-verifier's findings go verbatim into the next executor `<task>` `<context>`
-and the executor authors the remediation.
+Run test-writer → suite-runner until the suite-runner returns zero blocking
+findings or the cap is reached. The cap is a fixed **3** on every run —
+`/acs:create-e2e-tests` has no path-driven verify depth. There is no plan
+phase: iteration 1's test-writer surveys the inputs, writes its authoring
+notes, and writes the suites from them; the suite-runner judges the result
+fresh and runs it once. On iterations 2-3 the suite-runner's findings go
+verbatim into the next test-writer `<task>` `<context>` and the test-writer
+writes the remediation.
 
-**What an iteration counts:** one execute → verify round.
+**What an iteration counts:** one test-writer → suite-runner round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
 
 Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-e2e-tests"
-  phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
-  `<objective>`, `<inputs>` (file refs) and `<constraints>`.
+  phase="test-writer|suite-runner" ticket-id="<id>" iteration="n">` carrying
+  `<objective>`, `<inputs>` (file refs) and `<constraints>`. The phase is the
+  role; each returns a `<result skill="create-e2e-tests" phase="<role>" …>`.
 - Every phase's `<constraints>` carry `e2e_command` (and `e2e_setup` /
   `e2e_teardown` when configured), `e2e_root` (the location resolved above),
   `tc_ids` (the `TC-<n>` ids in scope, comma-separated), and
   `<constraint name="audience_style_profile">this repo's existing e2e suites</constraint>`.
-- Validate EVERY message you send and receive:
-
-  ```bash
-  ```
-
-  On invalid: re-request once with the validation error quoted; still invalid →
-  fail the run and record the error in the result document's `errors`.
-- Persist every phase's `<task>` and `<result>` to
-  `steps/create-e2e-tests/iter-<n>/<phase>.json` at the phase
-  boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:create-e2e-tests-executor`,
-  `acs:create-e2e-tests-verifier` — fall back
-  to the un-namespaced name only if the runtime rejects the namespaced one.
-  Apply `context.models.<role>.model` / `.effort` at spawn when not
-  `"inherit"`; if the runtime rejects the model or effort, FAIL the run with
-  that exact error — no silent fallback.
+- The SubagentStop hook checks EVERY message a subagent returns. On invalid:
+  re-request once with the validation error quoted; still invalid → fail the
+  run and record the error in the result document's `errors`.
+- Each role writes its own per-iteration report — the test-writer
+  `steps/create-e2e-tests/iter-<n>/test-writer.json`, the suite-runner
+  `steps/create-e2e-tests/iter-<n>/suite-runner.md` — and the hook snapshots
+  each returned message as `iter-<n>/<phase>-message.xml`. Persist anything
+  else you decide under `iter-<n>/` at the phase boundary, BEFORE starting the
+  next phase.
+- Spawn subagents with the Agent tool: `subagent_type:
+  "acs:create-e2e-tests-test-writer"` and `subagent_type:
+  "acs:create-e2e-tests-suite-runner"` — fall back to the un-namespaced name
+  (`create-e2e-tests-test-writer`, `create-e2e-tests-suite-runner`) only if the
+  runtime rejects the namespaced one. Apply `context.models.<tier>.model` /
+  `.effort` at spawn when not `"inherit"` — tier `executor` for the
+  test-writer, `verifier` for the suite-runner; if the runtime rejects the
+  model or effort, FAIL the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -267,23 +294,28 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Phase: execute — `acs:create-e2e-tests-executor`
+### Phase: test-writer — `acs:create-e2e-tests-test-writer`
 
-**Declare the file map before you spawn the executor** — the PreToolUse guard
-enforces it, and an undeclared map means no enforcement at all:
+**Declare the file map before you spawn the test-writer** — the PreToolUse
+guard enforces it while any `write`-kind agent runs, and an undeclared map
+means no enforcement at all:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" filemap set \
-  --iteration <n> --task 1 --file <e2e root>/
+  --skill create-e2e-tests --iteration <n> --task 1 --file <e2e root>/
 ```
 
+`--skill create-e2e-tests` is not optional: the guard checks a writer against
+the map declared for ITS OWN skill, and `filemap set` defaults to `code`, so a
+map declared without it leaves the test-writer unguarded.
+
 Declare the resolved e2e location itself — the guard matches a directory
-entry as a prefix, so every suite and fixture path the executor decides on
+entry as a prefix, so every suite and fixture path the test-writer decides on
 is writable under it and NOTHING under the product's source tree is. That is
-the mechanical half of "this skill never writes product code": an executor
+the mechanical half of "this skill never writes product code": a test-writer
 that finds it needs a source change returns `needs_input` naming the file,
 and you take it to the user rather than widening the map. Re-declare before
-each iteration's remediation executor; the guard reads the highest declared
+each iteration's remediation test-writer; the guard reads the highest declared
 iteration.
 
 Objective, iteration 1: from the e2e cases, the existing suites and the
@@ -295,24 +327,26 @@ not yet provide — record that decision in the authoring notes
 suites from those notes, in the repo's harness and style, each test carrying
 its `TC-<n>` id, each assertion checking the case's stated expected result.
 One suite per run, revised in place across iterations. The notes are what
-the verifier checks the suites against.
+the suite-runner checks the suites against. It writes its report to
+`steps/create-e2e-tests/iter-<n>/test-writer.json`.
 
-If the executor returns `needs_input` with `<questions>`, resolve them in User
-interaction and re-run execute for the same iteration with the answers in
-`<context>`.
+If the test-writer returns `needs_input` with `<questions>`, resolve them in
+User interaction and re-run the test-writer for the same iteration with the
+answers in `<context>`.
 
-On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
-else — no plan phase in between.
+On iteration ≥ 2 the test-writer fixes every finding in `<context>` and
+nothing else — no plan phase in between.
 
-### Phase: verify — `acs:create-e2e-tests-verifier`
+### Phase: suite-runner — `acs:create-e2e-tests-suite-runner`
 
-Spawn `acs:create-e2e-tests-verifier` AFTER the suites are written, with
-`<inputs>` of the suite files, the authoring notes (`iter-<n>/authoring.md`), `test-cases.md`, the API
-contract when it exists, and the existing suites it must match. It judges
-fresh — never forward the executor's reasoning — and writes
-`steps/create-e2e-tests/iter-<n>/verify.md`.
+Spawn `acs:create-e2e-tests-suite-runner` AFTER the suites are written, with
+`<inputs>` of the suite files, the authoring notes (`iter-<n>/authoring.md`),
+the test-writer report, `test-cases.md` (or the ticket, on the fallback), the
+API contract when it exists, and the existing suites it must match. It judges
+fresh — never forward the test-writer's reasoning — and writes
+`steps/create-e2e-tests/iter-<n>/suite-runner.md`.
 
-The verifier RUNS the configured e2e command once (with `setup` and, always,
+The suite-runner RUNS the configured e2e command once (with `setup` and, always,
 `teardown`) to prove the suites execute and are picked up by the harness, and
 it reads the output with the distinction this skill turns on:
 
@@ -321,16 +355,16 @@ it reads the output with the distinction this skill turns on:
   was invented, a test that passes without exercising anything.
 - **A product failure is NOT a finding here** — the suite ran, drove the
   product, and the product did not do what the case says. Record it in the
-  verify report and in the coordinator's `findings`; `/acs:run-e2e-tests` is the
+  suite-runner report and in the coordinator's `findings`; `/acs:run-e2e-tests` is the
   step that fails the pipeline on it, and `workflows/ship.yaml` relays that back
   to `/acs:code`. NEVER weaken, skip, or narrow a case's assertion to turn one
-  green — that is the one failure mode this triad exists to prevent.
+  green — that is the one failure mode this pair exists to prevent.
 
 ALL blocking findings block — zero blocking findings = pass.
 `status="completed"` means verification RAN; the empty `<findings>` is the
-pass. Never conclude a pass the verifier did not report. On findings: persist
-the verify output, then AUTOMATICALLY re-execute with every finding in the next
-executor's `<context>`. After iteration 3 with findings remaining: stop with
+pass. Never conclude a pass the suite-runner did not report. On findings:
+persist the suite-runner output, then AUTOMATICALLY re-spawn the test-writer
+with every finding in its `<context>`. After iteration 3 with findings remaining: stop with
 final status `"failed"`, findings recorded, and the suites left as they are on
 the branch (uncommitted work is not discarded silently — say where it is).
 
@@ -346,11 +380,13 @@ grep -o 'TC-[0-9]\+' <e2e root>/<suite files> | sort -u
 Compare that set with the e2e rows' ids. A missing id is a case with no test:
 that is a blocking finding for the next iteration, never a note in the report.
 An extra id (a test for a case that is not typed e2e) is a finding too — the
-case set decides the level, not this skill.
+case set decides the level, not this skill. On the acceptance-criteria
+fallback (no `test-cases.md`), run the same check with `AC-[0-9]\+` against the
+flows the test-writer's authoring notes derived.
 
 ### Commit
 
-Once the verifier passes and the coverage check is clean, commit the suite and
+Once the suite-runner passes and the coverage check is clean, commit the suite and
 fixture files on the ticket branch with `settings.formats.commit_message`.
 Commit ONLY the paths in the file map; if `git status` shows anything else
 changed, STOP and surface it — an unexpected modified file under the source tree
@@ -402,7 +438,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    ```json
    {
      "status": "completed",
-     "summary": "verifier passed with zero findings on iteration 2; 2 e2e cases covered by 1 suite, committed",
+     "summary": "suite-runner passed with zero findings on iteration 2; 2 e2e cases covered by 1 suite, committed",
      "states": {
        "suites_written": ["e2e/shop-123-csv-import.spec.ts"],
        "cases_covered": ["TC-5", "TC-6"]
@@ -422,7 +458,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
      e2e-typed cases for a completed run; anything less is a `needs_input` or
      `failed` run with the gap named.
 
-   A product failure the verifier observed goes in `findings` (with the case id
+   A product failure the suite-runner observed goes in `findings` (with the case id
    and what the product did), never into `states`: this run's verdict is about
    the suites, and `/acs:run-e2e-tests` owns the product verdict.
 

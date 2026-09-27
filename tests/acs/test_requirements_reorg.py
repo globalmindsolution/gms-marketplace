@@ -384,7 +384,47 @@ REWORDED_BY_ADR_0103 = {
     },
 }
 
-REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103)
+#: ADR-0109 renamed the roles for each skill's own work (executor/verifier ->
+#: e.g. author/reviewer, scaffolder/build-checker, a survey role where a
+#: writer used to run two jobs). Every obligation below is unchanged -- the
+#: roles are still separate subagents, the writer still may fan out, each
+#: role's output is still persisted at the phase boundary, no subagent spawns
+#: sub-subagents -- only the name of the actor moved.
+REWORDED_BY_ADR_0109 = {
+    'skills.md': {
+        '`create-project-executor`, `create-project-verifier` — the executor pins':
+            "`create-project-scaffolder`, `create-project-build-checker` — the scaffolder pins",
+    },
+    'workflow.md': {
+        'MUST internally run an **execute → verify** cycle using a':
+            "internally run a **write → judge** cycle with a dedicated subagent per role",
+    },
+    'reflection.md': {
+        '- The coordinator MAY run **multiple executors in parallel** within one':
+            "- The coordinator MAY run **multiple writers in parallel** within one",
+        "- The coordinator MUST persist each phase's output (authoring notes and":
+            "- The coordinator MUST persist each role's output (authoring notes,",
+        '- The two phases MUST be separate subagents (separate context windows), so':
+            "- Each role MUST be a separate subagent (a separate context window), so",
+        'verifier subagents MUST NOT spawn their own sub-subagents. This keeps':
+            "spawn its own sub-subagents. This keeps the state files and the message",
+        '| Phase | Subagent (example for `/acs:create-impl-plan`) | Responsibility |':
+            "| Skill | Survey | Write | Judge |",
+        "| Execute | `create-impl-plan-executor` | Carry out the skill's work; produce its artifacts. For an authoring skill the executor first surveys and records `iter-<n>/authoring.md`, then authors the document from it. |":
+            "| create-impl-plan | — | `create-impl-plan-planner` | `create-impl-plan-plan-reviewer` |",
+        "| Verify | `create-impl-plan-verifier` | Independently check the executor's output against the gated upstream contracts and the skill's quality bar — for an authoring skill also against its authoring notes — and report pass/fail with findings. |":
+            "the **judge** judges the deliverable fresh, against",
+        'No skill has a plan phase (ADR-0092): for an authoring skill the':
+            "No skill has a plan phase before its writer (ADR-0092): for an authoring",
+    },
+    'overview.md(scoped:Packaging+Distribution+CorePrinciples)': {
+        'runs plan → execute → verify with dedicated subagents':
+            "runs a write → judge cycle over subagents named for its own work",
+    },
+}
+
+REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103,
+                    REWORDED_BY_ADR_0109)
 
 
 def _retired():
@@ -586,7 +626,8 @@ class NoMarketplacePathHardcodingTest(unittest.TestCase):
     that used to name them) -- never a literal marketplace-specific
     'docs/requirements/functional/...' path. MAR-162
     moved the requirements-merge routing prose from /acs:code's producer
-    files to /acs:docs-sync's executor (C-1).
+    files to /acs:docs-sync's writer (C-1; its doc-updater since the
+    per-skill subagents).
 
     The second scoped file was code-verifier.md, which retained the prose in a
     demoted advisory sub-check. v0.5.0 retired the verifier with the review,
@@ -595,7 +636,7 @@ class NoMarketplacePathHardcodingTest(unittest.TestCase):
     assertion below proves the set has not silently emptied."""
 
     SCOPED_FILES = (
-        os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-executor.md"),
+        os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-doc-updater.md"),
     )
 
     LITERAL_PATH_RE = re.compile(

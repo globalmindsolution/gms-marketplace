@@ -20,12 +20,14 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
 3. Read the clarification ledger (`clarify.py list --ticket <id>`): questions
    the prior run asked are already recorded, and answers that arrived since are
    the point of the resume.
-4. Continue from the first unfinished phase — an execute with no verify →
-   verify it; a verify with findings and no later execute → execute with
-   those findings as `<context>`; nothing on disk → iteration 1 execute.
-5. There is no plan artifact to reuse: the executor's authoring notes
+4. Continue from the first unfinished phase — an analyst report
+   (`iter-<n>/analyst.json`) with no impact review → run the impact reviewer
+   on it; an impact review (`iter-<n>/impact-reviewer.md`) with findings and
+   no later analyst report → run the analyst with those findings as
+   `<context>`; nothing on disk → iteration 1 analyst.
+5. There is no plan artifact to reuse: the analyst's authoring notes
    (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
-   never re-runs an iteration whose verify is already on disk.
+   never re-runs an iteration whose impact review is already on disk.
 
 If `context.handoff_summary` exists, read it plus
 `steps/analyze-requirements/handoff-context.md` (when present), do a

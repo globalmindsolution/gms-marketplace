@@ -5,9 +5,9 @@
 
 Four legs implement the `code` step — `code-trivial`, `code-small`,
 `code-standard`, `code-complex` — and everything below is identical in all
-four. What differs is how many executors run and whether an integration
-executor follows them; that lives in each leg's own SKILL.md, which is the only
-file that needs reading to know what a path costs.
+four. What differs is how many implementers run and whether an integration
+implementer follows them; that lives in each leg's own SKILL.md, which is the
+only file that needs reading to know what a path costs.
 
 **The legs share `code`'s identity on disk.** Every one of them starts with
 `acs step start --step code`, so the run, `steps/code/`, the step's
@@ -30,11 +30,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step code
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround. The pre-hook has verified this step's inputs: the run
-resolves to a live, unlocked partition, a plan exists, and on the deep paths
-the plan's approval is present and current. The gate is the same on every
-delivery path and requires no predecessor step to have completed — the order
-lives in `workflows/ship.yaml`, not in this gate.
+improvise a workaround. The pre-hook refuses only what running now would
+damage: the run must resolve to a live, unlocked partition, an epic is never
+implemented, and when a plan records a deep path its approval must be present
+and current. It never refuses because an upstream artifact is missing and
+requires no predecessor step to have completed — the order lives in
+`workflows/ship.yaml`, not in this gate. A run with no plan on disk is
+`/acs:code`'s own business: it derives an implicit plan for the cheap paths
+from the subject (see `/acs:code`'s **No plan at all**).
 
 Parse the printed context JSON. Fields you will use:
 
@@ -51,25 +54,30 @@ Parse the printed context JSON. Fields you will use:
 - `settings` — you need `formats.branch_name`, `formats.commit_message`, and
   `e2e` when set. The repo's standards set and `test_coverage_percent` are
   the **reviewer's** inputs, not yours.
-- `models` — per-role `{model, effort}` for the executor.
+- `models` — per-tier `{model, effort}`; the implementer runs on the
+  `executor` tier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 
 ---
 
 ## Subagents and messaging
 
-Every leg spawns one agent — `acs:code-executor` — and obeys the same
-messaging rules. What a leg decides is HOW MANY to spawn and whether an
-integration executor follows.
+Every leg spawns one kind of agent — the implementer,
+`subagent_type: "acs:code-implementer"`, one per file-map partition — and
+obeys the same messaging rules. There is no planner and no verifier: the plan
+is `/acs:create-impl-plan`'s and the review is `/acs:review-code`'s. What a leg
+decides is HOW MANY implementers to spawn and whether an integration
+implementer follows.
 
-Spawn subagents with the Agent tool: `acs:code-executor` (fall back to the
-un-namespaced name only if the runtime rejects the namespaced one). Apply
-`context.models.executor.model` / `.effort` at spawn when not `"inherit"`; if
-the runtime rejects the model or effort, FAIL the run with that exact error —
-no silent fallback.
+Spawn subagents with the Agent tool: `acs:code-implementer` (fall back to the
+un-namespaced `code-implementer` only if the runtime rejects the namespaced
+one). The implementer is a `write`-kind role and runs on the `executor` model
+tier: apply `context.models.executor.model` / `.effort` at spawn when not
+`"inherit"`; if the runtime rejects the model or effort, FAIL the run with
+that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
-`run_in_background: false` to the Agent tool: the executor's result is your
+`run_in_background: false` to the Agent tool: the implementer's result is your
 next input and nothing else can usefully happen while it runs. If the runtime
 moves the agent to the background anyway, wait for its completion notification
 — never poll with `sleep` loops, which wait a fixed interval whatever the agent
@@ -77,17 +85,22 @@ did.
 
 Messaging rules (the SubagentStop hook checks them):
 
-- Send each subagent one task message carrying `objective`, `inputs` (file
-  refs: the resolved `plan.md`, `test-cases.md` and `api-contract.md` when they
-  exist, the subject document, `design.md` when it applies, repo paths) and
-  `constraints`. The subagent returns a result document as its final content.
+- Send each implementer one task message, `<task skill="code"
+  phase="implementer" …>`, carrying `objective`, `inputs` (file refs: the
+  resolved `plan.md`, `test-cases.md` and `api-contract.md` when they exist,
+  the subject document, `design.md` when it applies, repo paths) and
+  `constraints`. The implementer returns a `<result skill="code"
+  phase="implementer" …>` document as its final content.
 - Messages are **JSON**, validated in the hook. There is no XSD and no
   second validator in another language: a malformed message is refused with
   the reason, and you re-send it once before failing the run.
-- Persist every phase output under `steps/code/iter-<n>/` at the phase
-  boundary, BEFORE starting the next phase.
+- Each implementer writes its report to `steps/code/iter-<n>/implementer.json`
+  (`iter-<n>/implementer-<k>.json` when several run in parallel), and the
+  SubagentStop hook snapshots its returned message beside it. Persist every
+  other phase output under `steps/code/iter-<n>/` at the phase boundary,
+  BEFORE starting the next phase.
 - Decomposition is YOURS alone — subagents never spawn subagents. Parallel
-  executors are allowed ONLY when their partitions touch disjoint files (per
+  implementers are allowed ONLY when their partitions touch disjoint files (per
   the plan's file map); any overlap — source, tests, or docs — means sequential
   execution.
 
@@ -162,9 +175,12 @@ from where it points.
 ### Plan input resolution
 
 The plan is an INPUT here, never an output: `/acs:create-impl-plan` wrote it
-and this skill reads it. It is at `steps/create-impl-plan/plan.md`, and the
-pre-hook resolved it before this skill started. There is no approval mirror:
-one plan, one path, and `plan-approval.json` hashes that same file.
+and this skill reads it. It is at `steps/create-impl-plan/plan.md` when
+`/acs:create-impl-plan` ran for this run (`acs.py plan path` names the one it
+read). On a standalone run with no plan, `/acs:code` derived an implicit plan
+from the subject for the cheap paths and recorded it at `steps/code/plan.md`;
+that file is the plan for this run. There is no approval mirror: one plan, one
+path, and `plan-approval.json` hashes that same file.
 
 Its `## Contract` block is the machine-readable minimum — `delivery_path`,
 what the run `owes`, and the `### Executor tasks & file map` heading your
@@ -182,10 +198,10 @@ steps, and point at `/acs:create-impl-plan`.
 ## Docs-only subjects
 
 When the subject carries the user-confirmed `docs_only` flag, the TDD steps
-relax — the delivery guarantees do not: executors skip
+relax — the delivery guarantees do not: implementers skip
 write-failing-tests-first and new-test generation, and the existing tests are
 still run once and must be green (a docs-only change that breaks the build is a
-finding the review will raise). If any executor finds itself touching
+finding the review will raise). If any implementer finds itself touching
 executable code or tests, STOP — the flag is wrong; surface it to the user and
 have the subject corrected before continuing.
 

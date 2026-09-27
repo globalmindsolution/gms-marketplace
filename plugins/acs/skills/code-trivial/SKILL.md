@@ -1,6 +1,6 @@
 ---
 name: code-trivial
-description: Implement a subject's plan on the TRIVIAL delivery path — one executor, the plan's own test strategy as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path trivial; never chosen by hand.
+description: Implement a subject's plan on the TRIVIAL delivery path — one implementer, the plan's own test strategy as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path trivial; never chosen by hand.
 argument-hint: "[ticket-id | prompt | document]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -25,25 +25,25 @@ path only carries what makes it different:
 | Read | For |
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the execute phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
 
 Everything below is what THIS path does differently. Where this file and a
-reference disagree about executors, this file wins — that is the whole reason
+reference disagree about implementers, this file wins — that is the whole reason
 it exists.
 
 ## The machinery of this path
 
 | | this path |
 |---|---|
-| Executors | one, always |
+| Implementers | one, always |
 | Test contract | the plan's **Test strategy** section |
 | Plan approval | not required |
 
-### Executors
+### Implementers
 
-**Exactly one executor. Never parallel.** A plan judged `trivial` is one
-coherent change; splitting it across executors would cost two subagent spawns
-and a merge to save nothing. Give that executor the whole file map.
+**Exactly one implementer. Never parallel.** A plan judged `trivial` is one
+coherent change; splitting it across implementers would cost two subagent spawns
+and a merge to save nothing. Give that implementer the whole file map.
 
 ### Inputs
 

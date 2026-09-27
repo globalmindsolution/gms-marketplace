@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/workflow.schema.json",
   "title": "acs workflow (workflows/ship.yaml)",
-  "description": "A version, a list of skill names, and the loops. Nothing else: `additionalProperties: false` here and the absence of any per-step object is the enforcement of §2.1's rule that a workflow carries no conditions and no constraints. The keys version 2 carried -- when, paths, requires, needs, max_parallel, exclusive, on_fail, boundary, delivery, id, name, stop_after -- are rejected rather than merely unused, so a workflow that tries to decide for a skill whether it has work fails validation instead of silently working. acs_lib.workflow additionally checks that every step names a skill whose acs.yaml declares reads or writes, that each step's required reads are written by an earlier step, and that every loop's back_to precedes its from.",
+  "description": "A version, a list of skill names, and the loops. Nothing else: `additionalProperties: false` here and the absence of any per-step object is the enforcement of §2.1's rule that a workflow carries no conditions and no constraints. The keys version 2 carried -- when, paths, requires, needs, max_parallel, exclusive, on_fail, boundary, delivery, id, name, stop_after -- are rejected rather than merely unused, so a workflow that tries to decide for a skill whether it has work fails validation instead of silently working. The workflow is an orchestrator that keeps the ORDER of independent skills; acs_lib.workflow additionally checks only that every step names a skill that ships and is not another skill's leg, and that every loop's back_to precedes its from.",
   "type": "object",
   "required": ["version", "steps"],
   "properties": {
     "version": {"const": 3},
     "steps": {
-      "description": "The skills to run, in order. The order IS the dependency order; a step is a skill name and never an object.",
+      "description": "The skills to run, in order. A step is a skill name and never an object; each skill runs on its own and falls back to the run's subject when an earlier step has not produced what it would read.",
       "type": "array",
       "minItems": 1,
       "items": {"$ref": "#/$defs/skillName"},

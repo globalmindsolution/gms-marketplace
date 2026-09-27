@@ -34,19 +34,23 @@ def _write_architecture_doc_set(repo):
 
 
 class GateIntegrityTest(AcsWorkspaceCase):
-    """AC-2: the one precondition every set shares -- the architecture doc set.
+    """AC-2: the one upstream input every set shares -- the architecture doc set.
 
     ADR-0102 moved it out of the pre-hook: no setting says where the set
-    lives, so the hook cannot look for it. The skill finds it at Start and
-    states the refusal itself; the hook passes either way."""
+    lives, so the hook cannot look for it. The skill looks for it at Start,
+    and since the per-skill subagents its absence refuses nothing: the author
+    falls back to the PRD/repo and /acs:create-architecture is only a
+    recommendation. The hook passes either way."""
 
-    def test_the_hook_no_longer_refuses_and_the_skill_start_does(self):
+    def test_neither_the_hook_nor_the_skill_start_refuses(self):
         result = self.pre("create-docs")
         self.assertEqual(result.returncode, 0, result.stderr)
         with open(SKILL_PATH, encoding="utf-8") as fh:
             body = re.sub(r"\s+", " ", fh.read())
-        self.assertIn("no architecture doc set found (expected hld/tech-stack.md) — run "
-                      "/acs:create-architecture first.", body)
+        self.assertIn("no architecture doc set found (expected hld/tech-stack.md) — "
+                      "architecture-derived tailoring falls back to the repo/PRD; run "
+                      "/acs:create-architecture first for stack-grounded docs", body)
+        self.assertNotIn("None found → STOP", body)
 
     def test_gate_passes_with_architecture_doc_set(self):
         _write_architecture_doc_set(self.repo)

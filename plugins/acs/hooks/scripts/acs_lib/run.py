@@ -544,7 +544,7 @@ def latest_open_run(repo_dir_path, kind, key):
 # Invariants -- `acs run check`
 # ---------------------------------------------------------------------------
 
-def check(rdir, wf, manifests=None, doc=None):
+def check(rdir, wf, doc=None):
     """(errors, warnings) for invariants I1-I5 (§4.3). Every pre-hook calls
     this before allowing a transition, so a run cannot drift silently between
     one step and the next.
@@ -552,7 +552,6 @@ def check(rdir, wf, manifests=None, doc=None):
     `doc` is the ledger to judge when the caller already holds it -- a
     projected run (`projected_run`) has none on disk to load.
     """
-    manifests = manifests if manifests is not None else skills_registry.load_manifests()
     doc = doc if doc is not None else require_run(rdir)
     steps = workflow_mod.steps_of(wf)
     errors, warnings = [], []
@@ -590,97 +589,40 @@ def check(rdir, wf, manifests=None, doc=None):
             errors.append("I5: %r is not a step of workflow %r" % (step, doc.get("workflow")))
     for step, entry in (doc.get("steps") or {}).items():
         leg = (entry or {}).get("leg")
-        if leg and skills_registry.entry_point_of(leg, manifests) != step:
+        if leg and skills_registry.entry_point_of(leg) != step:
             errors.append("I5: %s recorded leg %r, which is not a leg of it" % (step, leg))
     return errors, warnings
 
 
 # ---------------------------------------------------------------------------
-# Artifacts -- where a `reads` / `writes` name lands on disk
+# Artifacts -- where a step's document lands in the run
 # ---------------------------------------------------------------------------
 
-#: The file an artifact name resolves to, relative to the step directory of
-#: whichever skill declares it in `writes`. One central table because the
-#: NAMES are the skills' (skills/<name>/acs.yaml) and the LAYOUT is the run's;
-#: a skill should not have to know where a run keeps things.
-#:
-#: An artifact whose value is None is not a file: `changeset` is the working
-#: tree against a base ref, `docs` is commits, `e2e-tests` is whatever the
-#: repo's harness holds. The input gate asks git about those rather than
-#: looking for a path (§3.11).
+#: artifact -> (the skill that writes it, its file in that skill's step
+#: directory). Only the documents a gate or brake actually opens are here:
+#: this is where a run keeps things, not a declaration of what any skill
+#: needs -- skills are independent and read what they find.
 ARTIFACT_FILES = {
-    "requirements": "requirements.md",
-    "plan": "plan.md",
-    "api-contract": "api-contract.md",
-    "test-cases": "test-cases.md",
-    "verdict": "verdict.json",
-    "result": "result.json",
-    "design": "design.md",
-    "prd": None,
-    "architecture": None,
-    "changeset": None,
-    "docs": None,
-    "e2e-tests": None,
-    "e2e-results": "e2e-results.json",
-    "pr": "pr.json",
-    "ticket": None,
-    "subject": None,
-    "doc-set": None,
-    "project-skeleton": None,
-    "requirements-docs": None,
+    "plan": ("create-impl-plan", "plan.md"),
+    "api-contract": ("create-api-contract", "api-contract.md"),
+    "test-cases": ("create-test-docs", "test-cases.md"),
+    "design": ("create-design", "design.md"),
+    "verdict": ("review-code", "verdict.json"),
+    "e2e-results": ("run-e2e-tests", "e2e-results.json"),
+    "pr": ("create-pr", "pr.json"),
 }
 
 #: Artifacts the RUN root holds rather than a step directory: step 1's output
 #: is promoted because every later step reads it.
-RUN_ROOT_ARTIFACTS = frozenset({"requirements"})
+RUN_ROOT_ARTIFACTS = {"requirements": "requirements.md"}
 
 
-def artifact_path(rdir, artifact, manifests=None, wf=None):
-    """Where `artifact` lives in this run, or None when it is not a file.
-
-    Resolved from the declarations rather than from a second table: the
-    producing step is whichever skill's `writes` names it, so adding a skill
-    that writes a new artifact needs no edit here beyond its filename.
-    """
-    filename = ARTIFACT_FILES.get(artifact)
-    if filename is None:
-        return None
+def artifact_path(rdir, artifact):
+    """Where `artifact` lives in this run, or None when acs keeps no file for
+    it (`changeset` is the working tree, `docs` is commits)."""
     if artifact in RUN_ROOT_ARTIFACTS:
-        return os.path.join(rdir, filename)
-    producer = _writer_of(artifact, manifests, wf)
-    if producer is None:
+        return os.path.join(rdir, RUN_ROOT_ARTIFACTS[artifact])
+    if artifact not in ARTIFACT_FILES:
         return None
+    producer, filename = ARTIFACT_FILES[artifact]
     return os.path.join(step_dir(rdir, producer), filename)
-
-
-def _writer_of(artifact, manifests=None, wf=None):
-    """The skill whose acs.yaml declares `artifact` in `writes`. Restricted to
-    the workflow's own steps when one is given, so a skill outside this
-    pipeline cannot claim to be the producer."""
-    manifests = manifests if manifests is not None else skills_registry.load_manifests()
-    candidates = workflow_mod.steps_of(wf) if wf is not None else sorted(manifests)
-    for skill in candidates:
-        if artifact in skills_registry.writes_of(skill, manifests):
-            return skill
-    return None
-
-
-def missing_reads(rdir, step, manifests=None, wf=None):
-    """The REQUIRED artifacts of `step` that are not on disk, as
-    [(artifact, producer)]. Drives the runtime input gate, from the same
-    declaration `acs workflow validate` checks the order against -- so the
-    gate and the validator cannot disagree about what a skill needs.
-
-    Artifacts that are not files (`changeset`, `docs`, `e2e-tests`) are not
-    checked here: the gate asks git about those.
-    """
-    manifests = manifests if manifests is not None else skills_registry.load_manifests()
-    required, _optional = skills_registry.reads_of(step, manifests)
-    out = []
-    for artifact in required:
-        if artifact in workflow_mod.RUN_LEVEL_ARTIFACTS:
-            continue
-        path = artifact_path(rdir, artifact, manifests, wf)
-        if path is not None and not os.path.exists(path):
-            out.append((artifact, _writer_of(artifact, manifests, wf)))
-    return out

@@ -148,7 +148,7 @@ class RecordedDenialTest(GuardEventsCase):
 
     def test_an_out_of_map_write_records_one_complete_event(self):
         self.declare("src/a.py", "tests/test_a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("src/somewhere_else.py").returncode, 2)
 
         events = self.events()
@@ -166,7 +166,7 @@ class RecordedDenialTest(GuardEventsCase):
 
     def test_every_write_tool_records_the_tool_that_was_denied(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         for tool in lib.WRITE_TOOL_PATH_KEYS:
             with self.subTest(tool=tool):
                 self.assertEqual(self.write_attempt("src/nope.py", tool=tool).returncode, 2)
@@ -174,7 +174,7 @@ class RecordedDenialTest(GuardEventsCase):
 
     def test_an_absolute_target_records_repo_relative(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(
             self.write_attempt(os.path.join(self.repo, "src", "elsewhere.py")).returncode, 2)
         self.assertEqual(self.events()[-1]["target"], "src/elsewhere.py")
@@ -184,7 +184,7 @@ class RecordedDenialTest(GuardEventsCase):
         checkout's .acs/state-machine (ADR-0102), so it records repo-relative
         like any other target under the checkout."""
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         record = lib.agent_record_path(self.rdir_path, "a-1")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": record}})
@@ -199,7 +199,7 @@ class RecordedDenialTest(GuardEventsCase):
         """There is no repo-relative form of a path outside the checkout, so it
         is recorded as it was written."""
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         outside = os.path.join(self.tmp, "elsewhere", "b.py")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": outside}})
@@ -212,7 +212,7 @@ class RecordedDenialTest(GuardEventsCase):
         """Nothing nameable was written, so `target` is null rather than an
         empty string a real path could be confused with."""
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": "file_path=evil.py"})
         self.assertEqual(out.returncode, 2, out.stderr)
@@ -225,7 +225,7 @@ class RecordedDenialTest(GuardEventsCase):
 
     def test_two_denials_append_in_order_to_the_same_run_entry(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self.write_attempt("src/one.py")
         self.write_attempt("src/two.py")
         state = lib.read_json(lib.state_path(self.rdir_path, "code"))
@@ -235,7 +235,7 @@ class RecordedDenialTest(GuardEventsCase):
     def test_the_iteration_in_force_is_the_one_recorded(self):
         self.declare("src/a.py", iteration=1)
         self.declare("src/b.py", iteration=2)
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("src/a.py").returncode, 2)
         self.assertEqual(self.events()[-1]["iteration"], "2")
 
@@ -244,17 +244,17 @@ class FailOpenSilenceTest(GuardEventsCase):
     """AC-2: a write the guard waves through leaves no trace at all."""
 
     def test_no_fail_open_branch_records_anything(self):
-        report = os.path.join(self.rdir_path, "steps", "code", "iter-1", "execute.json")
+        report = os.path.join(self.rdir_path, "steps", "code", "iter-1", "implementer.json")
         cases = {
             "not a write tool": {"cwd": self.repo, "tool_name": "Read",
                                  "tool_input": {"file_path": "anything.py"}},
             "no path in tool_input": {"cwd": self.repo, "tool_name": "Write",
                                       "tool_input": {}},
-            "the executor's own phase artifact": {"cwd": self.repo, "tool_name": "Write",
+            "the implementer's own phase artifact": {"cwd": self.repo, "tool_name": "Write",
                                                   "tool_input": {"file_path": report}},
         }
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         for label, payload in cases.items():
             with self.subTest(case=label):
                 self.assertEqual(self.hook("file-map", payload).returncode, 0)
@@ -265,11 +265,11 @@ class FailOpenSilenceTest(GuardEventsCase):
         self.assertIsNone(self.events())
 
     def test_no_map_declared_records_nothing(self):
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("anything.py").returncode, 0)
         self.assertIsNone(self.events())
 
-    def test_no_executor_running_records_nothing(self):
+    def test_no_writer_running_records_nothing(self):
         self.declare("src/a.py")
         self.assertEqual(self.write_attempt("anything.py").returncode, 0)
         self.assertIsNone(self.events())
@@ -300,7 +300,7 @@ class VerdictInvarianceTest(GuardEventsCase):
 
     def test_with_no_run_entry_the_deny_is_unchanged_and_says_so_once(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self._clear_runs()
         out = self.write_attempt("src/somewhere_else.py")
         self.assertEqual(out.returncode, 2)
@@ -311,7 +311,7 @@ class VerdictInvarianceTest(GuardEventsCase):
 
     def test_a_writer_that_raises_leaves_the_verdict_and_notes_once(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         stderr = io.StringIO()
         with mock.patch.object(lib.step, "write_json", side_effect=OSError("read-only")):
             with contextlib.redirect_stderr(stderr):
@@ -323,7 +323,7 @@ class VerdictInvarianceTest(GuardEventsCase):
 
     def test_the_append_is_one_write_with_no_lock_and_no_retry(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         before = sorted(self._partition_files())
         with mock.patch.object(lib.step, "write_json",
                                wraps=lib.step.write_json) as writer:
@@ -337,7 +337,7 @@ class VerdictInvarianceTest(GuardEventsCase):
         """dispatch.GateTimeout is a BaseException precisely so no broad handler
         can absorb it; a recorder that caught it would unbound the guard."""
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         with mock.patch.object(lib.step, "write_json", side_effect=_Boom("timeout")):
             with contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(_Boom):
@@ -358,7 +358,7 @@ class GuardEventsCliTest(GuardEventsCase):
 
     def test_it_prints_the_events_a_real_deny_recorded(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("src/somewhere_else.py").returncode, 2)
         out = self.acs("guard", "events", "--run", self.ticket)
         self.assertEqual(out.returncode, 0, out.stderr)

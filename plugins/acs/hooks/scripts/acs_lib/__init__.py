@@ -123,7 +123,7 @@ from .forge import (GROUP_B_FIELDS, PR_STATUS_OPTIONS, TICKET_STATUS_OPTIONS,
     tracker_sync_one)  # noqa: F401
 from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT,
     HANDOFF_CONTEXT_FILENAME,
-    ROLE_PHASES, active_agents, active_agents_dir, agent_record_path, clear_agent,
+    UNTRACKED_ROLES, active_agents, active_agents_dir, agent_record_path, clear_agent,
     clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
     in_flight_step, open_clarifications, parse_agent_type, phase_artifact_path,
     pre_compact, read_agent, record_agent_start, render_handoff_context, resolve_partition,
@@ -145,19 +145,18 @@ from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
 
 from . import yamlsubset, workflow  # noqa: F401,E402
 from .yamlsubset import YamlSubsetError, split_front_matter  # noqa: F401
-from .workflow import (OVERRIDE_WORKFLOW_RELPATH, PHASE_GROUPS,  # noqa: F401
-    RUN_LEVEL_ARTIFACTS, WORKFLOW_VERSION, WorkflowError,
+from .workflow import (OVERRIDE_WORKFLOW_RELPATH,  # noqa: F401
+    WORKFLOW_VERSION, WorkflowError,
     default_workflow_path, has_step, load_workflow, loop_for, loops_of,
-    order_warnings, override_workflow_path, resolve_workflow, step_index,
+    override_workflow_path, resolve_workflow, step_index,
     steps_of, validate_workflow, validate_workflow_file, workflow_name)
 
 from . import skills as skills_registry  # noqa: F401,E402
-from .skills import (AGENT_ROLES, SKILL_SCHEMA_FILENAME, SkillsError,  # noqa: F401
-    agent_roles_of, agents_dir, entry_point_of, is_skill, is_step_candidate,
-    legs_of, load_manifest, load_manifests, load_schema, manifest_path,
-    phase_of, reads_of, registered_skills, schema_path, skill_agents,
-    skill_dir, skill_legs, skills_dir, step_candidates, unreachable_agents,
-    workflows_dir, writes_of)
+from .skills import (AGENT_ROLES, KIND_MODEL_TIERS, ROLE_KINDS,  # noqa: F401
+    ROLE_KIND_NAMES, SKILL_LEGS, SkillsError, agent_files, agent_roles_of,
+    agents_dir, entry_point_of, is_skill, legs_of, load_schema, model_tier,
+    registered_skills, role_kind, schema_path, skill_agents, skill_dir,
+    skill_legs, skills_dir, split_agent_name, unreachable_agents, workflows_dir)
 
 from . import run as run_machine  # noqa: F401,E402
 from .run import (RUN_STATUSES, STEP_STATUSES, STOP_REASONS, VERDICT_STEPS,  # noqa: F401
@@ -176,7 +175,7 @@ from .sessions import (checkout_dir, current_step, load_pointer,  # noqa: F401
 
 from . import plan_contract  # noqa: F401,E402
 from . import stepgate  # noqa: F401,E402
-from .stepgate import check_inputs, check_invariants, noop_decision, settle_no_op  # noqa: F401
+from .stepgate import check_invariants, noop_decision, settle_no_op  # noqa: F401
 
 from . import step as step_machine  # noqa: F401,E402
 from .step import (append_invocation, finalize_invocation, load_fragment,  # noqa: F401

@@ -61,7 +61,7 @@ def hook_agent_id(payload):
 
 
 def hook_agent_type(payload):
-    """The SubagentStart/SubagentStop agent type (e.g. `acs:code-executor`)."""
+    """The SubagentStart/SubagentStop agent type (e.g. `acs:code-implementer`)."""
     return _str_or_none(_dict(payload).get(HOOK_AGENT_TYPE))
 
 

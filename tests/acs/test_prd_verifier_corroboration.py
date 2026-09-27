@@ -1,12 +1,13 @@
 """Prose-contract tests for MAR-304's create-prd charter contract change:
-dimension 7 ("Plan conformance") of `create-prd-verifier.md` gains an
+dimension 7 ("Plan conformance") of `create-prd-reviewer.md` (the verify
+phase's charter when MAR-304 landed) gains an
 independent, deterministic corroboration floor (the new
 `prd_conformance_check.py`, Task 1) plus a mandatory semantic ceiling, and
-`create-prd-planner.md` / `create-prd/SKILL.md` / `docs/requirements/
+`create-prd-surveyor.md` (then `create-prd-planner.md`) / `create-prd/SKILL.md` / `docs/requirements/
 functional/skills.md` mirror the contract change.
 
 Also pins the negative/regression space this ticket must not disturb:
-`create-prd-verifier.md` never names `citation_check.py` or `tests/`
+`create-prd-reviewer.md` never names `citation_check.py` or `tests/`
 literally (AC-4), and its 11 numbered dimensions keep their labels, numbers
 and order (`structure`/`audience-style` trailing).
 
@@ -28,8 +29,8 @@ AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 DOCS = os.path.join(REPO_ROOT, "docs")
 
-PRD_PLANNER = os.path.join(AGENTS, "create-prd-executor.md")  # the survey charter lives in the executor since ADR-0092
-PRD_VERIFIER = os.path.join(AGENTS, "create-prd-verifier.md")
+PRD_SURVEYOR = os.path.join(AGENTS, "create-prd-surveyor.md")  # the survey charter: planner, then executor (ADR-0092), now the surveyor
+PRD_REVIEWER = os.path.join(AGENTS, "create-prd-reviewer.md")  # create-prd's judge
 PRD_SKILL = os.path.join(SKILLS, "create-prd", "SKILL.md")
 SKILLS_MD = os.path.join(DOCS, "requirements", "functional", "skills.md")
 
@@ -88,7 +89,7 @@ def verify_phase_region(skill_md_body, skill_name):
     """Bounded window over the SKILL.md text that describes what gets
     spawned/passed to the verifier: from the first line naming the Verify
     phase to the next top-level (`##`) heading."""
-    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Phase: verify).*|3\.\s+\*\*Verify\*\*.*)$",
+    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Review|Phase: verify).*|3\.\s+\*\*Verify\*\*.*)$",
                   skill_md_body)
     assert m is not None, "no Verify-phase heading/list-item found in %s/SKILL.md" % skill_name
     rest = skill_md_body[m.end():]
@@ -129,7 +130,7 @@ class Dimension7ContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PRD_VERIFIER)
+        cls.body = read(PRD_REVIEWER)
         cls.block = _norm(dimension_block(cls.body, "Plan conformance"))
 
     def test_dimension_seven_still_plan_conformance(self):
@@ -175,13 +176,13 @@ class Dimension7ContractTest(unittest.TestCase):
         self.assertIn("never a block", lowered)
 
 
-class VerifierInputContractTest(unittest.TestCase):
+class ReviewerInputContractTest(unittest.TestCase):
     """D8: the verify-task `<inputs>` bullet names `clarifications.json`; the
     `<constraints>` bullet names the repo root."""
 
     @classmethod
     def setUpClass(cls):
-        cls.section = input_contract_section(read(PRD_VERIFIER))
+        cls.section = input_contract_section(read(PRD_REVIEWER))
 
     def test_inputs_name_clarifications_json(self):
         bullet = contract_bullet(self.section, "<inputs>")
@@ -192,18 +193,18 @@ class VerifierInputContractTest(unittest.TestCase):
         self.assertIn("repo_root", bullet)
 
 
-class PlannerContractTest(unittest.TestCase):
+class SurveyorContractTest(unittest.TestCase):
     """D7: the required-heading list names the three new sections; each
     one-line grammar appears verbatim (including the greenfield
     `Code evidence: N/A` form); the ADR-0012 canonical block is untouched."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PRD_PLANNER)
+        cls.body = read(PRD_SURVEYOR)
 
     def test_required_heading_list_names_three_new_sections(self):
         m = re.search(r"(?s)Required headings:.*?\n\n", self.body)
-        self.assertIsNotNone(m, "planner 'Required headings:' paragraph not found")
+        self.assertIsNotNone(m, "surveyor 'Required headings:' paragraph not found")
         paragraph = _norm(m.group(0))
         for heading in ("## Code evidence", "## Answer fidelity", "## Roadmap milestones"):
             with self.subTest(heading=heading):
@@ -275,10 +276,11 @@ class SkillMirrorTest(unittest.TestCase):
             self.body.lower(), r"plan -> execute -> verify",
             "create-prd/SKILL.md must no longer carry the per-iteration "
             "re-spawn sentence (MAR-305 drops it)")
-        self.assertNotIn("acs:create-prd-planner", self.body)
-        self.assertRegex(self.body, r"(?i)execute -> verify, no planner",
-                         "create-prd/SKILL.md must carry the no-planner topology "
-                         "sentence (ADR-0092)")
+        for stale in ("planner", "executor", "verifier"):
+            self.assertNotIn("acs:create-prd-%s" % stale, self.body)
+        self.assertRegex(self.body, r"(?i)surveyor → author → review",
+                         "create-prd/SKILL.md must carry the per-skill "
+                         "surveyor → author → review topology sentence")
 
 
 class Drift1Test(unittest.TestCase):
@@ -286,11 +288,11 @@ class Drift1Test(unittest.TestCase):
     '9 of 11'."""
 
     def test_nine_of_eleven_present(self):
-        body = read(PRD_VERIFIER)
+        body = read(PRD_REVIEWER)
         self.assertIn("9 of 11 dimensions pass, 2 blocking findings", body)
 
     def test_seven_of_nine_gone(self):
-        body = read(PRD_VERIFIER)
+        body = read(PRD_REVIEWER)
         self.assertNotIn("7 of 9 dimensions", body)
 
 
@@ -316,16 +318,16 @@ class RequirementsBulletTest(unittest.TestCase):
 
 
 class CitationCheckUntouchedTest(unittest.TestCase):
-    """AC-4: create-prd-verifier.md never names citation_check.py or tests/
+    """AC-4: create-prd-reviewer.md never names citation_check.py or tests/
     literally; citation_check.py's own public surface (heading name, rule
     strings, usage string) is unchanged by this ticket."""
 
     def test_no_citation_check_literal(self):
-        body = read(PRD_VERIFIER)
+        body = read(PRD_REVIEWER)
         self.assertNotIn("citation_check.py", body)
 
     def test_no_tests_literal(self):
-        body = read(PRD_VERIFIER)
+        body = read(PRD_REVIEWER)
         self.assertNotIn("tests/", body)
 
     def test_citation_check_upstream_heading_unchanged(self):
@@ -359,7 +361,7 @@ class DimensionOrderUnchangedTest(unittest.TestCase):
     7's body."""
 
     def test_all_nine_pre_existing_labels_present(self):
-        body = read(PRD_VERIFIER)
+        body = read(PRD_REVIEWER)
         for label in PRD_VERIFIER_DIMENSIONS:
             with self.subTest(dimension=label):
                 self.assertTrue(
@@ -367,7 +369,7 @@ class DimensionOrderUnchangedTest(unittest.TestCase):
                     "dimension %r must remain present" % label)
 
     def test_dimensions_in_original_order(self):
-        body = read(PRD_VERIFIER)
+        body = read(PRD_REVIEWER)
         positions = []
         for label in PRD_VERIFIER_DIMENSIONS:
             m = re.search(r"(?m)^\d+\.\s+%s" % _label_pattern(label), body)
@@ -377,7 +379,7 @@ class DimensionOrderUnchangedTest(unittest.TestCase):
                           "dimensions must stay in their original relative order")
 
     def test_structure_then_audience_style_trailing(self):
-        body = read(PRD_VERIFIER)
+        body = read(PRD_REVIEWER)
         structure_m = re.search(r"(?m)^10\.\s+%s" % _label_pattern("structure"), body)
         audience_m = re.search(r"(?m)^11\.\s+%s" % _label_pattern("audience-style"), body)
         self.assertIsNotNone(structure_m, "dimension 10 'structure' not found")

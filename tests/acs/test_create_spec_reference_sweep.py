@@ -37,7 +37,7 @@ SCHEMAS_DIR = os.path.join(PLUGIN, "schemas")
 # code-verifier.md, went with the verifier itself when v0.5.0 replaced the
 # per-skill verifier pass with /acs:review-code's lens set.
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
-IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
 
 # --- This spec's sweep-set files ---
 CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
@@ -46,8 +46,11 @@ SETUP_SKILL = os.path.join(SKILLS_DIR, "setup", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
 CREATE_DOCS_SKILL = os.path.join(SKILLS_DIR, "create-docs", "SKILL.md")
-CREATE_DESIGN_EXECUTOR = os.path.join(AGENTS_DIR, "create-design-executor.md")
-CREATE_TICKET_EXECUTOR = os.path.join(AGENTS_DIR, "create-ticket-executor.md")
+CREATE_DESIGN_DESIGNER = os.path.join(AGENTS_DIR, "create-design-designer.md")
+# create-ticket spawns no subagent: its former executor charter is the
+# materialization reference the coordinator follows inline.
+CREATE_TICKET_MATERIALIZE = os.path.join(SKILLS_DIR, "create-ticket", "references",
+                                         "materialize.md")
 
 RULE2_IDENTICAL_FILES = [CREATE_ARCHITECTURE_SKILL, CREATE_DOCS_SKILL]
 # Every file a Rule-2 rewrite touches (the 5 identical ones, plus init and
@@ -77,7 +80,7 @@ PROVENANCE_SUBSTRINGS = [
 # create-ticket "Next" line's two occurrences, tested separately below).
 CREATE_DESIGN_ROUTING_PHRASES = [
     "tickets without the flag skip straight to /acs:code.",
-    "verifier before it gates `/acs:code`.",
+    "design reviewer before it gates `/acs:code`.",
     "INHERIT this design via cross-partition read in their /acs:code; never",
     "the /acs:code gate stays closed until it succeeds.",
     "the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,",
@@ -166,7 +169,7 @@ def changelog_entry_section(body):
 class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
     plugins/acs/{skills,agents}/** containing "create-spec" is exactly
-    {create-impl-plan/SKILL.md, create-impl-plan-executor.md} with per-file
+    {create-impl-plan/SKILL.md, create-impl-plan-planner.md} with per-file
     line-hit counts {1, 1}. Requires spec 01 already landed (see the
     spec's "Why this spec is last")."""
 
@@ -180,7 +183,7 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
             set(self.counts.keys()), expected_files,
             "plugins/acs/{skills,agents}/** must contain \"create-spec\" in "
             "exactly {create-impl-plan/SKILL.md, "
-            "create-impl-plan-executor.md} after the sweep, got: %r"
+            "create-impl-plan-planner.md} after the sweep, got: %r"
             % (sorted(self.counts.keys()),))
 
     def test_per_file_line_hit_counts(self):
@@ -260,8 +263,9 @@ class Rule1CreateTicketNextLineBothOccurrencesTest(unittest.TestCase):
 
 class Rule1RemainingSitesTest(unittest.TestCase):
     """Assertion 8: the 5 Rule-1 sites assertion 4 does not reach —
-    create-ticket/SKILL.md's other 3 lines, create-design-executor.md, and
-    create-ticket-executor.md — each proven REPLACED, not merely absent."""
+    create-ticket/SKILL.md's other 3 lines, create-design-designer.md, and
+    create-ticket's references/materialize.md (its executor charter until the
+    skill went inline) — each proven REPLACED, not merely absent."""
 
     def test_create_ticket_pipeline_starts_at_code(self):
         body_norm = norm(read(CREATE_TICKET_SKILL))
@@ -276,13 +280,13 @@ class Rule1RemainingSitesTest(unittest.TestCase):
             "`/acs:code <child-id>` after the epic's design). "
             "Under /acs:ship: return"))
 
-    def test_create_design_executor_inherit_phrase(self):
-        body_norm = norm(read(CREATE_DESIGN_EXECUTOR))
+    def test_create_design_designer_inherit_phrase(self):
+        body_norm = norm(read(CREATE_DESIGN_DESIGNER))
         self.assertRegex(body_norm, phrase_re(
             "child tickets inherit this design in their /acs:code"))
 
-    def test_create_ticket_executor_capture_phrase(self):
-        body_norm = norm(read(CREATE_TICKET_EXECUTOR))
+    def test_create_ticket_materialize_capture_phrase(self):
+        body_norm = norm(read(CREATE_TICKET_MATERIALIZE))
         self.assertRegex(
             body_norm,
             phrase_re("/acs:code. Capture each printed `ticket_id`"))

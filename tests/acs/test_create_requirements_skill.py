@@ -96,20 +96,26 @@ class Mar143GateCase(unittest.TestCase):
     def test_it_requires_no_run_artifact_of_its_own(self):
         """A product skill is never a step of `ship` (2.4), so it has no run
         artifact to read -- it reads the repo's documents, and judges their
-        absence itself rather than being refused for it."""
-        required, _optional = acs_lib.reads_of("create-requirements")
-        self.assertEqual([r for r in required if r != "subject"], [])
+        absence itself rather than being refused for it. Each skill is
+        independent: there is no per-skill manifest declaring what it reads,
+        and it is nobody's leg."""
+        skill_dir = os.path.dirname(SKILL_PATH)
+        self.assertFalse(os.path.exists(os.path.join(skill_dir, "acs.yaml")))
+        self.assertNotIn("create-requirements", acs_lib.SKILL_LEGS)
+        body = read(SKILL_PATH)
+        for token in ("acs.yaml", "reads.required", "leg_of"):
+            self.assertNotIn(token, body)
 
 
 class Mar143FilesExistCase(unittest.TestCase):
-    """AC-1: the coordinator, triad agents, and hooks exist on disk at the
-    expected paths."""
+    """AC-1: the coordinator, its three agents (surveyor, author, reviewer),
+    and hooks exist on disk at the expected paths."""
 
     def test_skill_md_exists(self):
         self.assertTrue(os.path.isfile(SKILL_PATH), SKILL_PATH)
 
-    def test_triad_agents_exist(self):
-        for role in ("executor", "verifier"):
+    def test_agents_exist(self):
+        for role in ("surveyor", "author", "reviewer"):
             path = os.path.join(PLUGIN, "agents", "create-requirements-%s.md" % role)
             self.assertTrue(os.path.isfile(path), path)
 
@@ -183,8 +189,8 @@ class Mar143CountBumpCase(unittest.TestCase):
     def test_c4_component_bumped_counts_present(self):
         body = self._c4_component()
         self.assertIn("twelve authoring skills", body)
-        self.assertIn("12 authoring pairs (24 agents in pairs)", body)
-        self.assertIn("31 agent files, all reachable", body)
+        self.assertIn("— **29 agents**", body)
+        self.assertIn("32 agent files, all reachable", body)
         self.assertIn("create-requirements", body)
 
     def test_c4_component_stale_counts_absent(self):

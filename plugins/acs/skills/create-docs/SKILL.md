@@ -1,7 +1,7 @@
 ---
 name: create-docs
-description: Bootstrap or maintain the product doc sets — quality (test strategy, coverage policy), operations (release process, runbooks, observability, incident response, test scheduling), principles (engineering principles + rationale) and standards (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set, each set delivered as its own docs-only PR on its own delivery ticket.
-when_to_use: Takes `all` or a comma-separated list of sets, runs the eligible ones in capped parallel, and resumes an interrupted set from its delivery-ticket id. Use when asked to create, bootstrap, generate, regenerate or maintain any of those doc sets; requires the architecture doc set (/acs:create-architecture) first.
+description: Bootstrap or maintain the product doc sets — quality (test strategy, coverage policy), operations (release process, runbooks, observability, incident response, test scheduling), principles (engineering principles + rationale) and standards (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set when present, each set delivered as its own docs-only PR on its own delivery ticket.
+when_to_use: Takes `all` or a comma-separated list of sets, runs the eligible ones in capped parallel, and resumes an interrupted set from its delivery-ticket id. Use when asked to create, bootstrap, generate, regenerate or maintain any of those doc sets; reads the architecture set when present (/acs:create-architecture is recommended first, never required).
 argument-hint: "[all | <set>[,<set>...] | <delivery-ticket-id to resume>]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -10,7 +10,7 @@ You are the coordinator of /acs:create-docs, the product skill that bootstraps
 or maintains the consumer's product doc sets — `quality`, `operations`,
 `principles`, `standards` — in the consumer repo, each where the repo already
 keeps it, else at its default location (`docs/quality/`, `docs/operations/`,
-…), grounded in the PRD and the `architecture/` set, and shipped as a
+…), grounded in the PRD and the `architecture/` set when the repo has one, and shipped as a
 docs-only PR on a fresh delivery ticket **per set**. This is a product-level
 skill: it is ticket-independent until it mints its own delivery tickets. You
 orchestrate subagents; you never write a doc file yourself.
@@ -18,20 +18,22 @@ orchestrate subagents; you never write a doc file yourself.
 One skill, four sets (ADR-0094). The sets used to be four internal leg skills
 with a planner/executor/verifier trio each; they differed only in the row of
 the table below, so that table is now the whole difference. The work is
-**authoring** (ADR-0092 class D): an executor authors each set from the
-templates and the upstream docs, and a fresh verifier judges it. There is
-**no planner** — when the deliverable is a document bootstrapped from a
+**authoring** (ADR-0092 class D), so this skill owns exactly two subagents,
+run as **one author/reviewer pair per doc set**: an **author** writes the set
+from the templates and the upstream docs, with authoring notes, and a fresh
+**reviewer** judges it against those notes. Nothing plans the set ahead of
+the author — when the deliverable is a document bootstrapped from a
 template, a plan to write it is a second copy of the writing.
 
 Ground rules, non-negotiable:
 
 - This is a hooked skill: `pre-create-docs.py` fires on the Skill call, and
-  you check the architecture doc set yourself at Start, once, for every set
-  you go on to run; each set's own
+  you look for the architecture doc set yourself at Start, once, for every set
+  you go on to run — its absence is recorded, never a refusal; each set's own
   `acs step start --step create-docs --doc-set <set> --allocate` mints its
   delivery ticket, and each set's own `acs step finish` finalizes it.
   You never bypass, simulate, or duplicate a hook.
-- You spawn `acs:create-docs-executor` and `acs:create-docs-verifier` — the
+- You spawn `acs:create-docs-author` and `acs:create-docs-reviewer` — the
   same two agent files for every set; the set travels in the task's
   `<constraints>`. Decomposition is YOURS alone: subagents never spawn
   subagents.
@@ -85,10 +87,12 @@ name from the checkout root (see Checkout root, below). Record each location
 repo-relative:
 
 - **The architecture set** — the directory holding `hld/tech-stack.md`; a
-  directory without that file is not the set. None found → STOP: "no
-  architecture doc set found (expected hld/tech-stack.md) — run
-  /acs:create-architecture first." This is the one precondition every set
-  shares, checked here once for the whole run.
+  directory without that file is not the set. None found → do NOT stop:
+  record `architecture_dir` as absent for every set this run starts, tell the
+  user once "no architecture doc set found (expected hld/tech-stack.md) —
+  architecture-derived tailoring falls back to the repo/PRD; run
+  /acs:create-architecture first for stack-grounded docs" (a recommendation,
+  never a precondition), and go on. Looked for here once for the whole run.
 - **The PRD** — the product `prd.md` (conventionally `docs/product/prd.md`).
 - **Each declared set** — present when its sentinel file (the first file in
   its row of the table under "The doc sets") exists; record the directory
@@ -231,21 +235,31 @@ The upstream inputs are declared per set in `doc_sets[<set>].upstream`:
 - `prd`: the PRD you located at Start — the named slice (`quality` and
   `operations` read its Non-functional requirements section specifically;
   `principles` and `standards` read the PRD generally).
-- `architecture`: the full architecture set you located at Start — always;
-  architecture is upstream of every set.
+- `architecture`: the full architecture set you located at Start — upstream
+  of every set **when the repo has one**. **Graceful degradation
+  (mandatory):** when no architecture set exists, you omit the
+  `architecture_dir` constraint and add `architecture-optional`; the author
+  authors the set from the PRD when one exists, else from the repo itself
+  (build manifests, CI config, source layout) and the run's subject, records
+  "no architecture set: architecture-derived tailoring falls back to the
+  repo/PRD" in its authoring notes, and routes every product fact it would
+  have taken from the architecture set (stack, deployment target, CI system,
+  components) through the clarification ledger for the user to confirm —
+  never a block, never a guess.
 - `principles`: `true` for `standards` only — read the `principles/` set
   **when a `principles/` doc set actually exists at the principles set's
   location**. The conformance chain is `architecture → principles →
   standards`, an altitude gradient where an abstract principle is realized by
   a concrete standard. **Graceful degradation (mandatory):** when no
-  principles set exists there yet, the executor notes this explicitly and
+  principles set exists there yet, the author notes this explicitly and
   PROCEEDS — grounding N/A for the run, never a block. `principles` itself
   has NO cross-read on `standards/` or any downstream set.
 
-**There is no per-set opt-out, and only a missing architecture set refuses
-a run.** A set is skipped only for a reason Start reports (already in the
+**There is no per-set opt-out, and no missing upstream doc refuses a
+run.** A set is skipped only for a reason Start reports (already in the
 repo, already in flight, a missing hard dependency). A repo with no
-principles set never stops a `standards` run.
+architecture set never stops any set, and a repo with no principles set
+never stops a `standards` run.
 
 Mode is a two-way split, keyed to the set's own location only:
 
@@ -253,75 +267,87 @@ Mode is a two-way split, keyed to the set's own location only:
 - **re-run/amend** — the set exists — regenerate/tailor in place, preserving
   still-accurate content.
 
-The executor decides the mode from the disk and records it; you do not
+The author decides the mode from the disk and records it; you do not
 pre-decide it.
 
 ## Output contract
 
-For each set, the executor writes EXACTLY the files `doc_sets[<set>].files`
+For each set, the author writes EXACTLY the files `doc_sets[<set>].files`
 lists, bootstrapped from `templates/<template_dir>/` into
 `<checkout_root>/<location>/` (no other repo file is touched). It bootstraps
 each file from its template verbatim, then lightly tailors it to the consumer's
-detected stack (read from the `architecture/` set) and, for `standards`, to
+detected stack (read from the `architecture/` set, else from the repo and the
+user-confirmed ledger answers) and, for `standards`, to
 the stated principles when available — the same bootstrap-then-tailor shape
 `/acs:create-project` uses for its scaffold templates. Living parts (a
 coverage ledger, a postmortem log) are explicitly out of scope: these files
 document strategy, policy, principles and standards, not a running log.
 
-## Reflection loop — execute → verify, no planner
+## Reflection loop — author → review, one pair per set
 
-The loop per set is execute → verify, max 3 iterations. **What an iteration
-counts:** one execute → verify round. There is no plan phase: iteration 1's
-executor reads the upstream inputs, decides the mode, authors the set, and
-writes its authoring notes; the verifier judges the result fresh. On
-iterations 2-3 the verifier's findings go verbatim into the next executor
-`<task>` `<context>` and the executor authors the remediation. This skill has
-no path-driven verify-depth selection: the cap is a fixed 3 for every set.
+The loop per set is author → review, max 3 iterations. **What an iteration
+counts:** one author → review round. Nothing plans the set ahead of the
+author: iteration 1's author reads the upstream inputs, decides the mode,
+authors the set, and writes its authoring notes; the reviewer judges the
+result fresh. On iterations 2-3 the reviewer's findings go verbatim into the
+next author `<task>` `<context>` and the author writes the remediation. This
+skill has no path-driven review-depth selection: the cap is a fixed 3 for
+every set.
+
+| Role | Agent | Kind | Model tier | Writes |
+|---|---|---|---|---|
+| author | `acs:create-docs-author` | write | `executor` | the set's `output-files` under its location, `iter-<n>/authoring.md`, `iter-<n>/author.json` |
+| reviewer | `acs:create-docs-reviewer` | judge | `verifier` | `iter-<n>/reviewer.md` only |
 
 Drive this slice's sets together from this coordinator, in parallel phase
 batches — the mechanism `/acs:code`'s coordinator already uses to run several
-executors whose file maps are disjoint (`code/SKILL.md`), reused, never a new
-one:
+implementers whose file maps are disjoint (`code/SKILL.md`), reused, never a
+new one:
 
-### Execute
+### Author
 
-Spawn this slice's executors (`acs:create-docs-executor`, one per set, at
-most `max_parallel`) in ONE message. Every executor writes in its own set's
+Spawn this slice's authors (`acs:create-docs-author`, one per set, at
+most `max_parallel`) in ONE message. Every author writes in its own set's
 worktree on the branch that set's Branch step created, to that set's own
 location — disjoint by construction. Iteration 1 authors; iteration 2+
 remediates the findings in `<context>`.
 
-### Verify
+### Review
 
-After the slice's executors return, spawn this slice's verifiers
-(`acs:create-docs-verifier`, one per set) in one message. The verifier
-judges fresh from artifacts only (never the executor's reasoning) and
+After the slice's authors return, spawn this slice's reviewers
+(`acs:create-docs-reviewer`, one per set) in one message. The reviewer
+judges fresh from artifacts only (never the author's reasoning) and
 checks, all blocking: every planned file exists and no unplanned extra
-file; the tailored content conforms to the architecture set; required
+file; the tailored content conforms to the architecture set (when absent: to
+the repo evidence and the ledger-confirmed facts the notes cite); required
 sections are present in each file (`required_sections:<file>`);
 the authoring notes were followed, including independent corroboration of
 every upstream-fact citation in the Upstream inventory; the changeset is docs-only;
-any consistency finding the executor surfaced was resolved or explicitly
+any consistency finding the author surfaced was resolved or explicitly
 user-deferred in the clarification ledger; the deterministic structure floor;
 and the audience register (`audience_style_profile`). Zero findings = pass —
 proceed to Delivery. On findings, they go verbatim into the next iteration's
-executor `<task>` `<context>` and the run continues execute → verify. After
+author `<task>` `<context>` and the run continues author → review. After
 iteration 3 with findings remaining: stop that set, final status `failed`,
 findings recorded in its result document; commit whatever was written to its
 local ticket branch so nothing is lost, but do NOT push or open the PR.
 
-The verify task's `<constraints>` also carry `prd`, `architecture_dir`,
+The reviewer task's `<constraints>` also carry `prd`, `architecture_dir`
+(or `architecture-optional` when the repo has no architecture set),
 `principles_dir` when applicable, each file's `required_sections:<file>`
-and the `audience_style_profile` — exactly the execute task's constraints,
+and the `audience_style_profile` — exactly the author task's constraints,
 so the two phases judge the same contract.
 
 ### Messages
 
-Spawn subagents with the Agent tool: subagent_type `acs:create-docs-executor`
-/ `acs:create-docs-verifier` (fall back to the un-namespaced name if the
-runtime rejects the namespaced one). Apply `context.models.<role>.model` /
-`.effort` at spawn when not `"inherit"`; if the runtime rejects the model or
-effort, FAIL that set's run with that error — no silent fallback.
+Spawn subagents with the Agent tool: subagent_type `acs:create-docs-author`
+/ `acs:create-docs-reviewer` (fall back to the un-namespaced name —
+`create-docs-author` / `create-docs-reviewer` — if the runtime rejects the
+namespaced one). Apply the role's model tier at spawn —
+`context.models.executor.model` / `.effort` for the author,
+`context.models.verifier.model` / `.effort` for the reviewer — when not
+`"inherit"`; if the runtime rejects the model or effort, FAIL that set's run
+with that error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -331,13 +357,14 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-Communicate in XML per `the SubagentStop hook's message check`. The set rides in the
+Communicate in XML per `the SubagentStop hook's message check`. The phase is
+the role: `phase="author"` or `phase="reviewer"`. The set rides in the
 constraints; compose them from `doc_sets[<set>]` and the locations you
 recorded at Start (`doc_set_path` is the set's own location), never from
-memory. Example execute task for `quality`:
+memory. Example author task for `quality`:
 
 ```xml
-<task skill="create-docs" phase="execute" ticket-id="SHOP-2" iteration="1">
+<task skill="create-docs" phase="author" ticket-id="SHOP-2" iteration="1">
   <objective>Author the quality/ doc set: read the PRD's Non-functional requirements and the architecture set, decide bootstrap vs re-run from the disk, bootstrap each file from its template and tailor it to the detected stack, and record the authoring notes.</objective>
   <inputs>
     <file>docs/product/prd.md</file>
@@ -361,11 +388,14 @@ memory. Example execute task for `quality`:
 ```
 
 For `standards`, add `<constraint name="principles_dir">docs/principles</constraint>`
-naming the principles set's location (the executor and verifier check the
+naming the principles set's location (the author and reviewer check the
 set exists on disk themselves), and
 `<constraint name="principles-optional">the principles/ set may be absent — treat as grounding N/A for this iteration, never a block.</constraint>`.
-The verify task carries the same constraints, and its `<inputs>` name the
-authoring notes and execute report(s) of the iteration under review.
+With no architecture set, drop `architecture_dir` and the architecture
+`<inputs>` entry and add
+`<constraint name="architecture-optional">no architecture set: architecture-derived tailoring falls back to the repo/PRD; confirm every such product fact through the clarification ledger.</constraint>`.
+The reviewer task carries the same constraints, and its `<inputs>` name the
+authoring notes and author report of the iteration under review.
 
 Validate EVERY message you send and receive, for every set:
 
@@ -376,12 +406,15 @@ On an invalid message, re-request it once; if still invalid, fail **that
 set's** run with the validation error recorded in its own `errors` — never
 another set's.
 
-Persist every phase output to `steps/create-docs/iter-<n>/<phase>.json`
-at the phase boundary, BEFORE starting the next phase. The executor's own
-artifacts are `iter-<n>/authoring.md` (Mode; Upstream inventory with cited,
-verbatim-excerpted facts; Consistency findings; Decisions) and
-`iter-<n>/execute.json`; the verifier's is `iter-<n>/verify.md`. Every
-iteration's verifier `<inputs>` name that iteration's authoring notes.
+Every phase output is persisted at the phase boundary, BEFORE the next phase
+starts: the SubagentStop hook snapshots each returned message to
+`steps/create-docs/iter-<n>/<phase>-message.xml`; if that snapshot is missing
+(a host that does not fire the hook), write the `<task>` and `<result>` there
+yourself. The author's own artifacts are `iter-<n>/authoring.md` (Mode;
+Upstream inventory with cited, verbatim-excerpted facts; Consistency
+findings; Decisions) and `iter-<n>/author.json`; the reviewer's is
+`iter-<n>/reviewer.md` — never write a message over them. Every iteration's
+reviewer `<inputs>` name that iteration's authoring notes.
 
 ## User interaction
 
@@ -403,14 +436,16 @@ in the completion report's Findings and the PR body until a user confirms.
 Before a needs_input handoff, record the outgoing questions as `open`
 (`clarify.py add` without `--answer`).
 
-The executor's consistency findings (the ADR-0012 design-time
+The author's consistency findings (the ADR-0012 design-time
 doc-consistency step: gaps and staleness across the doc graph, recorded in
 its authoring notes, or returned as `<questions>` on `needs_input` when one
 blocks authoring) go through this same ledger-first path: the user decides
-which adjustments to apply, the next executor iteration applies them, and the
-verifier confirms each was resolved or deferred. Ask when genuinely ambiguous
-— at minimum, any gap between the PRD and the architecture set (and, for
-`standards`, the principles set) the executor surfaces. Do not ask about
+which adjustments to apply, the next author iteration applies them, and the
+reviewer confirms each was resolved or deferred. Ask when genuinely ambiguous
+— at minimum, any gap between the PRD and the architecture set, every
+architecture-derived product fact the author could not ground when the repo
+has no architecture set (and, for
+`standards`, the principles set) the author surfaces. Do not ask about
 things those docs already answer.
 
 If you genuinely cannot reach the user (a non-interactive run), do not guess
@@ -422,13 +457,13 @@ with the `<questions>` list instead.
 The delivery-ticket pattern, done by you, inside that set's worktree
 (/acs:create-design and /acs:code are not involved):
 
-1. **Branch** (before the first executor writes): require a clean working
+1. **Branch** (before the first author writes): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
    proceeding). Render `settings.formats.branch_name` (default
    `{type}/{ticket_id}-{slug}`) with `type=task`, the ticket id, and the
    slugified title — e.g. `task/SHOP-2-product-quality-doc-set` — and
    `git checkout -b` it from the default branch.
-2. **Commit** (after the verifier passes): stage ONLY `<location>/` and verify
+2. **Commit** (after the reviewer passes): stage ONLY `<location>/` and verify
    the diff is docs-only (`git diff --cached --name-only` — every path under
    the set's location). Commit with `settings.formats.commit_message` (default
    `{ticket_id} {summary}`), e.g. `SHOP-2 Add product quality doc set` (or
@@ -454,7 +489,7 @@ MANDATORY final step for every set started — never skipped, also on failure:
 ```json
 {
   "status": "completed",
-  "summary": "quality doc set verified against the architecture set; docs-only PR opened",
+  "summary": "quality doc set reviewed against the architecture set; docs-only PR opened",
   "states": {
     "doc_set": {
       "set": "quality",

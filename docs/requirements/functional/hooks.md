@@ -1,8 +1,8 @@
 # Hooks
 
-Pre and post hooks are central to the workflow: they **check each skill's
-inputs**, apply a small set of **safety brakes**, and **persist** each
-skill's own state. Hooks are what make a skill's preconditions and its
+Pre and post hooks are central to the workflow: they apply a small set of
+**safety brakes** before each skill and **persist** each skill's own state
+after it. Hooks are what make a skill's preconditions and its
 recorded outcome deterministic, without relying on the model's memory or
 goodwill.
 
@@ -30,16 +30,20 @@ one advisory stderr line, never a refusal.
   `sessions/`), and `acs step start` MAY read the parent epic's run to
   resolve its design state ([workspace-and-state.md](workspace-and-state.md)).
 - A pre-hook MAY additionally **read** (never write) the ticket's documents
-  in the repo docs tree (`docs/tickets/<ID>/`) to check the inputs its skill
-  requires — `plan.md` for `/code`, and the plan's `## Contract` block, from
-  which a step that owes nothing records its evidenced no-op
-  ([workflow.md](workflow.md#where-a-tickets-artifacts-live)).
+  in the repo docs tree (`docs/tickets/<ID>/`) where a brake or a no-op
+  needs them — `plan.md` for `/code`'s plan-approval brake, and the plan's
+  `## Contract` block, from which a step that owes nothing records its
+  evidenced no-op ([workflow.md](workflow.md#where-a-tickets-artifacts-live)).
 
-### Pre-hooks — input checks and safety brakes
+### Pre-hooks — baseline checks and safety brakes
 
-A pre-hook runs before its skill and checks two things, and only these two:
+A pre-hook runs before its skill and checks two things, and only these two.
+It never checks that an upstream artifact exists: each skill is independent,
+reads what it finds, and falls back to the run's subject — the ticket's
+acceptance criteria, the prompt or the document — when an upstream artifact
+is absent (ADR-0109).
 
-**1. Inputs** — the artifacts and configuration the skill itself reads:
+**1. Baseline** — what every hooked skill needs to run at all:
 
 - Baseline checks shared by all pre-hooks: the settings validate (no
   `settings.json` is needed — every key has a default, so a repo that never
@@ -49,17 +53,19 @@ A pre-hook runs before its skill and checks two things, and only these two:
   (always `<main-checkout>/.acs/state-machine`, no override) can be derived
   and is consistent across worktrees, and the `<ticket-id>` partition can be
   resolved.
-- Skill-specific inputs — e.g. `pre-code.py` requires an approved `plan.md`;
-  `pre-create-api-contract.py` requires `plan.md` **and** an `analysis.md`
-  declaring `api_surface: true`; `pre-create-e2e-tests.py` requires a
-  configured e2e suite **and** at least one e2e-typed case in
-  `test-cases.md`.
-- A missing input MUST be reported by naming the artifact, where it was
-  looked for, and the skill that produces it.
+- There are no skill-specific input checks. A skill that reads an upstream
+  artifact reads it when it exists and otherwise works from the subject:
+  `/code` with no `plan.md` derives an implicit plan from the subject;
+  `/create-api-contract` with no plan bounds the contract by the ticket's
+  acceptance criteria; `/create-e2e-tests` with no `test-cases.md` derives
+  its cases from the acceptance criteria. What a skill's own configuration
+  lacks (an e2e suite command, say) it asks for itself.
 - A repo **document** (the PRD, the architecture set) is not a pre-hook
-  input: no setting says where one lives, so the skill that needs it finds
-  it at Start and stops, naming the skill that produces it, when there is
-  none ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+  check either: no setting says where one lives, so the skill that reads it
+  finds it at Start ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md))
+  — `/create-architecture` works from the subject when there is no PRD;
+  `/create-project`, `/standardize-project` and `/acs:create-docs` stop
+  without the architecture set's `hld/tech-stack.md`.
 
 **2. Safety brakes** — refusals that protect correctness rather than
 sequence:
@@ -68,7 +74,8 @@ sequence:
   ([workspace-and-state.md](workspace-and-state.md));
 - the ticket is an **epic** and the skill implements work (`/code`,
   `/analyze-requirements`, `/create-impl-plan`) — epics are never implemented;
-- `/create-pr` has a recorded `/code` run whose verifier did **not** pass;
+- `/create-pr` has a recorded `/acs:review-code` step that did **not** pass
+  (`verifier_passed != true`);
 - `/merge-pr` has no recorded PR reference.
 
 A pre-hook MUST NOT refuse a skill because another skill has not completed.
@@ -110,16 +117,18 @@ records no session or transcript field: acs measures no usage
 | Exit code | Meaning |
 |-----------|---------|
 | `0` | Ready — the skill proceeds. An order advisory may have been printed to stderr. |
-| `2` | **Blocked** — the skill MUST NOT run. The hook's stderr message names the missing input (and the skill that produces it) or the brake that fired. |
+| `2` | **Blocked** — the skill MUST NOT run. The hook's stderr message names the baseline check or the brake that fired. |
 
-Example: if no `plan.md` exists for ticket `SHOP-123`, then `pre-code.py`
-exits 2 naming `/acs:create-impl-plan SHOP-123` and `/code` stops before
-doing any work. If a `plan.md` exists but `/acs:analyze-requirements` never ran,
-`/code` runs — after one advisory line.
+Example: if no `plan.md` exists for ticket `SHOP-123`, `pre-code.py` exits 0
+and `/code` derives an implicit plan from the ticket. If a `plan.md` exists
+on the standard path but its approval is for an earlier revision,
+`pre-code.py` exits 2 and `/code` stops before doing any work. If
+`/acs:analyze-requirements` never ran, `/code` runs — after one advisory
+line.
 
 **`acs gate --skill <name>` MUST answer exactly what the pre-hook would
 answer** — the same exit code and the same stderr for the same subject,
-including the input-fallback lines, the safety brakes and the order advisory —
+including the safety brakes and the order advisory —
 **and MUST NOT write anything doing it**: no run created, no lock taken, no
 step opened, no no-op settled. When the checkout has no run yet, the gate
 judges the run the subject *would* open, projected in memory and never
@@ -192,27 +201,28 @@ step.
 
 ## Per-skill pre-hook conditions
 
-Every row is an **input** (the skill cannot do its work without it) or a
-**brake** (running would be unsafe). No row is an order requirement.
+Every row is a **baseline** check (the subject resolves) or a **brake**
+(running would be unsafe). No row is an order requirement, and no row asks
+for an upstream artifact.
 
-| Skill | Inputs | Brakes |
+| Skill | Baseline | Brakes |
 |-------|--------|--------|
 | `/create-prd` | — (only the baseline checks; no settings file needed) | — |
 | `/create-requirements` | — | — |
 | `/create-ticket` | — | — |
-| `/create-architecture` | — (the skill itself checks for a PRD at Start) | — |
+| `/create-architecture` | — (the skill reads the PRD at Start when there is one, else works from the subject) | — |
 | `/create-project` | — (the skill itself checks for the architecture set's `hld/tech-stack.md` at Start) | — |
 | `/acs:create-docs` | — (the skill itself checks for the architecture set at Start, once for every doc set) | — |
 | `/standardize-project` | — (the skill itself checks for the architecture set at Start) | — |
 | `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
 | `/analyze-requirements` | ticket resolves | not an epic; lock free |
 | `/create-impl-plan` | ticket resolves | not an epic; lock free |
-| `/create-api-contract` | `plan.md` exists **and** `analysis.md` declares `api_surface: true` | lock free |
+| `/create-api-contract` | ticket resolves (a plan declaring no API surface settles the step as an evidenced no-op) | lock free |
 | `/create-test-docs` | ticket resolves | lock free |
-| `/code` | ticket resolves; an approved `plan.md` exists | not an epic; lock free |
+| `/code` | ticket resolves | not an epic; on the standard and complex paths, the plan's approval matches the plan on disk; lock free |
 | `/docs-sync` | ticket resolves | lock free |
-| `/create-e2e-tests` | an e2e suite is configured (`settings.e2e` / `settings.suites.e2e`) **and** `test-cases.md` lists ≥ 1 e2e case | lock free |
-| `/create-pr` | ticket resolves | a recorded `/code` run must not have left `verifier_passed != true` (a ticket with **no** recorded code run is allowed); lock free |
+| `/create-e2e-tests` | ticket resolves (a plan declaring no e2e impact settles the step as an evidenced no-op) | not an epic; lock free |
+| `/create-pr` | ticket resolves | a recorded `/acs:review-code` step must not have left `verifier_passed != true` (a run with **no** recorded review is allowed); lock free |
 | `/merge-pr` | ticket resolves | a PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)); lock free |
 
 **A skill the workflow does not name is still gated.** `/create-design` and
@@ -232,8 +242,8 @@ worth stating explicitly, because each used to be an order gate:
   completed; it re-derives doc impact from the branch diff, which is a real
   input it can check for itself.
 - `/create-pr` no longer requires `/code` and `/docs-sync` completed. Its
-  verifier-passed check survives as a **brake** and was narrowed: it refuses
-  only a ticket that HAS a recorded code run whose verifier did not pass.
+  review-passed check survives as a **brake** and was narrowed: it refuses
+  only a run that HAS a recorded review that did not pass.
 
 ## Runtime & resolution rules
 

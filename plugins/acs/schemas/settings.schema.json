@@ -178,7 +178,7 @@
       "additionalProperties": true
     },
     "models": {
-      "description": "Per-role subagent model and reasoning effort. Resolution per field: overrides.<skill>.<role> -> <role> -> inherit.",
+      "description": "Subagent model and reasoning effort by TIER. Every subagent role runs on one tier, picked by its kind (acs_lib.skills): survey roles (surveyor, auditor) and create-impl-plan's planner on `planner`, write roles (author, implementer, scaffolder, ...) on `executor`, judge roles (reviewer, plan-reviewer, build-checker, ...) on `verifier`. Resolution per field: overrides.<skill>.<tier> -> <tier> -> inherit.",
       "type": "object",
       "properties": {
         "planner": {

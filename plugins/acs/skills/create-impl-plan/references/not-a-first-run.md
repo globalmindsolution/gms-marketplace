@@ -24,12 +24,13 @@ continuing:
 2. Re-resolve the plan artifact (above) and read it if it exists. Trust
    nothing you cannot see in a file: a plan recorded published that is not on
    disk is not published.
-3. Continue from the first unfinished phase (an execute with no verify →
-   verify it; a verify with findings and no later execute → execute with
-   those findings as `<context>`).
-4. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
-   never re-runs an iteration whose verify is already on disk.
+3. Continue from the first unfinished phase (a planner report
+   `iter-<n>/planner.json` with no plan review → run the plan reviewer on it;
+   a plan review `iter-<n>/plan-reviewer.md` with findings and no later
+   planner report → run the planner with those findings as `<context>`).
+4. Nothing carries across iterations but the draft: the planner's authoring
+   notes (`iter-<n>/authoring.md`) belong to their iteration, and a resumed
+   run never re-runs an iteration whose plan review is already on disk.
 
 If `context.handoff_summary` exists, read it plus
 `steps/create-impl-plan/handoff-context.md` (when present), do a

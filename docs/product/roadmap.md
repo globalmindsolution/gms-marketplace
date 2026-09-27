@@ -60,19 +60,15 @@ Epic-level scope (retrofit; built before dogfooding began):
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics *(removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md))*, helper CLIs.
 - 30 skills + 32 agent files on disk (verified `ls plugins/acs/skills` = 30,
   `ls plugins/acs/agents` = 32; ADR-0095 added `/acs:code`'s four delivery-path
-  legs, which own no agents of their own and spawn `code`'s pair); the reflection (execute→verify) protocol is
-  active on the fourteen skills that run a loop — the twelve authoring
-  skills plus `/acs:code` and `/acs:create-docs`; no skill has a plan phase
-  since ADR 0092 (the per-iteration re-plan went first — MAR-71 for
-  `/acs:code`, then MAR-300, MAR-301, MAR-302, MAR-305 and the completion of
-  that migration for the rest — then the planner role itself;
-  `/acs:create-impl-plan` kept ADR-0074's lane rule with its executor in the
-  planner's place until ADR-0095 retired the lanes; it now spawns that
-  executor on every run, because it runs before any delivery path exists),
-  while
-  the three apply-work skills
-  (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline (coordinator +
-  at most one executor) after the v0.3.0 apply-tier inlining. XML/XSD messaging, phase artifacts.
+  legs, which own no agents of their own and spawn `code`'s implementer); the
+  reflection (write → judge) protocol is active on the twelve authoring skills
+  and `/acs:create-docs`, each over subagents named for its own work
+  (ADR-0109: e.g. `create-prd`'s surveyor, author and reviewer,
+  `create-impl-plan`'s planner and plan-reviewer); no skill has a planning
+  pass before its writer since ADR 0092; `/acs:code` spawns implementers and
+  is judged by `/acs:review-code`; the three apply-work skills
+  (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline with no
+  subagent. Task/result messaging, phase artifacts.
 - Quality systems: grounding rules, clarification ledger, completion reports,
   size control, `docs_only`, e2e layer, living-architecture enforcement.
 - Test suites: deterministic-layer integration tests + prose contract tests; CI green.

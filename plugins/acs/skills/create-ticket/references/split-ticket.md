@@ -24,13 +24,14 @@ signal, ADR 0069), this run restructures instead of creating:
   `--allocate` — the partition exists). Read the existing `ticket.json` and the
   referenced oversize analysis (the `/code` plan artifact lists the
   evidence and split seams).
-- The coordinator (or executor) analyzes the split inline: the ticket becomes
+- The coordinator analyzes the split inline: the ticket becomes
   an **epic keeping its id**, description, priority, and PRD trace;
   `needs_design` becomes `true` (epics always — an existing approved design in
   the partition counts as that design); children are cut at the analysis' seams,
   each sized to ONE reviewable PR and independently shippable.
 
-- The executor rewrites `ticket.json` (type `epic`, `children` filled) and
+- The coordinator then rewrites `ticket.json` itself, inline, per
+  `references/materialize.md` (type `epic`, `children` filled) and
   mints each child with `new-ticket.py --parent <id>` — using Step 4's mint
   command block and conservative-defaults rule (below); when tracker sync is on,
   update the remote issue's type/links accordingly.

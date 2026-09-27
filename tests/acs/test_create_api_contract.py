@@ -5,9 +5,9 @@ gate body is tests/acs/test_acs_lib_gates.py's. THIS module pins the markdown
 layer and, where the markdown makes a claim about the deterministic layer,
 checks the claim against that layer:
 
-  * the gate the Start section describes — plan.md, analysis.md, and
-    `api_surface: true` — is the gate `acs_lib.gates` actually registers, with
-    the refusal pointers the prose quotes;
+  * independence: the Start section promises no input gate — a missing plan or
+    analysis is a fallback to the subject, never a refusal — and a plan that
+    owes no surface is settled by the pre-hook as `no_surface_owed`;
   * the contract's front matter (ticket / items / contract_files), checked with
     the same checker and the same `--require` spec the skill runs, and the
     seven required sections, linted from the skill's own skeleton;
@@ -17,7 +17,8 @@ checks the claim against that layer:
     else `docs/api/` (ADR-0102 removed the `contracts_path` setting and its
     `null` opt-out) — including the refusal to invent a contract format a
     repo does not already keep;
-  * the pair's shape (execute -> verify, no planner, artifacts, grounding).
+  * the pair's shape (contract-author -> contract-reviewer, artifacts,
+    grounding).
 
 Run:  python3 -m unittest tests.acs.test_create_api_contract -v
 """
@@ -40,7 +41,7 @@ import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
 
-ROLES = ("executor", "verifier")
+ROLES = ("contract-author", "contract-reviewer")
 
 STATES_KEYS = ("contract_path", "items", "traced_acs")
 
@@ -143,19 +144,24 @@ class TestLifecycleWiring(unittest.TestCase):
 class TestGateAgreement(unittest.TestCase):
     """The Start section is a map of what the kernel checks; it must be accurate.
 
-    One `gate_outcome` serves every step and reads the skill's OWN declaration
-    (§2.4), so these pin the declaration rather than a per-skill function body.
+    Each skill is independent: the pre-hook never refuses because an upstream
+    artifact is missing, so the prose must not promise an input gate either.
     """
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
 
-    def test_the_declaration_names_both_documents_the_prose_names(self):
-        required, optional = lib.reads_of("create-api-contract")
-        declared = required + optional
-        self.assertIn("plan", declared)
+    def test_a_missing_plan_is_a_fallback_not_a_refusal(self):
+        """The generic input gate (`reads_of`, the per-skill manifest) is gone:
+        with no plan the skill works from the subject, and the pointer to
+        /acs:create-impl-plan is advice in the report, not a refusal."""
+        self.assertFalse(hasattr(lib, "reads_of"))
+        self.assertRegex(self.body, r"never refuses because an upstream artifact is missing")
+        self.assertRegex(self.body, r"`plan.md` absent — work from the subject")
         self.assertIn("run /acs:create-impl-plan <id> first", self.body)
+        self.assertNotIn("acs.yaml", self.body)
+        self.assertNotRegex(self.body, r"Missing → \"run")
 
     def test_nothing_owed_completes_the_step_without_spawning_it(self):
         """`api_surface_changed` was a workflow PREDICATE; the workflow has
@@ -194,14 +200,14 @@ class TestContractFrontMatterContract(unittest.TestCase):
             fmc.check_front_matter(self.example, fmc.parse_spec(self.specs[0]),
                                    ticket="SHOP-123"), [])
 
-    def test_the_executor_emits_the_same_keys(self):
-        example = doc_front_matter_example(agent("executor"))
+    def test_the_author_emits_the_same_keys(self):
+        example = doc_front_matter_example(agent("contract-author"))
         self.assertEqual(
             fmc.check_front_matter(example, fmc.parse_spec(self.specs[0]),
                                    ticket="SHOP-123"), [])
 
-    def test_the_verifier_re_runs_the_same_spec(self):
-        self.assertIn(self.specs[0], agent("verifier"))
+    def test_the_reviewer_re_runs_the_same_spec(self):
+        self.assertIn(self.specs[0], agent("contract-reviewer"))
 
     def test_a_string_item_count_is_caught_by_that_spec(self):
         broken = re.sub(r"(?m)^items: 3$", 'items: "three"', self.example)
@@ -211,7 +217,7 @@ class TestContractFrontMatterContract(unittest.TestCase):
 
     def test_items_is_defined_as_the_count_of_surface_subsections(self):
         self.assertRegex(self.body, r"(?s)`items`.*?`### ` subsections")
-        self.assertRegex(agent("executor"), r"(?s)`items` is the number of `### `")
+        self.assertRegex(agent("contract-author"), r"(?s)`items` is the number of `### `")
 
 
 class TestContractSectionContract(unittest.TestCase):
@@ -229,12 +235,12 @@ class TestContractSectionContract(unittest.TestCase):
         found = re.findall(r"(?m)^## (.+)$", doc_skeleton(self.body))
         self.assertEqual(found, SECTIONS)
 
-    def test_the_executor_skeleton_matches_the_skill_skeleton(self):
-        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("executor")))
+    def test_the_author_skeleton_matches_the_skill_skeleton(self):
+        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("contract-author")))
         self.assertEqual(found, SECTIONS)
 
-    def test_the_verifier_re_runs_the_same_section_list(self):
-        self.assertIn(self.sections[0], agent("verifier"))
+    def test_the_reviewer_re_runs_the_same_section_list(self):
+        self.assertIn(self.sections[0], agent("contract-reviewer"))
 
     def test_a_doc_built_from_the_skeleton_lints_clean(self):
         doc = synthesized_contract(SECTIONS)
@@ -264,19 +270,19 @@ class TestTraceability(unittest.TestCase):
     def test_the_skill_states_the_two_way_trace(self):
         self.assertRegex(self.body, r"traces back to an\s+acceptance criterion AND to the plan item")
 
-    def test_the_executor_survey_reports_gaps_in_both_directions(self):
-        executor = agent("executor")
-        self.assertRegex(executor, r"traces to no acceptance criterion")
-        self.assertRegex(executor, r"no item covers is a gap in the plan")
+    def test_the_author_survey_reports_gaps_in_both_directions(self):
+        author = agent("contract-author")
+        self.assertRegex(author, r"traces to no acceptance criterion")
+        self.assertRegex(author, r"no item covers is a gap in the plan")
 
-    def test_the_verifier_checks_the_table_against_the_execute_report(self):
-        verifier = agent("verifier")
-        self.assertIn("traceability", verifier)
-        self.assertRegex(verifier, r"`traced_acs` in the execute report matches")
+    def test_the_reviewer_checks_the_table_against_the_author_report(self):
+        reviewer = agent("contract-reviewer")
+        self.assertIn("traceability", reviewer)
+        self.assertRegex(reviewer, r"`traced_acs` in the contract-author report matches")
 
     def test_create_test_docs_is_named_as_the_consumer_of_the_table(self):
         self.assertIn("/acs:create-test-docs", self.body)
-        self.assertRegex(agent("executor"),
+        self.assertRegex(agent("contract-author"),
                          r"/acs:create-test-docs` derives its\s+contract cases")
 
 
@@ -313,7 +319,7 @@ class TestContractsPathModes(unittest.TestCase):
 
     def test_it_refuses_to_invent_a_contract_format(self):
         self.assertRegex(self.body, r"Do NOT invent the\s+convention")
-        self.assertRegex(agent("executor"),
+        self.assertRegex(agent("contract-author"),
                          r"never propose introducing a contract format")
 
     def test_the_mode_is_declared_to_every_subagent(self):
@@ -325,7 +331,7 @@ class TestContractsPathModes(unittest.TestCase):
     def test_contract_files_are_committed_on_the_ticket_branch_never_pushed(self):
         self.assertRegex(self.body, r"Do NOT push")
         self.assertRegex(self.body, r"never recreate or reset\s+it")
-        self.assertRegex(agent("executor"), r"NEVER push, NEVER create a branch")
+        self.assertRegex(agent("contract-author"), r"NEVER push, NEVER create a branch")
 
 
 class TestResultDocument(unittest.TestCase):
@@ -338,6 +344,15 @@ class TestResultDocument(unittest.TestCase):
     def test_the_skill_records_exactly_the_documented_states(self):
         block = re.search(r'(?s)"states": \{(.*?)\}', self.body).group(1)
         self.assertEqual(re.findall(r'"(\w+)":', block), list(STATES_KEYS))
+
+    def test_the_documented_result_is_admissible(self):
+        """The step completes in two ways, so the post-hook refuses a result
+        document that does not say which; the documented example must pass
+        the kernel's own validator."""
+        block = re.search(r"(?ms)^   ```json\n(.*?)^   ```", self.body).group(1)
+        doc = json.loads(block)
+        self.assertEqual(doc["outcome"], "contract_written")
+        self.assertEqual(lib.validate_result(doc, "create-api-contract"), [])
 
     def test_the_post_hook_documents_the_same_keys(self):
         for key in STATES_KEYS:
@@ -367,12 +382,12 @@ class TestUserDecisions(unittest.TestCase):
 
     def test_an_unanswered_breaking_change_is_needs_input_not_a_guess(self):
         self.assertIn('"needs_input"', self.body)
-        self.assertRegex(agent("executor"),
+        self.assertRegex(agent("contract-author"),
                          r"undecided breaking change is a\s+`needs_input`")
 
     def test_every_breaking_decision_cites_its_ledger_entry(self):
-        self.assertRegex(agent("executor"), r"cites the\s+`C-n` ledger entry")
-        self.assertRegex(agent("verifier"),
+        self.assertRegex(agent("contract-author"), r"cites the\s+`C-n` ledger entry")
+        self.assertRegex(agent("contract-reviewer"),
                          r"breaking decision cites the `C-n` ledger entry")
 
 
@@ -399,16 +414,16 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("never a subagent", self.body)
         self.assertIn("acs_lib/filemap.py", self.body)
 
-    def test_the_executor_is_barred_from_the_published_file(self):
-        self.assertRegex(agent("executor"), r"NEVER the published\n  `api-contract.md`")
+    def test_the_author_is_barred_from_the_published_file(self):
+        self.assertRegex(agent("contract-author"), r"NEVER the published\n  `api-contract.md`")
 
 
 class TestTriadShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
-        fm, _ = frontmatter(agent("verifier"), "verifier")
+        fm, _ = frontmatter(agent("contract-reviewer"), "contract-reviewer")
         self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
-        fm, _ = frontmatter(agent("executor"), "executor")
+        fm, _ = frontmatter(agent("contract-author"), "contract-author")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
 
@@ -420,9 +435,11 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("steps/create-api-contract/iter-<n>/authoring.md", agent("executor"))
-        self.assertIn("steps/create-api-contract/iter-<n>/execute.json", agent("executor"))
-        self.assertIn("steps/create-api-contract/iter-<n>/verify.md", agent("verifier"))
+        self.assertIn("steps/create-api-contract/iter-<n>/authoring.md", agent("contract-author"))
+        self.assertIn("steps/create-api-contract/iter-<n>/contract-author.json",
+                      agent("contract-author"))
+        self.assertIn("steps/create-api-contract/iter-<n>/contract-reviewer.md",
+                      agent("contract-reviewer"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:
@@ -432,24 +449,32 @@ class TestTriadShape(unittest.TestCase):
                 self.assertIn("FINAL message", body)
                 self.assertIn("Nothing follows the closing `</result>` tag.", body)
 
-    def test_grounding_everywhere_and_policing_in_the_verifier(self):
+    def test_grounding_everywhere_and_policing_in_the_reviewer(self):
         for role in ROLES:
             with self.subTest(role=role):
                 self.assertIn("## Grounding (anti-hallucination)", agent(role))
-        self.assertIn("police grounding", agent("verifier"))
+        self.assertIn("police grounding", agent("contract-reviewer"))
+
+    def test_each_role_echoes_its_role_as_the_phase(self):
+        for role in ROLES:
+            with self.subTest(role=role):
+                self.assertIn('<result skill="create-api-contract" phase="%s"' % role,
+                              agent(role))
+                self.assertIn("acs:create-api-contract-%s" % role, read(SKILL_PATH))
 
     def test_no_planner_and_a_capped_loop(self):
         """ADR-0092 class D: the deliverable is the document, so a plan for it
-        would be a second copy of the work — execute -> verify only."""
+        would be a second copy of the work — the contract-author surveys and
+        writes, the contract-reviewer judges, and nothing plans in between."""
         body = read(SKILL_PATH)
-        self.assertRegex(body, r"execute → verify, no planner")
+        self.assertRegex(body, r"contract-author → contract-reviewer")
         self.assertNotIn("acs:create-api-contract-planner", body)
         self.assertNotIn("iter-1-plan.md", body)
         self.assertFalse(os.path.exists(os.path.join(AGENTS, "create-api-contract-planner.md")))
-        executor = agent("executor")
-        self.assertIn("## Survey — what you establish before you write (iteration 1)", executor)
-        self.assertIn("## The authoring notes (mandatory, every iteration)", executor)
-        self.assertRegex(agent("verifier"), r"(?m)^8\. `authoring-conformance`")
+        author = agent("contract-author")
+        self.assertIn("## Survey — what you establish before you write (iteration 1)", author)
+        self.assertIn("## The authoring notes (mandatory, every iteration)", author)
+        self.assertRegex(agent("contract-reviewer"), r"(?m)^8\. `authoring-conformance`")
         # The pin is that the cap is unconditional, not that it is phrased in
         # lane vocabulary: ADR-0095 retired lanes, so the same claim now reads
         # "on every run" and disclaims a path-driven depth.
@@ -457,11 +482,11 @@ class TestTriadShape(unittest.TestCase):
         self.assertRegex(body, r"no path-driven verify depth")
         self.assertIn("never spawn subagents", body.lower())
 
-    def test_the_executor_specifies_and_never_implements(self):
-        self.assertRegex(agent("executor"), r"NEVER implement the contract")
+    def test_the_author_specifies_and_never_implements(self):
+        self.assertRegex(agent("contract-author"), r"NEVER implement the contract")
 
-    def test_the_verifier_re_derives_the_surface_itself(self):
-        body = agent("verifier")
+    def test_the_reviewer_re_derives_the_surface_itself(self):
+        body = agent("contract-reviewer")
         self.assertIn("NEVER rubber-stamp", body)
         self.assertRegex(body, r"re-derive the surface")
 

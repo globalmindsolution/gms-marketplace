@@ -1,5 +1,5 @@
 """Contract tests for acs_lib.yamlsubset -- the stdlib-only YAML subset the
-workflow files (workflows/ship.yaml, skills/<name>/acs.yaml) and the ticket
+workflow file (workflows/ship.yaml) and the ticket
 artifacts' front matter are written in.
 
 The subset is deliberately strict: `#` comments, `key: value` mappings nested

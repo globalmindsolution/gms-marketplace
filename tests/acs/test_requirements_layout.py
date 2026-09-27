@@ -104,17 +104,19 @@ class MergeRoutingProseContractTest(unittest.TestCase):
     """T1.2 (AC-3), retargeted by MAR-162 (C-1): the classify-then-route
     rubric (functional=behavior, non-functional=quality, default-to-functional
     tie-break), both target subfolders, and the additive/per-area/no-overwrite
-    phrasing now live in `docs-sync-executor.md` — MAR-162 re-homed them out
-    of `code/SKILL.md`/`code-executor.md`, which no longer author docs.
-    the docs-sync VERIFIER still names wrong-subfolder routing as a blocking
-    finding condition (unchanged by this spec; spec 02's territory)."""
+    phrasing now live in docs-sync's writer charter (`docs-sync-doc-updater.md`
+    since the per-skill subagents) — MAR-162 re-homed them out of
+    `code/SKILL.md`/`code-executor.md`, which no longer author docs.
+    the docs-sync judge (`docs-sync-drift-reviewer.md`) still names
+    wrong-subfolder routing as a blocking finding condition (unchanged by this
+    spec; spec 02's territory)."""
 
-    DOCS_SYNC_EXECUTOR_MD = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
+    DOCS_SYNC_EXECUTOR_MD = os.path.join(PLUGIN, "agents", "docs-sync-doc-updater.md")
     # The check moved with its producer: MAR-162 re-homed the requirements
     # merge onto /acs:docs-sync, and v0.5.0 retired code-verifier.md with the
-    # in-skill review, so the verifier that guards the routing is the one
-    # paired with the executor that does it.
-    VERIFIER_MD = os.path.join(PLUGIN, "agents", "docs-sync-verifier.md")
+    # in-skill review, so the judge that guards the routing is the
+    # drift-reviewer paired with the doc-updater that does it.
+    VERIFIER_MD = os.path.join(PLUGIN, "agents", "docs-sync-drift-reviewer.md")
 
     def test_skill_md_names_functional_behavior_definition(self):
         body = read(self.DOCS_SYNC_EXECUTOR_MD)
@@ -180,7 +182,7 @@ class MergeRoutingProseContractTest(unittest.TestCase):
 
 def _dimension_block(body, label):
     """Extract a numbered check-dimension list item (backtick-labelled, as
-    docs-sync-verifier.md writes them): from '^N. `label`' up to the next
+    docs-sync-drift-reviewer.md writes them): from '^N. `label`' up to the next
     numbered item or the next heading."""
     start_m = re.search(r"(?m)^\d+\.\s+`%s`" % re.escape(label), body)
     assert start_m is not None, "dimension %r not found" % label
@@ -191,13 +193,14 @@ def _dimension_block(body, label):
 
 
 class DocsSyncVerifierRequirementsRoutingTest(unittest.TestCase):
-    """MAR-162 (C-1, C5): docs-sync-verifier.md gains a 5th check dimension,
+    """MAR-162 (C-1, C5): docs-sync's judge (docs-sync-drift-reviewer.md
+    since the per-skill subagents) gains a 5th check dimension,
     `requirements-routing`, the docs-sync-side producer/verifier pair the
     requirements-merge re-home requires — wrong-subfolder routing and an
     unrouted inline citation are both findings, mirroring
     `code-verifier.md`'s dimension 11 guards this spec re-homes."""
 
-    DOCS_SYNC_VERIFIER_MD = os.path.join(PLUGIN, "agents", "docs-sync-verifier.md")
+    DOCS_SYNC_VERIFIER_MD = os.path.join(PLUGIN, "agents", "docs-sync-drift-reviewer.md")
 
     @classmethod
     def setUpClass(cls):

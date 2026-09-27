@@ -17,6 +17,7 @@ Run: python3 -m unittest tests.acs.test_verifier_grounding_precision -v
 import glob
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,7 +31,17 @@ def norm(text):
 class VerifierGroundingPrecisionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.verifiers = sorted(glob.glob(os.path.join(AGENTS, "*-verifier.md")))
+        # Every JUDGE-kind agent (`<skill>-reviewer`, `-design-reviewer`, ...)
+        # plus any legacy `*-verifier.md`; review-code's lens/adjudicator
+        # fan-out was never in this rule's scope.
+        sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
+        from acs_lib import skills as skills_lib
+        judges = set()
+        for path in glob.glob(os.path.join(AGENTS, "*.md")):
+            skill, role = skills_lib.split_agent_name(os.path.basename(path)[:-3])
+            if skill and skill != "review-code" and skills_lib.role_kind(role) == "judge":
+                judges.add(path)
+        cls.verifiers = sorted(judges | set(glob.glob(os.path.join(AGENTS, "*-verifier.md"))))
         cls.bodies = {os.path.basename(p): norm(open(p, encoding="utf-8").read())
                       for p in cls.verifiers}
 
@@ -52,7 +63,8 @@ class VerifierGroundingPrecisionTest(unittest.TestCase):
             self.assertRegex(body, r"(?i)What blocks: a source that does not say what the draft claims", name)
 
     def test_the_analysis_and_plan_grounding_dimensions_say_so_too(self):
-        for name in ("analyze-requirements-verifier.md", "create-impl-plan-verifier.md"):
+        for name in ("analyze-requirements-impact-reviewer.md",
+                     "create-impl-plan-plan-reviewer.md"):
             self.assertIn("The right file cited at the wrong lines, with the fact intact, is not",
                           self.bodies[name], name)
 

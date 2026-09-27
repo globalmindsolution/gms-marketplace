@@ -159,18 +159,21 @@ def _record_is_current(entry, session_id=None, now=None):
 
 
 def active_executor(tdir, session_id=None):
-    """The most recent recorded agent whose role is `executor`, or None.
+    """The most recent recorded agent whose role is of the `write` kind (the
+    one that produces a deliverable: `code-implementer`, `create-prd-author`,
+    ...), or None. Named for the role it guarded when every skill had one.
 
-    "Is an acs executor running" is the whole condition: the guard must not
-    touch a verifier (read-only by charter) or the coordinator's own writes,
-    both of which legitimately go outside any task's file map.
+    "Is an acs writer running" is the whole condition: the guard must not
+    touch a surveyor or a judge (read-only on the repo by charter) or the
+    coordinator's own writes, all of which legitimately go outside any task's
+    file map.
 
     Records that cannot still be describing a running executor are skipped --
     see _record_is_current. Nothing clears the record when a subagent dies
     mid-flight, and a guard that denies every write in a partition until
     someone hand-edits it is worse than the scope creep it prevents."""
     for entry in active_agents(tdir):
-        if entry.get("role") == "executor" and _record_is_current(entry, session_id):
+        if entry.get("kind") == "write" and _record_is_current(entry, session_id):
             return entry
     return None
 

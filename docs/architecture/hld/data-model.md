@@ -14,7 +14,7 @@ erDiagram
     TICKET ||--|| PIPELINE_STATE : "step ledger"
     TICKET ||--o| CLARIFICATIONS : "Q&A ledger"
     TICKET ||--o| LOCK : "held while worked"
-    TICKET ||--o{ PHASE_ARTIFACT : "execute/verify per iteration, each with its authoring notes; no plan artifact (ADR-0092)"
+    TICKET ||--o{ PHASE_ARTIFACT : "one report per role per iteration, plus the authoring notes; no plan artifact (ADR-0092, ADR-0109)"
     TICKET ||--o{ TICKET : "epic -> children (both directions)"
     SKILL_STATE ||--|{ RUN_ENTRY : "append-only"
     TICKET ||--o| PLAN_APPROVAL : "at most one per approved plan digest, /acs:code STANDARD/COMPLEX only, written solely by plan-approval.py"
@@ -94,7 +94,7 @@ erDiagram
     }
     PLAN {
         string path "phases/code/plan.md — the only name, every lane"
-        string author "create-impl-plan-executor on STANDARD/COMPLEX; coordinator on TRIVIAL/SMALL (MAR-72, ADR-0092)"
+        string author "create-impl-plan-planner, every run (ADR-0095, ADR-0109)"
         string sha256 "digest the PLAN_APPROVAL record pins"
     }
     PLAN_SUPERSEDED {
@@ -269,6 +269,16 @@ unchanged: `/acs:create-impl-plan`'s deliverable is itself the plan, its
 `clarifications.json` / `ROLE_USAGE` shapes keep their `planner` vocabulary
 for the runs already recorded. Zero migration: no new state key, no new
 schema field; the retired path is simply never written again.
+
+**Amendment (ADR-0109).** A `PHASE_ARTIFACT` is named after the role that
+wrote it: `steps/<skill>/iter-<n>/<role>.json` for a survey or write role
+(`surveyor.json`, `author.json`, `implementer.json`, parallel implementers
+`implementer-<k>.json`), `iter-<n>/<role>.md` for a judge (`reviewer.md`,
+`plan-reviewer.md`, …), and the SubagentStop snapshot
+`iter-<n>/<role>-message.xml`. The authoring notes stay
+`iter-<n>/authoring.md`, written by the survey role where the skill has one.
+`derive` still reads a pre-rename run's `execute*.json`. Zero migration: no
+new state key, no new schema field.
 
 **Amendment (ADR-0086).** The physical root each `REPO_PARTITION` resolves
 under is now `<main-checkout>/.acs/state-machine/<repo-id>/` —

@@ -362,6 +362,38 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **⚠️ BREAKING: subagents follow each skill's logic, and a skill carries no
+  manifest** (ADR-0109, amends ADR-0092, ADR-0096 and ADR-0101).
+  - **Roles are named for the work.** The generic `acs:<skill>-executor` /
+    `acs:<skill>-verifier` pair is gone. Each skill owns only the roles its
+    logic needs: `create-prd` and `create-requirements` run a surveyor, an
+    author and a reviewer; `create-impl-plan` a planner and a plan-reviewer;
+    `standardize-project` an auditor, a scaffolder and an additive-checker;
+    `code` (and its four legs) an implementer per file-map partition; and so
+    on — `plugins/acs/docs/INTERNALS.md` "Subagents" has the table. Still 32
+    agent files, all reachable.
+  - **Each role has a kind** — `survey`, `write` or `judge`
+    (`acs_lib.skills.ROLE_KINDS`). The kind picks the model tier
+    (`settings.models` keeps its `planner` / `executor` / `verifier` keys:
+    survey roles and create-impl-plan's planner run on `planner`, write roles
+    on `executor`, judge roles on `verifier`) and arms the file-map guard
+    while any `write` role runs.
+  - **The phase is the role.** Tasks and results carry `phase="<role>"`; each
+    agent's report is `steps/<skill>/iter-<n>/<role>.json` (`.md` for a
+    judge), and the SubagentStop snapshot is `iter-<n>/<role>-message.xml`.
+    `derive` still reads a pre-rename run's `execute*.json`.
+  - **`create-ticket`, `create-pr` and `merge-pr` spawn no subagent.** Their
+    coordinators run the steps inline from `references/materialize.md`,
+    `publish.md` and `merge.md`.
+  - **`skills/<name>/acs.yaml` and `schemas/acs-skill.schema.json` are
+    removed.** Legs are `acs_lib.skills.SKILL_LEGS`. `acs workflow validate`
+    checks only that each step is a shipped skill and not a leg, and that
+    every loop goes back; the reads/writes order validation and the
+    `warnings` it printed are gone. The pre-hook no longer refuses or warns
+    because an upstream artifact is missing: each skill falls back to the
+    run's subject (the ticket's acceptance criteria, the prompt or the
+    document), so an out-of-order `ship.yaml` override validates and runs.
+
 - **Nothing about the eval suite runs in CI** (ADR-0108, extends ADR-0022).
   - **The free eval checks moved out of CI discovery.** Case shape and coverage,
     grader calibration, the gate's own tests, and four probe-expectation classes

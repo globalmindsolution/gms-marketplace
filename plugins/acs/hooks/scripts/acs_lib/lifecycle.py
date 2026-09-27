@@ -48,10 +48,13 @@ from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessio
 from .tickets import load_ticket
 from .step import last_invocation, last_status, load_state
 from . import verdict
+from . import skills as skills_registry
 
-#: agent_type suffix -> the phase name its artifact is filed under. Two roles
-#: since ADR-0092: no skill spawns a planner, so no `-planner` agent can stop.
-ROLE_PHASES = {"executor": "execute", "verifier": "verify"}
+#: Roles the lifecycle hooks do not track. /acs:review-code's lenses and
+#: adjudicators fan out in parallel, one per lens and one per finding, and the
+#: coordinator persists what they return itself (§3.6) -- a per-iteration
+#: snapshot keyed by role would have every sibling overwrite the last.
+UNTRACKED_ROLES = frozenset({"lens", "adjudicator"})
 
 #: How many times one hook may refuse the same thing before giving up and
 #: letting it through with a warning. A hook that can block forever is a hung
@@ -92,17 +95,18 @@ _MESSAGE_RE = re.compile(r"<(result|handoff)\b(?:[^>]*/>|.*?</\1>)", re.DOTALL)
 
 
 def parse_agent_type(agent_type):
-    """('code', 'executor') from 'acs:code-executor'; (None, None) for anything else.
+    """('code', 'implementer') from 'acs:code-implementer'; (None, None) for
+    anything the lifecycle hooks do not track.
 
-    Split from the RIGHT: skill names contain hyphens (`create-pr`,
-    `docs-sync`, `standardize-project`), so splitting from the left would make
-    `acs:create-pr-executor` a skill named "create" -- a bug that only shows up
-    on the hyphenated half of the skill list.
+    Not a positional split: skill names AND role names contain hyphens
+    (`create-impl-plan-plan-reviewer`), so the skill is the longest shipped
+    skill name the agent name starts with and the rest must be a role acs
+    spawns (acs_lib.skills.split_agent_name).
     """
     if not isinstance(agent_type, str) or not agent_type.startswith("acs:"):
         return None, None
-    skill, _, role = agent_type[len("acs:"):].rpartition("-")
-    if role not in ROLE_PHASES or skill not in HOOKED_SKILLS:
+    skill, role = skills_registry.split_agent_name(agent_type[len("acs:"):])
+    if not skill or skill not in HOOKED_SKILLS or role in UNTRACKED_ROLES:
         return None, None
     return skill, role
 
@@ -154,7 +158,8 @@ def record_agent_start(tdir, agent_id, agent_type, session_id=None, checkout_id=
         "agent_type": agent_type,
         "skill": skill,
         "role": role,
-        "phase": ROLE_PHASES.get(role),
+        "kind": skills_registry.role_kind(role),
+        "phase": role,
         "session_id": session_id,
         "checkout_id": checkout_id,
         "started_at": now_iso(),
@@ -254,13 +259,14 @@ def phase_artifact_path(rdir, skill, iteration, phase):
 
     `<phase>-message.xml`, and both halves of that name are load-bearing.
 
-    **`-message`**, because `<phase>.json` COLLIDED with the step's own
-    report: `ROLE_PHASES["executor"] == "execute"`, and the executor is told
-    (skills/code/references/execute.md) to write its JSON report to
-    `iter-<n>/execute.json`. SubagentStop fires after the executor returns, so
-    the snapshot landed on top of it — and `derive.execute_reports`, which
-    reads `execute*.json`, then found a file that does not parse. The snapshot
-    and the report are two different artifacts and need two names.
+    **`-message`**, because `<phase>.json` COLLIDES with the agent's own
+    report: the phase is the role, and every agent writes its JSON report to
+    `iter-<n>/<role>.json` (skills/code/references/execute.md for the
+    implementer). SubagentStop fires after the agent returns, so a snapshot
+    named `<phase>.json` would land on top of the report -- and
+    `derive.execute_reports`, which reads `implementer*.json`, would then find
+    a file that does not parse. The snapshot and the report are two different
+    artifacts and need two names.
 
     **`.xml`**, because that is what is in it. The message contract is JSON
     (§6) and the XSD is gone, but `write_phase_snapshot` still receives and
@@ -613,7 +619,7 @@ def write_phase_snapshot(tdir, skill, role, message):
         return None
     if root.tag == "handoff":
         return None  # a handoff is not a phase artifact; the run's ledger carries it
-    phase = root.get("phase") or ROLE_PHASES.get(role)
+    phase = root.get("phase") or role
     # The schema defaults an absent `iteration` to 1, so a message that omits it
     # is CLAIMING to be iteration 1 -- which on a later iteration would land on
     # the earlier one's snapshot. The message is what is wrong there, not the

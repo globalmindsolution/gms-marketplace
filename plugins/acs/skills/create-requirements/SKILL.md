@@ -15,8 +15,10 @@ its functional subfolder `<functional_dir>` and non-functional subfolder
 existing set's own subfolder names are followed, never renamed — see Start).
 You ship it yourself as a docs-only PR on a fresh delivery ticket —
 `/acs:code` and `/acs:create-pr` are NOT involved. You
-orchestrate executor/verifier subagents — execute -> verify, no planner
-(ADR-0092); you never write requirement content yourself.
+orchestrate three subagents — surveyor → author → review: a read-only surveyor
+classifies the mode and outlines the DRAFT baseline, you confirm it with the
+user, an author writes the area files, and a reviewer judges them fresh. You
+never write requirement content yourself.
 
 ## Start
 
@@ -42,13 +44,12 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
   `docs/requirements/non-functional`, the conventional default. Then detect
   whether this is an **amend** run by checking if `<functional_dir>` or
   `<non_functional_dir>` already holds files (a substantially-populated set).
-  This mirrors the executor's amend definition (see Execute below).
+  This mirrors the surveyor's amend definition (see Survey below).
 
   - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
 
     ```bash
-    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs step start" \
-      --skill create-requirements --allocate \
+    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-requirements --allocate \
       --title "Amend requirements: <≤~10-word summary of what changed>"
     ```
 
@@ -77,7 +78,7 @@ Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
 `settings` (`formats`), `models`,
 `reconcile`, `handoff_summary`, `post_hook`.
 
-Keep the free text of `$ARGUMENTS` (focus notes, amendment request): it is executor input.
+Keep the free text of `$ARGUMENTS` (focus notes, amendment request): it is surveyor and author input.
 `<requirements_dir>`, `<functional_dir>` and `<non_functional_dir>` are the
 repo-relative paths every later section uses; on the resume form, locate them the
 same way right after `acs step start`.
@@ -87,39 +88,56 @@ same way right after `acs step start`.
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-1. Re-read `steps/create-requirements/iter-*-*.xml` and
+1. Re-read `steps/create-requirements/iter-*/*-message.xml`, the role reports
+   (`iter-1/surveyor.json`, `iter-<n>/author.json`, `iter-<n>/reviewer.md`) and
    `<partition>/create-requirements-state.json` to see which phases completed.
-2. Re-read the `<requirements_dir>` tree against recorded executor claims — does
+2. Re-read the `<requirements_dir>` tree against recorded author claims — does
    the actual `<functional_dir>`/`<non_functional_dir>` file set match what the
-   recorded executor results claim?
+   recorded author results claim?
 3. Check delivery progress: does the delivery branch exist
    (`git branch --list "<branch>"` / `git ls-remote --heads origin "<branch>"`)? Was a
    PR already opened (`gh pr list --head "<branch>" --json number,url`)?
-4. Continue from the first unfinished phase. If verified docs already pass and the PR
+4. Continue from the first unfinished phase. If reviewed docs already pass and the PR
    is open, skip straight to Finish with the recorded references.
-5. There is no plan artifact to reuse: an execute with no verify → verify it;
-   a verify with findings and no later execute → execute with those findings
-   as `<context>`. The executor's authoring notes (`iter-<n>/authoring.md`)
-   belong to their iteration.
+5. Pick up at the first missing role: no `iter-1/authoring.md` → survey; a
+   DRAFT baseline the ledger does not yet record as confirmed → confirm it
+   (Interactive-confirm below); an author result with no review → review it; a
+   review with findings and no later author result → author with those
+   findings as `<context>`. A resume never re-runs the surveyor once its notes
+   exist; the authoring notes (`iter-<n>/authoring.md`) belong to their
+   iteration.
 
 If `context.handoff_summary` exists, read it (and
 `steps/create-requirements/handoff-context.md` if present), do a light
 reconcile of the same checks, and continue from where it points.
 
-## Reflection loop — execute -> verify, no planner
+## Reflection loop — surveyor → author → review
 
-The loop is execute -> verify, max 3 iterations. There is no plan phase:
-iteration 1's executor classifies the mode, enumerates or elicits the
-feature areas, writes its authoring notes (the outline, the open points),
-and — once the DRAFT baseline is confirmed — authors the area files from
-them; the verifier judges the result fresh. On iterations 2-3 the verifier's
-findings go verbatim into the next executor `<task>` `<context>` and the
-executor authors the remediation. Spawn subagents with the Agent tool:
-`subagent_type` `acs:create-requirements-executor` /
-`acs:create-requirements-verifier` (fall back to the un-namespaced name if the runtime
-rejects the namespaced one). Apply `context.models.<role>.model` / `.effort` at spawn
-when not `"inherit"`; if the runtime rejects the model/effort, FAIL the run with that
-error — no silent fallback.
+The loop is surveyor → author → review, max 3 iterations. Iteration 1 runs
+the surveyor once: it classifies the mode, enumerates or plans the
+elicitation of the feature areas, and writes its authoring notes (the
+per-area outline, the open points) read-only. You confirm its DRAFT baseline
+with the user, then spawn the author, who writes the area files from the
+notes and the confirmation; the reviewer judges the result fresh. On
+iterations 2-3 the reviewer's findings go verbatim into the next author
+`<task>` `<context>` and the author authors the remediation — the surveyor
+never runs again; its notes are the fixed baseline every later iteration is
+judged against.
+
+| Role | Kind | Agent | Model tier |
+|------|------|-------|------------|
+| surveyor | survey | `acs:create-requirements-surveyor` | `context.models.planner` |
+| author | write | `acs:create-requirements-author` | `context.models.executor` |
+| reviewer | judge | `acs:create-requirements-reviewer` | `context.models.verifier` |
+
+Spawn subagents with the Agent tool: `subagent_type`
+`acs:create-requirements-surveyor` / `acs:create-requirements-author` /
+`acs:create-requirements-reviewer` (fall back to the un-namespaced name if the runtime
+rejects the namespaced one). Apply the role's tier — `context.models.planner.model`
+/ `.effort` for the surveyor, `context.models.executor.*` for the author,
+`context.models.verifier.*` for the reviewer — at spawn when not `"inherit"`; if
+the runtime rejects the model/effort, FAIL the run with that error — no silent
+fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -129,28 +147,31 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-**What an iteration counts:** one execute -> verify round.
-`/acs:create-requirements` has no path-driven verify-depth selection: the
+**What an iteration counts:** one author -> review round. The survey belongs
+to iteration 1 and is not a round of its own.
+`/acs:create-requirements` has no path-driven review-depth selection: the
 cap is a fixed 3 on every run.
 
-All messages follow `the SubagentStop hook's message check`. Validate EVERY message you send and
-receive:
+All messages follow `the SubagentStop hook's message check`; the `phase=` of
+every task and result is the role (`surveyor`, `author`, `reviewer`). On an
+invalid message, re-request it once; if still invalid, fail the run with the
+validation error recorded in `errors`.
 
-```bash
-```
-
-On an invalid message, re-request it once; if still invalid, fail the run with the
-validation error recorded in `errors`. Persist every phase output to
-`steps/create-requirements/iter-<n>/<phase>.json` at the phase boundary
-BEFORE starting the next phase. The executor's own artifacts are
+Every phase output is persisted at the phase boundary, BEFORE the next phase
+starts: the SubagentStop hook snapshots each returned message to
+`steps/create-requirements/iter-<n>/<role>-message.xml`; if that snapshot is
+missing (a host that does not fire the hook), write the `<task>` and
+`<result>` there yourself. The roles' own artifacts are the authoring notes
 `iter-<n>/authoring.md` (Mode & evidence; Requirement outline; Open
-questions; Risks; Verifier checklist) and `iter-<n>/execute.json`; every
-iteration's verifier `<inputs>` name that iteration's authoring notes.
-Decomposition is YOURS alone — subagents never spawn subagents.
+questions; Risks; Reviewer checklist — the surveyor writes iteration 1's, the
+author carries them forward), `iter-1/surveyor.json`, `iter-<n>/author.json`
+and `iter-<n>/reviewer.md`; every iteration's reviewer `<inputs>` name that
+iteration's authoring notes. Decomposition is YOURS alone — subagents never
+spawn subagents.
 
-### Execute — iteration 1 surveys before it writes
+### Survey — iteration 1 only
 
-The executor's first job on iteration 1 is mode classification, keyed on whether
+The surveyor's first job is mode classification, keyed on whether
 `<requirements_dir>` already holds functional/non-functional content:
 
 - **brownfield** (headline) — the requirements set is absent or sparse AND the
@@ -169,41 +190,41 @@ The executor's first job on iteration 1 is mode classification, keyed on whether
   create-prd's greenfield elicitation. Never silently fall through to
   brownfield and never invent a product fact the user has not confirmed.
 
-The executor also runs the shared ADR-0012 design-time doc-consistency step;
+The surveyor also runs the shared ADR-0012 design-time doc-consistency step;
 any findings surface through the "Clarification ledger first" mechanism below
-(User interaction). It records the classification, the outline and the open
-points in its authoring notes and — unless the task `<context>` already
-carries the confirmation — returns `needs_input` with the DRAFT baseline
-before writing any area file (see Interactive-confirm below).
+(User interaction). It is read-only on the repo: it records the
+classification, the outline and the open points in its authoring notes and
+returns `needs_input` with the DRAFT baseline before any area file is written
+(see Interactive-confirm below).
 
-**G36 declaration (AC-6).** Every execute/verify task's `<constraints>` carries:
+**G36 declaration (AC-6).** Every author/review task's `<constraints>` carries:
 
 - `required_sections` — declared **per produced area file**, from the
-  confirmed outline in the executor's authoring notes. There is no single fixed
+  confirmed outline in the surveyor's authoring notes. There is no single fixed
   section skeleton across all files (each feature/item file's sections follow
-  the existing living-requirements prose format); the executor names the
+  the existing living-requirements prose format); the surveyor names the
   concrete heading list for each file in its notes, and the coordinator carries
-  that list into the iteration's verify task and every later execute task.
+  that list into every author task and the iteration's review task.
 - `audience_style_profile` — always `engineers (behavioral-contract prose)`, the
-  same constraint-passing mechanism `create-principles/SKILL.md` and
-  `create-principles-verifier.md` use for their own G36 gate.
+  same constraint-passing mechanism `/acs:create-docs` uses for each doc
+  set's own G36 gate.
 
 **Per-file format (finalized).** Both `<functional_dir>/<feature>.md` and
 `<non_functional_dir>/<item>.md` open with the `DRAFT — human-confirm-required`
 marker line, then follow the existing living-requirements prose format — the
 `MUST` / `SHOULD` / `MAY` / `[OPEN]` / `[ASSUMPTION]` vocabulary — with NO fixed
-universal heading skeleton (design Decision B-revised). The executor names the
+universal heading skeleton (design Decision B-revised). The surveyor names the
 concrete `required_sections` heading list per file in its notes' outline; this
 subsection documents that as the finalized per-file format rather than an
 implicit convention. No new template file is introduced — the
 functional/non-functional model itself is the format.
 
-Example iteration-1 task (fill real values; `<context>` carries `$ARGUMENTS`
-and, on the re-run after interactive-confirm, the user's recorded answers):
+Example survey task (fill real values; `<context>` carries `$ARGUMENTS` and any
+clarification answers the ledger already records):
 
 ```xml
-<task skill="create-requirements" phase="execute" ticket-id="SHOP-1" iteration="1">
-  <objective>Classify mode (brownfield/greenfield/amend); enumerate or elicit feature areas; record the per-area outline and the open questions in the authoring notes; once the baseline is confirmed, write the area files from them.</objective>
+<task skill="create-requirements" phase="surveyor" ticket-id="SHOP-1" iteration="1">
+  <objective>Classify mode (brownfield/greenfield/amend) with evidence; enumerate or plan the elicitation of feature areas; record the per-area outline (with each file's required_sections) and the open points in the authoring notes; write no repo file.</objective>
   <inputs>
     <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
     <file>/abs/repo/docs/requirements/README.md</file>
@@ -213,22 +234,37 @@ and, on the re-run after interactive-confirm, the user's recorded answers):
     <constraint name="requirements_dir">docs/requirements</constraint>
     <constraint name="functional_dir">docs/requirements/functional</constraint>
     <constraint name="non_functional_dir">docs/requirements/non-functional</constraint>
-    <constraint name="required_sections">functional/checkout.md: MUST/SHOULD/MAY/[OPEN]/[ASSUMPTION]</constraint>
     <constraint name="audience_style_profile">engineers (behavioral-contract prose)</constraint>
   </constraints>
   <context>User focus notes from $ARGUMENTS.</context>
 </task>
 ```
 
-On its survey pass the executor returns `needs_input` with the outline in its
-authoring notes (`<outputs>`) and the open points in `<questions>`. Resolve
-those questions with the user (see User interaction) and re-run execute for
-the same iteration with the answers in `<context>`.
+The surveyor returns `needs_input` with its notes in `<outputs>` and the DRAFT
+baseline plus the open points in `<questions>`. Confirm them with the user
+(Interactive-confirm below), then spawn the author with the answers in
+`<context>`.
 
-### Execute — the write
+### Interactive-confirm, between the surveyor and the author
 
-Prepare the delivery branch before the first execute (deterministic plumbing — you do
-it, not the executor):
+Present the surveyor's DRAFT baseline — which feature areas will be elicited,
+extracted, or augmented, and which are `[OPEN]` — and the open points via the
+clarify ledger (see User interaction below), batched in one interaction when
+≥2 questions are open. An elicited, extracted, or augmented requirement is a
+**DRAFT baseline, never authoritative without confirmation**: this
+confirmation step MUST complete before the author writes an area file — it
+is what the surveyor's `needs_input` round-trip exists for.
+
+**The DRAFT / interactive-confirm discipline applies uniformly to all three
+modes.** A requirement — elicited (greenfield), extracted (brownfield), or
+augmented (amend) — is a DRAFT baseline the user must review and confirm before
+it is authoritative; open points are surfaced for confirmation, and nothing is
+written as authoritative without the human gate (C-22).
+
+### Author — the write
+
+Prepare the delivery branch before the first author runs (deterministic plumbing —
+you do it, not the author):
 
 ```bash
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
@@ -242,24 +278,30 @@ git fetch origin "$DEFAULT_BRANCH" && git checkout -b "<branch>" "origin/$DEFAUL
 (conflicting local changes), surface the git error and ask the user. Iterations 2-3
 stay on the branch.
 
-**Interactive-confirm, between the executor's survey and its write.** Present
-the executor's DRAFT baseline — which feature areas will be elicited,
-extracted, or augmented, and which are `[OPEN]` — and the open points via the
-clarify ledger (see User interaction below), batched in one interaction when
-≥2 questions are open. An elicited, extracted, or augmented requirement is a
-**DRAFT baseline, never authoritative without confirmation**: this
-confirmation step MUST complete before the executor writes an area file — it
-is what the `needs_input` round-trip above exists for.
+Spawn the author (`phase="author"`) with the surveyor's notes
+(`iter-1/authoring.md`) in `<inputs>`, the confirmed outline's per-file
+`required_sections`, the user's answers, and the mode:
 
-**The DRAFT / interactive-confirm discipline applies uniformly to all three
-modes.** A requirement — elicited (greenfield), extracted (brownfield), or
-augmented (amend) — is a DRAFT baseline the user must review and confirm before
-it is authoritative; open points are surfaced for confirmation, and nothing is
-written as authoritative without the human gate (C-22).
+```xml
+<task skill="create-requirements" phase="author" ticket-id="SHOP-1" iteration="1">
+  <objective>Write the confirmed area files from the authoring notes and the user's confirmation.</objective>
+  <inputs>
+    <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
+    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-requirements/iter-1/authoring.md</file>
+  </inputs>
+  <constraints>
+    <constraint name="requirements_dir">docs/requirements</constraint>
+    <constraint name="functional_dir">docs/requirements/functional</constraint>
+    <constraint name="non_functional_dir">docs/requirements/non-functional</constraint>
+    <constraint name="required_sections">functional/checkout.md: MUST/SHOULD/MAY/[OPEN]/[ASSUMPTION]</constraint>
+    <constraint name="audience_style_profile">engineers (behavioral-contract prose)</constraint>
+    <constraint name="mode">brownfield</constraint>
+  </constraints>
+  <context>C-1: DRAFT baseline confirmed (checkout, catalog, accounts; performance, security). C-2: admin-cli out of scope.</context>
+</task>
+```
 
-Spawn the executor (`phase="execute"`) with the approved outline, the user's answers,
-and the mode. The executor — the only role that mutates the repo — writes,
-per the mode:
+The author — the only role that mutates the repo — writes, per the mode:
 
 - **brownfield/amend** — one `<functional_dir>/<feature>.md`
   per behavioral feature and one `<non_functional_dir>/<item>.md`
@@ -269,24 +311,29 @@ per the mode:
 - **greenfield** — writes one
   `<functional_dir>/<feature>.md` per elicited behavioral
   feature and one `<non_functional_dir>/<item>.md` per
-  elicited NFR item, from the plan's elicitation outline plus the user's
+  elicited NFR item, from the survey's elicitation outline plus the user's
   answers; DRAFT-marked. No code-citation is required or expected (there is no
   code to cite) — every clause is grounded in the user's elicited answer, cited
   as such.
 
-Typically ONE executor per run — the produced files are read once by a single
-verifier pass. You MAY run multiple executors in parallel only when their target
-area files cannot conflict (e.g. disjoint feature areas); the verifier always runs
-after all executors finish and judges the combined result. On iterations 2-3 the
-verifier's findings go verbatim into the executor `<task>`'s `<context>`, with no
-plan phase in between.
+Should the author return `needs_input` (a fact the confirmation does not
+settle), ask the user and re-run the author for the same iteration with the
+answer in `<context>`.
 
-### Verify
+Typically ONE author per run — the produced files are read once by a single
+reviewer pass. You MAY run multiple authors in parallel only when their target
+area files cannot conflict (e.g. disjoint feature areas); the reviewer always runs
+after all authors finish and judges the combined result. On iterations 2-3 the
+reviewer's findings go verbatim into the author `<task>`'s `<context>`; the
+surveyor does not re-run.
 
-Spawn the verifier (`phase="verify"`) with ONLY artifact references (the produced
-files, the ticket, the git diff) — never the executor's reasoning. Its
-`<constraints>` also carry `required_sections` (per produced area file) and
-`audience_style_profile` (both declared above in the Plan task example). It
+### Review
+
+Spawn the reviewer (`phase="reviewer"`) with ONLY artifact references (the produced
+files, the iteration's authoring notes, the ticket, the git diff) — never the
+author's reasoning. Its `<constraints>` also carry `required_sections` (per
+produced area file) and `audience_style_profile` (both declared above in the G36
+declaration and the author task example). It
 re-reads everything fresh and checks, all findings blocking — including
 `audience-style` (an unwaived audience-mismatch blocks; a coordinator-recorded
 ledger waiver via `clarify.py --source assumption` makes it `severity="info"`,
@@ -298,20 +345,20 @@ non-blocking):
   produced area file);
 - mode conformance — the produced set matches the classified mode (greenfield
   elicited files, or brownfield/amend augmentation);
-- plan conformance — the produced files realize the approved plan's outline;
+- authoring conformance — the produced files realize the confirmed outline in
+  the authoring notes;
 - amend mode: `git diff` shows only the intended new/augmented area files —
   every existing area file is byte-identical;
 - iteration 2+: every prior finding from `<context>` is actually fixed.
 
-Zero findings = pass -> Deliver. Findings -> persist the verify XML, feed them
-verbatim into the next iteration's executor `<task>` `<context>` — with no
-plan phase in between, and re-run execute -> verify. After
-iteration 3 with findings remaining: STOP — final status `failed`, findings
-recorded; go to Finish (no PR is opened).
+Zero findings = pass -> Deliver. Findings -> feed them verbatim into the next
+iteration's author `<task>` `<context>` — the surveyor does not re-run — and
+re-run author -> review. After iteration 3 with findings remaining: STOP —
+final status `failed`, findings recorded; go to Finish (no PR is opened).
 
 ## Deliver the docs-only PR
 
-Only after the verifier passes:
+Only after the reviewer passes:
 
 ```bash
 git add "<functional_dir>" "<non_functional_dir>"
@@ -335,7 +382,7 @@ gh label create ACS 2>/dev/null || true                # create the label if mis
   `<repo>/.acs/templates/<name>.md`; else an absolute path). Fill `{ticket_id}`,
   `{type}`, `{title}`, `{summary}`, `{external_key}` from `ticket.json` and this
   run's state — never from conversation memory. Changes = the area files added or
-  amended; Test plan = the verifier dimensions checked; mark TDD/coverage checklist
+  amended; Test plan = the review dimensions checked; mark TDD/coverage checklist
   items `N/A (docs-only PR)`. Write the filled body to
   `steps/create-requirements/pr-body.md` before the self-check below.
 - **Pre-open self-check** — before `gh pr create`, self-check the filled
@@ -388,10 +435,10 @@ Before a needs_input handoff, record the outgoing questions as `open`
 (`clarify.py add` without `--answer`).
 
 - **Brownfield**: present the reverse-engineered baseline (DRAFT, code-cited,
-  human-confirm-required) and ask ONLY the open points the executor's survey flagged — an
+  human-confirm-required) and ask ONLY the open points the surveyor flagged — an
   extracted requirement is never authoritative without confirmation.
 - **Amend**: confirm exactly which absent/ungrounded area files are augmented and
-  why before executing; every other area file is untouched.
+  why before the author writes; every other area file is untouched.
 - **Greenfield**: elicit the definition from the user and map it to
   `<functional_dir>/<feature>.md` files (the feature list — what the
   product/system does) and `<non_functional_dir>/<item>.md` files (the NFR
@@ -439,7 +486,7 @@ MANDATORY final step — never skipped, also on failure.
    }
    ```
 
-   On failure keep whatever is true: status `failed`, remaining verifier findings in
+   On failure keep whatever is true: status `failed`, remaining reviewer findings in
    `findings`, `states.requirements` if any files were written, NO `states.pr` if no
    PR was opened, and the reason in `summary`.
 

@@ -73,19 +73,29 @@ class WorkflowCoverageTest(unittest.TestCase):
         for step in W.steps_of(self.wf):
             self.assertIn(step, lib.HOOKED_SKILLS, step)
 
-    def test_every_step_has_a_directory_and_a_manifest(self):
-        manifests = K.load_manifests()
+    def test_every_step_has_a_directory_and_no_manifest(self):
+        """A skill is its directory and its SKILL.md. The per-skill `acs.yaml`
+        manifest is gone: each skill is independent, and nothing declares what
+        it reads so that a gate could refuse it."""
+        self.assertFalse(hasattr(K, "load_manifests"))
         for step in W.steps_of(self.wf):
             with self.subTest(step=step):
                 self.assertTrue(K.is_skill(step))
-                self.assertTrue(manifests.get(step), "%s declares nothing" % step)
+                self.assertFalse(os.path.exists(os.path.join(
+                    K.skill_dir(step), "acs.yaml")), step)
 
     def test_the_legs_are_reachable_but_are_not_steps(self):
-        manifests = K.load_manifests()
-        for leg in K.legs_of("code", manifests):
+        legs = K.legs_of("code")
+        self.assertEqual(legs, ["code-complex", "code-small", "code-standard",
+                                "code-trivial"])
+        for leg in legs:
             with self.subTest(leg=leg):
                 self.assertTrue(K.is_skill(leg))
                 self.assertNotIn(leg, W.steps_of(self.wf))
+                self.assertEqual(K.entry_point_of(leg), "code")
+                self.assertEqual(K.agent_roles_of(leg), [],
+                                 "a leg spawns code's implementer; it owns none")
+        self.assertEqual(K.agent_roles_of("code"), ["implementer"])
 
 
 class SettingsEnumTest(unittest.TestCase):

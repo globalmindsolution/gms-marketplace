@@ -27,7 +27,7 @@ is published today:
 |-----------|----------------------|
 | Enforceable ordering | Deterministic gate scripts on the `PreToolUse(Skill)` event; exit 2 blocks; gates fail closed. |
 | Resumability | File-based state only: append-only run history, phase artifacts, pipeline ledger; no conversation memory between steps. |
-| Verification independence | Separate executor/verifier contexts on the twelve authoring skills (create-prd, create-architecture, create-project, create-design, docs-sync, standardize-project, create-requirements, analyze-requirements, create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests) and on `code` and `create-docs` — no skill has a planner context (ADR 0092; `code`'s plan comes from `/acs:create-impl-plan`, ADR 0089; `create-docs` took the shape first, ADR 0094) — for `/acs:create-impl-plan`, the executor context is STANDARD/COMPLEX-only since MAR-72 (ADR 0074; on TRIVIAL/SMALL the coordinator authors the plan itself), while the verifier context is separate in every lane, so the independence property this row asserts is preserved; verifiers anchor on gated upstream contracts and the executor's authoring notes, re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline and are verifier-gated upstream by /code's verifier. |
+| Verification independence | Separate writer and judge contexts on the twelve authoring skills and `create-docs`, each named for the skill's own work (ADR 0109): analyze-requirements (analyst / impact-reviewer), create-prd and create-requirements (surveyor / author / reviewer), create-architecture (architect / reviewer), create-design (designer / design-reviewer), create-docs (author / reviewer), create-impl-plan (planner / plan-reviewer), create-api-contract (contract-author / contract-reviewer), create-test-docs (test-designer / trace-reviewer), create-e2e-tests (test-writer / suite-runner), docs-sync (doc-updater / drift-reviewer), create-project (scaffolder / build-checker), standardize-project (auditor / scaffolder / additive-checker) — no skill has a planning pass before its writer (ADR 0092); `code`'s implementers are judged by `/acs:review-code`'s lenses and adjudicators, a step of its own (ADR 0099). Judges anchor on gated upstream contracts and the authoring notes, and re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline with no subagent and are gated upstream by `/acs:review-code`. |
 | Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket, plus phase-level fan-out from a single coordinator (e.g. `/acs:create-docs`, over its four doc sets) spawning independent delivery tickets in parallel worktrees — **capped**, never unbounded: the coordinator walks the declared batches in slices of at most 2 legs, a limit it sets for itself. The ship pipeline itself runs one step at a time: `ship.yaml` v3 carries no `max_parallel` and no step-level fan-out (ADR-0096). |
 | Portability | stdlib-only Python ≥ 3.9 hooks; markdown skills/agents; no pip installs on consumer machines. |
 | Auditability | Pretty-printed JSON everywhere; archives never deleted; clarification ledger; an append-only invocation history per step. |
@@ -55,7 +55,7 @@ is published today:
    **The review is a step, not a phase inside `/code`** (ADR-0099): every path
    gets `/acs:review-code`'s five lenses, per-finding adjudication and final
    gate, and the iteration ceiling is the workflow's one `loops:` entry rather
-   than a per-leg property. What the path still scales is the executor shape
+   than a per-leg property. What the path still scales is the implementer shape
    and whether plan approval is enforced. Spec content is authored inside
    `/create-impl-plan`'s plan when the run's `specs/` is absent or empty
    (pre-existing specs are still read when present). The path never moves
@@ -66,14 +66,13 @@ is published today:
    re-route.
 6. **Entry-point folds over skill collapses**: where several skills form one
    user-facing job, the surface is narrowed by declaring an entry point, not by
-   merging the skills. A **leg** declares itself with
-   `disable-model-invocation: true` in its own front matter — there is no
-   registry listing them, since `workflows/phases.yaml` is gone (ADR-0096) —
-   and its SKILL.md names the entry point that owns it (six legs today: four
+   merging the skills. The **legs** are one table in the plugin's code,
+   `acs_lib.skills.SKILL_LEGS` (ADR 0109) — there is no per-skill manifest —
+   and each leg's SKILL.md names the entry point that owns it (six legs today: four
    delivery paths behind `/acs:code`, two project-scaffold behind
    `/acs:project`), and
    the entry point invokes a leg as a genuine Skill-tool call, so the leg's own
-   gate, hooks, executor/verifier pair and delivery ticket are untouched. The consequence that
+   gate, hooks, subagents and delivery ticket are untouched. The consequence that
    matters architecturally: a narrower surface costs no verification
    independence and no gate integrity, because no gate moved. The entry point
    itself stays unhooked — it owns no agents and no gate of its own, exactly

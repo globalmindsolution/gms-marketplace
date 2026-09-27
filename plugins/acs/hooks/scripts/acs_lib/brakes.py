@@ -32,7 +32,7 @@ def _brake_code(ctx, rdir, doc, wf):
     for the plan that is on disk now. An implementer working from a plan the
     human approved a revision ago is the failure this prevents."""
     from . import plan_contract
-    plan = run_machine.artifact_path(rdir, "plan", None, wf)
+    plan = run_machine.artifact_path(rdir, "plan")
     if not plan or not os.path.isfile(plan):
         return None
     path = plan_contract.delivery_path(plan_contract.read(plan))

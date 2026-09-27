@@ -1,7 +1,7 @@
 """MAR-137 spec 02 — wire the diagram-lint gate into the two verifiers.
 
-Prose-contract tests over `plugins/acs/agents/create-architecture-verifier.md`
-(dimension `mermaid-diagrams`) and `plugins/acs/agents/create-design-verifier.md`
+Prose-contract tests over `plugins/acs/agents/create-architecture-reviewer.md`
+(dimension `mermaid-diagrams`) and `plugins/acs/agents/create-design-design-reviewer.md`
 (dimension `completeness`): both dimensions must invoke the Spec-01-promoted
 `mermaid_lint.py` helper via `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py`
 and map any finding to `severity="blocking"`, replacing the old soft/LLM-judgment
@@ -31,8 +31,8 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
-ARCH_VERIFIER = os.path.join(PLUGIN, "agents", "create-architecture-verifier.md")
-DESIGN_VERIFIER = os.path.join(PLUGIN, "agents", "create-design-verifier.md")
+ARCH_VERIFIER = os.path.join(PLUGIN, "agents", "create-architecture-reviewer.md")
+DESIGN_VERIFIER = os.path.join(PLUGIN, "agents", "create-design-design-reviewer.md")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py"
 
@@ -79,7 +79,7 @@ def dimension_present(body, label):
 
 
 class ArchitectureMermaidDiagramsDimensionTest(unittest.TestCase):
-    """AC-2: create-architecture-verifier.md dimension 4 (mermaid-diagrams)
+    """AC-2: create-architecture-reviewer.md dimension 4 (mermaid-diagrams)
     invokes the promoted helper as a blocking gate, replacing the old
     mmdc-render-or-grep clause."""
 
@@ -106,7 +106,7 @@ class ArchitectureMermaidDiagramsDimensionTest(unittest.TestCase):
 
 
 class DesignCompletenessDiagramSubCheckTest(unittest.TestCase):
-    """AC-3: create-design-verifier.md dimension 5 (completeness) diagram
+    """AC-3: create-design-design-reviewer.md dimension 5 (completeness) diagram
     sub-clause invokes the promoted helper as a blocking gate, replacing the
     old 'syntactically plausible' LLM-judgment clause. The dimension label
     stays `completeness` — no new numbered dimension."""

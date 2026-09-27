@@ -112,9 +112,10 @@ once, needs none of them. A ticket from an older build that still carries
 `<skill>-state.json` run entries carry an additive, optional `guard_events`
 array (`runs[-1].guard_events: [{...}]`), appended by `record_guard_event(tdir,
 skill, event)` (`acs_lib/step.py`) — creates the list when absent, persists via
-the same pretty-printed `write_json`. The state file is the denied executor's
-own (`code-state.json` is the common case, not the only one): the guard records
-under the active executor's skill, and the derivation below is skill-agnostic.
+the same pretty-printed `write_json`. The state file is the denied writer's
+step's own (`code-state.json` is the common case, not the only one): the guard
+records under the skill of the active `write`-kind agent, and the derivation
+below is skill-agnostic.
 It returns `False` instead of raising when there is no run entry to carry the
 event — its sole caller is a deny path whose verdict must not depend on the
 recording. (Its retired sibling `record_escalation_event` raised there, which
@@ -130,7 +131,7 @@ path is nameable; `reason` is `"outside_map"`, `"control_input"`, or
 `outside_map` and `0` for the other two.
 
 Two bounds hold at every deny site. An event is recorded **only on a deny** —
-every fail-open branch (not a write tool, no partition, no active executor)
+every fail-open branch (not a write tool, no partition, no active write-kind agent)
 records nothing — and recording **never changes the verdict**: a failed append
 is one extra stderr note beside the unchanged warning, with no retry, wait or
 lock. The item shape **is** declared in
@@ -151,7 +152,7 @@ than a `0` the reader cannot distinguish from a run predating the trail.
 ## Inter-step contract (state files)
 
 The next skill reads only canonical `states` keys — e.g. `/create-pr` gate:
-`code-state.states.verifier_passed == true`; `/merge-pr` gate: a `states.pr`
+`steps/review-code/state.json`'s `states.verifier_passed == true`; `/merge-pr` gate: a `states.pr`
 reference recorded by a COMPLETED step — `gates._pr_recorded_for` reads
 `steps/<skill>/state.json` for `create-pr` and for each `DELIVERY_TICKET_SKILLS`
 member, across every run of the ticket, and requires that step's last status to
@@ -159,8 +160,8 @@ be `completed`. Full table:
 INTERNALS.md "Canonical states keys per skill". Schemas:
 `plugins/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
 recorded by `plan-approval.py` and is **not** read by any gate this
-release — `/create-pr`'s gate remains `code-state.states.verifier_passed ==
-true` (unchanged; MAR-73, slice 3 of MAR-69).
+release — `/create-pr`'s gate remains the review's `states.verifier_passed ==
+true` (MAR-73, slice 3 of MAR-69).
 
 ## Settings (consumer repo)
 
@@ -214,7 +215,7 @@ value.
 → absolute path); its section companion `enforcement.design_sections`
 defaults from the configured template — the built-in default encodes today's
 exact required-section list, so an absent key is byte-identical to the prior
-hardcoded gate (ADR 0065). create-design's verifier enforces the resolved
+hardcoded gate (ADR 0065). create-design's design-reviewer enforces the resolved
 list as a blocking `structure` dimension via `structure_lint.py`.
 The requirements set (found in the repo, else `docs/requirements/`) has a
 **functional** and a **non-functional** subfolder (`functional/` and
@@ -239,7 +240,7 @@ Requirements (`docs/requirements/` by default, `functional/`+`non-functional/` s
 
 `/create-prd`'s output contract now additionally includes the **"Release
 versions"** mapping table in `roadmap.md` (one row per release version →
-milestone/wave + epic(s) delivered), verified by the create-prd verifier's
+milestone/wave + epic(s) delivered), verified by the create-prd reviewer's
 0-orphan-milestone coverage sub-check (ADR 0053).
 
 The `standards` chain level has a documentary counterpart in this repo at

@@ -10,7 +10,7 @@ repo — 5000+ tests, ~415s per instrumented run — a three-spec ticket spent
 roughly fifteen full runs.
 
 It now runs ONCE per iteration and `/acs:review-code`'s **final gate** owns it.
-`/acs:code`'s executors iterate against the TARGETED set the plan's test
+`/acs:code`'s implementers iterate against the TARGETED set the plan's test
 strategy names for their file map — `/acs:create-impl-plan` answered that
 question, so `/acs:code` reads it rather than re-deriving it. The gate's single
 independent run then establishes that the assembled changeset is green and,
@@ -56,7 +56,7 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 #: The execute instruction the four delivery paths share (ADR-0095).
 CODE_EXECUTE = os.path.join(PLUGIN, "skills", "code", "references", "execute.md")
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
-CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
+CODE_IMPLEMENTER = os.path.join(PLUGIN, "agents", "code-implementer.md")
 REVIEW_SKILL = os.path.join(PLUGIN, "skills", "review-code", "SKILL.md")
 REVIEW_LENS = os.path.join(PLUGIN, "agents", "review-code-lens.md")
 VERDICT_SCHEMA = os.path.join(PLUGIN, "schemas", "verdict.schema.json")
@@ -74,8 +74,8 @@ def norm(path):
 
 class OnlyTheGateRunsTheFullUnitSuiteTest(unittest.TestCase):
 
-    def test_executor_is_told_not_to_run_it(self):
-        body = norm(CODE_EXECUTOR)
+    def test_implementer_is_told_not_to_run_it(self):
+        body = norm(CODE_IMPLEMENTER)
         self.assertIn("**You do not run the full unit suite.**", body)
         self.assertIn("iterating against the TARGETED set", body)
 
@@ -110,8 +110,8 @@ class TheTargetedSetComesFromThePlanTest(unittest.TestCase):
     strategy rather than re-deriving the scope — and a scope that is declared
     can be reviewed, where one invented per executor cannot."""
 
-    def test_executor_reads_the_scope_from_the_plan(self):
-        body = norm(CODE_EXECUTOR)
+    def test_implementer_reads_the_scope_from_the_plan(self):
+        body = norm(CODE_IMPLEMENTER)
         self.assertIn("the suites the plan's test strategy names for your file "
                       "map", body)
         self.assertIn("`/acs:create-impl-plan` wrote it — this skill does not "
@@ -169,10 +169,10 @@ class TheVerdictIsTheSourceOfRecordTest(unittest.TestCase):
         self.rdir = tempfile.mkdtemp(prefix="acs-tests-source-")
         self.addCleanup(shutil.rmtree, self.rdir, True)
 
-    def _execute(self, doc, skill="code", iteration=1):
+    def _execute(self, doc, skill="code", iteration=1, name="implementer.json"):
         directory = lib.iteration_dir(self.rdir, skill, iteration)
         os.makedirs(directory, exist_ok=True)
-        with open(os.path.join(directory, "execute.json"), "w", encoding="utf-8") as fh:
+        with open(os.path.join(directory, name), "w", encoding="utf-8") as fh:
             json.dump(doc, fh)
 
     def _verdict(self, iteration=1, **extra):
@@ -209,6 +209,14 @@ class TheVerdictIsTheSourceOfRecordTest(unittest.TestCase):
         self.assertEqual(value["passed"], 12)
         self.assertEqual(value["coverage_percent"], 91.0)
         self.assertIn("execute report", why)
+
+    def test_a_legacy_execute_report_is_still_read(self):
+        """A run started before the executor role was renamed wrote
+        `execute.json`; it must derive the same way."""
+        self._execute({"tests": {"passed": 7, "failed": 0}}, skill="review-code",
+                      name="execute.json")
+        value, _why = lib.derive_tests(self.rdir, "review-code", {})
+        self.assertEqual(value["passed"], 7)
 
     def test_it_falls_back_when_no_verdict_exists_at_all(self):
         """A run can end before any review writes one."""
@@ -265,10 +273,15 @@ class EachSuiteHasOneFullRunOwnerTest(unittest.TestCase):
         self.assertIn("full unit test suite", body)
         self.assertNotIn("full e2e suite", body)
 
-    def test_executor_points_full_e2e_at_the_dedicated_skill(self):
-        body = norm(CODE_EXECUTOR)
+    def test_implementer_points_full_e2e_at_the_dedicated_skill(self):
+        body = norm(CODE_IMPLEMENTER)
         self.assertIn("the full e2e suite is `/acs:run-e2e-tests`' job", body)
         self.assertNotIn("the full e2e suite is the verifier's job", body)
+
+    def test_implementer_leaves_coverage_to_the_review(self):
+        body = norm(CODE_IMPLEMENTER)
+        self.assertIn('"target": "measured in review"', body)
+        self.assertNotIn("measured in verify", body)
 
     def test_the_e2e_step_is_in_the_workflow_and_the_unit_run_is_not(self):
         """Behavioural: the reason the owners differ is the workflow's shape,
