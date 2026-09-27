@@ -362,18 +362,6 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
-- **Routing is graded on the first Skill call, not the first move**
-  (ADR-0110, amends ADR-0107).
-  - **Routing runs get three turns,** and a positive case passes when the
-    run's first Skill call names its skill (a `regex` over the trace). Looking
-    at the repo before routing is no longer a miss; a first call to any other
-    skill, including a built-in one, still is.
-  - **Later Skill calls are not graded,** so `/acs:ship` reaching a step or
-    `/acs:code` dispatching a leg still cannot pass or fail a case.
-  - **A run costs about $0.09;** the gate's ceiling rises to $300.
-  - **Migration:** none for consumers. Routing numbers before this change are
-    on the one-turn grader and are not comparable.
-
 - **The routing gate runs ten phrasings ten times, and every run must route**
   (ADR-0109, amends ADR-0107).
   - **Each of the 24 described skills has ten phrasings,** up from three. The

@@ -1,10 +1,10 @@
 ---
-type: regex
-target: trace
-pattern: '^(?:(?!"name":"Skill","input":)[\s\S])*"name":"Skill","input":\{"skill":"(?:[\w-]+:)?release"'
+type: tool_used
+tool: Skill
+input_match: '"skill"\s*:\s*"(?:[\w-]+:)?release"'
+min: 1
 ---
 
-Passes when the FIRST Skill call in the run names `acs:release`, bare or
-plugin-qualified. The run has 3 turns, so looking at the repo before routing
-is not a miss; a first Skill call to any other skill, or none at all, is. Later
-Skill calls -- a skill invoking its own steps or legs -- are not graded.
+Passes when `acs:release` is invoked at least once, bare or plugin-qualified.
+It reads the Skill tool call, not the reply, so a precondition gate
+refusing AFTER the skill routed still counts as a route.

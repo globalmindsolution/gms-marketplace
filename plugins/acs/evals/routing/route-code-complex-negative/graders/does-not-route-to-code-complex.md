@@ -1,11 +1,12 @@
 ---
-type: regex
-target: trace
-pattern: '^(?:(?!"name":"Skill","input":)[\s\S])*"name":"Skill","input":\{"skill":"(?:[\w-]+:)?code-complex"'
-match: not_contains
+type: tool_used
 arm: both
+tool: Skill
+input_match: '"skill"\s*:\s*"(?:[\w-]+:)?code-complex"'
+min: 0
+max: 0
 ---
 
-Passes unless the FIRST Skill call in the run names the internal leg
-`acs:code-complex`, bare or plugin-qualified. The entry point dispatching the leg later
-is the correct route, and the tempered pattern cannot see past the first call.
+`acs:code-complex` must not fire. `input_match` narrows the count to that one
+skill, so routing to a DIFFERENT skill passes. Both bounds are set on
+purpose: `min` defaults to 1, and `max: 0` alone would assert 1..0.

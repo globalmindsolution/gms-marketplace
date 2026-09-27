@@ -48,25 +48,6 @@ ROUTING_KINDS = ("description", "explicit", "negative", "control")
 
 _SKILL_IN_INPUT_MATCH = re.compile(r'\(\?:\[\\w-\]\+:\)\?([a-z0-9][a-z0-9-]*)"$')
 
-#: A routing run's turn budget. One turn graded the model's first MOVE, so a
-#: run that looked at the repo before routing correctly read as a miss; three
-#: turns and a first-Skill-call grader grade the ROUTE instead (ADR-0110).
-ROUTING_TURNS = 3
-
-#: A `regex` grader over `target: trace` passes when the run's FIRST Skill call
-#: names the skill after this prefix. The tempered token refuses to step past
-#: any earlier Skill call, so a later one -- /acs:ship invoking its steps,
-#: /acs:code dispatching a leg -- can neither pass nor fail the case. The trace
-#: is compact JSON per message, so the tool_use reads `"name":"Skill","input":{`.
-FIRST_SKILL_PREFIX = (r'^(?:(?!"name":"Skill","input":)[\s\S])*'
-                      r'"name":"Skill","input":\{"skill":"(?:[\w-]+:)?')
-
-
-def first_skill_pattern(skill):
-    """The canonical first-Skill-call pattern for `skill`. The closing quote
-    keeps `code` from matching `code-small`."""
-    return FIRST_SKILL_PREFIX + skill + '"'
-
 
 class CaseFormatError(ValueError):
     """A case file the strict reader does not understand."""
@@ -186,18 +167,7 @@ class Grader(object):
         return self.fm.get("type")
 
     def skill(self):
-        """The bare skill a routing grader names: a first-Skill-call `regex`
-        over the trace, or a `tool_used: Skill` grader's input_match."""
-        if self.type == "regex" and self.fm.get("target") == "trace":
-            pattern = self.fm.get("pattern") or ""
-            if not pattern.startswith(FIRST_SKILL_PREFIX):
-                return None
-            skill = pattern[len(FIRST_SKILL_PREFIX):-1]
-            if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", skill) or pattern != first_skill_pattern(skill):
-                raise CaseFormatError(
-                    "%s: pattern is not the canonical first-Skill-call form: %r"
-                    % (self.path, pattern))
-            return skill
+        """The bare skill a `tool_used: Skill` grader's input_match names."""
         if self.type != "tool_used" or self.fm.get("tool") != "Skill":
             return None
         pattern = self.fm.get("input_match")
@@ -257,8 +227,6 @@ class Case(object):
     @property
     def must_route(self):
         g = self.routing_grader()
-        if g is not None and g.type == "regex":
-            return g.fm.get("match", "contains") == "contains"
         return bool(g and (g.fm.get("min", 1) or 0) >= 1)
 
 

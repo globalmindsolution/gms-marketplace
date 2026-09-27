@@ -6,7 +6,7 @@ description: >-
   the skill.
 expected_outcome: Routes to acs:project.
 tags: [routing, description, confusable]
-max_turns: 3
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

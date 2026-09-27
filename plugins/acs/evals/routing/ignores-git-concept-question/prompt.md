@@ -5,7 +5,7 @@ description: >-
   firing here is over-triggering on vocabulary.
 expected_outcome: Invokes no skill at all.
 tags: [routing, control]
-max_turns: 3
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

@@ -5,7 +5,7 @@ description: >-
   prompt. Never names the skill.
 expected_outcome: Routes to acs:create-test-docs.
 tags: [routing, description]
-max_turns: 3
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

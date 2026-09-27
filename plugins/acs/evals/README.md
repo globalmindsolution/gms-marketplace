@@ -36,9 +36,9 @@ claude plugin eval . --tag setup --scaffold --allow-tools Bash Write Edit --judg
 
 Pin `--model` before recording a number you mean to compare with a later run:
 unpinned, a model rollout is indistinguishable from a plugin regression.
-`--max-cost-usd` is the cost lever. A routing run has up to three turns (see
-below) and costs about $0.09 (measured on 2026-09-27; a one-turn run was about
-$0.075), so the release gate's ~2,500 runs cost about $230.
+`--max-cost-usd` is the cost lever. A routing run is one model turn (see below)
+and costs about $0.075 (measured over 208 one-turn runs on 2026-09-24), so the
+release gate's ~2,500 runs cost about $190.
 
 ## Tags
 
@@ -70,39 +70,35 @@ measure the description on 100 runs
 
 Every routing case carries exactly one free, deterministic grader, so a run
 scores 1.00 (routed as asserted) or 0.00 (did not), and a case's score is the
-fraction of its runs that routed. A positive case's grader is a `regex` over
-the run's `trace` that passes when the **first** Skill call names the skill
-([ADR-0110](../../../docs/adr/0110-routing-graded-on-the-first-skill-call.md)):
+fraction of its runs that routed. It is the reference's canonical routing
+grader — `tool_used` on the `Skill` tool, with an `input_match` regex naming the
+skill:
 
 ```yaml
-type: regex
-target: trace
-pattern: '^(?:(?!"name":"Skill","input":)[\s\S])*"name":"Skill","input":\{"skill":"(?:[\w-]+:)?code"'
+type: tool_used
+tool: Skill
+input_match: '"skill"\s*:\s*"(?:[\w-]+:)?code"'
+min: 1
 ```
 
-The tempered token `(?:(?!…)[\s\S])*` cannot step past an earlier Skill call,
-so the pattern only ever sees the first one. The skill may be bare or
-plugin-qualified, and the closing quote keeps `code` from matching
-`code-small`. It reads the tool call rather than the reply, so a skill whose
-precondition gate refuses AFTER it routed still counts as a route — which is
-what routing means. `tests/evals/check_cases.py` runs every pattern against
-traces shaped like the CLI's: its own skill first (pass), another skill first
-with its own skill later (fail), no Skill call at all (fail).
+`input_match` narrows the count to calls naming that skill, bare or
+plugin-qualified, and the closing quote keeps `code` from matching `code-small`.
+It reads the tool call rather than the reply, so a skill whose precondition gate
+refuses AFTER it routed still counts as a route — which is what routing means.
 
-A leg's negative is the same pattern with `match: not_contains` and
-`arm: both`: the leg must not be the first Skill call. A control keeps the
-`tool_used` grader on `Skill` with `min: 0`, `max: 0`, `arm: both` and no
-`input_match`, so ANY Skill call in the run fails it.
+A negative is the same grader with `min: 0`, `max: 0` and `arm: both`. Both
+bounds are deliberate: `min` defaults to 1, so a lone `max: 0` asserts the
+impossible range `1..0`.
 
-**A routing run has three turns** (`max_turns: 3`), and only the first Skill
-call is graded. With one turn, a run that looked at the repo before routing
-correctly read as a miss — most of the misses in the 2026-09-27 sweeps were
-that, and a real session routes on its next turn. Grading only the first call
-also keeps the problem the one-turn limit was introduced for from coming back:
-skills call skills (`/acs:ship` invokes each step, `/acs:code` dispatches its
-leg), and those later calls cannot pass or fail a case. The CLI passes
-`max_turns` to the child as `--max-turns` and grades the trace whatever the
-exit status, so a run that stops at the limit is still scored.
+**A routing run is one turn** (`max_turns: 1`), so only the model's first move
+is graded. The grader counts Skill calls across the whole run, and skills call
+skills: `/acs:ship` invokes each step with the Skill tool, and `/acs:code`
+dispatches its leg the same way. With ten turns, a request wrongly routed to
+`ship` passed a step's case as soon as `ship` reached that step, and a request
+correctly routed to `code` failed a leg's negative as soon as `code` dispatched
+the leg. The CLI passes `max_turns` to the child as `--max-turns` and grades
+the tool calls in the trace whatever the exit status, so a run that stops at
+the limit is still scored.
 
 ## Why `--ablation none`
 
@@ -223,7 +219,7 @@ Pilot with `--runs 1 --no-publish` first.
 ## Known limits — read before quoting a number
 
 - **Auto-memory is off for routing runs.** With it on, the model sometimes
-  spends its turns listing Claude Code's memory directory, which is always
+  spends its one turn listing Claude Code's memory directory, which is always
   empty in the sandbox. A case file cannot set that (`env` accepts only
   `EVAL_*` keys), so the gate prefixes the CLI with
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` and `scripts/eval_changed.py` sets it for
@@ -239,8 +235,8 @@ Pilot with `--runs 1 --no-publish` first.
 - **Three prompts were confounded** by context the empty workspace lacks:
   `route-create-design` (an epic ticket), `route-create-requirements` (an
   existing codebase), `route-docs-sync` (a finished change). Each prompt now
-  states that context itself, and Skill is the only tool a routing run is
-  granted, so the run cannot find that context missing. That is a hypothesis until the next
+  states that context itself, and a one-turn run with only the Skill tool can
+  neither look for it nor find it missing. That is a hypothesis until the next
   paid run measures it; each case's `description` keeps the history.
 - **No routing number has been measured since the suite was re-cut.** The
   first full run predates the one-turn limit and 51 of the 90 cases. Treat

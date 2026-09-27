@@ -100,7 +100,7 @@ def run_scores(case):
     all (`turns` 0) is refused, not scored: a usage limit or an auth failure
     mid-run scores later runs without marking the run partial, and such a run
     makes no Skill call -- which a `negative` or `control` grader would read as
-    a pass. A run that stopped at the turn limit has a turn and is scored."""
+    a pass. A run that stopped at the one-turn limit has a turn and is scored."""
     runs = (case.get("arms") or {}).get("with")
     if not runs:
         raise GateError("case %s has no runs in the result" % case.get("name"))

@@ -6,7 +6,7 @@ description: >-
   skill.
 expected_outcome: Routes to acs:install-hooks.
 tags: [routing, description, confusable]
-max_turns: 3
+max_turns: 1
 allowed_tools: [Skill]
 ---
 

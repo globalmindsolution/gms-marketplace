@@ -9,7 +9,7 @@ description: >-
   paid run; until then its history is a caveat, not a baseline.
 expected_outcome: Routes to acs:create-requirements.
 tags: [routing, description]
-max_turns: 3
+max_turns: 1
 allowed_tools: [Skill]
 ---
 
