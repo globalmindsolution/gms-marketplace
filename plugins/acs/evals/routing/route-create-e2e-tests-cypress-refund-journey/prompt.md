@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-TKT-71's refund flow is coded and the verifier is green. Its test cases mark the full refund-through-the-Stripe-sandbox journey as e2e, and our Cypress folder has no spec for it yet — add those specs on the branch.
+TKT-71's refund flow is coded and the review is green. Its test cases mark the full refund-through-the-Stripe-sandbox journey as e2e, and our Cypress folder has no spec for it yet — add those specs on the branch.

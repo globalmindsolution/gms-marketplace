@@ -183,11 +183,24 @@ class FailsClosedTest(GateTestCase):
         self.assertEqual(code, 1)
         self.assertIn("never reached the model", out)
 
-    def test_a_run_stopped_at_the_turn_limit_still_counts(self):
+    def test_a_session_limit_that_counted_a_turn_still_fails(self):
+        """The 2026-09-27 gate run: the account's session limit scored every
+        `update` run 0 with `turns: 1`, and the gate read it as a misroute."""
+        name = gated("description")[0].name
         data = result()
-        data["cases"][0]["arms"]["with"][0].update(turns=1, error="exit 1: max turns reached")
+        run = next(c for c in data["cases"] if c["name"] == name)["arms"]["with"][0]
+        run.update(score=0, turns=1,
+                   error="exit 1: You've hit your session limit · resets 7:20pm (UTC)")
         code, out = self.run_gate(data)
-        self.assertEqual(code, 0, out)
+        self.assertEqual(code, 1)
+        self.assertIn("never reached the model", out)
+
+    def test_a_run_stopped_at_the_turn_limit_still_counts(self):
+        for error in ("exit 1: Reached maximum number of turns (1)", "exit 1: max turns reached"):
+            data = result()
+            data["cases"][0]["arms"]["with"][0].update(turns=2, error=error)
+            code, out = self.run_gate(data)
+            self.assertEqual(code, 0, out)
 
     def test_an_unreadable_file_fails(self):
         out = io.StringIO()

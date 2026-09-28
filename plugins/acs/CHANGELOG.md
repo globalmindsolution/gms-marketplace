@@ -362,6 +362,20 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **The routing evals follow the per-skill subagent refactor** (ADR-0109).
+  - **The gate refuses a run that hit a usage or session limit,** whatever
+    turn count the CLI reports. The first full gate run hit the account's
+    session limit part-way: every `update` run and half of `ship`'s errored
+    with `turns: 1`, and `scripts/eval_gate.py` scored them as misroutes. A
+    negative or control would have read the same runs as passes. The only
+    error a scored run may now carry is the turn limit.
+  - **Prompts use the new role names:** the plan's implementers (was
+    executors) and the changeset review (was the verifier).
+  - **`review-code` leads its description with the requests it owns,** and
+    `analyze-requirements` names them, after the refactor's rewrite of its
+    description left it routing 27/30.
+  - **Migration:** none for consumers.
+
 - **The routing suite rate is 99/100** (ADR-0112, amends ADR-0111).
   - A three-run sweep routes 716 of 720 description runs (99.4%); every miss
     is the model looking at the repo before calling the right skill. A suite

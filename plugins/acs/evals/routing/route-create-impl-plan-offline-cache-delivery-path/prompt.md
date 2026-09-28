@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-The analysis on TKT-66 — moving the mobile app's offline cache to SQLite — is complete and signed off. Work out the step-by-step approach, which modules each executor owns, and what gets tested, so we can judge the delivery path.
+The analysis on TKT-66 — moving the mobile app's offline cache to SQLite — is complete and signed off. Work out the step-by-step approach, which modules each implementer owns, and what gets tested, so we can judge the delivery path.

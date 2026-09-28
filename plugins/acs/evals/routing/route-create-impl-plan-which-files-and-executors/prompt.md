@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Plan the implementation for TKT-44: which files to touch, how the work splits across executors, and how it will be tested.
+Plan the implementation for TKT-44: which files to touch, how the work splits across implementers, and how it will be tested.

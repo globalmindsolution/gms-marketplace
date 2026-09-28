@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-TKT-64's Kafka consumer changes pass the verifier and the code review. Send the branch up for human review: a pull request against the default branch, its body built from the ticket.
+TKT-64's Kafka consumer changes pass the tests and the code review. Send the branch up for human review: a pull request against the default branch, its body built from the ticket.
