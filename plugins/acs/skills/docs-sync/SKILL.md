@@ -68,7 +68,7 @@ silently switch branches.
 - If `context.reconcile` is true (prior run `in_progress`/`failed`/
   `interrupted`/`handed_off`): verify recorded progress against reality
   BEFORE continuing — list `steps/docs-sync/iter-*/*-message.xml`,
-  re-read `<partition>/docs-sync-state.json` if it exists, and check whether
+  re-read `steps/docs-sync/state.json` if it exists, and check whether
   its `states.docs_committed`/`commits` actually match `git log` on the
   branch. Continue from the first unfinished phase/iteration; never redo
   work that demonstrably holds.

@@ -181,7 +181,7 @@ spawn.
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-1. Read `<partition>/create-api-contract-state.json` (`runs[-1]`, `states`) and
+1. Read `steps/create-api-contract/state.json` (`invocations[-1]`, `states`) and
    the artifacts under `steps/create-api-contract/`.
 2. Re-resolve `<contract_path>` and read it if it exists; check `git status` /
    `git log` for contract-file changes a prior run committed. Trust nothing you

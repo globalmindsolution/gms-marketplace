@@ -10,11 +10,17 @@
         "plan_path": {
           "type": "string"
         },
-        "delivery_path": {
-          "type": "string"
+        "plan_approved": {
+          "type": "boolean"
         },
         "file_map": {
-          "type": "array"
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false

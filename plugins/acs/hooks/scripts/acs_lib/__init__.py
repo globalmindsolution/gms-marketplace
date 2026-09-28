@@ -162,7 +162,7 @@ from .skills import (AGENT_ROLES, KIND_MODEL_TIERS, ROLE_KINDS,  # noqa: F401
 
 from . import run as run_machine  # noqa: F401,E402
 from .run import (RUN_STATUSES, STEP_STATUSES, STOP_REASONS, VERDICT_STEPS,  # noqa: F401
-    SUBJECT_KINDS, TERMINAL_RUN_STATUSES, abandon_run, create_run, cursor,
+    SUBJECT_KINDS, TERMINAL_RUN_STATUSES, abandon_run, conclude_standalone_run, create_run, cursor,
     derive_run_id, due_steps, existing_run_ids, finish_step, in_progress_step,
     in_progress_steps,
     iteration_dir, iteration_of, latest_open_run, load_run, projected_run,

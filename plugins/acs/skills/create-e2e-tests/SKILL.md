@@ -207,7 +207,7 @@ failure back to the case and the acceptance criterion behind it.
 If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
 `handed_off`), verify recorded progress against reality BEFORE continuing:
 
-1. Read `<partition>/create-e2e-tests-state.json` (`runs[-1]` and `states`) and
+1. Read `steps/create-e2e-tests/state.json` (`invocations[-1]` and `states`) and
    the phase artifacts under `steps/create-e2e-tests/`.
 2. Look at the repo: `git status` and `git log --oneline <branch>` show which
    suite files exist and which are already committed. A suite recorded written

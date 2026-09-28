@@ -78,15 +78,13 @@ Parse the printed context JSON. Fields you will use:
   default `squash`) and `settings.tracker` (`provider` `local`/`github`/`jira`
   plus `tracker.github` / `tracker.jira` sub-keys).
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
-- `pipeline` — `pipeline.flow` is `"ticket"` or `"product"`; it tells you
-  which state file holds the PR reference (below).
-
 Resolve the PR reference from workspace state — never from conversation
-history: read `states.pr` (`{number, url, branch, base}`) from
-`<partition>/create-pr-state.json`; when `pipeline.flow == "product"`, read it
-from the product skill's state file instead (`create-prd-state.json`,
-`create-architecture-state.json`, or `create-project-state.json` — whichever
-exists with a `states.pr`). The pre-hook keeps this one READINESS BRAKE
+history: read `states.pr` (`{number, url, branch, base}`) from the ticket's
+run, the way the pre-hook's brake does — `steps/create-pr/state.json` first,
+else the state of the delivery-ticket skill that opened the PR
+(`steps/<skill>/state.json` for `create-prd`, `create-architecture`,
+`create-requirements`, `create-docs`, `create-project` or
+`standardize-project`), whichever completed with a `states.pr`. The pre-hook keeps this one READINESS BRAKE
 through the skills-independence refactor — a merge cannot proceed without a PR
 reference recorded by a completed run, which is a fact about the merge, not an
 ordering rule — so it has already validated that such a run recorded this
@@ -98,7 +96,7 @@ ticket.
 If `context.reconcile` is true, verify recorded progress against reality
 BEFORE continuing:
 
-1. Read `<partition>/merge-pr-state.json` (`runs[-1]`) and any
+1. Read `steps/merge-pr/state.json` (`invocations[-1]`) and any
    `steps/merge-pr/iter-*/merge.json` reports to see how far the prior
    run got.
 2. Check reality first: `gh pr view <number> --json state,mergedAt` —
@@ -248,7 +246,7 @@ is:
   and wired `"E2E suite"` as a required status check therefore gets e2e
   enforcement for free through this same read, with zero merge-pr changes. That
   is not a fifth readiness dimension: `ci`/`approvals`/`conflicts`/`protections`
-  remain the complete set and `merge-pr-state.json`'s shape is unchanged.
+  remain the complete set and `steps/merge-pr/state.json`'s shape is unchanged.
   Failing NON-required checks arrive as `info_findings`, never as blockers.
 - **approvals** — `reviewDecision` is `APPROVED`. An approving review is
   required for **every** merge, which is stricter than the branch protection

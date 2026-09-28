@@ -145,7 +145,7 @@ Write `steps/standardize-project/iter-<n>/auditor.json` (always `iter-1/auditor.
 you run on iteration 1 only; partition = the `partition` constraint; a slice writes
 `iter-1/auditor-<slice>.json`) — the
 machine-readable summary of your notes, which the coordinator reads for the result
-document's `states.audit` and `recommended_follow_ups`:
+document's `states.audit` and `states.recommended_follow_ups`:
 
 ```json
 {

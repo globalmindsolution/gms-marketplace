@@ -100,7 +100,7 @@ continuing:
    single author; `iter-<n>/reviewer-<slice>.md` per reviewer slice and the
    joined `iter-<n>/reviewer.md`), the slice plans
    (`iter-<n>/<role>-slices.json`) and
-   `<partition>/create-requirements-state.json` to see which phases completed.
+   `steps/create-requirements/state.json` to see which phases completed.
 2. Re-read the `<requirements_dir>` tree against recorded author claims — does
    the actual `<functional_dir>`/`<non_functional_dir>` file set match what the
    recorded author results claim?

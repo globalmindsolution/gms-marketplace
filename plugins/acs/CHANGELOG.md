@@ -1120,6 +1120,36 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Fixed
 
+- **A red `/acs:run-e2e-tests` run can finish.** `validate_result` demanded an
+  `outcome` from every result of a multi-outcome skill, whatever its status, and
+  none of `passed | no_harness | nothing_to_run` describes a failure — so the
+  post-hook refused every result a red run could write and the step could
+  never be finalized. An outcome is now required only of a `completed` step; a
+  red run finishes `"status": "failed"` with no outcome, as its Finish now says.
+- **`/acs:standardize-project`'s result is admissible.** Its Finish put
+  `recommended_follow_ups` at the top level of `result.json`, which the result
+  envelope refuses, so every run that followed it had its post-hook exit 1. It
+  is now `states.recommended_follow_ups`, like every key a skill owns; a test
+  runs the Finish example through the kernel's validator.
+- **A delivery-ticket skill's run ends with the skill.** `acs step start
+  --allocate` opens a run over a product skill's delivery ticket, but the skill
+  is never a workflow step, so the run stayed `in_progress` with its cursor on
+  `analyze-requirements` and the checkout kept pointing at it — the next
+  `/acs:ship` from that checkout resumed the delivery ticket. The post-hook now
+  concludes such a run (`completed` or `failed`, `concluded_by: <skill>`) and
+  clears the pointer; an interrupted skill keeps its run for the resume.
+- **State fragments match what their skills write.** `analyze-requirements`
+  declared `needs_design` instead of `ready_for_planning`/`questions_open`,
+  `create-impl-plan` typed `file_map` as an array (it is an object) and
+  declared a `delivery_path` it never writes, and `create-ticket` omitted
+  `prd_trace`. A test now holds every skill's Finish example to its fragment.
+- **Skills read the state files that exist.** Twelve skill and reference
+  documents still pointed at the pre-v0.5.0 `<partition>/<skill>-state.json`
+  (`runs[-1]`) — `create-pr` at `code-state.json` — and `/acs:merge-pr`
+  branched on the retired `pipeline.flow`. They now read
+  `steps/<skill>/state.json` (`invocations[-1]`), and `/acs:merge-pr` finds the
+  PR reference the way its gate does. A test fails on any retired path.
+
 - **Parallel groups and sliced fan-out, fixed where they met the kernel**
   (ADR-0110).
   - **The run lock** is released by the last member of a parallel group to

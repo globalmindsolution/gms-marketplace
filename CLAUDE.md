@@ -159,16 +159,6 @@ Two load-bearing conventions you will otherwise trip over:
 in place. `plugins/acs/docs/` (INTERNALS, AUTHORING) is the implementation contract for anyone
 changing the plugin itself.
 
-## Conventions enforced in CI
-
-The required `Branch / PR / commit conventions` check runs `.acs/ci/check-conventions.py --mode pr`
-and enforces one rule: the PR description names its ticket — `MAR-<n>`, a `#<n>` issue reference,
-or an issue link (ADR-0106). CI does not check the branch name, PR title, description sections or
-the `ACS` label. Work not backed by a ticket needs the `acs-exempt` label. The same checker runs as
-this repo's local git hooks (`.pre-commit-config.yaml`) against acs's built-in formats: `commit-msg`
-holds each subject to `{ticket_id} {summary}` with the `MAR` prefix (`enforcement.checks.commit_message`
-is on here), and `pre-push` checks the branch name (`{type}/{ticket_id}-{slug}`) and the pushed
-subjects. The checker is a copy of `plugins/acs/templates/ci/check-conventions.py`: re-copy it,
-never edit it in place.
+## Branching
 
 `main` is protected — branch off it, never commit to it directly.

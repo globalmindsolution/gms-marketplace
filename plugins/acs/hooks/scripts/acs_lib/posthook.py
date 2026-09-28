@@ -312,6 +312,10 @@ def run_post(skill):
             summary=result.get("summary") or result.get("stop_reason"),
             stop_reason=result.get("stop_reason"),
             extra={"leg": result["leg"]} if result.get("leg") else None)
+    elif skill in DELIVERY_TICKET_SKILLS:
+        # The run exists only to carry this skill's delivery ticket; it ends
+        # when the skill does, and the pointer is cleared below with it.
+        doc = run_machine.conclude_standalone_run(rdir, skill, status)
 
     ticket_id = (doc.get("subject") or {}).get("ticket_id")
     tdir = None

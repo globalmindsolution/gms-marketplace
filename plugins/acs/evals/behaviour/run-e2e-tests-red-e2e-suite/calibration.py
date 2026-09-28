@@ -5,11 +5,11 @@ opened on the prompt (in a session the Skill call's PreToolUse gate does this),
 `acs.py step start`, each configured suite run verbatim, the results artifact,
 and the regression ticket minted by `new-ticket.py`.
 
-It does NOT call `post-run-e2e-tests.py`: measured 2026-09-28, the post-hook
-refuses every result document for a FAILED run -- the skill's outcome
-vocabulary is passed | no_harness | nothing_to_run, none describes a failure,
-and `validate_result` demands an outcome from a multi-outcome skill whatever the
-status. No grader here depends on the step being finalized.
+It finishes the step through `post-run-e2e-tests.py` with `"status":
+"failed"` and no outcome, and asserts the post-hook accepts it. Until
+2026-09-28 it refused every result a red run could write -- `validate_result`
+demanded an outcome from a multi-outcome skill whatever the status -- so this
+play fails loudly if that comes back.
 """
 
 import json
@@ -51,6 +51,14 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
+def _finish_failed(ws, summary):
+    done = subprocess.run(
+        ["python3", os.path.join(SCRIPTS, "post-run-e2e-tests.py")],
+        input=json.dumps({"status": "failed", "skill": "run-e2e-tests", "summary": summary}),
+        cwd=ws.path, env=ws.env, capture_output=True, text=True)
+    assert done.returncode == 0, "the post-hook refused a red run: %s" % done.stderr
+
+
 def _mint(ws, key, run_id):
     done = subprocess.run(
         ["python3", os.path.join(SCRIPTS, "new-ticket.py"), "--title", "%s regression" % key,
@@ -79,6 +87,7 @@ def IDEAL(ws):
     _results(ws, RUN_ID, suites, [])
     ticket = _mint(ws, KEY, RUN_ID)
     _results(ws, RUN_ID, suites, [{"key": KEY, "ticket_id": ticket, "action": "minted"}])
+    _finish_failed(ws, "1/2 suites passed; e2e failed; %s minted" % ticket)
     ws.reply = ("## /acs:run-e2e-tests · failed\n\n- **Results**: 1/2 suites passed\n"
                 "- **Findings**: 1 regression ticket minted (%s)" % ticket)
 

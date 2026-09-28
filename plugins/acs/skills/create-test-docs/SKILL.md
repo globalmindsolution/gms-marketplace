@@ -147,7 +147,7 @@ copy of those exact bytes (see Publish).
 If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
 `handed_off`), verify recorded progress against reality BEFORE continuing:
 
-1. Read `<partition>/create-test-docs-state.json` (`runs[-1]` and `states`) and
+1. Read `steps/create-test-docs/state.json` (`invocations[-1]` and `states`) and
    the phase artifacts under `steps/create-test-docs/` to see where
    the prior run stopped.
 2. Re-resolve the artifact (above) and read it if it exists. Trust nothing you

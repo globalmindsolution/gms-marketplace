@@ -221,7 +221,7 @@ missing/absent `principles/` or `standards/` doc set is therefore ALWAYS a
 `recommended_follow_ups` entry — never a scaffold target.
 
 **`recommended_follow_ups` shape** — an array of objects, ALWAYS present on the result
-document (empty array when no structural gaps found):
+document as `states.recommended_follow_ups` (empty array when no structural gaps found):
 
 | Key | Content |
 |---|---|
@@ -530,7 +530,7 @@ with no plan phase in between, and the run continues scaffold -> additive-check.
 scaffolder instead returns `status="failed"` whose `<errors>` unambiguously name the
 reason as outside the frozen iteration-1 allowlist, that refusal is not a run failure:
 convert it into a `{title, rationale, target_path}` entry in the result document's
-`recommended_follow_ups` array, exactly as for a degraded `severity="info"` additive-checker
+`states.recommended_follow_ups` array, exactly as for a degraded `severity="info"` additive-checker
 finding, so it reaches the PR body's `## Recommended follow-ups` section. Convert ONLY
 when the refused finding is itself of the degradable class the additive-checker's own
 four-condition route uses: the finding this coordinator routed into that scaffolder's
@@ -627,8 +627,10 @@ MANDATORY final step — never skipped, also on failure:
 
 1. Write `steps/standardize-project/result.json` per the result-document
    contract in INTERNALS.md (`docs/architecture/lld/contracts.md:27`). Canonical
-   `states` keys: `audit`, `scaffold`, `pr` — plus the top-level `recommended_follow_ups`
-   array (ALWAYS present, empty when there is nothing to recommend):
+   `states` keys: `audit`, `scaffold`, `pr` and `recommended_follow_ups` — the last an
+   array ALWAYS present, empty when there is nothing to recommend. It lives under
+   `states` like every key a skill owns: the result envelope admits no top-level key
+   of its own, and the post-hook refuses a document that adds one.
 
 ```json
 {
@@ -642,11 +644,11 @@ MANDATORY final step — never skipped, also on failure:
       "readiness_tooling": {"ci": false, "pre_commit": true, "coverage": true, "e2e": "n/a"}
     },
     "scaffold": {"files_added": [".github/workflows/ci.yml"]},
-    "pr": {"number": 14, "url": "https://github.com/owner/repo/pull/14", "branch": "task/SHOP-9-brownfield-project-standardization"}
+    "pr": {"number": 14, "url": "https://github.com/owner/repo/pull/14", "branch": "task/SHOP-9-brownfield-project-standardization"},
+    "recommended_follow_ups": [
+      {"title": "Bootstrap the principles/ doc set", "rationale": "no principles doc set found in the repo (CLAUDE.md, docs/README.md, search)", "target_path": "/acs:create-principles"}
+    ]
   },
-  "recommended_follow_ups": [
-    {"title": "Bootstrap the principles/ doc set", "rationale": "no principles doc set found in the repo (CLAUDE.md, docs/README.md, search)", "target_path": "/acs:create-principles"}
-  ],
   "findings": [],
   "errors": []
 }

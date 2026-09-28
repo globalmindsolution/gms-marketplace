@@ -331,8 +331,12 @@ concrete cron/CI/routine recipe; this skill itself has no built-in scheduler
 ## Finish
 
 MANDATORY final step — never skipped, also on failure. Write
-`steps/run-e2e-tests/result.json` with an `outcome` of `passed`, `no_harness`
-or `nothing_to_run`, then:
+`steps/run-e2e-tests/result.json`. A run that completed carries
+`"status": "completed"` and an `outcome` of `passed`, `no_harness` or
+`nothing_to_run`. A run where any suite failed carries `"status": "failed"`
+and no `outcome` — the failing suites and the regressions this run minted,
+bumped or linked are in its `summary` and `findings`, and the results artifact
+is the evidence. Then:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-run-e2e-tests.py" --result-file "<the result.json you just wrote>"

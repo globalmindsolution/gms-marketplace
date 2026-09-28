@@ -23,7 +23,8 @@ Read these yourself before running anything — workspace state, never
 conversation history:
 
 - the PR-bearing state file's `states.pr` = `{number, url, branch, base}`
-  (`<partition>/create-pr-state.json`, or the product skill's state file);
+  (`steps/create-pr/state.json`, or the delivery-ticket skill's
+  `steps/<skill>/state.json` for a product-level ticket);
 - `<partition>/ticket.json` — `ticket.external` drives the tracker step;
 - `settings.merge_strategy` (`squash`|`merge`|`rebase`) and
   `settings.tracker.provider` (`local`|`github`|`jira`);

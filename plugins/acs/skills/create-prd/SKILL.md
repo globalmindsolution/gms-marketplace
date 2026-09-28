@@ -94,7 +94,7 @@ continuing:
    and `iter-1/authoring-<id>.md` per slice; `iter-<n>/author.json`;
    `iter-<n>/reviewer-<slice>.md` per reviewer slice and the joined
    `iter-<n>/reviewer.md`), the slice plans (`iter-<n>/<role>-slices.json`) and
-   `<partition>/create-prd-state.json` to see which phases completed.
+   `steps/create-prd/state.json` to see which phases completed.
 2. Re-read `<repo>/<prd>` and `<repo>/<roadmap>` — does their content
    match what the recorded author results claim?
 3. Check delivery progress: does the delivery branch exist

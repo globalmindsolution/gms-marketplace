@@ -21,8 +21,10 @@ test_create_standards_skill.py and test_create_architecture_project_structure.py
 Run:  python3 -m unittest tests.acs.test_mar121_standardize_project_skill -v
 """
 
+import json
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,6 +33,8 @@ SKILLS = os.path.join(PLUGIN, "skills")
 AGENTS = os.path.join(PLUGIN, "agents")
 
 SKILL_PATH = os.path.join(SKILLS, "standardize-project", "SKILL.md")
+sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+import acs_lib as lib  # noqa: E402  (the kernel's own result validator)
 # The audit charter (once the planner's, then the executor's under ADR-0092)
 # is the auditor's; the scaffold charter is the scaffolder's; the additive-only
 # judge is the additive-checker. The *_PATH names keep the spec's vocabulary.
@@ -312,3 +316,21 @@ class Mar121DeliveryTitleConsistencyCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FinishExampleIsAdmissibleTest(unittest.TestCase):
+    """The Finish section's example result document is what a coordinator
+    copies. It put `recommended_follow_ups` at the top level, which the result
+    envelope refuses -- so every run that followed it had its post-hook exit 1
+    ("recommended_follow_ups: unknown key"). The example now has to pass the
+    kernel's own validator."""
+
+    def test_the_finish_example_passes_validate_result(self):
+        with open(SKILL_PATH, encoding="utf-8") as fh:
+            text = fh.read()
+        finish = text[text.index("## Finish"):]
+        block = re.search(r"```json\n(.*?)\n```", finish, re.S).group(1)
+        doc = json.loads(block)
+        self.assertIn("recommended_follow_ups", doc["states"])
+        self.assertNotIn("recommended_follow_ups", doc)
+        self.assertEqual(lib.validate_result(doc, "standardize-project"), [])

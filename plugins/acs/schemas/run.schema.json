@@ -37,7 +37,8 @@
     "totals": {"type": "object", "description": "Legacy: an older run.json carries an empty totals object; accepted and ignored -- acs records no usage (ADR-0104)."},
     "started_at": {"type": "string"},
     "ended_at": {"type": "string"},
-    "abandoned_reason": {"type": "string"}
+    "abandoned_reason": {"type": "string"},
+    "concluded_by": {"description": "The standalone skill -- a delivery-ticket skill, never a workflow step -- whose end concluded this run. Set only on a run that recorded no workflow step.", "type": "string"}
   },
   "additionalProperties": false,
   "$defs": {

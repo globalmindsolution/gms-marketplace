@@ -8,7 +8,7 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-pr. Your job: ship the ticket's
 implementation as a pull request. Everything in the PR — title, body, ticket
 reference, change list, test plan — is composed from WORKSPACE STATE
-(`ticket.json`, `specs/`, `design.md`, `code-state.json` including its review
+(`ticket.json`, `specs/`, `design.md`, `steps/code/state.json` including its review
 summary), never from conversation history. You perform all of the apply-work
 yourself, inline, following `references/publish.md`, and **spawn no subagent** —
 no planner, no executor, no verifier: pushing a branch and opening a PR is a
@@ -29,12 +29,12 @@ improvise a workaround.
 
 The pre-hook is a SAFETY BRAKE, not an order check. It refuses when the ticket
 HAS a `/acs:code` run whose verifier did not pass
-(`code-state.json` `states.verifier_passed != true`) — a failed review loop must
+(`steps/code/state.json` `states.verifier_passed != true`) — a failed review loop must
 never reach a reviewer. It does NOT require that `/acs:code` or
 `/acs:docs-sync` completed: order lives in `workflows/ship.yaml`, so a ticket
 with no code run at all passes the gate (running out of that declared order
 just earns ONE advisory line on stderr). So do not assume a code run exists:
-read `code-state.json` and treat a missing file as "no recorded implementation"
+read `steps/code/state.json` and treat a missing file as "no recorded implementation"
 — see "State inputs" below.
 
 Parse the printed context JSON. Fields you will use:
@@ -63,7 +63,7 @@ State inputs (read these; conversation history is NOT an input):
 
 - `<partition>/ticket.json` — title, type, description, acceptance criteria,
   `external` mapping.
-- `<partition>/code-state.json` — `runs[-1].states`: `branch` (the ticket
+- `steps/code/state.json` — `invocations[-1].states`: `branch` (the ticket
   branch /acs:code created per `formats.branch_name`), `specs_implemented`,
   `tests` `{passed, failed, coverage_percent, coverage_target}`,
   `docs_updated`, `review` `{iterations, findings_open}` (plus `guard_denials`,
@@ -96,7 +96,7 @@ not an input here. No path re-introduces a planner or verifier for create-pr.
 
 **Verifier-gated upstream (AC-5).** Correctness is gated by the upstream
 code-verifier (/acs:code's verifier subagent). The pre-hook enforces that as a
-brake — a recorded code run with `code-state.json`
+brake — a recorded code run with `steps/code/state.json`
 `states.verifier_passed != true` is refused — rather than as a precondition
 that a code run exist at all. The human checkpoint is the PR review.
 /acs:create-pr carries no in-skill verifier; invariant (d) lives in the
@@ -112,7 +112,7 @@ content), how each outcome ends the run, and the publish report's shape. There
 is no `<task>`/`<result>` exchange and no model tier to apply.
 
 1. **Branch, base, and the stacked-base pre-flight.** Verify the ticket branch
-   from `code-state.json` `states.branch` exists locally
+   from `steps/code/state.json` `states.branch` exists locally
    (`git rev-parse --verify <branch>`) or on origin
    (`git ls-remote origin <branch>`). Detect the base branch here, BEFORE
    anything is pushed:
@@ -176,7 +176,7 @@ is no `<task>`/`<result>` exchange and no model tier to apply.
    ` — tracker: <provider> <key>` when `ticket.external` is set, empty
    otherwise), replace HTML comments with real content and DELETE the comments,
    fill every section strictly from the state files (`ticket.json`,
-   `code-state.json`, `specs/*.md`, `design.md` when required). The base
+   `steps/code/state.json`, `specs/*.md`, `design.md` when required). The base
    branch is the repo's default — the `<base>` step 1 already detected; reuse
    that value rather than running the detect a second time.
    Render the PR title via the helper — NOT LLM prose composition — capturing
@@ -190,7 +190,7 @@ is no `<task>`/`<result>` exchange and no model tier to apply.
    ```
 
    `<title-value>` and `<summary>` are derived exactly as before (from
-   `ticket.json` / `code-state.json` / specs), only the render mechanism
+   `ticket.json` / `steps/code/state.json` / specs), only the render mechanism
    changes. This is the exact value passed **verbatim** to `gh pr create
    --title` / `gh pr edit --title` in step 5 — no further transformation.
    Body: Summary (from specs scope + design decision), Ticket (id, title,
@@ -408,7 +408,7 @@ final message a handoff like:
 
 ```xml
 <handoff skill="create-pr" ticket-id="SHOP-123" status="needs_input">
-  <summary>Branch task/SHOP-123-bulk-import has uncommitted changes not recorded in code-state.json.</summary>
+  <summary>Branch task/SHOP-123-bulk-import has uncommitted changes not recorded in steps/code/state.json.</summary>
   <questions>
     <question>Re-run /acs:code SHOP-123 to land the uncommitted changes, or open the PR from the last recorded commit?</question>
   </questions>

@@ -230,7 +230,7 @@ The XML result references this file and lists the changed paths; full detail
   between spec and design, undefined behavior, ambiguous API semantics — return
   `needs_input` with precise questions instead.
 - Never push, never merge, never rebase, never touch other tickets' branches,
-  never edit workspace state files (`code-state.json`, `run.json`).
+  never edit workspace state files (`steps/code/state.json`, `run.json`).
 - Tests-first is not optional: if you catch yourself implementing before a
   failing test exists, stop and write the test.
 

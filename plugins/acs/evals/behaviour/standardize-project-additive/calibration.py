@@ -25,8 +25,8 @@ def _start(ws):
 
 
 def _finish(ws, follow_ups=FOLLOW_UPS):
-    # Under `states`: the result schema refuses a top-level
-    # recommended_follow_ups, where the leg's SKILL.md puts it.
+    # Under `states`, where the leg's SKILL.md puts it: the result envelope
+    # admits no top-level key of a skill's own.
     ws.write(RESULT, json.dumps({
         "status": "failed", "summary": "additive scaffold verified; gh pr create failed",
         "states": {"audit": {"principles": "absent", "standards": "absent",

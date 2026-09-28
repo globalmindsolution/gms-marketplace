@@ -44,8 +44,8 @@ def IDEAL(ws):
     ws.write(".pre-commit-config.yaml", "repos: []\n")
     ws.sh("git add -- .github/workflows/ci.yml .pre-commit-config.yaml && "
           "git commit -qm 'EVAL-1 Additively scaffold missing tooling'")
-    # recommended_follow_ups sits under `states`: the result schema refuses it
-    # at the top level, where the leg's SKILL.md puts it.
+    # recommended_follow_ups sits under `states`, where the leg's SKILL.md puts
+    # it: the result envelope admits no top-level key of a skill's own.
     _post_hook(ws, "standardize-project", {
         "status": "failed", "summary": "additive scaffold done; gh pr create failed",
         "states": {"scaffold": {"files_added": [".github/workflows/ci.yml",
