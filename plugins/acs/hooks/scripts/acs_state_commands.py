@@ -59,14 +59,17 @@ def cmd_run_show(args):
 
 
 def cmd_run_next(args):
-    """The cursor: the first step in workflow order that is not completed.
-
-    This replaces `workflow next`'s ready-set. With no `needs:` graph there is
-    nothing to traverse and nothing to record as skipped -- one step is next,
-    or the run is done."""
+    """The cursor: the first step in workflow order that is not completed, and
+    `due` -- every unfinished step of the stage it is in, which is more than
+    one only for a parallel group. With no `needs:` graph there is nothing to
+    traverse and nothing to record as skipped."""
     _rdir, doc, _ctx, wf = _resolve_run("run next", args.run)
     cursor = lib.cursor(doc, wf)
+    # `due` is every step `/acs:ship` starts now: one for a plain stage, each
+    # unfinished member for a parallel group. `next` stays the first of them.
+    due = lib.due_steps(doc, wf)
     emit({"ok": True, "run_id": doc["run_id"], "next": cursor,
+          "due": due, "parallel": len(due) > 1,
           "status": doc.get("status"),
           "done": cursor is None})
 

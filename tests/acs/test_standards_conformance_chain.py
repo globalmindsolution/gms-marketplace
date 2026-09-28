@@ -234,12 +234,12 @@ class SkillsMdReviewLensDimensionTest(unittest.TestCase):
 class SkillsMdCreateDesignVerifierDimensionTest(unittest.TestCase):
     """C-4: the create-design-verifier living-requirements description gains
     a minimal standards-conformance clause, mirroring the code-verifier
-    edit, so it stays consistent with create-design-verifier.md's committed
+    edit, so it stays consistent with create-design-design-reviewer.md's committed
     consistency/nfr standards sub-check."""
 
     def _bullet_window(self):
         body = read(SKILLS_MD)
-        m = re.search(r"(?m)^- The `create-design-verifier` checks:.*$", body)
+        m = re.search(r"(?m)^- The `create-design-design-reviewer` checks:.*$", body)
         self.assertIsNotNone(
             m, "skills.md must have the create-design-verifier checks bullet")
         nxt = re.search(r"(?m)^- ", body[m.end():])

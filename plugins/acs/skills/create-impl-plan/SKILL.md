@@ -1,6 +1,6 @@
 ---
 name: create-impl-plan
-description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its executors run, and the spec fold. Writes plan.md to the ticket's docs folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-requirements and before /acs:code, which requires the plan.
+description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its implementers run, and the spec fold. Writes plan.md to the ticket's docs folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-requirements and before /acs:code, which requires the plan.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -10,10 +10,12 @@ into the implementation plan `/acs:code` executes — the spec analysis, the
 executor decomposition with its file map, the test strategy, the
 documentation map, the risks, and the verifier checklist — published as
 `plan.md` for the ticket, published to its docs folder and mirrored for an
-approved plan. You orchestrate executor/verifier subagents — execute → verify,
-no planner (ADR-0092) — persist
-every phase artifact to the ticket partition, and finish by writing the
-result document and running the post-hook — always, even on failure.
+approved plan. You orchestrate two subagents — a **planner** that decides the
+slices, the file map and the test strategy and writes the plan draft, and a
+**plan reviewer** that judges it fresh (planner → plan review, see the loop
+below) — persist every phase artifact to the ticket partition, and finish by
+writing the result document and running the post-hook — always, even on
+failure.
 
 You plan; you never implement. No production code, no tests, no repo docs
 other than the plan artifact itself: `/acs:code` builds what this plan says.
@@ -27,12 +29,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-im
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (`pre-create-impl-plan.py` has verified the gate's
-inputs: the ticket resolves to a live, unlocked partition and is not an epic —
-an epic is designed and fanned out, never planned as one ticket. Nothing else
-is required: `analysis.md` and `design.md` are read WHEN PRESENT, and no
-predecessor-completed check exists — the pipeline order lives in
-`workflows/ship.yaml`, not in this gate).
+improvise a workaround (`pre-create-impl-plan.py` checks only the safety
+brakes: the ticket resolves to a live, unlocked partition and is not an epic —
+an epic is designed and fanned out, never planned as one ticket. Nothing
+upstream is required: `analysis.md` and `design.md` are read WHEN PRESENT, and
+no predecessor-completed check exists — the pipeline order lives in
+`workflows/ship.yaml`, not in this gate. With no analysis the plan is made
+from the ticket's acceptance criteria and the codebase, whether `/acs:ship`
+invoked this skill or a user did).
 
 Parse the printed context JSON. Fields you will use:
 
@@ -53,7 +57,8 @@ Parse the printed context JSON. Fields you will use:
   against it.
 - `settings` — you need `test_coverage_percent` (the coverage target the plan
   states), `formats.branch_name`, `formats.commit_message`, and `e2e` when set.
-- `models` — per-role `{model, effort}` for executor/verifier.
+- `models` — per-tier `{model, effort}`: the planner runs on the `planner`
+  tier, the plan reviewer on the `verifier` tier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see
   `references/not-a-first-run.md`.
 
@@ -66,8 +71,8 @@ CLAUDE.md and whatever docs index it or the repo points at (e.g.
 architecture doc set (its `hld/tech-stack.md`), the requirements set, the ADR
 folder and the standards set. Record each one found as a repo-relative
 directory and hand it to the subagents as a `<constraint>` of that name — the
-executor takes `architecture_dir`, `requirements_dir` and `adr_dir`, the
-verifier `architecture_dir` and `standards_dir`. One the repo does not have is
+planner takes `architecture_dir`, `requirements_dir` and `adr_dir`, the
+plan reviewer `architecture_dir` and `standards_dir`. One the repo does not have is
 simply absent: this skill creates none of them.
 
 **Epics are refused by the gate.** Every ticket that reaches this step has
@@ -119,8 +124,8 @@ opens the next gate. Record it as `states.plan_path`.
 
 One derived path follows from it:
 
-- `steps/create-impl-plan/plan.md` — the working draft the executor writes,
-  the verifier judges, and every later reader reads.
+- `steps/create-impl-plan/plan.md` — the working draft the planner writes,
+  the plan reviewer judges, and every later reader reads.
 
 **There is no approval mirror.** A byte-identical copy at `steps/code/plan.md`
 used to exist because `plan-approval.py` hashed that path while the review
@@ -130,8 +135,8 @@ detect.
 
 ## The re-run reference, and when to open it
 
-Nearly all of this skill is one flow: survey the ticket, author a plan draft,
-verify it, publish it. One part is not — what a run does when the ticket
+Nearly all of this skill is one flow: the planner surveys the ticket and
+authors a plan draft, the plan reviewer judges it, you publish it. One part is not — what a run does when the ticket
 already carries an interrupted prior run, or a published plan that has since
 been superseded. It lives in a reference so a first run never reads it:
 
@@ -141,7 +146,7 @@ been superseded. It lives in a reference so a first run never reads it:
 
 ## Inputs — gather before the loop
 
-Read these yourself and name them by path in the executor's `<inputs>` (never
+Read these yourself and name them by path in the planner's `<inputs>` (never
 inline a file body):
 
 1. The ticket — `ticket` from the context JSON (its file is whatever
@@ -161,53 +166,128 @@ inline a file body):
 `api-contract.md` is NOT an input: `/acs:create-api-contract` runs AFTER this
 skill and covers the API surface this plan declares.
 
-## Reflection loop — execute → verify, no planner
+## Reflection loop — planner → plan review
 
-Run execute → verify until the verifier returns zero blocking findings or the
-ceiling is reached. There is no plan phase: iteration 1's
-executor surveys — spec intake, the decomposition with its file map, the test
-strategy, the documentation map, the risks, the verifier checklist — into its
-authoring notes and renders the draft from them. The verifier judges the draft
-fresh every iteration.
+Two subagents, each named for what it does in this skill:
+
+| Role | Agent | Kind | Model tier | Writes |
+|---|---|---|---|---|
+| planner | `acs:create-impl-plan-planner` | write | `planner` | `iter-<n>/authoring.md`, the draft `steps/create-impl-plan/plan.md`, `iter-<n>/planner.json` |
+| plan reviewer | `acs:create-impl-plan-plan-reviewer` | judge | `verifier` | `iter-<n>/plan-reviewer-<slice>.md`, one per judge slice, joined into `iter-<n>/plan-reviewer.md` |
+
+The planner is a `write`-kind role — it produces the deliverable, a workspace
+draft — but it runs on the `planner` model tier its name promises
+(`acs_lib.skills.model_tier`): deciding the slices, the file map and the test
+strategy is the planning judgement that tier exists for.
+
+Run planner → plan review until the plan reviewer returns zero blocking
+findings or the ceiling is reached. The planner is the only planning role:
+iteration 1's planner surveys — spec intake, the
+decomposition with its file map, the test strategy, the documentation map,
+the risks, the verifier checklist — into its authoring notes and renders the
+draft from them. The plan reviewer judges the draft fresh every iteration.
 
 **One shape, on every run — and it could not be otherwise.** This skill runs
 BEFORE the delivery path exists: `plan.md` is the artifact /acs:ship judges the
 path FROM (ADR-0095, `delivery.classify_after: create-impl-plan`). A plan skill
 that branched on the path would be reading a decision its own output has not
 yet been made to produce. So there is no fork here, and the ceiling is a fixed
-**3** execute → verify rounds. Iteration 1's executor surveys before it writes.
+**3** planner → plan-review rounds. Iteration 1's planner surveys before it
+writes.
 
 That symmetry is worth stating plainly: every ticket gets the same planning
 rigor, and the plan is what earns a cheap or expensive implementation. Spending
 less on a plan because someone guessed the work was small is exactly the
 guess ADR-0095 removed.
 
-**What an iteration counts:** one execute → verify round.
+**What an iteration counts:** one planner → plan-review round.
 
 Decomposition is YOURS alone — subagents never spawn subagents.
+
+### Parallelism — judge slices; the planner stays single
+
+Every fan-out here is yours: spawn the N instances of the SAME agent in ONE
+message (all foreground, in the same message), wait for all of them, and join
+their outputs before the next phase. At most `max_parallel = 4` instances run
+per phase; beyond that, run the rest in waves of four.
+
+**Writer — one planner, never sliced.** `plan.md` is a single document, so
+the write is never partitioned. Its survey is not sliced either: the survey IS
+the decomposition — one file map whose tasks must be disjoint from each
+other, an AC-to-test matrix over every criterion — and that is one judgement
+over the whole ticket that per-area slices could only produce in pieces that
+collide. With one writer there is no integration pass, and with no survey
+slices no synthesis of merged notes.
+
+**Judge slices (every iteration — the default).** The plan reviewer has ten
+check dimensions, so it always runs as three slices, each a fresh instance of
+`acs:create-impl-plan-plan-reviewer` whose task carries `slice="<id>"` and
+`<constraint name="dimensions">` naming the dimension numbers it owns:
+
+| Slice | Dimensions | Owns the run of |
+|---|---|---|
+| `tests` | 1 acceptance-criteria coverage, 5 test strategy executability | the ONE run of the repo's existing suite command |
+| `map` | 4 file-map honesty, 6 design and architecture conformance, 7 scope | the `git ls-files` / `ls` check of every mapped path |
+| `document` | 2 completeness, 3 structure (fold only), 8 documentation map, 9 grounding, 10 authoring-conformance | `structure_lint.py` on the fold |
+
+Grounding policing applies in every slice. Spawn the three slices in ONE
+message; each writes `iter-<n>/plan-reviewer-<slice>.md`. Join them, in the
+table's order, into the one report every later reader reads:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-impl-plan/iter-<n>/plan-reviewer.md \
+  <partition>/steps/create-impl-plan/iter-<n>/plan-reviewer-tests.md \
+  <partition>/steps/create-impl-plan/iter-<n>/plan-reviewer-map.md \
+  <partition>/steps/create-impl-plan/iter-<n>/plan-reviewer-document.md
+```
+
+**De-duplicate after the join.** The slices own disjoint dimensions, so the
+merge is the synthesis — but two slices can still report one defect (a mapped
+path that does not exist is both a `file-map honesty` and a `grounding`
+finding). Drop a finding that cites the same location and the same defect as
+another slice's finding, keep the higher severity, and say so in the joined
+report: append a `## De-duplicated findings` section to `iter-<n>/plan-reviewer.md`
+listing each dropped finding (slice, dimension, location) and the finding it
+duplicated (`_None._` when nothing was dropped). Never drop a finding for any
+other reason.
+
+**Pass rule for sliced judges:** the iteration passes only if EVERY slice
+returned `status="completed"` with zero blocking findings. Any slice's
+blocking finding blocks, and all slices' findings — de-duplicated as above,
+otherwise verbatim — go to the next planner. A slice that failed or returned no usable result fails the
+iteration — never "pass with a missing slice".
 
 Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-impl-plan"
-  phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
-  `<objective>`, `<inputs>` (file refs) and `<constraints>`. The subagent
-  returns a `<result>` as its final content.
-- Validate EVERY message you send and receive:
-
-  ```bash
-  ```
+  phase="planner|plan-reviewer" ticket-id="<id>" iteration="n">` — the
+  `phase` is the role — carrying `<objective>`, `<inputs>` (file refs) and
+  `<constraints>`. The subagent returns a `<result>` with the same `phase` as
+  its final content. A plan-reviewer slice's task and result also carry
+  `slice="<id>"`; the un-sliced planner omits it.
+- Validate EVERY message you send and receive — the SubagentStop hook checks each returned
+  `<result>`'s `skill=`, `phase=` and `iteration=` (and `slice=` when sliced).
 
   On invalid: re-request once with the validation error; still invalid → fail
   the run and record the error in the result document's `errors`.
-- Persist every phase output to
-  `steps/create-impl-plan/iter-<n>/<phase>.json` at the phase
-  boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:create-impl-plan-executor` and
-  `acs:create-impl-plan-verifier` —
-  fall back to the un-namespaced name only if the runtime rejects the
-  namespaced one. Apply `context.models.<role>.model` / `.effort` at spawn
-  when not `"inherit"`; if the runtime rejects the model or effort, FAIL the
-  run with that exact error — no silent fallback.
+- Every phase output is persisted at the phase boundary, BEFORE the next
+  phase starts: the SubagentStop hook snapshots each returned message to
+  `steps/create-impl-plan/iter-<n>/<phase>-message.xml` (a slice's at
+  `iter-<n>/<phase>-<slice>-message.xml`); if that snapshot is
+  missing (a host that does not fire the hook), write the `<task>` and
+  `<result>` there yourself. The roles' own reports are
+  `iter-<n>/planner.json` and `iter-<n>/plan-reviewer-<slice>.md`, joined into
+  `iter-<n>/plan-reviewer.md` — never write a message over them.
+- Spawn subagents with the Agent tool: `subagent_type:
+  "acs:create-impl-plan-planner"`, then `subagent_type:
+  "acs:create-impl-plan-plan-reviewer"` — fall back to the un-namespaced name
+  (`create-impl-plan-planner`, `create-impl-plan-plan-reviewer`) only if the
+  runtime rejects the namespaced one. Apply the role's tier at spawn —
+  `context.models.planner.model` / `.effort` for the planner,
+  `context.models.verifier.model` / `.effort` for the plan reviewer — when
+  not `"inherit"`; if the runtime rejects the model or effort, FAIL the run
+  with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -217,21 +297,21 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Execute (per iteration) — survey, then author the plan
+### Planner (per iteration) — survey, then author the plan
 
-Iteration 1's executor surveys and decides before it writes the deliverable.
+Iteration 1's planner surveys and decides before it writes the deliverable.
 Task it with `<inputs>` of the ticket file, `analysis.md` and `design.md` when
 they exist, `requirements.md` when the run has one, and the consumer-repo
 source/docs the subject touches. Its authoring notes are
 `steps/create-impl-plan/iter-<n>/authoring.md`, and they cover, in the order
-`create-impl-plan-executor.md`'s survey defines:
+`create-impl-plan-planner.md`'s survey defines:
 
 - Analysis of the subject: implementation order, ambiguities and explicit
   clarifying questions (surface these — see User interaction — before the plan
   is published).
 - The decomposition: typically ONE executor task per coherent slice, each
   listing the exact repo files it will touch (source, tests, docs) — this file
-  map decides whether `/acs:code` may run its executors in parallel, and it is
+  map decides whether `/acs:code` may run its implementers in parallel, and it is
   what the PreToolUse write guard enforces.
 - The test strategy per slice: which failing tests to write first, the repo's
   test/coverage tooling and the exact commands to run them, how
@@ -242,9 +322,9 @@ source/docs the subject touches. Its authoring notes are
   file path references) — `/acs:docs-sync` independently re-derives every
   other doc-delta (README/API/usage/changelog, the architecture doc set, ADRs)
   from the diff after `/acs:code` completes.
-  The executor also performs a bounded, touched-area ADR-0012 doc-graph-gap
-  check (`create-impl-plan-executor.md`'s survey item 4, edges E1-E4) — not the
-  full shared design-time step `create-design`'s executor runs — riding the same
+  The planner also performs a bounded, touched-area ADR-0012 doc-graph-gap
+  check (`create-impl-plan-planner.md`'s survey item 4, edges E1-E4) — not the
+  full shared design-time step `create-design`'s designer runs — riding the same
   `problems` carrier as the existing Boy-scout drift item.
 - Risks, and what a reviewer should look hardest at.
 
@@ -253,7 +333,7 @@ Claude Code's own plan mode works, which is a deliberate borrowing of a shape
 already proven and already familiar:
 
 1. **Read-only until approved.** The survey investigates with read and search
-   tools only. The executor writes exactly one file — the plan draft — and
+   tools only. The planner writes exactly one file — the plan draft — and
    nothing else; no production code, no tests, no repo docs.
 2. **Concrete steps against real paths**, the approach and the alternative
    rejected, and what is explicitly NOT being done. Prose and bullets, as
@@ -319,21 +399,21 @@ says, in whatever shape this change needs. Two things that content must carry
 wherever it lands: every `ticket.acceptance_criteria` entry maps to at least
 one test the plan will write, and `settings.test_coverage_percent` is stated
 explicitly. The approval predicate checks the second mechanically; the
-verifier checks the first.
+plan reviewer checks the first.
 
-**Oversize signal pointer.** `create-impl-plan-executor.md`'s survey item 2
+**Oversize signal pointer.** `create-impl-plan-planner.md`'s survey item 2
 compares this decomposition against the reviewable-diff bar; when it fires,
 the split seams recorded above are what `/acs:create-ticket split` reads (see
 User interaction for the split-answer termination).
 
-**The draft.** Send the executor a `<task phase="execute">` naming the
+**The draft.** Send the planner a `<task phase="planner">` naming the
 resolved `plan_path` and (on iteration 2+) the iteration-1 authoring notes and
-the verifier's findings in `<context>`. The executor writes the plan draft to
+the plan reviewer's findings in `<context>`. The planner writes the plan draft to
 `steps/create-impl-plan/plan.md` — one draft per run, revised in place across
 iterations, never renumbered.
 
 **Short is not empty.** A plan that says "see ticket", or a file map with no
-files in it, fails the verifier's completeness sub-check and the approval
+files in it, fails the plan reviewer's completeness sub-check and the approval
 predicate alike. What every plan carries, however short: the AC-to-test
 mapping, the executor file map, the test and coverage commands, the
 `docs/product/prd.md`/`docs/product/roadmap.md` factual assessment, and the
@@ -351,26 +431,30 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" filemap set \
 ```
 
 `--skill code` and `--iteration 1` are deliberate: the map this plan declares
-is the map `/acs:code`'s first iteration of executors is checked against, and
+is the map `/acs:code`'s first iteration of implementers is checked against, and
 an undeclared map means no enforcement at all. `/acs:code` re-declares it for
 its own remediation iterations. Record the returned `tasks` object as
 `states.file_map`.
 
-### Verify (per iteration) — this IS the plan review
+### Plan review (per iteration) — `acs:create-impl-plan-plan-reviewer`
 
-Spawn `acs:create-impl-plan-verifier` AFTER the draft is written, with
+Spawn the three `acs:create-impl-plan-plan-reviewer` slices (Judge slices
+above) in ONE message AFTER the draft is written, each with
 `<inputs>` of the draft, the ticket file, `analysis.md` and `design.md` when
 they exist, every `<partition>/specs/*.md`, and the repo paths the file map
-names. The verifier judges fresh — never forward the executor's reasoning —
-and writes `steps/create-impl-plan/iter-<n>/verify.md`. Its
-`<result>`'s `<findings>` is the verdict: `status="completed"` means
-verification RAN, and an empty `<findings>` is the pass. Never conclude a pass
-the verifier did not report.
+names. The plan reviewer judges fresh — never forward the planner's reasoning —
+and each slice writes `steps/create-impl-plan/iter-<n>/plan-reviewer-<slice>.md`,
+which you join into `steps/create-impl-plan/iter-<n>/plan-reviewer.md`. The
+slices' `<result>` `<findings>` are the verdict: `status="completed"` means
+the review RAN, and an empty `<findings>` in every slice is the pass. Never
+conclude a pass the plan reviewer did not report — a slice with no usable
+result is no pass.
 
 ALL blocking findings block — zero blocking findings = pass. On findings:
-persist the verify output, then AUTOMATICALLY re-execute, passing every
-finding to the next iteration's executor in `<context>` with no plan phase
-in between. After the ceiling of **3** execute → verify rounds with findings
+persist the review output, then AUTOMATICALLY re-run the planner, passing every
+finding of every slice, verbatim once de-duplicated, to the next
+iteration's planner in `<context>`. After the ceiling of
+**3** planner → plan-review rounds with findings
 remaining: stop with final status `"failed"`, the findings recorded, and
 NOTHING published: on a first run `/acs:code`'s gate then stays shut because
 the artifact it requires was never written, and on a re-plan the ticket keeps
@@ -378,12 +462,12 @@ the plan it already had rather than gaining an unverified one.
 
 ### Publish — the coordinator is the only writer of `plan.md`
 
-Once the verifier passes, publish the draft. **The coordinator performs this
-step itself, never a subagent:** the file-map write guard
-(`acs_lib/filemap.py`) denies any running executor a write under the ticket
-docs tree, because the plan is precisely the control input an executor is
-checked against. Copy, never re-author — the published bytes must equal the
-verified bytes:
+Once the plan reviewer passes, publish the draft. **The coordinator performs
+this step itself, never a subagent:** the file-map write guard
+(`acs_lib/filemap.py`) denies any running `write`-kind agent — the planner
+included — a write under the ticket docs tree, because the plan is precisely
+the control input an implementer is checked against. Copy, never re-author —
+the published bytes must equal the verified bytes:
 
 ```bash
 draft="steps/create-impl-plan/plan.md"
@@ -401,7 +485,7 @@ skill runs before any path exists, because `plan.md` is the artifact the path
 is judged FROM. So `plan-approval.py` is not run here.
 
 A human approves the plan with `plan-approval.py`, which is the **sole writer**
-of `plan-approval.json` — never a coordinator, never an executor, and never a
+of `plan-approval.json` — never a coordinator, never a subagent, and never a
 Write-tool call, because a record a skill can write itself is not an approval.
 It hashes `steps/create-impl-plan/plan.md` into `plan_sha256`, and `/acs:code`'s
 pre-hook refuses the deep paths when that digest does not match the plan on
@@ -446,7 +530,7 @@ contract is that with no answer this skill plans against the ticket as
 written. So never re-ask them and never return `needs_input` for them: plan
 against the ticket's acceptance criteria as written, name each such entry in
 the plan's Risks section as `C-<n> open — planned as written`, and pass them
-to the verifier in `<context>` so the plan is judged against the ticket, not
+to the plan reviewer in `<context>` so the plan is judged against the ticket, not
 the proposal. The 2026-09-14 measurement lost a run to the alternative: a
 completed analysis with two open proposals, a plan run that asked instead of
 planning, and no one to answer. What you ask about is what your own survey
@@ -458,7 +542,7 @@ spec or the design, leaves behavior undefined, or admits several plausible
 implementations with different user-visible outcomes — ask the user before
 publishing. Do not guess on decisions that change behavior.
 
-**Split-answer termination (ADR 0069).** When the executor's authoring notes carry
+**Split-answer termination (ADR 0069).** When the planner's authoring notes carry
 the open oversize question, record the user's answer with `clarify.py add`,
 the same as any other question above. On "accept one large PR": continue
 planning against the current decomposition — nothing else changes. On
@@ -481,7 +565,7 @@ If you genuinely cannot reach the user (a non-interactive run): do not guess.
 Record the outgoing questions as `open` (`clarify.py add` without `--answer`),
 write the result document with status `"needs_input"` and `stop_reason`
 "needs user input", run the Finish steps, and return a `<handoff
-status="needs_input">` whose `<questions>` carry them. Validate it with
+status="needs_input">` whose `<questions>` carry them.
 
 ## Context pressure
 
@@ -570,7 +654,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: plan path; executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code executors will run
+- **Results**: plan path; executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code implementers will run
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <plan path, partition phase artifacts, branch>
 - **Metrics**: iterations <n>/<cap> · <wall time>

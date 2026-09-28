@@ -9,7 +9,7 @@ markdown and would otherwise drift away from the deterministic layer:
   * test-cases.md's front matter — three keys, checked with the SAME checker
     and the SAME `--require` spec the SKILL.md tells the coordinator to run;
   * the four required sections, declared byte-identically in the skill and in
-    the verifier's re-run, linted here against a doc built from the skill's own
+    the trace-reviewer's re-run, linted here against a doc built from the skill's own
     skeleton;
   * the CASES TABLE's machine-read contract: the documented example is counted
     by `acs_lib.e2e_case_count` — the very function /acs:create-e2e-tests' gate
@@ -17,13 +17,14 @@ markdown and would otherwise drift away from the deterministic layer:
     as zero, which is why the rule is stated at all;
   * the `states` keys the result document records, cross-checked against
     post-create-test-docs.py's docstring;
-  * independence: order lives in workflows/ship.yaml and the gate requires no
-    predecessor run;
-  * the pair's shape (execute -> verify, no planner, artifacts, grounding).
+  * independence: order lives in workflows/ship.yaml, the gate requires no
+    predecessor run and no upstream artifact;
+  * the pair's shape (test-designer -> trace-reviewer, artifacts, grounding).
 
 Run:  python3 -m unittest tests.acs.test_create_test_docs -v
 """
 
+import json
 import os
 import re
 import sys
@@ -41,7 +42,7 @@ import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
 
-ROLES = ("executor", "verifier")
+ROLES = ("test-designer", "trace-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
 STATES_KEYS = ("cases", "e2e_cases", "untraced_acs")
@@ -197,25 +198,27 @@ class TestIndependence(unittest.TestCase):
         self.assertRegex(self.body, r"read WHEN PRESENT — neither is required")
 
     def test_the_gate_it_describes_is_the_gate_that_exists(self):
-        """One `gate_outcome` serves every step and reads the skill's OWN
-        declaration (§2.4), so what the prose promises is pinned against
-        `skills/create-test-docs/acs.yaml` rather than a function body."""
-        self.assertTrue(lib.is_step_candidate("create-test-docs"))
-        self.assertIn("test-cases", lib.writes_of("create-test-docs"))
+        """The skill ships and is a step a workflow may name (not a leg); the
+        per-skill manifest and its reads/writes declaration are gone, so
+        nothing about an upstream artifact can gate it."""
+        self.assertIn("create-test-docs", lib.registered_skills())
+        self.assertNotIn("create-test-docs", lib.SKILL_LEGS)
+        self.assertFalse(os.path.exists(
+            os.path.join(PLUGIN, "skills", "create-test-docs", "acs.yaml")))
+        self.assertNotIn("acs.yaml", self.body)
 
-    def test_it_reads_the_plan_and_treats_the_contract_as_optional(self):
-        """The declaration is the gate. `plan` is required because the cases
-        are derived from what the plan says will be built; `api-contract` is
-        optional because a run that owes no public surface never wrote one,
-        and a missing OPTIONAL read is a note rather than a refusal (§3.11)."""
-        required, optional = lib.reads_of("create-test-docs")
-        self.assertEqual(required, ["plan"])
-        self.assertEqual(optional, ["api-contract"])
+    def test_a_missing_plan_or_contract_is_a_fallback_not_a_refusal(self):
+        """Each skill is independent: with no plan or contract the cases are
+        derived from the criteria alone, and the gate says nothing about it."""
+        self.assertFalse(hasattr(lib, "reads_of"))
+        self.assertRegex(self.body,
+                         r"It never refuses because an upstream artifact\s+is missing")
+        self.assertRegex(self.body, r"cases derived from criteria alone are a legitimate")
 
 
 class TestFrontMatterContract(unittest.TestCase):
     """The machine-read half: three keys, and the documented example passes the
-    checker the skill tells the coordinator (and the verifier) to run."""
+    checker the skill tells the coordinator (and the trace-reviewer) to run."""
 
     @classmethod
     def setUpClass(cls):
@@ -235,12 +238,12 @@ class TestFrontMatterContract(unittest.TestCase):
     def test_the_documented_example_satisfies_the_documented_spec(self):
         self.assertEqual(findings_of(self.example, self.specs[0]), [])
 
-    def test_the_executor_emits_the_same_three_keys(self):
-        example = doc_front_matter_example(agent("executor"))
+    def test_the_designer_emits_the_same_three_keys(self):
+        example = doc_front_matter_example(agent("test-designer"))
         self.assertEqual(findings_of(example, self.specs[0]), [])
 
-    def test_the_verifier_re_runs_the_same_spec(self):
-        self.assertIn(self.specs[0], agent("verifier"))
+    def test_the_reviewer_re_runs_the_same_spec(self):
+        self.assertIn(self.specs[0], agent("trace-reviewer"))
 
     def test_a_missing_e2e_cases_key_is_caught_by_that_spec(self):
         broken = re.sub(r"(?m)^e2e_cases: .*\n", "", self.example)
@@ -274,19 +277,19 @@ class TestSectionContract(unittest.TestCase):
         found = re.findall(r"(?m)^## (.+)$", doc_skeleton(self.body))
         self.assertEqual(found, SECTIONS)
 
-    def test_the_executor_skeleton_matches_the_skill_skeleton(self):
-        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("executor")))
+    def test_the_designer_skeleton_matches_the_skill_skeleton(self):
+        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("test-designer")))
         self.assertEqual(found, SECTIONS)
 
-    def test_the_verifier_re_runs_the_same_section_list(self):
-        self.assertIn(self.sections[0], agent("verifier"))
+    def test_the_reviewer_re_runs_the_same_section_list(self):
+        self.assertIn(self.sections[0], agent("trace-reviewer"))
 
     def test_a_doc_built_from_the_skeleton_lints_clean(self):
-        doc = synthesized_cases_doc(cases_table(agent("executor")))
+        doc = synthesized_cases_doc(cases_table(agent("test-designer")))
         self.assertEqual(structure_lint.lint_structure(doc, SECTIONS, ordered=True), [])
 
     def test_dropping_a_section_is_caught_by_that_declaration(self):
-        doc = synthesized_cases_doc(cases_table(agent("executor")),
+        doc = synthesized_cases_doc(cases_table(agent("test-designer")),
                                     sections=[s for s in SECTIONS
                                               if s != "Traceability"])
         rules = [f.rule for f in structure_lint.lint_structure(doc, SECTIONS,
@@ -301,10 +304,10 @@ class TestCasesTableContract(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.skill = read(SKILL_PATH)
-        cls.rows = cases_table(agent("executor"))
+        cls.rows = cases_table(agent("test-designer"))
         cls.doc = synthesized_cases_doc(cls.rows)
 
-    def test_the_executor_declares_the_seven_columns_in_order(self):
+    def test_the_designer_declares_the_seven_columns_in_order(self):
         self.assertEqual(columns_of(self.rows[0]), COLUMNS)
 
     def test_the_skill_shows_the_same_columns(self):
@@ -341,13 +344,13 @@ class TestCasesTableContract(unittest.TestCase):
         self.assertRegex(self.skill, r"trusts\s+`e2e_cases` OVER the table")
 
     def test_the_bare_word_rule_is_stated_where_it_is_written(self):
-        for body in (self.skill, agent("executor")):
+        for body in (self.skill, agent("test-designer")):
             with self.subTest():
                 self.assertRegex(body, r"(?i)\bbare word\b")
                 self.assertRegex(body, r"no\s+backticks")
 
-    def test_the_coordinator_and_the_verifier_run_the_real_counter(self):
-        for body in (self.skill, agent("verifier")):
+    def test_the_coordinator_and_the_reviewer_run_the_real_counter(self):
+        for body in (self.skill, agent("trace-reviewer")):
             with self.subTest():
                 self.assertIn("acs_lib.e2e_case_count(sys.argv[2])", body)
 
@@ -374,6 +377,15 @@ class TestResultDocument(unittest.TestCase):
     def test_the_skill_records_exactly_the_documented_states(self):
         block = re.search(r'(?s)"states": \{(.*?)\}', self.body).group(1)
         self.assertEqual(re.findall(r'"(\w+)":', block), list(STATES_KEYS))
+
+    def test_the_documented_result_is_admissible(self):
+        """The step completes in two ways, so the post-hook refuses a result
+        document that does not say which; the documented example must pass
+        the kernel's own validator."""
+        block = re.search(r"(?ms)^   ```json\n(.*?)^   ```", self.body).group(1)
+        doc = json.loads(block)
+        self.assertEqual(doc["outcome"], "cases_written")
+        self.assertEqual(lib.validate_result(doc, "create-test-docs"), [])
 
     def test_the_post_hook_documents_the_same_keys(self):
         for key in STATES_KEYS:
@@ -412,7 +424,7 @@ class TestUntracedArm(unittest.TestCase):
 
 class TestPublishing(unittest.TestCase):
     """Only the coordinator writes the published document — the write guard
-    denies an executor any write under the ticket docs tree."""
+    denies a write-kind agent any write under the ticket docs tree."""
 
     @classmethod
     def setUpClass(cls):
@@ -431,17 +443,17 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("never a subagent", self.body)
         self.assertIn("acs_lib/filemap.py", self.body)
 
-    def test_the_executor_is_barred_from_the_published_file(self):
-        self.assertRegex(agent("executor"),
+    def test_the_designer_is_barred_from_the_published_file(self):
+        self.assertRegex(agent("test-designer"),
                          r"NEVER the published `test-cases.md`")
 
 
 class TestTriadShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
-        fm, _ = frontmatter(agent("verifier"), "verifier")
+        fm, _ = frontmatter(agent("trace-reviewer"), "trace-reviewer")
         self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
-        fm, _ = frontmatter(agent("executor"), "executor")
+        fm, _ = frontmatter(agent("test-designer"), "test-designer")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
 
@@ -453,9 +465,11 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("steps/create-test-docs/iter-<n>/authoring.md", agent("executor"))
-        self.assertIn("steps/create-test-docs/iter-<n>/execute.json", agent("executor"))
-        self.assertIn("steps/create-test-docs/iter-<n>/verify.md", agent("verifier"))
+        self.assertIn("steps/create-test-docs/iter-<n>/authoring.md", agent("test-designer"))
+        self.assertIn("steps/create-test-docs/iter-<n>/test-designer.json",
+                      agent("test-designer"))
+        self.assertIn("steps/create-test-docs/iter-<n>/trace-reviewer.md",
+                      agent("trace-reviewer"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:
@@ -473,24 +487,32 @@ class TestTriadShape(unittest.TestCase):
                 with self.subTest(role=role):
                     self.assertEqual(lib.validate_message(example), [])
 
-    def test_grounding_everywhere_and_policing_in_the_verifier(self):
+    def test_grounding_everywhere_and_policing_in_the_reviewer(self):
         for role in ROLES:
             with self.subTest(role=role):
                 self.assertIn("## Grounding (anti-hallucination)", agent(role))
-        self.assertIn("police grounding", agent("verifier"))
+        self.assertIn("police grounding", agent("trace-reviewer"))
+
+    def test_each_role_echoes_its_role_as_the_phase(self):
+        for role in ROLES:
+            with self.subTest(role=role):
+                self.assertIn('<result skill="create-test-docs" phase="%s"' % role,
+                              agent(role))
+                self.assertIn("acs:create-test-docs-%s" % role, read(SKILL_PATH))
 
     def test_no_planner_and_a_capped_loop(self):
         """ADR-0092 class D: the deliverable is the document, so a plan for it
-        would be a second copy of the work — execute -> verify only."""
+        would be a second copy of the work — the test-designer decides and
+        writes, the trace-reviewer judges, and nothing plans in between."""
         body = read(SKILL_PATH)
-        self.assertRegex(body, r"execute → verify, no planner")
+        self.assertRegex(body, r"test-designer → trace-reviewer")
         self.assertNotIn("acs:create-test-docs-planner", body)
         self.assertNotIn("iter-1-plan.md", body)
         self.assertFalse(os.path.exists(os.path.join(AGENTS, "create-test-docs-planner.md")))
-        executor = agent("executor")
-        self.assertIn("## Survey — what you establish before you write (iteration 1)", executor)
-        self.assertIn("## The authoring notes (mandatory, every iteration)", executor)
-        self.assertRegex(agent("verifier"), r"(?m)^8\. `authoring-conformance`")
+        designer = agent("test-designer")
+        self.assertIn("## Survey — what you establish before you write (iteration 1)", designer)
+        self.assertIn("## The authoring notes (mandatory, every iteration)", designer)
+        self.assertRegex(agent("trace-reviewer"), r"(?m)^8\. `authoring-conformance`")
         # The pin is that the cap is unconditional, not that it is phrased in
         # lane vocabulary: ADR-0095 retired lanes, so the same claim now reads
         # "on every run" and disclaims a path-driven depth.
@@ -501,17 +523,120 @@ class TestTriadShape(unittest.TestCase):
     def test_nobody_in_the_triad_writes_or_runs_tests(self):
         """This skill specifies cases; /acs:code and /acs:create-e2e-tests
         write them, and neither is run here."""
-        self.assertRegex(agent("executor"), r"NEVER write test code")
+        self.assertRegex(agent("test-designer"), r"NEVER write test code")
         for role in ROLES:
             with self.subTest(role=role):
                 self.assertRegex(
                     agent(role),
                     r"(?i)never run the repo's test suites|never write or run tests")
 
-    def test_the_verifier_re_derives_the_traceability(self):
-        body = agent("verifier")
+    def test_the_reviewer_re_derives_the_traceability(self):
+        body = agent("trace-reviewer")
         self.assertIn("NEVER rubber-stamp", body)
         self.assertRegex(body, r"re-derive the\s+traceability yourself")
+
+
+
+def reviewer_slices(body):
+    """{slice_id: [dimension numbers]} from the Reviewer slices table."""
+    rows = re.findall(r"(?m)^\| `(\w+)` \| ([^|]+) \|", body)
+    return {sid: [int(n) for n in re.findall(r"(\d+) `", dims)] for sid, dims in rows}
+
+
+def agent_dimensions(body):
+    return dict((int(n), name) for n, name in
+                re.findall(r"(?m)^(\d+)\. `([\w-]+)`", body))
+
+
+class TestParallelFanOut(unittest.TestCase):
+    """PARALLEL judges: the trace-reviewer's eight dimensions run as three
+    slices spawned in one message and joined by `acs.py notes merge`. The
+    test-designer is deliberately NOT sliced — one contiguous TC- table."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SKILL_PATH)
+        cls.reviewer = agent("trace-reviewer")
+        cls.slices = reviewer_slices(cls.body)
+
+    def test_the_reviewer_runs_as_three_named_slices(self):
+        self.assertIn("#### Reviewer slices", self.body)
+        self.assertEqual(list(self.slices), ["trace", "cases", "shape"])
+
+    def test_every_dimension_is_owned_by_exactly_one_slice(self):
+        owned = sorted(n for dims in self.slices.values() for n in dims)
+        self.assertEqual(owned, sorted(agent_dimensions(self.reviewer)))
+
+    def test_the_table_names_match_the_agent_dimensions(self):
+        dims = agent_dimensions(self.reviewer)
+        for row in re.findall(r"(?m)^\| `\w+` \| ([^|]+) \|", self.body):
+            for n, name in re.findall(r"(\d+) `([\w-]+)`", row):
+                self.assertEqual(dims[int(n)], name)
+
+    def test_the_deterministic_checks_run_in_the_slice_that_owns_them(self):
+        shape = re.search(r"(?m)^\| `shape` \|.*$", self.body).group(0)
+        for check in ("front_matter_check.py", "structure_lint.py", "e2e_case_count"):
+            self.assertIn(check, shape)
+        self.assertIn("Run each deterministic check only in the slice that owns", self.reviewer)
+
+    def test_judge_slices_are_joined_by_notes_merge_in_table_order(self):
+        block = re.search(
+            r"(?s)notes merge \\\n  --out <partition>/steps/create-test-docs/"
+            r"iter-<n>/trace-reviewer\.md(.*?)```", self.body)
+        self.assertIsNotNone(block)
+        self.assertEqual(re.findall(r"trace-reviewer-(\w+)\.md", block.group(1)),
+                         list(self.slices))
+
+    def test_the_slices_are_spawned_in_one_message_under_the_cap(self):
+        self.assertIn("Spawn the three in ONE message", self.body)
+        self.assertIn("within `max_parallel = 4`", self.body)
+
+    def test_the_sliced_pass_rule(self):
+        self.assertIn("passes only if EVERY\nslice returned `status=\"completed\"` with zero blocking findings",
+                      self.body)
+        self.assertIn("never \"pass with a missing slice\"", self.body)
+        self.assertRegex(self.body, r"all three slices' findings — de-duplicated,\s+otherwise verbatim —\s+go to the next")
+
+    def test_the_reviewer_agent_knows_how_to_be_one_slice(self):
+        self.assertIn("## When you are one slice", self.reviewer)
+        self.assertIn('<constraint name="dimensions">', self.reviewer)
+        self.assertIn("steps/create-test-docs/iter-<n>/trace-reviewer-<id>.md", self.reviewer)
+        self.assertIn('phase="trace-reviewer" slice="<id>"', self.reviewer)
+        self.assertRegex(self.reviewer, r"Grounding policing always applies")
+
+    def test_the_test_designer_is_deliberately_one_writer(self):
+        self.assertIn("**One test-designer, never sliced.**", self.body)
+        self.assertNotIn("slice=", agent("test-designer"))
+
+    def test_resume_re_runs_only_the_missing_slices(self):
+        self.assertRegex(self.body, r"re-runs ONLY the\s+reviewer slices whose")
+        self.assertIn("never\n   re-run a slice whose report is on disk", self.body)
+
+    def test_the_slice_travels_on_the_wire(self):
+        self.assertIn("iter-<n>/<phase>-<slice>-message.xml", self.body)
+        self.assertRegex(self.body, r"un-sliced instance omits `slice`")
+
+
+class TestSynthesisAfterFanOut(unittest.TestCase):
+    """The join of the reviewer slices is the synthesis, plus de-duplication;
+    with one test-designer there are no seams and no merged survey, so no
+    integration pass and no `## Synthesis` section apply."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.body = read(SKILL_PATH)
+
+    def test_judge_findings_are_de_duplicated_in_the_joined_report(self):
+        self.assertIn("**De-duplication — the join is the synthesis.**", self.body)
+        self.assertRegex(self.body, r"same location and the same defect as another slice's finding,\s+"
+                                    r"keeping the one with the higher severity")
+        self.assertIn("`## De-duplicated findings` section to\n`iter-<n>/trace-reviewer.md`", self.body)
+        self.assertRegex(self.body, r"de-duplicated,\s+otherwise verbatim")
+
+    def test_no_integration_pass_for_the_single_writer(self):
+        self.assertRegex(self.body, r"no integration pass runs")
+        self.assertNotIn('slice="integration"', self.body)
+        self.assertNotIn('slice="integration"', agent("test-designer"))
 
 
 if __name__ == "__main__":

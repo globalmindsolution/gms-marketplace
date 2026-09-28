@@ -155,18 +155,24 @@ class OneInvocationPerAttemptTest(acs_case.AcsWorkspaceCase):
 
 
 class PhaseSnapshotDoesNotClobberTheReportTest(acs_case.AcsWorkspaceCase):
-    """`ROLE_PHASES["executor"] == "execute"`, and the executor is told to
-    write its JSON report to `iter-<n>/execute.json`. The SubagentStop
-    snapshot wrote the raw XML message to the same path, so every reader of
-    `execute*.json` — `derive.execute_reports`, and through it `states.tests` —
-    found a file that does not parse."""
+    """The phase is the role, and every agent writes its JSON report to
+    `iter-<n>/<role>.json` -- the implementer to `iter-<n>/implementer.json`
+    (`execute.json` while the role was the generic executor). The SubagentStop
+    snapshot once wrote the raw XML message to the same path, so every reader
+    of the reports -- `derive.execute_reports`, and through it `states.tests`
+    -- found a file that does not parse."""
 
     def test_the_snapshot_and_the_report_are_two_paths(self):
         tid = self.new_ticket("A change", "task")
         rdir = self.ensure_run(tid)
-        snapshot = lib.phase_artifact_path(rdir, "code", 1, "execute")
-        report = os.path.join(rdir, "steps", "code", "iter-1", "execute.json")
-        self.assertNotEqual(os.path.realpath(snapshot), os.path.realpath(report))
+        for skill, role, report_name in (("code", "implementer", "implementer.json"),
+                                         ("create-e2e-tests", "test-writer",
+                                          "test-writer.json")):
+            with self.subTest(role=role):
+                snapshot = lib.phase_artifact_path(rdir, skill, 1, role)
+                report = os.path.join(rdir, "steps", skill, "iter-1", report_name)
+                self.assertNotEqual(os.path.realpath(snapshot), os.path.realpath(report))
+                self.assertTrue(snapshot.endswith("%s-message.xml" % role), snapshot)
 
     def test_the_snapshot_is_not_named_json(self):
         """It holds an XML message. Naming it `.json` did not make its bytes
@@ -174,7 +180,7 @@ class PhaseSnapshotDoesNotClobberTheReportTest(acs_case.AcsWorkspaceCase):
         tid = self.new_ticket("A change", "task")
         rdir = self.ensure_run(tid)
         self.assertFalse(
-            lib.phase_artifact_path(rdir, "code", 1, "execute").endswith(".json"))
+            lib.phase_artifact_path(rdir, "code", 1, "implementer").endswith(".json"))
 
 
 class TicketSubjectMustExistTest(acs_case.AcsWorkspaceCase):

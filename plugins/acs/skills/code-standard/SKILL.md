@@ -1,6 +1,6 @@
 ---
 name: code-standard
-description: Implement a subject's plan on the STANDARD delivery path — one executor per disjoint file-map partition, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path standard; never chosen by hand.
+description: Implement a subject's plan on the STANDARD delivery path — one implementer per disjoint file-map partition, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path standard; never chosen by hand.
 argument-hint: "[ticket-id | prompt | document]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -25,30 +25,66 @@ path only carries what makes it different:
 | Read | For |
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the execute phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
 
 Everything below is what THIS path does differently. Where this file and a
-reference disagree about executors, this file wins — that is the whole reason
+reference disagree about implementers, this file wins — that is the whole reason
 it exists.
 
 ## The machinery of this path
 
 | | this path |
 |---|---|
-| Executors | one per disjoint file-map partition |
+| Implementers | one per disjoint file-map partition |
 | Test contract | `test-cases.md` |
 | Plan approval | **enforced** |
 
-### Executors
+### Implementers
 
-**Partition the plan's file map and spawn one executor per partition.** A
+**Partition the plan's file map and spawn one implementer per partition.** A
 partition is disjoint: no two partitions name the same file, and no partition's
 work depends on reading another's edits mid-flight. Partitions that cannot be
 made disjoint are one partition.
 
-Each executor gets its own partition's file map and nothing else. The file-map
-guard enforces that at the tool boundary, so an executor that wanders is
+Each implementer gets its own partition's file map and nothing else. The file-map
+guard enforces that at the tool boundary, so an implementer that wanders is
 refused rather than reviewed.
+
+**The partitions run in parallel, from iteration 1.** The partition rule,
+concretely: one partition is one task `k` of the plan's
+`### Executor tasks & file map`, declared with `filemap set --task <k>`, and its
+slice id is `k`. No path may appear under two tasks in
+`acs.py filemap show --iteration <n>`; tasks that share one are merged into one
+partition before anything is spawned, which is what guarantees two slices never
+overlap.
+
+- Spawn every partition's implementer in ONE message — one Agent call per
+  slice, all in the same message, foreground — and wait for all of them.
+- Each `<task>` and its `<result>` carry `slice="<k>"`, so the SubagentStop
+  snapshots of parallel slices do not collide, and each slice writes
+  `iter-<n>/implementer-<k>.json`.
+- The cap is `max_parallel = 4` per message: more partitions run in waves of
+  at most four, each wave one message, the next only after the last returned.
+- A plan with one partition runs one un-sliced implementer (no `slice`,
+  `iter-<n>/implementer.json`).
+
+The mechanics shared with the other paths — commits on one branch, the
+`index.lock` retry, a failed slice re-run alone — are `execute.md`'s
+**Parallel implementers**.
+
+### The seams — an integration implementer only when a slice reports one
+
+Standard partitions were judged independent by the plan, so a pass over the
+seams between them is **not owed by default** — owing one unconditionally is
+what makes a plan `complex`. The judgement can still be wrong in the small, so
+the implementers say: when any slice's `iter-<n>/implementer-<k>.json` lists a
+`seams` entry, spawn ONE integration implementer after the last wave and before
+the review, alone, as `slice="integration"`, with every slice's report and the
+union of their diffs as context and a file map of exactly the files those seams
+name. It reconciles only those seams and writes
+`iter-<n>/implementer-integration.json`. No seam reported, or one implementer
+ran → skipped. A plan whose slices report seams on every run is a plan that
+should have been judged `complex`: say so in the handoff.
 
 ### Inputs
 

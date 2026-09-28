@@ -2,6 +2,15 @@
 
 **Status**: Proposed · **Date**: 2026-09-19 · **Scope**: implementation skills only
 
+> **Note (2026-09-27).** This is a historical design record. ADR-0109 removed
+> the per-skill `skills/<name>/acs.yaml` manifest §2.4 specifies, and with it
+> the order validation of `ship.yaml` against each skill's `reads`/`writes`
+> and the pre-hook's generic input gate: the workflow now only keeps the
+> order of the skills, and each skill falls back to the run's subject when an
+> upstream artifact is absent. ADR-0109 also replaced the generic
+> executor/verifier subagents this document assumes with roles named for each
+> skill's own work. Current behaviour is in `INTERNALS.md`.
+
 This document specifies a from-scratch redesign of acs's **implementation**
 half — the skills `/acs:ship` orchestrates between a settled requirement and an
 open PR. The **design** skills (`create-prd`, `create-requirements`,

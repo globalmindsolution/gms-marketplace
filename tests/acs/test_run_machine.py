@@ -263,28 +263,24 @@ class InvariantTest(unittest.TestCase):
 
 
 class ArtifactLocatorTest(unittest.TestCase):
-    """One table maps an artifact NAME (the skills') to a PATH (the run's), so
-    a skill never has to know where a run keeps things."""
+    """One table maps an artifact name to a PATH in the run, so a gate or a
+    brake never has to know where a run keeps things."""
 
     def setUp(self):
         self.wf = ship()
 
     def test_the_plan_lives_under_its_producer(self):
-        self.assertEqual(R.artifact_path("/R", "plan", None, self.wf),
+        self.assertEqual(R.artifact_path("/R", "plan"),
                          os.path.join("/R", "steps", "create-impl-plan", "plan.md"))
 
     def test_requirements_is_promoted_to_the_run_root(self):
         """Step 1's artifact: every later step reads it."""
-        self.assertEqual(R.artifact_path("/R", "requirements", None, self.wf),
+        self.assertEqual(R.artifact_path("/R", "requirements"),
                          os.path.join("/R", "requirements.md"))
 
     def test_a_changeset_is_not_a_file(self):
-        """The gate asks git about these rather than looking for a path."""
-        self.assertIsNone(R.artifact_path("/R", "changeset", None, self.wf))
-
-    def test_missing_reads_names_the_producer(self):
-        missing = R.missing_reads("/nowhere", "code", None, self.wf)
-        self.assertEqual(missing, [("plan", "create-impl-plan")])
+        """The working tree against a base ref, not a document the run keeps."""
+        self.assertIsNone(R.artifact_path("/R", "changeset"))
 
 
 if __name__ == "__main__":

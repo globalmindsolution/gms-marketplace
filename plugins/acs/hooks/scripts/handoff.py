@@ -71,22 +71,26 @@ def main():
     # One resolution, shared with the Stop hook and PreCompact, so the three
     # cannot disagree -- and the pointer half is what makes a standalone skill
     # the workflow does not name (I5 keeps it out of the ledger) resumable.
-    step = lib.in_flight_step(rdir, ctx, run_id)
+    # Every step in flight: a parallel group's members all are, and each is
+    # finalized, so none is left claiming to run in a session that is gone.
+    steps = lib.in_flight_steps(rdir, ctx, run_id)
 
-    handed = None
+    handed = []
     # Releasing the lock IS the handoff (see this file's docstring): the next
     # session cannot pick the run up while it is held, so it is released
     # whatever the writes above it do.
     try:
-        if step:
+        for step in steps:
             lib.finalize_invocation(rdir, step, run_id, {
                 "status": "interrupted",
                 "stop_reason": args.stop_reason,
                 "handoff_summary": summary,
             })
-            lib.write_handoff_context(rdir, run_id, step)
+        if steps:
+            lib.write_handoff_context(rdir, run_id, steps[0])
             wf = lib.validate_workflow_file(
                 lib.resolve_workflow(ctx["checkout_root"])["path"])
+        for step in steps:
             # The RUN transition, only for a step the workflow names. A skill
             # invoked on its own has step state but no position in a run, and
             # I5 refuses a `steps` entry the workflow does not name -- the
@@ -94,7 +98,7 @@ def main():
             if lib.has_step(wf, step):
                 lib.finish_step(rdir, step, wf, status="interrupted",
                                 stop_reason=args.stop_reason, summary=summary)
-            handed = step
+            handed.append(step)
     finally:
         lib.point_checkout_at(ctx, run_id, None)
         lib.release_lock(rdir, cwd)
@@ -102,11 +106,15 @@ def main():
     # The command that resumes. A step that was in flight is re-run by name; a
     # run with nothing in flight resumes through the workflow, which knows
     # where its cursor is.
-    resume = "/acs:%s %s" % (handed, run_id) if handed else "/acs:ship %s" % run_id
+    # Several steps in flight means a parallel group, and only /acs:ship runs
+    # a group's members together, so that is the command that resumes it.
+    resume = ("/acs:%s %s" % (handed[0], run_id) if len(handed) == 1
+              else "/acs:ship %s" % run_id)
     out = {
         "ok": True,
         "run_id": run_id,
-        "step": handed,
+        "step": handed[0] if handed else None,
+        "steps": handed,
         "stop_reason": args.stop_reason if handed else None,
         "lock_released": True,
         "continue_with": resume,

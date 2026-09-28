@@ -9,10 +9,12 @@ would have left the one the others were copies of.
 What these pin:
 
   * discovery is by LISTING, so a skill cannot be missing from a registry
-  * `reads` / `writes` are the single declaration both `acs workflow validate`
-    and the runtime input gate consult, so they cannot disagree
-  * a leg is not a step, and a skill that declares no I/O is not one either
-  * PRD G8 (every agent file is reachable) is a naming-convention check now
+  * there is no per-skill manifest: each skill is independent, and nothing
+    declares what it reads or writes for a gate to enforce
+  * a leg is not a step
+  * subagents are per skill, named for what they do, and every role has a
+    kind the hooks act on
+  * PRD G8 (every agent file is reachable) is a naming-convention check
 
 Run:  python3 -m unittest tests.acs.test_skills_registry -v
 """
@@ -34,9 +36,6 @@ SHIP = os.path.join(PLUGIN, "workflows", "ship.yaml")
 
 class DiscoveryTest(unittest.TestCase):
 
-    def setUp(self):
-        self.manifests = K.load_manifests()
-
     def test_a_skill_exists_when_its_directory_holds_a_skill_md(self):
         """No list to keep in step with the tree."""
         found = K.registered_skills()
@@ -49,6 +48,15 @@ class DiscoveryTest(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(PLUGIN, "workflows", "phases.yaml")),
                          "phases.yaml is removed; a skill describes itself")
 
+    def test_there_is_no_per_skill_manifest(self):
+        """acs.yaml is gone: a skill is its SKILL.md, and the workflow only
+        orders skills -- it asks nothing of what they read or write."""
+        for skill in K.registered_skills():
+            self.assertFalse(os.path.exists(os.path.join(K.skill_dir(skill), "acs.yaml")),
+                             skill)
+        self.assertFalse(os.path.exists(os.path.join(PLUGIN, "schemas",
+                                                     "acs-skill.schema.json")))
+
     def test_the_deprecated_test_alias_is_gone(self):
         self.assertNotIn("test", K.registered_skills())
 
@@ -57,49 +65,32 @@ class DiscoveryTest(unittest.TestCase):
         self.assertNotIn("analyze-" + "ticket", skills)
         self.assertIn("analyze-requirements", skills)
 
-    def test_every_manifest_is_schema_valid(self):
-        for skill in K.registered_skills():
-            K.load_manifest(skill)   # raises SkillsError on a bad one
 
-    def test_a_skill_may_declare_nothing(self):
-        """`{}` is a legitimate answer: acs knows it exists and nothing more."""
-        self.assertEqual(K.load_manifest("no-such-skill"), {})
+class LegTest(unittest.TestCase):
 
-
-class DeclarationTest(unittest.TestCase):
-
-    def setUp(self):
-        self.manifests = K.load_manifests()
-
-    def test_the_legs_are_legs_and_not_steps(self):
-        legs = K.skill_legs(self.manifests)
+    def test_the_legs_are_legs(self):
+        legs = K.skill_legs()
         for leg in ("code-trivial", "code-small", "code-standard", "code-complex"):
             self.assertEqual(legs.get(leg), "code", leg)
-            self.assertFalse(K.is_step_candidate(leg, self.manifests), leg)
+        for leg in ("create-project", "standardize-project"):
+            self.assertEqual(legs.get(leg), "project", leg)
 
-    def test_all_four_legs_survive_the_redesign(self):
-        self.assertEqual(K.legs_of("code", self.manifests),
+    def test_all_four_code_legs_survive_the_redesign(self):
+        self.assertEqual(K.legs_of("code"),
                          ["code-complex", "code-small", "code-standard", "code-trivial"])
 
-    def test_a_leg_reports_its_entry_points_phase(self):
-        self.assertEqual(K.phase_of("code-standard", self.manifests), "build")
+    def test_every_leg_and_entry_point_ships(self):
+        for leg, entry in K.skill_legs().items():
+            self.assertTrue(K.is_skill(leg), leg)
+            self.assertTrue(K.is_skill(entry), entry)
 
-    def test_a_skill_with_no_io_is_not_a_step(self):
-        """setup, metrics, handoff and ship itself are skills, not steps, and
-        that is the whole admission rule."""
-        for skill in ("setup", "metrics", "handoff", "ship", "usage", "update"):
-            self.assertFalse(K.is_step_candidate(skill, self.manifests), skill)
+    def test_a_user_facing_skill_is_nobodys_leg(self):
+        self.assertIsNone(K.entry_point_of("code"))
+        self.assertIsNone(K.entry_point_of("review-code"))
 
-    def test_review_code_declares_what_it_needs(self):
-        required, optional = K.reads_of("review-code", self.manifests)
-        self.assertEqual(required, ["changeset"])
-        self.assertIn("test-cases", optional)
-        self.assertEqual(K.writes_of("review-code", self.manifests), ["verdict"])
-
-    def test_every_step_of_ship_is_a_step_candidate(self):
+    def test_no_leg_is_a_step_of_ship(self):
         wf = W.validate_workflow_file(SHIP)
-        for step in W.steps_of(wf):
-            self.assertTrue(K.is_step_candidate(step, self.manifests), step)
+        self.assertEqual(set(W.steps_of(wf)) & set(K.skill_legs()), set())
 
 
 class AgentConventionTest(unittest.TestCase):
@@ -109,16 +100,46 @@ class AgentConventionTest(unittest.TestCase):
     def test_no_agent_file_is_unreachable(self):
         self.assertEqual(K.unreachable_agents(), [])
 
+    def test_every_role_has_a_kind(self):
+        for role, kind in K.ROLE_KINDS.items():
+            self.assertIn(kind, K.ROLE_KIND_NAMES, role)
+
+    def test_every_role_has_a_model_tier(self):
+        for role in K.ROLE_KINDS:
+            self.assertIn(K.model_tier(role), ("planner", "executor", "verifier"), role)
+        self.assertEqual(K.model_tier("planner"), "planner")
+        self.assertEqual(K.model_tier("surveyor"), "planner")
+        self.assertEqual(K.model_tier("implementer"), "executor")
+        self.assertEqual(K.model_tier("reviewer"), "verifier")
+
+    def test_hyphenated_skills_and_roles_split_right(self):
+        """Neither half is positional: `code` is a prefix of `code-small`, and
+        `plan-reviewer` is a role with a hyphen of its own."""
+        self.assertEqual(K.split_agent_name("create-impl-plan-plan-reviewer"),
+                         ("create-impl-plan", "plan-reviewer"))
+        self.assertEqual(K.split_agent_name("code-implementer"), ("code", "implementer"))
+        self.assertEqual(K.split_agent_name("create-pr-executor"), (None, None))
+        self.assertEqual(K.split_agent_name("nope-reviewer"), (None, None))
+
+    def test_no_skill_owns_the_generic_triad(self):
+        """Subagents are named for what they do. No agent is a generic
+        `executor` or `verifier` any more."""
+        for name in K.agent_files():
+            self.assertFalse(name.endswith(("-executor", "-verifier")), name)
+
     def test_agents_are_read_from_the_tree(self):
-        """`code` has an executor and nothing else: its verifier moved out to
-        /acs:review-code, and the agent file left with it (§3.5)."""
-        self.assertEqual(K.agent_roles_of("code"), ["executor"])
+        """`code` has an implementer and nothing else: the review is
+        /acs:review-code's (§3.5)."""
+        self.assertEqual(K.agent_roles_of("code"), ["implementer"])
 
     def test_review_code_owns_a_lens_and_an_adjudicator(self):
-        self.assertEqual(K.agent_roles_of("review-code"), ["lens", "adjudicator"])
+        self.assertEqual(sorted(K.agent_roles_of("review-code")), ["adjudicator", "lens"])
 
-    def test_a_dispatcher_owns_no_agents(self):
-        self.assertEqual(K.agent_roles_of("ship"), [])
+    def test_mechanical_skills_own_no_agents(self):
+        """A dispatcher, and a skill whose work is a sequence of commands
+        (create-ticket, create-pr, merge-pr), runs inline."""
+        for skill in ("ship", "create-ticket", "create-pr", "merge-pr", "project"):
+            self.assertEqual(K.agent_roles_of(skill), [], skill)
 
 
 if __name__ == "__main__":

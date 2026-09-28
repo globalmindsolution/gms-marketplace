@@ -1,5 +1,0 @@
-phase: design
-reads:
-  required: [prd]
-  optional: []
-writes: [architecture]

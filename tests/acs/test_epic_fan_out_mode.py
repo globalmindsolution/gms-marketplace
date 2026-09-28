@@ -41,7 +41,11 @@ import acs_lib as lib  # noqa: E402
 
 CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
 SHIP_SKILL = os.path.join(SKILLS_DIR, "ship", "SKILL.md")
-CREATE_TICKET_EXECUTOR = os.path.join(AGENTS_DIR, "create-ticket-executor.md")
+#: The materialization charter (Steps 3-5) the coordinator follows inline.
+#: It was the create-ticket executor agent until the skill stopped spawning
+#: one; the mirror assertions below pin the same text where it now lives.
+MATERIALIZE_REF = os.path.join(SKILLS_DIR, "create-ticket", "references",
+                               "materialize.md")
 NEW_TICKET_PY = os.path.join(HOOKS_DIR, "new-ticket.py")
 
 REPO_ID = "acme-shop"
@@ -135,33 +139,33 @@ def ship_fan_out_section():
     return _section(read(SHIP_SKILL), SHIP_FAN_OUT_HEADING)
 
 
-def executor_step4_section():
-    body = read(CREATE_TICKET_EXECUTOR)
+def materialize_step4_section():
+    body = read(MATERIALIZE_REF)
     start = body.index("4. **Epic fan-out**")
     end = body.index("5. **Tracker sync**")
     return body[start:end]
 
 
-def executor_step3_section():
-    body = read(CREATE_TICKET_EXECUTOR)
+def materialize_step3_section():
+    body = read(MATERIALIZE_REF)
     start = body.index("3. **Rewrite")
     end = body.index("4. **Epic fan-out**")
     return body[start:end]
 
 
-def executor_step5_section():
-    body = read(CREATE_TICKET_EXECUTOR)
+def materialize_step5_section():
+    body = read(MATERIALIZE_REF)
     start = body.index("5. **Tracker sync**")
-    end = body.index("6. **Write the execute report**")
+    end = body.index("6. **Write the materialize report**")
     return body[start:end]
 
 
-def executor_hard_rules_section():
-    return _section(read(CREATE_TICKET_EXECUTOR), "## Hard rules")
+def materialize_hard_rules_section():
+    return _section(read(MATERIALIZE_REF), "## Hard rules")
 
 
-def executor_output_contract_section():
-    return _section(read(CREATE_TICKET_EXECUTOR), "## Output contract")
+def materialize_report_section():
+    return _section(read(MATERIALIZE_REF), "## The materialize report")
 
 
 class FanOutSectionExistsAndNamesTheFlagCase(unittest.TestCase):
@@ -244,14 +248,14 @@ class FanOutSyncSetExcludesAlreadySyncedTicketsCase(unittest.TestCase):
     """AC-1/F2-a: Step 5's sync-set clause excludes a ticket whose external
     is already non-null (duplicate-issue guard, MAR-69 precedent
     #354/#355-363), in BOTH create-ticket/SKILL.md and
-    create-ticket-executor.md -- widened from a SKILL.md-only check to the
+    references/materialize.md -- widened from a SKILL.md-only check to the
     MAR-84 both-files-in-one-loop pattern (test_skill_contracts.py:2982-3040)
     so a one-sided mirror edit fails by construction."""
 
     def test_sync_set_excludes_already_synced_tickets_in_both_files(self):
         sections = {
             "SKILL.md Step 5": norm(step5_section()),
-            "executor step 5": norm(executor_step5_section()),
+            "materialize step 5": norm(materialize_step5_section()),
         }
         for name, section_norm in sections.items():
             self.assertIsNotNone(
@@ -302,19 +306,19 @@ class StepFourChildReconfirmationContradictionIsGoneCase(unittest.TestCase):
             "Step 4 must name the single confirmation point")
 
 
-class ExecutorContractIsFanOutModeAwareCase(unittest.TestCase):
-    """AC-1: create-ticket-executor.md states that in fan-out mode only
+class MaterializeReferenceIsFanOutModeAwareCase(unittest.TestCase):
+    """AC-1: references/materialize.md states that in fan-out mode only
     steps 4-5 run (step 3's root rewrite is skipped)."""
 
-    def test_executor_contract_is_fan_out_mode_aware(self):
-        section_norm = norm(executor_step4_section())
+    def test_materialize_reference_is_fan_out_mode_aware(self):
+        section_norm = norm(materialize_step4_section())
         self.assertIsNotNone(
             re.search(r"(?i)ONLY in `?--fan-out`? mode|runs ONLY.{0,20}--fan-out",
                       section_norm),
-            "executor step 4 must state it runs only in --fan-out mode")
+            "materialize step 4 must state it runs only in --fan-out mode")
         self.assertIsNotNone(
             re.search(r"(?i)step 3.{0,80}skipped", section_norm),
-            "executor step 4 must state step 3's root rewrite is skipped "
+            "materialize step 4 must state step 3's root rewrite is skipped "
             "in that mode")
 
 
@@ -468,14 +472,14 @@ class FanOutSectionQuotesStepTwoItemSevenVerbatimCase(unittest.TestCase):
 
 
 class ChildrenFieldStatesTheEmptyCreationRunInvariantInBothFilesCase(unittest.TestCase):
-    """F1-d/F1-e: Step 3's (and the executor's mirror step 3's) `children`
+    """F1-d/F1-e: Step 3's (and materialize.md's mirror step 3's) `children`
     field description states [] on every creation run, including an epic's
     own, and names Step 4 / --fan-out as the later filler."""
 
     def test_children_field_states_the_empty_creation_run_invariant_in_both_files(self):
         sections = {
             "SKILL.md Step 3": norm(step3_section()),
-            "executor step 3": norm(executor_step3_section()),
+            "materialize step 3": norm(materialize_step3_section()),
         }
         for name, section_norm in sections.items():
             self.assertIsNotNone(
@@ -524,31 +528,31 @@ class HandoffExampleClaimsNoChildrenAtCreationTimeCase(unittest.TestCase):
         self.assertIn("--fan-out", summary)
 
 
-class ExecutorResultExampleIsLabelledAsAChildMintingRunCase(unittest.TestCase):
-    """F1-i: create-ticket-executor.md's output-contract region states its
+class MaterializeReportExampleIsLabelledAsAChildMintingRunCase(unittest.TestCase):
+    """F1-i: references/materialize.md's report region states its
     minted-children example belongs to a --fan-out (or split) run, and that
     a plain creation run reports no children finding."""
 
-    def test_executor_result_example_is_labelled_as_a_child_minting_run(self):
-        section_norm = norm(executor_output_contract_section())
+    def test_materialize_report_example_is_labelled_as_a_child_minting_run(self):
+        section_norm = norm(materialize_report_section())
         self.assertIsNotNone(
             re.search(r"(?i)--fan-out.{0,80}\(or split\).{0,120}"
                       r"run that minted children", section_norm),
-            "executor output-contract region must label the minted-children "
+            "materialize report region must label the minted-children "
             "example as belonging to a --fan-out (or split) run")
         self.assertIsNotNone(
             re.search(r"(?i)creation run.{0,120}no.{0,20}children.{0,20}finding",
                       section_norm),
-            "executor output-contract region must state a plain creation "
+            "materialize report region must state a plain creation "
             "run carries no children finding")
 
 
 # ------------------------------------------------------------------------ H1-H3
-# F2: the executor mirror is complete -- both-files loops so a one-sided
+# F2: the materialize mirror is complete -- both-files loops so a one-sided
 # edit fails by construction (the MAR-84 pattern).
 
 class ChildAcceptanceCriteriaWriteInstructedInBothFilesCase(unittest.TestCase):
-    """F2-b: both the fan-out section (SKILL.md) and the executor's step 4
+    """F2-b: both the fan-out section (SKILL.md) and materialize.md's step 4
     region instruct writing the confirmed child's acceptance_criteria into
     the child's own ticket.json after minting, naming the absent
     --acceptance-criteria flag."""
@@ -556,7 +560,7 @@ class ChildAcceptanceCriteriaWriteInstructedInBothFilesCase(unittest.TestCase):
     def test_child_acceptance_criteria_write_instructed_in_both_files(self):
         sections = {
             "SKILL.md fan-out section": norm(fan_out_section()),
-            "executor step 4": norm(executor_step4_section()),
+            "materialize step 4": norm(materialize_step4_section()),
         }
         for name, section_norm in sections.items():
             self.assertIsNotNone(
@@ -569,14 +573,14 @@ class ChildAcceptanceCriteriaWriteInstructedInBothFilesCase(unittest.TestCase):
             self.assertIn("--acceptance-criteria", section_norm)
 
 
-class ExecutorHardRulesPermitTheChildAcceptanceCriteriaWriteCase(unittest.TestCase):
-    """F2-c: the executor's Hard rules permit the child ticket.json AC
+class MaterializeHardRulesPermitTheChildAcceptanceCriteriaWriteCase(unittest.TestCase):
+    """F2-c: materialize.md's Hard rules permit the child ticket.json AC
     write while still forbidding counters.json/tickets-index.json/
     run.json hand-edits -- landing F2-b without this widening
-    would leave the executor contract self-contradictory."""
+    would leave the materialize contract self-contradictory."""
 
-    def test_executor_hard_rules_permit_the_child_acceptance_criteria_write(self):
-        section_norm = norm(executor_hard_rules_section())
+    def test_materialize_hard_rules_permit_the_child_acceptance_criteria_write(self):
+        section_norm = norm(materialize_hard_rules_section())
         self.assertIsNotNone(
             re.search(r"(?i)acceptance_criteria.{0,200}child|"
                       r"child.{0,200}acceptance_criteria", section_norm),
@@ -603,24 +607,24 @@ class StepFourGatingCoversBothChildMintingModesCase(unittest.TestCase):
                       section_norm))
 
 
-class ExecutorStepFourGatingCoversBothModesAndScopesTheStepThreeSkipCase(unittest.TestCase):
-    """F3-d: executor step 4 names both modes; the step-3 skip is scoped
+class MaterializeStepFourGatingCoversBothModesAndScopesTheStepThreeSkipCase(unittest.TestCase):
+    """F3-d: materialize.md step 4 names both modes; the step-3 skip is scoped
     explicitly to --fan-out only; a split run is stated to run step 3
     (A11's pinned fragments must both still hold)."""
 
-    def test_executor_step_4_gating_covers_both_modes_and_scopes_the_step_3_skip(self):
-        section_norm = norm(executor_step4_section())
+    def test_materialize_step_4_gating_covers_both_modes_and_scopes_the_step_3_skip(self):
+        section_norm = norm(materialize_step4_section())
         self.assertIsNotNone(
             re.search(r"(?i)--fan-out.{0,80}split/restructure|"
                       r"split/restructure.{0,80}--fan-out", section_norm),
-            "executor step 4 must name both modes")
+            "materialize step 4 must name both modes")
         self.assertIsNotNone(
             re.search(r"(?i)ONLY in `?--fan-out`? mode", section_norm),
             "the step-3 skip must be scoped to --fan-out mode only")
         self.assertIsNotNone(
             re.search(r"(?i)split/restructure mode, step 3 DOES run",
                       section_norm),
-            "executor step 4 must state a split run runs step 3")
+            "materialize step 4 must state a split run runs step 3")
 
 
 class StepFiveSyncSetCoversChildrenMintedByEitherModeCase(unittest.TestCase):

@@ -63,13 +63,16 @@ class TestGates(AcsWorkspaceCase):
 
     def test_the_prd_precondition_is_the_skills_not_the_hooks(self):
         """ADR-0102: no setting says where the PRD lives, so the hook cannot
-        look for it. /acs:create-architecture finds it itself and stops."""
+        look for it. /acs:create-architecture looks for it itself and, when
+        there is none, falls back to the run's subject rather than stopping:
+        a skill never refuses because an upstream skill has not run."""
         result = self.pre("create-architecture")
         self.assertEqual(result.returncode, 0, result.stderr)
         with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-architecture",
                                "SKILL.md"), encoding="utf-8") as fh:
             body = " ".join(fh.read().split())
-        self.assertIn("no PRD found — run /acs:create-prd first", body)
+        self.assertIn("no PRD found — working from <the subject>", body)
+        self.assertNotIn("run /acs:create-prd first", body)
 
     def test_code_requires_resolvable_ticket(self):
         result = self.pre("code")
@@ -263,9 +266,11 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotIn("KeyError", result.stderr)
 
-    def test_without_architecture_the_skill_stops_not_the_hook(self):
-        """ADR-0102: the architecture precondition moved into the skill, which
-        can find a set wherever the repo keeps it; the hook passes."""
+    def test_without_architecture_neither_the_skill_nor_the_hook_stops(self):
+        """ADR-0102: the architecture check moved into the skill, which can
+        find a set wherever the repo keeps it; the hook passes. Since the
+        per-skill subagents the skill does not stop either: it falls back to
+        the PRD/repo and only RECOMMENDS /acs:create-architecture."""
         for skill in self.PRODUCERS:
             with self.subTest(skill=skill):
                 result = self.pre(skill)
@@ -273,7 +278,10 @@ class TestProducerDocSetGates(AcsWorkspaceCase):
                 self.assertNotIn("KeyError", result.stderr)
                 with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", skill,
                                        "SKILL.md"), encoding="utf-8") as fh:
-                    self.assertIn("run /acs:create-architecture first", " ".join(fh.read().split()))
+                    body = " ".join(fh.read().split())
+                self.assertIn("run /acs:create-architecture first", body)
+                self.assertIn("(a recommendation, never a precondition)", body)
+                self.assertNotIn("None found → STOP", body)
 
 
 class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
@@ -301,7 +309,7 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             self._advisories(result.stderr),
-            ["acs: docs-sync normally follows run-e2e-tests in ship.yaml; "
+            ["acs: docs-sync normally follows review-code in ship.yaml; "
              "the cursor for %s is analyze-requirements" % ticket])
 
     def test_the_advisory_names_the_cursor_not_a_needs_list(self):
@@ -313,6 +321,16 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("the cursor for %s is create-api-contract" % ticket,
                       result.stderr)
+
+    def test_a_member_of_the_due_parallel_group_is_advised_of_nothing(self):
+        """`create-e2e-tests` and `docs-sync` are one parallel group
+        (ADR-0110): once the review has passed, either may start first."""
+        ticket = self.new_ticket("Side by side", "task")
+        self.walk_to(ticket, "review-code")
+        for step in ("docs-sync", "create-e2e-tests"):
+            result = self.pre(step, ticket)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self._advisories(result.stderr), [], step)
 
     def test_the_advisory_can_be_switched_off(self):
         ticket = self.new_ticket("Quiet please", "task")
@@ -345,7 +363,7 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
 
     def test_create_pr_passes_quietly_after_a_passing_review(self):
         ticket = self.new_ticket("Bulk import", "task")
-        self.walk_to(ticket, "docs-sync")
+        self.walk_to(ticket, "run-e2e-tests")
         result = self.pre("create-pr", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self._advisories(result.stderr), [])

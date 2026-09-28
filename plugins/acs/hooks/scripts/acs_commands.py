@@ -375,6 +375,17 @@ def cmd_filemap_show(args):
           "iteration": str(args.iteration), "declared": bool(tasks), "tasks": tasks,
           "union": sorted({f for files in tasks.values() for f in files}),
           "path": lib.filemap_path(rdir, args.skill, args.iteration)})
+def cmd_notes_merge(args):
+    """Join the files a parallel fan-out wrote (survey slices into
+    `authoring.md`, judge slices into `<role>.md`) by `## ` heading, so every
+    reader downstream still reads one document with each section once."""
+    try:
+        report = lib.merge_notes(args.inputs, args.out, markers=args.markers)
+    except lib.GateError as exc:
+        die("notes merge", str(exc))
+    emit(dict({"ok": True}, **report))
+
+
 def cmd_guard_events(args):
     """The file-map guard denials the latest run recorded.
 
@@ -495,8 +506,7 @@ def cmd_workflow_validate(args):
         die("workflow validate", str(exc))
     emit({"ok": True, "source": source, "path": path,
           "name": lib.workflow_name(path), "version": doc.get("version"),
-          "steps": lib.steps_of(doc), "loops": lib.loops_of(doc),
-          "warnings": lib.order_warnings(doc)})
+          "steps": lib.steps_of(doc), "loops": lib.loops_of(doc)})
 
 
 def cmd_artifacts_migrate(args):

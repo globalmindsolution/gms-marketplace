@@ -5,11 +5,11 @@ enum) is tests/acs/test_build_test_skill_registry.py's; the gate bodies are
 tests/acs/test_acs_lib_gates.py's. THIS module pins the part that lives in
 markdown and would otherwise drift away from the deterministic layer:
 
-  * the analysis's front matter — the five keys, checked here with the SAME
+  * the analysis's front matter — the four keys, checked here with the SAME
     checker and the SAME `--require` spec the SKILL.md tells the coordinator to
     run, so the documented example actually passes it;
   * the seven required sections, declared byte-identically in the skill and in
-    the verifier's re-run, and linted here against a doc built from the skill's
+    the impact reviewer's re-run, and linted here against a doc built from the skill's
     own skeleton;
   * the `states` keys the result document records, cross-checked against
     post-analyze-requirements.py's docstring;
@@ -21,7 +21,12 @@ markdown and would otherwise drift away from the deterministic layer:
     the delivery path is judged once from the plan by /acs:ship. What this step
     owes that judgement is evidence — load-bearing surfaces named in `## Risks`
     — not a rigor setting written ahead of it;
-  * the pair's shape (execute -> verify, no planner, artifacts, grounding).
+  * the pair's shape (analyst -> impact review, artifacts, grounding);
+  * the three stages, in order -- Impact (the analyst's survey pass, separate
+    from its draft pass, starting from the previously published analysis),
+    Clarify (one grouped ask, defaults asked as confirmations when the user
+    is reachable, confirmed criteria written into the ticket, one follow-up
+    round), Store (draft, review, publish the reusable record).
 
 Run:  python3 -m unittest tests.acs.test_analyze_requirements -v
 """
@@ -60,7 +65,7 @@ import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
 
-ROLES = ("executor", "verifier")
+ROLES = ("analyst", "impact-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
 STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open")
@@ -98,7 +103,7 @@ def flag_values(body, flag):
 
 def doc_front_matter_example(body):
     """The `---` block of the first fenced example whose front matter names a
-    ticket — the shape the executor is told to emit."""
+    ticket — the shape the analyst is told to emit."""
     match = re.search(r"(?ms)^```markdown\n(---\nticket:.*?\n---\n)", body)
     assert match, "no fenced front-matter example found"
     return match.group(1)
@@ -158,7 +163,7 @@ class TestLifecycleWiring(unittest.TestCase):
         self.assertIn("clarify.py", self.body)
         self.assertIn("## Completion report (normative)", self.body)
 
-    def test_it_names_its_own_triad(self):
+    def test_it_names_its_own_subagents(self):
         for role in ROLES:
             with self.subTest(role=role):
                 self.assertIn("acs:analyze-requirements-%s" % role, self.body)
@@ -184,16 +189,15 @@ class TestIndependence(unittest.TestCase):
                 self.assertNotIn(dead, self.body)
 
     def test_the_gate_it_describes_is_the_gate_that_exists(self):
-        """One gate for every step now (`gate_outcome`), and what it checks is
-        the skill's OWN declaration: `reads` in skills/<name>/acs.yaml drives
-        both the runtime input check and `acs workflow validate`'s order
-        check, so the two cannot disagree."""
-        self.assertTrue(lib.is_step_candidate("analyze-requirements"))
-        required, optional = lib.reads_of("analyze-requirements")
-        self.assertEqual(required, ["subject"],
-                         "the first implementation step reads the run's SUBJECT "
-                         "and nothing another step wrote")
-        self.assertEqual(optional, [])
+        """The skill is independent: it ships as a skill a workflow may name
+        (not a leg), no manifest declares what it reads, and the gate has no
+        input check left to refuse it on -- it works from the ticket alone."""
+        self.assertTrue(lib.is_skill("analyze-requirements"))
+        self.assertIsNone(lib.entry_point_of("analyze-requirements"))
+        self.assertFalse(os.path.exists(
+            os.path.join(PLUGIN, "skills", "analyze-requirements", "acs.yaml")))
+        self.assertFalse(hasattr(lib.stepgate, "check_inputs"))
+        self.assertIn("Nothing\nupstream is required", self.body)
 
     def test_the_epic_refusal_points_at_design_then_fan_out_then_a_child(self):
         self.assertIn("/acs:create-design <id>", self.body)
@@ -221,15 +225,16 @@ class TestGateAgreement(unittest.TestCase):
 
     def test_the_gate_requires_no_artifact_of_its_own(self):
         """analyze-requirements is the first implementation step: its only
-        input is the run's subject, so its `reads` list is empty and the input
-        gate asks for nothing."""
-        required, optional = lib.reads_of("analyze-requirements")
-        self.assertEqual((required, optional), (["subject"], []))
+        input is the run's subject. No gate asks for an upstream artifact --
+        the generic input check is gone, and no brake names this skill for
+        anything but the epic refusal."""
+        self.assertFalse(hasattr(lib.stepgate, "check_inputs"))
+        self.assertNotIn("missing_reads", self.brakes_source)
 
 
 class TestAnalysisFrontMatterContract(unittest.TestCase):
     """The machine-read half: four keys, and the documented example passes the
-    checker the skill tells the coordinator (and the verifier) to run."""
+    checker the skill tells the coordinator (and the impact reviewer) to run."""
 
     @classmethod
     def setUpClass(cls):
@@ -252,12 +257,12 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
                                           ticket="SHOP-123")
         self.assertEqual(findings, [])
 
-    def test_the_executor_emits_the_same_four_keys(self):
-        example = doc_front_matter_example(agent("executor"))
+    def test_the_analyst_emits_the_same_four_keys(self):
+        example = doc_front_matter_example(agent("analyst"))
         self.assertEqual(findings_of(example, self.specs[0]), [])
 
-    def test_the_verifier_re_runs_the_same_spec(self):
-        self.assertIn(self.specs[0], agent("verifier"))
+    def test_the_impact_reviewer_re_runs_the_same_spec(self):
+        self.assertIn(self.specs[0], agent("impact-reviewer"))
 
     def test_a_missing_api_surface_key_is_caught_by_that_spec(self):
         broken = re.sub(r"(?m)^api_surface: .*\n", "", self.example)
@@ -294,12 +299,12 @@ class TestAnalysisSectionContract(unittest.TestCase):
         found = re.findall(r"(?m)^## (.+)$", doc_skeleton(self.body))
         self.assertEqual(found, SECTIONS)
 
-    def test_the_executor_skeleton_matches_the_skill_skeleton(self):
-        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("executor")))
+    def test_the_analyst_skeleton_matches_the_skill_skeleton(self):
+        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("analyst")))
         self.assertEqual(found, SECTIONS)
 
-    def test_the_verifier_re_runs_the_same_section_list(self):
-        self.assertIn(self.sections[0], agent("verifier"))
+    def test_the_impact_reviewer_re_runs_the_same_section_list(self):
+        self.assertIn(self.sections[0], agent("impact-reviewer"))
 
     def test_a_doc_built_from_the_skeleton_lints_clean(self):
         doc = synthesized_analysis(SECTIONS)
@@ -428,24 +433,28 @@ class TestNotReadyArm(unittest.TestCase):
         # `ready_for_planning: false` on stdout-vs-stderr, case sensitivity
         # and unmentioned argument counts -- three questions a competent
         # implementer settles by convention, asked of a run with nobody to
-        # answer. The rule lives in the skill AND in the executor's verdict
-        # contract, so neither role can reintroduce the blocker alone.
+        # answer. The rule lives in the skill AND in the analyst's verdict
+        # contract, so neither can reintroduce the blocker alone. Since the
+        # 2026-09-27 three-stage split it is the rule for an UNREACHABLE user
+        # only: a reachable one is asked the same defaults as confirmations.
         skill = " ".join(self.body.split())
         self.assertIn(
-            "**A question with a conventional default is an assumption, not a "
-            "blocker.**", skill)
+            "and no answers were relayed in a `/acs:ship` brief. Then, and only "
+            "then: **A question with a conventional default is an assumption, "
+            "not a blocker.**", skill)
         self.assertIn("keep `ready_for_planning: true`", skill)
         self.assertIn("where every default could build the wrong thing", skill)
-        executor = " ".join(
-            read(os.path.join(AGENTS, "analyze-requirements-executor.md")).split())
-        self.assertIn("A detail with a conventional default", executor)
-        self.assertIn("never a reason for `false`", executor)
-        self.assertIn("every default could build the wrong thing", executor)
+        analyst = " ".join(
+            read(os.path.join(AGENTS, "analyze-requirements-analyst.md")).split())
+        self.assertIn("A detail with a conventional default", analyst)
+        self.assertIn("never a reason for `false`", analyst)
+        self.assertIn("every default could build the wrong thing", analyst)
 
 
 class TestPublishing(unittest.TestCase):
     """Only the coordinator writes the published analysis — the write guard
-    denies an executor any write under the ticket docs tree."""
+    denies a `write`-kind agent (the analyst) any write under the ticket docs
+    tree."""
 
     @classmethod
     def setUpClass(cls):
@@ -463,19 +472,19 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("never a subagent", self.body)
         self.assertIn("acs_lib/filemap.py", self.body)
 
-    def test_the_executor_is_barred_from_the_published_file(self):
-        self.assertRegex(agent("executor"),
+    def test_the_analyst_is_barred_from_the_published_file(self):
+        self.assertRegex(agent("analyst"),
                          r"NEVER the published\n  `analysis.md`")
 
 
-class TestTriadShape(unittest.TestCase):
-    """House shape for the three agents (the shared suite covers the hooked set;
-    these keep this triad honest on its own)."""
+class TestSubagentShape(unittest.TestCase):
+    """House shape for the two agents (the shared suite covers every skill;
+    these keep this pair honest on its own)."""
 
     def test_role_tool_restrictions(self):
-        fm, _ = frontmatter(agent("verifier"), "verifier")
+        fm, _ = frontmatter(agent("impact-reviewer"), "impact-reviewer")
         self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
-        fm, _ = frontmatter(agent("executor"), "executor")
+        fm, _ = frontmatter(agent("analyst"), "analyst")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
 
@@ -487,9 +496,10 @@ class TestTriadShape(unittest.TestCase):
             self.assertIn("not for direct invocation", fm)
 
     def test_each_role_writes_its_phase_artifact(self):
-        self.assertIn("steps/analyze-requirements/iter-<n>/authoring.md", agent("executor"))
-        self.assertIn("steps/analyze-requirements/iter-<n>/execute.json", agent("executor"))
-        self.assertIn("steps/analyze-requirements/iter-<n>/verify.md", agent("verifier"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/authoring.md", agent("analyst"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/analyst.json", agent("analyst"))
+        self.assertIn("steps/analyze-requirements/iter-<n>/impact-reviewer.md",
+                      agent("impact-reviewer"))
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:
@@ -499,17 +509,18 @@ class TestTriadShape(unittest.TestCase):
                 self.assertIn("FINAL message", body)
                 self.assertIn("Nothing follows the closing `</result>` tag.", body)
 
-    def test_grounding_everywhere_and_policing_in_the_verifier(self):
+    def test_grounding_everywhere_and_policing_in_the_impact_reviewer(self):
         for role in ROLES:
             with self.subTest(role=role):
                 self.assertIn("## Grounding (anti-hallucination)", agent(role))
-        self.assertIn("police grounding", agent("verifier"))
+        self.assertIn("police grounding", agent("impact-reviewer"))
 
     def test_no_planner_and_a_capped_loop(self):
         """ADR-0092 class D: the deliverable is the analysis, so a plan for it
-        would be a second copy of the work — execute -> verify only."""
+        would be a second copy of the work — analyst -> impact review only."""
         body = read(SKILL_PATH)
-        self.assertRegex(body, r"execute → verify, no planner")
+        self.assertRegex(body, r"analyst → impact review")
+        self.assertRegex(body, r"No third role\s+plans the analysis")
         self.assertNotIn("acs:analyze-requirements-planner", body)
         self.assertNotIn("iter-1-plan.md", body)
         self.assertFalse(os.path.exists(os.path.join(AGENTS, "analyze-requirements-planner.md")))
@@ -517,19 +528,394 @@ class TestTriadShape(unittest.TestCase):
         self.assertRegex(body, r"no path-driven verify depth")
         self.assertIn("never spawn subagents", body.lower())
 
-    def test_the_executor_surveys_first_and_does_not_plan_the_implementation(self):
-        """The survey the planner used to do is the executor's first job, and
+    def test_the_analyst_surveys_first_and_does_not_plan_the_implementation(self):
+        """The survey the planner used to do is the analyst's first job, and
         the boundary with /acs:create-impl-plan is stated where it is enforced."""
-        body = agent("executor")
+        body = agent("analyst")
         self.assertIn("## Survey — what you establish before you write (iteration 1)", body)
         self.assertIn("## The authoring notes (mandatory, every iteration)", body)
         self.assertRegex(body, r"NEVER plan the implementation")
-        self.assertRegex(agent("verifier"), r"(?m)^7\. `authoring-conformance`")
+        self.assertRegex(agent("impact-reviewer"), r"(?m)^7\. `authoring-conformance`")
 
-    def test_the_verifier_re_derives_rather_than_trusting_the_draft(self):
-        body = agent("verifier")
+    def test_the_impact_reviewer_re_derives_rather_than_trusting_the_draft(self):
+        body = agent("impact-reviewer")
         self.assertIn("NEVER rubber-stamp", body)
         self.assertRegex(body, r"re-derive[sd]? the impact (map|surface)")
+
+
+def norm(body):
+    """Whitespace-normalized, with shell line continuations folded away."""
+    return re.sub(r"\s+", " ", body.replace("\\\n", " "))
+
+
+#: The judge slices and the dimension numbers each owns (SKILL.md's table).
+JUDGE_SLICES = {"surface": (2, 3), "form": (4, 5, 6), "evidence": (1, 7)}
+
+
+class TestParallelism(unittest.TestCase):
+    """The fan-out contract: one writer (a single document), survey slices
+    over disjoint top-level areas on iteration 1, and the impact reviewer split
+    into three dimension slices — each spawned in one message and joined by
+    `acs.py notes merge`, never by prose."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = norm(read(SKILL_PATH))
+        cls.contract = norm(skill_contract())
+        cls.analyst = norm(agent("analyst"))
+        cls.reviewer = norm(agent("impact-reviewer"))
+
+    def test_the_writer_stays_single_and_says_why(self):
+        self.assertIn("Writer — one analyst, never sliced.", self.skill)
+        self.assertIn("`analysis.md` is a single document", self.skill)
+
+    def test_every_fan_out_is_one_message_and_capped(self):
+        self.assertIn("in ONE message (all foreground, in the same message)",
+                      self.skill)
+        self.assertIn("`max_parallel = 4`", self.skill)
+        self.assertIn("waves of four", self.skill)
+
+    def test_survey_partition_rule(self):
+        self.assertIn("**two or more disjoint top-level areas**", self.skill)
+        self.assertIn("no directory belongs to two areas, so no two slices "
+                      "survey the same path", self.skill)
+        self.assertIn('phase="analyst" slice="<area>"', self.skill)
+        self.assertIn('<constraint name="survey_area">', self.skill)
+        self.assertIn("iter-1/authoring-<area>.md", self.skill)
+        self.assertIn("ONE grouped clarification-ledger ask", self.skill)
+
+    def test_survey_slices_are_joined_by_notes_merge(self):
+        self.assertIn(
+            '/hooks/scripts/acs.py" notes merge --out '
+            "<partition>/steps/analyze-requirements/iter-1/authoring.md",
+            self.skill)
+
+    def test_judge_slice_table_covers_all_seven_dimensions_once(self):
+        owned = []
+        for sid, dims in JUDGE_SLICES.items():
+            row = re.search(r"\| `%s` \| ([^|]+) \|" % sid, read(SKILL_PATH))
+            self.assertIsNotNone(row, sid)
+            numbers = tuple(int(n) for n in re.findall(r"\b(\d) `", row.group(1)))
+            self.assertEqual(numbers, dims)
+            owned += numbers
+        self.assertEqual(sorted(owned), list(range(1, 8)))
+        self.assertIn('<constraint name="dimensions">', self.skill)
+
+    def test_judge_slices_are_joined_into_the_one_report(self):
+        self.assertIn(
+            "notes merge --out "
+            "<partition>/steps/analyze-requirements/iter-<n>/impact-reviewer.md",
+            self.skill)
+        for sid in JUDGE_SLICES:
+            self.assertIn("iter-<n>/impact-reviewer-%s.md" % sid, self.skill)
+
+    def test_sliced_pass_rule(self):
+        self.assertIn("the iteration passes only if EVERY slice returned "
+                      '`status="completed"` with zero blocking findings', self.skill)
+        self.assertIn("never \"pass with a missing slice\"", self.skill)
+        self.assertIn("every finding of every slice, verbatim", self.skill)
+
+    def test_resume_reruns_only_missing_slices(self):
+        self.assertIn("re-run ONLY the slices whose report is missing", self.contract)
+
+    def test_the_agents_know_how_to_run_as_a_slice(self):
+        self.assertIn("## When you are one survey slice", self.analyst)
+        self.assertIn("steps/analyze-requirements/iter-1/authoring-<area>.md",
+                      self.analyst)
+        self.assertIn("Do NOT write the draft.", self.analyst)
+        self.assertIn('<result skill="analyze-requirements" phase="analyst" slice=',
+                      self.analyst)
+        self.assertIn("## When you are one slice", self.reviewer)
+        self.assertIn("Grounding policing always applies", self.reviewer)
+        self.assertIn(
+            "steps/analyze-requirements/iter-<n>/impact-reviewer-<slice>.md",
+            self.reviewer)
+        self.assertIn('<result skill="analyze-requirements" '
+                      'phase="impact-reviewer" slice=', self.reviewer)
+
+    def test_a_synthesis_pass_reconciles_the_survey_slices(self):
+        """A join is not a synthesis: contradictions between area slices are
+        resolved with evidence under `## Synthesis`, or raised as questions for
+        the user -- by a dedicated synthesis pass, not by the draft pass."""
+        self.assertIn("The merge is a join, not a synthesis: this run MUST "
+                      "reconcile the slices before anything is asked.", self.skill)
+        self.assertIn('Spawn ONE synthesis analyst (`slice="synthesis"`, '
+                      '`<constraint name="pass">synthesis</constraint>`)', self.skill)
+        self.assertIn("under a `## Synthesis` section of the notes", self.skill)
+        self.assertIn("never silently picks one", self.skill)
+        self.assertIn("de-duplicates the slices' `## Questions for the user` into "
+                      "ONE list", self.skill)
+        self.assertIn("the draft pass consumes these reconciled notes — it does "
+                      "not reconcile slices itself", self.skill)
+        self.assertIn("## When you run the synthesis pass", self.analyst)
+        self.assertIn("Write a `## Synthesis` section to "
+                      "`iter-1/authoring-synthesis.md`", self.analyst)
+        self.assertIn("Never silently pick one slice's claim", self.analyst)
+        self.assertIn("a group-(a) question in your `## Questions for the user` "
+                      "when no source does", self.analyst)
+        self.assertIn("Never write the merged `iter-1/authoring.md`", self.analyst)
+
+    def test_the_synthesis_is_joined_last_by_notes_merge(self):
+        raw = norm(read(SKILL_PATH))
+        self.assertRegex(
+            raw,
+            r'notes merge --out <partition>/steps/analyze-requirements/iter-1/'
+            r'authoring\.md (?:<partition>/steps/analyze-requirements/iter-1/'
+            r'authoring-<area-\d>\.md )+… <partition>/steps/analyze-requirements/'
+            r'iter-1/authoring-synthesis\.md')
+
+    def test_an_unsliced_survey_skips_the_synthesis_pass(self):
+        self.assertIn("A ticket inside one area runs the survey un-sliced, "
+                      "exactly as above, and skips the synthesis pass.", self.skill)
+
+    def test_the_impact_reviewer_judges_the_synthesis(self):
+        self.assertIn("judge that the notes' `## Synthesis` is honest", self.reviewer)
+        self.assertIn("silently follows one slice's claim over another's is a "
+                      "blocking finding", self.reviewer)
+
+    def test_judge_slice_findings_are_de_duplicated(self):
+        self.assertIn("Drop a finding that cites the same location and the same "
+                      "defect as another slice's finding, keep the higher severity",
+                      self.skill)
+        self.assertIn("append a `## De-duplicated findings` section to "
+                      "`iter-<n>/impact-reviewer.md`", self.skill)
+        self.assertIn("Never drop a finding for any other reason.", self.skill)
+
+    def test_a_single_writer_has_no_integration_pass(self):
+        self.assertIn("with one writer there is no integration pass to run", self.skill)
+
+    def test_each_checker_runs_in_exactly_one_judge_slice(self):
+        self.assertIn("`front_matter_check.py` and `structure_lint.py` belong "
+                      "to `form`", self.reviewer)
+
+
+def _pos(body, needle):
+    index = body.find(needle)
+    assert index >= 0, "not found: %r" % needle
+    return index
+
+
+class TestThreeStages(unittest.TestCase):
+    """2026-09-27: the skill checks the codebase for impacts, clarifies with
+    the user, and stores the analysis in docs for reuse -- three stages, in
+    that order, and the SKILL.md reads that way."""
+
+    STAGES = ("## Stage 1 — Impact: survey the codebase",
+              "## Stage 2 — Clarify: make the requirements clear with the user",
+              "## Stage 3 — Store: write, review and publish the analysis for reuse")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = read(SKILL_PATH)
+        cls.skill = norm(cls.raw)
+        cls.analyst = norm(agent("analyst"))
+
+    def test_an_overview_near_the_top_names_the_three_stages_in_order(self):
+        overview = _pos(self.raw, "## Three stages")
+        self.assertLess(overview, _pos(self.raw, "## Start"))
+        for label in ("**1 — Impact: survey the codebase**",
+                      "**2 — Clarify: make the requirements clear with the user**",
+                      "**3 — Store: write, review and publish the analysis for reuse**"):
+            self.assertGreater(_pos(self.raw, label), overview)
+        self.assertIn("in this order — each finishes before the next starts",
+                      self.skill)
+
+    def test_the_stage_sections_appear_in_order(self):
+        positions = [_pos(self.raw, "\n%s\n" % heading) for heading in self.STAGES]
+        self.assertEqual(positions, sorted(positions))
+        # Publishing and the draft are Stage 3's; the ask is Stage 2's.
+        self.assertGreater(_pos(self.raw, "### Publish — the coordinator"),
+                           positions[2])
+        self.assertGreater(_pos(self.raw, "### Phase: analyst draft pass"),
+                           positions[2])
+        self.assertGreater(_pos(self.raw, "**Clarification ledger first.**"),
+                           positions[1])
+
+    def test_the_survey_pass_is_separate_from_the_draft_pass(self):
+        self.assertIn('`<constraint name="pass">survey</constraint>`', self.skill)
+        self.assertIn('`<constraint name="pass">draft</constraint>`', self.skill)
+        self.assertIn("The survey writes ONLY the notes and its report "
+                      "(`iter-1/analyst-survey.json`) — never the draft.", self.skill)
+        self.assertIn("The survey never writes the draft and the draft pass never "
+                      "re-surveys", self.skill)
+        self.assertIn("## Which pass you run", self.analyst)
+        self.assertIn("Run ONLY the pass your task names: a survey or synthesis "
+                      "pass never writes the draft; a draft pass never re-surveys.",
+                      self.analyst)
+        for row in ("| `survey` |", "| `synthesis` |", "| `draft` |"):
+            self.assertIn(row, agent("analyst"))
+
+    def test_each_pass_has_its_own_report_and_snapshot(self):
+        """The survey and the draft both run on iteration 1 as `analyst`; with
+        the same slice they would share a SubagentStop snapshot, and the
+        draft's would overwrite the survey's. The pass table names every file,
+        and the snapshots are exactly what the hook writes."""
+        from acs_lib import lifecycle
+        rows = re.findall(
+            r"(?m)^\| (survey, un-sliced|survey, one area|synthesis|draft) \| "
+            r"([^|]+) \| `([^`]+)` \| `([^`]+)` \|$", self.raw)
+        self.assertEqual([r[0] for r in rows],
+                         ["survey, un-sliced", "survey, one area", "synthesis", "draft"])
+        reports = [r[2] for r in rows]
+        snapshots = [r[3] for r in rows]
+        self.assertEqual(len(set(reports)), 4, reports)
+        self.assertEqual(len(set(snapshots)), 4, snapshots)
+        for (_, attrs, _report, snapshot) in rows:
+            slice_match = re.search(r'slice="([^"]+)"', attrs)
+            sid = slice_match.group(1) if slice_match else None
+            if sid == "<area>":
+                sid = "api"
+                snapshot = snapshot.replace("<area>", "api")
+            expected = lifecycle.phase_artifact_path(
+                "/r", "analyze-requirements", 1, "analyst", slice_id=sid)
+            self.assertEqual(os.path.basename(expected),
+                             os.path.basename(snapshot), attrs)
+        for name in ("iter-1/analyst-survey.json", "iter-1/analyst-synthesis.json",
+                     "iter-<n>/analyst.json"):
+            self.assertIn(name, self.analyst)
+        self.assertIn("`survey` and `synthesis` are reserved slice ids", self.skill)
+
+    def test_the_survey_starts_from_the_published_analysis(self):
+        self.assertIn("Stage 1's survey starts from it (reuse — see Stage 1)",
+                      self.skill)
+        self.assertIn("7. `<previous_analysis>` when `artifacts[\"analysis.md\"]` "
+                      "exists", self.skill)
+        for body in (self.skill, self.analyst):
+            self.assertIn("## Changes since the last analysis", body)
+            self.assertIn("still true / changed / gone", body)
+        self.assertIn("carries forward its answered `C-n` entries", self.skill)
+        self.assertIn("### Reuse — when a previous analysis exists", self.analyst)
+        self.assertIn("re-record it verbatim with `clarify.py add … --answer`",
+                      self.skill)
+
+    def test_the_survey_ends_with_four_groups_of_questions(self):
+        for body in (self.skill, self.analyst):
+            self.assertIn("## Questions for the user", body)
+            for group in ("(a) Open questions", "(b) Conventional defaults",
+                          "(c) Proposed refined acceptance criteria",
+                          "(d) A needs_design recommendation"
+                          if body is self.skill else "(d) needs_design recommendation"):
+                self.assertIn(group, body)
+            self.assertIn("Assumed: <default> — confirm or correct", body)
+        self.assertIn("Researchable facts are never questions", self.skill)
+
+    def test_the_synthesis_runs_before_the_ask(self):
+        synthesis = _pos(self.raw, 'Spawn ONE synthesis analyst (`slice="synthesis"`')
+        self.assertLess(synthesis, _pos(self.raw, "\n%s\n" % self.STAGES[1]))
+
+    def test_every_remaining_question_goes_in_one_grouped_ask(self):
+        self.assertIn("**Otherwise ask EVERY remaining question, from all four "
+                      "groups, in ONE grouped interaction** — a single "
+                      "AskUserQuestion", self.skill)
+
+    def test_defaults_are_confirmed_when_the_user_is_reachable(self):
+        self.assertIn("Conventional defaults (b) are asked as confirmations",
+                      self.skill)
+        self.assertIn("When the user IS reachable, the same defaults are asked — "
+                      "as confirmations, in the one grouped ask — never silently "
+                      "assumed", self.skill)
+        # The assumption arm is scoped to an unreachable user.
+        unreachable = _pos(self.raw, "### When the user is not reachable")
+        self.assertGreater(
+            _pos(self.raw, "**A question with a conventional default is an "
+                           "assumption, not a blocker.**"), unreachable)
+        self.assertNotIn("record the default as an assumption (`--source "
+                         "assumption --rationale \"...\"`), state it in "
+                         "`## Assumptions`, propose the matching criterion rewrite "
+                         "in `## Refined acceptance criteria`, and keep "
+                         "`ready_for_planning: true`. The 2026-09-15",
+                         self.skill[:self.skill.find("### When the user is not reachable")])
+
+    def test_confirmed_requirements_are_written_into_the_ticket(self):
+        self.assertIn("### Confirmed requirements go into the ticket", self.raw)
+        self.assertIn("so the ticket itself carries the clarified requirements "
+                      "every later skill plans from", self.skill)
+        self.assertIn("send the WHOLE confirmed criteria list", self.skill)
+        self.assertIn("A rejected proposal is recorded (its answer says so) and "
+                      "NOT applied.", self.skill)
+        section = self.raw[_pos(self.raw, "### Confirmed requirements go into the ticket"):
+                           _pos(self.raw, "### When the user is not reachable")]
+        self.assertIn('acs.py" ticket save --ticket <id> --from -', section)
+        self.assertIn('{"needs_design": true}', section)
+
+    def test_at_most_one_follow_up_round(self):
+        self.assertIn("**One follow-up round, at most.**", self.skill)
+        self.assertIn("in at most ONE more grouped AskUserQuestion", self.skill)
+        self.assertIn("Anything still open after that is a blocker: "
+                      "`references/not-ready-for-planning.md`", self.skill)
+        not_ready = norm(read(os.path.join(SKILL_REFERENCES,
+                                           "not-ready-for-planning.md")))
+        self.assertIn("still open after the grouped ask and its ONE follow-up round",
+                      not_ready)
+
+    def test_stage_two_is_skipped_when_nothing_is_open(self):
+        self.assertIn("Stage 2 is skipped; say so in the report", self.skill)
+        self.assertIn("Stage 2 skipped", self.skill)
+
+    def test_the_draft_is_written_from_the_answers(self):
+        self.assertIn("`## Questions` lists every `C-n` with its answer or status",
+                      self.skill)
+        self.assertIn("`## Refined acceptance criteria` states which criteria "
+                      "were confirmed into the ticket", self.skill)
+        self.assertIn("`## Assumptions` holds only what the user did not answer",
+                      self.skill)
+        self.assertIn("`confirmed into the ticket (C-n)`", self.analyst)
+        self.assertIn("Never present an unconfirmed rewrite as applied.",
+                      self.analyst)
+
+    def test_a_reviewer_question_goes_back_through_stage_two(self):
+        self.assertIn("A reviewer finding that is really a new question for the "
+                      "user — or a draft pass that returns `needs_input` — goes "
+                      "through Stage 2 again (ledger first, then one grouped ask)",
+                      self.skill)
+
+    def test_the_published_file_is_the_reusable_record(self):
+        self.assertIn("**The published file is the reusable record.**", self.skill)
+        for reader in ("/acs:create-impl-plan", "/acs:create-api-contract",
+                       "/acs:create-test-docs"):
+            self.assertIn(reader, self.skill[_pos(self.skill,
+                          "**The published file is the reusable record.**"):])
+        self.assertIn("what the next run of this skill starts from", self.skill)
+        self.assertIn("the partition fallback, for the no-checkout case only",
+                      self.skill)
+
+    def test_resume_knows_which_stage_it_is_in(self):
+        resume = norm(read(os.path.join(SKILL_REFERENCES, "resume.md")))
+        for question in ("**Survey report present?**", "**Answers recorded?**",
+                         "**Draft present?**"):
+            self.assertIn(question, resume)
+        self.assertIn("the first \"no\" is where you continue", resume)
+
+
+class TestReviewerQuestionCoverage(unittest.TestCase):
+    """The impact reviewer's new check: nothing asked of the user is lost
+    between the survey and the draft, and what the user confirmed is what the
+    ticket now says."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.reviewer = norm(agent("impact-reviewer"))
+        cls.skill = norm(read(SKILL_PATH))
+
+    def test_every_question_for_the_user_is_accounted_for(self):
+        self.assertIn("**Questions and ticket coverage:** every item of the "
+                      "notes' `## Questions for the user`", self.reviewer)
+        self.assertIn("was either answered in the ledger or is carried in "
+                      "`## Questions` as an open or assumed `C-n` entry",
+                      self.reviewer)
+
+    def test_confirmed_criteria_match_the_ticket(self):
+        self.assertIn("matches the ticket's `acceptance_criteria` as the ticket "
+                      "file now reads", self.reviewer)
+        self.assertIn("a confirmed criterion the ticket does not carry, or "
+                      "carries differently, is a finding", self.reviewer)
+
+    def test_the_check_sits_in_the_completeness_dimension_of_the_surface_slice(self):
+        dim2 = agent("impact-reviewer").split("2. `completeness`", 1)[1].split(
+            "3. `api-surface`", 1)[0]
+        self.assertIn("Questions and ticket coverage", dim2)
+        self.assertIn("the questions/ticket coverage check", self.skill)
+        self.assertIn("the clarification ledger", self.reviewer)
 
 
 if __name__ == "__main__":

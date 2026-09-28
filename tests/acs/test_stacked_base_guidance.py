@@ -37,7 +37,7 @@ if HOOKS_SCRIPTS not in sys.path:
 import acs_lib  # noqa: E402
 
 CREATE_PR_SKILL = os.path.join(PLUGIN, "skills", "create-pr", "SKILL.md")
-CREATE_PR_EXECUTOR = os.path.join(PLUGIN, "agents", "create-pr-executor.md")
+CREATE_PR_PUBLISH = os.path.join(PLUGIN, "skills", "create-pr", "references", "publish.md")
 CI_REFERENCE = os.path.join(PLUGIN, "skills", "create-pr", "references",
                             "ci-convention-check.md")
 DETECTOR = os.path.join(HOOKS_SCRIPTS, "stacked-base.py")
@@ -46,7 +46,7 @@ REPO_SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
 # Every file this ticket's documentation half ships into.
 SHIPPED_DOCS = {
     "create-pr/SKILL.md": CREATE_PR_SKILL,
-    "create-pr-executor.md": CREATE_PR_EXECUTOR,
+    "publish.md": CREATE_PR_PUBLISH,
     "ci-convention-check.md": CI_REFERENCE,
 }
 
@@ -54,12 +54,12 @@ SHIPPED_DOCS = {
 #: CLAUDE.md any more, so the managed-block template that used to carry the
 #: replay remedy is gone and the create-pr reference is where an author meets it.
 
-# The two surfaces that must run the check before pushing: SKILL.md may delegate
-# its whole numbered flow to the executor agent, so a pre-flight on one only is
-# a pre-flight that half the runs skip.
+# The two surfaces that must run the check before pushing: the coordinator runs
+# SKILL.md's numbered flow inline with `references/publish.md` open beside it,
+# so a pre-flight in one only is a pre-flight the other contradicts.
 PUSH_SURFACES = {
     "create-pr/SKILL.md": CREATE_PR_SKILL,
-    "create-pr-executor.md": CREATE_PR_EXECUTOR,
+    "publish.md": CREATE_PR_PUBLISH,
 }
 
 CHECK_CALL = 'stacked-base.py" check'

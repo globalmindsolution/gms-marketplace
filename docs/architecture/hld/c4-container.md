@@ -7,9 +7,9 @@ C4Container
     Person(dev, "Developer")
     System_Boundary(mkt, "GMS Marketplace (plugin catalog)") {
         Container(skills, "acs Skills", "30 x SKILL.md", "Coordinator protocols: lifecycle, reflection loop, user interaction, completion reports")
-        Container(agents, "acs Subagents", "32 x agent .md (all reachable)", "Executor + verifier pair for the twelve authoring skills (create-prd/-architecture/-project/-design, create-requirements, standardize-project, docs-sync, analyze-requirements, create-impl-plan/-api-contract/-test-docs/-e2e-tests — 24 agents; no planner, ADR 0092) plus create-docs (2); four executor-only skills — the three apply-work ones (create-ticket/-pr/merge-pr) and code, whose review left for review-code (4); and review-code's own lens + adjudicator, which fan out independently rather than pairing (2); grounding rules; JSON I/O")
+        Container(agents, "acs Subagents", "32 x agent .md (all reachable)", "Roles named for each skill's own work, each of kind survey, write or judge (ADR 0109): a writer + judge pair for the twelve authoring skills (create-prd/-architecture/-project/-design, create-requirements, standardize-project, docs-sync, analyze-requirements, create-impl-plan/-api-contract/-test-docs/-e2e-tests) and create-docs, with a surveyor for create-prd and create-requirements and an auditor for standardize-project (29 agents); code's implementer (1); review-code's lens + adjudicator, which fan out independently rather than pairing (2); the apply-work skills (create-ticket/-pr/merge-pr) run inline and own none; grounding rules; JSON I/O")
         Container(hooks, "acs Hook & helper layer", "Python 3.9+ stdlib", "dispatch + 19 pre + 19 post hooks; acs (the CLI: run, step, result, ...), new-ticket, handoff, clarify, mermaid_lint, structure_lint, citation_check, prd_conformance_check; acs_lib")
-        Container(schemas, "acs Schemas & templates", "JSON Schema / md", "14 JSON schemas (run, step-state, result, verdict, workflow, lock, ...), 5 description templates; templates/ci/ includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
+        Container(schemas, "acs Schemas & templates", "JSON Schema / md", "13 JSON schemas (run, step-state, result, verdict, workflow, lock, ...), 5 description templates; templates/ci/ includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
     }
     System_Ext(cc, "Claude Code runtime")
     ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/runs/<run-id>/ partitions (steps/, subject/) plus ticket partitions and repo-level index/counters/sessions, gitignored, anchored to the main checkout (ADR-0086); no override (ADR-0102)")
@@ -24,9 +24,9 @@ C4Container
     Rel(cc, hooks, "PreToolUse(Skill) -> dispatch; Stop; PreCompact; SessionEnd")
     Rel(skills, agents, "spawns via Agent tool (JSON task)")
     Rel(skills, hooks, "acs step start / post-hook / helpers (Bash)")
-    Rel(agents, ws, "phase artifacts (execute/verify, lens/adjudication)")
+    Rel(agents, ws, "phase artifacts (per-role reports, lens/adjudication)")
     Rel(hooks, ws, "state files, ledger, locks, index")
-    Rel(agents, repo, "executors edit source/docs on ticket branch")
+    Rel(agents, repo, "write roles edit source/docs on ticket branch")
     Rel(skills, trackers, "gh / acli (sync, PRs) -- critical calls stop the run, incl. gate-input reads whose failure leaves a readiness gate unevaluable; metadata calls degrade to findings and continue (ADR-0088)")
     Rel(skills, schemas, "validate messages & state; render templates")
     Rel(tests_plugin, mkt, "validates per-plugin schemas, hooks, skills presence-gated")

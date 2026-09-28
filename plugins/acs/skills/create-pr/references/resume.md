@@ -15,7 +15,7 @@ If `context.reconcile` is true, verify recorded state against reality BEFORE
 continuing:
 
 1. Read `<partition>/create-pr-state.json` (`runs[-1]`) and any
-   `steps/create-pr/iter-*-*.xml` to see how far the prior run got.
+   `steps/create-pr/iter-*/publish.json` to see how far the prior run got.
 2. Re-check reality: does the branch exist on origin
    (`git ls-remote origin <branch>`)? Does an open PR for it exist
    (`gh pr list --head <branch> --state open --json number,url,baseRefName`)?

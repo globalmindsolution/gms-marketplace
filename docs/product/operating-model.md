@@ -57,7 +57,7 @@ flowchart TB
         QE["AI quality & evals engineer<br/>evals, e2e, gates"]
     end
     subgraph AIW["AI workforce"]
-        TRI["Reflection loops<br/>execute . verify per skill"]
+        TRI["Reflection loops<br/>write . judge per skill"]
         GAT["Gates & dashboards<br/>hooks, forge checks"]
     end
     CEO --> PT
@@ -163,10 +163,12 @@ and gates they tune, not meetings they run.
 The layer where build capacity lives. Owned by the platform team, operated by
 every team.
 
-- **Reflection loops** (executor/verifier per skill): do the
-  analysis, authoring, and independent verification inside every pipeline
-  step. The verifier gates in every lane; executor self-reports are never
-  trusted as evidence.
+- **Reflection loops** (subagents named for each skill's own work — a
+  surveyor, author and reviewer for the PRD, a planner and plan-reviewer for
+  the plan, implementers judged by the code review): do the analysis,
+  authoring, and independent verification inside every pipeline step. A
+  judge gates in every lane; a writer's self-report is never trusted as
+  evidence.
 - **Headless runner:** unattended `/acs:ship` — ticket in, reviewed PR out —
   triggerable from tracker, chat, or CLI. Always full-verify lane, always
   stops before merge (C-19).

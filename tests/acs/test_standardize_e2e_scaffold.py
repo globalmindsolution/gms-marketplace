@@ -22,9 +22,12 @@ SKILLS = os.path.join(PLUGIN, "skills")
 AGENTS = os.path.join(PLUGIN, "agents")
 
 SKILL_PATH = os.path.join(SKILLS, "standardize-project", "SKILL.md")
-PLANNER_PATH = os.path.join(AGENTS, "standardize-project-executor.md")  # the audit charter lives in the executor since ADR-0092
-EXECUTOR_PATH = os.path.join(AGENTS, "standardize-project-executor.md")
-VERIFIER_PATH = os.path.join(AGENTS, "standardize-project-verifier.md")
+# The audit charter (once the planner's, then the executor's under ADR-0092)
+# is the auditor's; the scaffold charter is the scaffolder's; the additive-only
+# judge is the additive-checker. The *_PATH names keep the spec's vocabulary.
+PLANNER_PATH = os.path.join(AGENTS, "standardize-project-auditor.md")
+EXECUTOR_PATH = os.path.join(AGENTS, "standardize-project-scaffolder.md")
+VERIFIER_PATH = os.path.join(AGENTS, "standardize-project-additive-checker.md")
 
 HOOKS_DIR = os.path.join(PLUGIN, "hooks", "scripts")
 sys.path.insert(0, HOOKS_DIR)

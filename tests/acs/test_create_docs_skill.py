@@ -8,7 +8,7 @@ agentic-e2e tier, not unit-testable here.
 
 History: the umbrella used to fan out four internal leg skills (ADR-0085,
 ADR-0091); ADR-0094 folded the legs into it, so the umbrella IS the skill --
-hooked, one delivery ticket per set, executor + verifier, no planner.
+hooked, one delivery ticket per set, one author + reviewer pair per set, no planner.
 
 Run:  python3 -m unittest tests.acs.test_create_docs_skill -v
 """
@@ -136,7 +136,7 @@ class DocSetTableTest(unittest.TestCase):
                     template = read(os.path.join(TEMPLATES, row["template_dir"], fname))
                     for heading in sections:
                         self.assertIn("## " + heading, template,
-                                      "the template must carry every section the verifier lints for")
+                                      "the template must carry every section the reviewer lints for")
 
     def test_no_template_file_is_undeclared(self):
         for name, row in acs_lib.DOC_SETS.items():
@@ -249,16 +249,46 @@ class StartContractTest(unittest.TestCase):
         self.assertRegex(body, r"(?i)A repo with no principles set never stops a `standards` run")
         self.assertRegex(body, r"(?i)Graceful degradation \(mandatory\)")
 
-    def test_the_precondition_is_checked_once_at_start_for_every_set(self):
-        """ADR-0102 moved the architecture precondition out of the pre-hook:
-        the skill checks it at Start, once, and states the refusal itself."""
+    def test_a_missing_architecture_set_is_looked_for_once_and_never_stops_a_set(self):
+        """ADR-0102 moved the architecture check out of the pre-hook and into
+        the skill's Start, once for the run. Since the per-skill subagents a
+        skill never refuses because an upstream skill has not run: with no
+        architecture set the author falls back to the PRD/repo, records it,
+        and confirms architecture-derived facts through the ledger;
+        /acs:create-architecture is only a recommendation."""
         body = norm(_body())
-        self.assertRegex(body, r"(?i)you check the architecture doc set yourself at Start, once, "
-                               r"for every set you go on to run")
-        self.assertIn("None found → STOP: \"no architecture doc set found (expected "
-                      "hld/tech-stack.md) — run /acs:create-architecture first.\"", body)
-        self.assertRegex(body, r"(?i)was checked at Start before any set started")
+        self.assertRegex(body, r"(?i)you look for the architecture doc set yourself at Start, once, "
+                               r"for every set you go on to run — its absence is recorded, never a refusal")
+        self.assertNotIn("None found → STOP", body)
+        self.assertIn("None found → do NOT stop", body)
+        self.assertIn("run /acs:create-architecture first for stack-grounded docs\" "
+                      "(a recommendation, never a precondition)", body)
+        self.assertIn("no architecture set: architecture-derived tailoring falls back to the "
+                      "repo/PRD", body)
+        self.assertRegex(body, r"(?i)A repo with no architecture set never stops any set")
+        self.assertRegex(body, r"(?i)was looked for at Start before any set started, and its "
+                               r"absence refuses nothing")
+        self.assertNotRegex(body, r"(?i)only a missing architecture set refuses")
         self.assertNotRegex(body, r"(?i)`pre-create-docs.py` gates the Skill call on the architecture")
+        fm = _body().split("---")[1]
+        self.assertIn("reads the architecture set when present", fm)
+        self.assertNotIn("requires the architecture doc set", fm)
+
+    def test_the_author_and_reviewer_fall_back_without_an_architecture_set(self):
+        agents = os.path.join(PLUGIN, "agents")
+        with open(os.path.join(agents, "create-docs-author.md"), encoding="utf-8") as fh:
+            author = norm(fh.read())
+        with open(os.path.join(agents, "create-docs-reviewer.md"), encoding="utf-8") as fh:
+            reviewer = norm(fh.read())
+        for body in (author, reviewer):
+            self.assertIn("architecture-optional", body)
+            self.assertIn("no architecture set: architecture-derived tailoring falls back to "
+                          "the repo/PRD", body)
+        self.assertRegex(author, r"(?i)never stop")
+        self.assertRegex(author, r"(?i)clarification ledger")
+        self.assertIn("A missing architecture set or PRD is never a failure", author)
+        self.assertNotIn("PRD or architecture set missing", author)
+        self.assertIn("--root repo=", reviewer)
 
     def test_the_start_snippet_prints_the_table_and_default_dirs(self):
         body = _body()
@@ -298,10 +328,12 @@ class ConcurrencyAndWorktreeTest(unittest.TestCase):
         self.assertIn("git worktree add --detach <path> <default-branch>", body)
         self.assertRegex(norm(body), r"(?i)never ticket-id-named")
 
-    def test_executors_then_verifiers_in_one_message_each(self):
+    def test_authors_then_reviewers_in_one_message_each(self):
         body = norm(_body())
-        self.assertRegex(body, r"(?i)executors \(`acs:create-docs-executor`, one per set, at most `max_parallel`\) in ONE message")
-        self.assertRegex(body, r"(?i)verifiers \(`acs:create-docs-verifier`, one per set\) in one message")
+        self.assertRegex(body, r"(?i)authors \(`acs:create-docs-author`, one per set, at most `max_parallel`\) in ONE message")
+        # The review is sliced by dimension now: every reviewer of every set
+        # in this slice still goes out in one message.
+        self.assertRegex(body, r"(?i)one `acs:create-docs-reviewer` per \*\*dimension slice\*\* below, every reviewer of every set in one message")
 
     def test_cites_the_code_skill_parallel_mechanism(self):
         body = norm(_body())

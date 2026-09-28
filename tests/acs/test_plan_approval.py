@@ -797,7 +797,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         between approval and `### Docs-only tickets`; revocation has since
         moved into `references/not-a-first-run.md`, so docs-only is the next
         heading again and the slice below is exactly the approval note."""
-        plan_idx = self.skill_body.index("### Execute (per iteration) — survey, then author the plan")
+        plan_idx = self.skill_body.index("### Planner (per iteration) — survey, then author the plan")
         approval_idx = self.skill_body.index("### Plan approval")
         docs_only_idx = self.skill_body.index("### Docs-only tickets")
         self.assertGreater(approval_idx, plan_idx)

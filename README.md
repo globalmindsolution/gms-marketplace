@@ -73,7 +73,7 @@ devin plugins install globalmindsolution/gms-marketplace#plugins/acs
 
 Devin loads the plugin's `skills/` and `agents/` as-is. Caveat: acs's
 `hooks/hooks.json` targets Claude Code lifecycle events and tool names, so the
-hook gates (skill precondition checks, the executor file-map guard, handoff
+hook gates (skill safety brakes, the file-map guard, handoff
 and session bookkeeping) do not fire under Devin — the pipeline runs
 **ungated** there. Skills still work as instructions; enforcement is degraded.
 
@@ -158,10 +158,10 @@ The marketplace currently ships one plugin:
   requirements analysis, an implementation plan, an API contract and test
   cases, TDD implementation, a five-lens code review, end-to-end tests, doc
   sync, pull request, and merge. Thirty skills (`/acs:setup`,
-  `/acs:ship`, `/acs:code`, …), each declaring its own phase — Design, Build,
-  Test, Ship or Utility — and the artifacts it reads and writes in its
-  `skills/<name>/acs.yaml`; each runs an execute → verify reflection cycle
-  with dedicated subagents.
+  `/acs:ship`, `/acs:code`, …), each an independent skill that spawns only
+  the subagents its own work needs — a surveyor, author and reviewer for the
+  PRD; a planner and plan reviewer for the plan; implementers for the code;
+  none for the mechanical steps that open a ticket, a PR or a merge.
 
   The human-facing ticket documents (`ticket.md`, `design.md`, `plan.md`,
   `test-cases.md`, …) live in the consumer repo under
@@ -172,19 +172,23 @@ The marketplace currently ships one plugin:
 
   The delivery **order** is declared in
   [`plugins/acs/workflows/ship.yaml`](plugins/acs/workflows/ship.yaml) — a version, a
-  flat list of skill names and one `loops:` entry, and deliberately nothing
-  more: no conditions, no `needs:`, no per-step keys. A consumer can replace
+  list of skill names and one `loops:` entry, and deliberately nothing
+  more: no conditions, no `needs:`, no per-step keys. An entry may itself be
+  a list — a **parallel group** whose members run side by side (the default
+  runs `create-e2e-tests` and `docs-sync` together). A consumer can replace
   it wholesale with its own `.acs/workflows/ship.yaml`. Every step runs on
   every run; a step that owes nothing records an evidenced no-op from the
   plan's `## Contract` block rather than being skipped by a predicate, which
   is what keeps each skill runnable on its own — a skill whose applicability
   a workflow decided for it could not be trusted when invoked by hand.
   `/acs:ship <ticket-id>` is a thin loop over `acs.py run next`, the run's
-  derived cursor. **`/acs:ship` takes a ticket id** — a new request starts in
+  derived cursor. Inside a step, a coordinator fans its writers, judges and
+  surveys out over disjoint slices (at most four at once) and joins them
+  deterministically with `acs.py notes merge`. **`/acs:ship` takes a ticket id** — a new request starts in
   the Design phase with `/acs:create-ticket`. Each skill's pre/post hooks
-  check only the *inputs* that skill reads plus a couple of *safety brakes*,
-  so running one out of the declared order prints a one-line advisory, never
-  a refusal.
+  check only a couple of *safety brakes*; a skill whose upstream artifact is
+  missing works from the ticket, prompt or document instead, and running one
+  out of the declared order prints a one-line advisory, never a refusal.
 
 ## Repository layout
 

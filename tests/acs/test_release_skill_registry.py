@@ -121,20 +121,20 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         """AC-1: /acs:release adds no agents of its own.
 
         This was a hand-maintained literal (59, with a comment tracking every
-        release that moved it) until ADR-0092 made the roles a declaration in
-        skills/<name>/acs.yaml. The count is now derived from that registry, so
-        the assertion is what it always meant — the agents on disk are exactly
-        the ones some skill declares — and adding or removing a role updates
-        one line of YAML instead of a number in a test.
+        release that moved it). The roles are now read from the agents/ tree by
+        naming convention (`agents/<skill>-<role>.md`, acs_lib.skills), so the
+        assertion is what it always meant — every agent file on disk resolves
+        to a skill that ships and a role acs spawns.
         """
         declared = {"%s-%s.md" % (skill, role)
                     for skill, roles in acs_lib.skill_agents().items()
                     for role in roles}
         on_disk = {os.path.basename(p)
                    for p in glob.glob(os.path.join(AGENTS_DIR, "*.md"))}
+        self.assertEqual(acs_lib.unreachable_agents(), [])
         self.assertEqual(on_disk, declared,
-                         "every agent file must be declared in phases.yaml's "
-                         "`agents` map, and every declared role must exist")
+                         "every agent file must resolve to a shipped skill and "
+                         "a role in acs_lib.skills.ROLE_KINDS")
 
     def test_release_config_flag_passed_to_every_subcommand(self):
         for fence in _bash_fences(_read_skill_body()):

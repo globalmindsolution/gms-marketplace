@@ -1,9 +1,10 @@
 """Contract tests for /acs:ship's entry contract and its cursor-driven loop.
 
 v0.5.0 made /acs:ship a PURE ORCHESTRATOR over `acs.py run next`: the
-workflow is a flat list with one loop and no predicates, so there is no
-ready-set, no parallel mode and no skipping -- the cursor names one step, ship
-runs it, and asks again.
+workflow is a list with one loop and no predicates, so there is no
+ready-set and no skipping -- the cursor names the step due, ship runs it, and
+asks again. The one fan-out is written into the list: a parallel group, whose
+members `run next` reports together in `due` (ADR-0110).
 
 Its entry widened with the run's subject (4.9): no argument resumes this
 checkout's run, a ticket id / prompt / document names a subject, and `--run`
@@ -201,7 +202,7 @@ class LoopDelegationTest(unittest.TestCase):
                       "resolve through CLAUDE_PLUGIN_ROOT")
 
     def test_loop_consumes_every_field_run_next_returns(self):
-        for field in ("run_id", "next", "status", "done"):
+        for field in ("run_id", "next", "due", "parallel", "status", "done"):
             self.assertIn(field, self.loop, field)
 
     def test_there_is_no_mode_and_no_parallel_section(self):
@@ -214,6 +215,7 @@ class LoopDelegationTest(unittest.TestCase):
     def test_the_cursor_offers_one_step(self):
         self.assertIsNotNone(
             re.search(r"(?i)there is one step at a time", norm(self.body)))
+        self.assertIn("Running a parallel group", self.body)
         self.assertIsNotNone(
             re.search(r"(?i)the first step that is not\s+`?completed`?",
                       norm(self.body)))

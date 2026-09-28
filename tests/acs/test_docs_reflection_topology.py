@@ -4,15 +4,15 @@ Several acs docs still described the reflection topology from before the
 producer-skill additions (create-quality, create-operations,
 create-principles, create-standards, standardize-project). This module
 DERIVES the live topology counts (skills on disk, agent files on disk,
-`acs_lib.HOOKED_SKILLS`, the executor + verifier pairs the registry declares,
-and the live `s04_skill_triggers.py` CASES count) and positively pins the
-five affected docs to those derived figures, so the counts cannot silently
-drift again.
+`acs_lib.HOOKED_SKILLS`, the per-skill roles read from the agents/ tree, and
+the shipped-skill routing count) and positively pins the affected docs to
+those derived figures, so the counts cannot silently drift again.
 
-ADR-0092 retired the planner role from every skill, so the "triad" the
-original pins counted no longer exists: the unit is now the executor +
-verifier PAIR, and the count of skills that own one is read from the
-registry (`skills/<name>/acs.yaml`), never hardcoded.
+ADR-0109 replaced the generic executor + verifier pair with roles named for
+each skill's own work, each of a kind (survey / write / judge). The unit the
+docs count is therefore the skill that runs a REFLECTION LOOP -- a writer and
+a judge -- and the roles are read from the tree (`agents/<skill>-<role>.md`,
+acs_lib.skills), never hardcoded.
 
 Stdlib-only (ast, glob, importlib, os, re, unittest). Run:
   python3 -m unittest tests.acs.test_docs_reflection_topology -v
@@ -32,17 +32,18 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
-#: Skills whose only agent is an executor: the work is DOING something to the
-#: world (a ticket, a PR, a merge, a changeset) rather than authoring a
-#: document a verifier could re-derive. `/acs:code` joined them when the review
-#: left for `/acs:review-code` (§3.5).
-EXECUTOR_ONLY = {"create-ticket", "create-pr", "merge-pr", "code"}
-#: Pair-running skills the docs count SEPARATELY from the authoring ones:
+#: Skills whose only agent WRITES: `/acs:code`'s implementer builds a
+#: changeset, and the review is `/acs:review-code`'s (§3.5).
+WRITER_ONLY = {"code"}
+#: Skills that own no subagent at all and run inline (ADR-0109): each is a
+#: sequence of commands with nothing for a separate agent to judge.
+INLINE = {"create-ticket", "create-pr", "merge-pr"}
+#: Reflection-loop skills the docs count SEPARATELY from the authoring ones:
 #: `/acs:create-docs` was the first class-D skill (ADR-0094).
-NON_AUTHORING_PAIRS = {"create-docs"}
-#: The review's own roles. It is not a pair and never was: five lenses raise
-#: candidates and one adjudicator per finding tries to refute them (§3.6).
-REVIEW_ROLES = {"review-code": ["lens", "adjudicator"]}
+NON_AUTHORING_LOOPS = {"create-docs"}
+#: The review's own roles. It is not a loop: five lenses raise candidates and
+#: one adjudicator per finding tries to refute them (§3.6).
+REVIEW_ROLES = {"review-code": ["adjudicator", "lens"]}
 
 
 def read(path):
@@ -114,16 +115,20 @@ def derive():
     acs_lib = _load_acs_lib()
     hooked = list(acs_lib.HOOKED_SKILLS)
     n_hooked = len(hooked)
-    # Reachable = every role some skill DECLARES it owns. Read from the
-    # registry (ADR-0092) rather than recomputed from hardcoded sets, which
-    # were a third copy of the same fact and the reason the doc and the disk
-    # could disagree.
+    # Reachable = every role some skill owns, read from the tree by naming
+    # convention (ADR-0109) rather than recomputed from hardcoded sets.
     declared_roles = acs_lib.skill_agents()
     reachable = sum(len(roles) for roles in declared_roles.values())
     orphaned = n_agents - reachable
+    kinds = acs_lib.ROLE_KINDS
+    # A reflection loop: at least one writer and at least one judge, and not
+    # the review's lens/adjudicator fan-out.
     pairs = sorted(s for s, roles in declared_roles.items()
-                   if sorted(roles) == ["executor", "verifier"])
-    authoring = [s for s in pairs if s not in NON_AUTHORING_PAIRS]
+                   if s not in REVIEW_ROLES
+                   and any(kinds[r] == "write" for r in roles)
+                   and any(kinds[r] == "judge" for r in roles))
+    authoring = [s for s in pairs if s not in NON_AUTHORING_LOOPS]
+    authoring_agents = sum(len(declared_roles[s]) for s in authoring)
     return {
         "n_skills": n_skills,
         "agent_files": agent_files,
@@ -134,6 +139,7 @@ def derive():
         "n_pairs": len(pairs),
         "authoring": authoring,
         "n_authoring": len(authoring),
+        "authoring_agents": authoring_agents,
         "reachable": reachable,
         "declared_roles": declared_roles,
         "orphaned": orphaned,
@@ -142,9 +148,6 @@ def derive():
 
 
 D = derive()
-
-#: Every role an agent file may carry, longest-suffix-safe.
-ROLE_SUFFIXES = ("executor", "verifier", "planner", "adjudicator", "lens")
 
 NEW_TRIAD_SUFFIXES = (
     "standardize-project", "create-requirements", "analyze-requirements",
@@ -158,45 +161,34 @@ class TopologyDerivationTest(unittest.TestCase):
     the doc assertions below are built on."""
 
     def test_every_agent_file_belongs_to_a_hooked_skill(self):
-        """Every agent file is `<skill>-<role>.md` for a skill that is hooked.
-        The converse does not hold and should not: `/acs:run-e2e-tests` runs
-        commands and reads their output, which is what a coordinator is for."""
+        """Every agent file is `<skill>-<role>.md` for a hooked skill and a
+        role acs spawns. The converse does not hold and should not:
+        `/acs:run-e2e-tests` runs commands and reads their output, and the
+        inline skills (ADR-0109) do their work in the coordinator."""
+        acs_lib = _load_acs_lib()
         prefixes = set()
         for path in D["agent_files"]:
             base = os.path.splitext(os.path.basename(path))[0]
-            for role in ROLE_SUFFIXES:
-                if base.endswith("-" + role):
-                    prefixes.add(base[: -len(role) - 1])
-                    break
-            else:
-                self.fail("%s does not end in a known role" % path)
+            skill, role = acs_lib.split_agent_name(base)
+            self.assertIsNotNone(skill, "%s does not resolve to a skill and role" % path)
+            prefixes.add(skill)
         self.assertTrue(prefixes <= set(D["hooked"]),
                         sorted(prefixes - set(D["hooked"])))
-        self.assertEqual(set(D["hooked"]) - prefixes, {"run-e2e-tests"})
+        self.assertEqual(set(D["hooked"]) - prefixes, {"run-e2e-tests"} | INLINE)
 
-    def test_no_planner_file_and_no_planner_declaration(self):
-        """ADR-0092: the planner role is gone from the registry and the disk."""
-        for path in D["agent_files"]:
-            self.assertFalse(os.path.basename(path).endswith("-planner.md"), path)
+    def test_no_generic_triad_role_survives(self):
+        """ADR-0092 retired the generic planner; ADR-0109 the generic executor
+        and verifier. The one `planner` left is create-impl-plan's own role --
+        the agent that writes the implementation plan, named for what it does."""
         for skill, roles in D["declared_roles"].items():
-            self.assertNotIn("planner", roles, skill)
+            self.assertNotIn("executor", roles, skill)
+            self.assertNotIn("verifier", roles, skill)
+            if skill != "create-impl-plan":
+                self.assertNotIn("planner", roles, skill)
 
     def test_agent_count_matches_the_role_inventory(self):
-        """The files on disk are exactly the roles the registry declares.
-
-        Each skill declares its own shape (ADR-0092), so there is no formula
-        to apply and no per-skill exception to carve out: the inventory IS the
-        declaration.
-        """
+        """The files on disk are exactly the roles the tree resolves."""
         self.assertEqual(D["n_agents"], D["reachable"])
-
-    def test_every_agent_on_disk_is_declared(self):
-        declared = {"%s-%s" % (skill, role)
-                    for skill, roles in D["declared_roles"].items()
-                    for role in roles}
-        on_disk = {os.path.splitext(os.path.basename(p))[0]
-                   for p in D["agent_files"]}
-        self.assertEqual(on_disk, declared)
 
     def test_no_agent_is_orphaned(self):
         """Was `test_orphaned_is_six`, and six was the point.
@@ -209,20 +201,22 @@ class TopologyDerivationTest(unittest.TestCase):
         """
         self.assertEqual(D["orphaned"], 0)
 
-    def test_pairs_are_the_authoring_skills_plus_create_docs(self):
-        self.assertEqual(set(D["pairs"]) - set(D["authoring"]), NON_AUTHORING_PAIRS)
+    def test_loops_are_the_authoring_skills_plus_create_docs(self):
+        self.assertEqual(set(D["pairs"]) - set(D["authoring"]), NON_AUTHORING_LOOPS)
         self.assertEqual(D["n_authoring"], 12)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, D["authoring"])
-        executors_only = [s for s, roles in D["declared_roles"].items()
-                          if roles == ["executor"]]
-        self.assertEqual(set(executors_only), EXECUTOR_ONLY)
+        writers_only = [s for s, roles in D["declared_roles"].items()
+                        if roles == ["implementer"]]
+        self.assertEqual(set(writers_only), WRITER_ONLY)
+        for skill in INLINE:
+            self.assertNotIn(skill, D["declared_roles"])
 
-    def test_the_review_owns_lenses_and_adjudicators_not_a_pair(self):
-        """`/acs:review-code` is the one skill whose roles are neither a pair
-        nor a lone executor, and the registry is where that is declared."""
+    def test_the_review_owns_lenses_and_adjudicators_not_a_loop(self):
+        """`/acs:review-code` is the one skill whose roles are neither a
+        reflection loop nor a lone writer."""
         for skill, roles in REVIEW_ROLES.items():
-            self.assertEqual(D["declared_roles"].get(skill), roles)
+            self.assertEqual(sorted(D["declared_roles"].get(skill)), roles)
         self.assertNotIn("review-code", D["pairs"])
 
 
@@ -247,7 +241,9 @@ class InternalsTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d files" % D["n_agents"], body)
         self.assertIn("%d reachable" % D["reachable"], body)
-        self.assertIn("%d executor + verifier pairs" % D["n_pairs"], body)
+        self.assertIn("%s skills that run a write → judge loop"
+                      % {13: "thirteen"}[D["n_pairs"]], body)
+        self.assertNotIn("executor + verifier pairs", body)
         self.assertIn("%d agent files named" % D["n_agents"], body)
 
     def test_stale_forms_absent(self):
@@ -273,7 +269,7 @@ class OverviewTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d agent files exist on disk" % D["n_agents"], body)
         self.assertIn("%d are reachable" % D["reachable"], body)
-        self.assertIn("%d for the twelve" % (D["n_authoring"] * 2), body)
+        self.assertIn("%d for the twelve" % D["authoring_agents"], body)
 
     def test_pair_enumeration_names_new_skills(self):
         body = self._body()
@@ -334,25 +330,27 @@ class ReflectionTopologyTest(unittest.TestCase):
         self.assertIn("%d agent files exist on disk in total" % D["n_agents"], body)
 
     def test_the_role_shapes_are_counted_and_add_up(self):
-        """Three shapes, and the doc names each with its count: pairs that
-        author, executor-only skills that DO something to the world, and the
-        review, which is neither."""
+        """Three shapes, and the doc names each with its count: write → judge
+        loops, the write-only skill whose judge is a separate step, and the
+        review, which is judge-only (ADR-0109)."""
         body = self._body()
-        self.assertIn("**Thirteen** skills run the execute\u2192verify cycle", body)
+        self.assertIn("**Thirteen** skills run the write → judge cycle", body)
         self.assertIn("**twelve** authoring", body)
-        self.assertIn("**Four** prefixes are executor-only", body)
-        self.assertIn("**One** prefix is neither", body)
+        self.assertIn("**One** prefix is write-only: `code`", body)
+        self.assertIn("**One** prefix is judge-only: `review-code`", body)
         self.assertNotIn("triad", body)
-        # ...and the words match the registry, not just each other.
+        self.assertNotIn("executor-only", body)
+        # ...and the words match the tree, not just each other.
         self.assertEqual(D["n_pairs"], 13)
         self.assertEqual(D["n_authoring"], 12)
         self.assertEqual(
-            len([s for s, roles in D["declared_roles"].items() if roles == ["executor"]]), 4)
+            len([s for s, roles in D["declared_roles"].items() if roles == ["implementer"]]), 1)
 
-    def test_pattern_heading_is_execute_verify_and_names_new_skills(self):
+    def test_pattern_heading_is_write_judge_and_names_new_skills(self):
         body = self._body()
         self.assertNotIn("## Reflection pattern: plan", body)
-        window = section(body, "## Reflection pattern: execute")
+        self.assertNotIn("## Reflection pattern: execute", body)
+        window = section(body, "## Reflection pattern: write → judge")
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, window,
                           "reflection.md pattern heading must name -%s" % suffix)
@@ -374,7 +372,7 @@ class PrdTopologyTest(unittest.TestCase):
     def test_must_have_reachable_and_authoring_pairs(self):
         body = self._body()
         self.assertIn("only %d are reachable" % D["reachable"], body)
-        self.assertIn("%d agents in the twelve authoring skills" % (D["n_authoring"] * 2), body)
+        self.assertIn("%d agents in the twelve authoring skills" % D["authoring_agents"], body)
 
     def test_discoverability_bullet_skill_count(self):
         body = self._body()
@@ -448,7 +446,7 @@ class SkillsMdUnchangedTest(unittest.TestCase):
 
     def test_twelve_authoring_list_intact(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Nine **workflow/product skills**", body)
+        self.assertNotIn("Nine **workflow/product skills**", body)
         self.assertNotIn("Eleven **workflow/product skills**", body)
         self.assertIn("twelve **authoring skills**", body)
         self.assertNotIn("triad", body)

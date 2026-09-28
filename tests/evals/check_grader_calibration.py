@@ -181,7 +181,8 @@ PYTEST = {"tests": {"command": "python3 -m pytest -q --cov=src --cov-fail-under=
 
 def _ticket(ws, **overrides):
     """What /acs:create-ticket does: allocate (the mandatory first action),
-    then the executor's rewrite of ticket.json."""
+    then the coordinator's inline rewrite of ticket.json (Step 3,
+    `references/materialize.md`)."""
     ws.skill("create-ticket")
     start = ws.acs("step", "start", "--step", "create-ticket", "--allocate", "--type", "task",
                    "--title", "(ticket under analysis)", "--args", "Add a /health endpoint")

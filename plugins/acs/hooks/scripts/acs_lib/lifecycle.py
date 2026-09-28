@@ -48,10 +48,13 @@ from .repo import find_ticket_partition, pointer_path, resolve_ticket_id, sessio
 from .tickets import load_ticket
 from .step import last_invocation, last_status, load_state
 from . import verdict
+from . import skills as skills_registry
 
-#: agent_type suffix -> the phase name its artifact is filed under. Two roles
-#: since ADR-0092: no skill spawns a planner, so no `-planner` agent can stop.
-ROLE_PHASES = {"executor": "execute", "verifier": "verify"}
+#: Roles the lifecycle hooks do not track. /acs:review-code's lenses and
+#: adjudicators fan out in parallel, one per lens and one per finding, and the
+#: coordinator persists what they return itself (§3.6) -- a per-iteration
+#: snapshot keyed by role would have every sibling overwrite the last.
+UNTRACKED_ROLES = frozenset({"lens", "adjudicator"})
 
 #: How many times one hook may refuse the same thing before giving up and
 #: letting it through with a warning. A hook that can block forever is a hung
@@ -88,21 +91,25 @@ RESULT_ROOTS = ("result", "handoff")
 #: A returned message, in either form the schema allows: a paired element, or
 #: an empty one written self-closing (`<result .../>` -- every child of `result`
 #: is minOccurs="0", so a subagent legitimately returns one with no body).
+#: A slice id names a file, so it is held to what a file name can safely be.
+_SLICE_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]{0,39}$")
+
 _MESSAGE_RE = re.compile(r"<(result|handoff)\b(?:[^>]*/>|.*?</\1>)", re.DOTALL)
 
 
 def parse_agent_type(agent_type):
-    """('code', 'executor') from 'acs:code-executor'; (None, None) for anything else.
+    """('code', 'implementer') from 'acs:code-implementer'; (None, None) for
+    anything the lifecycle hooks do not track.
 
-    Split from the RIGHT: skill names contain hyphens (`create-pr`,
-    `docs-sync`, `standardize-project`), so splitting from the left would make
-    `acs:create-pr-executor` a skill named "create" -- a bug that only shows up
-    on the hyphenated half of the skill list.
+    Not a positional split: skill names AND role names contain hyphens
+    (`create-impl-plan-plan-reviewer`), so the skill is the longest shipped
+    skill name the agent name starts with and the rest must be a role acs
+    spawns (acs_lib.skills.split_agent_name).
     """
     if not isinstance(agent_type, str) or not agent_type.startswith("acs:"):
         return None, None
-    skill, _, role = agent_type[len("acs:"):].rpartition("-")
-    if role not in ROLE_PHASES or skill not in HOOKED_SKILLS:
+    skill, role = skills_registry.split_agent_name(agent_type[len("acs:"):])
+    if not skill or skill not in HOOKED_SKILLS or role in UNTRACKED_ROLES:
         return None, None
     return skill, role
 
@@ -154,7 +161,8 @@ def record_agent_start(tdir, agent_id, agent_type, session_id=None, checkout_id=
         "agent_type": agent_type,
         "skill": skill,
         "role": role,
-        "phase": ROLE_PHASES.get(role),
+        "kind": skills_registry.role_kind(role),
+        "phase": role,
         "session_id": session_id,
         "checkout_id": checkout_id,
         "started_at": now_iso(),
@@ -249,26 +257,32 @@ def extract_message(text):
     return matches[-1].group(0) if matches else None
 
 
-def phase_artifact_path(rdir, skill, iteration, phase):
+def phase_artifact_path(rdir, skill, iteration, phase, slice_id=None):
     """The raw-message snapshot, in the iteration directory.
 
-    `<phase>-message.xml`, and both halves of that name are load-bearing.
+    `<phase>-message.xml`, and both halves of that name are load-bearing. A
+    SLICED instance -- one of several copies of the same agent a coordinator
+    ran in parallel over disjoint work -- lands at `<phase>-<slice>-message.xml`
+    instead: parallel siblings share a phase and an iteration, so without the
+    slice every one of them would overwrite the last.
 
-    **`-message`**, because `<phase>.json` COLLIDED with the step's own
-    report: `ROLE_PHASES["executor"] == "execute"`, and the executor is told
-    (skills/code/references/execute.md) to write its JSON report to
-    `iter-<n>/execute.json`. SubagentStop fires after the executor returns, so
-    the snapshot landed on top of it — and `derive.execute_reports`, which
-    reads `execute*.json`, then found a file that does not parse. The snapshot
-    and the report are two different artifacts and need two names.
+    **`-message`**, because `<phase>.json` COLLIDES with the agent's own
+    report: the phase is the role, and every agent writes its JSON report to
+    `iter-<n>/<role>.json` (skills/code/references/execute.md for the
+    implementer). SubagentStop fires after the agent returns, so a snapshot
+    named `<phase>.json` would land on top of the report -- and
+    `derive.execute_reports`, which reads `implementer*.json`, would then find
+    a file that does not parse. The snapshot and the report are two different
+    artifacts and need two names.
 
     **`.xml`**, because that is what is in it. The message contract is JSON
     (§6) and the XSD is gone, but `write_phase_snapshot` still receives and
     persists a raw XML message; naming the file `.json` did not make its bytes
     JSON, it only made every JSON reader downstream fail on it."""
     from .run import iteration_dir
+    name = "%s-%s" % (phase, slice_id) if slice_id else phase
     return os.path.join(iteration_dir(rdir, skill, int(iteration)),
-                        "%s-message.xml" % phase)
+                        "%s-message.xml" % name)
 
 
 def in_flight_step(rdir, ctx=None, run_id=None):
@@ -294,6 +308,20 @@ def in_flight_step(rdir, ctx=None, run_id=None):
         if pointed and last_status(rdir, pointed) == "in_progress":
             return pointed
     return in_progress_step(load_run(rdir) or {})
+
+
+def in_flight_steps(rdir, ctx=None, run_id=None):
+    """EVERY step in flight: `in_flight_step` first, then each other step the
+    run ledger records `in_progress`. A parallel group (ADR-0110) has several,
+    and SessionEnd and a handoff must finalize all of them -- finalizing only
+    the first left its sibling claiming to run in a session that is gone."""
+    from .run import in_progress_steps, load_run
+    first = in_flight_step(rdir, ctx, run_id)
+    steps = [first] if first else []
+    for step in in_progress_steps(load_run(rdir) or {}):
+        if step not in steps:
+            steps.append(step)
+    return steps
 
 
 def resolve_partition(cwd, ctx=None):
@@ -525,6 +553,10 @@ def validate_message(message):
     iteration = (root.get("iteration") or "").strip()
     if iteration and (not iteration.isdigit() or int(iteration) < 1):
         errors.append("iteration= must be a positive integer")
+    slice_id = root.get("slice")
+    if slice_id is not None and not _SLICE_RE.match(slice_id):
+        errors.append("slice= must be a short id of letters, digits, '_' or '-' "
+                      "(it names the snapshot file)")
     return errors
 
 
@@ -613,7 +645,7 @@ def write_phase_snapshot(tdir, skill, role, message):
         return None
     if root.tag == "handoff":
         return None  # a handoff is not a phase artifact; the run's ledger carries it
-    phase = root.get("phase") or ROLE_PHASES.get(role)
+    phase = root.get("phase") or role
     # The schema defaults an absent `iteration` to 1, so a message that omits it
     # is CLAIMING to be iteration 1 -- which on a later iteration would land on
     # the earlier one's snapshot. The message is what is wrong there, not the
@@ -623,7 +655,8 @@ def write_phase_snapshot(tdir, skill, role, message):
     declared_skill = root.get("skill") or skill
     if not phase:
         return None
-    path = phase_artifact_path(tdir, declared_skill, iteration, phase)
+    path = phase_artifact_path(tdir, declared_skill, iteration, phase,
+                               slice_id=root.get("slice"))
     if declared_iteration is None and os.path.exists(path):
         with open(path, encoding="utf-8") as fh:
             if fh.read().strip() != message.strip():
@@ -651,16 +684,21 @@ def stop(payload):
     run_id, rdir, ctx = resolve_partition(cwd)
     if not rdir:
         return 0
-    step = in_flight_step(rdir, ctx, run_id)
-    if not step:
+    running = in_flight_steps(rdir, ctx, run_id)
+    if not running:
         clear_stop_blocks(ctx)
         return 0
-    key = "%s/%s" % (run_id, step)
-    result = result_document(rdir, step)
-    if result and result.get("status") in ("completed", "failed", "interrupted"):
-        # The document exists; only the post hook is outstanding, and its own
-        # absence is what the next gate reports. Not this hook's call to make.
+    # A step whose result document exists has only the post hook outstanding,
+    # and its own absence is what the next gate reports -- not this hook's call
+    # to make. With a parallel group, the reminder names the first member that
+    # has no result yet.
+    unfinished = [s for s in running
+                  if not ((result_document(rdir, s) or {}).get("status")
+                          in ("completed", "failed", "interrupted"))]
+    if not unfinished:
         return 0
+    step = unfinished[0]
+    key = "%s/%s" % (run_id, step)
 
     waiting = open_clarifications(rdir)
     if waiting:

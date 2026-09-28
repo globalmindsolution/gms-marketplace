@@ -8,16 +8,19 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-design. Your job: turn a design-significant
 ticket (`needs_design: true`) into an approved `design.md` in the ticket's docs
 folder — context, at least two genuinely-weighed options, a decision with
-rationale, the architecture of the change, risks, and rollout — verified by a fresh
-verifier before it gates `/acs:code`. You orchestrate executor/verifier
-subagents over XML — execute → verify, no planner (ADR-0092); you never write
-the design content yourself.
+rationale, the architecture of the change, risks, and rollout — judged by a fresh
+design reviewer before it gates `/acs:code`. You orchestrate two subagents over
+XML — the **designer**, which surveys the decisions and options and writes the
+draft, and the **design reviewer**, which judges it (designer → design review);
+you never write the design content yourself.
 
-The pre-hook (`pre-create-design.py`) checks this skill's INPUTS, not its place in
-any order: settings exist, the ticket resolves to a live, unlocked partition, and
-the ticket carries `needs_design: true`. It does NOT check that a
-`/acs:create-ticket` run is recorded completed — the partition existing IS the
-ticket having been created, and pipeline order lives in
+The pre-hook (`pre-create-design.py`) checks this skill's SUBJECT, never its
+place in any order and never whether an upstream artifact exists: settings
+exist, the ticket resolves to a live, unlocked partition, and the ticket
+carries `needs_design: true`. It does NOT check that a `/acs:create-ticket`
+run is recorded completed — the partition existing IS the ticket having been
+created — nor that an analysis or architecture doc set exists: the skill
+works from what it finds (Inputs below). Pipeline order lives in
 `workflows/ship.yaml`, not in the gate. Epic children inherit the EPIC's design —
 this skill runs on the epic (or a design-flagged story/task), never on a child;
 a child carries `needs_design: false`, so the flag check blocks it automatically.
@@ -36,7 +39,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-de
   directory — all state lives here), `ticket` (full ticket doc: type, description,
   acceptance criteria, parent, children), `ticket_id`, `settings` (notably
   `formats` and `enforcement.design_sections`),
-  `models` (resolved executor/verifier model+effort), `reconcile`,
+  `models` (resolved model+effort per tier: the designer runs on `executor`,
+  the design reviewer on `verifier`), `reconcile`,
   `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
   (consumer repo root).
 - Locate the repo documents this skill reads, once, the way any session finds
@@ -76,14 +80,14 @@ chooses is the path that opens the next gate. Call it `<design_path>` below.
 
 The working draft lives at `steps/create-design/design.md`; the
 published file is a copy of those exact bytes (see Publish). The draft is
-workspace state — the executor writes it and the verifier judges it, and the
-file-map guard denies any subagent a write under the ticket docs tree.
+workspace state — the designer writes it and the design reviewer judges it,
+and the file-map guard denies any subagent a write under the ticket docs tree.
 
 ## Resume & reconcile
 
 - If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
   `handed_off`): verify recorded progress against reality BEFORE continuing —
-  list `steps/create-design/iter-*-*.xml`, re-resolve the design
+  list `steps/create-design/iter-*/*-message.xml`, re-resolve the design
   artifact (above) and re-read the draft and `<design_path>` if they exist, and
   check whether their content actually
   matches the last persisted phase output. Trust nothing you cannot see in a
@@ -94,16 +98,23 @@ file-map guard denies any subagent a write under the ticket docs tree.
 - If `context.handoff_summary` exists: read it plus
   `steps/create-design/handoff-context.md` (when present), do a light
   reconcile (spot-check the named artifacts), and continue from where it points.
-- There is no plan artifact to reuse: continue from the first unfinished
-  phase — an execute with no verify → verify it; a verify with findings and
-  no later execute → execute with those findings as `<context>`. The
-  executor's authoring notes (`iter-<n>/authoring.md`) belong to their
-  iteration.
-- Fresh run (`reconcile` false): start at iteration 1, execute phase.
+- Continue from the first unfinished phase — a designer pass with no
+  review → review it; a review with findings and no later designer pass →
+  run the designer with those findings as `<context>`. The designer's
+  authoring notes (`iter-<n>/authoring.md`) belong to their iteration.
+- A sliced phase resumes slice by slice: re-run ONLY the slices whose own
+  report is missing — the scope pass without `iter-1/authoring-scope.md`, a
+  research slice without `iter-1/authoring-<id>.md` or
+  `iter-1/designer-<id>.json`, a draft pass without `iter-1/designer.json`
+  (or, after a research pass, `iter-1/authoring-synthesis.md`), a design-reviewer slice without
+  `iter-<n>/design-reviewer-<id>.md` — in one message, then redo the join
+  with `acs.py notes merge`; a joined file is always rebuilt from its slice
+  files, never trusted on its own.
+- Fresh run (`reconcile` false): start at iteration 1, designer phase.
 
 ## Inputs — gather before the loop
 
-Read (you and your executor; reference by path in XML, do not inline file bodies):
+Read (you and your designer; reference by path in XML, do not inline file bodies):
 
 1. The ticket document (`ticket.md` in the docs folder, or `ticket.json` in the
    partition — whichever `acs.py artifacts show` reports as `source_path`):
@@ -118,30 +129,44 @@ Read (you and your executor; reference by path in XML, do not inline file bodies
    absent, note that in design.md and design against the codebase directly.
 3. The PRD at `<checkout_root>/<prd>` when present —
    product-level NFRs and constraints bound the design.
-4. The consumer repo's code and docs relevant to the ticket (the executor's
+4. The consumer repo's code and docs relevant to the ticket (the designer's
    survey identifies the exact files).
 
-## Reflection loop — execute → verify, no planner
+Any of 2-4 may be absent; the ticket itself is always there, and the design
+is then grounded in the ticket and the codebase as it is.
 
-The loop is execute → verify, max 3 iterations. There is no plan phase:
-iteration 1's executor surveys the ticket, the architecture doc set and the
-codebase, writes its authoring notes, and authors the design draft from
-them; the verifier judges the result fresh. On iterations 2-3 the
-verifier's findings go verbatim into the next executor `<task>` `<context>`
-and the executor authors the remediation. Decomposition is YOURS alone —
-subagents never spawn subagents.
+## Reflection loop — designer → design review
 
-**What an iteration counts:** one execute → verify round.
-`/acs:create-design` has no path-driven verify-depth selection: the cap is
+The loop is designer → design review, max 3 iterations. Weighing the options
+and writing them down are one act — the decisions and trade-offs the survey
+records are the draft's own sections — so one role does both, in three
+passes on iteration 1: the **scope pass** surveys the ticket, the
+architecture doc set and the codebase and lists the major decisions; the
+**option-research pass** weighs each major decision's options in parallel,
+one designer per decision; the **draft pass** — a single designer, because
+`design.md` is ONE document and cannot be split into disjoint files —
+authors the design draft from the joined notes. The design reviewer then
+judges the result fresh, itself sliced by dimension. On iterations 2-3 the
+design reviewer's findings go verbatim into the next designer `<task>`
+`<context>` and the designer authors the remediation. Decomposition is YOURS
+alone — subagents never spawn subagents; every fan-out below is yours.
+
+**What an iteration counts:** one designer → design review round.
+`/acs:create-design` has no path-driven review-depth selection: the cap is
 a fixed 3 on every run.
+
+| Role | Kind | Agent | Model tier |
+|------|------|-------|------------|
+| designer | write | `acs:create-design-designer` | `context.models.executor` |
+| design-reviewer | judge | `acs:create-design-design-reviewer` | `context.models.verifier` |
 
 For every phase:
 
 1. Compose a `<task>` per `the SubagentStop hook's message check`:
 
    ```xml
-   <task skill="create-design" phase="execute" ticket-id="SHOP-123" iteration="1">
-     <objective>Survey the ticket, architecture doc set, and codebase; record the open design decisions, candidate options (>=2 per decision) and the genuinely-open points needing user input in the authoring notes; then write the design draft from them.</objective>
+   <task skill="create-design" phase="designer" slice="scope" ticket-id="SHOP-123" iteration="1">
+     <objective>Scope pass: survey the ticket, architecture doc set, and codebase; record the major design decisions (ids d1, d2, …), candidate options (>=2 per decision) and the genuinely-open points needing user input in iter-1/authoring-scope.md. Write no draft.</objective>
      <inputs>
        <file>/abs/repo/docs/tickets/SHOP-123/ticket.md</file>
        <file>/abs/repo/docs/architecture/hld/c4-container.md</file>
@@ -156,18 +181,19 @@ For every phase:
    </task>
    ```
 
-2. Validate EVERY message you send and receive:
-
-   ```bash
-   ```
-
-   subagent: re-request once with the validation error quoted; still invalid →
+2. Validate EVERY message you send and receive — the SubagentStop hook
+   checks each one a subagent returns and reports why it is invalid. On an
+   invalid message from a subagent: re-request once with the validation
+   error quoted; still invalid →
    fail the run, recording the error in `errors`.
 
 3. Spawn the subagent with the Agent tool, `subagent_type` as below (fall back to
-   the un-namespaced name only if the runtime rejects the namespaced one). Apply
-   `context.models.<role>.model` / `.effort` at spawn when not `"inherit"`; if the
-   runtime rejects the model or effort, FAIL the run with that exact error — no
+   the un-namespaced name only if the runtime rejects the namespaced one). The
+   `phase=` of every task and result is the role (`designer`,
+   `design-reviewer`). Apply the role's tier — `context.models.executor.model`
+   / `.effort` for the designer, `context.models.verifier.model` / `.effort`
+   for the design reviewer — at spawn when not `"inherit"`; if the runtime
+   rejects the model or effort, FAIL the run with that exact error — no
    silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
@@ -178,33 +204,120 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-4. Persist the phase's `<task>` and `<result>` to
-   `steps/create-design/iter-<n>/<phase>.json` at the phase boundary,
-   BEFORE starting the next phase. The executor's own artifacts are
-   `iter-<n>/authoring.md` (its survey: Analysis; Decisions & candidate
-   options with trade-offs; NFR checklist; Architecture conformance call;
-   Open questions; Risks; Verifier checklist) and `iter-<n>/execute.json`;
-   every iteration's verifier `<inputs>` name that iteration's authoring
-   notes.
+4. The phase's `<task>` and `<result>` are persisted at the phase boundary,
+   BEFORE the next phase starts: the SubagentStop hook snapshots each
+   returned message to `steps/create-design/iter-<n>/<role>-message.xml`
+   (a sliced instance: `iter-<n>/<role>-<id>-message.xml`);
+   if that snapshot is missing (a host that does not fire the hook), write
+   it yourself. The designer's own artifacts are `iter-<n>/authoring.md`
+   (its survey: Analysis; Decisions & candidate options with trade-offs;
+   NFR checklist; Architecture conformance call; Open questions; Risks;
+   Reviewer checklist — on iteration 1 joined from the scope and research
+   slices' `iter-1/authoring-<id>.md`) and `iter-<n>/designer.json`
+   (`iter-<n>/designer-<id>.json` per slice); the design reviewer's is
+   `iter-<n>/design-reviewer.md`, joined from its slices'
+   `iter-<n>/design-reviewer-<id>.md`. Every iteration's design-reviewer
+   `<inputs>` name that iteration's joined authoring notes.
 
-### Phase: execute — `acs:create-design-executor`
+### Fan-out rules (every sliced phase)
+
+- **One message, then wait for all.** The parallel instances of a phase are
+  the SAME agent spawned N times in ONE message — one Agent call per slice,
+  each `run_in_background: false` — and you wait for every one of them
+  before the join. Cap: at most `max_parallel = 4` instances per phase;
+  more slices than that run in waves of 4, and the next phase starts only
+  after the last wave is joined.
+- **Slice ids.** Each instance's task and result carry `slice="<id>"`
+  (`<task skill="create-design" phase="designer" slice="d1" …>`), so the
+  SubagentStop snapshot lands at `iter-<n>/<role>-<id>-message.xml` and
+  siblings never collide. A slice id is a short lowercase token (letters,
+  digits, hyphens). A single, un-sliced instance omits `slice` and writes
+  the un-suffixed file names.
+- **The join is deterministic** — never merge prose by hand:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-design/iter-1/authoring.md \
+  <partition>/steps/create-design/iter-1/authoring-scope.md \
+  <partition>/steps/create-design/iter-1/authoring-d1.md <…/authoring-d2.md> …
+```
+
+  It merges by `## ` heading — the first file's preamble, each H2 once in
+  first-seen order, the bodies concatenated in input order, each prefixed by
+  a `<!-- slice: <id> -->` line — writes `--out`, prints `{ok, out,
+  sections, inputs}`, and fails on a missing input. The draft designer and
+  the design reviewer read the ONE joined file, each section once.
+
+### Phase: designer — `acs:create-design-designer`
 
 Objective, iteration 1: from ticket + architecture docs + codebase, survey
 the decisions to make, >=2 candidate options per major decision with
 preliminary trade-offs, the affected components/flows/data, the NFR
 checklist (security, performance at minimum), and the genuinely open points
 (user-preference or business trade-offs, not researchable facts) — recorded
-in the authoring notes — then write the design draft from them. The executor
+in the authoring notes — then write the design draft from them. The designer
 also runs the shared ADR-0012 design-time doc-consistency step; any findings
 surface through the "Clarification ledger first" mechanism below (User
-interaction).
+interaction). Iteration 1 runs that objective as three passes and a join:
 
-If the executor returns `needs_input` with `<questions>`, resolve them in
-"User interaction" below and re-run execute for the same iteration with the
+1. **Scope pass** — ONE designer, `slice="scope"`, writes no draft: the
+   whole survey above into `iter-1/authoring-scope.md` (every section of the
+   notes), with each major decision given a short id `d1`, `d2`, … and
+   its preliminary options, plus `iter-1/designer-scope.json`; it also runs
+   the ADR-0012 doc-consistency step.
+2. **Option-research pass — parallel, when the scope notes list two or more
+   major decisions.** One designer per major decision, `slice="<decision
+   id>"`, all spawned in ONE message (cap 4 per wave), each task carrying
+   `<constraint name="decision">` with that decision's id and one-line
+   statement and the scope notes in `<inputs>`. The partition is by
+   decision: a research slice researches ONLY its own decision — its
+   candidate options (>=2 genuinely viable, how each works), their
+   trade-offs against the NFR checklist and constraints, the code and doc
+   evidence, and that decision's genuinely open points — and writes ONLY
+   `iter-1/authoring-<id>.md` (sections `## Decisions & candidate options`,
+   `## Open questions`, `## Risks`) and `iter-1/designer-<id>.json`; it never
+   touches the draft or another decision's file, so the slices cannot
+   overlap. With fewer than two major decisions there is nothing to split:
+   skip this pass — the scope notes' options stand.
+3. **Join** — `acs.py notes merge --out iter-1/authoring.md
+   iter-1/authoring-scope.md iter-1/authoring-<id>.md …` (scope first, then
+   the research slices in decision order; with no research pass, the scope
+   file alone). The joined file is iteration 1's authoring notes.
+
+Any pass may return `needs_input` with `<questions>` for genuinely open
+points. Hold the scope pass's questions until the research pass has
+finished, then resolve every pass's questions together in ONE grouped
+interaction (User interaction below) and give the draft designer the
 answers in `<context>`.
 
-Then the draft: write it at `steps/create-design/design.md`
-(the executor mutates ONLY the workspace partition — never the consumer repo, and
+4. **Draft pass** — ONE designer, un-sliced, with the joined
+   `iter-1/authoring.md` in `<inputs>`, writes the draft (below) and
+   `iter-1/designer.json`. It is the single consumer of the research slices,
+   so it MUST synthesize them, not just read their join: where two slices'
+   notes (or the scope notes and a research slice) contradict each other —
+   one option's cost or feasibility claimed differently, an NFR bound, a
+   shared component described two ways — it records the resolution with its
+   evidence under a `## Synthesis` heading in `iter-1/authoring-synthesis.md`,
+   or returns `needs_input` with the contradiction as a question; never
+   silently picks one. After the draft pass, redo the join with that file
+   appended (`acs.py notes merge --out iter-1/authoring.md
+   iter-1/authoring-scope.md iter-1/authoring-<id>.md …
+   iter-1/authoring-synthesis.md`), so iteration 1's notes — the ones the
+   design reviewer judges against — carry the Synthesis. With no research
+   pass there is nothing to synthesize and the file is not written. The
+   draft pass writes no other authoring notes on iteration 1 — the joined
+   notes are that iteration's notes. On iterations 2-3 a single
+   designer, un-sliced, revises the draft and writes that iteration's full
+   `iter-<n>/authoring.md` itself (with its Findings addressed section): the
+   draft is one document, so the write never fans out — and with one writer
+   there is no integration pass to run (it is skipped when only one writer
+   ran). If the draft
+   designer returns `needs_input` with `<questions>`, resolve them in "User
+   interaction" below and re-run the designer for the same iteration with
+   the answers in `<context>`.
+
+The draft: write it at `steps/create-design/design.md`
+(the designer mutates ONLY the workspace partition — never the consumer repo, and
 never the ticket docs tree, which the file-map guard denies it; the coordinator
 publishes the verified draft to `<design_path>` in Publish below). Required
 sections, exactly these headings:
@@ -239,7 +352,7 @@ sections, exactly these headings:
    rollback plan (or "single-step deploy, no migration" with justification).
 ```
 
-The plan, execute, and verify tasks all carry two declared constraints —
+The designer and design-reviewer tasks both carry two declared constraints —
 `required_sections` and `<constraint name="audience_style_profile">reviewers
 (decision + trade-off narrative)</constraint>` — mirroring `create-prd/SKILL.md`'s
 precedent.
@@ -250,7 +363,7 @@ RESOLVES the configured `settings.formats.design_template` (default
 built-in name (`design-default`) maps to `${CLAUDE_PLUGIN_ROOT}/templates/<name>.md`;
 otherwise `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path —
 and passes `settings.enforcement.design_sections` (the section list defaulted from
-that template) as the constraint on the plan/execute/verify tasks:
+that template) as the constraint on the designer and design-reviewer tasks:
 `<constraint name="required_sections">Context &amp; constraints; Options considered;
 Decision &amp; rationale; Architecture; Impact &amp; risks; Rollout/migration</constraint>`
 (the same six headings above). Because `enforcement.design_sections` defaults to
@@ -261,11 +374,11 @@ custom-named template plus a matching `enforcement.design_sections`) has its
 `design.md` gated against ITS sections. The `audience_style_profile` constraint
 (MAR-150) is unchanged.
 
-The executor adds a subsection
+The designer adds a subsection
 `### Decision records` under "Decision & rationale" listing each accepted
 decision as a one-line ADR title and noting: "/acs:code commits these as ADRs
-under `<adr_dir>` as part of its documentation updates." Execute and verify
-tasks both carry `adr_dir`.
+under `<adr_dir>` as part of its documentation updates." Designer and
+design-reviewer tasks both carry `adr_dir`.
 
 All diagrams are Mermaid. The design references architecture docs by path; it
 never copies them wholesale. For an epic: design at epic level — children
@@ -274,23 +387,47 @@ duplicate or split it into child partitions. The design a child reads is the
 EPIC's `design.md`, resolved the same way (its docs folder, else its
 partition).
 
-You MAY run multiple executors in parallel ONLY when their outputs cannot
-conflict (e.g. one drafting the design draft, one writing a research note to
-`steps/create-design/research-<topic>.md`). Two executors never
-touch the draft in the same iteration. The verifier runs after ALL executors
-finish and judges the combined result. On iterations 2-3 the verifier's
-findings go verbatim into the executor `<task>`'s `<context>`, with no
-plan phase in between.
+Only the option-research pass above runs designers in parallel, and only
+because its slices own disjoint files (`iter-1/authoring-<id>.md`, one per
+decision). Two designers never touch the draft in the same iteration. The
+design reviewer runs after ALL designers finish and judges the combined
+result. On iterations 2-3 the design reviewer's findings go verbatim into
+the designer `<task>`'s `<context>`.
 
-### Phase: verify — `acs:create-design-verifier`
+### Phase: design-reviewer — `acs:create-design-design-reviewer`
 
-The verify `<task>`'s `<constraints>` always carry `required_sections` and
-`audience_style_profile` (declared above in Execute), alongside `adr_dir`
+The design-reviewer `<task>`'s `<constraints>` always carry `required_sections` and
+`audience_style_profile` (declared above in the designer phase), alongside `adr_dir`
 and, when Start found a standards set, `standards_dir` (see below).
 
+The design reviewer has eight check dimensions, so the review is sliced by
+dimension: three fresh instances of the SAME
+`acs:create-design-design-reviewer` agent spawned in ONE message, each task
+carrying `slice="<id>"` and `<constraint name="dimensions">` with its
+dimension numbers:
+
+| Slice | Dimensions (numbers as in the design-reviewer agent) |
+|-------|------------------------------------------------------|
+| `decision` | 1 alternatives · 3 feasibility · 4 nfr (with its `standards` sub-check) |
+| `conformance` | 2 consistency (with its `standards` sub-check) · 8 authoring-conformance |
+| `form` | 5 completeness — the ONLY slice that runs `mermaid_lint.py` · 6 structure — the ONLY slice that runs `structure_lint.py` · 7 audience-style |
+
+Grounding policing applies in every slice. Each slice writes
+`iter-<n>/design-reviewer-<id>.md`; join them with `acs.py notes merge --out
+iter-<n>/design-reviewer.md iter-<n>/design-reviewer-decision.md
+iter-<n>/design-reviewer-conformance.md iter-<n>/design-reviewer-form.md`.
+The slices own disjoint dimensions, so the join is the synthesis, plus one
+**de-duplication** step: drop a finding that cites the same location and
+the same defect as another slice's finding (a diagram defect both
+`consistency` and `completeness` saw, say), keeping the higher severity,
+and say so in the joined report — append a `## De-duplicated findings`
+section naming each dropped finding and the one it duplicates (re-apply it
+whenever the join is redone). The de-duplicated findings are the ones the
+pass rule and the next designer see.
+
 Spawn fresh — it sees artifacts (the design draft, ticket, architecture docs,
-code), never the executor's reasoning. Its `<inputs>` name the draft at
-`steps/create-design/design.md`: the verifier judges the bytes
+code), never the designer's reasoning. Its `<inputs>` name the draft at
+`steps/create-design/design.md`: the design reviewer judges the bytes
 Publish then copies, so nothing unverified reaches `<design_path>`. It checks,
 each a finding `dimension`:
 
@@ -310,23 +447,27 @@ each a finding `dimension`:
   diagrams present for new/changed flows and syntactically plausible.
 
 When Start located a standards set, `standards_dir` is passed into the
-verify `<task>`'s `<constraints>` (present only when found) — mirroring how
+design-reviewer `<task>`'s `<constraints>` (present only when found) — mirroring how
 `code/SKILL.md` conditionally passes `e2e_command`/`e2e_setup`/
 `e2e_teardown`/`e2e_per_iteration`.
 
-ALL findings block — zero findings = pass. On findings: persist the verify XML,
-feed every finding verbatim into the next iteration's executor `<task>`
-`<context>` — with no plan phase in between, and re-run
-execute → verify. After iteration 3 with findings remaining: stop; final
-status `failed`, findings recorded in result.json.
+ALL findings block — zero findings = pass. **Pass rule:** the iteration
+passes only if EVERY design-reviewer slice returned `status="completed"`
+with zero blocking findings; any slice's blocking finding blocks, and ALL
+slices' findings go verbatim to the next designer. A slice that failed or
+returned no usable result fails the iteration: never "pass with a missing
+slice". On findings (the joined `iter-<n>/design-reviewer.md` holds them),
+feed every finding verbatim into the next iteration's designer `<task>`
+`<context>` and re-run designer → design review. After iteration 3 with findings remaining: stop;
+final status `failed`, findings recorded in result.json.
 
 ### Publish — the coordinator is the only writer of the published `design.md`
 
-Once the verifier passes with zero findings, publish the draft. **The
+Once the design reviewer passes with zero findings, publish the draft. **The
 coordinator performs this step itself, never a subagent:** the file-map write
-guard (`acs_lib/filemap.py`) denies any running executor a write under the
-ticket docs tree, because these documents are precisely the control inputs an
-executor is checked against. Copy, never re-author — the published bytes must
+guard (`acs_lib/filemap.py`) denies any running `write` agent (the designer)
+a write under the ticket docs tree, because these documents are precisely
+the control inputs a writing agent is checked against. Copy, never re-author — the published bytes must
 equal the verified bytes:
 
 ```bash
@@ -367,7 +508,8 @@ Before a needs_input handoff, record the outgoing questions as `open`
 
 - Genuinely open decision points (option choice with no objective winner, scope
   or NFR trade-offs, conflicting docs) → ask the user (AskUserQuestion or plain
-  questions) BEFORE settling the decision. Present the options with their
+  questions) BEFORE settling the decision. The scope pass's and every research
+  slice's questions go into ONE grouped ask, after the research pass finishes. Present the options with their
   trade-offs; record the answer and carry it into design.md's rationale.
 - Do NOT ask about researchable facts — read the code/docs instead.
 - If you genuinely cannot reach the user (e.g. a non-interactive run): do not
@@ -406,7 +548,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    ```json
    {
      "status": "completed",
-     "summary": "verifier passed with zero findings on iteration 2",
+     "summary": "design reviewer passed with zero findings on iteration 2",
      "states": {
        "design_path": "docs/tickets/SHOP-123/design.md",
        "decision": "Queue-backed export worker behind the existing API gateway (Option B)"
@@ -420,7 +562,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    repo-relative inside the docs tree, or `"design.md"` when it was published
    to the partition); `decision` is the one-line decision statement from "Decision &
    rationale". On `failed`: keep whatever is true (e.g. `design_path` when a
-   draft exists but was never published, naming the draft), put the verifier's
+   draft exists but was never published, naming the draft), put the design reviewer's
    blocking findings in `findings`, and the reason in `summary`.
 
 2. Run:

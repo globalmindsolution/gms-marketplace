@@ -1,6 +1,6 @@
 ---
 name: code-small
-description: Implement a subject's plan on the SMALL delivery path — one executor (rarely two), test-cases.md as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path small; never chosen by hand.
+description: Implement a subject's plan on the SMALL delivery path — one implementer (rarely two), test-cases.md as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path small; never chosen by hand.
 argument-hint: "[ticket-id | prompt | document]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -25,26 +25,41 @@ path only carries what makes it different:
 | Read | For |
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the execute phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
 
 Everything below is what THIS path does differently. Where this file and a
-reference disagree about executors, this file wins — that is the whole reason
+reference disagree about implementers, this file wins — that is the whole reason
 it exists.
 
 ## The machinery of this path
 
 | | this path |
 |---|---|
-| Executors | one, rarely two |
+| Implementers | one, rarely two |
 | Test contract | `test-cases.md` |
 | Plan approval | not required |
 
-### Executors
+### Implementers
 
-**One executor by default.** Spawn a second only when the plan's file map
+**One implementer by default.** Spawn a second only when the plan's file map
 splits cleanly in two and neither half reads the other's changes — that is the
 same disjointness rule the deeper paths partition by, applied to a change small
 enough that it usually does not divide at all.
+
+**When there are two, they run in parallel.** The partition rule: each half is
+one task `k` of the plan's `### Executor tasks & file map`, declared with
+`filemap set --task <k>`, and no path appears under both in
+`acs.py filemap show --iteration <n>` — that is what guarantees they cannot
+overlap. The slice id is the task number. Spawn both in ONE message (two Agent
+calls in the same message, foreground) and wait for both. Each `<task>` and
+its `<result>` carry `slice="<k>"`, so the SubagentStop snapshots do not
+collide, and each writes `iter-<n>/implementer-<k>.json`. Two is this path's
+own cap, under the fan-out's `max_parallel = 4`, so a small plan never runs in
+waves. A single implementer omits `slice` and writes
+`iter-<n>/implementer.json`. The mechanics are `execute.md`'s **Parallel
+implementers**. When two ran and either report lists a `seams` entry, an
+integration implementer (`slice="integration"`) follows, alone, before the
+review, exactly as on `standard`; no seam reported → skipped.
 
 ### Inputs
 

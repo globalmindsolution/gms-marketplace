@@ -12,15 +12,23 @@
 # because invoked by hand it never evaluates the condition the workflow was
 # evaluating for it. Each skill decides for itself and records why.
 #
-# `loops:` is the only construct, and it is not a condition — it tests nothing
+# An entry may be a LIST of skill names -- a PARALLEL GROUP. /acs:ship starts
+# its members together and the next entry waits for all of them. A group is
+# not a condition either: it declares that its members may overlap, nothing
+# about whether they have work. create-e2e-tests and docs-sync both follow the
+# reviewed changeset and write disjoint files (suites vs docs), so they run
+# side by side; run-e2e-tests then runs the suites the first one wrote.
+#
+# `loops:` is the only other construct, and it is not a condition — it tests nothing
 # about the change, it declares that two steps form a cycle and how many
 # times. It cannot live inside a skill because it spans two of them.
 #
-# Order is VALIDATED, not declared: each skill's skills/<name>/acs.yaml says
-# what artifacts it reads and writes, and `acs workflow validate` checks that
-# every step's required reads are written by an earlier step. Swap two steps
-# whose order does not matter and it passes; swap two whose order does and it
-# names the pair.
+# The list is an ORCHESTRATOR and nothing more: it keeps the order the skills
+# run in. Each skill is independent -- it reads what it finds and falls back
+# to the run's subject when an upstream artifact is absent -- so no skill is
+# refused for running before another, and `acs workflow validate` checks only
+# that every step is a skill that ships (and not another skill's leg) and that
+# every loop goes back.
 #
 # See plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md §2.
 version: 3
@@ -32,9 +40,8 @@ steps:
   - create-test-docs
   - code
   - review-code
-  - create-e2e-tests
+  - [create-e2e-tests, docs-sync]   # a parallel group: both start together
   - run-e2e-tests
-  - docs-sync
   - create-pr
 
 loops:

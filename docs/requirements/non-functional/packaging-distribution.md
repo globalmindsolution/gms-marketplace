@@ -16,29 +16,33 @@ unchanged).
     `/create-ticket`, `/create-design`, `/analyze-requirements`,
     `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
     `/code`, `/review-code`, `/create-e2e-tests`, `/docs-sync`,
-    `/run-e2e-tests`, `/create-pr`, `/merge-pr` — each declaring its own
-    phase, reads and writes in `skills/<name>/acs.yaml`, which acs MUST also
-    bundle alongside the default `workflows/ship.yaml` the delivery order is
-    declared in (ADR-0089 as superseded by ADR-0096).
-  - **Subagents**: the twelve **authoring skills** (`create-prd`,
-    `create-design`, `create-architecture`, `create-project`,
-    `create-requirements`, `standardize-project`,
-    `analyze-requirements`, `create-impl-plan`, `create-api-contract`,
-    `create-test-docs`, `create-e2e-tests`, `docs-sync`) each bundle an
-    executor and a verifier (e.g. `docs-sync-executor`,
-    `docs-sync-verifier`) and no planner (ADR-0092 class D: the executor
-    surveys first and records `iter-<n>-authoring.md`); `code` bundles an
-    executor and a verifier, its plan phase having moved to
-    `create-impl-plan` (ADR-0089); `create-docs` bundles an executor and a
-    verifier that serve all four doc sets (ADR-0094); the three **apply-work
-    skills** (`create-ticket`, `create-pr`, `merge-pr`) run inline and ship
-    only an executor (MAR-60 inlining).
-    32 agent files exist on disk and 32 are reachable (24 for the twelve
-    authoring skills + 2 for `code` + 2 for `create-docs` + 3 apply-work
-    executors): ADR-0092 deleted the six apply-work planner/verifier files
-    the skills already forbade spawning and, in its stage 2, the twelve
-    authoring planners; ADR-0094 replaced the four doc legs' twelve files
-    with two, and the registry now declares what each skill owns. See
+    `/run-e2e-tests`, `/create-pr`, `/merge-pr` — each a skill directory
+    with no per-skill manifest (ADR-0109), bundled alongside the default
+    `workflows/ship.yaml` the delivery order is declared in (ADR-0089 as
+    superseded by ADR-0096).
+  - **Subagents**, one agent file per role a skill's own logic needs, named
+    `<skill>-<role>` for the work it does (ADR-0109): the twelve
+    **authoring skills** and `create-docs` each bundle a write role and a
+    judge role —
+    `analyze-requirements` (analyst, impact-reviewer), `create-prd` and
+    `create-requirements` (plus a surveyor: surveyor, author, reviewer),
+    `create-architecture` (architect, reviewer), `create-design` (designer,
+    design-reviewer), `create-docs` (author, reviewer — one pair serving all
+    four doc sets, ADR-0094), `create-impl-plan` (planner, plan-reviewer),
+    `create-api-contract` (contract-author, contract-reviewer),
+    `create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
+    (test-writer, suite-runner), `docs-sync` (doc-updater, drift-reviewer),
+    `create-project` (scaffolder, build-checker) and `standardize-project`
+    (plus an auditor: auditor, scaffolder, additive-checker); `code` bundles
+    one implementer, its plan phase having moved to `create-impl-plan`
+    (ADR-0089) and its review to `review-code`, which bundles a lens and an
+    adjudicator; the three **apply-work skills** (`create-ticket`,
+    `create-pr`, `merge-pr`) run inline and bundle no subagent.
+    32 agent files exist on disk and 32 are reachable (27 for the twelve
+    authoring skills + 2 for `create-docs` + 1 for `code` + 2 for
+    `review-code`): every file name
+    resolves to a shipped skill and a role in `acs_lib.skills.ROLE_KINDS`,
+    so none is orphaned. See
     [../functional/reflection.md](../functional/reflection.md).
   - **Hooks**: a pre and post hook per hooked skill (seventeen of each),
     implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).

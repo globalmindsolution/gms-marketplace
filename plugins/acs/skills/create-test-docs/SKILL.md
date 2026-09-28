@@ -8,15 +8,27 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-test-docs. Your job: turn ONE ticket's
 acceptance criteria — read through its implementation plan and, when the ticket
 has one, its API contract — into `test-cases.md`: the enumerated cases that
-decide whether this ticket is done, each traced to the criterion it proves. You orchestrate executor/verifier subagents over XML — execute → verify, no
-planner (ADR-0092); you never write the
-case content yourself.
+decide whether this ticket is done, each traced to the criterion it proves. You
+orchestrate two subagents over XML — the **test-designer** decides the case set
+and writes the draft, the **trace-reviewer** re-derives traceability from the
+ticket and judges the draft fresh (test-designer → trace-reviewer); you never
+write the case content yourself. The review fans out in parallel — the
+trace-reviewer's eight dimensions across three reviewer slices on every review
+(Reviewer slices), spawned by you in one message and joined with
+`acs.py notes merge`. The test-designer does not: one test-designer writes the
+one case table (see its phase for why).
 
 You specify tests; you never write them and you never implement. No production
 code, no test code, no repo docs other than `test-cases.md`: `/acs:code`'s
-executor writes the unit and integration tests from this document,
+implementers write the unit and integration tests from this document,
 `/acs:create-e2e-tests` writes the e2e suites from its e2e-typed rows, and
-`/acs:code`'s verifier checks the changeset against it.
+`/acs:review-code` checks the changeset against it.
+
+This skill is independent: it runs the same whether `/acs:ship` invoked it or a
+user did, and it never refuses because an earlier skill has not run. It works
+from what it finds — the plan, the API contract, the analysis, the design — and
+falls back to the run's subject (the ticket's acceptance criteria, the prompt or
+the document) when an upstream artifact is absent.
 
 `test-cases.md` is read by machines as well as people. Its e2e-typed rows are
 what `/acs:create-e2e-tests`'s gate counts (`acs_lib.gate_inputs.e2e_case_count`)
@@ -33,11 +45,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-te
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround. `pre-create-test-docs.py` has verified this skill's one
-input: the ticket resolves to a live, unlocked partition. The plan and the API
-contract are read WHEN PRESENT — neither is required, and there is no
-predecessor-completed check, because the order lives in `workflows/ship.yaml`,
-not in this gate. A ticket with no plan yet still has acceptance criteria, and
+improvise a workaround. `pre-create-test-docs.py` refuses only what would do
+damage re-running cannot undo: a ticket that does not resolve to a live,
+unlocked partition, and an epic. It never refuses because an upstream artifact
+is missing.
+The plan and the API contract are read WHEN PRESENT — neither is required, and
+there is no predecessor-completed check, because the order lives in
+`workflows/ship.yaml`, not in this gate. A ticket with no plan yet still has acceptance criteria, and
 cases derived from criteria alone are a legitimate (thinner) deliverable.
 
 Parse the printed context JSON. Fields you will use:
@@ -59,7 +73,8 @@ Parse the printed context JSON. Fields you will use:
 - `settings` — you need `suites` (the configured suites a case's target may
   name, with the reserved `e2e` entry), `formats.branch_name`,
   `formats.commit_message`.
-- `models` — per-role `{model, effort}` for executor/verifier.
+- `models` — per-tier `{model, effort}`: the test-designer runs on the
+  `executor` tier, the trace-reviewer on the `verifier` tier.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -71,10 +86,10 @@ it or the repo points at (e.g. `docs/README.md`), then a Glob/Grep by file name
 or content. Found → its repo-relative directory is `<quality_dir>`. Not found →
 the repo has none; this skill does not create one.
 
-**Epics.** The gate does not refuse an epic here, but an epic's criteria belong
-to its children: if `ticket.type == "epic"`, STOP and tell the user to fan the
-epic out with `/acs:create-ticket <id>` and run `/acs:create-test-docs` on a
-child. Do not write cases against an epic.
+**Epics.** An epic's criteria belong to its children, and the gate refuses an
+epic here; should one reach you anyway (`ticket.type == "epic"`), STOP and tell
+the user to fan the epic out with `/acs:create-ticket <id>` and run
+`/acs:create-test-docs` on a child. Do not write cases against an epic.
 
 ## Branch — the test cases are a repo file
 
@@ -140,12 +155,19 @@ If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
    not published.
 3. Re-read the ticket's criteria and the plan — both may have moved since the
    prior run, and a case set that traced an older criterion list is stale.
-4. Continue from the first unfinished phase — an execute with no verify →
-   verify it; a verify with findings and no later execute → execute with
-   those findings as `<context>`; nothing on disk → iteration 1 execute.
-5. There is no plan artifact to reuse: the executor's authoring notes
-   (`iter-<n>/authoring.md`) belong to their iteration, and a resumed run
-   never re-runs an iteration whose verify is already on disk.
+4. Continue from the first unfinished phase — a test-designer report
+   (`iter-<n>/test-designer.json`) with no trace-reviewer report → review it;
+   a trace-reviewer report (`iter-<n>/trace-reviewer.md`) with findings and no
+   later test-designer → re-run the test-designer with those findings as
+   `<context>`; nothing on disk → iteration 1 test-designer.
+5. The test-designer's authoring notes (`iter-<n>/authoring.md`) belong to
+   their iteration, and a resumed run never re-runs an iteration whose
+   trace-reviewer report is already on disk.
+6. The review resumes slice by slice: a resumed iteration re-runs ONLY the
+   reviewer slices whose `iter-<n>/trace-reviewer-<slice>.md` is missing,
+   spawned together in one message, then runs the join. Every slice report on
+   disk but no joined `iter-<n>/trace-reviewer.md` → run the join alone; never
+   re-run a slice whose report is on disk.
 
 If `context.handoff_summary` exists, read it plus
 `steps/create-test-docs/handoff-context.md` (when present), do a
@@ -153,8 +175,8 @@ light reconcile, and continue from where it points.
 
 ## Inputs — gather before the loop
 
-Read these yourself and name them by path in the executor's `<inputs>` (never
-inline a file body):
+Read these yourself and name them by path in the test-designer's `<inputs>`
+(never inline a file body):
 
 1. The ticket — `ticket` from the context JSON: title, description, and EVERY
    acceptance criterion, in order. The criteria are numbered `AC-1..AC-n` by
@@ -180,45 +202,54 @@ inline a file body):
    already in use. A case's target suite must be a place this repo actually
    has, and its style must be the style the repo already writes.
 
-## Reflection loop — execute → verify, no planner
+## Reflection loop — test-designer → trace-reviewer
 
-Run execute → verify until the verifier returns zero blocking findings or the
-cap is reached. The cap is a fixed **3** on every run — `/acs:create-test-docs`
-has no path-driven verify depth. There is no plan phase: iteration 1's
-executor surveys the inputs, writes its authoring notes, and authors the case-set draft
-from them; the verifier judges the result fresh. On iterations 2-3 the
-verifier's findings go verbatim into the next executor `<task>` `<context>`
-and the executor authors the remediation.
+Run test-designer → trace-reviewer until the trace-reviewer returns zero
+blocking findings or the cap is reached. The cap is a fixed **3** on every run —
+`/acs:create-test-docs` has no path-driven verify depth. Iteration 1's
+test-designer surveys the inputs, writes its authoring notes, and authors the
+case-set draft from them; the trace-reviewer re-derives traceability from the
+ticket and judges the result fresh. On iterations 2-3 the trace-reviewer's
+findings go verbatim into the next test-designer `<task>` `<context>` and the
+test-designer authors the remediation.
 
-**What an iteration counts:** one execute → verify round.
+**What an iteration counts:** one test-designer → trace-reviewer round.
 
-Decomposition is YOURS alone — subagents never spawn subagents.
+Decomposition is YOURS alone — subagents never spawn subagents, so the
+parallel review below is yours to spawn and yours to join.
 
 Messaging rules (`the SubagentStop hook's message check`):
 
 - Send each subagent one `<task skill="create-test-docs"
-  phase="execute|verify" ticket-id="<id>" iteration="n">` carrying
+  phase="test-designer|trace-reviewer" ticket-id="<id>" iteration="n">` carrying
   `<objective>`, `<inputs>` (file refs) and `<constraints>`.
 - Every phase's `<constraints>` carry `required_sections` (the four headings
   below) and `<constraint name="audience_style_profile">implementers and
   reviewers (precise, executable cases)</constraint>`, plus `suites` (the
   configured suite names) and `quality_dir` when the repo has one.
-- Validate EVERY message you send and receive:
-
-  ```bash
-  ```
-
-  On invalid: re-request once with the validation error quoted; still invalid →
-  fail the run and record the error in the result document's `errors`.
-- Persist every phase's `<task>` and `<result>` to
-  `steps/create-test-docs/iter-<n>/<phase>.json` at the phase
-  boundary, BEFORE starting the next phase.
-- Spawn subagents with the Agent tool: `acs:create-test-docs-executor`,
-  `acs:create-test-docs-verifier` — fall back
-  to the un-namespaced name only if the runtime rejects the namespaced one.
-  Apply `context.models.<role>.model` / `.effort` at spawn when not
-  `"inherit"`; if the runtime rejects the model or effort, FAIL the run with
-  that exact error — no silent fallback.
+- A sliced instance's task carries its slice id,
+  `<task skill="create-test-docs" phase="trace-reviewer" slice="trace" …>`,
+  and its `<result … slice="trace" …>` echoes it, so the SubagentStop snapshot
+  lands at `iter-<n>/<phase>-<slice>-message.xml` and parallel results never
+  overwrite each other. A single, un-sliced instance omits `slice`.
+- Validate EVERY message you send and receive — the SubagentStop hook checks
+  each returned `<result>`'s `skill=`, `phase=` and `iteration=`. On invalid:
+  re-request once with the validation error quoted; still invalid → fail the
+  run and record the error in the result document's `errors`.
+- Every phase output is persisted at the phase boundary, BEFORE the next phase
+  starts: the SubagentStop hook snapshots each returned message to
+  `steps/create-test-docs/iter-<n>/<phase>-message.xml` (`<phase>` is the
+  role); if that snapshot is missing (a host that does not fire the hook),
+  write the `<task>` and `<result>` there yourself.
+- Spawn subagents with the Agent tool: `subagent_type:
+  "acs:create-test-docs-test-designer"` and
+  `"acs:create-test-docs-trace-reviewer"` — fall back to the un-namespaced
+  name (`create-test-docs-test-designer`, `create-test-docs-trace-reviewer`)
+  only if the runtime rejects the namespaced one. Apply
+  `context.models.<tier>.model` / `.effort` at spawn when not `"inherit"` —
+  tier `executor` for the test-designer, `verifier` for the trace-reviewer; if
+  the runtime rejects the model or effort, FAIL the run with that exact error —
+  no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -228,7 +259,7 @@ notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 
-### Phase: execute — `acs:create-test-docs-executor`
+### Phase: test-designer — `acs:create-test-docs-test-designer`
 
 Objective, iteration 1: from the criteria, the plan, the contract and the
 repo's existing tests, decide the CASE SET — for every acceptance criterion
@@ -236,16 +267,14 @@ and every contract item, which cases prove it, at which level, and against
 which suite — and record that decision in the authoring notes
 (`steps/create-test-docs/iter-<n>/authoring.md`), naming too the
 criteria that cannot be made testable and the questions that blocks. Then
-render `test-cases.md` from those notes. The notes are what the verifier
-checks the draft against.
+render `test-cases.md` from those notes. The notes are what the
+trace-reviewer checks the draft against.
 
-If the executor returns `needs_input` with `<questions>`, resolve them in User
-interaction and re-run execute for the same iteration with the answers in
-`<context>`.
+If the test-designer returns `needs_input` with `<questions>`, resolve them in
+User interaction and re-run the test-designer for the same iteration with the
+answers in `<context>`.
 
-### Phase: execute — `acs:create-test-docs-executor`
-
-Objective: write the draft to
+The same phase writes the draft to
 `steps/create-test-docs/test-cases.md` — one draft per run, revised
 in place across iterations, never renumbered — with EXACTLY this front matter
 and these four headings, in this order:
@@ -265,7 +294,7 @@ e2e_cases: 2
 ## Gaps and assumptions
 ```
 
-What each section carries is defined in `create-test-docs-executor.md`. Three
+What each section carries is defined in `create-test-docs-test-designer.md`. Three
 contracts matter here, because machines read them:
 
 - **`## Cases` is a table, one row per case**, and its first column is the case
@@ -287,29 +316,79 @@ contracts matter here, because machines read them:
   `e2e_cases` OVER the table when it is an integer, so a wrong value there is
   the one defect in this document that cannot be caught downstream.
 
-On iteration ≥ 2 the executor fixes every finding in `<context>` and nothing
-else — no plan phase in between.
+On iteration ≥ 2 the test-designer fixes every finding in `<context>` and
+nothing else.
 
-### Phase: verify — `acs:create-test-docs-verifier`
+**One test-designer, never sliced.** `test-cases.md` is one table whose `TC-`
+ids run contiguous from 1 and stay stable across revisions, whose cases may
+each prove several criteria, and whose counts the front matter must equal — a
+split by criterion group could neither number the rows before they exist nor
+share a case between groups, so there is nothing disjoint to hand out. With
+one writer there are no seams, so no integration pass runs, and with no survey
+slices there is no merged survey for it to synthesize.
 
-Spawn `acs:create-test-docs-verifier` AFTER the draft is written, with
-`<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`), the ticket document, the plan and
-contract when they exist, and the repo's test directories. It judges fresh —
-never forward the executor's reasoning — re-derives the traceability from the
-ticket's criteria itself, and writes
-`steps/create-test-docs/iter-<n>/verify.md`.
+### Phase: trace-reviewer — `acs:create-test-docs-trace-reviewer`
+
+Spawn `acs:create-test-docs-trace-reviewer` AFTER the draft is written, with
+`<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`), the
+test-designer report (`iter-<n>/test-designer.json`), the ticket document, the
+plan and contract when they exist, and the repo's test directories. It judges
+fresh — never forward the test-designer's reasoning — re-derives the
+traceability from the ticket's criteria itself, and writes
+`steps/create-test-docs/iter-<n>/trace-reviewer.md`.
+
+#### Reviewer slices — the eight dimensions in three parallel judges
+
+The trace-reviewer has eight check dimensions, so every review runs as three
+fresh instances of the SAME agent, one per slice, each told its dimensions in
+`<constraint name="dimensions">`:
+
+| slice | dimensions | owns the check |
+| --- | --- | --- |
+| `trace` | 1 `traceability`, 5 `contract-coverage`, 8 `authoring-conformance` | walking every acceptance criterion and contract item against the table |
+| `cases` | 2 `case-quality`, 3 `levels-and-suites`, 7 `scope` | reading the quality policy and every suite file the cases name |
+| `shape` | 4 `front-matter`, 6 `structure` | `front_matter_check.py`, `structure_lint.py` and the gate's `e2e_case_count` |
+
+Spawn the three in ONE message — one Agent call per slice, all in the same
+assistant message, in the foreground (three is within `max_parallel = 4`) —
+and wait for ALL of them. Each writes `iter-<n>/trace-reviewer-<slice>.md`;
+join them, in the table's order, into the one report every reader expects:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-test-docs/iter-<n>/trace-reviewer.md \
+  <partition>/steps/create-test-docs/iter-<n>/trace-reviewer-trace.md \
+  <partition>/steps/create-test-docs/iter-<n>/trace-reviewer-cases.md \
+  <partition>/steps/create-test-docs/iter-<n>/trace-reviewer-shape.md
+```
+
+**De-duplication — the join is the synthesis.** The slices own disjoint
+dimensions, so the merge is the synthesis; you additionally drop a finding
+that cites the same location and the same defect as another slice's finding,
+keeping the one with the higher severity, and say so in the joined report:
+append a `## De-duplicated findings` section to
+`iter-<n>/trace-reviewer.md` naming each dropped finding, its slice, and the
+kept finding it duplicates. Two findings on the same location for different
+defects are both kept.
+
+**The pass rule for sliced reviewers.** The iteration passes only if EVERY
+slice returned `status="completed"` with zero blocking findings. Any slice's
+blocking finding blocks, and all three slices' findings — de-duplicated,
+otherwise verbatim — go to the next test-designer. A slice that returned `status="failed"` or no usable
+`<result>` (after the one re-request) fails the iteration exactly as a
+blocking finding does — never "pass with a missing slice".
 
 ALL blocking findings block — zero blocking findings = pass.
-`status="completed"` means verification RAN; the empty `<findings>` is the
-pass. Never conclude a pass the verifier did not report. On findings: persist
-the verify output, then AUTOMATICALLY re-execute with every finding in the next
-executor's `<context>`. After iteration 3 with findings remaining: stop with
+`status="completed"` means the review RAN; the empty `<findings>` is the
+pass. Never conclude a pass the trace-reviewer did not report. On findings:
+persist the trace-reviewer output, then AUTOMATICALLY re-run the test-designer
+with every finding in its `<context>`. After iteration 3 with findings remaining: stop with
 final status `"failed"`, findings recorded, and no published document.
 
 ### Deterministic checks the coordinator runs before publishing
 
 All three are $0, stdlib-only backstops. Run them on the DRAFT; a finding is
-remediated in the next execute iteration (or, at iteration 3, fails the run) —
+remediated in the next test-designer iteration (or, at iteration 3, fails the run) —
 never patched by you.
 
 ```bash
@@ -334,11 +413,11 @@ edit into agreement yourself.
 
 ### Publish — the coordinator is the only writer of `test-cases.md`
 
-Once the verifier passes and the deterministic checks are clean, publish the
-draft. **The coordinator performs this step itself, never a subagent:** the
-file-map write guard (`acs_lib/filemap.py`) denies any running executor a write
-under the ticket docs tree, because these documents are precisely the control
-inputs an executor is checked against. Copy, never re-author — the published
+Once the trace-reviewer passes and the deterministic checks are clean, publish
+the draft. **The coordinator performs this step itself, never a subagent:** the
+file-map write guard (`acs_lib/filemap.py`) denies any running `write`-kind
+agent a write under the ticket docs tree, because these documents are precisely
+the control inputs an implementer is checked against. Copy, never re-author — the published
 bytes must equal the verified bytes:
 
 ```bash
@@ -417,7 +496,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    ```json
    {
      "status": "completed",
-     "summary": "verifier passed with zero findings on iteration 1; 7 cases published, every AC traced",
+     "outcome": "cases_written",
+     "summary": "trace-reviewer passed with zero findings on iteration 1; 7 cases published, every AC traced",
      "states": {
        "cases": 7,
        "e2e_cases": 2,
@@ -441,6 +521,12 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - `untraced_acs` (list): acceptance criteria no case covers. Empty on a
      completed run; populated on the `needs_input` arm above.
 
+   `outcome` is required on every result document — the post-hook refuses one
+   without it, because this step completes in two ways: `cases_written` when
+   the loop ran, `no_cases_owed` when the pre-hook settled the step from a plan
+   whose `## Contract` block owes no test cases (then this coordinator never
+   runs). A run on a ticket with criteria always writes cases.
+
    On failure keep whatever is true: the counts as published (or `0` when
    nothing was published), the open findings in `findings`, and the reason
    (iteration cap, needs input) in `summary`.
@@ -462,7 +548,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published document, `<questions>` when `needs_input`, and
-     `<next-step>/acs:code <id></next-step>`. Validate it with
+     `<next-step>/acs:code <id></next-step>`.
 
 ## Completion report (normative)
 

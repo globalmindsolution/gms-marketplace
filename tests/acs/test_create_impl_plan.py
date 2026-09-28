@@ -33,14 +33,14 @@ IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
 #: carries a prior run or a superseded plan, and a first run reads neither.
 IMPL_PLAN_RERUN_REF = os.path.join(
     SKILLS_DIR, "create-impl-plan", "references", "not-a-first-run.md")
-IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
-IMPL_PLAN_EXECUTOR = os.path.join(AGENTS_DIR, "create-impl-plan-executor.md")
-IMPL_PLAN_VERIFIER = os.path.join(AGENTS_DIR, "create-impl-plan-verifier.md")
-IMPL_PLAN_AGENTS = [IMPL_PLAN_EXECUTOR, IMPL_PLAN_VERIFIER]
+#: The plan charter lives in the planner's survey; the plan reviewer judges it.
+IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")
+IMPL_PLAN_REVIEWER = os.path.join(AGENTS_DIR, "create-impl-plan-plan-reviewer.md")
+IMPL_PLAN_AGENTS = [IMPL_PLAN_PLANNER, IMPL_PLAN_REVIEWER]
 
 CODE_SKILL = os.path.join(SKILLS_DIR, "code", "SKILL.md")
 CODE_PLANNER = os.path.join(AGENTS_DIR, "code-planner.md")
-CODE_EXECUTOR = os.path.join(AGENTS_DIR, "code-executor.md")
+CODE_EXECUTOR = os.path.join(AGENTS_DIR, "code-implementer.md")
 
 GATE_INPUTS = os.path.join(HOOKS_DIR, "acs_lib", "gate_inputs.py")
 POST_HOOK = os.path.join(HOOKS_DIR, "post-create-impl-plan.py")
@@ -235,16 +235,26 @@ class PlanContractTest(unittest.TestCase):
         self.assertNotRegex(self.body, r"(?m)^### Plan \(once[^)]*\)$")
         self.assertRegex(
             self.body,
-            r"(?m)^### Execute \(per iteration\) — survey, then author the plan$")
+            r"(?m)^### Planner \(per iteration\) — survey, then author the plan$")
 
-    def test_the_executor_surveys_on_iteration_one(self):
-        self.assertRegex(self.norm, r"(?i)There is no plan phase")
-        self.assertRegex(self.norm, r"(?i)iteration 1'?s executor surveys")
+    def test_the_planner_surveys_on_iteration_one(self):
+        self.assertRegex(self.norm, r"(?i)The planner is the only planning role")
+        self.assertRegex(self.norm, r"(?i)iteration 1'?s planner surveys")
+        self.assertRegex(self.norm, r"(?i)planner → plan review")
+
+    def test_each_role_runs_on_its_model_tier(self):
+        """The planner writes a draft but runs on the `planner` tier its name
+        promises; the plan reviewer, a judge, on the `verifier` tier."""
+        self.assertIn("`context.models.planner.model`", self.norm)
+        self.assertIn("`context.models.verifier.model`", self.norm)
+        self.assertIn('subagent_type: "acs:create-impl-plan-planner"', self.norm)
+        self.assertIn('subagent_type: "acs:create-impl-plan-plan-reviewer"', self.norm)
 
 
 class PublishTest(unittest.TestCase):
     """`plan.md` is resolved through the artifacts resolver, written by the
-    coordinator (never a guarded executor), and mirrored for plan approval."""
+    coordinator (never a guarded `write`-kind subagent), and mirrored for plan
+    approval."""
 
     @classmethod
     def setUpClass(cls):
@@ -264,7 +274,7 @@ class PublishTest(unittest.TestCase):
         section = slice_between(self.body, "### Publish", "### Plan approval")
         section_norm = norm(section)
         self.assertRegex(section_norm, r"(?i)coordinator.{0,80}never a subagent")
-        self.assertRegex(section_norm, r"(?i)guard.{0,120}denies.{0,120}executor")
+        self.assertRegex(section_norm, r"(?i)guard.{0,120}denies.{0,120}`write`-kind agent")
         self.assertRegex(section_norm, r"(?i)cop(y|ies)|\bcp\b")
 
     def test_there_is_no_approval_mirror_to_keep_in_step(self):
@@ -287,8 +297,8 @@ class PublishTest(unittest.TestCase):
             LEGACY_PLAN_LITERAL.findall(section), [],
             "the published plan is plan.md — never an iteration-numbered file")
 
-    def test_executor_writes_a_draft_not_the_docs_tree(self):
-        body = read(IMPL_PLAN_EXECUTOR)
+    def test_planner_writes_a_draft_not_the_docs_tree(self):
+        body = read(IMPL_PLAN_PLANNER)
         self.assertIn("steps/create-impl-plan/plan.md", body)
         self.assertRegex(
             norm(body), r"(?i)never publish|coordinator alone|never.{0,60}docs tree")
@@ -341,7 +351,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         it: `### Plan revocation` used to, and has since moved into
         `references/not-a-first-run.md`, leaving docs-only as the next
         heading and the slice above as exactly the approval note."""
-        plan_idx = self.body.index("### Execute (per iteration) — survey, then author the plan")
+        plan_idx = self.body.index("### Planner (per iteration) — survey, then author the plan")
         approval_idx = self.body.index("### Plan approval")
         docs_only_idx = self.body.index("### Docs-only tickets")
         self.assertGreater(approval_idx, plan_idx)
@@ -585,7 +595,7 @@ class DocGraphGapTest(unittest.TestCase):
             r"(no finding|never fails|never blocks)")
 
     def test_skill_pointer_names_the_planner_item_without_restating_it(self):
-        self.assertIn("create-impl-plan-executor", self.bullet)
+        self.assertIn("create-impl-plan-planner", self.bullet)
         self.assertRegex(self.bullet_norm, r"(?i)item 4")
         self.assertRegex(self.bullet_norm, r"(?i)bounded")
         self.assertRegex(self.bullet_norm, r"(?i)touched-area")
@@ -625,8 +635,13 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
         self.assertIn("## Contract", self.body)
 
     def test_start_names_the_plan_input_gate_and_its_producer(self):
+        """The plan's producer is named, but no gate refuses a run without
+        one: /acs:code is independent, and with no plan it derives an
+        implicit one from the subject (cheap paths only)."""
         self.assertIn("/acs:create-impl-plan", self.norm)
-        self.assertRegex(self.norm, r"(?i)the pre-hook resolved it")
+        self.assertNotRegex(self.norm, r"(?i)the pre-hook resolved it")
+        self.assertRegex(self.norm, r"(?i)never refuses because an upstream artifact is missing")
+        self.assertIn("steps/code/plan.md", self.norm)
 
     def test_the_gate_refusal_wording_matches_the_gate(self):
         gate = read(GATE_INPUTS)
@@ -653,7 +668,7 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
 
     def test_executor_writes_tests_from_test_cases(self):
         for label, body in (("code contract", self.body),
-                            ("code-executor", read(CODE_EXECUTOR))):
+                            ("code-implementer", read(CODE_EXECUTOR))):
             with self.subTest(source=label):
                 body_norm = norm(body)
                 self.assertIn("test-cases.md", body_norm)
@@ -671,8 +686,6 @@ class CodeStartsFromAnExistingPlanTest(unittest.TestCase):
         self.assertRegex(review, r"(?i)`TC-n` / `AC-n`")
 
 
-if __name__ == "__main__":
-    unittest.main()
 class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
     """analyze-requirements promises that with no user answer create-impl-plan
     plans against the ticket as written; the plan skill has to keep that
@@ -695,3 +708,92 @@ class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
     def test_the_two_skills_state_the_same_contract(self):
         self.assertRegex(self.analyze, r"(?i)`/acs:create-impl-plan` plans against the ticket as written")
         self.assertRegex(self.norm, r"(?i)plans? against the ticket(?:'s acceptance criteria)? as written")
+
+
+#: The plan reviewer's judge slices and the dimension numbers each owns.
+PLAN_REVIEW_SLICES = {"tests": (1, 5), "map": (4, 6, 7), "document": (2, 3, 8, 9, 10)}
+
+
+def _flat(body):
+    """Whitespace-normalized, with shell line continuations folded away."""
+    return re.sub(r"\s+", " ", body.replace("\\\n", " "))
+
+
+class ParallelismTest(unittest.TestCase):
+    """The fan-out contract: the planner stays single (one document, one
+    decomposition), and the plan reviewer is split into three dimension slices
+    spawned in one message and joined by `acs.py notes merge`."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.skill = _flat(read(IMPL_PLAN_SKILL))
+        cls.rerun = _flat(read(IMPL_PLAN_RERUN_REF))
+        cls.reviewer = _flat(read(IMPL_PLAN_REVIEWER))
+        cls.raw = read(IMPL_PLAN_SKILL)
+
+    def test_the_planner_stays_single_and_says_why(self):
+        self.assertIn("Writer — one planner, never sliced.", self.skill)
+        self.assertIn("`plan.md` is a single document", self.skill)
+        self.assertIn("Its survey is not sliced either: the survey IS the decomposition",
+                      self.skill)
+
+    def test_fan_out_is_one_message_and_capped(self):
+        self.assertIn("in ONE message (all foreground, in the same message)", self.skill)
+        self.assertIn("`max_parallel = 4`", self.skill)
+
+    def test_slice_table_covers_all_ten_dimensions_once(self):
+        owned = []
+        for sid, dims in PLAN_REVIEW_SLICES.items():
+            row = re.search(r"\| `%s` \| ([^|]+) \|" % sid, self.raw)
+            self.assertIsNotNone(row, sid)
+            numbers = tuple(int(n) for n in re.findall(r"\b(\d+) [a-z]", row.group(1)))
+            self.assertEqual(numbers, dims)
+            owned += numbers
+        self.assertEqual(sorted(owned), list(range(1, 11)))
+        self.assertIn('<constraint name="dimensions">', self.skill)
+
+    def test_the_single_suite_run_stays_in_one_slice(self):
+        self.assertIn("the ONE run of the repo's existing suite command", self.skill)
+        self.assertIn("belongs to `tests` and runs nowhere else", self.reviewer)
+
+    def test_slices_are_joined_by_notes_merge(self):
+        self.assertIn('/hooks/scripts/acs.py" notes merge --out '
+                      "<partition>/steps/create-impl-plan/iter-<n>/plan-reviewer.md",
+                      self.skill)
+        for sid in PLAN_REVIEW_SLICES:
+            self.assertIn("iter-<n>/plan-reviewer-%s.md" % sid, self.skill)
+
+    def test_sliced_pass_rule(self):
+        self.assertIn("the iteration passes only if EVERY slice returned "
+                      '`status="completed"` with zero blocking findings', self.skill)
+        self.assertIn('never "pass with a missing slice"', self.skill)
+        self.assertIn("every finding of every slice, verbatim", self.skill)
+
+    def test_judge_slice_findings_are_de_duplicated(self):
+        self.assertIn("Drop a finding that cites the same location and the same "
+                      "defect as another slice's finding, keep the higher severity",
+                      self.skill)
+        self.assertIn("append a `## De-duplicated findings` section to "
+                      "`iter-<n>/plan-reviewer.md`", self.skill)
+        self.assertIn("Never drop a finding for any other reason.", self.skill)
+        self.assertIn("verbatim once de-duplicated", self.skill)
+
+    def test_a_single_writer_needs_no_integration_or_synthesis(self):
+        self.assertIn("With one writer there is no integration pass, and with no "
+                      "survey slices no synthesis of merged notes.", self.skill)
+
+    def test_resume_reruns_only_missing_slices(self):
+        self.assertIn("re-run ONLY the slices whose "
+                      "`iter-<n>/plan-reviewer-<slice>.md` is missing", self.rerun)
+
+    def test_the_reviewer_knows_how_to_run_as_a_slice(self):
+        self.assertIn("## When you are one slice", self.reviewer)
+        self.assertIn("Grounding policing always applies", self.reviewer)
+        self.assertIn("steps/create-impl-plan/iter-<n>/plan-reviewer-<slice>.md",
+                      self.reviewer)
+        self.assertIn('<result skill="create-impl-plan" phase="plan-reviewer" slice=',
+                      self.reviewer)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -12,7 +12,8 @@ If `context.reconcile` is true for a set, verify recorded progress against
 reality BEFORE continuing:
 
 - Read `steps/create-docs/` — the persisted
-  `iter-<n>-<phase>.xml` files tell you the last completed phase and iteration.
+  `iter-<n>/<phase>-message.xml` snapshots (`author`, `reviewer`) tell you
+  the last completed phase and iteration.
 - Re-read the actual artifacts: which of the set's files under
   `<checkout_root>/<location>/` (the set's location, found at Start) exist
   and are complete; whether the ticket branch exists (`git branch --list`),
@@ -20,8 +21,17 @@ reality BEFORE continuing:
 - Distrust the record where it is cheap to re-check (a doc "written" but
   missing or truncated counts as not done).
 - Continue from the first unfinished phase of the recorded iteration: an
-  execute with no verify → verify it; a verify with findings and no later
-  execute → the next execute, with those findings as `<context>`.
+  author with no review → review it; a review with findings and no later
+  author → the next author, with those findings as `<context>`.
+- A review is sliced by dimension (`SKILL.md` → Review), so a review can be
+  half-done: re-run ONLY the dimension slices whose
+  `iter-<n>/reviewer-<slice>.md` is missing (or whose
+  `reviewer-<slice>-message.xml` snapshot is not a completed `<result>`),
+  spawned together in one message; keep the slices that already reported.
+  Then re-join every slice with `acs.py notes merge` into
+  `iter-<n>/reviewer.md` and apply the pass rule over all of them. A joined
+  `reviewer.md` with a slice report missing beside it is not a finished
+  review.
 
 If `context.handoff_summary` exists, read it plus
 `steps/create-docs/handoff-context.md` (if present), do a light
@@ -42,7 +52,7 @@ refusal (`ship/SKILL.md`) stands.
 Your own context carries the slice's phase bookkeeping — bounded by
 `max_parallel` sets' worth of prose, which is why the cap exists. If you run
 low mid-run: flush in-flight work plus soft context (mode decision, partial
-verifier findings, gotchas) for each set to its own
+reviewer findings, gotchas) for each set to its own
 `steps/create-docs/handoff-context.md`, then, per set:
 
 ```bash

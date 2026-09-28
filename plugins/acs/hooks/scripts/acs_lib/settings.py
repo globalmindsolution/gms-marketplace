@@ -243,9 +243,10 @@ RECOMMENDED_MODELS = {
 
 #: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
 MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
-#: The reflection roles a model/effort pair can be configured for. `planner`
-#: stays accepted so an existing settings.json keeps validating, but no skill
-#: spawns one since ADR-0092 -- the entry is inert.
+#: The model TIERS a model/effort pair can be configured for. Subagent roles
+#: are per skill (`create-prd-surveyor`, `code-implementer`, ...); each runs on
+#: the tier its kind picks -- acs_lib.skills.model_tier -- so a new role never
+#: needs a new settings key.
 MODEL_ROLES = ("planner", "executor", "verifier")
 
 

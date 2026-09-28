@@ -224,21 +224,39 @@ class InternalLegFrontmatterTest(unittest.TestCase):
     def test_the_legs_keep_their_hooks_gate_agents_and_start(self):
         """The fold is an ENTRY-POINT fold: nothing else about a leg moves.
 
-        Each leg keeps its architecture precondition; ADR-0102 (not the fold)
-        moved that check from the pre-hook into the leg's own Start, which
-        finds the set and states the refusal."""
+        ADR-0102 (not the fold) moved the architecture check from the pre-hook
+        into the leg's own Start. The skills-independence rule then removed
+        the refusal: no skill refuses because an upstream skill has not run.
+        Each leg still LOOKS for the set at Start, and without one it falls
+        back -- it never stops, and /acs:create-architecture is only ever a
+        recommendation."""
+        fallbacks = {"create-project": "no-architecture fallback",
+                     "standardize-project": "no architecture set: project-structure checks skipped"}
         for leg in LEGS:
             with self.subTest(leg=leg):
                 self.assertIn(leg, acs_lib.HOOKED_SKILLS)
                 body = read(os.path.join(SKILLS_DIR, leg, "SKILL.md"))
                 start = re.search(r"(?ms)^## Start\b.*?(?=^## )", body)
                 self.assertIsNotNone(start, "%s/SKILL.md needs a ## Start section" % leg)
-                self.assertIn("no architecture doc set found (expected hld/tech-stack.md) — "
-                              "run /acs:create-architecture first.", norm(start.group(0)),
-                              "%s keeps its architecture precondition, at its own Start" % leg)
+                start_norm = norm(start.group(0))
+                self.assertIn("`hld/tech-stack.md`", start_norm,
+                              "%s still looks for the architecture set at Start" % leg)
+                self.assertNotIn("no architecture doc set found (expected hld/tech-stack.md) — "
+                                 "run /acs:create-architecture first.", start_norm,
+                                 "%s must not refuse on a missing architecture set" % leg)
+                self.assertNotRegex(start_norm, r"STOP and tell the user",
+                                    "%s must not stop at Start on a missing document" % leg)
+                self.assertIn("never a stop", start_norm)
+                self.assertIn(fallbacks[leg], start_norm)
+                report = re.search(r"(?ms)^## Completion report.*", body).group(0)
+                self.assertIn("/acs:create-architecture", report,
+                              "%s recommends /acs:create-architecture in its report" % leg)
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "pre-%s.py" % leg)))
                 self.assertTrue(os.path.isfile(os.path.join(HOOKS_DIR, "post-%s.py" % leg)))
-                for role in ("executor", "verifier"):
+                roles = {"create-project": ("scaffolder", "build-checker"),
+                         "standardize-project": ("auditor", "scaffolder",
+                                                 "additive-checker")}[leg]
+                for role in roles:
                     self.assertTrue(
                         os.path.isfile(os.path.join(AGENTS_DIR, "%s-%s.md" % (leg, role))),
                         "%s-%s.md must survive the fold" % (leg, role))
@@ -247,6 +265,13 @@ class InternalLegFrontmatterTest(unittest.TestCase):
                     "%s lost its planner under ADR-0092, not the fold" % leg)
                 self.assertIn("acs.py\" step start", body)
                 self.assertIn("--step %s" % leg, body)
+
+    def test_the_umbrella_never_refuses_on_a_missing_architecture_set(self):
+        body = norm(read(SKILL_PATH))
+        self.assertIn("Neither leg refuses on a missing architecture doc set.", body)
+        self.assertNotIn("A missing architecture doc set refuses", body)
+        self.assertRegex(body, r"(?i)project_mode` reads build manifests and markers, "
+                               r"never the architecture set")
 
     def test_each_leg_is_registered_as_an_internal_leg_of_project(self):
         legs = acs_lib.skill_legs()

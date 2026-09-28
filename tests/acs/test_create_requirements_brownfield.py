@@ -3,7 +3,8 @@ classification, interactive-confirm, docs (AC-2/3/4/5/6-write-target-half/
 7-remainder).
 
 Deepens the four prose files Spec 01 scaffolded (SKILL.md +
-create-requirements-{planner,executor,verifier}.md): architecture-aware
+create-requirements-{surveyor,author,reviewer}.md, once the
+planner/executor/verifier triad): architecture-aware
 feature-area enumeration + codebase-inventory fallback, code-cited DRAFT
 extraction, functional/non-functional classification-and-write
 (rubric quoted verbatim from `plugins/acs/skills/code/SKILL.md`, never
@@ -27,10 +28,10 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
-PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")  # the survey charter lives in the executor since ADR-0092
-EXECUTOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")
-VERIFIER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-verifier.md")
-RUBRIC_SOURCE_PATH = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
+SURVEYOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-surveyor.md")
+AUTHOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-author.md")
+REVIEWER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-reviewer.md")
+RUBRIC_SOURCE_PATH = os.path.join(PLUGIN, "agents", "docs-sync-doc-updater.md")
 CHANGELOG_PATH = os.path.join(PLUGIN, "CHANGELOG.md")
 CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
@@ -47,27 +48,27 @@ def normalize(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-class PlannerEnumerationContractTest(unittest.TestCase):
-    """AC-2: the planner charter states architecture-first enumeration +
+class SurveyorEnumerationContractTest(unittest.TestCase):
+    """AC-2: the surveyor charter states architecture-first enumeration +
     the codebase-inventory fallback + the verbatim checkable "feature area"
     definition (design.md "Checkable definition of 'feature area'", 465-473)."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PLANNER_PATH)
+        cls.body = read(SURVEYOR_PATH)
 
     def test_architecture_aware_enumeration_sources_named(self):
         for token in ("c4-container", "c4-component", "project-structure"):
             self.assertIn(
                 token, self.body,
-                "planner charter must name %r as an architecture-aware "
+                "surveyor charter must name %r as an architecture-aware "
                 "enumeration source" % token)
 
     def test_codebase_inventory_fallback_named(self):
         for token in ("top-level modules", "route-group", "CLI surface", "package"):
             self.assertIn(
                 token, self.body,
-                "planner charter must name %r in the codebase-inventory "
+                "surveyor charter must name %r in the codebase-inventory "
                 "fallback" % token)
 
     def test_checkable_feature_area_definition_present(self):
@@ -78,8 +79,8 @@ class PlannerEnumerationContractTest(unittest.TestCase):
                 r"CLI surface\s*/\s*package that the architecture "
                 r"container-component view names",
             ),
-            "planner charter must carry the checkable 'feature area' "
-            "definition near-verbatim so the verifier can independently "
+            "surveyor charter must carry the checkable 'feature area' "
+            "definition near-verbatim so the reviewer can independently "
             "re-derive the same set",
         )
 
@@ -91,20 +92,20 @@ class PlannerEnumerationContractTest(unittest.TestCase):
         body_no_ws = normalize(self.body)
         self.assertIn(
             "at least one file exists in both", body_no_ws,
-            "planner charter must state the checkable substantially-"
+            "surveyor charter must state the checkable substantially-"
             "populated -> amend boundary rule",
         )
         self.assertIn("majority", body_no_ws)
 
 
-class ExecutorDraftCitationContractTest(unittest.TestCase):
-    """AC-3: the executor charter mandates a DRAFT/human-confirm-required
+class AuthorDraftCitationContractTest(unittest.TestCase):
+    """AC-3: the author charter mandates a DRAFT/human-confirm-required
     marker + a per-requirement code-citation; an ungroundable area is an
     `[OPEN]` clause carrying no fabricated citation."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(EXECUTOR_PATH)
+        cls.body = read(AUTHOR_PATH)
 
     def test_draft_marker_mandated(self):
         self.assertRegex(self.body, r"(?i)DRAFT\s*(—|-)\s*human-confirm-required")
@@ -119,14 +120,14 @@ class ExecutorDraftCitationContractTest(unittest.TestCase):
         )
 
 
-class VerifierCoverageCitationContractTest(unittest.TestCase):
-    """AC-2/AC-3 verifier half: independent re-enumeration + coverage/diff
+class ReviewerCoverageCitationContractTest(unittest.TestCase):
+    """AC-2/AC-3 reviewer half: independent re-enumeration + coverage/diff
     dimension (>=90%, 0 silent omissions); citation-spot-check +
     no-fabrication dimensions; ungroundable -> [OPEN], never invented."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(VERIFIER_PATH)
+        cls.body = read(REVIEWER_PATH)
 
     def test_independent_reenumeration_dimension(self):
         self.assertRegex(self.body, r"(?i)independently re-enumerate")
@@ -157,12 +158,13 @@ class VerifierCoverageCitationContractTest(unittest.TestCase):
 
 
 class ClassificationRubricRegressionTest(unittest.TestCase):
-    """AC-4: the executor's functional/non-functional rubric is quoted
+    """AC-4: the author's functional/non-functional rubric is quoted
     VERBATIM from the rubric's producing-side source of truth — a
     regression test that fails if the two diverge (the plan's
     classification-drift risk). MAR-162 moved that source of truth from
     `plugins/acs/skills/code/SKILL.md` to
-    `plugins/acs/agents/docs-sync-executor.md` (C-1); the rubric block
+    `plugins/acs/agents/docs-sync-doc-updater.md` (C-1; docs-sync's
+    executor before the per-skill subagents); the rubric block
     itself is unchanged, only its file of origin moved."""
 
     RUBRIC_RE = re.compile(
@@ -173,35 +175,35 @@ class ClassificationRubricRegressionTest(unittest.TestCase):
         self.assertIsNotNone(m, "could not locate the FUNCTIONAL...seam. rubric block")
         return normalize(m.group(0))
 
-    def test_executor_rubric_matches_code_skill_verbatim(self):
+    def test_author_rubric_matches_code_skill_verbatim(self):
         source_rubric = self._rubric(read(RUBRIC_SOURCE_PATH))
-        executor_rubric = self._rubric(read(EXECUTOR_PATH))
+        author_rubric = self._rubric(read(AUTHOR_PATH))
         self.assertEqual(
-            source_rubric, executor_rubric,
-            "create-requirements-executor.md's functional/non-functional "
+            source_rubric, author_rubric,
+            "create-requirements-author.md's functional/non-functional "
             "rubric must be an exact (whitespace-insensitive) quote of "
-            "docs-sync-executor.md's rubric — paraphrasing risks classification "
+            "docs-sync-doc-updater.md's rubric — paraphrasing risks classification "
             "drift between the two producers",
         )
 
-    def test_executor_names_constraint_resolved_subfolders(self):
+    def test_author_names_constraint_resolved_subfolders(self):
         """The rubric's two targets are the coordinator-resolved
         `functional_dir` / `non_functional_dir` constraints (ADR-0102), not
         the removed `requirements_layout` subdir keys."""
-        body = read(EXECUTOR_PATH)
+        body = read(AUTHOR_PATH)
         self.assertIn("`<functional_dir>/<feature>.md`", body)
         self.assertIn("`<non_functional_dir>/<item>.md`", body)
         self.assertNotIn("functional_subdir", body)
 
-    def test_executor_no_overwrite_git_diff_self_check(self):
-        body = read(EXECUTOR_PATH)
+    def test_author_no_overwrite_git_diff_self_check(self):
+        body = read(AUTHOR_PATH)
         self.assertRegex(body, r"git diff -- <requirements_dir>")
         self.assertRegex(body, r"(?i)byte-for-byte")
 
 
 class SkillInteractiveConfirmContractTest(unittest.TestCase):
     """AC-5: the coordinator presents the DRAFT baseline + open points via
-    the clarify ledger BEFORE spawning the executor; an extracted
+    the clarify ledger BEFORE spawning the author; an extracted
     requirement is a DRAFT baseline, never authoritative without
     confirmation."""
 
@@ -209,12 +211,17 @@ class SkillInteractiveConfirmContractTest(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
 
-    def test_present_drafts_and_open_points_before_executor(self):
+    def test_present_drafts_and_open_points_before_author(self):
         self.assertRegex(
             self.body,
             r"(?i)present[\s\S]{0,300}open points[\s\S]{0,200}clarify ledger[\s\S]{0,300}"
-            r"before the executor writes an area file",
+            r"before the author writes an area file",
         )
+
+    def test_the_surveyor_is_read_only(self):
+        surveyor = normalize(read(SURVEYOR_PATH))
+        self.assertIn("You are read-only on the repo", surveyor)
+        self.assertIn("You never write an area file yourself", surveyor)
 
     def test_draft_baseline_never_authoritative_language(self):
         self.assertRegex(
@@ -224,27 +231,27 @@ class SkillInteractiveConfirmContractTest(unittest.TestCase):
 
 
 class SettingsDrivenWriteTargetContractTest(unittest.TestCase):
-    """AC-6 (write-target half), re-expressed by ADR-0102: the executor
+    """AC-6 (write-target half), re-expressed by ADR-0102: the author
     writes to the `requirements_dir` / `functional_dir` / `non_functional_dir`
     locations its task constraints carry (the coordinator found them in the
     repo, else used the `docs/requirements/` convention) — never a
     marketplace-specific hardcoded literal, and never a path read out of
     settings (`requirements_path` / `requirements_layout` are gone)."""
 
-    def test_executor_takes_requirements_dir_constraint(self):
-        body = " ".join(read(EXECUTOR_PATH).split())
+    def test_author_takes_requirements_dir_constraint(self):
+        body = " ".join(read(AUTHOR_PATH).split())
         self.assertIn(
             "`<constraints>` — at least `requirements_dir`, `functional_dir`, "
             "`non_functional_dir`",
             body,
         )
 
-    def test_executor_scopes_writes_to_requirements_dir(self):
-        body = " ".join(read(EXECUTOR_PATH).split())
+    def test_author_scopes_writes_to_requirements_dir(self):
+        body = " ".join(read(AUTHOR_PATH).split())
         self.assertIn("Mutate ONLY files under `requirements_dir`", body)
 
-    def test_executor_never_reads_a_requirements_path_setting(self):
-        body = read(EXECUTOR_PATH)
+    def test_author_never_reads_a_requirements_path_setting(self):
+        body = read(AUTHOR_PATH)
         self.assertNotIn("requirements_path", body)
         self.assertNotIn("requirements_layout", body)
         self.assertNotRegex(body, r"settings\.requirements")

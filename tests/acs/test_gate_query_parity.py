@@ -130,7 +130,8 @@ class GateQueryParityTest(GateQueryCase):
             "/acs:create-design %s first if the epic has no design yet, then break it "
             "down into child tickets with /acs:create-ticket %s (epic fan-out), then "
             "run /acs:code on a child." % (epic, epic, epic), out.stderr)
-        self.assertIn("no plan for this run", out.stderr)
+        self.assertNotIn("no plan for this run", out.stderr,
+                         "no input gate: a skill falls back to the subject on its own")
         self.assertEqual(json.loads(out.stdout), {"ok": False, "skill": "code",
                                                   "exit_code": 2})
 
@@ -178,7 +179,7 @@ class GateQueryIsSideEffectFreeTest(GateQueryCase):
         nothing used to COMPLETE it, so the step could never afterwards run."""
         ticket = self.new_ticket("Add user login", "task")
         rdir = self.ensure_run(ticket)
-        plan = run_machine.artifact_path(rdir, "plan", None, self.workflow())
+        plan = run_machine.artifact_path(rdir, "plan")
         os.makedirs(os.path.dirname(plan), exist_ok=True)
         with open(plan, "w", encoding="utf-8") as fh:
             fh.write(PLAN_OWING_NO_E2E)
