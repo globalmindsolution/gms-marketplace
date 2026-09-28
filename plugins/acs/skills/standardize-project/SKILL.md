@@ -665,7 +665,10 @@ MANDATORY final step — never skipped, also on failure:
    `findings`, reason in `summary`, keep whatever is true in `states`,
    `recommended_follow_ups` still reflects whatever the auditor's frozen notes found
    (plus any converted refusals). On
-   handoff: `status: "handed_off"` plus `handoff_summary`.
+   handoff you write no result document: the Context-pressure path's
+   `handoff.py` finalizes the step `interrupted` with
+   `stop_reason: context_pressure` and records its summary on the invocation.
+   (`handed_off` is not a status and `handoff_summary` is not a result field.)
 2. Run:
 
 ```bash

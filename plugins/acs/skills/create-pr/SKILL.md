@@ -50,7 +50,7 @@ Parse the printed context JSON. Fields you will use:
   `pr_description_template` (default `pr-default`).
 - `settings.tracker` — `provider` is `local` (no sync), `github`, or `jira`.
 - `checkout_root`, `plugin_root` — for template resolution.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see
+- `reconcile`, `handoff_summary`, `prior_status` — see
   `references/resume.md`.
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
   ticket whose design applies and its basename is that ticket's id. When
@@ -402,9 +402,9 @@ branch no longer exists, or an open PR for the branch was authored outside ACS
 with a conflicting base. Do not guess.
 
 If you genuinely cannot reach the user (e.g. a non-interactive run): do not
-guess. Write the result document with status `"failed"` and
-`summary` "needs user input", run the Finish steps, and return as your
-final message a handoff like:
+guess. Write the result document with `"status": "interrupted"` and
+`"stop_reason": "needs_input"` (the question in `summary`), run the Finish
+steps, and return as your final message a handoff like:
 
 ```xml
 <handoff skill="create-pr" ticket-id="SHOP-123" status="needs_input">

@@ -88,8 +88,23 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    children never rerun /acs:create-ticket; their pipeline starts at
    /acs:code. Capture each printed `ticket_id`. After minting, write each
    confirmed child's `acceptance_criteria` (from the confirmed breakdown)
-   into that child's own `ticket.json` — `new-ticket.py` exposes
-   no `--acceptance-criteria` flag. Create ONLY the
+   into that child's ticket with `acs.py ticket save`:
+
+   ```bash
+   printf '%s' '{"acceptance_criteria": ["...", "..."]}' \
+     | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket save --ticket <child-id> --from -
+   ```
+
+   `--ticket` names the child; `--from` takes a JSON file, or `-` (or nothing)
+   for stdin. The document is a PATCH merged over the stored ticket, so send
+   only `acceptance_criteria`. It writes wherever the ticket lives —
+   `docs/tickets/<child-id>/ticket.md` once the docs tree exists (which is
+   where `new-ticket.py` put it), else the workspace partition's
+   `ticket.json` — and re-indexes it. Never hand-edit either file: a
+   hand-written `ticket.json` beside a `ticket.md` is a second copy no reader
+   opens. `new-ticket.py` exposes no `--acceptance-criteria` flag.
+
+   Create ONLY the
    confirmed children; on a resumed run never re-mint ones already in
    the epic's `children`. Re-read `ticket.json` after fan-out.
 5. **Tracker sync** — only when `settings.tracker.provider` is `github` or
@@ -185,8 +200,9 @@ stays `[]`:
 }
 ```
 
-- `files_changed` lists every file you wrote or changed, including child
-  `ticket.json` paths.
+- `files_changed` lists every file you wrote or changed, including each
+  child's ticket file (`docs/tickets/<child-id>/ticket.md`, or its
+  partition's `ticket.json` before the docs tree exists).
 - `status: "failed"` with `problems` when a step cannot complete (keep what
   you finished — never roll back minted children), then take SKILL.md's Finish
   failure path; the only question this sequence ever raises is the
@@ -198,7 +214,8 @@ stays `[]`:
   coordinator runs itself.
 - Mutate ONLY what the confirmed proposal covers: the ticket partition (child
   partitions via `new-ticket.py`, plus the confirmed `acceptance_criteria`
-  write into each minted child's own `ticket.json` after minting) and the
+  written into each minted child's ticket via `acs.py ticket save` after
+  minting) and the
   remote tracker. Never touch consumer-repo source,
   never create branches/commits, never hand-edit `counters.json` /
   `tickets-index.json` / `run.json` — the helper scripts own those.

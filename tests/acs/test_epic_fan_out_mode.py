@@ -2,7 +2,7 @@
 create-design (slice 8).
 
 Covers AC-1 (a new `--fan-out` mode that runs Step 4, and only Step 4,
-against an existing epic, reusing Step 2 item 7's confirmation gate), AC-2
+against an existing epic, reusing Step 2 item 6's confirmation gate), AC-2
 (Step 4 no longer fans out unconditionally at epic-creation time), AC-3 (the
 Step-4 self-contradiction, F4/DRIFT-4, is resolved to match shipped
 behavior), AC-4 (new-ticket.py's stale /create-spec comment, F5/DRIFT-3, is
@@ -427,7 +427,7 @@ class StepOneChildBreakdownBulletIsScopedToFanOutRunCase(unittest.TestCase):
 
 
 class StepTwoChildBreakdownConfirmationIsScopedByModeCase(unittest.TestCase):
-    """F1-b/F1-c: Step 2 item 7's sentence stays byte-intact (the fan-out
+    """F1-b/F1-c: Step 2 item 6's sentence stays byte-intact (the fan-out
     section quotes it verbatim) and gains a mode-scoping clause; the
     over-correction guard (MAR-55 invariant (c)) must survive untouched.
 
@@ -445,7 +445,7 @@ class StepTwoChildBreakdownConfirmationIsScopedByModeCase(unittest.TestCase):
         self.assertIsNotNone(
             re.search(r"(?i)only in the `?--fan-out`? mode or a "
                       r"split/restructure run", tail),
-            "item 7 must state it is reached only in the --fan-out mode "
+            "item 6 must state it is reached only in the --fan-out mode "
             "or a split/restructure run")
         self.assertIn("it is NOT a verifier and it is never skipped",
                       section_norm)
@@ -456,7 +456,7 @@ class StepTwoChildBreakdownConfirmationIsScopedByModeCase(unittest.TestCase):
 class FanOutSectionQuotesStepTwoItemSevenVerbatimCase(unittest.TestCase):
     """F1-c structural pin: the fan-out section's double-quoted Confirmation
     gate text, once markdown emphasis (**) is stripped, is a substring of
-    Step 2's own section -- any future edit to item 7 that forgets to keep
+    Step 2's own section -- any future edit to item 6 that forgets to keep
     the fan-out section's quote in sync fails here."""
 
     def test_fan_out_section_quotes_step_2_item_7_verbatim(self):
@@ -465,7 +465,7 @@ class FanOutSectionQuotesStepTwoItemSevenVerbatimCase(unittest.TestCase):
         candidates = [q for q in quotes if "Epic only" in q]
         self.assertTrue(
             candidates,
-            "fan-out section must quote Step 2 item 7 in double quotes")
+            "fan-out section must quote Step 2 item 6 in double quotes")
         quoted = norm(candidates[0])
         step2_plain = norm(step2_section()).replace("**", "")
         self.assertIn(quoted, step2_plain)
@@ -554,8 +554,14 @@ class MaterializeReportExampleIsLabelledAsAChildMintingRunCase(unittest.TestCase
 class ChildAcceptanceCriteriaWriteInstructedInBothFilesCase(unittest.TestCase):
     """F2-b: both the fan-out section (SKILL.md) and materialize.md's step 4
     region instruct writing the confirmed child's acceptance_criteria into
-    the child's own ticket.json after minting, naming the absent
-    --acceptance-criteria flag."""
+    the child's ticket after minting, naming the absent
+    --acceptance-criteria flag.
+
+    The write goes through `acs.py ticket save --ticket <child-id>`: once
+    docs/tickets/ exists new-ticket.py writes the child as
+    docs/tickets/<id>/ticket.md, so the earlier "child's own ticket.json"
+    wording (which this test used to pin) sent the write to a file no reader
+    opens."""
 
     def test_child_acceptance_criteria_write_instructed_in_both_files(self):
         sections = {
@@ -564,12 +570,12 @@ class ChildAcceptanceCriteriaWriteInstructedInBothFilesCase(unittest.TestCase):
         }
         for name, section_norm in sections.items():
             self.assertIsNotNone(
-                re.search(r"(?i)acceptance_criteria.{0,200}child's own "
-                          r"`?ticket\.json`?|"
-                          r"child's own `?ticket\.json`?.{0,200}acceptance_criteria",
-                          section_norm),
+                re.search(r"(?i)acceptance_criteria.{0,400}acs\.py\W+ticket save "
+                          r"--ticket <child-id>", section_norm),
                 "%s must state acceptance_criteria is written into the "
-                "child's own ticket.json after minting" % name)
+                "child's ticket via acs.py ticket save after minting" % name)
+            self.assertIn("docs/tickets/<child-id>/ticket.md", section_norm)
+            self.assertNotRegex(section_norm, r"(?i)into the child's own `?ticket\.json")
             self.assertIn("--acceptance-criteria", section_norm)
 
 

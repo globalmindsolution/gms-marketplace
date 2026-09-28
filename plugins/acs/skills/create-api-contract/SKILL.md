@@ -97,7 +97,7 @@ Parse the printed context JSON. Fields you will use:
 - `settings` — you need `formats.branch_name`, `formats.commit_message`.
 - `models` — per-tier `{model, effort}`: the contract-author runs on the
   `executor` tier, the contract-reviewer on the `verifier` tier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -612,9 +612,11 @@ contract.
 
 If you genuinely cannot reach the user (a non-interactive run): do not guess.
 Record the outgoing questions as `open` (`clarify.py add` without `--answer`),
-write the result document with status `"needs_input"` and `stop_reason` "needs
-user input", run the Finish steps, and return a `<handoff status="needs_input">`
-whose `<questions>` carry them.
+write the result document with `"status": "interrupted"` and
+`"stop_reason": "needs_input"` (`needs_input` is a stop reason, not a status —
+the post-hook refuses any status but `completed | failed | interrupted`), run
+the Finish steps, and return a `<handoff status="needs_input">` whose
+`<questions>` carry them.
 
 ## Context pressure
 
@@ -664,8 +666,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
      appearing at least once in `## Traceability` (the union of the slices'
      reports when the contract-authors ran sliced).
 
-   `outcome` is required on every result document — the post-hook refuses one
-   without it, because this step completes in two ways: `contract_written`
+   `outcome` is required on every `completed` result document — the post-hook
+   refuses one without it, because this step completes in two ways: `contract_written`
    when the loop ran, `no_surface_owed` when the survey found no surface to
    specify (then `items` is `0` and `traced_acs` is `[]`). The pre-hook
    records `no_surface_owed` itself when the plan's `## Contract` block owes

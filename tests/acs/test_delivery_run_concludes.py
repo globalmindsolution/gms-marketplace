@@ -57,6 +57,16 @@ class DeliveryRunConcludesTest(AcsWorkspaceCase):
         self.assertEqual(out["run_status"], "in_progress")
         self.assertEqual(self.pointer(), ticket)
 
+    def test_a_second_handoff_still_names_the_delivery_skill(self):
+        """Nothing in flight on the second call: a delivery run has no cursor
+        for /acs:ship to follow, so the resume names the skill it interrupted."""
+        ticket = self.allocate()
+        for _ in range(2):
+            out = self.run_script("handoff.py", "--summary", "s", "--run", ticket)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertEqual(json.loads(out.stdout)["continue_with"],
+                             "/acs:standardize-project %s" % ticket)
+
     def test_a_workflow_run_is_not_concluded_by_a_standalone_skill(self):
         """A delivery skill finishing inside a run that has recorded workflow
         steps leaves that run to the workflow."""

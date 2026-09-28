@@ -85,7 +85,7 @@ write `iter-<n>/drift-reviewer.md`.
 
 ## Re-run cheap checks yourself
 
-- Read `git diff <default_branch>...HEAD`, `<partition>/ticket.json`,
+- Read `git diff <default_branch>...HEAD`, the ticket (`acs.py artifacts show --ticket <id>`),
   `steps/code/result.json`, the code implementer report(s)
   (`steps/code/iter-<n>/implementer*.json`), the final review verdict
   (`steps/review-code/verdict.json`, when a review has run), the

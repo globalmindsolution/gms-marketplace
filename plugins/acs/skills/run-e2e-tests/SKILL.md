@@ -31,14 +31,21 @@ MANDATORY first action — run exactly:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step run-e2e-tests
 ```
 
-If it exits non-zero: STOP and surface its stderr verbatim. The pre-hook has
-verified this step's inputs. **When nothing is owed it does not start you at
-all**: a run whose `create-e2e-tests` recorded `no_e2e_owed`, or whose project
-configures no suite, is completed by the pre-hook from the plan's `## Contract`
-block with `outcome: nothing_to_run` and this skill is never invoked (§2.2).
-That is the cheapest possible answer to "are there e2e tests to run" — zero
-tokens — and it is why you may assume, once you are running, that there is
-something to run.
+If it exits non-zero: STOP and surface its stderr verbatim. **When the plan
+says nothing is owed, the pre-hook does not start you at all**: it reads ONE
+thing — the `owes.e2e` flag in the `## Contract` block of the run's
+`steps/create-impl-plan/plan.md` (`acs_lib.stepgate.noop_decision`) — and when
+that flag is `false` it records this step completed with
+`outcome: nothing_to_run` and the plan's own reason, and this skill is never
+invoked (§2.2). Zero tokens. (`/acs:create-e2e-tests` no-ops on the same flag
+with `no_e2e_owed`; the pre-hook reads the flag, not that step's record.)
+
+That is the ONLY thing the pre-hook settles. It never reads the settings, so a
+project that configures no suite is not caught there, and neither is a run
+with no plan, or a plan that is silent on `e2e` (silence is not permission to
+skip). Those reach you, and Step 1 and "Which suites this run runs" decide
+them — `no_harness` or `nothing_to_run` — so do not assume, once you are
+running, that there is something to run.
 
 `${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md` carries resume-and-reconcile,
 context pressure and the completion report — the parts every acs skill shares.
@@ -69,10 +76,16 @@ Parse `$ARGUMENTS` for zero or more `--suite <name>` flags:
   named suite is not a key in `suites`, fail fast with a clear error
   identifying the unknown name(s) — do not silently skip it or fall back to
   running all suites.
-- If the resolved run set is `{}` (nothing configured/selected at all),
-  report that plainly ("no suites configured, nothing to run") and stop.
-  There is nothing to execute, but you still emit a valid, empty-arrays
-  artifact (`suites: [], regressions: []`) per Step 3.
+- If `suites` itself is `{}` — the repo configures no suite at all, neither
+  `settings.e2e` nor any `settings.suites` entry — report that plainly ("no
+  suites configured: no harness to run") and finish `completed` with
+  `outcome: no_harness`.
+- If `suites` is non-empty but this run's run set resolves to `{}` (see
+  "Which suites this run runs"), report that plainly ("suites are
+  configured, none of them is in this run's run set") and finish `completed`
+  with `outcome: nothing_to_run`.
+- In both cases there is nothing to execute, but you still emit a valid,
+  empty-arrays artifact (`suites: [], regressions: []`) per Step 3.
 
 ## Step 2 — Per-suite execution: setup → command → teardown
 
@@ -160,26 +173,39 @@ second mode: a standing invocation and a `ship.yaml` step resolve the same way
 (§3.11), which is what makes the two the same skill rather than two skills
 sharing a file.
 
-1. The reserved `e2e` key, if `ctx["settings"]["suites"]` carries one.
-2. Any suite named in this run's `test-cases.md` — the `Suite` column of its
-   `## Cases` table, at `steps/create-test-docs/test-cases.md`.
-   `/acs:create-test-docs` is what assigns each case to a suite, so the run's
-   own cases are what scopes it.
-3. Fallback, only when the run wrote no `test-cases.md`: any suite named in the
-   plan's Test-strategy section, at `steps/create-impl-plan/plan.md`.
-4. Fallback, when the run has none of those — a run started from a prompt
-   against a repo, with nothing planned — every entry in
-   `ctx["settings"]["suites"]`. That is the honest answer there: nothing has
-   said which suites this change bears on, so the run cannot narrow.
+The run's DOCUMENTS narrow it; the `e2e` key never does on its own. Which
+rule applies depends only on which documents the run has:
+
+1. The reserved `e2e` key, if `ctx["settings"]["suites"]` carries one, is
+   ADDED to whatever rule 2 or 3 selects — it is the suite
+   `/acs:create-e2e-tests` wrote into, so a run that has documents always
+   runs it. It is not a selector by itself: it never decides between rules
+   2-4, and on its own it narrows nothing.
+2. When the run wrote a `test-cases.md`: the suites named in it — the `Suite`
+   column of its `## Cases` table, at `steps/create-test-docs/test-cases.md`
+   — plus rule 1. `/acs:create-test-docs` is what assigns each case to a
+   suite, so the run's own cases are what scopes it.
+3. When the run wrote no `test-cases.md` but has a plan: the suites named in
+   the plan's Test-strategy section, at `steps/create-impl-plan/plan.md` —
+   plus rule 1.
+4. When the run has NEITHER document — a run started from a prompt against a
+   repo, with nothing planned — every entry in `ctx["settings"]["suites"]`,
+   whether or not an `e2e` key is among them. A ticket run with no
+   `test-cases.md` and no plan lands here too: the `e2e` key alone does not
+   narrow it to `{e2e}`. That is the honest answer there: nothing has said
+   which suites this change bears on, so the run cannot narrow.
 
 This is re-resolved on every invocation, never cached from an earlier call, so
 a later case-document or plan write is picked up automatically. A suite named
 in either document is included only when it is also a key in
 `ctx["settings"]["suites"]`.
 
-**When nothing resolves**, record `outcome: nothing_to_run` and finish. A run
-with no suite to run is a completed step with a reason, not a failure: the
-absence of a suite is not evidence that anything is broken.
+**When nothing resolves** — suites are configured, and rule 2 or 3 applied
+but named none of them and there is no `e2e` key — record
+`outcome: nothing_to_run` and finish. A run with no suite to run is a
+completed step with a reason, not a failure: the absence of a suite is not
+evidence that anything is broken. (A repo that configures no suite at all is
+`no_harness`, Step 1 — rule 4 over an empty map.)
 
 ## Step 4a — Triage (model step, failure path only)
 
@@ -343,10 +369,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-run-e2e-tests.py" --result-fil
 ```
 
 The status and outcome are read from that document — a step's transition is
-read from its result, not asserted on the command line. `no_harness` is an
-honest completion, not a failure: a project with no runner configured has
-nothing for this step to do and says so, rather than failing a run over the
-absence of its own evidence.
+read from its result, not asserted on the command line. The two empty
+outcomes mean one thing each, the same as in the fragment
+(`skills/run-e2e-tests/state.schema.json`): `no_harness` — the repo
+configures no suite at all (`settings.suites` resolves to `{}`, no
+`settings.e2e` either); `nothing_to_run` — suites are configured but this run
+has none to run (the plan's `owes.e2e: false`, settled by the pre-hook, or a
+run set that resolved empty). Both are honest completions, not failures: a
+step with nothing to do says which kind of nothing, rather than failing a run
+over the absence of its own evidence.
 
 ## Completion report (normative)
 

@@ -178,7 +178,7 @@ class HandoffResumeCase(acs_case.AcsWorkspaceCase):
     workflow would have pointed at."""
 
     def test_create_design_resumes_via_handoff(self):
-        ticket = self.new_ticket("Design system revamp", "story")
+        ticket = self.new_ticket("Design system revamp", "epic")  # needs_design by default
         out = self.start("create-design", ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         result = self.run_script("handoff.py", "--summary", "s", "--run", ticket)

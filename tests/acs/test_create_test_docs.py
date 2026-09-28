@@ -415,7 +415,10 @@ class TestUntracedArm(unittest.TestCase):
 
     def test_an_uncoverable_criterion_becomes_a_question_not_a_dropped_row(self):
         self.assertRegex(self.body, r"do NOT\s*\ndrop it and do NOT invent a case")
-        self.assertIn('"status": "needs_input"', self.body)
+        # `needs_input` is a stop reason, not a status (acs_lib.run.STEP_STATUSES).
+        self.assertIn('"status": "interrupted"', self.body)
+        self.assertIn('"stop_reason": "needs_input"', self.body)
+        self.assertNotIn('"status": "needs_input"', self.body)
         self.assertIn('<handoff status="needs_input">', self.body)
 
     def test_a_ticket_with_no_criteria_is_called_vacuous_not_covered(self):

@@ -103,7 +103,9 @@ the artifacts alone.
    place of these:
    - `git diff <default_branch>...HEAD` (run as read-only Bash from
      `<checkout_root>`) — the ground-truth changeset.
-   - `<partition>/ticket.json` — title, description, acceptance criteria.
+   - the ticket (`acs.py artifacts show --ticket <id>` prints its `source_path`,
+     `docs/tickets/<id>/ticket.md` or the workspace `ticket.json`) — title,
+     description, acceptance criteria.
    - `steps/code/result.json`, specifically
      `states.docs_updated` — repo-relative paths of every doc file `/code`
      already believed it changed.
@@ -114,9 +116,13 @@ the artifacts alone.
      changeset review `/acs:review-code` recorded; `/acs:code` has no
      verifier of its own). Absent when no review has run — say so in your
      notes and proceed; it never stops a docs sync.
-   - The ticket's binding design (`<partition>/design.md`, or the parent
-     epic's when the ticket inherits it) when `ticket.needs_design` is true
-     or a parent design applies; absent otherwise.
+   - The ticket's binding design — the published `design.md` the task
+     names: `docs/tickets/<id>/design.md` in the checkout (or the parent
+     epic's `docs/tickets/<parent-id>/design.md` when the ticket inherits
+     it), falling back to that ticket's workspace partition only when there
+     was no checkout to publish into — when the ticket or its parent epic
+     needs design; absent otherwise. `steps/create-design/design.md` under
+     `<partition>` is an unverified working draft, never the binding design.
 
    The diff and `ticket.json` are the subject every docs sync works from.
    The `/acs:code` and `/acs:review-code` artifacts may be absent — docs-sync

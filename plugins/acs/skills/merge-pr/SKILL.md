@@ -77,7 +77,7 @@ Parse the printed context JSON. Fields you will use:
 - `settings` — `settings.merge_strategy` (`squash` | `merge` | `rebase`,
   default `squash`) and `settings.tracker` (`provider` `local`/`github`/`jira`
   plus `tracker.github` / `tracker.jira` sub-keys).
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 Resolve the PR reference from workspace state — never from conversation
 history: read `states.pr` (`{number, url, branch, base}`) from the ticket's
 run, the way the pre-hook's brake does — `steps/create-pr/state.json` first,

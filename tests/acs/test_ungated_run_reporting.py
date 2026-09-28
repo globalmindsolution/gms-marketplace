@@ -100,11 +100,13 @@ class SkillStartCase(acs_case.AcsWorkspaceCase):
         lib.update_index(self.ws, REPO_ID, ticket, archived=False)
         return tdir
 
-    def gate(self, skill="code"):
+    def gate(self, skill="code", subject="SHOP-1"):
         """Drive the REAL dispatch.py pre, which is the only writer of the
-        evidence a gated verdict rests on. The gate's own verdict is irrelevant
-        here: the evidence write runs before it, pass or block."""
-        self.pre(skill)
+        evidence a gated verdict rests on. The gate must PASS: the evidence is
+        written before it decides, but a refusal marks it refused, and refused
+        evidence gates nothing (test_refused_gate_evidence)."""
+        out = self.pre(skill, args_text=subject)
+        self.assertEqual(out.returncode, 0, out.stderr)
         ckid = lib.checkout_id(self.repo)
         evidence = lib.read_json(lib.gate_evidence_path(self.ws, REPO_ID, ckid))
         self.assertIsInstance(evidence, dict, "the pre-hook wrote no gate evidence")
@@ -412,7 +414,9 @@ class EvidenceConsumptionTest(SkillStartCase):
 
     def test_evidence_for_another_skill_does_not_gate_this_one(self):
         self.mint("SHOP-1")
-        self.gate("create-pr")
+        # Recorded directly: a PASSING create-pr gate would open create-pr on
+        # the run, and this test is about whose evidence it is, nothing else.
+        lib.record_gate_evidence(lib.build_context(self.repo), "create-pr")
         code, payload, err = self.start("SHOP-1", skill="code")
         self.assertEqual(code, 0, err)
         self.assertFalse(payload["gate_enforcement"]["gated"])

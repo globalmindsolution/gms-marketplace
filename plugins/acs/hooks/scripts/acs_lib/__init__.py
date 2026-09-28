@@ -68,7 +68,7 @@ from .hostgates import (DEFAULT_GATE_RESPONSE, GATE_EVIDENCE_MAX_AGE_SECONDS,
     GATE_RESPONSES, HOOK_ENFORCEMENTS,
     accepted_gate_evidence, consume_gate_evidence,
     gate_evidence, gate_evidence_path, gate_notice, gate_response,
-    record_gate_evidence)  # noqa: F401
+    record_gate_evidence, refuse_gate_evidence)  # noqa: F401
 
 from .planrules import (PLAN_FILE_MAP_HEADING, RETIRED_PLAN_SECTIONS,
     _PLAN_HEADING_RE, _coverage_target_stated,
@@ -104,7 +104,7 @@ from .gates import (BRAKES, NothingOwed,  # noqa: F401
     SUBJECT_GATES, _merge_pr_arg_text,
     build_context, design_requirement, gate_create_design, gate_merge_pr,
     gate_outcome, parent_epic_dir, resolve_run_for,
-    run_pre, run_pre_payload, session_end,
+    run_pre, run_pre_payload, session_end, step_brakes,
     subject_from_payload)
 from .posthook import (_archive_partition, _clear_pointers_for_ticket,  # noqa: F401
     _epic_auto_done, _read_result_from_argv, run_post)

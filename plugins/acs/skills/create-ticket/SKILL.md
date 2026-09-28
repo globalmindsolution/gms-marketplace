@@ -47,7 +47,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ti
   Relay that stderr verbatim, obtain the confirmed start number from the user
   — never invent it — and re-run `acs step start` with `--seed-next <n>` added.
 - Parse the printed context JSON. Bind: `partition`, `ticket_id`, `ticket`,
-  `settings`, `models`, `reconcile`, `prior_run_status`, `handoff_summary`,
+  `settings`, `models`, `reconcile`, `prior_status`, `handoff_summary`,
   `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
 
 ## Remote import

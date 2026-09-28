@@ -31,19 +31,26 @@ epic, after that epic's own design is approved. Resulting precedence:
    mints an epic's children, never a story or task's own children. This
    mirrors, in prose, the refusal `new-ticket.py` already enforces in code
    (`parent %s is a %s, not an epic`), so the two can never disagree.
-3. **Design precondition.** Read the epic's design source (its own
-   partition's `design.md`, or the `create-design` step in
-   `run.json`). When `create-design` has not completed, or
+3. **Design precondition.** Resolve the epic's published design with
+   `acs.py artifacts show --ticket <epic-id>` and read
+   `artifacts["design.md"]` — `docs/tickets/<epic-id>/design.md` in the
+   checkout, or `design.md` in the epic's workspace partition when there was
+   no checkout (`null` = none published) — and the `create-design` step's
+   status in the epic run's `run.json`. When `create-design` has not completed, or
    `design.md` is absent, surface that to the user and obtain their explicit
    confirmation before proceeding — never proceed silently, and never
    hard-refuse; the user may still choose to fan out an undesigned epic.
 4. **Breakdown derivation.** When the epic's `design.md` exists, derive the
-   proposed child breakdown from the design's own slice/seam content (the
-   acs design template's Rollout/migration slice table, when present);
-   otherwise derive it from the epic's own description and acceptance
-   criteria. Apply Step 1's concreteness/testability judgment to every
+   proposed child breakdown from the design's own slice/seam content. The
+   built-in template (`templates/design-default.md`) has no slice table: read
+   the seams from its `## Architecture` section (the new/changed components
+   and interfaces — each coherent component or interface change is a
+   candidate child) and the ordering from `## Rollout/migration` (sequencing,
+   migrations, flags, backward compatibility) — plus any slice breakdown a
+   repo's own design template adds. Otherwise derive it from the epic's own
+   description and acceptance criteria. Apply Step 1's concreteness/testability judgment to every
    proposed child AC/DoD entry, the same as the root flow.
-5. **Confirmation gate.** Reuse Step 2 item 7 — "Epic only: present the
+5. **Confirmation gate.** Reuse Step 2 item 6 — "Epic only: present the
    proposed child breakdown and obtain user confirmation or edits before any
    child is minted" — verbatim; this fan-out run IS that gate's actual
    invocation for an already-created epic. No child is minted before the
@@ -55,8 +62,22 @@ epic, after that epic's own design is approved. Resulting precedence:
    (title, description, acceptance criteria, needs_design)
    is not re-analyzed or rewritten; only the epic's `children` array
    changes, via `new-ticket.py`. After minting, write each confirmed
-   child's `acceptance_criteria` into the child's own `ticket.json` —
-   `new-ticket.py` exposes no `--acceptance-criteria` flag.
+   child's `acceptance_criteria` into the child's ticket with
+   `acs.py ticket save`:
+
+   ```bash
+   printf '%s' '{"acceptance_criteria": ["...", "..."]}' \
+     | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket save --ticket <child-id> --from -
+   ```
+
+   `--ticket` names the child; `--from` takes a JSON file, or `-` (or nothing)
+   for stdin. The document is a PATCH merged over the stored ticket, so send
+   only `acceptance_criteria`. It writes wherever the ticket lives —
+   `docs/tickets/<child-id>/ticket.md` once the docs tree exists (which is
+   where `new-ticket.py` put it), else the workspace partition's
+   `ticket.json` — and re-indexes it. Never hand-edit either file: a
+   hand-written `ticket.json` beside a `ticket.md` is a second copy no reader
+   opens. `new-ticket.py` exposes no `--acceptance-criteria` flag.
 8. **Sync.** Run Step 5 below, scoped to the newly minted children only —
    see Step 5's sync-set clause for the exclusion rule that keeps the
    epic's own already-synced issue from being re-created.

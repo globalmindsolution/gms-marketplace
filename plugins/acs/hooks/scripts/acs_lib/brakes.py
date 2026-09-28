@@ -154,3 +154,19 @@ BRAKES = {
     "code": _brake_code,
     "create-pr": _brake_create_pr,
 }
+
+
+def step_brakes(ctx, skill, rdir, doc, wf):
+    """Every brake that holds `skill` as a step of this run; raises GateError.
+
+    One function for both callers: the pre-hook (`gates.gate_outcome`) and
+    `acs step start`, which re-applies them. A coordinator that ignored a
+    refused Skill call -- or a host that never fired the hook -- reached
+    `step start`, which checked the invariants and nothing else, so an epic
+    was analyzed, an unapproved plan implemented and a failed review opened
+    as a PR on nothing but the coordinator's say-so."""
+    if skill in _EPIC_VERBS:
+        _brake_no_epics(ctx, rdir, dict(doc, __step__=skill), wf)
+    brake = BRAKES.get(skill)
+    if brake:
+        brake(ctx, rdir, doc, wf)

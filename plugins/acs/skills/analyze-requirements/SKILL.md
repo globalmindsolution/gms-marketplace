@@ -81,7 +81,7 @@ Parse the printed context JSON. Fields you will use:
 - `settings` — you need `formats.branch_name`, `formats.commit_message`.
 - `models` — per-tier `{model, effort}`: the analyst runs on the `executor`
   tier, the impact reviewer on the `verifier` tier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see
+- `reconcile`, `handoff_summary`, `prior_status` — see
   `references/resume.md`.
 
 Throughout this file `<partition>` means the `partition` path from the context

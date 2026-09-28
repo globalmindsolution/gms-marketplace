@@ -89,6 +89,20 @@ def record_gate_evidence(ctx, skill):
     return evidence
 
 
+def refuse_gate_evidence(ctx, evidence):
+    """Mark this fire's evidence as a REFUSAL.
+
+    The evidence is written before the gate decides -- it records that the
+    hook fired, and must survive a gate that then crashes (MAR-514). But a
+    fire is not a pass: `acs step start` read the evidence of a blocked Skill
+    call as `gate_evidence_accepted`, so a coordinator that carried on past
+    the refusal opened its step with the ledger saying it was gated."""
+    refused = dict(evidence, refused=True)
+    write_json(
+        gate_evidence_path(ctx["workspace"], ctx["repo_id"], ctx["checkout_id"]), refused)
+    return refused
+
+
 def accepted_gate_evidence(ctx):
     """Read the gate artifact under the staleness/cross-checkout guard,
     returning (evidence, None) or (None, why it was rejected)."""
@@ -121,6 +135,8 @@ def gate_evidence(ctx, skill):
     if evidence is not None:
         if evidence.get("gate_skill") != skill:
             reason = "evidence_for_other_skill"
+        elif evidence.get("refused"):
+            reason = "gate_refused"
         elif evidence.get("consumed_for") == evidence["fired_at"]:
             reason = "evidence_already_consumed"
     gated = evidence is not None and reason is None
@@ -156,6 +172,10 @@ def gate_notice(verdict):
     """Render the degraded-enforcement notice for an unconfirmed verdict, else None."""
     if verdict.get("gated"):
         return None
+    if verdict.get("reason") == "gate_refused":
+        return ("acs: the PreToolUse(Skill) gate REFUSED this skill — its message "
+                "said why. Fix what it named and invoke the skill again; a step "
+                "is never started over a refused gate.")
     lines = [
         "acs: DEGRADED ENFORCEMENT — no evidence that the PreToolUse(Skill) gate "
         "fired for this run (%s)." % verdict.get("reason"),

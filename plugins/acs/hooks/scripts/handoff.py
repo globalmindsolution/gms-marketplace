@@ -28,6 +28,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
 
 
+def last_interrupted_step(rdir, run_id):
+    """The skill whose latest invocation on this run ended `interrupted`, the
+    most recent first; None when there is none."""
+    base = os.path.join(rdir, "steps")
+    best = None
+    for skill in sorted(os.listdir(base)) if os.path.isdir(base) else ():
+        if not os.path.isfile(lib.state_path(rdir, skill)):
+            continue
+        last = lib.last_invocation(lib.load_state(rdir, skill, run_id)) or {}
+        if last.get("status") == "interrupted":
+            key = last.get("ended_at") or ""
+            if best is None or key >= best[0]:
+                best = (key, skill)
+    return best[1] if best else None
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--summary", help="handoff summary text")
@@ -108,7 +124,16 @@ def main():
     # where its cursor is.
     # Several steps in flight means a parallel group, and only /acs:ship runs
     # a group's members together, so that is the command that resumes it.
-    resume = ("/acs:%s %s" % (handed[0], run_id) if len(handed) == 1
+    # A run with no workflow position -- a delivery ticket's, opened by a
+    # product skill -- has no cursor for /acs:ship to follow, so a SECOND
+    # handoff (nothing left in flight) named /acs:ship for a create-docs run.
+    # Such a run resumes through the skill it last interrupted.
+    if not handed and not doc.get("steps"):
+        standalone = last_interrupted_step(rdir, run_id)
+        handed_again = [standalone] if standalone else []
+    else:
+        handed_again = handed
+    resume = ("/acs:%s %s" % (handed_again[0], run_id) if len(handed_again) == 1
               else "/acs:ship %s" % run_id)
     out = {
         "ok": True,

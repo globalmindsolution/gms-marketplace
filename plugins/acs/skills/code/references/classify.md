@@ -1,12 +1,14 @@
 # Judging a plan onto a delivery path
 
-*Read by `/acs:ship` after `delivery.classify_after` completes, and by
-`/acs:code` when a ticket reaches it with no path recorded. Path:*
+*Read by `/acs:create-impl-plan` when it judges the path for its plan's
+`## Contract` block, and by `/acs:code` when a run reaches it with no path
+recorded (no plan at all, or a plan that predates the Contract block). Path:*
 *`${CLAUDE_PLUGIN_ROOT}/skills/code/references/classify.md`.*
 
-The four paths are `trivial`, `small`, `standard` and `complex`. Exactly one is
-chosen, once, from `plan.md`, and recorded with the reason on
-`run.json`. Everything downstream reads that record; nothing
+The four paths are `trivial`, `small`, `standard` and `complex`
+(`acs_lib.plan_contract.DELIVERY_PATHS`). Exactly one is chosen, once, from
+`plan.md`, and recorded in that plan's own `## Contract` block as
+`delivery_path:`. Everything downstream reads that record; nothing
 re-judges (ADR-0095).
 
 ## Why this is a judgement and not a score
@@ -73,8 +75,9 @@ unnecessary lens pass is some tokens and a few minutes. The cost of a missed
 regression in a payment path is not comparable, and nothing downstream will
 catch what a cheaper path did not look for.
 
-**An epic never reaches here.** `/acs:code`'s gate refuses one, and
-`workflow next` exits 2 on one before any classification happens.
+**An epic never reaches here.** The pre-hook's epic brake refuses one for
+every implementation step, `/acs:create-impl-plan` included, before any
+classification happens.
 
 **A plan you cannot classify is not a `standard` plan — it is an unfinished
 plan.** If `plan.md` has no file map, or a Test strategy that says nothing, you
@@ -90,21 +93,53 @@ load-bearing is.
 
 ## Recording it
 
-One value and one sentence, written together:
+There is no recording call and no field on `run.json` or the ticket: the path
+**is** the `delivery_path:` line of the plan's `## Contract` block
+(`acs_lib.plan_contract`), and the kernel reads it from there —
+`acs.py plan path` prints it, `/acs:code` dispatches on it, and the
+plan-approval brake (`acs_lib.brakes._brake_code`) reads it to decide whether
+an approval is owed. So recording it is an edit to the plan you are judging:
 
-```bash
-python3 - "<ticket-id>" "<path>" "<reason>" <<'PY'
-import os, sys
-sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "hooks", "scripts"))
-import acs_lib as lib
-from acs_lib import workflow
-ctx = lib.build_context(os.getcwd())
-tdir, _ = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], sys.argv[1])
-doc = workflow.validate_workflow_file(workflow.resolve_workflow(ctx.get("checkout_root"))["path"])
-workflow.record_delivery_path(tdir, sys.argv[1], sys.argv[2], sys.argv[3], doc=doc)
-print("recorded %s: %s" % (sys.argv[1], sys.argv[2]))
-PY
+```markdown
+Delivery path: `standard` — adds a `status` column to `orders` and two
+endpoints that read it; the migration is reversible but the shape is public.
+
+## Contract
+delivery_path: standard
+owes:
+  api_contract: true
+  test_cases:   true
+  e2e:          false
+  reason: "..."
+
+### Executor tasks & file map
+- task 1: ...
 ```
+
+The value must be one of the four, or `plan_contract.errors` reports it and
+the plan-approval check fails the plan. The **reason** has no key of its own in
+the Contract block (`owes.reason` is the owes flags' reason, not the path's):
+write it as the one prose sentence directly above `## Contract`, as shown —
+that is the sentence the review's Path audit checks and `/acs:code`'s
+completion line quotes. A prose line *inside* the block would stop the block
+parsing, and an unparseable block reads as no contract at all.
+
+Where the plan lives depends on who wrote it:
+
+- **`/acs:create-impl-plan`'s plan** — `steps/create-impl-plan/plan.md` in the
+  run directory (`acs_lib.artifact_path(<partition>, "plan")`). This is the
+  only plan `acs.py plan path` reads (it refuses a `--plan` outside that step
+  directory) and the only one the approval brake reads.
+- **`/acs:code`'s implicit plan** — `steps/code/plan.md`. The kernel reads no
+  path from it: you dispatch on the value you just wrote, and because no brake
+  reads it either, the implicit plan is for the cheap paths only (see
+  `/acs:code`'s **No plan at all**).
+
+Either way the file is found through the run, not a ticket: take `partition`
+from `acs step start`'s context. A run whose subject is a **prompt** or a
+**document** has no ticket partition at all (`subject.kind` is not `ticket`
+and `ticket_id` is null), so never resolve the plan through
+`find_ticket_partition` or a ticket id.
 
 The reason is a sentence about THIS plan, naming what decided it — not a
 restatement of the path's definition. "standard: adds a `status` column to
@@ -112,10 +147,10 @@ restatement of the path's definition. "standard: adds a `status` column to
 shape is public" is a reason. "standard: it is standard-sized" is not, and it
 leaves the Path audit dimension nothing to check against.
 
-`record_delivery_path` refuses an unknown path, refuses an empty reason, and
-refuses to move a ticket that is already on a path. That last refusal is the
-important one: it is what makes a resumed run read rather than re-judge. When
-the plan itself was wrong, the way to move a ticket is
+A plan that already declares a `delivery_path` is never re-judged: a resumed
+run reads the recorded value rather than judging again, and editing the value
+of an approved `standard`/`complex` plan changes its `plan_sha256` and so
+voids the approval. When the plan itself was wrong, the way to move a run is
 `failed`, with `summary` naming the plan as superseded — the remedy is to
 re-run `/acs:create-impl-plan`,
 and the corrected plan is classified fresh.

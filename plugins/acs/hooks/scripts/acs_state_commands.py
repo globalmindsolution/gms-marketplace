@@ -63,6 +63,8 @@ def cmd_run_next(args):
     `due` -- every unfinished step of the stage it is in, which is more than
     one only for a parallel group. With no `needs:` graph there is nothing to
     traverse and nothing to record as skipped."""
+    if args.run is None and (args.ticket or args.prompt or args.document):
+        args.run = _run_for_subject(args)
     _rdir, doc, _ctx, wf = _resolve_run("run next", args.run)
     cursor = lib.cursor(doc, wf)
     # `due` is every step `/acs:ship` starts now: one for a plain stage, each
@@ -72,6 +74,50 @@ def cmd_run_next(args):
           "due": due, "parallel": len(due) > 1,
           "status": doc.get("status"),
           "done": cursor is None})
+
+
+def _run_for_subject(args):
+    """The run `/acs:ship <subject>` drives, created when there is none.
+
+    ship/SKILL.md promised that `run next` "takes the same subject flags" as
+    the table it resolves; it took only --run, so a ship over a prompt or a
+    ticket with no run yet stopped at "no current run". Resolution, in order:
+    this checkout's current run when it is live and has that subject; for a
+    ticket, the latest live run over it; else a new run (a ticket must
+    exist -- a run over a reference to nothing cannot be read)."""
+    ctx = context_or_die("run next")
+    repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    subject = _subject_from_args(args, "run next")
+    current = lib.current_run_id(ctx)
+    if current:
+        doc = lib.load_run(lib.run_dir(repo, current)) or {}
+        if (doc.get("status") not in lib.TERMINAL_RUN_STATUSES
+                and _same_subject(doc.get("subject") or {}, subject)):
+            return current
+    if subject["kind"] == "ticket":
+        row = lib.latest_open_run(repo, "ticket", subject["ticket_id"])
+        if row:
+            lib.point_checkout_at(ctx, row["run_id"])
+            return row["run_id"]
+        tdir, _archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"],
+                                                   subject["ticket_id"])
+        if not os.path.isdir(tdir):
+            die("run next", "no ticket %s in this repo's workspace — run "
+                            "/acs:create-ticket to make one." % subject["ticket_id"])
+    try:
+        resolved = lib.resolve_workflow(ctx.get("checkout_root"))
+        wf = lib.validate_workflow_file(resolved["path"])
+        run_id, _rdir, _doc = lib.create_run(repo, subject, wf, resolved["path"])
+    except (lib.WorkflowError, lib.GateError) as exc:
+        die("run next", str(exc))
+    lib.point_checkout_at(ctx, run_id)
+    return run_id
+
+
+def _same_subject(a, b):
+    keys = {"ticket": ("ticket_id",), "prompt": ("text",), "document": ("path", "sha256")}
+    return a.get("kind") == b["kind"] and all(
+        a.get(k) == b.get(k) for k in keys.get(b["kind"], ()))
 
 
 def cmd_run_check(args):
@@ -115,7 +161,7 @@ def cmd_run_new(args):
           "cursor": doc.get("cursor")})
 
 
-def _subject_from_args(args):
+def _subject_from_args(args, command="run new"):
     if args.ticket:
         return {"kind": "ticket", "ticket_id": args.ticket}
     if args.document:
@@ -124,11 +170,11 @@ def _subject_from_args(args):
             with open(args.document, "rb") as fh:
                 digest = hashlib.sha256(fh.read()).hexdigest()
         except OSError as exc:
-            die("run new", "cannot read %s: %s" % (args.document, exc))
+            die(command, "cannot read %s: %s" % (args.document, exc))
         return {"kind": "document", "path": args.document, "sha256": digest}
     if args.prompt:
         return {"kind": "prompt", "text": args.prompt}
-    die("run new", "give a subject: --ticket, --prompt or --document.")
+    die(command, "give a subject: --ticket, --prompt or --document.")
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +346,35 @@ def _ensure_run_for_ticket(ctx, ticket_id):
     return rdir
 
 
+def _brake_or_die(ctx, step, rdir, doc, wf=None):
+    """The pre-hook's safety brakes for `step` on this run, or exit 2.
+
+    `step start` is what a coordinator runs whether or not the hook fired, so
+    it is the one place the brakes hold on a host that never fires it."""
+    try:
+        wf = wf or lib.workflow_for(ctx)
+        if lib.workflow.has_step(wf, step):
+            lib.step_brakes(ctx, step, rdir, doc, wf)
+    except (lib.GateError, lib.WorkflowError) as exc:
+        die("step start", str(exc))
+
+
+def _run_from_invocation(ctx, step, text):
+    """The run id the pre-hook would have opened for `/acs:<step> <text>`;
+    None for a skill that is not a step (it needs no run from its args)."""
+    payload = {"tool_input": {"args": text}, "cwd": os.getcwd()}
+    try:
+        wf = lib.workflow_for(ctx)
+        if not lib.workflow.has_step(wf, step):
+            return None
+        rdir, doc, wf = lib.resolve_run_for(ctx, step, payload, mutate=False)
+        _brake_or_die(ctx, step, rdir, doc, wf)
+        _rdir, doc, _wf = lib.resolve_run_for(ctx, step, payload, mutate=True)
+    except (lib.GateError, lib.WorkflowError) as exc:
+        die("step start", str(exc))
+    return doc["run_id"]
+
+
 def cmd_step_start(args):
     """step -> in_progress, after the invariants hold. Writer for the
     PreToolUse(Skill) transition."""
@@ -315,8 +390,24 @@ def cmd_step_start(args):
         if notice:
             sys.stderr.write(notice + "\n")
         sys.exit(2)
+    if verdict.get("reason") == "gate_refused":
+        # The hook fired AND refused. Whatever `when_absent` says, that is not
+        # an absence to warn about: it is a refusal, and starting the step
+        # anyway is exactly what the refusal exists to prevent.
+        sys.stderr.write(lib.gate_notice(verdict) + "\n")
+        sys.exit(2)
     if getattr(args, "pr", None):
         return _exempt_pr_start(args, ctx, verdict)
+    subject_gate = lib.SUBJECT_GATES.get(args.step)
+    if subject_gate:
+        # The pre-hook's subject gates (create-design's needs_design flag,
+        # merge-pr's recorded PR), re-applied: without the hook they were
+        # never checked at all.
+        text = args.args or args.ticket or args.run or ""
+        try:
+            subject_gate(ctx, {"tool_input": {"args": text}, "cwd": os.getcwd()})
+        except lib.GateError as exc:
+            die("step start", str(exc))
     allocated = None
     if getattr(args, "allocate", False):
         ticket_id, _tdir, _ticket, reused = _allocate_delivery_ticket(args, ctx)
@@ -342,9 +433,22 @@ def cmd_step_start(args):
         except lib.GateError as exc:
             die("step start", str(exc))
         args.run = ticket_id
+        # The brakes BEFORE the run exists, so a refused start creates none.
+        repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+        rdir = lib.run_dir(repo, ticket_id)
+        _brake_or_die(ctx, args.step, rdir, lib.load_run(rdir) or {
+            "run_id": ticket_id, "subject": {"kind": "ticket", "ticket_id": ticket_id}})
         _ensure_run_for_ticket(ctx, ticket_id)
+    elif getattr(args, "args", None) and not args.run and not lib.current_run_id(ctx):
+        # The invocation's own arguments name the subject and no hook opened a
+        # run over it (a host that never fires PreToolUse(Skill)). Resolve it
+        # the way the pre-hook does -- judged on the projected run, brakes
+        # included, and only then created -- instead of "no current run".
+        args.run = _run_from_invocation(ctx, args.step, args.args)
     rdir, doc, _ctx, wf = _resolve_run("step start", args.run)
     in_workflow = _require_step(wf, args.step, "step start")
+    if in_workflow:
+        _brake_or_die(ctx, args.step, rdir, doc, wf)
     try:
         # The lock, before the transition. This is the WRITER for `in_progress`
         # (§4.3), and a transition written without the lock is exactly the

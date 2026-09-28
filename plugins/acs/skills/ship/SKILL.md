@@ -80,8 +80,10 @@ on", a subject means "this one", and an id is only for disambiguation.
 | a path to a file that exists | a new run from that document, resolved the same way |
 | `--run <run-id>` | exactly that run; the only form that names an id, for the rare second run on one subject |
 
-You do not have to resolve this yourself: `acs run next` takes the same
-subject flags and answers from the run it finds. When nothing resolves — no
+You do not have to resolve this yourself: `acs run next` takes the subject
+as a flag — `--ticket <id>`, `--prompt "<text>"` or `--document <path>` —
+resolves it exactly as the table says (creating the run when there is none)
+and answers from the run it finds. When nothing resolves — no
 pointer, no subject — ask the user what to ship rather than guessing.
 
 There is no `flow: product` refusal any more: a run has a SUBJECT, not a flow,
@@ -102,7 +104,10 @@ memory, decides what comes next:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" run next
 ```
 
-Add `--run <run-id>` only when you were given one. It prints one JSON object:
+On entry, pass the subject you were given as its flag (`--ticket`, `--prompt`
+or `--document`, per Step 2), or `--run <run-id>` when you were given one; with
+none, it reads this checkout's current run. After a step returns, the run is
+current, so the bare command is enough. It prints one JSON object:
 
 | Field | What you do with it |
 |---|---|
