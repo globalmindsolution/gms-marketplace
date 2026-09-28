@@ -1052,6 +1052,34 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Fixed
 
+- **Parallel groups and sliced fan-out, fixed where they met the kernel**
+  (ADR-0110).
+  - **The run lock** is released by the last member of a parallel group to
+    finish. The first one used to release it while its sibling was still
+    writing to the ledger and the branch.
+  - **SessionEnd and `handoff.py`** finalize every open step as
+    `interrupted`, not only the first. A handoff with two open members now
+    resumes with `/acs:ship <run>`, and its output lists them under `steps`.
+    The Stop reminder names the first member with no result document.
+  - **The file-map guard** lets a call from a judge or a surveyor through
+    when the payload names it, even while another step's writer is live.
+    With no agent named, a writer whose skill declared no map no longer
+    switches the guard off for a mapped writer beside it. An outside-map
+    denial lists every mapped candidate's map and is recorded on each of
+    their run entries.
+  - **Test results** read `implementer-integration.json` and any other
+    `implementer-<slice>.json`, so the integration implementer's red suite
+    can no longer derive as green.
+  - **`acs notes merge`** keeps a later slice's opening prose (its repeated
+    `# ` title is still dropped), closes a code fence only on the character
+    that opened it, and takes a file's slice id from the role name it starts
+    with, so `authoring-web-app.md` is `web-app` alone or beside
+    `authoring-web-api.md`.
+  - **`docs-sync` in the shipped group** runs its drift review only after
+    `create-e2e-tests` has committed for the last time, so it judges the
+    final diff.
+  - Removed `filemap.active_executor`, which nothing called.
+
 - **`/acs:setup` no longer leaves a repo broken or a gate that always fails.**
   `apply` now checks what it is about to write before writing anything, and
   on a refusal writes nothing at all: an invalid custom format used to land in

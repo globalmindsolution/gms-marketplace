@@ -194,13 +194,21 @@ run here, in your context — what runs in parallel is their SUBAGENTS:
    foreground, and wait for every result before the next batch. A member that
    must wait (for its own judge's input, or for the user) simply sits out
    that batch.
-3. **Ask the user once.** When more than one member needs input, gather their
+3. **A judge that reads the branch diff goes last.** A member whose judge
+   re-derives its verdict from the branch diff — `docs-sync`'s drift-reviewer
+   — must judge the diff the whole group leaves behind. Hold that judge's
+   batch while any sibling still has a writer phase to run, so it spawns
+   only after every sibling writer has committed. If a sibling commits again
+   after that judge already passed (a sibling's own iteration 2 or 3), run
+   that judge once more before the member finishes; its findings start the
+   member's next iteration as usual, within the member's own ceiling.
+4. **Ask the user once.** When more than one member needs input, gather their
    questions into one grouped ask, each question labelled with its step, and
    hand each member back its own answers.
-4. **Each member finishes itself.** Every member writes its own result
+5. **Each member finishes itself.** Every member writes its own result
    document and runs its own post-hook; you never finish a member on another
    one's behalf. The group is done when `acs run next` moves past it.
-5. **A failure stops the group cleanly.** If one member fails, let the
+6. **A failure stops the group cleanly.** If one member fails, let the
    others finish the phase already in flight (never abandon a running
    subagent), record them `interrupted` through their own Finish, then stop
    and report per "Handling the handoff". Commits: members commit on the one

@@ -79,12 +79,23 @@ session. It spawns each phase's subagents for all members in one message, asks
 the user once for all members, and lets each member finish itself. A loop's
 ends may not sit inside a group. The shipped workflow runs `create-e2e-tests`
 and `docs-sync` as one group: both follow the reviewed changeset and write
-disjoint files.
+disjoint files. A member whose judge re-derives from the branch diff
+(`docs-sync`'s drift-reviewer) judges only after every sibling writer has
+committed for the last time, so it judges the diff the group leaves behind.
+
+The run ledger follows the group, not its first member. The run lock is
+released by the last member to finish, since an earlier release would let a
+second checkout in while a sibling is still writing. SessionEnd and a
+handoff finalize every open member as `interrupted`, and a handoff with more
+than one open member resumes through `/acs:ship`.
 
 **3 · The write guard handles several writers.** With writers of different
 skills live at once, a write is judged against its own writer's map when the
-hook payload names the agent. Otherwise it is judged against the union of every
-live writer's scope, never against whichever writer started last.
+hook payload names the agent. A payload naming an agent that is not a live
+writer (a judge or a surveyor) is not the guard's to scope. A payload naming
+no agent is judged against the union of every live writer's scope, never
+against whichever writer started last. In that union, a writer whose skill
+declared no map contributes its own step directory and nothing more.
 
 ## Consequences
 
@@ -93,8 +104,10 @@ live writer's scope, never against whichever writer started last.
 - Commits from parallel writers meet git's `index.lock`. The rule is wait and
   retry, never delete the lock.
 - An unattributed write under several live writers is checked against their
-  union, so a writer may touch a sibling skill's mapped file. On a Claude Code
-  that sends `agent_id` on tool hooks the check is exact.
+  union, so a writer may touch a sibling skill's mapped file. A map-less
+  writer's unattributed write outside its siblings' maps is denied and comes
+  back as `needs_input`. On a Claude Code that sends `agent_id` on tool hooks
+  the check is exact.
 - A parallel group costs the coordinator's context: every member's
   coordinator prose is loaded together. Groups are declared, never derived,
   and the shipped workflow declares one.

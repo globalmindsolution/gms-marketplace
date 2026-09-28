@@ -158,26 +158,19 @@ def _record_is_current(entry, session_id=None, now=None):
     return age.total_seconds() <= EXECUTOR_RECORD_TTL_SECONDS
 
 
-def active_executor(tdir, session_id=None):
-    """The most recent recorded agent whose role is of the `write` kind (the
-    one that produces a deliverable: `code-implementer`, `create-prd-author`,
-    ...), or None. Named for the role it guarded when every skill had one.
+def active_writers(tdir, session_id=None):
+    """Every recorded `write`-kind agent still running, most recent first:
+    the one that produces a deliverable (`code-implementer`,
+    `create-prd-author`, ...).
 
     "Is an acs writer running" is the whole condition: the guard must not
     touch a surveyor or a judge (read-only on the repo by charter) or the
     coordinator's own writes, all of which legitimately go outside any task's
-    file map.
-
-    Records that cannot still be describing a running executor are skipped --
-    see _record_is_current. Nothing clears the record when a subagent dies
-    mid-flight, and a guard that denies every write in a partition until
-    someone hand-edits it is worse than the scope creep it prevents."""
-    writers = active_writers(tdir, session_id)
-    return writers[0] if writers else None
-
-
-def active_writers(tdir, session_id=None):
-    """Every recorded `write`-kind agent still running, most recent first.
+    file map. Records that cannot still be describing a running writer are
+    skipped -- see _record_is_current. Nothing clears the record when a
+    subagent dies mid-flight, and a guard that denies every write in a
+    partition until someone hand-edits it is worse than the scope creep it
+    prevents.
 
     More than one is normal now: a coordinator fans writers out over disjoint
     partitions, and `/acs:ship` can run a parallel group's steps side by side,
@@ -226,10 +219,16 @@ def file_map_guard(payload):
         if not writers:
             return 0
         own = _writer_for(writers, payload)
+        if own is None and cc.hook_agent_id(payload):
+            # The call names its agent and that agent is not a live writer: a
+            # judge or a surveyor (read-only on the repo by charter, and
+            # writing its own report), which this guard never touches -- even
+            # while a sibling step's writer runs beside it in a parallel group.
+            return 0
         # The writers this call may belong to: its own when the payload names
         # it, else every live one -- never a guess at the most recent.
         candidates = [own] if own else writers
-        executor = candidates[0]
+        skills = [w.get("skill") or "" for w in candidates]
     except Exception as exc:  # noqa: BLE001 - scope questions fail open
         _note("file-map guard not applied: %r" % exc)
         return 0
@@ -245,8 +244,7 @@ def file_map_guard(payload):
         _warn("%s carried a %s tool_input, which the file map cannot be checked "
               "against. STOP and return `needs_input`."
               % (payload.get("tool_name"), type(tool_input).__name__))
-        _record_guard_denial(payload, tdir, ctx, executor.get("skill"),
-                             "unreadable_payload")
+        _record_guard_denials(payload, tdir, ctx, skills, "unreadable_payload")
         return 2
     target = (tool_input or {}).get(key)
     if not target or not isinstance(target, str):
@@ -267,40 +265,60 @@ def file_map_guard(payload):
             "An executor cannot widen or disarm its own scope. If the map is "
             "wrong, STOP and return `needs_input` naming the file, so the "
             "coordinator can adjust it." % (target, reason))
-        _record_guard_denial(payload, tdir, ctx, executor.get("skill"),
-                             "control_input", target=target)
+        _record_guard_denials(payload, tdir, ctx, skills, "control_input",
+                              target=target)
         return 2
 
     # What IS exempt: the writer's own phase artifacts, and only those. With
     # several candidate writers the call is allowed when ANY of them may make
     # it: an unattributable write is judged against the union of the live
     # writers' scopes, never against whichever started last.
+    #
+    # A writer whose skill declared no map has no opinion about ITS OWN writes,
+    # which is why an attributed call from it passes. It is not a veto over
+    # its siblings': in the union it contributes its step directory and
+    # nothing else, or one map-less writer in a parallel group would switch
+    # the guard off for every mapped writer beside it. The guard applies only
+    # when at least one candidate declared a map.
     from .run import step_dir as _step_dir
-    declared = set()
-    for writer in candidates:
-        skill = writer.get("skill") or ""
+    mapped = []
+    for skill in skills:
         if _under(target, _step_dir(tdir, skill)):
             return 0
         iteration = _current_iteration(tdir, skill)
         tasks = load_filemap(tdir, skill, iteration)
         if not tasks:
-            return 0  # nothing declared: that plan has no opinion, so neither has this
+            continue
         if path_in_filemap(target, tasks, ctx.get("checkout_root")):
             return 0
-        declared.update(f for files in tasks.values() for f in files)
-    iteration = _current_iteration(tdir, executor.get("skill"))
-    declared = sorted(declared)
+        mapped.append((skill, iteration, tasks))
+    if not mapped:
+        return 0  # nothing declared: no plan has an opinion, so neither has this
     _warn(
-        "%s is outside this task's file map.\n"
-        "Declared for /acs:%s iteration %s:\n  %s\n"
+        "%s is outside this task's file map.\n%s\n"
         "Do not improvise scope: STOP and return `needs_input` naming the file, "
         "so the coordinator can adjust the file map."
-        % (target, ", /acs:".join(sorted({w.get("skill") or "" for w in candidates})),
-           iteration, "\n  ".join(declared)))
-    _record_guard_denial(payload, tdir, ctx, executor.get("skill"), "outside_map",
-                         target=target, declared_count=len(declared),
-                         iteration=iteration)
+        % (target, "\n".join(
+            "Declared for /acs:%s iteration %s:\n  %s"
+            % (skill, iteration, "\n  ".join(sorted(
+                {f for files in tasks.values() for f in files})))
+            for skill, iteration, tasks in mapped)))
+    # One denial on EACH candidate skill's run entry: an unattributed write
+    # could have come from any of them, so filing it under one would put it on
+    # the wrong step's record half the time.
+    for skill, iteration, tasks in mapped:
+        _record_guard_denial(payload, tdir, ctx, skill, "outside_map", target=target,
+                             declared_count=len({f for files in tasks.values()
+                                                 for f in files}),
+                             iteration=iteration)
     return 2
+
+
+def _record_guard_denials(payload, tdir, ctx, skills, reason, target=None):
+    """`_record_guard_denial` once per candidate skill, for the same reason
+    the outside-map denial is recorded on each."""
+    for skill in dict.fromkeys(skills):
+        _record_guard_denial(payload, tdir, ctx, skill, reason, target=target)
 
 
 def _record_guard_denial(payload, tdir, ctx, skill, reason, target=None,

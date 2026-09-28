@@ -11,7 +11,9 @@ where a section is dropped, reordered or silently rewritten.
 
 The rule is by `## ` heading:
 
-  * the preamble (everything before the first `## `) is the first input's;
+  * the preamble (everything before the first `## `) is the first input's,
+    followed by any later input's preamble that says more than a `# ` title
+    (a slice's opening prose is content; its repeated title is not);
   * every H2 heading appears ONCE, in the order it was first seen;
   * each input's body under that heading is appended in input order, prefixed
     by a `<!-- slice: <id> -->` marker so a reader can tell whose it is.
@@ -25,25 +27,50 @@ import os
 import re
 
 from ._common import GateError
+from .skills import ROLE_KINDS
 
+_H1 = re.compile(r"^# +\S")
 _H2 = re.compile(r"^## +(.+?)\s*$")
-_FENCE = re.compile(r"^(```|~~~)")
+_FENCE = re.compile(r"^(`{3,}|~{3,})")
+
+#: The stems a sliced file starts with: `authoring-<id>.md` for survey notes,
+#: `<role>-<id>.*` for a role's report. Longest first, so `impact-reviewer-`
+#: is stripped before `reviewer-` could be.
+_FILE_ROLES = tuple(sorted(set(ROLE_KINDS) | {"authoring"}, key=len, reverse=True))
 
 
 def slice_ids(paths):
-    """The slice id of each file: its stem minus the prefix every input
-    shares, cut back to a hyphen (`impact-reviewer-surface.md` and
-    `impact-reviewer-form.md` -> `surface`, `form`; `authoring-web-app.md`
-    and `authoring-api.md` -> `web-app`, `api`). Both role names and slice ids
-    may contain hyphens, so the split is never positional. A lone input keeps
-    what follows its last hyphen."""
+    """The slice id of each file: its stem minus the `<role>-` (or
+    `authoring-`) it starts with (`impact-reviewer-surface.md` -> `surface`,
+    `authoring-web-app.md` -> `web-app`). Both role names and slice ids may
+    contain hyphens, so the split is never positional: the role is matched
+    against the known role names, and a file's id is the same however many
+    other files it is merged with. A stem that starts with no known role falls
+    back to what the inputs do not share (cut back to a hyphen), and a lone
+    such stem to what follows its first hyphen."""
     stems = [os.path.splitext(os.path.basename(p))[0] for p in paths]
-    if len(stems) == 1:
-        stem = stems[0]
-        return [stem.rsplit("-", 1)[-1] if "-" in stem else stem]
-    prefix = os.path.commonprefix(stems)
-    prefix = prefix[:prefix.rfind("-") + 1] if "-" in prefix else ""
-    return [stem[len(prefix):] or stem for stem in stems]
+    out = [_strip_role(stem) for stem in stems]
+    unknown = [i for i, sid in enumerate(out) if sid is None]
+    if not unknown:
+        return out
+    rest = [stems[i] for i in unknown]
+    if len(rest) == 1:
+        stem = rest[0]
+        guessed = [stem.split("-", 1)[1] if "-" in stem else stem]
+    else:
+        prefix = os.path.commonprefix(rest)
+        prefix = prefix[:prefix.rfind("-") + 1] if "-" in prefix else ""
+        guessed = [stem[len(prefix):] or stem for stem in rest]
+    for index, sid in zip(unknown, guessed):
+        out[index] = sid
+    return out
+
+
+def _strip_role(stem):
+    for role in _FILE_ROLES:
+        if stem.startswith(role + "-") and len(stem) > len(role) + 1:
+            return stem[len(role) + 1:]
+    return None
 
 
 def slice_id(path):
@@ -52,14 +79,22 @@ def slice_id(path):
 
 def split_sections(text):
     """(preamble, [(heading, body), ...]). Headings inside fenced code blocks
-    are body text: a slice quoting a markdown example must not open a section."""
+    are body text: a slice quoting a markdown example must not open a section.
+    A fence closes only on the character that opened it, at least as many
+    times (CommonMark), so a `~~~` line inside a ``` block is body text too."""
     preamble, sections = [], []
     current = None
-    fenced = False
+    fence = None
     for line in text.splitlines():
-        if _FENCE.match(line.strip()):
-            fenced = not fenced
-        match = None if fenced else _H2.match(line)
+        opened = _FENCE.match(line.strip())
+        if opened:
+            marker = opened.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence) \
+                    and not line.strip()[len(marker):].strip():
+                fence = None
+        match = None if fence is not None else _H2.match(line)
         if match:
             current = (match.group(1).strip(), [])
             sections.append(current)
@@ -71,6 +106,13 @@ def split_sections(text):
         (heading, "\n".join(body).strip("\n")) for heading, body in sections]
 
 
+def _without_title(preamble):
+    """A later slice's preamble minus its `# ` title lines: the merged file
+    already has the first input's title, and a second one is not content."""
+    return "\n".join(line for line in preamble.splitlines()
+                     if not _H1.match(line)).strip("\n")
+
+
 def merge_texts(named_texts, markers=True):
     """Merge [(slice_id, text), ...] into one markdown document; returns
     (text, section_headings). `markers=False` leaves out the
@@ -79,11 +121,15 @@ def merge_texts(named_texts, markers=True):
     if not named_texts:
         raise GateError("nothing to merge: name at least one input")
     order, bodies = [], {}
-    preamble = ""
+    preambles = []
     for index, (sid, text) in enumerate(named_texts):
         pre, sections = split_sections(text)
-        if index == 0:
-            preamble = pre
+        if index:
+            pre = _without_title(pre)
+            if pre.strip():
+                preambles.append("<!-- slice: %s -->\n%s" % (sid, pre) if markers else pre)
+        elif pre:
+            preambles.append(pre)
         for heading, body in sections:
             if heading not in bodies:
                 order.append(heading)
@@ -91,7 +137,7 @@ def merge_texts(named_texts, markers=True):
             if body.strip():
                 bodies[heading].append("<!-- slice: %s -->\n%s" % (sid, body)
                                        if markers else body)
-    out = [preamble] if preamble else []
+    out = list(preambles)
     for heading in order:
         block = "## %s" % heading
         if bodies[heading]:

@@ -99,8 +99,7 @@ onto the plugin hooks API like this:
    `create-prd-author`, `standardize-project-scaffolder`, … —
    `acs_lib.skills.ROLE_KINDS`), with the agent told to return `needs_input`
    for the file it needs. The guard is `filemap.file_map_guard`; it reads
-   every live writer through `filemap.active_writers` (most recent first), and
-   `filemap.active_executor` survives as the first of them.
+   every live writer through `filemap.active_writers` (most recent first).
 
    **Several writers can be live at once (ADR-0110).** A coordinator fans a
    writer role out over disjoint slices, and `/acs:ship` runs a parallel
@@ -109,14 +108,22 @@ onto the plugin hooks API like this:
    "whichever writer started last". When the hook payload carries the calling
    subagent's `agent_id`, `filemap._writer_for` matches it to its own record
    and the write is judged against exactly that writer's skill: its own
-   `steps/<skill>/` artifacts and its own iteration's map. When the payload
+   `steps/<skill>/` artifacts and its own iteration's map. An `agent_id` that
+   matches no live writer is a judge's or a surveyor's, and passes: a
+   parallel group puts one step's reviewer beside another step's writer, and
+   the reviewer's report is not the writer's to scope. When the payload
    names no agent (an older Claude Code), the write cannot be attributed, and
    it is allowed when ANY live writer may make it — the **union** of their
-   scopes. A candidate writer whose skill declared no map fails open as
-   before; the deny names every candidate skill and the combined declared
-   list. The price of the union is stated in ADR-0110: an unattributed write
-   may touch a sibling skill's mapped file; with `agent_id` on tool hooks the
-   check is exact.
+   scopes. A candidate whose skill declared no map contributes only its own
+   `steps/<skill>/` to the union, never a pass for everything: otherwise one
+   map-less writer beside a mapped one would switch the mapped writer's
+   guard off. The guard applies when at least one candidate declared a map;
+   the deny lists each mapped candidate's skill, iteration and map, and is
+   recorded on each of those skills' run entries. The price of the union is
+   stated in ADR-0110: an unattributed write may touch a sibling skill's
+   mapped file, and a map-less writer's unattributed write outside its
+   siblings' maps is denied; with `agent_id` on tool hooks the check is
+   exact.
 
    **Failure polarity is split, because the two questions carry opposite
    risks.** Deciding *whether the guard applies* fails OPEN — not an acs

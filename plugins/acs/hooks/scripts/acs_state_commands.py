@@ -67,8 +67,9 @@ def cmd_run_next(args):
     cursor = lib.cursor(doc, wf)
     # `due` is every step `/acs:ship` starts now: one for a plain stage, each
     # unfinished member for a parallel group. `next` stays the first of them.
+    due = lib.due_steps(doc, wf)
     emit({"ok": True, "run_id": doc["run_id"], "next": cursor,
-          "due": lib.due_steps(doc, wf), "parallel": len(lib.due_steps(doc, wf)) > 1,
+          "due": due, "parallel": len(due) > 1,
           "status": doc.get("status"),
           "done": cursor is None})
 

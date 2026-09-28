@@ -310,6 +310,20 @@ def in_flight_step(rdir, ctx=None, run_id=None):
     return in_progress_step(load_run(rdir) or {})
 
 
+def in_flight_steps(rdir, ctx=None, run_id=None):
+    """EVERY step in flight: `in_flight_step` first, then each other step the
+    run ledger records `in_progress`. A parallel group (ADR-0110) has several,
+    and SessionEnd and a handoff must finalize all of them -- finalizing only
+    the first left its sibling claiming to run in a session that is gone."""
+    from .run import in_progress_steps, load_run
+    first = in_flight_step(rdir, ctx, run_id)
+    steps = [first] if first else []
+    for step in in_progress_steps(load_run(rdir) or {}):
+        if step not in steps:
+            steps.append(step)
+    return steps
+
+
 def resolve_partition(cwd, ctx=None):
     """(run_id, rdir, ctx) for this checkout, or (None, None, ctx/None).
 
@@ -670,16 +684,21 @@ def stop(payload):
     run_id, rdir, ctx = resolve_partition(cwd)
     if not rdir:
         return 0
-    step = in_flight_step(rdir, ctx, run_id)
-    if not step:
+    running = in_flight_steps(rdir, ctx, run_id)
+    if not running:
         clear_stop_blocks(ctx)
         return 0
-    key = "%s/%s" % (run_id, step)
-    result = result_document(rdir, step)
-    if result and result.get("status") in ("completed", "failed", "interrupted"):
-        # The document exists; only the post hook is outstanding, and its own
-        # absence is what the next gate reports. Not this hook's call to make.
+    # A step whose result document exists has only the post hook outstanding,
+    # and its own absence is what the next gate reports -- not this hook's call
+    # to make. With a parallel group, the reminder names the first member that
+    # has no result yet.
+    unfinished = [s for s in running
+                  if not ((result_document(rdir, s) or {}).get("status")
+                          in ("completed", "failed", "interrupted"))]
+    if not unfinished:
         return 0
+    step = unfinished[0]
+    key = "%s/%s" % (run_id, step)
 
     waiting = open_clarifications(rdir)
     if waiting:

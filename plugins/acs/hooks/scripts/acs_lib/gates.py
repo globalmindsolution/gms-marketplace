@@ -586,9 +586,12 @@ def session_end(payload):
     # by a process that no longer exists -- and a cross-host lock stranded that
     # way does not read as stale for 24 hours.
     try:
-        step = run_machine.in_progress_step(doc)
-        if step:
-            wf = _workflow_for(ctx)
+        # Every open step, not the first: a parallel group's members are all
+        # in progress at once, and each one left open would claim to be
+        # running in a session that no longer exists.
+        running = run_machine.in_progress_steps(doc)
+        wf = _workflow_for(ctx) if running else None
+        for step in running:
             step_machine.finalize_invocation(rdir, step, run_id, {
                 "status": "interrupted",
                 "stop_reason": "session_end",

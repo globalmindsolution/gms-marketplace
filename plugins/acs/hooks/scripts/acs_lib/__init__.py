@@ -125,12 +125,13 @@ from .lifecycle import (ACTIVE_AGENTS_DIRNAME, BLOCK_LIMIT,
     HANDOFF_CONTEXT_FILENAME,
     UNTRACKED_ROLES, active_agents, active_agents_dir, agent_record_path, clear_agent,
     clear_stop_blocks, count_agent_stop_attempt, count_stop_block, extract_message,
-    in_flight_step, open_clarifications, parse_agent_type, phase_artifact_path,
+    in_flight_step, in_flight_steps, open_clarifications, parse_agent_type,
+    phase_artifact_path,
     pre_compact, read_agent, record_agent_start, render_handoff_context, resolve_partition,
     result_document, stop, stop_counter_key, subagent_start, subagent_stop, validate_message,
     write_handoff_context, write_phase_snapshot)  # noqa: F401
 from .lifecycle import stop as stop_hook  # noqa: F401
-from .filemap import (FILEMAP_FILENAME, WRITE_TOOL_PATH_KEYS, active_executor, active_writers,
+from .filemap import (FILEMAP_FILENAME, WRITE_TOOL_PATH_KEYS, active_writers,
     file_map_guard, filemap_path, load_filemap, normalize_repo_path, path_in_filemap,
     save_filemap_task)  # noqa: F401
 

@@ -419,6 +419,18 @@ doc-updater, passing every finding to the next iteration's doc-updater
 authors the remediation, one instance per area the findings touch. After iteration 3 with findings remaining: stop,
 final status `failed`.
 
+**In a parallel group, the drift-reviewer judges the FINAL diff.** When
+`/acs:ship` runs this step beside another member (the shipped workflow runs
+it with `create-e2e-tests`), that sibling's writers commit on the same
+branch while the doc-updaters work, so the doc-updaters may have derived the
+delta from a diff that was still growing. The drift-reviewer re-derives from
+the diff as it stands when it runs, so it is the check that catches it — and
+it only can if it runs after every sibling writer has committed for the last
+time. `/acs:ship` holds this phase until then (its "Running a parallel
+group"), and a sibling commit that lands after a passing drift review means
+one more drift review before Finish. A doc the sibling's commits made stale
+is an ordinary finding for the next iteration's doc-updater.
+
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run

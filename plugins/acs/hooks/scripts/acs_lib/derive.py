@@ -61,11 +61,14 @@ VERDICT_SKILLS = ("review-code",)
 #: last -- which is how `iter-1-execute-superseded-1.json` came about. A
 #: directory per iteration makes the trail something you list rather than
 #: something you parse.
-#: `implementer.json` is /acs:code's implementer report (one per parallel
-#: implementer: `implementer-2.json`, ...). `execute.json` is the name it had
-#: while the role was `executor`, still read so a run started before the
-#: rename derives the same way.
-_EXECUTE_RE = re.compile(r"^(?:implementer|execute)(?:-\d+)?\.json$")
+#: `implementer.json` is /acs:code's implementer report, and a sliced
+#: implementer writes `implementer-<slice>.json`: `implementer-2.json`, and the
+#: integration implementer's `implementer-integration.json`, whose suite run is
+#: the one that saw every slice together. The suffix is any slice id
+#: lifecycle's `_SLICE_RE` accepts. `execute.json` is the name it had while the
+#: role was `executor`, still read so a run started before the rename derives
+#: the same way.
+_EXECUTE_RE = re.compile(r"^(?:implementer|execute)(?:-[A-Za-z0-9_][A-Za-z0-9_-]{0,39})?\.json$")
 _ITER_RE = re.compile(r"^iter-(\d+)$")
 
 
