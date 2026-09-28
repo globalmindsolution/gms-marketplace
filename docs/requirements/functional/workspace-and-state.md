@@ -272,7 +272,15 @@ Each state file MUST capture:
   (they would only drift).
 - **The cursor is DERIVED, never stored:** the first step in workflow order
   that is not `completed`. A stored position beside the statuses it
-  summarises is a second copy of one fact, and the two can disagree.
+  summarises is a second copy of one fact, and the two can disagree. When the
+  cursor sits in a parallel group, the steps **due** are derived the same way:
+  every member of that stage that is not `completed` (`acs.py run next`
+  prints them as `due`).
+- **One stage in progress (I1):** every step recorded `in_progress` MUST
+  belong to one stage of the workflow — the members of one parallel group MAY
+  all be `in_progress` at once, and nothing else may (ADR-0110). Step start
+  refuses a step while a step of another stage is open, and `acs.py run
+  check` reports a violation as an error.
 - An invocation is appended with status **`in_progress`** by the coordinator
   at step start and finalized by the post-hook — so even a hard crash that
   skips the post-hook leaves the last invocation `in_progress`, which is not
@@ -377,11 +385,24 @@ worktree per ticket**:
   liveness, a cross-host one only by age.
 - Product-level skills lock their **delivery ticket's** partition like any
   other skill — no separate locking scheme.
+- **Parallel instances inside one step** (ADR-0110) share the step's
+  partition, lock and branch. Each instance carries a slice id, and every file
+  it writes under `steps/<skill>/iter-<n>/` carries it too
+  (`<role>-<id>.json`, `<role>-<id>.md`, `authoring-<id>.md`,
+  `<role>-<id>-message.xml`), so parallel siblings MUST never write the same
+  file; the coordinator joins the slices into the unsliced names with
+  `acs.py notes merge`. Each running agent is recorded in its own
+  `agents/<agent_id>.json`, so no fan-out can lose a record to a
+  read-modify-write race. Commits from parallel writers on the one branch that
+  meet git's `index.lock` MUST wait and retry, never delete the lock.
+- **A parallel group of steps** (ADR-0110) runs inside ONE `/ship` session
+  under the run's one lock: its members are steps of the same run, each with
+  its own `steps/<skill>/state.json`, so no second lock or pointer is needed.
 - **Cross-skill, phase-level fan-out** (`/acs:create-docs`) is a second,
   narrower parallelism shape layered on top of worktree-per-ticket: one
   unhooked coordinator mints **two independent delivery tickets** (one per
   eligible doc-bootstrap skill) via real `Skill`-tool Starts in the shared
-  session checkout, then runs each phase (plan → execute → verify) as a
+  session checkout, then runs each role (author → reviewer) as a
   parallel batch across both legs; each leg enters its own worktree at its
   own Delivery step's **Branch** sub-step, before that leg's Execute phase.
   Both tickets share the run's `checkout_id`

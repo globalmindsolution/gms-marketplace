@@ -8,9 +8,11 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:merge-pr. Your job: judge whether the ticket's
 PR is ready to land, merge it with the configured strategy when it is, and
 perform every post-merge cleanup (remote + local branch, worktree, tracker
-status). You perform merge-pr apply-work inline — judging readiness, merging
-with the configured strategy, and cleaning up — with at most one executor
-subagent and no planner or verifier subagent. You persist phase artifacts to
+status). You perform all merge-pr apply-work yourself, inline — judging
+readiness, merging with the configured strategy, and cleaning up, following
+`references/merge.md` — and **spawn no subagent**: no planner, no executor, no
+verifier. Merging a ready PR is a fixed, ordered sequence of commands with
+nothing for a separate agent to judge. You persist phase artifacts to
 the ticket partition and finish by writing the result document and running the
 post-hook — always, even on failure.
 
@@ -75,7 +77,6 @@ Parse the printed context JSON. Fields you will use:
 - `settings` — `settings.merge_strategy` (`squash` | `merge` | `rebase`,
   default `squash`) and `settings.tracker` (`provider` `local`/`github`/`jira`
   plus `tracker.github` / `tracker.jira` sub-keys).
-- `models` — per-role `{model, effort}` for executor.
 - `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
 - `pipeline` — `pipeline.flow` is `"ticket"` or `"product"`; it tells you
   which state file holds the PR reference (below).
@@ -98,7 +99,7 @@ If `context.reconcile` is true, verify recorded progress against reality
 BEFORE continuing:
 
 1. Read `<partition>/merge-pr-state.json` (`runs[-1]`) and any
-   `steps/merge-pr/iter-*-*.xml` files to see how far the prior
+   `steps/merge-pr/iter-*/merge.json` reports to see how far the prior
    run got.
 2. Check reality first: `gh pr view <number> --json state,mergedAt` —
    **critical** (a failed read is gh's verbatim stderr plus the canonical
@@ -106,7 +107,7 @@ BEFORE continuing:
    is already `MERGED`, do NOT re-run readiness — go straight to verifying and
    finishing the post-merge cleanup (remote/local branch, worktree, tracker),
    then Finish with `merged: true`.
-3. If the PR is still `OPEN`, restart from readiness (plan phase) — a stale
+3. If the PR is still `OPEN`, restart from readiness (Step 0) — a stale
    readiness verdict is worthless; CI and reviews may have changed.
 
 If `context.handoff_summary` exists, read it plus
@@ -189,20 +190,19 @@ code-verifier — the /acs:code verifier confirmed correctness before
 /acs:create-pr opened the PR. The in-loop verifier gate (MAR-55 invariant (d))
 lives in the upstream code/spec lanes, not in apply-work.
 
-**Delegation:** The coordinator performs all steps directly, or may delegate to
-at most one `acs:merge-pr-executor` subagent. The coordinator NEVER spawns a
-planner or verifier subagent for this skill; no such delegation is sanctioned
-on any delivery path or iteration.
+**No subagent is spawned — you run every step inline.** The coordinator
+performs all steps below itself, in order, and NEVER delegates them to any
+subagent; no delegation is sanctioned on any delivery path or iteration. Open
+`${CLAUDE_PLUGIN_ROOT}/skills/merge-pr/references/merge.md` before Step 0 and
+follow it alongside the steps below: it carries the strict step order, the
+already-merged short-circuit, the safety rules (the BEHIND-only exception, no
+substitute strategy, no `--admin`), how each outcome ends the run, and the
+merge report. There is no `<task>`/`<result>` exchange and no model tier to
+apply.
 
-**Phase artifact:** Persist the execute outcome to
-`steps/merge-pr/iter-<n>/execute.json` (whether done by the
-coordinator directly or by the executor) and validate the XML with:
-
-```bash
-```
-
-On invalid: re-request the message once with the validation error; still
-invalid → fail the run and record the error in the result document's `errors`.
+**Phase artifact:** Persist the outcome to
+`steps/merge-pr/iter-<n>/merge.json` (the merge report `references/merge.md`
+describes) before Finish.
 
 ### Step 0 — Readiness review
 
@@ -292,7 +292,7 @@ Run:
 gh pr update-branch <number>
 ```
 
-**Critical** (gate input, see `references/gh-failure-policy.md`): a
+**Critical** (gate input, see "GitHub call failure policy" above): a
 non-zero exit here — including the conflict case below — is gh's verbatim
 stderr plus the canonical hint, then STOP; likewise for the required-checks
 poll's own `gh pr checks <number> --required` reads.
@@ -382,8 +382,8 @@ into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
 `clarify.py add --skill merge-pr --question "..." --answer "..." --ticket <ticket-id>`
-BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
-`<context>`. If the user is unavailable or says "you decide": record the
+BEFORE acting on it, and apply the relevant `C-n` entries yourself as you
+merge and clean up (no subagent receives them). If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
 in the completion report's Findings and the PR body until a user confirms.
 Before a needs_input handoff, record the outgoing questions as `open`
@@ -440,7 +440,7 @@ resolves the workspace from cwd):
    ```
 
    Canonical `states` keys — EXACT names:
-   - `merged`: `true` only when the verifier confirmed the PR is `MERGED`;
+   - `merged`: `true` only when `gh pr view` confirmed the PR is `MERGED`;
      otherwise `false`.
    - `merge_strategy`: the strategy actually used (`squash` | `merge` |
      `rebase`), from `settings.merge_strategy`.
@@ -453,7 +453,7 @@ resolves the workspace from cwd):
    `{"severity": "blocking", "dimension": "readiness", "detail": "..."}`
    finding, and the blockers summarized in `summary`. On a
    merged-but-cleanup-failed stop: status `"failed"`, `merged: true`, the
-   unresolved verifier findings in `findings`.
+   unresolved cleanup findings in `findings`.
 
 2. Run the post-hook:
 

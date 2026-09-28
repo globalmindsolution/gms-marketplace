@@ -50,6 +50,7 @@ Usage:
   acs.py lock force-unlock --run MAR-1 --reason "the holding container died"
   acs.py filemap set --task 1 --file src/a.py --file tests/test_a.py
   acs.py filemap show
+  acs.py notes merge --out iter-1/authoring.md iter-1/authoring-a.md iter-1/authoring-b.md
   acs.py guard events [--run MAR-1]
   acs.py verdict show --iteration 2
   acs.py plan check --ticket MAR-1
@@ -84,6 +85,7 @@ from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_sho
     cmd_context,
     cmd_doctor, cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show,
     cmd_gate, cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status,
+    cmd_notes_merge,
     cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
     cmd_run_check, cmd_run_new, cmd_run_next, cmd_run_show, cmd_slug,
     cmd_step_finish, cmd_step_show, cmd_step_start, cmd_ticket_save,
@@ -295,6 +297,17 @@ def build_parser():
     fmshow.add_argument("--skill", default="code")
     fmshow.add_argument("--iteration", type=int, default=1)
     fmshow.set_defaults(func=cmd_filemap_show)
+
+    notes = group("notes", help="join what a parallel fan-out wrote")
+    notes_sub = notes.add_subparsers(dest="cmd")
+    nmerge = notes_sub.add_parser(
+        "merge", help="merge slice files by `## ` heading into one document")
+    nmerge.add_argument("--out", required=True, help="the joined file to write")
+    nmerge.add_argument("inputs", nargs="+", help="the slice files, in slice order")
+    nmerge.add_argument("--no-markers", dest="markers", action="store_false",
+                        help="omit the <!-- slice: --> lines (a deliverable published "
+                             "into the repo, not workspace notes)")
+    nmerge.set_defaults(func=cmd_notes_merge)
 
     guard = group("guard", help="what the executor file-map guard denied")
     guard_sub = guard.add_subparsers(dest="cmd")

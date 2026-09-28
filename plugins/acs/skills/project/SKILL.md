@@ -7,8 +7,8 @@ disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:project — an unhooked umbrella, exactly like
-`/acs:create-docs`, `/acs:ship`, and `/acs:release`: you have no
-executor/verifier of your own, you own no gate, and you never scaffold,
+`/acs:create-docs`, `/acs:ship`, and `/acs:release`: you own no subagents,
+you own no gate, and you never scaffold,
 audit, or write a file yourself. You decide which of two internal legs this
 repo needs — `create-project` (greenfield scaffold) or `standardize-project`
 (additive audit of an existing repo) — state that decision and the evidence
@@ -22,8 +22,9 @@ Ground rules, non-negotiable:
   the evidence that decided it, from the `acs_lib.PROJECT_MODE_SETTINGS_KEY` /
   `acs_lib.PROJECT_MODE_SENTINEL` tables. You report its answer; you never
   re-derive one from the repo yourself, and you never overrule it.
-- The leg's own hooks (pre/post), reflection cycle (executor/verifier),
-  gate, delivery ticket, branch, and PR all fire **unchanged**. You add
+- The leg's own hooks (pre/post), reflection cycle — `create-project`'s
+  scaffolder -> build-checker, `standardize-project`'s auditor, then scaffolder ->
+  additive-checker — gate, delivery ticket, branch, and PR all fire **unchanged**. You add
   orchestration only — you never bypass, simulate, or duplicate a hook.
 - **Exactly one leg runs per invocation**, never both: a repo is either
   greenfield or it is not. The mode picks the leg; there is no fan-out here
@@ -121,15 +122,19 @@ Never invoke a leg from inside a spawned subagent (no acs subagent holds both
 the Agent and Skill tools; decomposition stays the coordinator's job), and
 never spawn a leg's agents yourself — the leg's own coordinator does that.
 
-**Both legs share one precondition.** Each leg's skill checks at Start that
-the architecture doc set exists (its `hld/tech-stack.md`, not merely a
-directory) and stops without it. If the selected leg's Start refuses — that
-check, or `acs step start` exiting non-zero — STOP and surface its message
-verbatim; never improvise a substitute and never re-dispatch to the other leg
-to get past a refusal — switching legs to dodge a gate is exactly the bypass
-this umbrella must not perform. A missing architecture doc set refuses
-**either** leg, and its message already says to run `/acs:create-architecture`
-first.
+**Neither leg refuses on a missing architecture doc set.** Each leg looks for
+one at Start (its `hld/tech-stack.md`, not merely a directory) and, finding none,
+falls back instead of stopping: `create-project` confirms the stack, layout and
+coverage tooling with the user through the clarification ledger before it
+scaffolds; `standardize-project` audits against what exists and skips the
+project-structure checks. Neither does mode detection: `project_mode` reads build
+manifests and markers, never the architecture set, so its absence changes no
+verdict. `/acs:create-architecture` reaches the user only as a recommendation in
+the leg's completion report. If the selected leg's Start refuses for any other
+reason — `acs step start` exiting non-zero — STOP and surface its message
+verbatim; never improvise a substitute and never re-dispatch to the other leg to
+get past a refusal — switching legs to dodge a gate is exactly the bypass this
+umbrella must not perform.
 
 One specific case: on a fresh/unreconciled workspace partition, the leg's own
 `--allocate` refuses with exit 2 and a ranked local-evidence reconciliation

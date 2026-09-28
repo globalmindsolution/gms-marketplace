@@ -1,5 +1,0 @@
-phase: ship
-reads:
-  required: [pr]
-  optional: []
-writes: []

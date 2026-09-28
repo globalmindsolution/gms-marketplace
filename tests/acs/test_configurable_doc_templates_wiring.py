@@ -11,7 +11,7 @@ templates, docs) is spec 01, covered by
   identical to `create-pr`'s `pr_description_template`), no longer a hardcoded
   literal — while KEEPING the six-heading literal present as the default
   (the byte-identical guard in the schema module greps this SKILL for it).
-- `create-design-verifier.md` dim `structure` notes the section list is the
+- `create-design-design-reviewer.md` dim `structure` notes the section list is the
   CONFIGURED one.
 
 MAR-156 deletes create-spec outright; its `formats.spec_template`/
@@ -39,7 +39,7 @@ AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 
 CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
-CREATE_DESIGN_VERIFIER = os.path.join(AGENTS, "create-design-verifier.md")
+CREATE_DESIGN_VERIFIER = os.path.join(AGENTS, "create-design-design-reviewer.md")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 
@@ -135,7 +135,7 @@ class CreateDesignSkillResolutionTest(unittest.TestCase):
 
 
 class CreateDesignVerifierConfiguredSectionsTest(unittest.TestCase):
-    """AC-3: create-design-verifier dim `structure` still invokes structure_lint
+    """AC-3: create-design-design-reviewer dim `structure` still invokes structure_lint
     AND now notes the section list is the CONFIGURED one."""
 
     def setUp(self):
@@ -149,7 +149,7 @@ class CreateDesignVerifierConfiguredSectionsTest(unittest.TestCase):
 
     def test_structure_notes_configured_list(self):
         self.assertIn("design_sections", self.block,
-                      "create-design-verifier structure dim must note the "
+                      "create-design-design-reviewer structure dim must note the "
                       "configured enforcement.design_sections list")
 
 

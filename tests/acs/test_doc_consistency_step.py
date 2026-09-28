@@ -34,17 +34,18 @@ ADR_0011 = os.path.join(REPO_ROOT, "docs", "adr", "0011-sdlc-doc-sets-quality-an
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 
 # The agents that author a doc set's first draft carry the canonical block:
-# the remaining planners, and create-docs-executor -- since ADR-0094 the four
-# doc-set legs are one skill with no planner, so its executor runs the step.
+# the remaining planners, and create-docs-author -- since ADR-0094 the four
+# doc-set legs are one skill with no planner, so its author runs the step.
+# create-prd and create-requirements run it in their read-only surveyor.
 PLANNERS = [
-    "create-prd-executor.md",
-    "create-architecture-executor.md",
-    "create-design-executor.md",
-    "create-docs-executor.md",
-    "create-requirements-executor.md",
+    "create-prd-surveyor.md",
+    "create-architecture-architect.md",
+    "create-design-designer.md",
+    "create-docs-author.md",
+    "create-requirements-surveyor.md",
 ]
 
-NEW_VERIFIERS = ["create-docs-verifier.md"]
+NEW_VERIFIERS = ["create-docs-reviewer.md"]
 
 CANONICAL_HEADING = "### Design-time doc-consistency step (ADR 0012)"
 
@@ -112,8 +113,18 @@ class Mar115CanonicalBlockCase(unittest.TestCase):
 
     # AC-2: cross-8 md5 identity of the extracted block
     def test_ac2_canonical_block_is_md5_identical_across_all_planners(self):
+        # Per-skill subagents: each block names its OWN writer and judge in
+        # the lifecycle sentence ("the architect updates", "the design
+        # reviewer confirms"). Those two role slots are normalised before
+        # hashing; every other byte must still be identical.
+        def canonical(block):
+            block = re.sub(r"the [a-z-]+ updates the", "the <writer> updates the", block)
+            block = re.sub(r"the (?:[a-z-]+ )?reviewer confirms the result\s+is",
+                           "the <judge> confirms the result is", block)
+            return block
+
         digests = {
-            name: hashlib.md5(block.encode("utf-8")).hexdigest()
+            name: hashlib.md5(canonical(block).encode("utf-8")).hexdigest()
             for name, block in self.blocks.items()
         }
         unique = set(digests.values())
@@ -164,14 +175,16 @@ class Mar115CanonicalBlockCase(unittest.TestCase):
                         "%s canonical block leaks rejected ADR-0012 alternative marker %r" % (name, marker),
                     )
 
-    # AC-7: D4 lifecycle - three clauses (user decides, executor updates, verifier confirms)
+    # AC-7: D4 lifecycle - three clauses (user decides, the skill's writer
+    # updates, its judge confirms). Each skill names its own roles now
+    # (author/architect/designer updates; reviewer/design reviewer confirms).
     def test_ac7_d4_lifecycle_three_clauses(self):
         for name in PLANNERS:
             with self.subTest(planner=name):
                 block = self.blocks[name]
                 self.assertIn("user decides", block, name)
-                self.assertIn("executor updates", block, name)
-                self.assertIn("verifier confirms", block, name)
+                self.assertRegex(block, r"the [a-z-]+ updates the", name)
+                self.assertRegex(block, r"the (?:[a-z-]+ )?reviewer confirms", name)
 
     # AC-8: /acs:test never named as a consistency participant except "unaffected" framing
     def test_ac8_acs_test_unaffected_negative_assertion(self):
@@ -190,12 +203,12 @@ class Mar115StandingBehaviorReplaceCase(unittest.TestCase):
     """R4: the doc-set author must carry the canonical block, not the old
     upstream-only item-4 hint alongside it."""
 
-    def test_doc_set_executor_old_upstream_only_hint_removed(self):
-        body = read(planner_path("create-docs-executor.md"))
+    def test_doc_set_author_old_upstream_only_hint_removed(self):
+        body = read(planner_path("create-docs-author.md"))
         self.assertNotRegex(
             body,
             r"Read the upstream doc-graph slice.*for gaps or\s*\n?\s*staleness",
-            "create-docs-executor.md still carries the old upstream-only hint alongside the new block",
+            "create-docs-author.md still carries the old upstream-only hint alongside the new block",
         )
 
 
@@ -221,10 +234,10 @@ class Mar115ConsistencyVerifierDimensionCase(unittest.TestCase):
         end = idx + nxt.start() if nxt else min(len(body), idx + window)
         return body[idx:end]
 
-    def test_create_docs_skillmd_verify_list_names_consistency(self):
+    def test_create_docs_skillmd_review_list_names_consistency(self):
         body = read(os.path.join(SKILLS, "create-docs", "SKILL.md"))
-        verify_section = self._bounded_window(body, "### Verify")
-        self.assertIn("consistency", verify_section)
+        review_section = self._bounded_window(body, "### Review")
+        self.assertIn("consistency", review_section)
 
 
 class Mar115SkillMdPointerCase(unittest.TestCase):

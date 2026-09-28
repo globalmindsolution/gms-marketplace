@@ -1,6 +1,8 @@
 """MAR-403 (parent MAR-401) -- criticality-classification and MCP-fallback-
 removal assertions over the three gh-calling skills (create-ticket, create-pr,
-merge-pr) and their three executor agents.
+merge-pr) and the three references their coordinators follow inline
+(`materialize.md`, `publish.md`, `merge.md` -- each skill's executor agent
+until the skills stopped spawning one).
 
 Anti-drift discipline: hint text is imported from `acs_lib` (never
 hardcoded) so a future edit to the canonical hint cannot silently desync from
@@ -30,19 +32,22 @@ import acs_lib  # noqa: E402
 CREATE_TICKET_SKILL = os.path.join(PLUGIN, "skills", "create-ticket", "SKILL.md")
 CREATE_PR_SKILL = os.path.join(PLUGIN, "skills", "create-pr", "SKILL.md")
 MERGE_PR_SKILL = os.path.join(PLUGIN, "skills", "merge-pr", "SKILL.md")
-CREATE_TICKET_EXECUTOR = os.path.join(PLUGIN, "agents", "create-ticket-executor.md")
-CREATE_PR_EXECUTOR = os.path.join(PLUGIN, "agents", "create-pr-executor.md")
-MERGE_PR_EXECUTOR = os.path.join(PLUGIN, "agents", "merge-pr-executor.md")
+CREATE_TICKET_MATERIALIZE = os.path.join(PLUGIN, "skills", "create-ticket", "references",
+                                         "materialize.md")
+CREATE_PR_PUBLISH = os.path.join(PLUGIN, "skills", "create-pr", "references", "publish.md")
+MERGE_PR_MERGE = os.path.join(PLUGIN, "skills", "merge-pr", "references", "merge.md")
 
 SKILLS = {
     "create-ticket": CREATE_TICKET_SKILL,
     "create-pr": CREATE_PR_SKILL,
     "merge-pr": MERGE_PR_SKILL,
 }
-EXECUTORS = {
-    "create-ticket": CREATE_TICKET_EXECUTOR,
-    "create-pr": CREATE_PR_EXECUTOR,
-    "merge-pr": MERGE_PR_EXECUTOR,
+#: The inline apply references -- the command sequences each coordinator runs
+#: itself. They quote the classification canon rather than owning it.
+APPLY_REFERENCES = {
+    "create-ticket": CREATE_TICKET_MATERIALIZE,
+    "create-pr": CREATE_PR_PUBLISH,
+    "merge-pr": MERGE_PR_MERGE,
 }
 
 # The one compact "GitHub call failure policy" heading each skill gains
@@ -187,45 +192,48 @@ class HintDriftTest(unittest.TestCase):
             self.assertIn("ADR-0088", body, "%s must cite ADR-0088" % name)
 
 
-class ExecutorHintDriftTest(unittest.TestCase):
-    """A-P2: the three executor agents must carry the same classification
-    canon as their SKILL.md, or a delegated run and an inline run diverge."""
+class ApplyReferenceHintDriftTest(unittest.TestCase):
+    """A-P2: the three inline apply references must carry the same
+    classification canon as their SKILL.md, or the step list the coordinator
+    follows and the policy it is bound by diverge."""
 
-    def test_each_executor_agent_quotes_the_canonical_hint(self):
+    def test_each_apply_reference_quotes_the_canonical_hint(self):
         hint_norm = norm(acs_lib.GH_ACCESS_HINT)
-        for name, path in EXECUTORS.items():
+        for name, path in APPLY_REFERENCES.items():
             body_norm = norm(read(path))
             self.assertIn(
                 hint_norm, body_norm,
-                "%s-executor does not quote acs_lib.GH_ACCESS_HINT verbatim" % name,
+                "%s's apply reference does not quote acs_lib.GH_ACCESS_HINT verbatim" % name,
             )
 
-    def test_each_executor_agent_names_canon_and_its_own_skill(self):
-        for name, path in EXECUTORS.items():
+    def test_each_apply_reference_names_canon_and_its_own_skill(self):
+        for name, path in APPLY_REFERENCES.items():
             body = read(path)
-            self.assertIn("gh_failure_hint", body, "%s-executor must name gh_failure_hint" % name)
-            self.assertIn("acs_lib", body, "%s-executor must name acs_lib" % name)
+            self.assertIn("gh_failure_hint", body,
+                          "%s's apply reference must name gh_failure_hint" % name)
+            self.assertIn("acs_lib", body, "%s's apply reference must name acs_lib" % name)
             self.assertIn(
                 "SKILL.md", body,
-                "%s-executor must point at its own SKILL.md as the classification canon" % name,
+                "%s's apply reference must point at its own SKILL.md as the "
+                "classification canon" % name,
             )
 
 
-class ExecutorClassificationDriftTest(unittest.TestCase):
+class ApplyReferenceClassificationDriftTest(unittest.TestCase):
     """F1/F4 (iter-2 remediation, MAR-403 iter-1 verify): a prior draft
-    quoted the canonical hint sentence (satisfying ExecutorHintDriftTest
+    quoted the canonical hint sentence (satisfying ApplyReferenceHintDriftTest
     above) while still classifying the Step 5 `gh issue create`
     tracker-sync call as plain non-critical -- hint-sentence presence alone
     does not prove the stated CLASS is right. This pins the actual
-    disposition for create-ticket-executor.md, the artifact where that
-    drift was found."""
+    disposition for create-ticket's materialize reference (the executor
+    charter where that drift was found, before the skill went inline)."""
 
-    def test_create_ticket_executor_gh_issue_create_is_hybrid_not_non_critical(self):
-        body = read(CREATE_TICKET_EXECUTOR)
+    def test_create_ticket_materialize_gh_issue_create_is_hybrid_not_non_critical(self):
+        body = read(CREATE_TICKET_MATERIALIZE)
         norm_body = norm(body)
         self.assertRegex(
             norm_body, r"(?i)critical per ticket, soft per batch",
-            "create-ticket-executor.md must state gh issue create's hybrid "
+            "create-ticket/references/materialize.md must state gh issue create's hybrid "
             "disposition (critical per ticket, soft per batch)",
         )
         self.assertNotIn(

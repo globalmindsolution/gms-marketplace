@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 from acs_case import AcsWorkspaceCase  # noqa: E402
 
 
-def result_xml(skill="code", phase="execute", ticket="SHOP-1", iteration=None,
+def result_xml(skill="code", phase="implementer", ticket="SHOP-1", iteration=None,
                status="completed"):
     attrs = 'skill="%s" phase="%s" ticket-id="%s"' % (skill, phase, ticket)
     if iteration is not None:
@@ -43,31 +43,53 @@ def result_xml(skill="code", phase="execute", ticket="SHOP-1", iteration=None,
 
 class ParseAgentTypeTest(unittest.TestCase):
 
-    def test_hyphenated_skill_names_survive(self):
-        """Splitting from the LEFT would make `acs:create-pr-executor` a skill
-        called "create" — a bug that only appears on the hyphenated half of the
-        skill list, which is most of it."""
+    def test_hyphenated_skill_and_role_names_survive(self):
+        """Splitting from the LEFT would make `acs:create-e2e-tests-test-writer`
+        a skill called "create" — and both halves carry hyphens now
+        (`create-impl-plan-plan-reviewer`), so the split is by the longest
+        shipped skill name, never by position."""
         for agent_type, expected in (
-                ("acs:code-executor", ("code", "executor")),
-                ("acs:create-pr-executor", ("create-pr", "executor")),
-                ("acs:docs-sync-verifier", ("docs-sync", "verifier")),
-                ("acs:standardize-project-executor", ("standardize-project", "executor"))):
+                ("acs:code-implementer", ("code", "implementer")),
+                ("acs:create-e2e-tests-test-writer", ("create-e2e-tests", "test-writer")),
+                ("acs:create-e2e-tests-suite-runner", ("create-e2e-tests", "suite-runner")),
+                ("acs:create-impl-plan-plan-reviewer", ("create-impl-plan", "plan-reviewer")),
+                ("acs:docs-sync-drift-reviewer", ("docs-sync", "drift-reviewer")),
+                ("acs:standardize-project-additive-checker",
+                 ("standardize-project", "additive-checker"))):
             with self.subTest(agent_type=agent_type):
                 self.assertEqual(lib.parse_agent_type(agent_type), expected)
 
-    def test_anything_that_is_not_an_acs_triad_agent_is_not_ours(self):
-        for agent_type in ("Explore", "general-purpose", "other:code-executor",
-                           "acs:code-reviewer", "acs:nosuchskill-executor",
+    def test_anything_that_is_not_an_acs_agent_is_not_ours(self):
+        for agent_type in ("Explore", "general-purpose", "other:code-implementer",
+                           "acs:code-nosuchrole", "acs:nosuchskill-implementer",
                            "acs:code", "", None, 7):
             with self.subTest(agent_type=agent_type):
                 self.assertEqual(lib.parse_agent_type(agent_type), (None, None))
 
-    def test_every_role_maps_to_the_phase_its_artifact_is_filed_under(self):
-        self.assertEqual(lib.ROLE_PHASES, {"executor": "execute", "verifier": "verify"})
+    def test_the_retired_generic_roles_are_not_ours_any_more(self):
+        """The per-skill subagents retired the generic executor and verifier;
+        neither names a role acs spawns. (`planner` is a role again --
+        create-impl-plan's -- so it is not in this list.)"""
+        for role in ("executor", "verifier"):
+            with self.subTest(role=role):
+                self.assertEqual(lib.parse_agent_type("acs:code-%s" % role), (None, None))
+                self.assertEqual(
+                    lib.parse_agent_type("acs:create-e2e-tests-%s" % role), (None, None))
 
-    def test_a_planner_agent_is_not_ours_any_more(self):
-        """ADR-0092 retired the role; ADR-0093 retired the phase it filed under."""
-        self.assertEqual(lib.parse_agent_type("acs:code-planner"), (None, None))
+    def test_the_review_fan_out_is_untracked(self):
+        """review-code's lenses and adjudicators are a fan-out whose output the
+        coordinator persists itself: no record, no snapshot."""
+        self.assertEqual(lib.UNTRACKED_ROLES, frozenset({"lens", "adjudicator"}))
+        for agent_type in ("acs:review-code-lens", "acs:review-code-adjudicator"):
+            with self.subTest(agent_type=agent_type):
+                self.assertEqual(lib.parse_agent_type(agent_type), (None, None))
+
+    def test_every_role_has_a_kind(self):
+        """The kind is what the hooks act on: `write` arms the file-map guard."""
+        self.assertEqual(lib.ROLE_KINDS["implementer"], "write")
+        self.assertEqual(lib.ROLE_KINDS["test-writer"], "write")
+        self.assertEqual(lib.ROLE_KINDS["suite-runner"], "judge")
+        self.assertTrue(set(lib.ROLE_KINDS.values()) <= set(lib.ROLE_KIND_NAMES))
 
 
 class ExtractMessageTest(unittest.TestCase):
@@ -148,21 +170,38 @@ class SubagentStartTest(LifecycleCase):
 
     def test_records_the_running_agent_in_the_partition(self):
         out = self.hook("subagent-start", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor"))
+            agent_id="a-1", agent_type="acs:code-implementer"))
         self.assertEqual(out.returncode, 0, out.stderr)
         entry = lib.read_agent(self.tdir_path, "a-1")
         self.assertEqual(entry["skill"], "code")
-        self.assertEqual(entry["role"], "executor")
-        self.assertEqual(entry["phase"], "execute")
+        self.assertEqual(entry["role"], "implementer")
+        self.assertEqual(entry["kind"], "write")
+        self.assertEqual(entry["phase"], "implementer")
         self.assertEqual(entry["session_id"], "sess-1")
         self.assertEqual(entry["stop_attempts"], 0)
 
-    def test_records_parallel_executors_separately(self):
-        """A fan-out runs several executors of the SAME type at once, so the
+    def test_a_judge_is_recorded_with_its_kind(self):
+        out = self.hook("subagent-start", self.payload(
+            agent_id="a-1", agent_type="acs:create-e2e-tests-suite-runner"))
+        self.assertEqual(out.returncode, 0, out.stderr)
+        entry = lib.read_agent(self.tdir_path, "a-1")
+        self.assertEqual((entry["skill"], entry["role"], entry["kind"]),
+                         ("create-e2e-tests", "suite-runner", "judge"))
+
+    def test_the_review_fan_out_is_not_recorded(self):
+        for agent_type in ("acs:review-code-lens", "acs:review-code-adjudicator"):
+            with self.subTest(agent_type=agent_type):
+                out = self.hook("subagent-start", self.payload(
+                    agent_id="a-%s" % agent_type[-4:], agent_type=agent_type))
+                self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(lib.active_agents(self.tdir_path), [])
+
+    def test_records_parallel_implementers_separately(self):
+        """A fan-out runs several implementers of the SAME type at once, so the
         record is keyed by agent_id, not agent_type."""
         for agent_id in ("a-1", "a-2"):
             self.hook("subagent-start", self.payload(
-                agent_id=agent_id, agent_type="acs:code-executor"))
+                agent_id=agent_id, agent_type="acs:code-implementer"))
         self.assertEqual(sorted(e["agent_id"] for e in lib.active_agents(self.tdir_path)),
                          ["a-1", "a-2"])
         # One file each: a shared document would make this a read-modify-write,
@@ -188,17 +227,19 @@ class SubagentStopTest(LifecycleCase):
         super().setUp()
         self.start_run("code")
 
-    def _snapshot(self, skill="code", iteration="1", phase="execute"):
+    def _snapshot(self, skill="code", iteration="1", phase="implementer"):
         return lib.phase_artifact_path(self.tdir_path, skill, iteration, phase)
 
     def test_writes_the_snapshot_the_coordinator_used_to_write(self):
         message = result_xml(ticket=self.ticket, iteration="3")
         out = self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor",
+            agent_id="a-1", agent_type="acs:code-implementer",
             last_assistant_message="Here you go:\n%s" % message))
         self.assertEqual(out.returncode, 0, out.stderr)
         path = self._snapshot(iteration="3")
         self.assertTrue(os.path.exists(path), path)
+        self.assertEqual(os.path.basename(path), "implementer-message.xml",
+                         "the snapshot is named for the role, beside its report")
         with open(path, encoding="utf-8") as fh:
             self.assertEqual(fh.read().strip(), message)
 
@@ -207,13 +248,15 @@ class SubagentStopTest(LifecycleCase):
         (acs-messages.xsd), so nothing about the snapshot has to be
         remembered — including which iteration is running."""
         self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-verifier",
-            last_assistant_message=result_xml(ticket=self.ticket, phase="verify", iteration="7")))
-        self.assertTrue(os.path.exists(self._snapshot(iteration="7", phase="verify")))
+            agent_id="a-1", agent_type="acs:create-e2e-tests-suite-runner",
+            last_assistant_message=result_xml(skill="create-e2e-tests", ticket=self.ticket,
+                                              phase="suite-runner", iteration="7")))
+        self.assertTrue(os.path.exists(self._snapshot(
+            skill="create-e2e-tests", iteration="7", phase="suite-runner")))
 
     def test_an_absent_iteration_defaults_to_one_as_the_schema_says(self):
         self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor",
+            agent_id="a-1", agent_type="acs:code-implementer",
             last_assistant_message=result_xml(ticket=self.ticket)))
         self.assertTrue(os.path.exists(self._snapshot(iteration="1")))
 
@@ -223,24 +266,24 @@ class SubagentStopTest(LifecycleCase):
         wrong; the hook cannot see a counter, so it says so."""
         first = result_xml(ticket=self.ticket)
         self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor", last_assistant_message=first))
+            agent_id="a-1", agent_type="acs:code-implementer", last_assistant_message=first))
         second = first.replace("a.py", "b.py")
         out = self.hook("subagent-stop", self.payload(
-            agent_id="a-2", agent_type="acs:code-executor", last_assistant_message=second))
+            agent_id="a-2", agent_type="acs:code-implementer", last_assistant_message=second))
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIn("omitted `iteration`", out.stderr)
 
     def test_an_echoed_iteration_never_warns(self):
         for n in ("1", "2"):
             out = self.hook("subagent-stop", self.payload(
-                agent_id="a-%s" % n, agent_type="acs:code-executor",
+                agent_id="a-%s" % n, agent_type="acs:code-implementer",
                 last_assistant_message=result_xml(ticket=self.ticket, iteration=n)))
             self.assertNotIn("omitted", out.stderr)
 
     def test_clears_the_active_agent_record(self):
-        self.hook("subagent-start", self.payload(agent_id="a-1", agent_type="acs:code-executor"))
+        self.hook("subagent-start", self.payload(agent_id="a-1", agent_type="acs:code-implementer"))
         self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor",
+            agent_id="a-1", agent_type="acs:code-implementer",
             last_assistant_message=result_xml(ticket=self.ticket)))
         self.assertIsNone(lib.read_agent(self.tdir_path, "a-1"))
 
@@ -250,7 +293,7 @@ class SubagentStopTest(LifecycleCase):
         the XSD's enumeration; there is no XSD now, and the hook checks what
         it actually needs -- see validate_message.)"""
         out = self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor",
+            agent_id="a-1", agent_type="acs:code-implementer",
             last_assistant_message='<result skill="code" iteration="1" '
                                    'status="ok"/>'))
         self.assertEqual(out.returncode, 2)
@@ -260,7 +303,7 @@ class SubagentStopTest(LifecycleCase):
 
     def test_a_message_with_no_xml_at_all_sends_it_back(self):
         out = self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor",
+            agent_id="a-1", agent_type="acs:code-implementer",
             last_assistant_message="I finished the work."))
         self.assertEqual(out.returncode, 2)
         self.assertIn("no <result> or <handoff>", out.stderr)
@@ -270,7 +313,7 @@ class SubagentStopTest(LifecycleCase):
         already says a still-invalid message fails the run rather than looping,
         so after BLOCK_LIMIT attempts this lets the subagent stop and says the
         coordinator has to record the failure."""
-        payload = self.payload(agent_id="a-1", agent_type="acs:code-executor",
+        payload = self.payload(agent_id="a-1", agent_type="acs:code-implementer",
                                last_assistant_message="still nothing")
         codes = [self.hook("subagent-stop", payload).returncode for _ in range(4)]
         # Refuses BLOCK_LIMIT times, then lets it through -- the number
@@ -286,7 +329,7 @@ class SubagentStopTest(LifecycleCase):
         having fired — an older Claude Code, or a restart mid-subagent, would
         otherwise leave the hook refusing forever."""
         self.assertIsNone(lib.read_agent(self.tdir_path, "never-started"))
-        payload = self.payload(agent_id="never-started", agent_type="acs:code-executor",
+        payload = self.payload(agent_id="never-started", agent_type="acs:code-implementer",
                                last_assistant_message="no xml at all")
         codes = [self.hook("subagent-stop", payload).returncode for _ in range(4)]
         self.assertEqual(codes, [2, 2, 0, 0])
@@ -299,7 +342,7 @@ class SubagentStopTest(LifecycleCase):
         anticipates "a Claude Code without these fields", and `stop_hook_active`
         (the runtime's own loop guard) is consulted nowhere, so nothing else
         would have stopped it."""
-        payload = self.payload(agent_type="acs:code-executor",
+        payload = self.payload(agent_type="acs:code-implementer",
                                last_assistant_message="no xml at all")
         payload.pop("agent_id", None)
         codes = [self.hook("subagent-stop", payload).returncode for _ in range(4)]
@@ -308,9 +351,10 @@ class SubagentStopTest(LifecycleCase):
     def test_the_counter_key_is_never_a_constant(self):
         """The fallback key has to stay per-subagent. A constant would make
         every refusal look like the first one for a DIFFERENT agent too."""
-        a = lib.stop_counter_key({"session_id": "s1", "agent_type": "acs:code-executor"})
-        b = lib.stop_counter_key({"session_id": "s2", "agent_type": "acs:code-executor"})
-        c = lib.stop_counter_key({"session_id": "s1", "agent_type": "acs:code-verifier"})
+        a = lib.stop_counter_key({"session_id": "s1", "agent_type": "acs:code-implementer"})
+        b = lib.stop_counter_key({"session_id": "s2", "agent_type": "acs:code-implementer"})
+        c = lib.stop_counter_key({"session_id": "s1",
+                                  "agent_type": "acs:create-e2e-tests-suite-runner"})
         self.assertEqual(len({a, b, c}), 3)
         self.assertEqual(lib.stop_counter_key({"agent_id": "a-1"}), "a-1")
 
@@ -318,7 +362,7 @@ class SubagentStopTest(LifecycleCase):
         """The coordinator has to record the failure, so the third refusal has
         to hand it the reason rather than just giving up quietly."""
         bad = '<result skill="code" iteration="1" status="ok"/>'   # no phase=
-        payload = self.payload(agent_id="a-1", agent_type="acs:code-executor",
+        payload = self.payload(agent_id="a-1", agent_type="acs:code-implementer",
                                last_assistant_message=bad)
         for _ in range(lib.BLOCK_LIMIT):
             self.hook("subagent-stop", payload)
@@ -331,7 +375,7 @@ class SubagentStopTest(LifecycleCase):
         """extract_message found something element-shaped, but it does not
         parse. Nothing is filed rather than a broken artifact."""
         out = self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor",
+            agent_id="a-1", agent_type="acs:code-implementer",
             last_assistant_message='<result skill="code"><unclosed></result>',
             ))
         self.assertEqual(out.returncode, 2)  # the validator rejects it first
@@ -343,7 +387,7 @@ class SubagentStopTest(LifecycleCase):
         handoff = ('<handoff skill="code" ticket-id="%s" status="needs_input">'
                    '<summary>blocked on a decision</summary></handoff>' % self.ticket)
         out = self.hook("subagent-stop", self.payload(
-            agent_id="a-1", agent_type="acs:code-executor", last_assistant_message=handoff))
+            agent_id="a-1", agent_type="acs:code-implementer", last_assistant_message=handoff))
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertFalse(os.path.isdir(os.path.join(self.tdir_path, "phases", "code")))
 
@@ -567,7 +611,7 @@ class HeadlessAndFailOpenTest(unittest.TestCase):
         for mode in self.MODES:
             with self.subTest(mode=mode):
                 out = self._hook(mode, {"cwd": self.tmp, "agent_id": "a-1",
-                                        "agent_type": "acs:code-executor",
+                                        "agent_type": "acs:code-implementer",
                                         "last_assistant_message": "nothing"})
                 self.assertEqual(out.returncode, 0, out.stderr)
 

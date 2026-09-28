@@ -31,9 +31,12 @@ SKILLS = os.path.join(PLUGIN, "skills")
 AGENTS = os.path.join(PLUGIN, "agents")
 
 SKILL_PATH = os.path.join(SKILLS, "standardize-project", "SKILL.md")
-PLANNER_PATH = os.path.join(AGENTS, "standardize-project-executor.md")  # the audit charter lives in the executor since ADR-0092
-EXECUTOR_PATH = os.path.join(AGENTS, "standardize-project-executor.md")
-VERIFIER_PATH = os.path.join(AGENTS, "standardize-project-verifier.md")
+# The audit charter (once the planner's, then the executor's under ADR-0092)
+# is the auditor's; the scaffold charter is the scaffolder's; the additive-only
+# judge is the additive-checker. The *_PATH names keep the spec's vocabulary.
+PLANNER_PATH = os.path.join(AGENTS, "standardize-project-auditor.md")
+EXECUTOR_PATH = os.path.join(AGENTS, "standardize-project-scaffolder.md")
+VERIFIER_PATH = os.path.join(AGENTS, "standardize-project-additive-checker.md")
 
 DELIVERY_TITLE = "Brownfield project standardization"
 
@@ -104,7 +107,9 @@ class Mar121NoSetPathProducerCase(unittest.TestCase):
     def test_start_states_no_refusal_guard_on_either_set(self):
         start = " ".join(self.start.split())
         self.assertIn("No refusal guard on the principles or standards set", start)
-        self.assertIn("Only the architecture set is a Start-time precondition", start)
+        # Skills independence: not even the architecture set is a precondition.
+        self.assertIn("no document is a Start-time precondition", start)
+        self.assertNotIn("Only the architecture set is a Start-time precondition", start)
 
     def test_no_refusal_guard_on_principles_set(self):
         bullet = self._start_bullet("<principles_dir>")

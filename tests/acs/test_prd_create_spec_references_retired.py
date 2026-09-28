@@ -26,7 +26,7 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PRD = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
 SETTINGS_SCHEMA = os.path.join(REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
-DOCS_SYNC_EXECUTOR = os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-executor.md")
+DOCS_SYNC_EXECUTOR = os.path.join(REPO_ROOT, "plugins", "acs", "agents", "docs-sync-doc-updater.md")
 CODE_SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "code", "SKILL.md")
 SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
 

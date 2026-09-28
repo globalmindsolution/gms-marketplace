@@ -7,13 +7,13 @@ ADR-commit clause, the functional/non-functional classification rubric, the
 retired from: /acs:code's own execute prose — which ADR-0095 moved out of
 `skills/code/SKILL.md`, now a dispatcher, into `references/execute.md`, the
 one execute instruction all four delivery paths share — and
-`code-executor.md`'s charter, that the relocated clauses (code-comment policy, test-filename rule,
+`code-implementer.md`'s charter, that the relocated clauses (code-comment policy, test-filename rule,
 Simplicity First pointer) and the retained product-doc factual-reconciliation
 paragraph survive in those same producers, that the re-homed content actually
-landed in `docs-sync-executor.md`, and that the plan planner
+landed in `docs-sync-doc-updater.md`, and that the plan planner
 (`create-impl-plan-planner.md` since the plan phase moved there) still carries
 its Boy-scout drift-repair paragraph with only the terminal clause rewritten
-to carry drift items into the execute report's `problems` field.
+to carry drift items into the implementer report's `problems` field.
 
 Stdlib-only (os, unittest). Run:
   python3 -m unittest tests.acs.test_code_doc_authoring_retired -v
@@ -26,9 +26,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 CODE_EXECUTE_REF = os.path.join(PLUGIN, "skills", "code", "references",
                                 "execute.md")
-CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-executor.md")
-IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-executor.md")  # the plan charter lives in the executor's survey since ADR-0092
-DOCS_SYNC_EXECUTOR = os.path.join(PLUGIN, "agents", "docs-sync-executor.md")
+CODE_EXECUTOR = os.path.join(PLUGIN, "agents", "code-implementer.md")  # the executor role, renamed for what it does
+IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
+DOCS_SYNC_EXECUTOR = os.path.join(PLUGIN, "agents", "docs-sync-doc-updater.md")
 
 
 def read(path):
@@ -44,7 +44,7 @@ def execute_span(body):
 
 
 def charter_span(body):
-    """code-executor.md's Charter section, up to Phase artifact."""
+    """code-implementer.md's Charter section, up to Phase artifact."""
     return body[body.index("## Charter"):
                 body.index("## Phase artifact")]
 
@@ -111,7 +111,7 @@ class CodeSkillExecuteSpanRetiredTest(unittest.TestCase):
 
     def test_presence_code_comment_policy_relocated(self):
         # "and" form — code/SKILL.md's wording, distinct from
-        # code-executor.md's comma form.
+        # code-implementer.md's comma form.
         self.assertIn("minimal and idea-only", self.span)
 
     def test_presence_test_filename_rule_relocated(self):
@@ -130,7 +130,7 @@ class CodeSkillExecuteSpanRetiredTest(unittest.TestCase):
 
 
 class CodeExecutorWholeBodyRetiredTest(unittest.TestCase):
-    """The doc-authoring tokens no longer appear ANYWHERE in code-executor.md
+    """The doc-authoring tokens no longer appear ANYWHERE in code-implementer.md
     — every one of these nine tokens is a single-purpose occurrence inside
     this spec's own edit set, so the whole-body form is satisfiable."""
 
@@ -213,7 +213,7 @@ class CodeExecutorCharterSpanTest(unittest.TestCase):
 
 
 class DocsSyncExecutorRehomeTest(unittest.TestCase):
-    """The re-home landed: docs-sync-executor.md's charter now carries the
+    """The re-home landed: docs-sync-doc-updater.md's charter now carries the
     tokens this spec removed from /code's producers, proving re-home rather
     than plain deletion. The doc locations it writes to were settings keys
     when this spec shipped; since ADR-0102 they are the task constraints the

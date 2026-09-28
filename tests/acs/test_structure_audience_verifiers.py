@@ -42,7 +42,7 @@ DOCS = os.path.join(REPO_ROOT, "docs")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 
-CREATE_PROJECT_VERIFIER = os.path.join(AGENTS, "create-project-verifier.md")
+CREATE_PROJECT_VERIFIER = os.path.join(AGENTS, "create-project-build-checker.md")
 CREATE_PROJECT_SKILL = os.path.join(SKILLS, "create-project", "SKILL.md")
 CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
 
@@ -53,7 +53,7 @@ CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 
 # verifier path -> (last pre-existing dimension label, all listed dimension labels)
 VERIFIERS = {
-    "create-prd-verifier.md": (
+    "create-prd-reviewer.md": (
         "Iteration 2+ regression check",
         (
             "Required sections", "Feature -> goal traceability",
@@ -62,7 +62,7 @@ VERIFIERS = {
             "Amend-mode diff discipline", "Iteration 2+ regression check",
         ),
     ),
-    "create-architecture-verifier.md": (
+    "create-architecture-reviewer.md": (
         "docs-only-changeset",
         (
             "doc-set-completeness", "prd-coverage", "codebase-match",
@@ -71,11 +71,11 @@ VERIFIERS = {
             "authoring-conformance", "docs-only-changeset",
         ),
     ),
-    "create-design-verifier.md": (
+    "create-design-design-reviewer.md": (
         "completeness",
         ("alternatives", "consistency", "feasibility", "nfr", "completeness"),
     ),
-    "create-docs-verifier.md": (
+    "create-docs-reviewer.md": (
         "consistency",
         (
             "doc-set-completeness", "architecture-conformance",
@@ -83,7 +83,7 @@ VERIFIERS = {
             "consistency",
         ),
     ),
-    "create-requirements-verifier.md": (
+    "create-requirements-reviewer.md": (
         "Interactive-confirm discipline",
         (
             "Required-file-presence", "Mode-conformance", "Authoring-conformance",
@@ -149,9 +149,11 @@ def dimension_present(body, label):
 def verify_phase_region(skill_md_body, skill_name):
     """Bounded window over the SKILL.md text that describes what gets
     spawned/passed to the verifier: from the first line naming the Verify
-    phase (`### Verify`, `### Phase: verify`, or the numbered `**Verify**`
-    Phases-list item) to the next top-level (`##`) heading."""
-    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Phase: verify).*|[23]\.\s+\*\*Verify\*\*.*)$",
+    phase -- now the judge role's phase (`### Verify`, `### Phase: verify`,
+    `### Phase: <x>-reviewer`, `### Review`, or the numbered `**Verify**` /
+    `**Review**` Phases-list item) -- to the next top-level (`##`) heading."""
+    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Review|Phase: verify|Phase: [a-z-]*reviewer)"
+                  r".*|[23]\.\s+\*\*(?:Verify|Review)\*\*.*)$",
                   skill_md_body)
     assert m is not None, "no Verify-phase heading/list-item found in %s/SKILL.md" % skill_name
     rest = skill_md_body[m.end():]
@@ -184,7 +186,7 @@ class StructureDimensionTest(unittest.TestCase):
     def test_architecture_omits_ordered_flag(self):
         # create-architecture's per-file section lists are derived, not
         # skill-declared literal headings — order is never enforced.
-        block = dimension_block(read(os.path.join(AGENTS, "create-architecture-verifier.md")),
+        block = dimension_block(read(os.path.join(AGENTS, "create-architecture-reviewer.md")),
                                  "structure")
         self.assertNotIn("--ordered", block)
 
@@ -233,7 +235,7 @@ class CarveOutTest(unittest.TestCase):
     def test_design_both_anchors_now_blocking(self):
         # create-design carried the carve-out at TWO anchors (preamble +
         # findings-format); both now assert audience-style blocks with the rest.
-        body = read(os.path.join(AGENTS, "create-design-verifier.md"))
+        body = read(os.path.join(AGENTS, "create-design-design-reviewer.md"))
         self.assertEqual(
             body.count("including the `audience-style` dimension"), 2,
             "create-design must assert the audience-style dimension blocks at both anchors")
@@ -294,7 +296,7 @@ class DesignCompletenessDiagramUntouchedTest(unittest.TestCase):
     body is not disturbed by MAR-150's audience-style-only edits."""
 
     def test_completeness_core_text_survives(self):
-        body = read(os.path.join(AGENTS, "create-design-verifier.md"))
+        body = read(os.path.join(AGENTS, "create-design-design-reviewer.md"))
         block = dimension_block(body, "completeness")
         self.assertIn("all six required sections present and substantive", block)
         self.assertIn(

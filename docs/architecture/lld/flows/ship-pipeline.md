@@ -8,8 +8,10 @@ first step in that list the run has not recorded `completed`. No new state:
 the ledger is the only memory `/ship` needs, and the cursor is computed from
 it on every call rather than stored beside it, so the two cannot disagree.
 
-**The workflow is a list, not a DAG.** Version 3 carries a `version`, a flat
-list of skill names and one `loops:` entry; `when`, `paths`, `requires`,
+**The workflow is a list, not a DAG.** Version 3 carries a `version`, a
+list of step entries and one `loops:` entry. An entry is a skill name or a
+list of two or more — a **parallel group** (ADR-0110), whose members run side
+by side and which completes when every member has; `when`, `paths`, `requires`,
 `needs`, `max_parallel`, `exclusive`, `on_fail`, `boundary`, `delivery`,
 `id`, `name` and `stop_after` are all rejected by the schema (ADR-0096).
 Every step runs on every run: a step that owes nothing records an **evidenced
@@ -35,8 +37,13 @@ sequenceDiagram
     loop until run next reports the list is done
         SH->>WF: run next
         WF->>WS: read the step ledger, derive the cursor<br/>(first step in ship.yaml order not `completed`)
-        WF-->>SH: {step, done}
-        SH->>SK: invoke Skill acs:<step><br/>(PreToolUse input/brake check fires on the coordinator's call)
+        WF-->>SH: {next, due, parallel, done}
+        alt parallel is true (the cursor sits in a parallel group)
+            SH->>SK: invoke Skill acs:<member> for EVERY step in due, in written order
+            note over SH,SK: coordinators advance in lockstep in this session:<br/>each phase's subagents for all members in ONE message,<br/>one grouped ask, each member finishes itself
+        else one step is due
+            SH->>SK: invoke Skill acs:<step><br/>(PreToolUse input/brake check fires on the coordinator's call)
+        end
         alt the pre-hook finds nothing owed
             SK->>WS: evidenced no-op — step `completed` with the Contract's reason<br/>(no model tokens spent)
         else the step runs
@@ -67,9 +74,15 @@ gates. `/ship` stops before `merge-pr` because `create-pr` is the last name
 in the list, not because of a `stop_after` key. Re-running `/ship <ticket>`
 re-derives the cursor and continues from it; a step recorded `failed`,
 `interrupted` or `in_progress` is not `completed`, so the cursor is still on
-it. There is no parallel mode: one step at a time, with parallelism inside a
-step (`/acs:review-code`'s five lenses, `/acs:create-docs`'s sets) remaining
-that skill's own business. Epic fan-out — its own `--fan-out` invocation, run
+it. Steps overlap only where the list declares a parallel group: `run next`
+then reports every unfinished member in `due`, and `/ship` invokes them all
+and drives their coordinators in lockstep inside its own session — a step's
+coordinator runs in the invoking session, so two steps cannot each get a
+session of their own within one run. Invariant I1 allows the members of one
+group, and nothing else, to be `in_progress` at once; when a member fails,
+the others finish the phase in flight, are recorded `interrupted`, and the run
+stops. Parallelism inside a step — sliced writers, judges and surveys, joined
+by `acs.py notes merge` (ADR-0110) — remains that skill's own business. Epic fan-out — its own `--fan-out` invocation, run
 once after the epic's design is approved, never part of the epic's creation
 run — mints the children, and each child's implementation walk above then
 runs independently (parallel worktrees supported).
@@ -112,9 +125,8 @@ steps:
   - create-test-docs
   - code
   - review-code
-  - create-e2e-tests
+  - [create-e2e-tests, docs-sync]   # a parallel group
   - run-e2e-tests
-  - docs-sync
   - create-pr
 loops:
   - from: review-code
@@ -123,7 +135,7 @@ loops:
     on_exhausted: fail
 ```
 
-Three things are worth saying about that list, because each replaced a
+Four things are worth saying about that list, because each replaced a
 mechanism this document used to describe at length:
 
 - **`review-code` is a step, not a phase inside `code`** (ADR-0099). Five
@@ -141,6 +153,11 @@ mechanism this document used to describe at length:
   and the difference is accountability: the skill that owns the question
   answers it and records why, so the same answer is reached whether `/ship`
   reached the skill or a person typed it.
+- **`[create-e2e-tests, docs-sync]` is a parallel group** (ADR-0110). Both
+  follow the reviewed changeset and write disjoint files (suites vs docs), so
+  running them one after the other only cost wall time; `run-e2e-tests` waits
+  for both and runs the suites the first one wrote. A group is declared,
+  never derived, and neither end of a loop may sit inside one.
 
 > **History.** Earlier revisions of this flow described a DAG walk over
 > `acs.py workflow next` with `needs`/`when`/`requires` predicates, a

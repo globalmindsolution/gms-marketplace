@@ -68,10 +68,11 @@ def workflow_advisory(ctx, skill, run_id, doc=None):
     if doc is None:
         return None
     cursor = run_machine.cursor(doc, wf)
-    if cursor is None or cursor == skill:
+    if cursor is None or skill in run_machine.due_steps(doc, wf):
         return None
-    index = workflow.step_index(wf, skill)
+    index = workflow.stage_index(wf, skill)
     if index is None or index == 0:
         return None
-    predecessor = workflow.steps_of(wf)[index - 1]
+    # The stage before this one; for a parallel group, its last member.
+    predecessor = workflow.stages_of(wf)[index - 1][-1]
     return render_advisory(skill, run_id, predecessor, cursor)

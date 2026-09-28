@@ -64,7 +64,7 @@ anything, just open the pull request", "not a design for one ticket: regenerate
 the product-wide C4 views". Each confusable case's `description` names the
 neighbour. One prompt per skill measured one sentence; ten, run ten times each,
 measure the description on 100 runs
-([ADR-0109](../../../docs/adr/0109-routing-gate-ten-phrasings-ten-runs.md)).
+([ADR-0111](../../../docs/adr/0111-routing-gate-ten-phrasings-ten-runs.md)).
 
 ## How routing is graded
 
@@ -137,7 +137,7 @@ scored 0.00 in the first full run for a reason no grader can see.
 | Kind | Rule | Why |
 |---|---|---|
 | `negative`, `control` | every run must pass | pulling a request onto an internal leg, or firing a skill on a git question, is a defect however rarely it happens |
-| `description` | each **skill**, pooling its ten phrasings (100 runs), routes at least **9/10**; the **suite** routes at least **99/100** | the floor catches a broken skill, the suite rate a broad slide; 99/100 allows about 24 misses in 2,400 runs, against the ~14 the model's occasional look-before-routing produces (ADR-0110) |
+| `description` | each **skill**, pooling its ten phrasings (100 runs), routes at least **9/10**; the **suite** routes at least **99/100** | the floor catches a broken skill, the suite rate a broad slide; 99/100 allows about 24 misses in 2,400 runs, against the ~14 the model's occasional look-before-routing produces (ADR-0112) |
 | `explicit` | not gated | not observable — see the limit below |
 
 It fails closed on anything it cannot read: a partial run (cost ceiling hit), an
@@ -146,7 +146,7 @@ from the run, or a result older than six hours. The CLI only warns when it
 cannot write `--json`, so without that last check a stale file from an earlier
 run could be judged in place of this one.
 
-**The rates were set by the owner** (ADR-0109, ADR-0110), from a measured
+**The rates were set by the owner** (ADR-0111, ADR-0112), from a measured
 baseline: on 2026-09-27 a three-run sweep routed 716 of 720 description runs
 (99.4%), every miss a first move that looked at the repo before calling the
 right skill. A suite rate of 1.0 fails on one such look in about 2,400 runs,

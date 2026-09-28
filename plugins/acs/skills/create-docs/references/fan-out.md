@@ -14,6 +14,13 @@ the Start snippet prints it as `max_parallel`. Walk each batch
 finishing one slice's sets before starting the next. Everything below that
 says "this slice" means those at-most-`max_parallel` sets.
 
+The cap bounds instances per phase too. The Author message spawns at most
+`max_parallel` authors (one per set). The Review message spawns every
+**dimension slice** of every set in this slice — two per set
+(`SKILL.md` → Review), so at most 2 × `max_parallel` = **4** reviewer
+instances, the per-phase fan-out cap. A dimension slice is not a set slice:
+it splits one set's review, never the batch.
+
 ## Worktrees — one per set, created before that set's Start
 
 For every set in this slice, create one git worktree outside the consumer
@@ -33,20 +40,21 @@ by worktree at …`). `--detach` leaves the new worktree at the branch tip with
 `git status --porcelain` empty, which is exactly the clean-tree precondition
 the set's Branch step needs. Once that set's Start has minted its ticket id,
 enter its worktree and run Delivery step 1 (Branch) there — **before the
-Execute phase** — so every subsequent write for that set (the executor's doc
+Author phase** — so every subsequent write for that set (the author's doc
 writes and Delivery steps 2-4) happens inside that worktree on that branch;
-each executor's `<task>` carries that set's worktree-absolute output paths, so
+each author's `<task>` carries that set's worktree-absolute output paths, so
 its writes cannot land in the session checkout. A single-set run may skip the
 worktree and use the session checkout, provided the clean-tree precondition
 holds.
 
 ## Failure isolation — per set
 
-Every failure is isolated to its own set — a verifier cap reached at
+Every failure is isolated to its own set — a reviewer cap reached at
 iteration 3, a lock held by another session, a refused push. The failing
 set's run status, ticket, partition and lock are its own; every OTHER set's
 run, PR and ledger are never touched by it. Report each set's outcome
 independently, each with its own resume command
-(`/acs:create-docs <delivery-ticket-id>`). The one shared precondition, the
-architecture doc set, was checked at Start before any set started, so there
-is no shared failure left to carve out.
+(`/acs:create-docs <delivery-ticket-id>`). The one shared upstream input, the
+architecture doc set, was looked for at Start before any set started, and its
+absence refuses nothing — it only changes what each author grounds on — so
+there is no shared failure left to carve out.

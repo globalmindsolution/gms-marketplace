@@ -231,7 +231,7 @@ class ThisRepoWiresTheGateTest(unittest.TestCase):
         self.assertIn("--min-suite-rate", self.judge[0])
 
     def test_ten_runs_a_case_at_nine_tenths_per_skill_and_99_percent_overall(self):
-        """ADR-0109 and ADR-0110: ten runs a case, each skill's pooled runs at
+        """ADR-0111 and ADR-0112: ten runs a case, each skill's pooled runs at
         9/10, the suite at 99/100 -- about 24 misses in 2,400 description runs,
         against the ~14 a 0.6% first-move miss rate produces."""
         self.assertIn(" --runs 10 ", " %s " % self.paid[0])

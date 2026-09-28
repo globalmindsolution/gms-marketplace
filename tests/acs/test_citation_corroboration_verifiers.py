@@ -12,7 +12,7 @@ the grammar) and the verifier half (the `authoring-conformance` dimension
 invokes the shared `citation_check.py` floor, maps every finding and exit 2 to
 a blocking finding, and additionally requires a substantiation judgment over
 the script's resolved-citations manifest — the hybrid shape). Also pins the
-negative/regression space: `create-prd-verifier.md` untouched, and dimension
+negative/regression space: `create-prd-reviewer.md` untouched, and dimension
 4's name/number/position/"eight" count unchanged.
 
 Mirrors the reading/extraction helper shapes from
@@ -42,15 +42,15 @@ import citation_check  # noqa: E402
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py"
 
-# The doc-set author: one executor for every set (ADR-0094), no planner.
-PLANNERS = ("create-docs-executor.md",)
+# The doc-set author: one author for every set (ADR-0094), no planner.
+PLANNERS = ("create-docs-author.md",)
 
-VERIFIERS = ("create-docs-verifier.md",)
+VERIFIERS = ("create-docs-reviewer.md",)
 
-PRD_VERIFIER = "create-prd-verifier.md"
+PRD_VERIFIER = "create-prd-reviewer.md"  # create-prd's judge
 
-# create-prd-verifier.md's 9 pre-existing dimension labels (AC-5 negative
-# pin) — mirrors the VERIFIERS["create-prd-verifier.md"] entry in
+# create-prd-reviewer.md's 9 pre-existing dimension labels (AC-5 negative
+# pin) — mirrors the VERIFIERS["create-prd-reviewer.md"] entry in
 # test_structure_audience_verifiers.py:56-64.
 PRD_VERIFIER_DIMENSIONS = (
     "Required sections", "Feature -> goal traceability",
@@ -60,7 +60,7 @@ PRD_VERIFIER_DIMENSIONS = (
 )
 
 # The bootstrap-doc skills whose loop topology must not regress to a
-# per-iteration re-plan (AC-5): create-prd still plans once; create-docs
+# per-iteration re-plan (AC-5): create-prd surveys once; create-docs
 # never plans at all.
 BOOTSTRAP_DOC_SKILLS = ("create-docs", "create-prd")
 
@@ -103,8 +103,8 @@ def dimension_present(body, label):
 def verify_phase_region(skill_md_body, skill_name):
     """Bounded window over the SKILL.md text that describes what gets
     spawned/passed to the verifier: from the first line naming the Verify
-    phase to the next top-level (`##`) heading."""
-    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Phase: verify).*|3\.\s+\*\*Verify\*\*.*)$",
+    (create-docs: Review) phase to the next top-level (`##`) heading."""
+    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Review|Phase: verify).*|3\.\s+\*\*Verify\*\*.*)$",
                   skill_md_body)
     assert m is not None, "no Verify-phase heading/list-item found in %s/SKILL.md" % skill_name
     rest = skill_md_body[m.end():]
@@ -205,14 +205,14 @@ class PlannerExcerptClauseTest(unittest.TestCase):
             "excerpt clause drifted across planners (not identical): %r" % clauses)
 
     def test_standards_principles_na_note_preserved(self):
-        body = read(os.path.join(AGENTS, "create-docs-executor.md"))
-        bullet = upstream_inventory_bullet(body, "create-docs-executor.md")
+        body = read(os.path.join(AGENTS, "create-docs-author.md"))
+        bullet = upstream_inventory_bullet(body, "create-docs-author.md")
         self.assertIn("principles/ N/A:", bullet)
         self.assertIn("<why>", bullet)
 
     def test_standards_principles_na_note_exempted_from_grammar(self):
-        body = read(os.path.join(AGENTS, "create-docs-executor.md"))
-        bullet = upstream_inventory_bullet(body, "create-docs-executor.md")
+        body = read(os.path.join(AGENTS, "create-docs-author.md"))
+        bullet = upstream_inventory_bullet(body, "create-docs-author.md")
         self.assertIn("exempt", bullet.lower())
 
 
@@ -325,7 +325,7 @@ class DimensionFourInvocationTest(unittest.TestCase):
                 self.assertIn("iter-<n>/authoring.md", block)
 
     def test_standards_names_principles_root(self):
-        body = read(os.path.join(AGENTS, "create-docs-verifier.md"))
+        body = read(os.path.join(AGENTS, "create-docs-reviewer.md"))
         block = dimension_block(body, "authoring-conformance")
         self.assertIn("principles", block.lower())
 
@@ -513,7 +513,7 @@ class PrinciplesRootConditionalTest(unittest.TestCase):
 
 
 class CreatePrdUntouchedTest(unittest.TestCase):
-    """AC-5: create-prd-verifier.md contains no citation_check.py reference
+    """AC-5: create-prd-reviewer.md contains no citation_check.py reference
     and its 9 pre-existing dimension labels all remain."""
 
     def test_no_citation_check_reference(self):
@@ -532,7 +532,8 @@ class CreatePrdUntouchedTest(unittest.TestCase):
 class LoopTopologyMigratedTest(unittest.TestCase):
     """AC-5 (MAR-305, then ADR-0094): no bootstrap-doc SKILL.md carries the
     per-iteration planner re-spawn sentence (plan -> execute -> verify).
-    create-prd plans exactly once per run; create-docs has no planner at all
+    create-prd surveys exactly once per run (its surveyor, iteration 1
+    only); create-docs has no planner at all
     -- its executor authors each set and the verifier judges it."""
 
     def test_loop_topology_migrated_by_mar305(self):
@@ -544,20 +545,24 @@ class LoopTopologyMigratedTest(unittest.TestCase):
                     "%s/SKILL.md must no longer carry the per-iteration "
                     "re-spawn sentence (MAR-305 drops it)" % skill)
         norm = re.sub(r"\s+", " ", read(os.path.join(SKILLS, "create-prd", "SKILL.md")))
-        self.assertNotIn("acs:create-prd-planner", norm)
-        self.assertRegex(norm, r"(?i)no planner")
+        for stale in ("planner", "executor", "verifier"):
+            self.assertNotIn("acs:create-prd-%s" % stale, norm)
+        # create-prd surveys once (iteration 1 only), then author -> review.
+        self.assertRegex(norm, r"(?i)Iteration 1 runs the surveyor once")
+        self.assertRegex(norm, r"(?i)the surveyor never runs again")
         docs = read(os.path.join(SKILLS, "create-docs", "SKILL.md"))
         self.assertNotIn("acs:create-docs-planner", docs)
-        self.assertRegex(docs, r"(?i)no planner")
+        self.assertRegex(re.sub(r"\s+", " ", docs), r"(?i)Nothing plans the set ahead of the author")
 
 CORROBORATION_SKILLS = ("create-docs",)
 
 
 def verify_constraints_sentence(region, skill_name):
     """The 'The verify task's `<constraints>` also carry ...' paragraph
-    inside a SKILL.md's verify-phase region, up to the next blank line."""
+    (create-docs: 'The reviewer task's') inside a SKILL.md's verify-phase
+    region, up to the next blank line."""
     m = re.search(
-        r"The verify task's `<constraints>` also carry.*?(?=\n\n)",
+        r"The (?:verify|reviewer) task's `<constraints>` also carry.*?(?=\n\n)",
         region, re.DOTALL)
     assert m is not None, (
         "%s/SKILL.md: verify-task <constraints> sentence not found" % skill_name)
@@ -588,7 +593,7 @@ class SkillVerifyConstraintPrdPathTest(unittest.TestCase):
     skill and agent agree on the names."""
 
     def test_verify_constraints_sentence_names_prd(self):
-        verifier = input_contract(read(os.path.join(AGENTS, "create-docs-verifier.md")))
+        verifier = input_contract(read(os.path.join(AGENTS, "create-docs-reviewer.md")))
         for skill in CORROBORATION_SKILLS:
             with self.subTest(skill=skill):
                 body = read(os.path.join(SKILLS, skill, "SKILL.md"))

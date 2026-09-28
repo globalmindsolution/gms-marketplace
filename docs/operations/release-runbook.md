@@ -34,8 +34,8 @@ the step-by-step the maintainer follows.
    ([ADR-0107](../adr/0107-routing-gated-by-skill-not-by-prompt.md)). Negatives
    and controls must pass every run; each skill, pooling its ten phrasings,
    must route at least 9/10 of its runs and the suite at least 99/100
-   ([ADR-0109](../adr/0109-routing-gate-ten-phrasings-ten-runs.md),
-   [ADR-0110](../adr/0110-routing-suite-rate-99-percent.md)); `explicit`
+   ([ADR-0111](../adr/0111-routing-gate-ten-phrasings-ten-runs.md),
+   [ADR-0112](../adr/0112-routing-suite-rate-99-percent.md)); `explicit`
    cases, which are not reliably observable, are not run. Read a red verdict
    before acting on it: the script names each failing skill or case. It refuses
    rather than passes a run it cannot trust — a partial run, a missing case, a

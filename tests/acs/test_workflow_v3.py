@@ -1,5 +1,5 @@
-"""A workflow is a list (§2.1), and its order is validated from the skills'
-own declarations rather than from edges in the file.
+"""A workflow is a list (§2.1): an orchestrator that keeps the order of
+independent skills, and asks nothing of what they read or write.
 
 Replaces the version-2 half of tests/acs/test_workflow_resolution.py.
 
@@ -8,9 +8,9 @@ The load-bearing claims:
   * every v2 key is REJECTED, not ignored — a workflow that tries to decide
     for a skill whether it has work fails validation rather than working
     silently, and the error says where the key went
-  * order is checked WITHOUT any edge in the file: a step's required reads
-    must be written by an earlier step, which is derived from acs.yaml
-  * the check is loop-aware, so `code` reading `verdict` is not a warning
+  * order is the author's: any order of skills that ship validates, because
+    each skill falls back to the run's subject when an upstream artifact is
+    absent
   * `back_to` must precede `from`, because a loop that does not go back is
     not a loop
 
@@ -66,11 +66,20 @@ class ShippedWorkflowTest(unittest.TestCase):
         self.assertEqual(W.steps_of(self.doc), [
             "analyze-requirements", "create-impl-plan", "create-api-contract",
             "create-test-docs", "code", "review-code", "create-e2e-tests",
-            "run-e2e-tests", "docs-sync", "create-pr"])
+            "docs-sync", "run-e2e-tests", "create-pr"])
 
-    def test_every_step_is_a_bare_name(self):
+    def test_the_e2e_authoring_and_docs_sync_run_as_one_parallel_group(self):
+        self.assertIn(["create-e2e-tests", "docs-sync"], W.stages_of(self.doc))
+        self.assertEqual(len(W.stages_of(self.doc)), 9)
+
+    def test_every_step_is_a_bare_name_or_a_group_of_names(self):
         for step in self.doc["steps"]:
-            self.assertIsInstance(step, str)
+            if isinstance(step, list):
+                self.assertGreaterEqual(len(step), 2)
+                for member in step:
+                    self.assertIsInstance(member, str)
+            else:
+                self.assertIsInstance(step, str)
 
     def test_the_only_construct_is_the_one_loop(self):
         self.assertEqual(set(self.doc) - {"version", "steps"}, {"loops"})
@@ -78,11 +87,6 @@ class ShippedWorkflowTest(unittest.TestCase):
         self.assertEqual(W.loop_for(self.doc, "review-code"),
                          {"from": "review-code", "back_to": "code",
                           "max_iterations": 3, "on_exhausted": "fail"})
-
-    def test_the_shipped_order_raises_no_warnings(self):
-        """In particular: `code` reads `verdict`, which review-code writes one
-        step later, and the LOOP is what carries it back."""
-        self.assertEqual(W.order_warnings(self.doc), [])
 
     def test_the_name_is_the_file_name(self):
         self.assertEqual(W.workflow_name(SHIP), "ship")
@@ -105,11 +109,12 @@ class ShippedWorkflowTest(unittest.TestCase):
     def test_the_header_comment_states_the_rules_it_is_enforced_by(self):
         """Successor to test_ship_yaml_default's header pin. The rules the
         header must state are v3's, not v2's: what the schema rejects, why
-        (the standalone-skill rule), and that `loops:` is the one construct."""
+        (the standalone-skill rule), and the two constructs: a parallel group
+        and `loops:`."""
         with open(SHIP, encoding="utf-8") as fh:
             head = fh.read().split("version:")[0]
         for phrase in ("A LIST", "the schema rejects every one of",
-                       "`loops:` is the only construct",
+                       "PARALLEL GROUP", "`loops:` is the only other construct",
                        "evidenced no-op", "acs workflow validate"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, head)
@@ -163,46 +168,66 @@ class StepAdmissionTest(unittest.TestCase):
     def test_a_leg_may_not_be_a_step(self):
         self._refuse("version: 3\nsteps:\n  - code-standard\n", "is a leg of 'code'")
 
-    def test_a_skill_with_no_io_may_not_be_a_step(self):
-        self._refuse("version: 3\nsteps:\n  - setup\n", "declares no reads and no writes")
+    def test_a_project_leg_may_not_be_a_step(self):
+        self._refuse("version: 3\nsteps:\n  - create-project\n", "is a leg of 'project'")
 
 
-class OrderValidationTest(unittest.TestCase):
-    """The check that replaced `needs:` — derived from the skills, not from
-    an edge list an author maintains."""
+class OrderIsTheAuthorsTest(unittest.TestCase):
+    """The workflow only orders skills. Each skill is independent, so no order
+    of skills that ship is refused for what one of them reads."""
 
-    def test_a_required_read_before_its_producer_is_refused(self):
-        with self.assertRaises(WorkflowError) as caught:
-            W.validate_workflow_file(write(
-                "version: 3\nsteps:\n  - analyze-requirements\n"
-                "  - create-api-contract\n  - create-impl-plan\n"))
-        message = str(caught.exception)
-        self.assertIn("create-api-contract", message)
-        self.assertIn("'plan'", message)
-        self.assertIn("create-impl-plan", message)
-
-    def test_a_required_read_nobody_writes_is_refused(self):
-        with self.assertRaises(WorkflowError) as caught:
-            W.validate_workflow_file(write("version: 3\nsteps:\n  - create-impl-plan\n"))
-        self.assertIn("no step in this workflow writes", str(caught.exception))
-
-    def test_a_swap_that_does_not_matter_passes(self):
-        """docs-sync and the e2e pair: neither reads the other's output."""
+    def test_any_order_of_real_skills_validates(self):
         doc = W.validate_workflow_file(write(
-            "version: 3\nsteps:\n  - analyze-requirements\n  - create-impl-plan\n"
-            "  - code\n  - docs-sync\n  - create-e2e-tests\n  - run-e2e-tests\n"))
-        self.assertIn("docs-sync", W.steps_of(doc))
+            "version: 3\nsteps:\n  - analyze-requirements\n"
+            "  - create-api-contract\n  - create-impl-plan\n"))
+        self.assertEqual(W.steps_of(doc)[1], "create-api-contract")
 
-    def test_the_subject_is_a_run_level_input(self):
-        """analyze-requirements requires `subject`, which no step writes."""
-        W.validate_workflow_file(write("version: 3\nsteps:\n  - analyze-requirements\n"))
+    def test_a_single_step_validates(self):
+        W.validate_workflow_file(write("version: 3\nsteps:\n  - create-impl-plan\n"))
 
-    def test_an_optional_read_out_of_order_is_a_warning_not_an_error(self):
+    def test_a_utility_skill_may_be_a_step(self):
+        W.validate_workflow_file(write("version: 3\nsteps:\n  - setup\n"))
+
+
+class ParallelGroupTest(unittest.TestCase):
+    """A step entry may be a list: a parallel group whose members /acs:ship
+    starts together. It is declared, never derived."""
+
+    def test_a_group_validates_and_flattens_in_written_order(self):
         doc = W.validate_workflow_file(write(
-            "version: 3\nsteps:\n  - analyze-requirements\n  - create-impl-plan\n"
-            "  - create-test-docs\n  - create-api-contract\n"))
-        warnings = W.order_warnings(doc)
-        self.assertTrue(any("api-contract" in w for w in warnings), warnings)
+            "version: 3\nsteps:\n  - code\n  - [docs-sync, create-e2e-tests]\n"
+            "  - create-pr\n"))
+        self.assertEqual(W.stages_of(doc),
+                         [["code"], ["docs-sync", "create-e2e-tests"], ["create-pr"]])
+        self.assertEqual(W.steps_of(doc),
+                         ["code", "docs-sync", "create-e2e-tests", "create-pr"])
+        self.assertEqual(W.stage_index(doc, "create-e2e-tests"), 1)
+        self.assertEqual(W.stage_of(doc, "docs-sync"), ["docs-sync", "create-e2e-tests"])
+
+    def _refuse(self, text, needle):
+        with self.assertRaises(WorkflowError) as caught:
+            W.validate_workflow_file(write(text))
+        self.assertIn(needle, str(caught.exception))
+
+    def test_a_group_of_one_is_refused(self):
+        self._refuse("version: 3\nsteps:\n  - [code]\n", "at least 2")
+
+    def test_a_member_must_ship(self):
+        self._refuse("version: 3\nsteps:\n  - [code, nope]\n", "is not a skill that ships")
+
+    def test_a_skill_may_not_appear_twice_across_stages(self):
+        self._refuse("version: 3\nsteps:\n  - code\n  - [code, docs-sync]\n",
+                     "appears twice")
+
+    def test_a_leg_may_not_be_a_member(self):
+        self._refuse("version: 3\nsteps:\n  - [code-small, docs-sync]\n", "is a leg of")
+
+    def test_a_loop_end_may_not_sit_inside_a_group(self):
+        self._refuse(
+            "version: 3\nsteps:\n  - [code, docs-sync]\n  - review-code\n"
+            "loops:\n  - from: review-code\n    back_to: code\n"
+            "    max_iterations: 3\n    on_exhausted: fail\n",
+            "inside a parallel group")
 
 
 class LoopValidationTest(unittest.TestCase):

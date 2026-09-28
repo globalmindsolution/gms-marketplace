@@ -33,9 +33,11 @@ JSON with `mode: "exempt-pr"`, the resolved `pr` (`number`, `url`, `branch`,
 `base`, `labels`), `exempt_reason` and `settings` — and it resolves **no**
 ticket and writes **no** partition, lock, pointer, or state.
 
-When `mode` is `exempt-pr`, run this trimmed flow yourself (no
-planner/executor/verifier subagents — there is no partition to persist phase
-artifacts to):
+When `mode` is `exempt-pr`, run this trimmed flow yourself, inline — exactly
+as the ticketed path runs `references/merge.md`, this skill spawns no subagent
+on either path. It replaces `references/merge.md` rather than following it:
+there is no partition to persist phase artifacts to, so no `merge.json` report
+is written, and no ticket for its tracker step to sync:
 
 1. **Readiness review** — the SAME command as the ticket path, so the two
    cannot disagree about the same PR:

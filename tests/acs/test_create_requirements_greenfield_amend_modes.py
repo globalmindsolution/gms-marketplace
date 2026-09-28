@@ -4,7 +4,7 @@ finalized per-file format (AC-1..AC-4, AC-6 prose half).
 
 Prose-contract tests (string/regex over the coordinator + triad bodies, no
 execution of the skill) proving the deferred greenfield stub is now a real
-elicitation mode across SKILL.md + planner/executor/verifier, that greenfield
+elicitation mode across SKILL.md + surveyor/author/reviewer, that greenfield
 is a distinct third classifier branch (not a brownfield fallthrough), that the
 DRAFT/confirm gate spans all three modes uniformly (C-22), that the per-file
 format is finalized, and that the new greenfield write prose uses the
@@ -24,9 +24,9 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_PATH = os.path.join(PLUGIN, "skills", "create-requirements", "SKILL.md")
-PLANNER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")  # the survey charter lives in the executor since ADR-0092
-EXECUTOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-executor.md")
-VERIFIER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-verifier.md")
+SURVEYOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-surveyor.md")
+AUTHOR_PATH = os.path.join(PLUGIN, "agents", "create-requirements-author.md")
+REVIEWER_PATH = os.path.join(PLUGIN, "agents", "create-requirements-reviewer.md")
 
 GF_MARK = re.compile(r"(?i)\*\*greenfield\*\*")
 
@@ -48,15 +48,15 @@ class Mar144GreenfieldRealCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.skill = read(SKILL_PATH)
-        cls.planner = read(PLANNER_PATH)
-        cls.executor = read(EXECUTOR_PATH)
+        cls.surveyor = read(SURVEYOR_PATH)
+        cls.author = read(AUTHOR_PATH)
 
     def test_greenfield_not_deferred(self):
-        # No residual deferral language in the coordinator/planner/executor bodies.
+        # No residual deferral language in the coordinator/surveyor/author bodies.
         for name, body in (
             ("SKILL.md", self.skill),
-            ("planner.md", self.planner),
-            ("executor.md", self.executor),
+            ("surveyor.md", self.surveyor),
+            ("author.md", self.author),
         ):
             self.assertNotIn(
                 "MAR-144", body,
@@ -73,8 +73,8 @@ class Mar144GreenfieldRealCase(unittest.TestCase):
         # located functional/non-functional target files.
         for name, body in (
             ("SKILL.md", self.skill),
-            ("planner.md", self.planner),
-            ("executor.md", self.executor),
+            ("surveyor.md", self.surveyor),
+            ("author.md", self.author),
         ):
             regions = gf_regions(body, 500)
             self.assertTrue(regions, "%s has no bold greenfield mode bullet" % name)
@@ -90,11 +90,11 @@ class Mar144GreenfieldRealCase(unittest.TestCase):
                 "%s greenfield bullet does not name the non-functional target" % name)
 
     def test_greenfield_draft_marked(self):
-        # The executor greenfield branch states the DRAFT marker applies here too.
-        region = "\n".join(gf_regions(self.executor, 400))
+        # The author greenfield branch states the DRAFT marker applies here too.
+        region = "\n".join(gf_regions(self.author, 400))
         self.assertIn(
             "DRAFT", region,
-            "executor greenfield branch must mark its output DRAFT")
+            "author greenfield branch must mark its output DRAFT")
 
 
 class Mar144ThreeWayClassifierCase(unittest.TestCase):
@@ -105,11 +105,11 @@ class Mar144ThreeWayClassifierCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.skill = read(SKILL_PATH)
-        cls.planner = read(PLANNER_PATH)
-        cls.executor = read(EXECUTOR_PATH)
+        cls.surveyor = read(SURVEYOR_PATH)
+        cls.author = read(AUTHOR_PATH)
 
     def test_three_way_classifier_present(self):
-        for name, body in (("SKILL.md", self.skill), ("planner.md", self.planner)):
+        for name, body in (("SKILL.md", self.skill), ("surveyor.md", self.surveyor)):
             for mode in ("brownfield", "greenfield", "amend"):
                 self.assertRegex(
                     body, r"(?i)\*\*%s\*\*" % mode,
@@ -122,8 +122,8 @@ class Mar144ThreeWayClassifierCase(unittest.TestCase):
     def test_amend_byte_for_byte_preserved(self):
         # Regression guard: the amend git-diff self-check + byte preservation text
         # is untouched by the greenfield edits.
-        self.assertIn("byte-for-byte", self.executor)
-        self.assertIn("git diff -- <requirements_dir>", self.executor)
+        self.assertIn("byte-for-byte", self.author)
+        self.assertIn("git diff -- <requirements_dir>", self.author)
         self.assertIn("byte-identical", self.skill)
 
 
@@ -174,28 +174,28 @@ class Mar144FormatAndG36Case(unittest.TestCase):
             self.assertIn(token, block, "format subsection missing %r vocab" % token)
 
 
-class Mar144VerifierModeAwareCase(unittest.TestCase):
-    """AC-1/AC-2: the verifier's mode-conformance + coverage/citation/no-fabrication
+class Mar144ReviewerModeAwareCase(unittest.TestCase):
+    """AC-1/AC-2: the reviewer's mode-conformance + coverage/citation/no-fabrication
     dimensions are greenfield-aware (branch text, NOT new dimensions — count stays 13)."""
 
     @classmethod
     def setUpClass(cls):
-        cls.verifier = read(VERIFIER_PATH)
+        cls.reviewer = read(REVIEWER_PATH)
 
-    def test_verifier_greenfield_mode_aware(self):
+    def test_reviewer_greenfield_mode_aware(self):
         self.assertNotRegex(
-            self.verifier, r"(?is)greenfield.{0,120}deferred",
-            "verifier still treats greenfield as deferred")
+            self.reviewer, r"(?is)greenfield.{0,120}deferred",
+            "reviewer still treats greenfield as deferred")
         # Dimension 2 now describes greenfield as producing elicited files.
         self.assertRegex(
-            self.verifier, r"(?is)greenfield produced.{0,200}(elicited|DRAFT)",
-            "verifier dim 2 must describe greenfield as producing elicited DRAFT files")
+            self.reviewer, r"(?is)greenfield produced.{0,200}(elicited|DRAFT)",
+            "reviewer dim 2 must describe greenfield as producing elicited DRAFT files")
 
-    def test_verifier_dimension_count_still_13(self):
-        self.assertIn("13. **audience-style", self.verifier)
+    def test_reviewer_dimension_count_still_13(self):
+        self.assertIn("13. **audience-style", self.reviewer)
         self.assertIsNone(
-            re.search(r"(?m)^14\.\s", self.verifier),
-            "a 14th verifier dimension was added — the count must stay 13")
+            re.search(r"(?m)^14\.\s", self.reviewer),
+            "a 14th reviewer dimension was added — the count must stay 13")
 
 
 class Mar144ConsumerGeneralCase(unittest.TestCase):
@@ -207,8 +207,8 @@ class Mar144ConsumerGeneralCase(unittest.TestCase):
     def test_greenfield_uses_located_subfolder_paths(self):
         for name, path in (
             ("SKILL.md", SKILL_PATH),
-            ("planner.md", PLANNER_PATH),
-            ("executor.md", EXECUTOR_PATH),
+            ("surveyor.md", SURVEYOR_PATH),
+            ("author.md", AUTHOR_PATH),
         ):
             body = read(path)
             for region in gf_regions(body, 300):

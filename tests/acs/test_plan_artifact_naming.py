@@ -10,9 +10,9 @@ pinned here for the same naming rule.
 
 Three naming axes touch these files: (a) the plan artifact itself (`.md`,
 renamed by MAR-70, fallback retired by MAR-73), (b) per-iteration XML
-message persistence (`iter-<n>-<phase>.xml`, unchanged), (c) execute/verify
-phase artifacts (`iter-<n>-execute*.json` / `iter-<n>-verify*.md`,
-unchanged). This module asserts axis (a) moved (and its fallback is gone)
+message persistence (`iter-<n>-<phase>.xml`, unchanged), (c) the
+implementer's phase artifact (`iter-<n>/implementer*.json`, named for the role
+since the per-skill subagents replaced the generic executor). This module asserts axis (a) moved (and its fallback is gone)
 and axes (b)/(c) did not.
 
 Stdlib-only (os, re, unittest). Run:
@@ -29,12 +29,13 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
 CODE_SKILL = os.path.join(PLUGIN, "skills", "code", "SKILL.md")
-CODE_EXECUTOR = os.path.join(AGENTS_DIR, "code-executor.md")
+CODE_IMPLEMENTER = os.path.join(AGENTS_DIR, "code-implementer.md")
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
 
-# The plan phase left /acs:code for /acs:create-impl-plan, so the code side is
-# a dyad: the executor and the verifier READ the plan the other skill wrote.
-TRIAD_AGENT_FILES = [CODE_EXECUTOR,]
+# The plan phase left /acs:code for /acs:create-impl-plan and the review left
+# for /acs:review-code, so the code side owns one agent: the implementer READS
+# the plan the other skill wrote.
+TRIAD_AGENT_FILES = [CODE_IMPLEMENTER,]
 
 # .md-anchored only — iter-<n>-plan.xml (axis b) must NOT match this literal.
 LEGACY = re.compile(r"iter-(?:<n>|\{n\}|\*|\d+)-plan\.md")
@@ -156,3 +157,11 @@ class PhaseArtifactPersistenceTest(unittest.TestCase):
         self.assertNotIn("iter-<n>-execute", body)
         self.assertNotIn("iter-<n>-verify", body)
         self.assertNotIn(".xml", body)
+
+    def test_the_report_is_named_for_the_role(self):
+        """The implementer's report is `iter-<n>/implementer.json`, which is
+        what `derive` reads; `execute.json` was the executor's name."""
+        for body in (code_contract(), read(CODE_IMPLEMENTER)):
+            self.assertIn("iter-<n>/implementer.json", body)
+            self.assertIn("implementer-<k>.json", body)
+            self.assertNotIn("execute.json", body)

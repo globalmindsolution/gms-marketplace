@@ -122,39 +122,39 @@ class ZeroOrphanMilestoneInvariantTest(unittest.TestCase):
 
 
 class CreatePrdSkillContractTest(unittest.TestCase):
-    """AC-8 (reads Spec 01's output): SKILL.md's executor-duties region
-    states the mapping-table duty; its verify region states the coverage
+    """AC-8 (reads Spec 01's output): SKILL.md's author-duties region
+    states the mapping-table duty; its review region states the coverage
     sub-check."""
 
     def _skill_md(self):
         return read(os.path.join(PLUGIN, "skills", "create-prd", "SKILL.md"))
 
-    def test_execute_region_states_mapping_table_duty(self):
-        window = section(self._skill_md(), "### Execute — the write")
+    def test_author_region_states_mapping_table_duty(self):
+        window = section(self._skill_md(), "### Author — the write")
         self.assertIn("Release versions", window)
         self.assertIn("mapping table", window)
 
-    def test_verify_region_states_coverage_subcheck(self):
-        window = section(self._skill_md(), "### Verify")
+    def test_review_region_states_coverage_subcheck(self):
+        window = section(self._skill_md(), "### Review")
         self.assertTrue(
             "exactly one release version" in window or "0 orphan milestones" in window,
-            "SKILL.md verify region missing the coverage sub-check phrase")
+            "SKILL.md review region missing the coverage sub-check phrase")
 
 
 class CreatePrdAgentCharterContractTest(unittest.TestCase):
-    """AC-3/AC-8 (reads Spec 01's output): the executor/verifier agent
+    """AC-3/AC-8 (reads Spec 01's output): the author/reviewer agent
     charters mirror the same duty/sub-check phrases."""
 
-    def test_executor_charter_mirrors_duty(self):
-        body = read(os.path.join(PLUGIN, "agents", "create-prd-executor.md"))
+    def test_author_charter_mirrors_duty(self):
+        body = read(os.path.join(PLUGIN, "agents", "create-prd-author.md"))
         self.assertIn("Release versions", body)
         self.assertIn("mapping table", body)
 
-    def test_verifier_charter_mirrors_subcheck(self):
-        body = read(os.path.join(PLUGIN, "agents", "create-prd-verifier.md"))
+    def test_reviewer_charter_mirrors_subcheck(self):
+        body = read(os.path.join(PLUGIN, "agents", "create-prd-reviewer.md"))
         self.assertTrue(
             "exactly one release version" in body or "0 orphan milestones" in body,
-            "create-prd-verifier.md missing the coverage sub-check phrase")
+            "create-prd-reviewer.md missing the coverage sub-check phrase")
 
 
 class AdditiveGuardTest(unittest.TestCase):

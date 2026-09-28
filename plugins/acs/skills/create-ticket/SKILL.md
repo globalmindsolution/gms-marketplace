@@ -13,11 +13,12 @@ clarified, traced to the PRD, with an epic-only `needs_design` flag (stated, nev
 confirmed, for epics; never offered for story/task), and optional tracker sync. An
 epic's own creation run always ends with `children: []`; when invoked as
 `<epic-id> --fan-out` against an already-created epic, this skill instead mints that
-epic's child story/task tickets (see `references/epic-fan-out.md`). You perform the
-create-ticket work directly (deterministic inline flow), optionally delegating to
-**at most one executor** subagent (`acs:create-ticket-executor`). You NEVER spawn a
-planner or a verifier subagent, ever. Decomposition is YOURS alone (subagents
-never spawn subagents).
+epic's child story/task tickets (see `references/epic-fan-out.md`). You perform
+ALL of the create-ticket work yourself, inline — the analysis, the confirmation
+gate, and the materialization steps in `references/materialize.md` — and
+**spawn no subagent**: materializing a ticket is a fixed sequence of commands
+with nothing for a separate agent to judge. There is no planner, no executor
+and no verifier for this skill. Decomposition is YOURS alone.
 
 Notation: `<partition>` = `context.partition`, `<id>` = `context.ticket_id`,
 `<repo>` = `context.checkout_root`. Substitute real values in every command.
@@ -30,8 +31,8 @@ MANDATORY first action — run exactly:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ticket --allocate --type task --title "(ticket under analysis)" --args "$ARGUMENTS"
 ```
 
-- The ticket id is minted up front (e.g. `SHOP-123`) with placeholder content; the
-  executor rewrites `ticket.json` with the real content later. Sequence gaps from
+- The ticket id is minted up front (e.g. `SHOP-123`) with placeholder content;
+  Step 3 rewrites `ticket.json` with the real content later. Sequence gaps from
   abandoned runs are fine — never hand-pick ids.
 - **Except when resuming.** If `$ARGUMENTS` is exactly a ticket id, or
   `--ticket` is passed, and that ticket still has a live partition, the run
@@ -66,7 +67,7 @@ hint from `acs_lib.gh_failure_hint(stderr)` (see "GitHub call failure
 policy" below), with no fallback to any other transport. Otherwise seed the
 working title/description from the remote issue and record the mapping
 `external = {"provider": "jira", "key": "PROJ-456"}` (or `{"provider": "github",
-"key": "123"}`) for the executor to write into `ticket.json`. Then run the NORMAL
+"key": "123"}`) for Step 3 to write into `ticket.json`. Then run the NORMAL
 analysis below on the imported description — imports get the same clarification,
 typing, PRD trace, and needs_design decision as a local request. Never create a new
 remote issue for an imported ticket: the mapping points at the existing one.
@@ -126,7 +127,7 @@ precedence is `--fan-out` -> split -> remote import -> raw request:
 
 - If `context.reconcile` is true: verify recorded progress against reality BEFORE
   continuing — re-read `<partition>/ticket.json`, the persisted
-  `steps/create-ticket/iter-*-*.xml` files, and any child partitions
+  `steps/create-ticket/iter-*/materialize.json` reports, and any child partitions
   already minted (children listed in `ticket.json` must actually exist on disk with
   `parent` set). Continue from the first unfinished phase; do not redo work that
   verifiably holds, and never mint duplicate children for ones that already exist.
@@ -145,19 +146,18 @@ invariant (d)) belongs to the downstream code review; there is no upstream
 code-verifier for create-ticket — the correctness mechanism here is the schema plus the
 user-confirmation gate.
 
-If you delegate to an executor, spawn **at most one** `acs:create-ticket-executor`
-subagent. Apply `context.models.executor.model` / `.effort` for the executor when not `"inherit"`;
-if the runtime rejects the model or effort, FAIL the run with that exact error — no
-silent fallback. Validate all XML messages:
+**No subagent is spawned — you run every step inline.** Steps 1-2 below are
+yours by nature (the analysis and the user gate). Steps 3-5 materialize what
+the user confirmed: for them, open
+`${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/materialize.md` and
+follow it yourself, in its order — it carries every command, the ordering and
+safety rules, the per-ticket failure classification, and the per-iteration
+report. There is no `<task>`/`<result>` exchange and no model tier to apply:
+your own session does the work.
 
-```bash
-```
-
-On invalid: re-request the message once with the validation error; still
-invalid → fail the run and record the error in the result document's `errors`.
-
-Persist each phase output to `steps/create-ticket/iter-<n>/<phase>.json`
-at the phase boundary, BEFORE starting the next phase.
+Persist the materialize report to
+`steps/create-ticket/iter-<n>/materialize.json` (the reference's last step)
+BEFORE Finish.
 
 ### The sizing rubric
 
@@ -174,7 +174,7 @@ tedious.
 
 ### Step 1 — Analyze and recommend fields
 
-The coordinator (or its single optional executor) reads the raw request (or imported
+The coordinator reads the raw request (or imported
 remote issue), the codebase, the PRD, and the roadmap. Produce a complete proposal:
 
 - `type` (epic / story / task), `title`, `description` outline, `acceptance_criteria`
@@ -255,6 +255,9 @@ needs the user: a delegation never confirms going beyond the PRD.
 
 ### Step 3 — Rewrite ticket.json
 
+You run this step inline, as `references/materialize.md` steps 1-3 order it
+(render the title, build the description, rewrite the file).
+
 Rewrite `<partition>/ticket.json` PRESERVING `id`, `status`, and `created_at`, and
 setting all fields required by `schemas/ticket.schema.json`:
 
@@ -292,7 +295,8 @@ mode (above) — the two modes that mint children — and never during the
 epic's own creation run. An epic's
 creation run (Steps 1-3) always finishes with `children: []`; fan-out is
 deferred until after `/acs:create-design` completes, when the user
-re-invokes `/acs:create-ticket <epic-id> --fan-out`.
+re-invokes `/acs:create-ticket <epic-id> --fan-out`. You mint the children
+yourself, inline, per `references/materialize.md` step 4.
 
 For each user-confirmed child, run:
 
@@ -337,8 +341,8 @@ into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
 `clarify.py add --skill create-ticket --question "..." --answer "..." --ticket <ticket-id>`
-BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
-`<context>`. If the user is unavailable or says "you decide": record the
+BEFORE acting on it, and apply the relevant `C-n` entries yourself when you
+materialize the ticket (no subagent receives them). If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
 in the completion report's Findings and the PR body until a user confirms.
 Before a needs_input handoff, record the outgoing questions as `open`

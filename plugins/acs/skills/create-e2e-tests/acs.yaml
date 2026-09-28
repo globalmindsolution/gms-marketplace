@@ -1,5 +1,0 @@
-phase: test
-reads:
-  required: [plan]
-  optional: [test-cases, changeset]
-writes: [e2e-tests]

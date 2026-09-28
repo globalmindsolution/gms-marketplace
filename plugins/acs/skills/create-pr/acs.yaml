@@ -1,5 +1,0 @@
-phase: ship
-reads:
-  required: [changeset]
-  optional: [verdict, docs]
-writes: [pr]

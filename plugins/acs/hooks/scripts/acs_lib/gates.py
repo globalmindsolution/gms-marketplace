@@ -35,7 +35,6 @@ from ._common import WorkflowError
 from .repo import repo_dir
 from . import run as run_machine
 from . import sessions
-from . import skills as skills_registry
 from . import step as step_machine
 from . import stepgate
 from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
@@ -105,18 +104,18 @@ def design_requirement(ctx, tdir, ticket):
 # ---------------------------------------------------------------------------
 # The pre-hook gate
 #
-# A gate answers exactly two questions: does the artifact this skill READS
-# exist, and would running now do damage that re-running cannot undo? It never
-# answers a third -- is this skill next? Order is /acs:ship's business, via
+# A gate answers exactly one question: would running now do damage that
+# re-running cannot undo? It never asks whether an upstream artifact exists --
+# each skill is independent and falls back to the run's subject -- and it never
+# asks whether this skill is next. Order is /acs:ship's business, via
 # `acs run next`; a skill invoked by hand is never asked whether it is next,
 # which is what makes every skill independently invocable (§3.11). Out of
 # order costs one advisory line on stderr, exit 0.
 #
 # The seventeen per-skill gate functions and the four-family GATE_INPUTS
-# partition that classified them are gone. The INPUT half is generic now: it
-# reads skills/<name>/acs.yaml's reads.required, which is the same declaration
-# `acs workflow validate` checks a step list's order against. One declaration,
-# two enforcers, and they cannot disagree.
+# partition that classified them are gone, and so is the generic input gate
+# that replaced them: a skill that refused to start without an upstream
+# artifact could not be run on its own.
 #
 # What stayed per-skill is only what is genuinely a SAFETY BRAKE. The one
 # consulted BEFORE the workflow is resolved is SUBJECT_GATES, for a
@@ -280,9 +279,8 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
       2. the run: this checkout's current one, or a new one over the subject
       3. the invariants, BEFORE any write (§4.3) -- a drifted ledger is
          refused here rather than discovered three steps later
-      4. the inputs, from the skill's own declaration
-      5. the safety brakes
-      6. the no-op: nothing owed means the step is completed here and the
+      4. the safety brakes
+      5. the no-op: nothing owed means the step is completed here and the
          coordinator is never spawned
 
     `mutate=False` answers the question WITHOUT the answer's consequences, for
@@ -292,7 +290,6 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
     run the subject WOULD open (`run.projected_run`) instead of one it creates,
     so the query reaches every check below and still writes nothing.
     """
-    manifests = skills_registry.load_manifests()
     subject_gate = SUBJECT_GATES.get(skill)
     if subject_gate:
         subject_gate(ctx, payload)
@@ -321,14 +318,7 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
         raise GateError(message)
     if mutate:
         acquire_lock(rdir, ctx.get("checkout_root") or ctx["workspace"])
-    stepgate.check_invariants(rdir, wf, manifests, doc=doc)
-
-    fell_back = stepgate.check_inputs(rdir, skill, manifests, wf,
-                                      standalone=standalone, doc=doc)
-    for artifact in fell_back:
-        sys.stderr.write(
-            "acs: no %s for this run; /acs:%s will work from the run's subject instead.\n"
-            % (artifact, skill))
+    stepgate.check_invariants(rdir, wf, doc=doc)
 
     # The epic brake runs for EVERY implementation step, not just the ones
     # that happened to have a gate function before. `code` refusing an epic
@@ -340,8 +330,8 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
     if brake:
         brake(ctx, rdir, doc, wf)
 
-    settled = (stepgate.settle_no_op(rdir, skill, doc["run_id"], wf, manifests)
-               if mutate else stepgate.noop_decision(rdir, skill, manifests, wf))
+    settled = (stepgate.settle_no_op(rdir, skill, doc["run_id"], wf)
+               if mutate else stepgate.noop_decision(rdir, skill))
     if settled:
         outcome, reason = settled
         raise NothingOwed(skill, outcome, reason)
@@ -596,9 +586,12 @@ def session_end(payload):
     # by a process that no longer exists -- and a cross-host lock stranded that
     # way does not read as stale for 24 hours.
     try:
-        step = run_machine.in_progress_step(doc)
-        if step:
-            wf = _workflow_for(ctx)
+        # Every open step, not the first: a parallel group's members are all
+        # in progress at once, and each one left open would claim to be
+        # running in a session that no longer exists.
+        running = run_machine.in_progress_steps(doc)
+        wf = _workflow_for(ctx) if running else None
+        for step in running:
             step_machine.finalize_invocation(rdir, step, run_id, {
                 "status": "interrupted",
                 "stop_reason": "session_end",

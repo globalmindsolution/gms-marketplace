@@ -1,5 +1,0 @@
-phase: design
-reads:
-  required: []
-  optional: [architecture]
-writes: [doc-set]

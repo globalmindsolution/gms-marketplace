@@ -14,30 +14,29 @@ This module owns:
                                       schema (acs_lib.schemasubset, since
                                       hooks may not import jsonschema) and the
                                       semantic checks below
-  steps_of / loop_for                 the list and its cycles
-  ORDER VALIDATION                    a list with no `needs:` can still be
-                                      written in an order that cannot work, so
-                                      each step's REQUIRED reads must be
-                                      written by an EARLIER step or be a
-                                      run-level input. The declarations live
-                                      in `skills/<name>/acs.yaml`
-                                      (acs_lib.skills), never here: they are
-                                      facts about the skill, true in every
-                                      workflow, and the same list drives the
-                                      runtime input gate — so the validator
-                                      and the gate cannot disagree.
+  steps_of / stages_of / loop_for     the list, its parallel groups and its
+                                      cycles
 
-That is what makes this not `needs:` by another name. `needs:` was a
-per-workflow edge list an author maintained, duplicating what the skills
-already knew; this is the skills saying it once and every workflow being
-checked against it.
+A step entry is a skill name, or a LIST of skill names -- a PARALLEL GROUP
+whose members `/acs:ship` runs side by side (`- [docs-sync, create-e2e-tests]`).
+Each entry is a STAGE; the stages run in order, and a group's members may all
+be in progress at once. A group is written by the author, never derived: the
+skills declare nothing about each other, so nothing could derive it.
+
+A workflow is an ORCHESTRATOR, not a contract. It keeps the order the skills
+run in and nothing else: each skill is independent, reads what it finds, and
+falls back to the run's subject when an upstream artifact is absent. So the
+validator checks only what a list can get wrong on its own -- a name that is
+not a skill, a leg named in place of its entry point, a loop that does not go
+back -- and never what a skill needs. A skill that would be strict about its
+inputs could not be run on its own.
 
 The walk itself is NOT here: with no graph there is no ready-set to compute.
 `acs_lib.run` owns the cursor ("the first step not completed"), because that
 is a fact about a run rather than about a workflow.
 
-Gates stay INPUT and SAFETY checks; nothing here refuses a skill for running
-out of order.
+Gates stay SAFETY checks; nothing here refuses a skill for running out of
+order.
 """
 
 import os
@@ -47,23 +46,14 @@ from . import schemasubset  # noqa: F401
 from . import skills as skills_registry  # noqa: F401
 from .schemasubset import (branch_fits_type, deref, equal, is_type,  # noqa: F401
     pointer, schema_errors, type_name)
-from .skills import (AGENT_ROLES, OVERRIDE_WORKFLOW_RELPATH, PHASE_GROUPS,  # noqa: F401
-    SHIP_FILENAME, SKILLS_DIRNAME, SKILL_SCHEMA_FILENAME, SkillsError,
-    WORKFLOWS_DIRNAME, WORKFLOW_SCHEMA_FILENAME, agent_roles_of, agents_dir,
-    default_workflow_path, entry_point_of, is_skill, is_step_candidate,
-    legs_of, load_manifest, load_manifests, load_schema, manifest_path,
-    override_workflow_path, phase_of, reads_of, registered_skills,
-    schema_path, skill_agents, skill_dir, skill_legs, skills_dir,
-    step_candidates, unreachable_agents, workflows_dir, writes_of)
+from .skills import (OVERRIDE_WORKFLOW_RELPATH, SHIP_FILENAME,  # noqa: F401
+    WORKFLOW_SCHEMA_FILENAME, default_workflow_path, entry_point_of, is_skill,
+    load_schema, override_workflow_path, workflows_dir)
 from . import yamlsubset
 from .yamlsubset import YamlSubsetError
 
 #: The only workflow version this build reads.
 WORKFLOW_VERSION = 3
-
-#: Artifacts no step writes because the RUN carries them: the subject a run was
-#: started from (a ticket, a prompt or a document). A step may require these.
-RUN_LEVEL_ARTIFACTS = frozenset({"subject"})
 
 #: The v2 keys version 3 removed. Named so the error can say where each went
 #: rather than only that it is unknown.
@@ -125,16 +115,14 @@ def _fail(reason, path, lines, node):
 # Validation
 # ---------------------------------------------------------------------------
 
-def validate_workflow(doc, manifests=None, lines=None, path=None):
+def validate_workflow(doc, lines=None, path=None):
     """Schema plus semantic checks; returns `doc`, raises WorkflowError naming
     the source line when `lines` (from yamlsubset.parse) is given.
 
     Semantic checks, in the order a reader would want them:
-      1. every step names a skill that ships and may be a step
-      2. every step's REQUIRED reads are written by an earlier step
-      3. every loop's endpoints exist and `back_to` precedes `from`
+      1. every step names a skill that ships and is not another skill's leg
+      2. every loop's endpoints exist and `back_to` precedes `from`
     """
-    manifests = manifests if manifests is not None else load_manifests()
     if not isinstance(doc, dict):
         _fail("(document): expected object, got %s" % type_name(doc), path, lines, ())
 
@@ -172,121 +160,93 @@ def validate_workflow(doc, manifests=None, lines=None, path=None):
         node, message = errors[0]
         _fail("%s: %s" % (pointer(node), message), path, lines, node)
 
-    steps = doc["steps"]
-    for index, step in enumerate(steps):
-        node = ("steps", index)
-        if not is_skill(step):
-            _fail("steps[%d]: %r is not a skill that ships (no skills/%s/SKILL.md)"
-                  % (index, step, step), path, lines, node)
-        entry = (manifests.get(step) or {}).get("leg_of")
-        if entry:
-            _fail("steps[%d]: %r is a leg of %r, not a step — name %r and let it dispatch"
-                  % (index, step, entry, entry), path, lines, node)
-        if not is_step_candidate(step, manifests):
-            _fail("steps[%d]: %r declares no reads and no writes in skills/%s/acs.yaml, "
-                  "so it is a skill rather than a step" % (index, step, step), path, lines, node)
+    seen = set()
+    for index, entry in enumerate(doc["steps"]):
+        members = entry if isinstance(entry, list) else [entry]
+        for position, step in enumerate(members):
+            node = ("steps", index, position) if isinstance(entry, list) else ("steps", index)
+            label = ("steps[%d][%d]" % (index, position) if isinstance(entry, list)
+                     else "steps[%d]" % index)
+            if not is_skill(step):
+                _fail("%s: %r is not a skill that ships (no skills/%s/SKILL.md)"
+                      % (label, step, step), path, lines, node)
+            leg_entry = entry_point_of(step)
+            if leg_entry:
+                _fail("%s: %r is a leg of %r, not a step — name %r and let it dispatch"
+                      % (label, step, leg_entry, leg_entry), path, lines, node)
+            if step in seen:
+                _fail("%s: %r appears twice — a skill is one step of a run"
+                      % (label, step), path, lines, node)
+            seen.add(step)
 
-    _validate_order(steps, manifests, path, lines)
-    _validate_loops(doc.get("loops") or [], steps, path, lines)
+    _validate_loops(doc.get("loops") or [], doc["steps"], path, lines)
     return doc
 
 
-def _validate_order(steps, manifests, path, lines):
-    """Each step's REQUIRED reads must be written by an EARLIER step, or be a
-    run-level artifact. This is the check that replaces `needs:` -- derived
-    from what the skills declare, not from an edge list in this file."""
-    written = {}
-    for index, step in enumerate(steps):
-        required, _optional = reads_of(step, manifests)
-        for artifact in required:
-            if artifact in RUN_LEVEL_ARTIFACTS or artifact in written:
-                continue
-            producer = _producer_of(artifact, steps, manifests)
-            if producer is None:
-                _fail("steps[%d]: %s reads %r, which no step in this workflow writes"
-                      % (index, step, artifact), path, lines, ("steps", index))
-            _fail("steps[%d]: %s reads %r, which no EARLIER step writes — %s writes it "
-                  "at step %d" % (index, step, artifact, producer[1], producer[0] + 1),
-                  path, lines, ("steps", index))
-        for artifact in writes_of(step, manifests):
-            written.setdefault(artifact, index)
-
-
-def _producer_of(artifact, steps, manifests):
-    """(index, skill) of the first step that writes `artifact`, else None."""
-    for index, step in enumerate(steps):
-        if artifact in writes_of(step, manifests):
-            return index, step
-    return None
-
-
-def _validate_loops(loops, steps, path, lines):
-    order = dict((step, index) for index, step in enumerate(steps))
+def _validate_loops(loops, entries, path, lines):
+    """Loop endpoints are whole stages: a loop that started or ended inside a
+    parallel group would re-enter half of it, and what the other half had
+    already done would be neither kept nor redone."""
+    order = {}
+    grouped = set()
+    for index, entry in enumerate(entries):
+        for step in (entry if isinstance(entry, list) else [entry]):
+            order[step] = index
+            if isinstance(entry, list):
+                grouped.add(step)
     for index, loop in enumerate(loops):
         node = ("loops", index)
         for key in ("from", "back_to"):
             if loop[key] not in order:
                 _fail("loops[%d].%s: %r is not a step of this workflow"
                       % (index, key, loop[key]), path, lines, node)
+            if loop[key] in grouped:
+                _fail("loops[%d].%s: %r is inside a parallel group; a loop's ends "
+                      "must be steps of their own" % (index, key, loop[key]),
+                      path, lines, node)
         if order[loop["back_to"]] >= order[loop["from"]]:
             _fail("loops[%d]: back_to %r is not EARLIER than from %r — a loop that does "
                   "not go back is not a loop" % (index, loop["back_to"], loop["from"]),
                   path, lines, node)
 
 
-def validate_workflow_file(path, manifests=None):
+def validate_workflow_file(path):
     """Parse and validate one file, reporting failures at their line."""
     doc, lines = load_workflow(path)
-    return validate_workflow(doc, manifests=manifests, lines=lines, path=path)
-
-
-def order_warnings(doc, manifests=None):
-    """Non-fatal order remarks: an OPTIONAL read placed before its producer.
-    Legal and pointless -- create-test-docs reads api-contract when one exists,
-    so putting it first means it never will. A warning, never an error.
-
-    A read satisfied by a LOOP is not one of these. `code` reads `verdict`
-    when present and `review-code` writes it one step later, but the loop
-    sends the run back to `code`, so on iteration 2+ the verdict is exactly
-    what `code` is there to act on. Warning about that would train a reader to
-    ignore the warnings."""
-    manifests = manifests if manifests is not None else load_manifests()
-    steps = doc.get("steps") or []
-    out = []
-    for index, step in enumerate(steps):
-        _required, optional = reads_of(step, manifests)
-        for artifact in optional:
-            producer = _producer_of(artifact, steps, manifests)
-            if not producer or producer[0] <= index:
-                continue
-            if _reachable_by_loop(doc, steps, index, producer[0]):
-                continue
-            out.append("steps[%d]: %s reads %r when present, but %s does not write it "
-                       "until step %d — it will never be present"
-                       % (index, step, artifact, producer[1], producer[0] + 1))
-    return out
-
-
-def _reachable_by_loop(doc, steps, reader, producer):
-    """True when some loop carries `producer`'s output back round to `reader`:
-    the loop's span covers both, so the reader sees it on the next iteration."""
-    order = dict((s, i) for i, s in enumerate(steps))
-    for loop in loops_of(doc):
-        start, end = order.get(loop["back_to"]), order.get(loop["from"])
-        if start is None or end is None:
-            continue
-        if start <= reader <= end and start <= producer <= end:
-            return True
-    return False
+    return validate_workflow(doc, lines=lines, path=path)
 
 
 # ---------------------------------------------------------------------------
 # Reading a validated workflow
 # ---------------------------------------------------------------------------
 
+def stages_of(doc):
+    """The stages, in order: each a list of the skill names that may run at
+    once -- one name for a plain step, several for a parallel group."""
+    return [list(entry) if isinstance(entry, list) else [entry]
+            for entry in (doc.get("steps") or [])]
+
+
 def steps_of(doc):
-    """The step list: skill names, in order."""
-    return list(doc.get("steps") or [])
+    """Every step, flattened, in order: skill names. A group's members keep
+    their written order, which is the order `/acs:ship` starts them in."""
+    return [step for stage in stages_of(doc) for step in stage]
+
+
+def stage_of(doc, step):
+    """The stage (list of names) that holds `step`, else None."""
+    for stage in stages_of(doc):
+        if step in stage:
+            return stage
+    return None
+
+
+def stage_index(doc, step):
+    """The index of the stage that holds `step`, else None."""
+    for index, stage in enumerate(stages_of(doc)):
+        if step in stage:
+            return index
+    return None
 
 
 def loops_of(doc):

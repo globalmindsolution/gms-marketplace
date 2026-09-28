@@ -1,7 +1,7 @@
 """MAR-120 spec 01 — /acs:create-architecture gains hld/project-structure.md.
 
 Prose-contract tests pinning the producer-only change: the SKILL.md
-Output-contract row, the planner/executor/verifier triad enumerations, the
+Output-contract row, the architect/reviewer enumerations, the
 two doc updates, the negative scope guard (no acs skill/agent added, no
 hand-authored project-structure.md in this repo, no shipped template), and
 the AC-5 additivity/re-run guard.
@@ -24,9 +24,8 @@ AGENTS = os.path.join(PLUGIN, "agents")
 DOCS = os.path.join(REPO_ROOT, "docs")
 
 SKILL_PATH = os.path.join(SKILLS, "create-architecture", "SKILL.md")
-PLANNER_PATH = os.path.join(AGENTS, "create-architecture-executor.md")  # the survey charter lives in the executor since ADR-0092
-EXECUTOR_PATH = os.path.join(AGENTS, "create-architecture-executor.md")
-VERIFIER_PATH = os.path.join(AGENTS, "create-architecture-verifier.md")
+ARCHITECT_PATH = os.path.join(AGENTS, "create-architecture-architect.md")  # surveys and writes
+REVIEWER_PATH = os.path.join(AGENTS, "create-architecture-reviewer.md")
 SKILLS_MD_PATH = os.path.join(DOCS, "requirements", "functional", "skills.md")
 
 
@@ -112,15 +111,15 @@ class SkillOutputContractRowTest(unittest.TestCase):
         self.assertIn("project-structure.md", finish)
 
 
-class PlannerTargetDocSetTest(unittest.TestCase):
-    """AC-4: planner's Target doc set names project-structure.md
-    (flowchart/directory-tree/C4-derived); Verifier checklist covers it."""
+class ArchitectTargetDocSetTest(unittest.TestCase):
+    """AC-4: architect's Target doc set names project-structure.md
+    (flowchart/directory-tree/C4-derived); Reviewer checklist covers it."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PLANNER_PATH)
+        cls.body = read(ARCHITECT_PATH)
         cls.target = bullet(cls.body, "Target doc set")
-        cls.checklist = bullet(cls.body, "Verifier checklist")
+        cls.checklist = bullet(cls.body, "Reviewer checklist")
 
     def test_target_doc_set_names_project_structure_as_flowchart(self):
         self.assertIn("hld/project-structure.md", self.target)
@@ -129,17 +128,17 @@ class PlannerTargetDocSetTest(unittest.TestCase):
     def test_target_doc_set_names_c4_derivation(self):
         self.assertIn("C4", self.target)
 
-    def test_verifier_checklist_covers_project_structure(self):
+    def test_reviewer_checklist_covers_project_structure(self):
         self.assertIn("project-structure.md", self.checklist)
 
 
-class ExecutorDoingTheWorkTest(unittest.TestCase):
-    """AC-2: executor's doc-set list names project-structure.md as a
+class ArchitectDoingTheWorkTest(unittest.TestCase):
+    """AC-2: architect's doc-set list names project-structure.md as a
     flowchart and states the C4 container/component derivation requirement."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(EXECUTOR_PATH)
+        cls.body = read(ARCHITECT_PATH)
         cls.doing = section(cls.body, "## Doing the work")
 
     def test_names_project_structure_as_flowchart(self):
@@ -153,14 +152,14 @@ class ExecutorDoingTheWorkTest(unittest.TestCase):
             "hld/c4-component.md as the C4 traceability source")
 
 
-class VerifierDimensionsTest(unittest.TestCase):
-    """AC-3: verifier dimension-1 doc-set-completeness names
+class ReviewerDimensionsTest(unittest.TestCase):
+    """AC-3: reviewer dimension-1 doc-set-completeness names
     project-structure.md; exactly one C4-traceability clause, in
     internal-consistency, not duplicated in hld-lld-consistency."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(VERIFIER_PATH)
+        cls.body = read(REVIEWER_PATH)
         cls.dim1 = dimension(cls.body, "doc-set-completeness")
         cls.dim5 = dimension(cls.body, "internal-consistency")
         cls.dim7 = dimension(cls.body, "hld-lld-consistency")

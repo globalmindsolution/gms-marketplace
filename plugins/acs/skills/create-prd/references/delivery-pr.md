@@ -10,13 +10,13 @@ so the mechanics live here once rather than five times.
 getting it wrong is how a delivery PR goes bad:
 
 - **What to stage.** Each skill scopes its own commit — one doc tree, one doc
-  set's path, the whole scaffold, or exactly the allowlist a verifier
+  set's path, the whole scaffold, or exactly the allowlist a checker
   confirmed. `/acs:create-project` stages `git add -A` because a scaffold is
   new files by definition; `/acs:standardize-project` explicitly forbids that
   same command, because a broad add would sweep up source it is not allowed to
   touch. Those two rules contradict each other on purpose. Take your own.
 - **The branch and its slug**, which your skill renders from
-  `settings.formats.branch_name` before its first executor writes.
+  `settings.formats.branch_name` before its first writing subagent runs.
 - **Anything your skill does after the PR is open** — watching CI, appending a
   section to the body, or opening one PR per set rather than one per run.
 
@@ -44,7 +44,7 @@ The label already existing is not an error — that is what the `|| true` is for
 The body comes from `settings.formats.pr_description_template`: built-in name
 `pr-default` -> `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
 `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path. Fill
-its placeholders from `ticket.json` and the verifier result — never from
+its placeholders from `ticket.json` and the review result — never from
 conversation memory. Conversation memory is the one source that cannot be
 re-derived later, so a body filled from it is a body nobody can check.
 

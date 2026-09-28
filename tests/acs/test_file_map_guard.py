@@ -1,7 +1,10 @@
-"""MAR-529: the executor's file map is enforced, not requested.
+"""MAR-529: the implementer's file map is enforced, not requested.
 
 "Mutate ONLY the files in your task's file map" was a bullet in the executor
-charter. Plugin agents cannot carry frontmatter hooks, so the enforcement point
+charter (the `code-implementer` now). The guard arms for ANY `write`-kind agent
+(`acs_lib.skills.ROLE_KINDS`) -- `code-implementer`, `create-e2e-tests-test-writer`,
+`create-prd-author`, ... -- and never for a `survey` or `judge` one, which are
+read-only on the repo by charter. Plugin agents cannot carry frontmatter hooks, so the enforcement point
 is the plugin's own PreToolUse hook, keyed on the active agent MAR-528's
 SubagentStart recorded.
 
@@ -26,7 +29,7 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts")
 HOOKS_JSON = os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json")
-CODE_EXECUTOR = os.path.join(REPO_ROOT, "plugins", "acs", "agents", "code-executor.md")
+CODE_IMPLEMENTER = os.path.join(REPO_ROOT, "plugins", "acs", "agents", "code-implementer.md")
 #: ADR-0095 split /acs:code into a dispatcher plus the references its four
 #: delivery paths share, so what used to be one SKILL.md body is read from
 #: the reference that carries it: the execute instruction.
@@ -89,14 +92,15 @@ class FileMapGuardCase(AcsWorkspaceCase):
 
     def declare(self, *files, **kw):
         args = ["filemap", "set", "--task", str(kw.get("task", 1)),
-                "--iteration", str(kw.get("iteration", 1))]
+                "--iteration", str(kw.get("iteration", 1)),
+                "--skill", kw.get("skill", "code")]
         for path in files:
             args += ["--file", path]
         out = self.run_script("acs.py", *args)
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout)
 
-    def spawn_executor(self, agent_id="a-1", agent_type="acs:code-executor"):
+    def spawn_writer(self, agent_id="a-1", agent_type="acs:code-implementer"):
         out = self.hook("subagent-start", {"cwd": self.repo, "agent_id": agent_id,
                                            "agent_type": agent_type})
         self.assertEqual(out.returncode, 0, out.stderr)
@@ -116,12 +120,12 @@ class GuardTest(FileMapGuardCase):
 
     def test_an_in_map_write_is_allowed(self):
         self.declare("src/a.py", "tests/test_a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("src/a.py").returncode, 0)
 
     def test_an_out_of_map_write_is_denied_with_the_needs_input_instruction(self):
         self.declare("src/a.py", "tests/test_a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         out = self.write_attempt("src/somewhere_else.py")
         self.assertEqual(out.returncode, 2)
         self.assertIn("src/somewhere_else.py", out.stderr)
@@ -131,31 +135,71 @@ class GuardTest(FileMapGuardCase):
         self.assertIn("src/a.py", out.stderr)
         self.assertIn("tests/test_a.py", out.stderr)
 
-    def test_with_no_executor_active_the_guard_does_not_apply(self):
-        """The coordinator, the planner and the verifier all legitimately write
+    def test_with_no_writer_active_the_guard_does_not_apply(self):
+        """The coordinator, a surveyor and a reviewer all legitimately write
         outside any task's file map."""
         self.declare("src/a.py")
         self.assertEqual(self.write_attempt("anything.py").returncode, 0)
 
-    def test_a_planner_or_verifier_never_triggers_it(self):
+    def test_a_survey_or_judge_agent_never_triggers_it(self):
+        """Only a `write`-kind agent arms the guard. A surveyor and a judge are
+        read-only on the repo by charter; review-code's lens and adjudicator
+        are not tracked at all."""
         self.declare("src/a.py")
-        for role in ("planner", "verifier"):
-            with self.subTest(role=role):
-                self.spawn_executor(agent_id="a-%s" % role,
-                                    agent_type="acs:code-%s" % role)
+        for agent_type in ("acs:create-prd-surveyor", "acs:create-prd-reviewer",
+                           "acs:create-e2e-tests-suite-runner",
+                           "acs:review-code-lens", "acs:review-code-adjudicator"):
+            with self.subTest(agent_type=agent_type):
+                self.spawn_writer(agent_id="a-%s" % agent_type.split(":")[1],
+                                  agent_type=agent_type)
                 self.assertEqual(self.write_attempt("anything.py").returncode, 0)
+
+    def test_any_write_kind_agent_arms_it(self):
+        """The guard used to check `role == "executor"`. It checks the KIND
+        now, so every skill's writer is held to the map declared for ITS OWN
+        skill (`filemap set --skill <skill>`)."""
+        for skill, agent_type in (("code", "acs:code-implementer"),
+                                  ("create-e2e-tests", "acs:create-e2e-tests-test-writer"),
+                                  ("create-prd", "acs:create-prd-author")):
+            with self.subTest(agent_type=agent_type):
+                # one writer at a time: the previous subtest's record would
+                # otherwise still be running, and armed with its own map
+                shutil.rmtree(lib.active_agents_dir(self.rdir_path), True)
+                self.declare("src/a.py", skill=skill)
+                self.spawn_writer(agent_id="w-%s" % agent_type.split(":")[1],
+                                  agent_type=agent_type)
+                out = self.write_attempt("outside.py")
+                self.assertEqual(out.returncode, 2, out.stderr)
+                self.assertIn("/acs:%s" % skill, out.stderr)
+                self.assertEqual(self.write_attempt("src/a.py").returncode, 0)
+
+    def test_a_writer_is_checked_against_its_own_skills_map_only(self):
+        """A map declared for `code` says nothing about what the e2e
+        test-writer may touch: with none declared for create-e2e-tests, the
+        guard fails open for it, which is why that skill's coordinator must
+        pass `--skill create-e2e-tests`."""
+        self.declare("src/a.py")
+        self.spawn_writer(agent_id="w-e2e", agent_type="acs:create-e2e-tests-test-writer")
+        self.assertEqual(self.write_attempt("outside.py").returncode, 0)
+
+    def test_the_retired_generic_names_are_not_writers(self):
+        """`acs:code-executor` names no role acs spawns any more, so it arms
+        nothing -- a stale agent file cannot resurrect the old guard key."""
+        self.declare("src/a.py")
+        self.spawn_writer(agent_id="a-old", agent_type="acs:code-executor")
+        self.assertEqual(self.write_attempt("outside.py").returncode, 0)
 
     def test_an_undeclared_map_does_not_block_work(self):
         """A TRIVIAL lane runs no planner and declares nothing. The rule exists
         to stop scope creep, not to stop work the plan never had an opinion
         about — so an undeclared map fails OPEN."""
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("anything.py").returncode, 0)
 
     def test_the_union_of_the_declared_tasks_is_what_is_enforced(self):
         self.declare("src/a.py", task=1)
         self.declare("src/b.py", task=2)
-        self.spawn_executor()
+        self.spawn_writer()
         for path in ("src/a.py", "src/b.py"):
             with self.subTest(path=path):
                 self.assertEqual(self.write_attempt(path).returncode, 0)
@@ -171,13 +215,13 @@ class GuardTest(FileMapGuardCase):
         not keep granting write access it no longer has a task for."""
         self.declare("src/a.py", iteration=1)
         self.declare("src/b.py", iteration=2)
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("src/b.py").returncode, 0)
         self.assertEqual(self.write_attempt("src/a.py").returncode, 2)
 
     def test_every_write_tool_is_covered(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         for tool in lib.WRITE_TOOL_PATH_KEYS:
             with self.subTest(tool=tool):
                 self.assertEqual(self.write_attempt("src/a.py", tool=tool).returncode, 0)
@@ -185,14 +229,14 @@ class GuardTest(FileMapGuardCase):
 
     def test_a_read_tool_is_never_guarded(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Read",
                                      "tool_input": {"file_path": "anything.py"}})
         self.assertEqual(out.returncode, 0)
 
     def test_a_write_with_no_path_in_the_payload_is_allowed(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {}})
         self.assertEqual(out.returncode, 0)
@@ -203,7 +247,7 @@ class GuardTest(FileMapGuardCase):
         the file map it checks against. One Write to either switched the guard
         off from inside the very agent it constrains."""
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         record = lib.agent_record_path(self.rdir_path, "a-1")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": record}})
@@ -220,19 +264,19 @@ class GuardTest(FileMapGuardCase):
         code-state.json, plan-approval.json and counters.json writable by an
         executor scoped to this one."""
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         sibling = os.path.join(os.path.dirname(self.rdir_path), "OTHER-9",
                                "code-state.json")
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": {"file_path": sibling}})
         self.assertEqual(out.returncode, 2, out.stderr)
 
-    def test_a_stale_executor_record_stops_arming_the_guard(self):
+    def test_a_stale_writer_record_stops_arming_the_guard(self):
         """B2: nothing clears the record when a subagent dies mid-flight, so an
         interrupted executor used to deny every later write in the partition
         with no recovery short of hand-editing the partition."""
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertEqual(self.write_attempt("outside.py").returncode, 2)
 
         record = lib.agent_record_path(self.rdir_path, "a-1")
@@ -241,12 +285,12 @@ class GuardTest(FileMapGuardCase):
         lib.write_json(record, entry)
         self.assertEqual(self.write_attempt("outside.py").returncode, 0)
 
-    def test_another_sessions_executor_does_not_arm_this_one(self):
+    def test_another_sessions_writer_does_not_arm_this_one(self):
         """A record carrying a different session_id cannot be describing a
         subagent writing in THIS session."""
         self.declare("src/a.py")
         out = self.hook("subagent-start", {"cwd": self.repo, "agent_id": "a-9",
-                                           "agent_type": "acs:code-executor",
+                                           "agent_type": "acs:code-implementer",
                                            "session_id": "other-session"})
         self.assertEqual(out.returncode, 0, out.stderr)
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
@@ -258,29 +302,29 @@ class GuardTest(FileMapGuardCase):
         """B4: interior `..` segments survived normalisation, so the
         anti-traversal check only ever caught a LEADING escape."""
         self.declare("docs/")
-        self.spawn_executor()
+        self.spawn_writer()
         self.assertFalse(lib.path_in_filemap("docs/../../../etc/passwd",
                                              {"1": ["docs/"]}))
         self.assertTrue(lib.path_in_filemap("docs/api/x.md", {"1": ["docs/"]}))
 
-    def test_an_unreadable_tool_input_is_denied_while_an_executor_runs(self):
+    def test_an_unreadable_tool_input_is_denied_while_a_writer_runs(self):
         """"No path named" and "a payload shape the guard cannot read" are
         different answers. The first writes nothing for the map to cover; the
         second is a write this guard could not check, and an unverifiable write
         is exactly what a deny control exists to stop."""
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         out = self.hook("file-map", {"cwd": self.repo, "tool_name": "Write",
                                      "tool_input": "file_path=evil.py"})
         self.assertEqual(out.returncode, 2)
         self.assertIn("cannot be checked", out.stderr)
 
-    def test_the_executors_own_phase_artifact_is_always_writable(self):
-        """The charter says "plus your execute report", and that report lives in
-        the partition — inside the workspace, never in the file map."""
+    def test_the_implementers_own_phase_artifact_is_always_writable(self):
+        """The charter says "plus your implementer report", and that report
+        lives in the partition — inside the workspace, never in the file map."""
         self.declare("src/a.py")
-        self.spawn_executor()
-        report = os.path.join(self.rdir_path, "steps", "code", "iter-1", "execute.json")
+        self.spawn_writer()
+        report = os.path.join(self.rdir_path, "steps", "code", "iter-1", "implementer.json")
         self.assertEqual(self.write_attempt(report).returncode, 0)
 
     def test_a_write_outside_any_acs_repo_is_allowed(self):
@@ -413,7 +457,7 @@ class RefusalTextTest(FileMapGuardCase):
 
     def test_an_out_of_map_write_prints_exactly_its_existing_warning(self):
         self.declare("src/a.py", "tests/test_a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         out = self.deny({"cwd": self.repo, "tool_name": "Write",
                          "tool_input": {"file_path": "src/somewhere_else.py"}})
         self.assertEqual(out.returncode, 2)
@@ -427,7 +471,7 @@ class RefusalTextTest(FileMapGuardCase):
 
     def test_a_control_input_write_prints_exactly_its_existing_warning(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         record = lib.agent_record_path(self.rdir_path, "a-1")
         out = self.deny({"cwd": self.repo, "tool_name": "Write",
                          "tool_input": {"file_path": record}})
@@ -440,7 +484,7 @@ class RefusalTextTest(FileMapGuardCase):
 
     def test_an_unreadable_payload_prints_exactly_its_existing_warning(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         out = self.deny({"cwd": self.repo, "tool_name": "Write",
                          "tool_input": "file_path=evil.py"})
         self.assertEqual(out.returncode, 2)
@@ -450,7 +494,7 @@ class RefusalTextTest(FileMapGuardCase):
 
     def test_with_no_run_entry_an_out_of_map_write_prints_the_refusal_and_the_note(self):
         self.declare("src/a.py", "tests/test_a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self.clear_runs()
         out = self.deny({"cwd": self.repo, "tool_name": "Write",
                          "tool_input": {"file_path": "src/somewhere_else.py"}})
@@ -466,7 +510,7 @@ class RefusalTextTest(FileMapGuardCase):
 
     def test_with_no_run_entry_a_control_input_write_prints_the_refusal_and_the_note(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         record = lib.agent_record_path(self.rdir_path, "a-1")
         self.clear_runs()
         out = self.deny({"cwd": self.repo, "tool_name": "Write",
@@ -481,7 +525,7 @@ class RefusalTextTest(FileMapGuardCase):
 
     def test_with_no_run_entry_an_unreadable_payload_prints_the_refusal_and_the_note(self):
         self.declare("src/a.py")
-        self.spawn_executor()
+        self.spawn_writer()
         self.clear_runs()
         out = self.deny({"cwd": self.repo, "tool_name": "Write",
                          "tool_input": "file_path=evil.py"})
@@ -498,7 +542,7 @@ class RegistrationAndProseTest(unittest.TestCase):
     def setUpClass(cls):
         with open(HOOKS_JSON, encoding="utf-8") as fh:
             cls.hooks = json.load(fh)
-        with open(CODE_EXECUTOR, encoding="utf-8") as fh:
+        with open(CODE_IMPLEMENTER, encoding="utf-8") as fh:
             cls.executor = fh.read()
         with open(CODE_SKILL, encoding="utf-8") as fh:
             cls.skill = fh.read()

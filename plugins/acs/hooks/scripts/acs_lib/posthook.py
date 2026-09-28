@@ -69,6 +69,19 @@ def _warn_unraisably(text):
         pass
 
 
+def _release_unless_sibling_running(rdir, cwd, doc):
+    """Release the run lock, unless another step is still `in_progress`.
+
+    With a parallel group (ADR-0110) the first member to finish is not the
+    last one running: its sibling is still writing to this run's ledger and
+    the ticket branch, and the lock is what keeps a second checkout out while
+    it does. The last member to finish releases it."""
+    if run_machine.in_progress_steps(doc or {}):
+        return False
+    release_lock(rdir, cwd)
+    return True
+
+
 def _read_result_from_argv():
     """post-<skill>.py CLI: --result-file <path> | JSON on stdin, plus convenience flags."""
     import argparse
@@ -340,7 +353,7 @@ def run_post(skill):
                     ticket["status"] = "done"
                     save_ticket(tdir, ticket)
             update_index(ctx["workspace"], ctx["repo_id"], ticket)
-        release_lock(rdir, cwd)
+        _release_unless_sibling_running(rdir, cwd, doc)
 
         if doc.get("status") in run_machine.TERMINAL_RUN_STATUSES:
             sessions.save_pointer(repo, ctx["checkout_id"], run_id=None,
@@ -358,7 +371,7 @@ def run_post(skill):
                 archived_to = _archive_partition(ctx, tdir, ticket_id)
             update_index(ctx["workspace"], ctx["repo_id"], ticket, archived=True)
     except GuardTimeout as exc:
-        release_lock(rdir, cwd)
+        released = _release_unless_sibling_running(rdir, cwd, doc)
         # The repo-level writers refuse rather than write unguarded, and they
         # sit AFTER the run-level writes, so this is a PARTIAL step. Say
         # exactly which half is durable -- the operator is repairing a
@@ -367,11 +380,13 @@ def run_post(skill):
         sys.stderr.write(
             "acs post-%s: %s\n"
             "%s's invocation, result and run.json ARE written and the lock is "
-            "released; the repo-level writes (tickets-index.json%s) "
+            "%s; the repo-level writes (tickets-index.json%s) "
             "are not. %s "
             "Do NOT re-run this hook to repair it -- the step is already "
             "finalized, so a second call appends a second invocation.\n"
             % (skill, exc, run_id,
+               "released" if released else
+               "held for the parallel group's step still in progress",
                ", and the partition archive" if skill == "merge-pr" else "",
                _POST_GUARD_REPAIR[skill == "merge-pr"]))
         sys.exit(1)

@@ -362,7 +362,7 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
-- **The routing suite rate is 99/100** (ADR-0110, amends ADR-0109).
+- **The routing suite rate is 99/100** (ADR-0112, amends ADR-0111).
   - A three-run sweep routes 716 of 720 description runs (99.4%); every miss
     is the model looking at the repo before calling the right skill. A suite
     rate of 1.0 fails on one such look in ~2,400 runs, so it could never pass.
@@ -371,7 +371,7 @@ JSON validated by JSON Schema, one central envelope plus a
   - **Migration:** none for consumers.
 
 - **The routing gate runs ten phrasings ten times, and every run must route**
-  (ADR-0109, amends ADR-0107).
+  (ADR-0111, amends ADR-0107).
   - **Each of the 24 described skills has ten phrasings,** up from three. The
     suite grows from 90 to 258 routing cases.
   - **The paid step runs each case ten times** (`--runs 10 -j 8`). The cost
@@ -395,6 +395,139 @@ JSON validated by JSON Schema, one central envelope plus a
     (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` on the gate command and in
     `scripts/eval_changed.py`). Some misses were the model listing the
     sandbox's always-empty memory directory with its one turn.
+
+- **`/acs:analyze-requirements` runs in three stages: impact, clarify, store.**
+  The skill now checks the codebase for impacts, makes the requirements clear
+  with you, and stores the analysis in the ticket's docs folder for reuse.
+  - **Impact.** The analyst's survey is its own pass
+    (`<constraint name="pass">survey</constraint>`), separate from the draft:
+    it derives the impact map from the code and writes only the authoring
+    notes. When `docs/tickets/<id>/analysis.md` already exists, the survey
+    starts from it — each impact row re-verified as still true / changed /
+    gone, answered `C-n` entries carried forward, and a
+    `## Changes since the last analysis` section in the notes. The notes end
+    with `## Questions for the user` in four groups: open questions,
+    conventional defaults to confirm ("Assumed: … — confirm or correct"),
+    proposed refined acceptance criteria, and a needs_design recommendation.
+    A survey sliced by repo area is now reconciled by a dedicated
+    `slice="synthesis"` analyst pass (`iter-1/authoring-synthesis.md`, joined
+    last with `acs.py notes merge`) BEFORE you are asked anything; the draft
+    pass no longer writes `## Synthesis`.
+  - **Clarify.** After the ledger check, every remaining question — defaults
+    included — is asked in ONE grouped AskUserQuestion, with at most one
+    follow-up round; anything still open after it makes the analysis
+    `needs_input`. Confirmed refined criteria and a confirmed `needs_design`
+    are written into the ticket with `acs.py ticket save`, so every later
+    skill plans from the clarified ticket; rejected proposals are recorded
+    and not applied. No questions → the stage is skipped and the report says
+    so. **Behaviour change:** conventional defaults used to be recorded as
+    assumptions without asking; that now happens only when no user is
+    reachable (a non-interactive run with no relayed answers), where
+    `ready_for_planning: true` is still kept.
+  - **Store.** One draft pass writes the analysis from the notes and the
+    answers (`## Questions` carries every `C-n` with its answer,
+    `## Refined acceptance criteria` says what was confirmed into the ticket,
+    `## Assumptions` only what went unanswered). The impact reviewer's
+    `completeness` dimension now also fails a question for the user that was
+    neither answered nor carried, and a confirmed criterion the ticket does
+    not carry. The published analysis is the reusable record
+    `/acs:create-impl-plan`, `/acs:create-api-contract`, `/acs:create-test-docs`
+    and the next analysis read.
+  - **Files.** Each analyst pass has its own report and snapshot:
+    `iter-1/analyst-survey.json` (a slice: `analyst-<area>.json`),
+    `iter-1/analyst-synthesis.json`, and the draft's `iter-<n>/analyst.json`;
+    `survey` and `synthesis` are reserved slice ids. A resumed run works out
+    which stage it reached from the survey notes, the ledger and the draft.
+  - **Migration:** none. Front matter, the seven sections, the result
+    `states`, the 3-iteration cap and the judge slices are unchanged.
+
+- **Parallelism by default: sliced fan-out inside a skill, parallel groups in
+  the workflow** (ADR-0110, amends ADR-0096 and ADR-0109).
+  - **Coordinators fan out wherever the work splits.** A coordinator runs N
+    instances of the SAME agent in one message, each over a disjoint slice,
+    at most `max_parallel = 4` per phase (a skill with its own cap keeps it:
+    `/acs:create-docs` stays at 2 for doc sets). Writers slice by default,
+    from iteration 1, whenever the deliverable splits into disjoint files;
+    judges slice at five or more check dimensions (two or three slices, each
+    deterministic checker and each one-off run in exactly one of them);
+    surveys slice when the scope spans two or more disjoint top-level repo
+    areas, with every slice's open questions in one grouped ask. Each
+    SKILL.md states its own partition rule.
+  - **Slices are named on the message and in the files.** Tasks and results
+    carry `slice="<id>"`; a slice writes `iter-<n>/<role>-<id>.json|.md` or
+    `iter-<n>/authoring-<id>.md`, and the SubagentStop hook files its snapshot
+    at `iter-<n>/<role>-<id>-message.xml`, so siblings never overwrite each
+    other. A slice id is letters, digits, `_` and `-`; the hook refuses
+    anything else.
+  - **New: `acs.py notes merge --out <file> <slice files…>`** joins slices
+    deterministically, by `## ` heading, into the one file every reader and
+    checker expects (`authoring.md`, `<role>.md`). Slice ids are each input's
+    stem minus the prefix the inputs share, so ids may contain hyphens. A
+    missing slice fails the merge.
+  - **Joining is not synthesizing.** After parallel writers, one more
+    instance of the same writer role runs with `slice="integration"` before
+    the judge (`/acs:code-complex`'s integration implementer, generalised): it
+    reconciles only the seams the skill names — shared terms and IDs,
+    cross-references, index and overview files, shared fixtures and config —
+    records them in `iter-<n>/<role>-integration.json`, returns an unsettled
+    conflict as `needs_input`, and is skipped when one writer ran. A single
+    writer consuming merged survey slices records their contradictions under
+    `## Synthesis`; the coordinator de-duplicates judge slices' findings.
+  - **A sliced judge passes only when every slice passed** — completed, zero
+    blocking findings. A failed or missing slice fails the iteration, and a
+    resumed iteration re-runs only the slices whose report is missing.
+  - **`ship.yaml` may declare a parallel group.** A step entry may be a list
+    of two or more skill names; the shipped workflow runs
+    `[create-e2e-tests, docs-sync]` as one, after `review-code` and before
+    `run-e2e-tests`. `acs.py run next` adds `due` (every unfinished member of
+    the cursor's stage) and `parallel`; invariant I1 now allows the members of
+    ONE stage to be `in_progress` at once, and `acs step start` refuses a step
+    only while a step of another stage is open. `/acs:ship` starts every
+    member, advances their coordinators in lockstep in its own session, asks
+    you once for all of them, and lets each finish itself. `acs workflow
+    validate` also refuses a skill named twice and a loop end inside a group.
+    The out-of-order advisory now names the cursor and stays silent for a
+    member that is due.
+  - **The file-map guard handles several live writers.** A write is judged
+    against its own writer's map when the hook payload names the agent, else
+    against the union of every live writer's scope — never against whichever
+    writer started last.
+  - **Migration:** none. A `ship.yaml` override without a group, and a skill
+    that never slices, behave exactly as before. Parallel commits on one
+    branch that meet git's `index.lock` wait and retry; the lock is never
+    deleted.
+
+- **⚠️ BREAKING: subagents follow each skill's logic, and a skill carries no
+  manifest** (ADR-0109, amends ADR-0092, ADR-0096 and ADR-0101).
+  - **Roles are named for the work.** The generic `acs:<skill>-executor` /
+    `acs:<skill>-verifier` pair is gone. Each skill owns only the roles its
+    logic needs: `create-prd` and `create-requirements` run a surveyor, an
+    author and a reviewer; `create-impl-plan` a planner and a plan-reviewer;
+    `standardize-project` an auditor, a scaffolder and an additive-checker;
+    `code` (and its four legs) an implementer per file-map partition; and so
+    on — `plugins/acs/docs/INTERNALS.md` "Subagents" has the table. Still 32
+    agent files, all reachable.
+  - **Each role has a kind** — `survey`, `write` or `judge`
+    (`acs_lib.skills.ROLE_KINDS`). The kind picks the model tier
+    (`settings.models` keeps its `planner` / `executor` / `verifier` keys:
+    survey roles and create-impl-plan's planner run on `planner`, write roles
+    on `executor`, judge roles on `verifier`) and arms the file-map guard
+    while any `write` role runs.
+  - **The phase is the role.** Tasks and results carry `phase="<role>"`; each
+    agent's report is `steps/<skill>/iter-<n>/<role>.json` (`.md` for a
+    judge), and the SubagentStop snapshot is `iter-<n>/<role>-message.xml`.
+    `derive` still reads a pre-rename run's `execute*.json`.
+  - **`create-ticket`, `create-pr` and `merge-pr` spawn no subagent.** Their
+    coordinators run the steps inline from `references/materialize.md`,
+    `publish.md` and `merge.md`.
+  - **`skills/<name>/acs.yaml` and `schemas/acs-skill.schema.json` are
+    removed.** Legs are `acs_lib.skills.SKILL_LEGS`. `acs workflow validate`
+    checks only that each step is a shipped skill and not a leg, and that
+    every loop goes back; the reads/writes order validation and the
+    `warnings` it printed are gone. The pre-hook no longer refuses or warns
+    because an upstream artifact is missing: each skill falls back to the
+    run's subject (the ticket's acceptance criteria, the prompt or the
+    document), so an out-of-order `ship.yaml` override validates and runs.
 
 - **Nothing about the eval suite runs in CI** (ADR-0108, extends ADR-0022).
   - **The free eval checks moved out of CI discovery.** Case shape and coverage,
@@ -952,6 +1085,34 @@ JSON validated by JSON Schema, one central envelope plus a
 - **`/acs:test` is renamed `/acs:run-e2e-tests`.** The old directory remains for one release as an alias that forwards to the new skill, and `workflows/phases.yaml` lists it under `aliases`, never in a phase; `pipeline-state.json` still accepts a `steps.test` entry so a pre-rename ledger validates and the workflow walk still finds it. Both are unhooked. **Migration:** update any script or prose that invokes `/acs:test` — the alias will be removed in the release after this one.
 
 ### Fixed
+
+- **Parallel groups and sliced fan-out, fixed where they met the kernel**
+  (ADR-0110).
+  - **The run lock** is released by the last member of a parallel group to
+    finish. The first one used to release it while its sibling was still
+    writing to the ledger and the branch.
+  - **SessionEnd and `handoff.py`** finalize every open step as
+    `interrupted`, not only the first. A handoff with two open members now
+    resumes with `/acs:ship <run>`, and its output lists them under `steps`.
+    The Stop reminder names the first member with no result document.
+  - **The file-map guard** lets a call from a judge or a surveyor through
+    when the payload names it, even while another step's writer is live.
+    With no agent named, a writer whose skill declared no map no longer
+    switches the guard off for a mapped writer beside it. An outside-map
+    denial lists every mapped candidate's map and is recorded on each of
+    their run entries.
+  - **Test results** read `implementer-integration.json` and any other
+    `implementer-<slice>.json`, so the integration implementer's red suite
+    can no longer derive as green.
+  - **`acs notes merge`** keeps a later slice's opening prose (its repeated
+    `# ` title is still dropped), closes a code fence only on the character
+    that opened it, and takes a file's slice id from the role name it starts
+    with, so `authoring-web-app.md` is `web-app` alone or beside
+    `authoring-web-api.md`.
+  - **`docs-sync` in the shipped group** runs its drift review only after
+    `create-e2e-tests` has committed for the last time, so it judges the
+    final diff.
+  - Removed `filemap.active_executor`, which nothing called.
 
 - **`/acs:setup` no longer leaves a repo broken or a gate that always fails.**
   `apply` now checks what it is about to write before writing anything, and

@@ -35,7 +35,9 @@ their place either — acs records no token count, no dollar figure and no
 
 | Helper | Contract |
 |--------|----------|
-| `acs.py step start --step S [--ticket\|--args\|--allocate [--seed-next N]]` | stdout: context JSON (settings, run dir, subject, models, reconcile/handoff, post_hook path); records the step `in_progress`, takes the lock, writes the checkout pointer. `--step` is validated against the resolved workflow, not a closed enum. `--allocate` on a fresh/unreconciled `(repo_id, prefix)` partition (MAR-402): `allocate_ticket_id`'s fail-closed reconciliation gate refuses with **exit 2** and actionable stderr naming the ranked local-evidence proposal and the exact `--seed-next <n>` recovery command — no id minted, no lock/pointer/run-entry left behind. `--seed-next N` confirms the proposal (or repairs a wrong/stuck reconciliation) and mints `<PREFIX>-N`; `--seed-next` without `--allocate` is a malformed invocation, exit 2 per the file's existing stderr idiom |
+| `acs.py step start --step S [--ticket\|--args\|--allocate [--seed-next N]]` | stdout: context JSON (settings, run dir, subject, models, reconcile/handoff, post_hook path); records the step `in_progress`, takes the lock, writes the checkout pointer; **refused** while a step of ANOTHER stage is `in_progress` (invariant I1 — the members of one parallel group may be open together, nothing else, ADR-0110). `--step` is validated against the resolved workflow, not a closed enum. `--allocate` on a fresh/unreconciled `(repo_id, prefix)` partition (MAR-402): `allocate_ticket_id`'s fail-closed reconciliation gate refuses with **exit 2** and actionable stderr naming the ranked local-evidence proposal and the exact `--seed-next <n>` recovery command — no id minted, no lock/pointer/run-entry left behind. `--seed-next N` confirms the proposal (or repairs a wrong/stuck reconciliation) and mints `<PREFIX>-N`; `--seed-next` without `--allocate` is a malformed invocation, exit 2 per the file's existing stderr idiom |
+| `acs.py run next [--run R]` | stdout: `{ok, run_id, next, due, parallel, status, done}` — `next` is the derived cursor (the first step not `completed`), `due` every unfinished step of the cursor's stage (`[next]` for a plain step, each unfinished member for a parallel group), `parallel` true when `due` holds more than one; `done` once the cursor is `null`. Reads only; exit 2 when no run resolves |
+| `acs.py notes merge --out F IN [IN ...]` | joins a parallel fan-out's slice files (survey `authoring-<id>.md`, judge `<role>-<id>.md`) into the one file downstream readers expect: markdown merged by `## ` heading — the first input's preamble, each H2 once in first-seen order, each input's body in input order behind `<!-- slice: <id> -->`; headings inside fenced code are body. Slice ids are each stem minus the prefix every input shares. stdout: `{ok, out, sections, inputs}`; **exit 2** when any input is missing (a missing slice is a failed slice) or none is named; writes `F` atomically |
 | `post-<skill>.py --ticket T --result-file F` (or stdin JSON) | input: the **result document** `{status, stop_reason, states, findings, errors[, handoff_summary]}`; finalizes run + ledger + index, releases lock; exit 0 on success, **exit 1** (not 2) when the `--result-file` is missing or not a JSON object, stdin JSON is malformed, the context cannot be built, the ticket id cannot be resolved, or no active partition exists — a post-hook records, it does not gate. `tokens`, `role_usage`, `model_usage`, `cost_usd`, `cost_basis` and `api_duration_ms` on this input are legacy — accepted so an older coordinator's result still validates, and ignored: no usage is recorded (ADR 0104) |
 | `new-ticket.py --title --type [--parent --needs-design --docs-only --size --stakes … --seed-next N]` | mints id + partition + mint-time create-ticket state; epic backlinks; --size {trivial,small,standard,large} and --stakes {low,normal,high} write classification axes + derived lane. On a fresh/unreconciled `(repo_id, prefix)` partition (MAR-402): the same `allocate_ticket_id` fail-closed reconciliation gate refuses with **exit 2** and actionable stderr naming the local-evidence proposal and the exact `--seed-next <n>` recovery command — no ticket, partition, or `ticket.json` written. `--seed-next N` confirms/repairs the floor and mints `<PREFIX>-N` |
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
@@ -112,9 +114,10 @@ once, needs none of them. A ticket from an older build that still carries
 `<skill>-state.json` run entries carry an additive, optional `guard_events`
 array (`runs[-1].guard_events: [{...}]`), appended by `record_guard_event(tdir,
 skill, event)` (`acs_lib/step.py`) — creates the list when absent, persists via
-the same pretty-printed `write_json`. The state file is the denied executor's
-own (`code-state.json` is the common case, not the only one): the guard records
-under the active executor's skill, and the derivation below is skill-agnostic.
+the same pretty-printed `write_json`. The state file is the denied writer's
+step's own (`code-state.json` is the common case, not the only one): the guard
+records under the skill of the active `write`-kind agent, and the derivation
+below is skill-agnostic.
 It returns `False` instead of raising when there is no run entry to carry the
 event — its sole caller is a deny path whose verdict must not depend on the
 recording. (Its retired sibling `record_escalation_event` raised there, which
@@ -130,7 +133,7 @@ path is nameable; `reason` is `"outside_map"`, `"control_input"`, or
 `outside_map` and `0` for the other two.
 
 Two bounds hold at every deny site. An event is recorded **only on a deny** —
-every fail-open branch (not a write tool, no partition, no active executor)
+every fail-open branch (not a write tool, no partition, no active write-kind agent)
 records nothing — and recording **never changes the verdict**: a failed append
 is one extra stderr note beside the unchanged warning, with no retry, wait or
 lock. The item shape **is** declared in
@@ -151,7 +154,7 @@ than a `0` the reader cannot distinguish from a run predating the trail.
 ## Inter-step contract (state files)
 
 The next skill reads only canonical `states` keys — e.g. `/create-pr` gate:
-`code-state.states.verifier_passed == true`; `/merge-pr` gate: a `states.pr`
+`steps/review-code/state.json`'s `states.verifier_passed == true`; `/merge-pr` gate: a `states.pr`
 reference recorded by a COMPLETED step — `gates._pr_recorded_for` reads
 `steps/<skill>/state.json` for `create-pr` and for each `DELIVERY_TICKET_SKILLS`
 member, across every run of the ticket, and requires that step's last status to
@@ -159,8 +162,8 @@ be `completed`. Full table:
 INTERNALS.md "Canonical states keys per skill". Schemas:
 `plugins/acs/schemas/*.schema.json`. `code-state.states.plan_approved` is
 recorded by `plan-approval.py` and is **not** read by any gate this
-release — `/create-pr`'s gate remains `code-state.states.verifier_passed ==
-true` (unchanged; MAR-73, slice 3 of MAR-69).
+release — `/create-pr`'s gate remains the review's `states.verifier_passed ==
+true` (MAR-73, slice 3 of MAR-69).
 
 ## Settings (consumer repo)
 
@@ -214,7 +217,7 @@ value.
 → absolute path); its section companion `enforcement.design_sections`
 defaults from the configured template — the built-in default encodes today's
 exact required-section list, so an absent key is byte-identical to the prior
-hardcoded gate (ADR 0065). create-design's verifier enforces the resolved
+hardcoded gate (ADR 0065). create-design's design-reviewer enforces the resolved
 list as a blocking `structure` dimension via `structure_lint.py`.
 The requirements set (found in the repo, else `docs/requirements/`) has a
 **functional** and a **non-functional** subfolder (`functional/` and
@@ -239,7 +242,7 @@ Requirements (`docs/requirements/` by default, `functional/`+`non-functional/` s
 
 `/create-prd`'s output contract now additionally includes the **"Release
 versions"** mapping table in `roadmap.md` (one row per release version →
-milestone/wave + epic(s) delivered), verified by the create-prd verifier's
+milestone/wave + epic(s) delivered), verified by the create-prd reviewer's
 0-orphan-milestone coverage sub-check (ADR 0053).
 
 The `standards` chain level has a documentary counterpart in this repo at

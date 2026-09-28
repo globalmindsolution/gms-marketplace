@@ -87,12 +87,12 @@ class FlowDocTest(unittest.TestCase):
             (ln.strip() for ln in m.group(1).splitlines() if ln.strip()), "")
         self.assertEqual(first_line, "sequenceDiagram")
 
-    def test_flow_doc_names_all_six_participants(self):
-        # Seven until ADR-0092 retired the planner: the audit and the frozen
-        # allowlist are iteration 1's executor's, recorded in its authoring
-        # notes, so no PL participant remains to draw.
+    def test_flow_doc_names_all_seven_participants(self):
+        # ADR-0109 split the audit back out of the writer, as its own survey
+        # role (the auditor) -- not a planner: it plans nothing, it audits
+        # the repo once and freezes the allowlist the scaffolder writes within.
         body = read(FLOW_DOC)
-        for participant in ("Dev", "CC", "SP", "EX", "VF", "Repo"):
+        for participant in ("Dev", "CC", "SP", "AU", "SC", "AC", "Repo"):
             self.assertIn(
                 "participant %s as" % participant if participant != "Dev" else "actor Dev as",
                 body,
@@ -177,12 +177,15 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
             "standardize-project section must mention recommended_follow_ups "
             "or 'recommended follow-up'")
 
-    def test_workflow_product_skills_bullet_reads_nine(self):
+    def test_workflow_skills_bullet_names_each_reflection_skill(self):
+        """ADR-0109: the bullet names every reflection-loop skill with its
+        own roles rather than counting executor/verifier pairs."""
         body = self._skills_req()
         window = window_to_next_h2(body, "Every **workflow** skill MUST:")
-        self.assertIn("Nine **workflow/product skills**", window)
+        self.assertIn("twelve **authoring skills** and `create-docs` run a write → judge",
+                      window)
+        self.assertNotIn("Nine **workflow/product skills**", window)
         self.assertNotIn("Eleven **workflow/product skills**", window)
-        self.assertNotIn("Six **workflow/product skills**", window)
         for name in (
             "docs-sync", "code", "create-prd", "create-design",
             "create-architecture", "create-project", "create-docs",
@@ -191,9 +194,10 @@ class SkillsMdCountAndTriadProseTest(unittest.TestCase):
             self.assertIn(name, window,
                           "the workflow/product skills bullet must name %r" % name)
 
-    def test_models_config_bullet_reads_twelve_triad_keeping(self):
+    def test_models_config_bullet_reads_the_role_tiers(self):
         body = self._skills_req()
-        self.assertIn("the fourteen\n  reflection-loop skills only", body)
+        self.assertIn("model and effort of its role's tier configured there", body)
+        self.assertNotIn("the fourteen\n  reflection-loop skills only", body)
         self.assertNotIn("the twelve\n  triad-keeping skills only", body)
         self.assertNotIn("the eleven\n  triad-keeping skills only", body)
         self.assertNotIn("the six\n  triad-keeping skills only", body)
@@ -252,10 +256,14 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertNotIn("twelve triad-keeping skills", body)
         self.assertNotIn("eleven triad-keeping skills", body)
         self.assertIn("standardize-project", body)
-        self.assertIn("12 authoring pairs (24 agents", body)
+        agents = len([n for n in os.listdir(
+            os.path.join(REPO_ROOT, "plugins", "acs", "agents")) if n.endswith(".md")])
+        # Everything but code's implementer (1) and review-code's lens and
+        # adjudicator (2) belongs to a reflection-loop skill (ADR-0109).
+        self.assertIn("**%d agents**" % (agents - 3), body)
+        self.assertNotIn("12 authoring pairs (24 agents", body)
         self.assertNotIn("12 active triads (36 agents", body)
-        self.assertNotIn("11 active triads (33 agents", body)
-        self.assertIn("31 agent files, all reachable", body)
+        self.assertIn("%d agent files, all reachable" % agents, body)
         self.assertNotIn("43 agent files, all reachable", body)
         self.assertNotIn("36 reachable agents", body)
 
@@ -272,7 +280,8 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertIn("%d files, all reachable" % agents, body)
         self.assertNotIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
-        self.assertIn("twelve authoring skills (24 agents)", body)
+        self.assertIn("`create-docs` (%d agents" % (agents - 3), body)
+        self.assertNotIn("twelve authoring skills (24 agents)", body)
         self.assertNotIn("twelve triad-keeping skills (36 agents)", body)
         self.assertNotIn("eleven triad-keeping skills (33 agents)", body)
 

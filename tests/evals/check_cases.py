@@ -282,7 +282,7 @@ class CoverageTest(unittest.TestCase):
 
     #: Phrasings per skill with a description positive. One prompt per skill
     #: measures one sentence; ten measure the description. The release gate
-    #: pools a skill's cases (ADR-0107) at ten runs each (ADR-0109), so a
+    #: pools a skill's cases (ADR-0107) at ten runs each (ADR-0111), so a
     #: skill is judged on 100 runs.
     MIN_PHRASINGS = 10
 
