@@ -353,8 +353,13 @@ class CalibrationTest(unittest.TestCase):
     def test_the_ideal_run_passes_every_free_grader(self):
         for case in calibrated_cases():
             ideal, _ = plays_for(case)
-            verdicts = play(case, ideal)
-            for name, passed in sorted(verdicts.items()):
+            # Inside a subTest: one play that cannot run (a scaffold or a
+            # writer refusing) is reported against its case and does not
+            # abort the loop, hiding every case after it.
+            verdicts = None
+            with self.subTest(case=case.name):
+                verdicts = play(case, ideal)
+            for name, passed in sorted(verdicts.items() if verdicts else ()):
                 if passed is None:
                     continue
                 with self.subTest(case=case.name, grader=name):
@@ -365,8 +370,8 @@ class CalibrationTest(unittest.TestCase):
             _, bad = plays_for(case)
             self.assertTrue(bad, "%s has no bad run" % case.name)
             for label, action in sorted(bad.items()):
-                verdicts = play(case, action)
                 with self.subTest(case=case.name, bad=label):
+                    verdicts = play(case, action)
                     self.assertIn(False, verdicts.values(), "no free grader catches it")
 
     def test_every_case_carries_a_free_grader_on_what_it_produced(self):

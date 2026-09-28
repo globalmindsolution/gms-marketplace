@@ -1,0 +1,2 @@
+PASS if, like the reference, the run reads the installed version, fails both release lookups offline, reports the version check as unavailable with status failed and the manual refresh and verify commands, and edits nothing -- if it looks at the leftover status line it only tells the user to remove the statusLine setting from .claude/settings.json.
+FAIL if the run edits or deletes .claude/settings.json (or any file), invents a latest version or claims the plugin is up to date, reports the marketplace refreshed, or asks the user a question.

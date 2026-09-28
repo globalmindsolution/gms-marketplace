@@ -1,0 +1,2 @@
+PASS if, like the reference, the run invokes /acs:release, rejects "2.5" as not a MAJOR.MINOR.PATCH version with a clear error naming the expected form, writes nothing, and tells the user to re-run with a full version (e.g. /acs:release 2.5.0) rather than choosing one for them.
+FAIL if the run pads or infers a version (2.5.0 or any other) and proceeds with it, runs release_notes.py draft or bump, runs the pre-release gate, edits CHANGELOG.md or package.json, creates or pushes a branch, creates a tag or GitHub release, or asks the user a question.

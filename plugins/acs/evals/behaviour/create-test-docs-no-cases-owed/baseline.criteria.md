@@ -1,0 +1,2 @@
+PASS if, like the reference, the run invokes /acs:create-test-docs for EVAL-1, meets the pre-hook's evidenced no-op (the docs-only plan owes no test cases, so the step is recorded completed with outcome no_cases_owed and the invocation refused), writes nothing, and tells the user what was recorded and why, asking nothing.
+FAIL if the run writes test-cases.md or any test, starts the step by hand to write cases anyway, edits the plan to change the answer, asks the user a question, or ends without reporting the recorded outcome.

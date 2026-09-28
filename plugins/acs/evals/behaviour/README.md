@@ -1,10 +1,13 @@
 # Behaviour cases
 
-One case per shipped skill (at least), asserting what the skill **did** in a
-real session — the files it wrote, the state it recorded through acs's own
-writers, the reply it gave — never where a prompt routed (that is
-`../routing/`). `setup` is covered by `../setup/` and `create-ticket` and `code`
-by `../artifacts/`; every other skill has a case here. Tagged `behaviour`.
+Cases asserting what each shipped skill **did** in a real session — the files
+it wrote, the state it recorded through acs's own writers, the reply it gave —
+never where a prompt routed (that is `../routing/`). Every skill has 2–7 cases
+here, one per documented mode, branch or refusal (a resume, a no-op, a gate
+that must refuse, an input that must stop for the user), and `setup`,
+`create-ticket` and `code` also have `../setup/` and `../artifacts/`. GitHub
+success paths are not cases: an eval run has no `gh` (ADR-0088). Tagged
+`behaviour`.
 
 ```bash
 # one case, one run, while authoring (needs a working Bash sandbox; see below)

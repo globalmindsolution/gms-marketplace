@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: release-version-location-missing
+context:
+  scaffold_script: scaffold.sh

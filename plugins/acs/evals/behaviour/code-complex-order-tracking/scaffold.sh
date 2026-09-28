@@ -111,4 +111,6 @@ JSON
 python3 "$ACS_SCRIPTS/post-create-impl-plan.py" --result-file "$result" > /dev/null 2>&1
 # The human's approval, through its sole writer. Refuse to seed an unapproved
 # deep-path plan: the case would then measure the pre-hook, not the leg.
-acs plan check --run EVAL-1 | grep -q '"plan_approved": true'
+# (Captured first: `| grep -q` under pipefail can SIGPIPE the writer.)
+checked="$(acs plan check --run EVAL-1)"
+grep -q '"plan_approved": true' <<<"$checked"

@@ -16,7 +16,7 @@ evals/
 ├── setup/                    # 8 cases: does /acs:setup configure exactly what was asked?
 │   ├── _fixtures/            # the repo every case starts from (not a case)
 │   └── <case>/               # prompt.md + case.yaml (scaffold.sh) + graders/
-├── behaviour/                # 27 cases: one per remaining skill — what did it DO? (behaviour/README.md)
+├── behaviour/                # 105 cases: 2–7 per skill, every mode — what did it DO? (behaviour/README.md)
 │   ├── _fixtures/repo.sh     # the shared repo; state seeded through the plugin's own CLIs
 │   └── <case>/               # + calibration.py, baseline.criteria.md, and once recorded baseline.jsonl
 └── results/                  # written by each run; gitignored
@@ -55,7 +55,7 @@ release gate's ~2,500 runs cost about $190.
 | `control` | 4 | a request answered in prose invokes no skill at all |
 | `artifacts` | 2 | the skill wrote the expected workspace state |
 | `setup` | 8 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
-| `behaviour` | 27 | every other skill does what it is for — the files, state and reply it produces — so with `setup` and `artifacts` every shipped skill has a behaviour case ([ADR-0113](../../../docs/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
+| `behaviour` | 105 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–7 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
 
 `--tag` keeps a case if ANY of its tags match, so `--tag description --tag
 negative --tag control` runs the routing cases that are fully measurable —
@@ -231,7 +231,7 @@ Pilot with `--runs 1 --no-publish` first.
   start Claude Code's Bash sandbox. Record baselines with
   `scripts/record_baseline.py` on a host that can (see `behaviour/README.md`).
   Two things only that first run will settle: whether the CLI lets a
-  `{ source: file }` grader read inside `.git/` (twelve graders read `HEAD`,
+  `{ source: file }` grader read inside `.git/` (about 60 graders read `HEAD`,
   a reflog, a hook or `.git/config`), and whether the sandbox leaves the
   run's stand-in origin `.eval-origin.git` alone — the CLI scrubs "planted
   bare-repo" files in some sandbox paths.
@@ -318,13 +318,12 @@ git config acs.evalsBudget 40                # optional: runaway guard on comput
 | Your change | What it runs |
 |---|---|
 | a skill's frontmatter (`description`, `when_to_use`, …) | that skill's routing cases, and the cases whose `description` names it as `/acs:<skill>`: a `confusable` case that borrows its vocabulary, a `negative` or `control` case it could steal |
-| any file of `setup`, `create-ticket` or `code` (for `setup`, also the setup wizard and the CI templates it installs) | that skill's behaviour cases |
-| a skill's body, for a skill with no behaviour suite | nothing: routing reads only the frontmatter |
+| any file of a skill (for `setup`, also the setup wizard and the CI templates it installs) | that skill's behaviour cases — `behaviour/`, plus `setup/` or `artifacts/` for the skills those cover |
 | an eval case, a fixture, `acs.py`, `acs_lib/`, anything else | nothing |
 
 A description change runs four routing cases at the median. The most is eight,
-for `code`, whose four legs each have a `negative` case. `setup` adds its eight
-behaviour cases. The hook lists the eval cases your branch edited but did not
+for `code`, whose four legs each have a `negative` case. A skill's files add its
+behaviour cases (2–7; `setup` adds twelve). The hook lists the eval cases your branch edited but did not
 run, and the release gate runs them all. The two controls that name no skill,
 `ignores-regex-request` and `ignores-unrelated-request`, run only there. To tie
 a `negative` or `control` case to a skill, name the skill as `/acs:<skill>` in

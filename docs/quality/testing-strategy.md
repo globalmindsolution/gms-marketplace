@@ -179,8 +179,9 @@ description, ten phrasings for each of 24 skills; 8 by explicit command; 6
 negative) plus four off-domain controls, and `tests/evals/check_cases.py`
 (local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 30 of 30 skills but run for none**
 ([ADR-0113](../adr/0113-behaviour-case-per-skill-with-baselines.md)): every
-skill has a behaviour case (27 under `plugins/acs/evals/behaviour/`, plus the
-`setup/` and `artifacts/` cases), each shape-checked and calibrated for free and
+skill has 2–7 behaviour cases, one per documented mode, branch and refusal
+(105 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
+cases), each shape-checked and calibrated for free and
 carrying its `baseline` criteria, but none has completed end to end or recorded
 its reference transcript — they need a host where Claude Code's Bash sandbox
 starts. Until then the *common* skill bugs (a missing script reference, a

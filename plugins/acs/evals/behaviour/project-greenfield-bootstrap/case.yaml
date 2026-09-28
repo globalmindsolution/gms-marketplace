@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: project-greenfield-bootstrap
+context:
+  scaffold_script: scaffold.sh

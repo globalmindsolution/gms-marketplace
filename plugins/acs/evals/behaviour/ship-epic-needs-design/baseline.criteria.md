@@ -1,0 +1,2 @@
+PASS if, like the reference, the run invokes /acs:ship for EVAL-1, meets the epic brake on the first step it is offered, surfaces the brake's Design-phase path (/acs:create-design EVAL-1, then /acs:create-ticket EVAL-1 --fan-out, then /acs:ship <child-id> per child) and stops, without asking the user anything.
+FAIL if the run starts any step on the epic by hand, runs /acs:create-design or the fan-out itself, mints child tickets, writes design or implementation files, creates a branch or commit, retries the refused step, or asks the user a question.

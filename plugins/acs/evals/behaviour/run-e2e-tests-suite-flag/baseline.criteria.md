@@ -1,0 +1,2 @@
+PASS if, like the reference, the run starts the step, parses `--suite smoke` and runs only the smoke suite's configured command verbatim (it passes), writes test-runs/<run-id>/results.json with the one smoke entry and an empty regressions list, mints no ticket, finishes the step completed with outcome passed, and reports 1/1 suites passed.
+FAIL if the run asks the user anything, runs the unit or e2e suite, mints or comments on a ticket, changes code or a test, falls back to running every suite, or ends without finishing the step.

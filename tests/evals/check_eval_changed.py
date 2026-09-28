@@ -90,8 +90,11 @@ class SelectionTest(unittest.TestCase):
 
     def test_a_body_only_change_selects_the_behaviour_suite_not_routing(self):
         got = hook.select(["plugins/acs/skills/setup/SKILL.md"], set())
-        self.assertEqual({c.group for c in got}, {"setup"})
-        self.assertEqual(len(got), len([c for c in CASES.values() if c.group == "setup"]))
+        # setup's suite is `setup/` plus its behaviour/setup-* cases.
+        self.assertEqual({c.group for c in got}, {"setup", "behaviour"})
+        self.assertEqual({c.skill for c in got if c.group == "behaviour"}, {"setup"})
+        self.assertEqual(len(got), len([c for c in CASES.values() if c.group == "setup"
+                                        or (c.group == "behaviour" and c.skill == "setup")]))
 
     def test_a_body_change_selects_only_that_skills_behaviour_cases(self):
         """Every skill has a behaviour case (ADR-0113); a change that leaves
@@ -113,8 +116,9 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual(hook.edited_cases(paths, selected), [])
 
     def test_a_file_a_skill_owns_outside_its_directory_selects_its_suite(self):
-        self.assertEqual({c.group for c in hook.select(
-            ["plugins/acs/hooks/scripts/setup_wizard.py"], set())}, {"setup"})
+        got = hook.select(["plugins/acs/hooks/scripts/setup_wizard.py"], set())
+        self.assertEqual({c.group for c in got}, {"setup", "behaviour"})
+        self.assertEqual({c.skill for c in got if c.group == "behaviour"}, {"setup"})
 
     def test_the_shared_hook_library_is_not_a_skill_change(self):
         self.assertEqual(hook.select(["plugins/acs/hooks/scripts/acs_lib/tickets.py",

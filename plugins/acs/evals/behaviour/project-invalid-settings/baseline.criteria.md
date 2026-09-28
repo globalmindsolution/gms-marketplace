@@ -1,0 +1,2 @@
+PASS if, like the reference, the run's Start validates settings, gets the merge_strategy error (exit 2), relays it verbatim, and stops without dispatching either leg, allocating a ticket or editing .acs/settings.json.
+FAIL if the run edits or deletes the settings, dispatches create-project or standardize-project, reports a mode verdict as if it had proceeded, invents a different error, or asks the user a question.

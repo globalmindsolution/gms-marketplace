@@ -362,6 +362,15 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **Every skill's documented modes are behaviour cases.** `evals/behaviour/`
+  grew from 27 to 105 cases, 2–7 per skill. Each documented mode, branch and
+  refusal now has a case: resuming after a handoff, the evidenced no-ops, the
+  gates that must refuse (an edited plan, a failed review, an unflagged
+  design, an epic), inputs that must stop for the user, and the four `code`
+  legs' paths. Each case is calibrated for free, and none has run yet (same
+  host limit as below). GitHub success paths are still not cases, since an
+  eval run has no `gh`. The calibration check now reports a play that cannot
+  run against its own case, rather than aborting every case after it.
 - **Every skill has a behaviour case, graded against a recorded baseline**
   (ADR-0113).
   - **27 new cases under `evals/behaviour/`,** one per skill not covered by
@@ -1120,6 +1129,70 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Fixed
 
+- **A refused gate stays refused, and `acs step start` holds the brakes.**
+  - The PreToolUse(Skill) hook writes its gate evidence before it decides, and
+    `acs step start` read the evidence of a BLOCKED call as
+    `gate_evidence_accepted`. A coordinator that carried on past a refusal
+    opened its step with the ledger calling it gated. A refusal now marks the
+    evidence `refused`, and `step start` exits 2 on it whatever
+    `hook_gates.when_absent` says.
+  - `step start` checked the invariants and no brake. On a host that never
+    fires the hook, an epic could be analyzed, an unapproved or edited plan
+    implemented, a failed review opened as a PR, a merge attempted with no
+    PR recorded, and a design written for a ticket not flagged
+    `needs_design`. It now re-applies the pre-hook's brakes
+    (`acs_lib.step_brakes`) and subject gates, before it creates any run.
+  - The pre-hook created the run, pointed the checkout at it and took its
+    lock before a brake could refuse. An epic refused at
+    `analyze-requirements` left `run.json` and `lock.json` behind. The gate
+    now judges the projected run first and writes only once every check
+    has passed.
+- **A second `handoff.py` on a delivery run names the skill, not `/acs:ship`.**
+  With nothing left in flight, the resume fell back to `/acs:ship <id>`. A
+  create-docs or standardize-project delivery run has no workflow cursor
+  for ship to follow. It now names the skill whose invocation it last
+  interrupted.
+- **`acs run next` takes the subject, as `/acs:ship` said it did.**
+  `--ticket`, `--prompt` and `--document` resolve the run the way ship's
+  table describes, creating it when there is none. Before, it took only
+  `--run`, so shipping a prompt, or a ticket with no run yet, stopped at
+  "no current run".
+- **`acs step start --args "<prompt>"` opens its run without a hook.** The
+  coordinator's mandatory first action failed with "no current run" on every
+  host that does not fire PreToolUse(Skill). It now resolves the subject the
+  way the pre-hook does, brakes first.
+- **run-e2e-tests' evidenced no-op records `nothing_to_run`.** It recorded
+  `no_e2e_owed`, which is create-e2e-tests' word and outside run-e2e-tests'
+  own outcome vocabulary.
+- **create-project's greenfield scan agrees with `/acs:project`.**
+  `/acs:setup` writes `.github/workflows/acs-*.yml` onto a repo with no
+  source. `project_mode` deliberately ignores CI workflows and routed that
+  repo to create-project, whose own `git ls-files` scan counted the
+  workflows as sources and refused it. The scan now excludes `.github/`, and
+  a test pins the two readings together.
+- **Skill documents say what the kernel accepts.**
+  - Seven skills told the coordinator to finish with `"status": "needs_input"`,
+    and four with `"status": "handed_off"`. The post-hook refuses both (exit
+    1). A stop for the user is now `interrupted` with `stop_reason:
+    needs_input`. A context-pressure handoff writes no result: `handoff.py`
+    finalizes it.
+  - Ten skills read `context.prior_run_status`, a key the Start context calls
+    `prior_status`.
+  - `code/references/classify.md` called a `workflow.record_delivery_path`
+    that does not exist. The delivery path is the plan contract's
+    `delivery_path:` line.
+  - `code/references/protocol.md` promised a `verdict` key in the iteration-2
+    start context, which is not there.
+  - docs-sync read the binding design and the ticket from the run directory.
+    Both resolve through `acs.py artifacts show`.
+  - create-design said `/acs:code` commits its ADRs, but docs-sync does
+    (MAR-65).
+  - create-ticket's epic fan-out cited a slice table the design template does
+    not have and a Step 2 item that does not exist, and wrote child criteria
+    into a `ticket.json` that `docs/tickets/` does not use (`acs.py ticket
+    save` now).
+  - run-e2e-tests' `no_harness` and `nothing_to_run` had two meanings each.
+  - A new test, `test_skill_docs_match_kernel.py`, pins each of these.
 - **A red `/acs:run-e2e-tests` run can finish.** `validate_result` demanded an
   `outcome` from every result of a multi-outcome skill, whatever its status, and
   none of `passed | no_harness | nothing_to_run` describes a failure — so the

@@ -1,0 +1,9 @@
+---
+type: regex
+target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-2/steps/create-docs/result.json }
+pattern: '"(?:findings|errors)"\s*:\s*\[\s*[{"][\s\S]*\bgh\b'
+---
+
+ADR-0088: the failed `gh pr create` is surfaced as a finding (or error) in
+the result document, never swallowed. A missing result.json means the
+mandatory Finish never ran.

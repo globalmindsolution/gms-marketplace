@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: create-api-contract-event-schema
+context:
+  scaffold_script: scaffold.sh

@@ -1,0 +1,2 @@
+PASS if, like the reference, the run answers the question from the existing workspace -- EVAL-1, "Cursor pagination for GET /customers", three acceptance criteria -- without invoking /acs:create-ticket or any other acs skill that writes, and mints, edits or files nothing.
+FAIL if the run invokes /acs:create-ticket, mints or edits any ticket, asks the user a question instead of looking, or answers with a wrong id or count.
