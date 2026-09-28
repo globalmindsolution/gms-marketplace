@@ -48,7 +48,7 @@ the skills this change touches:
   limit or auth failure, a case that failed to load, a run with no score, or a
   gated case the budget guard stopped before it ran.
 
-`explicit` and behaviour (setup, artifact) cases below 1.0 are REPORTED, not
+`explicit` and behaviour (setup, artifact, behaviour) cases below 1.0 are REPORTED, not
 blocking: the first is unobservable, and the behaviour graders have not been
 piloted yet.
 
@@ -108,6 +108,8 @@ GROUP_ARGS = {
     "routing": ["--ablation", "none"],
     "setup": ["--scaffold", "--allow-tools", "Bash", "Write", "Edit", "--judge-model", "sonnet"],
     "artifacts": ["--scaffold", "--allow-tools", "Write", "Edit", "Bash", "--ablation", "none"],
+    "behaviour": ["--scaffold", "--allow-tools", "Bash", "Write", "Edit", "--ablation", "none",
+                  "--judge-model", "sonnet"],
 }
 MUST_NEVER = ("negative", "control")
 
@@ -188,10 +190,14 @@ def select(paths, described, cases=None):
     chosen = set()
     for skill in described:
         chosen.update(c.name for c in cases if routes_for(c, skill))
-    for skill in touched_skills(paths) & set(BEHAVIOUR):
+    touched = touched_skills(paths)
+    for skill in touched & set(BEHAVIOUR):
         kind, target = BEHAVIOUR[skill]
         chosen.update(c.name for c in cases
                       if (c.group if kind == "group" else c.name) == target)
+    # The behaviour/ group names its skill in its skill-fired grader, so a new
+    # case is selected without an entry in BEHAVIOUR.
+    chosen.update(c.name for c in cases if c.group == "behaviour" and c.skill in touched)
 
     by_name = {c.name: c for c in cases}
 

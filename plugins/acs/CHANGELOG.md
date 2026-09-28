@@ -362,6 +362,26 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **Every skill has a behaviour case, graded against a recorded baseline**
+  (ADR-0113).
+  - **27 new cases under `evals/behaviour/`,** one per skill not covered by
+    `setup/` or `artifacts/`. Each starts from a shared fixture repo seeded
+    through the plugin's own CLIs, and grades what the skill did: the files
+    it wrote, the state it recorded, the reply it gave. Skills that need
+    GitHub are graded on their local effect and on reporting the `gh`
+    failure as a finding.
+  - **Every free grader is calibrated for free,** from each case's own
+    `calibration.py`: an ideal play through the plugin's real writers passes
+    them all, and every bad play fails at least one.
+  - **`baseline` graders.** Every behaviour case states its criteria in
+    `baseline.criteria.md`. `scripts/record_baseline.py` runs a case once,
+    keeps the run only if every grader passed, and writes `baseline.jsonl`
+    and the `baseline` grader together; a free check fails either one
+    without the other.
+  - **Not yet run.** Behaviour runs need a host where Claude Code's Bash
+    sandbox starts; none has run or recorded a baseline.
+  - **Migration:** none for consumers.
+
 - **The routing evals follow the per-skill subagent refactor** (ADR-0109).
   - **The gate refuses a run that hit a usage or session limit,** whatever
     turn count the CLI reports. The first full gate run hit the account's

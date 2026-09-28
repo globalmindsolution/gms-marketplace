@@ -215,6 +215,65 @@ class RoutingShapeTest(unittest.TestCase):
                 self.assertNotIn("input_match", g.fm)
 
 
+class BehaviourSuiteTest(unittest.TestCase):
+    """Every shipped skill has a case that grades what it DID, and every such
+    case can carry a `baseline` grader: its criteria are written, and a
+    baseline grader never arrives without the transcript it compares against
+    (scripts/record_baseline.py writes the two together)."""
+
+    GROUPS = ("behaviour", "setup", "artifacts")
+
+    def cases(self):
+        return [c for c in ec.all_cases() if c.group in self.GROUPS]
+
+    def test_every_shipped_skill_has_a_behaviour_case(self):
+        covered = {c.skill for c in self.cases() if c.skill}
+        self.assertEqual(sorted(set(ec.shipped_skills()) - covered), [])
+
+    def test_every_behaviour_case_is_tagged_and_calibrated(self):
+        for c in ec.all_cases():
+            if c.group != "behaviour":
+                continue
+            with self.subTest(case=c.name):
+                self.assertIn("behaviour", c.tags)
+                self.assertTrue(os.path.isfile(os.path.join(c.path, "calibration.py")))
+                self.assertIsNotNone(c.skill, "no skill-fired grader naming the skill")
+
+    def test_every_behaviour_case_states_its_baseline_criteria(self):
+        for c in self.cases():
+            with self.subTest(case=c.name):
+                path = os.path.join(c.path, "baseline.criteria.md")
+                self.assertTrue(os.path.isfile(path), "no baseline.criteria.md")
+                with open(path, encoding="utf-8") as fh:
+                    text = fh.read()
+                self.assertIn("PASS", text)
+                self.assertIn("FAIL", text)
+
+    def test_a_baseline_grader_has_its_recorded_transcript(self):
+        """The CLI refuses a case whose baseline_file is missing."""
+        for c in ec.all_cases():
+            for g in c.graders:
+                if g.type != "baseline":
+                    continue
+                with self.subTest(case=c.name, grader=g.name):
+                    self.assertIn(c.group, self.GROUPS, "routing cases take no baseline")
+                    self.assertEqual(g.fm.get("baseline_file"), "baseline.jsonl")
+                    path = os.path.join(c.path, "baseline.jsonl")
+                    self.assertTrue(os.path.isfile(path), "record it: scripts/record_baseline.py")
+                    with open(path, encoding="utf-8") as fh:
+                        lines = [l for l in fh.read().splitlines() if l.strip()]
+                    self.assertTrue(lines, "an empty reference transcript")
+                    for line in lines:
+                        json.loads(line)
+                    self.assertTrue(g.body.strip(), "a baseline grader needs criteria")
+
+    def test_a_recorded_transcript_has_its_grader(self):
+        for c in self.cases():
+            if os.path.isfile(os.path.join(c.path, "baseline.jsonl")):
+                with self.subTest(case=c.name):
+                    self.assertIn("baseline", [g.type for g in c.graders])
+
+
 class GraderMatchesTest(unittest.TestCase):
     """Each input_match, run against the JSON the Skill tool really receives."""
 

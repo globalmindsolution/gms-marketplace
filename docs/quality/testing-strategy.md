@@ -177,11 +177,16 @@ table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 none should. **Routing covers 30 of 30** — 254 routing cases in all (240 by
 description, ten phrasings for each of 24 skills; 8 by explicit command; 6
 negative) plus four off-domain controls, and `tests/evals/check_cases.py`
-(local, ADR-0108) fails if a shipped skill loses its case. **The gap is behavioral (artifact) coverage: 2 of 30 skills**
-(`create-ticket`, `code`), and neither has yet completed end to end — so the
-*common* skill bugs (a missing script reference, a malformed completion report,
-a broken gate, the wrong skill firing) are already caught cheaply for nearly the
-whole surface, while whether a skill produced the *right* output mostly is not.
+(local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 30 of 30 skills but run for none**
+([ADR-0113](../adr/0113-behaviour-case-per-skill-with-baselines.md)): every
+skill has a behaviour case (27 under `plugins/acs/evals/behaviour/`, plus the
+`setup/` and `artifacts/` cases), each shape-checked and calibrated for free and
+carrying its `baseline` criteria, but none has completed end to end or recorded
+its reference transcript — they need a host where Claude Code's Bash sandbox
+starts. Until then the *common* skill bugs (a missing script reference, a
+malformed completion report, a broken gate, the wrong skill firing) are caught
+cheaply for the whole surface, while whether a skill produced the *right*
+output is asserted but not yet measured.
 
 ## Principles
 

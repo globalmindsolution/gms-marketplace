@@ -56,8 +56,9 @@ class SelectionTest(unittest.TestCase):
             self.assertNotIn(name, got, "a case about another skill is not run")
 
     def test_a_legs_negative_runs_when_the_leg_or_its_entry_point_changes(self):
-        self.assertEqual(names(hook.select(["plugins/acs/skills/code-small/SKILL.md"],
-                                           {"code-small"})), ["route-code-small-negative"])
+        got = hook.select(["plugins/acs/skills/code-small/SKILL.md"], {"code-small"})
+        self.assertEqual([c.name for c in got if c.group == "routing"], ["route-code-small-negative"])
+        self.assertEqual({c.skill for c in got if c.group == "behaviour"}, {"code-small"})
         got = names(hook.select(["plugins/acs/skills/code/SKILL.md"], {"code"}))
         for leg in ("small", "standard", "complex", "trivial"):
             self.assertIn("route-code-%s-negative" % leg, got)
@@ -92,8 +93,12 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual({c.group for c in got}, {"setup"})
         self.assertEqual(len(got), len([c for c in CASES.values() if c.group == "setup"]))
 
-    def test_a_skill_without_a_behaviour_suite_and_an_unchanged_description_selects_nothing(self):
-        self.assertEqual(hook.select(["plugins/acs/skills/merge-pr/SKILL.md"], set()), [])
+    def test_a_body_change_selects_only_that_skills_behaviour_cases(self):
+        """Every skill has a behaviour case (ADR-0113); a change that leaves
+        the description alone runs those and no routing case."""
+        got = hook.select(["plugins/acs/skills/merge-pr/SKILL.md"], set())
+        self.assertTrue(got)
+        self.assertEqual({(c.group, c.skill) for c in got}, {("behaviour", "merge-pr")})
 
     def test_an_edited_case_is_listed_not_run(self):
         paths = ["plugins/acs/evals/routing/route-code/prompt.md",
