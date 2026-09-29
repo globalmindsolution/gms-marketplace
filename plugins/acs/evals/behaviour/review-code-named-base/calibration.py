@@ -31,7 +31,7 @@ TOKEN = {
     "id": "F-1-2", "status": "confirmed", "severity": "blocking", "kind": "defect",
     "lens": "B", "file": "src/shop/export.py", "line": 1,
     "claim": "API_TOKEN is a live secret hard-coded in source.",
-    "evidence": ["API_TOKEN = \"exp-2f9c41d7...\""],
+    "evidence": ["API_TOKEN = \"exp-dummy-2f9c41d7...\""],
     "resolved_when": "the token is read from the environment",
 }
 

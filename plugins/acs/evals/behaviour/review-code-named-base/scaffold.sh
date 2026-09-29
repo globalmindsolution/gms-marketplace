@@ -24,7 +24,7 @@ printf '%s\n' '{"acceptance_criteria": ["can_checkout(age) is true for a shopper
 # The release line: one commit that is not this ticket's.
 git checkout -q -b release/2.4 main
 cat > src/shop/export.py <<'PY'
-API_TOKEN = "exp-2f9c41d7e0b84a6c93d1"
+API_TOKEN = "exp-dummy-2f9c41d7e0b84a6c93d1"
 
 
 def export_url(day):

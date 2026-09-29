@@ -1,0 +1,3 @@
+# A fake token an eval fixture seeded as out-of-scope bait (review-code-named-base),
+# since renamed to a `dummy` value the allowlist accepts. Not a credential.
+5c7531304d7d48f1a2a25d24882a366eea91c74f:plugins/acs/evals/behaviour/review-code-named-base/scaffold.sh:generic-api-key:27
