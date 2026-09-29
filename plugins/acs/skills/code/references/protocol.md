@@ -47,16 +47,21 @@ Parse the printed context JSON. Fields you will use:
 - `partition` — absolute path of the run directory. Read `plan.md` (see Plan
   input resolution), `test-cases.md` and `api-contract.md` when they exist.
   Step artifacts go in `steps/code/`.
-- `iteration` — the review loop's current iteration, and `verdict` when a
-  previous review left one. On iteration 2+ see **On iteration 2+** in your
-  leg's SKILL.md.
+- `iteration` — the review loop's current iteration. The context carries
+  **no** `verdict` key: on iteration `n` ≥ 2, read the verdict the previous
+  review wrote from disk — `steps/review-code/verdict.json` in `partition`
+  (the step root, `acs_lib.artifact_path(partition, "verdict")`), whose
+  per-iteration copy is `steps/review-code/iter-<n-1>/verdict.json`
+  (`acs_lib.verdict_path(partition, "review-code", n - 1)`); `acs.py verdict
+  show --iteration <n-1>` prints that copy validated. Then see
+  **On iteration 2+** in your leg's SKILL.md.
 - `design` — `{required, dir, source}` when a design document applies.
 - `settings` — you need `formats.branch_name`, `formats.commit_message`, and
   `e2e` when set. The repo's standards set and `test_coverage_percent` are
   the **reviewer's** inputs, not yours.
 - `models` — per-tier `{model, effort}`; the implementer runs on the
   `executor` tier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 ---
 

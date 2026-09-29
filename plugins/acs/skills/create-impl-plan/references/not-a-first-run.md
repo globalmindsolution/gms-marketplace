@@ -18,7 +18,7 @@ SKILL.md's sections, and a bare "above" naming one means there.
 If `context.reconcile` is true, verify recorded progress against reality BEFORE
 continuing:
 
-1. Read `<partition>/create-impl-plan-state.json` (`runs[-1]` and `states`) and
+1. Read `steps/create-impl-plan/state.json` (`invocations[-1]` and `states`) and
    the phase artifacts under `steps/create-impl-plan/` to see
    where the prior run stopped.
 2. Re-resolve the plan artifact (above) and read it if it exists. Trust

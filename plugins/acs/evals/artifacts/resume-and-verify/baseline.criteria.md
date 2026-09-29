@@ -1,0 +1,2 @@
+PASS if, like the reference, the run resumes EVAL-1 from workspace state alone, finds the seeded /health spec, implements GET /health returning ok from the existing health() function test-first, and completes the code step.
+FAIL if the run asks the user for context, implements something other than the spec, hard-codes the "ok" literal in a new place instead of calling health(), skips the tests, or leaves the code step unfinished.

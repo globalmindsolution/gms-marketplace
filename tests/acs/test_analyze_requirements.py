@@ -422,7 +422,11 @@ class TestNotReadyArm(unittest.TestCase):
 
     def test_not_ready_finishes_as_needs_input_with_open_questions(self):
         self.assertIn("ready_for_planning: false", self.body)
-        self.assertIn('"status": "needs_input"', self.body)
+        # `needs_input` is a stop reason, not a status: the post-hook admits
+        # only completed | failed | interrupted (acs_lib.run.STEP_STATUSES).
+        self.assertIn('"status": "interrupted"', self.body)
+        self.assertIn('"stop_reason": "needs_input"', self.body)
+        self.assertNotIn('"status": "needs_input"', self.body)
         self.assertIn("`clarify.py add` without\n   `--answer`", self.body)
 
     def test_the_handoff_carries_the_questions(self):

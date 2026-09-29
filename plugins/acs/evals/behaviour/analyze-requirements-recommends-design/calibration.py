@@ -1,0 +1,98 @@
+"""Calibration plays for analyze-requirements-recommends-design.
+
+IDEAL does what /acs:analyze-requirements' coordinator does when its survey
+recommends a design and the user has confirmed it: `acs step start`, the
+relayed answers recorded with `clarify.py add` (the design question among
+them), the confirmed flag applied with `acs.py ticket save`, the draft, the
+ticket branch, the Publish copy and its commit, result.json and the
+post-hook."""
+
+import json
+import os
+
+PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
+
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
+BRANCH = "story/EVAL-1-live-order-tracking-from-carrier-updates"
+ANALYSIS = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: true\n---\n\n# Analysis — EVAL-1: Live order tracking from carrier updates\n\n## Problem restated\n\nCarriers push shipment status to the shop; the shop stores every change per\norder, serves the latest, and emails the shopper.\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | new tracking store, webhook intake, order status | src/shop/__init__.py:1 |\n| docs/architecture/lld/flows.md | docs | new inbound carrier flow | docs/architecture/lld/flows.md:3 |\n\n## Questions\n\n- C-1 how carriers deliver updates — answered: signed webhooks.\n- C-2 design needed — answered: yes, confirmed; needs_design set on the ticket.\n\n## Assumptions\n\n_None._\n\n## Risks\n\n- New inbound surface from third parties (authentication); a new stored shape.\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Verdict\n\nReady for planning once designed; api_surface true; needs a design.\n'
+
+def _finish(ws, status="completed", ready=True, api_surface=True, questions_open=0,
+            stop_reason=None):
+    result = {"status": status, "summary": "calibration",
+              "states": {"ready_for_planning": ready, "api_surface": api_surface,
+                         "questions_open": questions_open},
+              "findings": [], "errors": []}
+    if stop_reason:
+        result["stop_reason"] = stop_reason
+    ws.write(STEP + "/result.json", json.dumps(result))
+    ws.sh('python3 "%s/post-analyze-requirements.py" --result-file "%s/result.json"'
+          % (SCRIPTS, STEP))
+
+
+def _publish(ws, text, branch, commit=True):
+    ws.write(STEP + "/analysis.md", text)
+    ws.sh('git rev-parse --verify --quiet "%s" >/dev/null && git checkout -q "%s" || git checkout -q -b "%s"'
+          % (branch, branch, branch))
+    cmd = 'mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md' % STEP
+    if commit:
+        cmd += ' && git add docs/tickets/EVAL-1 && git commit -qm "EVAL-1 Analyze"'
+    ws.sh(cmd)
+
+
+def _clarify(ws, question, answer=None, source=None, rationale=None):
+    cmd = ('python3 "%s/clarify.py" add --skill analyze-requirements --ticket EVAL-1 --question "%s"'
+           % (SCRIPTS, question))
+    if answer is not None:
+        cmd += ' --answer "%s"' % answer
+    if source:
+        cmd += ' --source %s --rationale "%s"' % (source, rationale)
+    ws.sh(cmd + " > /dev/null")
+
+
+def _start(ws):
+    ws.skill("analyze-requirements")
+    started = ws.acs("step", "start", "--step", "analyze-requirements", "--ticket", "EVAL-1")
+    assert started.returncode == 0, started.stderr
+
+
+def _flag(ws):
+    saved = ws.acs("ticket", "save", "--ticket", "EVAL-1", "--from", "-",
+                   stdin=json.dumps({"needs_design": True}))
+    assert saved.returncode == 0, saved.stderr
+
+
+def IDEAL(ws):
+    _start(ws)
+    _clarify(ws, "How do carriers deliver status updates?", "Signed webhooks, one secret per carrier")
+    _clarify(ws, "Does this ticket need a design before it is planned?", "Yes, confirmed")
+    _flag(ws)
+    _publish(ws, ANALYSIS, BRANCH)
+    _finish(ws)
+
+
+def _recommended_only(ws):
+    """Recommended a design in the analysis but never applied the flag."""
+    _start(ws)
+    _clarify(ws, "Does this ticket need a design before it is planned?", "Yes, confirmed")
+    _publish(ws, ANALYSIS, BRANCH)
+    _finish(ws)
+
+
+def _no_recommendation(ws):
+    """Judged no design needed."""
+    _start(ws)
+    _publish(ws, ANALYSIS.replace("needs_design_recommendation: true",
+                                  "needs_design_recommendation: false"), BRANCH)
+    _finish(ws)
+
+
+def _started_only(ws):
+    _start(ws)
+
+
+BAD = {
+    "recommended a design but left the ticket unflagged": _recommended_only,
+    "saw no need for a design": _no_recommendation,
+    "fired the skill, started the step, wrote nothing": _started_only,
+}

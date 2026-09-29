@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Optionally configure acs for the current repo — keep or change the branch/commit/PR conventions, and install the CI check that every PR names its ticket. Use when setting up acs on a new repo, when changing an acs convention format, or when the user wants acs conventions enforced in CI or the pipeline protected from being bypassed.
+description: Optionally configure acs for the current repo — keep or change the branch/commit/PR conventions, and install the CI check that every PR names its ticket. Use when setting up acs on a new repo, when changing an acs convention format, or when the user wants acs conventions enforced in CI or the pipeline protected from being bypassed. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a

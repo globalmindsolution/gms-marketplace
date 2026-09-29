@@ -113,11 +113,11 @@ order and stops at the first failure:
 
 ```bash
 python3 -m unittest discover -s tests/evals -p 'check_*.py'   # free: every eval case well-formed, every skill covered
-claude plugin eval plugins/acs --tag description --tag negative --tag control \
-  --ablation none --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
-  --trust-plugin --no-publish --max-cost-usd 40   # PAID: does each prompt reach the right skill?
+CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude plugin eval plugins/acs --tag description --tag negative --tag control \
+  --ablation none --runs 10 -j 8 --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
+  --trust-plugin --no-publish --max-cost-usd 250  # PAID: does each prompt reach the right skill?
 python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
-  --min-skill-rate 2/3 --min-suite-rate 9/10      # the judgement: by skill and suite, not by prompt
+  --min-skill-rate 9/10 --min-suite-rate 99/100   # the judgement: by skill and suite, not by prompt
 ```
 
 The second command is the plugin's eval suite — `claude plugin eval` case files
@@ -127,8 +127,10 @@ check runs first on purpose: a malformed case fails it for $0 instead of being
 discovered by a paid run. The CLI only measures (`--threshold 0`); the third
 command judges the result
 ([ADR-0107](docs/adr/0107-routing-gated-by-skill-not-by-prompt.md)): negatives
-and controls must pass every run, each skill must route at least 2/3 of its
-runs and the suite at least 9/10.
+and controls must pass every run, each skill must route at least 9/10 of its
+runs and the suite at least 99/100
+([ADR-0111](docs/adr/0111-routing-gate-ten-phrasings-ten-runs.md),
+[ADR-0112](docs/adr/0112-routing-suite-rate-99-percent.md)).
 
 Run the suite against the **installed** build too —
 `claude plugin eval acs@gms-marketplace --tag routing --ablation none` grades

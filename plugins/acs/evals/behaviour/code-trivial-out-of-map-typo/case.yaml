@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: code-trivial-out-of-map-typo
+context:
+  scaffold_script: scaffold.sh

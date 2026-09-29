@@ -48,7 +48,7 @@ the skills this change touches:
   limit or auth failure, a case that failed to load, a run with no score, or a
   gated case the budget guard stopped before it ran.
 
-`explicit` and behaviour (setup, artifact) cases below 1.0 are REPORTED, not
+`explicit` and behaviour (setup, artifact, behaviour) cases below 1.0 are REPORTED, not
 blocking: the first is unobservable, and the behaviour graders have not been
 piloted yet.
 
@@ -84,6 +84,10 @@ SKILLS_PREFIX = PLUGIN_REL + "/skills/"
 EVALS_PREFIX = PLUGIN_REL + "/evals/"
 DEFAULT_BUDGET_USD = 25.0
 DEFAULT_RUNS = 3
+#: The eval sandbox is always empty, so Claude Code's auto-memory directory
+#: holds nothing; with it on, the model sometimes spends its one routing turn
+#: listing that directory. The CLI only takes this from the operator's shell.
+EVAL_ENV = {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
 
 #: Skills with a behaviour suite, and the cases that exercise them.
 BEHAVIOUR = {
@@ -104,6 +108,8 @@ GROUP_ARGS = {
     "routing": ["--ablation", "none"],
     "setup": ["--scaffold", "--allow-tools", "Bash", "Write", "Edit", "--judge-model", "sonnet"],
     "artifacts": ["--scaffold", "--allow-tools", "Write", "Edit", "Bash", "--ablation", "none"],
+    "behaviour": ["--scaffold", "--allow-tools", "Bash", "Write", "Edit", "--ablation", "none",
+                  "--judge-model", "sonnet"],
 }
 MUST_NEVER = ("negative", "control")
 
@@ -184,10 +190,14 @@ def select(paths, described, cases=None):
     chosen = set()
     for skill in described:
         chosen.update(c.name for c in cases if routes_for(c, skill))
-    for skill in touched_skills(paths) & set(BEHAVIOUR):
+    touched = touched_skills(paths)
+    for skill in touched & set(BEHAVIOUR):
         kind, target = BEHAVIOUR[skill]
         chosen.update(c.name for c in cases
                       if (c.group if kind == "group" else c.name) == target)
+    # The behaviour/ group names its skill in its skill-fired grader, so a new
+    # case is selected without an entry in BEHAVIOUR.
+    chosen.update(c.name for c in cases if c.group == "behaviour" and c.skill in touched)
 
     by_name = {c.name: c for c in cases}
 
@@ -227,7 +237,8 @@ def run_case(case, runs, budget_left, workdir):
     """{"status": ok|budget|error, "scores": [per run], "cost", "failed_graders", "message"}."""
     json_path = os.path.join(workdir, case.name + ".json")
     proc = subprocess.run(command(case, runs, budget_left, json_path), cwd=REPO_ROOT,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True,
+                          env=dict(os.environ, **EVAL_ENV))
     out = (proc.stderr or "") + (proc.stdout or "")
     if "not a trusted plugin directory" in out:
         return {"status": "error", "message": "this plugin directory is not trusted yet. Run one "

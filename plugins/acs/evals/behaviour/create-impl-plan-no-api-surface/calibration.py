@@ -1,0 +1,78 @@
+"""Calibration plays for create-impl-plan-no-api-surface.
+
+IDEAL does what /acs:create-impl-plan's coordinator does, through the
+plugin's own writers: `acs step start`, the planner's draft in the step
+directory, the Publish copy and its commit on the ticket branch the scaffold
+checked out, `acs.py filemap set`, then result.json and the post-hook."""
+
+import json
+import os
+
+PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
+
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan"
+PUBLISHED = "docs/tickets/EVAL-1/plan.md"
+FILES = ["src/shop/__init__.py", "tests/test_slow_listing_log.py"]
+PLAN = '# Plan — EVAL-1: Log slow customer listings\n\nPlanned from docs/tickets/EVAL-1/analysis.md (api_surface false).\n\n## Approach\n\nWrap the body of `list_customers` in `src/shop/__init__.py` with\n`time.perf_counter()`; above `SLOW_LISTING_MS = 200` log one WARNING on\n`logging.getLogger("shop")` naming offset, limit and elapsed ms. The return\nvalue and signature do not change.\n\n## Tests\n\n| AC | Test (tests/test_slow_listing_log.py) |\n|---|---|\n| AC-1 | a patched 250 ms call logs exactly one WARNING on `shop` |\n| AC-2 | that warning names offset, limit and 250 |\n| AC-3 | a patched 200 ms call logs nothing |\n\nRun `python3 -m pytest -q --cov=src --cov-fail-under=90`; coverage target 90%.\n\n## Documentation\n\ndocs/product/prd.md and docs/product/roadmap.md make no claim this changes.\n\n## Contract\ndelivery_path: trivial\nowes:\n  api_contract: false\n  test_cases: true\n  e2e: false\n  reason: "Operator log line only: GET /customers keeps its parameters, response and errors"\n\n### Executor tasks & file map\n- task 1: src/shop/__init__.py, tests/test_slow_listing_log.py\n'
+
+def _start(ws):
+    ws.skill("create-impl-plan")
+    started = ws.acs("step", "start", "--step", "create-impl-plan", "--ticket", "EVAL-1")
+    assert started.returncode == 0, started.stderr
+    return json.loads(started.stdout)
+
+
+def _publish(ws, text):
+    ws.write(STEP + "/plan.md", text)
+    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/plan.md" "%s" && git add "%s" && git commit -qm "EVAL-1 Plan"'
+          % (STEP, PUBLISHED, PUBLISHED))
+
+
+def _declare(ws, files):
+    declared = ws.acs("filemap", "set", "--skill", "code", "--iteration", "1", "--task", "1",
+                      *[arg for path in files for arg in ("--file", path)])
+    assert declared.returncode == 0, declared.stderr
+    return json.loads(declared.stdout)["tasks"]
+
+
+def _finish(ws, status="completed", file_map=None, published=True, summary="calibration"):
+    states = {"plan_approved": False, "file_map": file_map or {}}
+    if published:
+        states["plan_path"] = PUBLISHED
+    result = {"status": status, "summary": summary, "states": states,
+              "findings": [], "errors": []}
+    ws.write(STEP + "/result.json", json.dumps(result))
+    ws.sh('python3 "%s/post-create-impl-plan.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
+
+
+def IDEAL(ws):
+    _start(ws)
+    _publish(ws, PLAN)
+    _finish(ws, file_map=_declare(ws, FILES))
+
+
+def _owes_a_contract(ws):
+    """Owed an API contract for an operator log line."""
+    _start(ws)
+    _publish(ws, PLAN.replace("api_contract: false", "api_contract: true"))
+    _finish(ws, file_map=_declare(ws, FILES))
+
+
+def _silent_owes(ws):
+    """A Contract block with no owes table: silence, which is not a no."""
+    _start(ws)
+    head, tail = PLAN.split("owes:", 1)
+    _publish(ws, head + "### Executor tasks & file map" + tail.split("### Executor tasks & file map", 1)[1])
+    _finish(ws, file_map=_declare(ws, FILES))
+
+
+def _started_only(ws):
+    _start(ws)
+
+
+BAD = {
+    "owed an API contract for a log line": _owes_a_contract,
+    "left owes out of the Contract block": _silent_owes,
+    "fired the skill, started the step, wrote nothing": _started_only,
+}

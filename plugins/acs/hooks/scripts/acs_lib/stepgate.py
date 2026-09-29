@@ -41,7 +41,10 @@ NO_OP_STEPS = {
     # and then spawned a full run-e2e-tests coordinator to run a suite that
     # was never written -- the exact token cost the evidenced no-op exists to
     # avoid (§2.2).
-    "run-e2e-tests": ("e2e", "no_e2e_owed",
+    # `nothing_to_run`, run-e2e-tests' own word for it: `no_e2e_owed` is
+    # create-e2e-tests' vocabulary, and the post-hook refuses an outcome a
+    # step's fragment does not name.
+    "run-e2e-tests": ("e2e", "nothing_to_run",
                       "the plan declares no e2e impact, so there is no suite to run"),
 }
 

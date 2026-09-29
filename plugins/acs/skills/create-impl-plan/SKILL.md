@@ -1,6 +1,6 @@
 ---
 name: create-impl-plan
-description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its implementers run, and the spec fold. Writes plan.md to the ticket's docs folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-requirements and before /acs:code, which requires the plan.
+description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its implementers run, and the spec fold. Writes plan.md to the ticket's docs folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-requirements and before /acs:code, which requires the plan. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -59,7 +59,7 @@ Parse the printed context JSON. Fields you will use:
   states), `formats.branch_name`, `formats.commit_message`, and `e2e` when set.
 - `models` — per-tier `{model, effort}`: the planner runs on the `planner`
   tier, the plan reviewer on the `verifier` tier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see
+- `reconcile`, `handoff_summary`, `prior_status` — see
   `references/not-a-first-run.md`.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -188,10 +188,11 @@ the risks, the verifier checklist — into its authoring notes and renders the
 draft from them. The plan reviewer judges the draft fresh every iteration.
 
 **One shape, on every run — and it could not be otherwise.** This skill runs
-BEFORE the delivery path exists: `plan.md` is the artifact /acs:ship judges the
-path FROM (ADR-0095, `delivery.classify_after: create-impl-plan`). A plan skill
-that branched on the path would be reading a decision its own output has not
-yet been made to produce. So there is no fork here, and the ceiling is a fixed
+BEFORE the delivery path exists: `plan.md` is the artifact the path is judged
+FROM, and its own `## Contract` block is where the judgement is recorded
+(ADR-0095; the workflow's old `delivery:` block is gone). A plan skill that
+branched on the path would be reading a decision its own output has not yet
+been made to produce. So there is no fork here, and the ceiling is a fixed
 **3** planner → plan-review rounds. Iteration 1's planner surveys before it
 writes.
 
@@ -563,9 +564,11 @@ the SubagentStop hook's message check already admits `failed` and `<next-step>`.
 
 If you genuinely cannot reach the user (a non-interactive run): do not guess.
 Record the outgoing questions as `open` (`clarify.py add` without `--answer`),
-write the result document with status `"needs_input"` and `stop_reason`
-"needs user input", run the Finish steps, and return a `<handoff
-status="needs_input">` whose `<questions>` carry them.
+write the result document with `"status": "interrupted"` and
+`"stop_reason": "needs_input"` (`needs_input` is a stop reason, not a status —
+the post-hook refuses any status but `completed | failed | interrupted`), run
+the Finish steps, and return a `<handoff status="needs_input">` whose
+`<questions>` carry them.
 
 ## Context pressure
 

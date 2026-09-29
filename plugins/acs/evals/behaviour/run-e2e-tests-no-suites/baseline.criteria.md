@@ -1,0 +1,2 @@
+PASS if, like the reference, the run starts the run-e2e-tests step on ticket EVAL-1's run, finds no suite configured in the resolved settings, writes an empty-arrays test-runs/<run-id>/results.json, finishes the step completed with outcome no_harness (or nothing_to_run) through post-run-e2e-tests.py, and reports plainly that no suites are configured and nothing ran.
+FAIL if the run asks the user anything, adds a suite to .acs/settings.json, writes or runs a test runner of its own choosing, mints a ticket, finishes the step failed, or ends without finishing the step.

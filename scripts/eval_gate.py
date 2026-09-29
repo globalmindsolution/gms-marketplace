@@ -44,6 +44,7 @@ import datetime
 import fractions
 import json
 import os
+import re
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -53,6 +54,9 @@ import eval_cases  # noqa: E402  (the strict case reader the free tests use)
 #: The `--json` result schema this script was written against (claude 2.1.x).
 SCHEMA_VERSION = 1
 GATED_KINDS = ("description", "negative", "control")
+#: The error text of a run that stopped at its turn limit, the only error a
+#: scored run may carry ("Reached maximum number of turns (1)" in CLI 2.1.x).
+TURN_LIMIT = re.compile(r"(?i)max(?:imum)? (?:number of )?turns")
 MUST_NEVER = ("negative", "control")
 
 
@@ -96,11 +100,14 @@ def routing_meta():
 
 
 def run_scores(case):
-    """The case's run scores. A run that errored before the model answered at
-    all (`turns` 0) is refused, not scored: a usage limit or an auth failure
-    mid-run scores later runs without marking the run partial, and such a run
-    makes no Skill call -- which a `negative` or `control` grader would read as
-    a pass. A run that stopped at the one-turn limit has a turn and is scored."""
+    """The case's run scores. The one error a run may carry and still be
+    scored is the turn limit: a routing run is meant to stop there. Any other
+    error is refused, not scored -- a usage or session limit, or an auth
+    failure, mid-run scores later runs without marking the run partial, and
+    such a run makes no Skill call, which a `negative` or `control` grader
+    would read as a pass and a `description` grader as a misroute. It is
+    refused whether or not the CLI counted a turn: the 2026-09-27 gate run
+    hit a session limit whose runs reported `turns: 1`."""
     runs = (case.get("arms") or {}).get("with")
     if not runs:
         raise GateError("case %s has no runs in the result" % case.get("name"))
@@ -108,9 +115,10 @@ def run_scores(case):
     for run in runs:
         if not isinstance(run.get("score"), (int, float)):
             raise GateError("case %s has a run with no numeric score" % case.get("name"))
-        if run.get("error") and not run.get("turns"):
+        error = run.get("error")
+        if error and (not run.get("turns") or not TURN_LIMIT.search(error)):
             raise GateError("case %s has a run that never reached the model (%s)"
-                            % (case.get("name"), run["error"]))
+                            % (case.get("name"), error))
         scores.append(run["score"])
     return scores
 

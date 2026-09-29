@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-The design for TKT-30 is approved. Now turn it into the concrete plan the executors will follow, with the file map and the test strategy.
+The design for TKT-30 is approved. Now turn it into the concrete plan the implementers will follow, with the file map and the test strategy.

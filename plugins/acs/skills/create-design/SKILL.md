@@ -1,6 +1,6 @@
 ---
 name: create-design
-description: Settle the system design for a design-significant ticket before implementation is specified — analyze the ticket, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md in the ticket's docs folder. Use when a ticket carries needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:code.
+description: Settle the system design for a design-significant ticket before implementation is specified — analyze the ticket, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md in the ticket's docs folder. Use when a ticket carries needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -85,8 +85,9 @@ and the file-map guard denies any subagent a write under the ticket docs tree.
 
 ## Resume & reconcile
 
-- If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
-  `handed_off`): verify recorded progress against reality BEFORE continuing —
+- If `context.reconcile` is true (the step's
+  previous invocation ended `interrupted` or `failed`; `context.prior_status`
+  says which): verify recorded progress against reality BEFORE continuing —
   list `steps/create-design/iter-*/*-message.xml`, re-resolve the design
   artifact (above) and re-read the draft and `<design_path>` if they exist, and
   check whether their content actually
@@ -376,9 +377,12 @@ custom-named template plus a matching `enforcement.design_sections`) has its
 
 The designer adds a subsection
 `### Decision records` under "Decision & rationale" listing each accepted
-decision as a one-line ADR title and noting: "/acs:code commits these as ADRs
-under `<adr_dir>` as part of its documentation updates." Designer and
-design-reviewer tasks both carry `adr_dir`.
+decision as a one-line ADR title and noting: "/acs:docs-sync commits these as
+ADRs under `<adr_dir>` once the changeset exists." `/acs:code` no longer
+authors ADR or other general doc updates (MAR-65); `/acs:docs-sync`'s
+doc-updater is the sole producer, and its `adr` doc area commits the binding
+design's accepted decision records. Designer and design-reviewer tasks both
+carry `adr_dir`.
 
 All diagrams are Mermaid. The design references architecture docs by path; it
 never copies them wholesale. For an epic: design at epic level — children
@@ -513,8 +517,11 @@ Before a needs_input handoff, record the outgoing questions as `open`
   trade-offs; record the answer and carry it into design.md's rationale.
 - Do NOT ask about researchable facts — read the code/docs instead.
 - If you genuinely cannot reach the user (e.g. a non-interactive run): do not
-  guess. Write result.json with `"status": "handed_off"` plus a
-  `handoff_summary`, run the Finish steps, and return as your FINAL message only:
+  guess. Write result.json with `"status": "interrupted"`,
+  `"stop_reason": "needs_input"` and the open decision in `summary` (there is
+  no `handed_off` status and no `handoff_summary` field in a result document —
+  the post-hook refuses both), run the Finish steps, and return as your FINAL
+  message only:
 
   ```xml
   <handoff skill="create-design" ticket-id="SHOP-123" status="needs_input">

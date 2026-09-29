@@ -25,7 +25,7 @@ history:
 
 - `<partition>/ticket.json` (`<partition>` is its directory) — title, type,
   `external`;
-- `<partition>/code-state.json`, `specs/*.md`, and `design.md` when the ticket
+- `steps/code/state.json`, `specs/*.md`, and `design.md` when the ticket
   has one;
 - the resolved body template file;
 - the values you settle along the way: the rendered `pr_title`, the
@@ -190,10 +190,10 @@ How the run ends, and what the report then says:
   `pr-body.md` and the publish report under `steps/create-pr/`, then the result
   document and the post-hook at Finish. Do not commit, do not merge, do not
   delete branches, do not create new branches, do not edit `ticket.json`,
-  `code-state.json`, `run.json`, or any other workspace state — the post-hook
+  `steps/code/state.json`, `run.json`, or any other workspace state — the post-hook
   owns what changes after the PR exists.
 - Never fabricate body content: every Summary/Changes/Test-plan claim comes from
-  `ticket.json`, `specs/`, `design.md`, or `code-state.json` — a section the state
+  `ticket.json`, `specs/`, `design.md`, or `steps/code/state.json` — a section the state
   cannot fill stays honest and minimal.
 - If `git push` or `gh pr create` fails, capture the exact stderr plus the
   canonical hint from `acs_lib.gh_failure_hint` in the report's `problems` and

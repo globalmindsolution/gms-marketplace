@@ -1,0 +1,2 @@
+PASS if, like the reference, the run audits the repo, finds the architecture, principles and standards sets and the project structure present, CI, pre-commit and coverage (90% floor) present and e2e N/A, scaffolds nothing, records its result with no recommendation to bootstrap a set that exists, and tells the user there was nothing to add.
+FAIL if the run adds or rewrites any CI, tooling or docs file, recommends creating the principles, standards or architecture set, opens or claims a PR with changes, edits existing source, or asks the user a question.

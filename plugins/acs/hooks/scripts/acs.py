@@ -158,6 +158,9 @@ def build_parser():
 
     rnext = run_sub.add_parser("next", help="the cursor: the first step not completed")
     rnext.add_argument("--run")
+    rnext.add_argument("--ticket", help="subject: a ticket id (its live run, else a new one)")
+    rnext.add_argument("--prompt", help="subject: free text (a new run unless current)")
+    rnext.add_argument("--document", help="subject: a path to a document")
     rnext.set_defaults(func=cmd_run_next)
 
     rcheck = run_sub.add_parser("check", help="invariants I1-I5")

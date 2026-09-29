@@ -1,0 +1,2 @@
+PASS if, like the reference, the run copies the four .acs/ci/ files from the plugin templates, installs the commit-msg hook with the committed installer, leaves the existing non-acs pre-push hook byte-for-byte unchanged, verifies the result, and tells the user to commit .acs/ci/ without committing it itself.
+FAIL if the run overwrites or edits the user's pre-push hook, writes a .pre-commit-config.yaml, commits, or asks the user a question.

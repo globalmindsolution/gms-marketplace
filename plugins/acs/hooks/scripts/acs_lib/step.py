@@ -246,11 +246,18 @@ def validate_result(doc, skill, root=None):
     outcome = doc.get("outcome")
     vocabulary = outcome_vocabulary(skill, root)
     if outcome is None:
+        # An outcome says HOW a step completed. A failed or interrupted step did
+        # not complete, so it has none to state: /acs:run-e2e-tests' red run
+        # finishes `failed`, and demanding a `passed | no_harness | ...`
+        # outcome of it left the step no admissible way to finish at all.
+        #
         # A vocabulary of ONE is not a question. §4.5's rule is that a step
         # with only one way to complete has no outcome to state, so filling it
         # in is kinder than demanding the caller repeat the only answer --
         # and it keeps the recorded ledger complete either way.
-        if len(vocabulary) == 1:
+        if doc.get("status") != "completed":
+            pass
+        elif len(vocabulary) == 1:
             doc["outcome"] = outcome = vocabulary[0]
         elif vocabulary:
             errors.append("outcome: %s completes in more than one way (%s) and must say which"

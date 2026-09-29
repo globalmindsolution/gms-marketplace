@@ -25,7 +25,7 @@ from ._common import (DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_
                       now_iso, plugin_root, read_json, write_json)
 from .settings import load_settings, validate_settings
 from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, repo_partition_id, resolve_ticket_id, sessions_dir
-from .hostgates import record_gate_evidence
+from .hostgates import record_gate_evidence, refuse_gate_evidence
 from .lock import acquire_lock, check_lock, read_lock, release_lock
 from .tickets import load_ticket, save_ticket, update_index
 from .setup_helpers import classify_merge_pr_arg, tracker_cli_warning
@@ -130,7 +130,7 @@ def design_requirement(ctx, tdir, ticket):
 # The brakes themselves live in `acs_lib.brakes` (one layer down: they read
 # the run and the repo, and resolve nothing). Re-exported here because every
 # caller reaches them through `gates`.
-from .brakes import (BRAKES,  # noqa: E402,F401
+from .brakes import (BRAKES, step_brakes,  # noqa: E402,F401
                      _brake_code, _brake_create_pr, _brake_no_epics,
                      _EPIC_VERBS, _merge_pr_arg_text, _sha256_file)
 
@@ -307,28 +307,33 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
     if not workflow.has_step(wf, skill):
         return GateOutcome(None, None)
 
-    rdir, doc, wf = resolve_run_for(ctx, skill, payload, mutate=mutate)
+    # JUDGE FIRST, on the run the subject would open, and write only once
+    # every check has passed. Resolving with `mutate` up front created the
+    # run, pointed the checkout at it and took its lock before a brake could
+    # refuse -- so an epic refused at analyze-requirements left a run.json and
+    # a lock.json behind for a step that never started.
+    rdir, doc, wf = resolve_run_for(ctx, skill, payload, mutate=False)
     # The LOCK, before the invariants and before any write. One run, one
     # session: a second checkout that picked this run up would interleave two
     # sessions' writes into one ledger, and the invariants that keep it honest
-    # are checked per process. `acquire_lock` is a no-op when this checkout
-    # already holds it, so a multi-step session takes it once.
+    # are checked per process.
     ok, message = check_lock(rdir, ctx["checkout_id"])
     if not ok:
         raise GateError(message)
-    if mutate:
-        acquire_lock(rdir, ctx.get("checkout_root") or ctx["workspace"])
     stepgate.check_invariants(rdir, wf, doc=doc)
 
     # The epic brake runs for EVERY implementation step, not just the ones
     # that happened to have a gate function before. `code` refusing an epic
     # while `create-impl-plan` planned one is the same mistake caught a step
     # too late, with a plan on disk that should never have been written.
-    if skill in _EPIC_VERBS:
-        _brake_no_epics(ctx, rdir, dict(doc, __step__=skill), wf)
-    brake = BRAKES.get(skill)
-    if brake:
-        brake(ctx, rdir, doc, wf)
+    step_brakes(ctx, skill, rdir, doc, wf)
+
+    if mutate:
+        # Every check passed: now make it real. `acquire_lock` is a no-op
+        # when this checkout already holds it, so a multi-step session takes
+        # it once.
+        rdir, doc, wf = resolve_run_for(ctx, skill, payload, mutate=True)
+        acquire_lock(rdir, ctx.get("checkout_root") or ctx["workspace"])
 
     settled = (stepgate.settle_no_op(rdir, skill, doc["run_id"], wf)
                if mutate else stepgate.noop_decision(rdir, skill))
@@ -451,6 +456,21 @@ def run_pre(skill):
 
 
 def run_pre_payload(skill, payload, record_marker=True, mutate=True):
+    """Gate one skill; on a refusal, mark the evidence this fire recorded as
+    refused, so `acs step start` cannot read a blocked call as a gated one.
+    The body is `_gate_payload`; this wrapper exists so that EVERY exit-2 arm
+    below is covered, including the fail-closed ones."""
+    fired = {}
+    code = _gate_payload(skill, payload, record_marker, mutate, fired)
+    if code == 2 and fired:
+        try:
+            refuse_gate_evidence(fired["ctx"], fired["evidence"])
+        except Exception:  # the block stands; the evidence is only a record
+            pass
+    return code
+
+
+def _gate_payload(skill, payload, record_marker, mutate, fired):
     """Gate one skill from an already-parsed hook payload; return the exit code.
 
     Separate from run_pre so the dispatcher can gate in-process rather than
@@ -469,7 +489,7 @@ def run_pre_payload(skill, payload, record_marker=True, mutate=True):
         ctx = build_context(cwd)
         try:
             if record_marker:
-                record_gate_evidence(ctx, skill)
+                fired.update(ctx=ctx, evidence=record_gate_evidence(ctx, skill))
         except Exception as exc:  # fail-open too (MAR-514), but not silently
             # This write is the only evidence the Start path has that the gate
             # fired, so a failure here is why a genuinely gated run will report

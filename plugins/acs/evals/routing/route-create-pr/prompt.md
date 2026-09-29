@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-The implementation is finished and the verifier passed. Open the pull request for it.
+The implementation is finished and its review passed. Open the pull request for it.

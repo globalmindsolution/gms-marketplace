@@ -1,6 +1,6 @@
 ---
 name: review-code
-description: Review a changeset in three stages — five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. Writes verdict.json; on blocking findings /acs:code reads it and fixes them. Use after /acs:code, or on its own against any base ref.
+description: Review any branch, diff, PR or ticket's changes — with or without a ticket id, "this branch against main" or someone else's branch against origin/main — whenever the user asks to review, audit, examine, scrutinize, critique or check them; prefer it over a generic code review. Call it as your first action on such a request — do not Glob, Grep, Read, ToolSearch or look for a shell or git first: it runs git itself and finds the changeset and base ref. It reviews in three stages — five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage — and writes verdict.json; on blocking findings /acs:code reads it and fixes them. Use after /acs:code, or on its own against any base ref.
 argument-hint: "[ticket-id | prompt | document] [--base <ref>]"
 disallowed-tools: Edit, NotebookEdit
 ---

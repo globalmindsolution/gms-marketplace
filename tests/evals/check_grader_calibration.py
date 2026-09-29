@@ -1,4 +1,4 @@
-"""Every free grader in the setup and artifact suites, calibrated -- locally.
+"""Every free grader in the behaviour suites, calibrated -- locally.
 
 Local-only like everything under tests/evals/ (ADR-0108): run by the
 `acs-eval-checks` pre-commit hook and the release gate, never by CI.
@@ -27,10 +27,16 @@ The grading below mirrors the CLI's own graders (claude 2.1.281):
 * `tool_used` counts calls whose tool matches and whose JSON input matches
   `input_match`, and passes inside `min`..`max` (default 1..inf).
 
-`llm` graders are not calibrated here: they need a judge, which costs money.
-Their calibration is the paid pilot the evals README describes.
+`llm` and `baseline` graders are not calibrated here: they need a judge,
+which costs money. Their calibration is the paid pilot the evals README
+describes. A `regex` grader over the `trace` is not mirrored either.
+
+The setup and artifact cases keep their plays in PLAYS below. A case in the
+`behaviour/` group keeps them beside itself, in `calibration.py`: `IDEAL(ws)`
+and `BAD = {label: play}`, where a play is a function of the Workspace below.
 """
 
+import importlib.util
 import json
 import os
 import re
@@ -103,6 +109,8 @@ def grade(grader, ws, created, tool_calls, last_message=""):
         return count >= lo and (hi is None or count <= hi)
     if kind == "regex":
         target = fm.get("target", "last_message")
+        if target in ("trace", "mock_calls"):
+            return None
         if target == "last_message":
             text = last_message
         elif target == "files":
@@ -143,6 +151,7 @@ class Workspace(object):
         self.path = tempfile.mkdtemp(prefix="calib-")
         self.env = dict(os.environ, HOME=self.path)
         self.tools = []
+        self.reply = ""  # the run's final message, for last_message graders
         script = case.case_yaml["context"]["scaffold_script"]
         subprocess.run(["bash", os.path.join(case.path, script)], cwd=self.path,
                        env=self.env, check=True, capture_output=True)
@@ -151,6 +160,13 @@ class Workspace(object):
     def acs(self, *args, stdin=None):
         return subprocess.run([sys.executable, ACS] + list(args), cwd=self.path, env=self.env,
                               input=stdin, capture_output=True, text=True)
+
+    def sh(self, command):
+        """Run a shell command in the workspace, as a skill's Bash call would."""
+        done = subprocess.run(["bash", "-c", command], cwd=self.path, env=self.env,
+                              capture_output=True, text=True)
+        assert done.returncode == 0, (command, done.stderr)
+        return done.stdout
 
     def called(self, tool, **tool_input):
         self.tools.append((tool, tool_input))
@@ -288,7 +304,7 @@ PLAYS = {
     ),
 }
 
-CALIBRATED_GROUPS = ("setup", "artifacts")
+CALIBRATED_GROUPS = ("setup", "artifacts", "behaviour")
 
 
 def calibrated_cases():
@@ -296,12 +312,30 @@ def calibrated_cases():
                   key=lambda c: c.name)
 
 
+def plays_for(case):
+    """(ideal, {label: bad}) for a case: PLAYS, else its calibration.py."""
+    if case.name in PLAYS:
+        return PLAYS[case.name]
+    path = os.path.join(case.path, "calibration.py")
+    if not os.path.isfile(path):
+        return None
+    spec = importlib.util.spec_from_file_location("calibration_" + case.name.replace("-", "_"), path)
+    module = importlib.util.module_from_spec(spec)
+    # No __pycache__/ beside the case: plugins/acs/evals/ ships with the plugin.
+    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = saved
+    return module.IDEAL, module.BAD
+
+
 def play(case, action):
     ws = Workspace(case)
     try:
         action(ws)
         created = ws.created()
-        return {g.name: grade(g, ws.path, created, ws.tools) for g in case.graders}
+        return {g.name: grade(g, ws.path, created, ws.tools, ws.reply) for g in case.graders}
     finally:
         ws.close()
 
@@ -309,14 +343,23 @@ def play(case, action):
 class CalibrationTest(unittest.TestCase):
 
     def test_every_case_in_the_calibrated_suites_has_plays(self):
-        """A new setup or artifact case must arrive with its calibration."""
-        self.assertEqual(sorted(c.name for c in calibrated_cases()), sorted(PLAYS))
+        """A new behaviour case must arrive with its calibration."""
+        for case in calibrated_cases():
+            with self.subTest(case=case.name):
+                self.assertIsNotNone(plays_for(case), "no PLAYS entry and no calibration.py")
+        self.assertEqual(set(PLAYS) - {c.name for c in calibrated_cases()}, set(),
+                         "PLAYS names a case that no longer exists")
 
     def test_the_ideal_run_passes_every_free_grader(self):
         for case in calibrated_cases():
-            ideal, _ = PLAYS[case.name]
-            verdicts = play(case, ideal)
-            for name, passed in sorted(verdicts.items()):
+            ideal, _ = plays_for(case)
+            # Inside a subTest: one play that cannot run (a scaffold or a
+            # writer refusing) is reported against its case and does not
+            # abort the loop, hiding every case after it.
+            verdicts = None
+            with self.subTest(case=case.name):
+                verdicts = play(case, ideal)
+            for name, passed in sorted(verdicts.items() if verdicts else ()):
                 if passed is None:
                     continue
                 with self.subTest(case=case.name, grader=name):
@@ -324,11 +367,11 @@ class CalibrationTest(unittest.TestCase):
 
     def test_every_bad_run_fails_a_free_grader(self):
         for case in calibrated_cases():
-            _, bad = PLAYS[case.name]
+            _, bad = plays_for(case)
             self.assertTrue(bad, "%s has no bad run" % case.name)
             for label, action in sorted(bad.items()):
-                verdicts = play(case, action)
                 with self.subTest(case=case.name, bad=label):
+                    verdicts = play(case, action)
                     self.assertIn(False, verdicts.values(), "no free grader catches it")
 
     def test_every_case_carries_a_free_grader_on_what_it_produced(self):

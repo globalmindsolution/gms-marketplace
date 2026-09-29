@@ -1,6 +1,6 @@
 ---
 name: create-e2e-tests
-description: Write the end-to-end suites for a ticket's e2e-typed test cases (or, with no test-cases.md, the end-to-end flows its acceptance criteria describe), under the repo's configured e2e location and committed on the ticket branch. Needs a configured e2e suite to run them with. Use after /acs:code, before the e2e suites are run with /acs:run-e2e-tests.
+description: Write the end-to-end suites for a ticket's e2e-typed test cases (or, with no test-cases.md, the end-to-end flows its acceptance criteria describe), under the repo's configured e2e location and committed on the ticket branch. Needs a configured e2e suite to run them with. Use after /acs:code, before the e2e suites are run with /acs:run-e2e-tests. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -70,7 +70,8 @@ what it finds. Before the loop, check three things yourself:
   runner: add a `suites.e2e` entry to `.acs/settings.json` by hand
   (`/acs:setup` no longer configures suites). If the repo already has an e2e
   harness, ask the user to confirm its command and record the answer (User
-  interaction); if it has none, finish `needs_input` with that question — a
+  interaction); if it has none, finish `interrupted` with
+  `stop_reason: needs_input` and that question — a
   harness is a repo-structure decision, not this skill's.
 - **`test-cases.md`** — when `/acs:create-test-docs` wrote one, its e2e rows
   are the specification. When there is none (it has not run, or you were
@@ -107,7 +108,7 @@ Parse the printed context JSON. Fields you will use:
   `formats.branch_name`, `formats.commit_message`.
 - `models` — per-tier `{model, effort}`: the test-writer runs on the
   `executor` tier, the suite-runner on the `verifier` tier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -204,10 +205,11 @@ failure back to the case and the acceptance criterion behind it.
 
 ## Resume & reconcile
 
-If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
-`handed_off`), verify recorded progress against reality BEFORE continuing:
+If `context.reconcile` is true (the previous
+invocation ended `interrupted` or `failed`; `context.prior_status` says
+which), verify recorded progress against reality BEFORE continuing:
 
-1. Read `<partition>/create-e2e-tests-state.json` (`runs[-1]` and `states`) and
+1. Read `steps/create-e2e-tests/state.json` (`invocations[-1]` and `states`) and
    the phase artifacts under `steps/create-e2e-tests/`.
 2. Look at the repo: `git status` and `git log --oneline <branch>` show which
    suite files exist and which are already committed. A suite recorded written

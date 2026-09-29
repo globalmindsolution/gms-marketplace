@@ -7,11 +7,15 @@
     "states": {
       "type": "object",
       "properties": {
+        "ready_for_planning": {
+          "type": "boolean"
+        },
         "api_surface": {
           "type": "boolean"
         },
-        "needs_design": {
-          "type": "boolean"
+        "questions_open": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "additionalProperties": false

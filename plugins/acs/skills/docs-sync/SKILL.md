@@ -1,6 +1,6 @@
 ---
 name: docs-sync
-description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final changeset review verdict, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR).
+description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final changeset review verdict, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR). Use whenever a change is done on its branch and the docs (README, API reference, configuration guide, runbook) must be brought in line with it — even a single stale value or sentence: a doc fix that follows from a ticket's change goes through this skill, not a direct edit. Call it as your first action on such a request — do not Glob, Grep, Read, ToolSearch or look for a shell or git first: it runs git itself and finds the branch, diff and docs.
 when_to_use: Use when a ticket has a changeset on its branch whose documentation still needs reconciling; workflows/ship.yaml places it after code and before create-pr, but it is runnable on its own whenever the docs have drifted from the diff.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
@@ -33,8 +33,8 @@ whatever the branch already holds. Run somewhere other than the run's cursor,
 the pre-hook prints ONE advisory line on stderr (`acs: docs-sync normally
 follows <predecessor> in ship.yaml; the cursor for <id> is <cursor>`) and lets
 the skill run. The real precondition is a CHANGESET: with no diff against the
-default branch there is nothing to re-derive, and step 1 below is where you
-find that out and stop. Every other input below is read when present and
+default branch there is nothing to re-derive — input 1 of "Inputs" below is
+where you find that out, and "No doc impact" below is how you stop. Every other input below is read when present and
 worked around when absent — the diff and the ticket are the fallback.
 
 ## Start
@@ -65,10 +65,11 @@ silently switch branches.
 
 ## Resume & reconcile
 
-- If `context.reconcile` is true (prior run `in_progress`/`failed`/
-  `interrupted`/`handed_off`): verify recorded progress against reality
+- If `context.reconcile` is true (the step's
+  previous invocation ended `interrupted` or `failed`; `context.prior_status`
+  says which): verify recorded progress against reality
   BEFORE continuing — list `steps/docs-sync/iter-*/*-message.xml`,
-  re-read `<partition>/docs-sync-state.json` if it exists, and check whether
+  re-read `steps/docs-sync/state.json` if it exists, and check whether
   its `states.docs_committed`/`commits` actually match `git log` on the
   branch. Continue from the first unfinished phase/iteration; never redo
   work that demonstrably holds.
@@ -100,7 +101,11 @@ subject docs-sync falls back to):
 
 1. `git diff <default_branch>...HEAD` on the ticket branch (the ground-truth
    changeset) — run from `<checkout_root>`.
-2. `<partition>/ticket.json` (title, description, acceptance criteria).
+2. The ticket (title, description, acceptance criteria) — `context.ticket`.
+   On disk it is `docs/tickets/<id>/ticket.md` once the docs tree exists, or
+   `ticket.json` in the ticket's workspace partition for one not yet migrated
+   (`acs.py artifacts show --ticket <id>` prints `source_path`); either way it
+   is not under `<partition>`, which is the run directory.
 3. `steps/code/result.json`, specifically `states.docs_updated`
    (repo-relative paths of every doc file `/code` already changed).
 4. The ticket's `steps/code/iter-<n>/implementer*.json` implementer
@@ -109,9 +114,20 @@ subject docs-sync falls back to):
 5. The final review verdict, `steps/review-code/verdict.json` — the
    changeset review `/acs:review-code` recorded (`/acs:code` has no verifier
    of its own).
-6. The ticket's binding design (`<partition>/design.md`, or the parent
-   epic's when the ticket inherits it) when `ticket.needs_design` is true or
-   a parent design applies; absent otherwise.
+6. The ticket's binding design, when `context.design.required` is true
+   (`context.design.source` is `own` for the ticket's own `needs_design`, or
+   `parent` when it inherits its epic's design); absent otherwise. It is NOT
+   under `<partition>` (that is the run directory, whose
+   `steps/create-design/design.md` is only create-design's unverified working
+   draft). Resolve the published file with
+   `acs.py artifacts show --ticket <id>` — or `--ticket <parent-id>` when the
+   source is `parent` — and read `artifacts["design.md"]`: that is
+   `acs_lib.artifacts.artifact_path`, which returns the first existing copy of
+   `docs/tickets/<that-id>/design.md` in the checkout (where
+   `/acs:create-design` publishes it), then `design.md` in that ticket's
+   workspace partition (`context.design.dir`, used only when there was no
+   checkout to publish into). `null` there means no design was published —
+   name it absent.
 
 `docs_updated`/`problems` may legitimately be near-empty for doc categories
 `/code` no longer touches — reading them still tells docs-sync what `/code`'s
@@ -155,6 +171,32 @@ repo-relative location. Not found → the conventional default, where a doc
 update would create it: `docs/requirements/` with `functional/` and
 `non-functional/` subfolders (an existing set's own subfolder names are
 followed), `docs/architecture/`, `docs/adr/`.
+
+### No doc impact — finish without the loop
+
+Take input 1 (`git diff <default_branch>...HEAD`) first. When it is **empty**
+— the branch carries no changeset — there is nothing to re-derive: spawn no
+subagent, commit nothing, and go straight to Finish with a completed result
+that says so:
+
+```json
+{
+  "status": "completed",
+  "summary": "no changeset against main: git diff main...HEAD is empty, so no doc is owed",
+  "states": {"docs_committed": [], "commits": [], "review": {"iterations": 0, "findings_open": 0}},
+  "findings": [],
+  "errors": []
+}
+```
+
+The same shape closes a run whose diff is non-empty but whose drift-reviewer
+passes with the doc-updaters having committed nothing (every doc the diff
+touches is already correct): `docs_committed: []` and `commits: []` on a
+`completed` result, `review.iterations` counting the rounds that ran. An empty
+`docs_committed` is an evidenced "no doc impact", never a failure — and never
+an `outcome` value: this skill's fragment
+(`skills/docs-sync/state.schema.json`) declares no outcome vocabulary, so the
+result carries no `outcome` key at all.
 
 ## Reflection loop — doc-updater → drift-reviewer
 

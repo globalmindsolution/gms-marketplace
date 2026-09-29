@@ -136,7 +136,7 @@ class StandardizeProjectProbeTest(unittest.TestCase):
             readme = fh.read()
         cases = eval_cases.all_cases()
         for tag in ("routing", "description", "explicit", "negative", "control",
-                    "artifacts", "setup"):
+                    "artifacts", "setup", "behaviour"):
             n = len([c for c in cases if tag in c.tags])
             with self.subTest(tag=tag):
                 self.assertRegex(
@@ -212,9 +212,12 @@ class ArtifactCoverageClaimTest(unittest.TestCase):
     evals left CI (ADR-0108); the doc's other two claims are still pinned there."""
 
     def test_the_artifact_numerator_matches_the_suite(self):
+        """Since ADR-0113 the claim counts every behaviour group -- behaviour/,
+        setup/ and artifacts/ -- not the artifact cases alone."""
         artifact_skills = {g.skill() for c in eval_cases.all_cases()
-                           if "artifacts" in c.tags for g in c.graders if g.skill()}
-        self.assertTrue(artifact_skills, "found no artifact case to count")
+                           if c.group in ("behaviour", "setup", "artifacts")
+                           for g in c.graders if g.skill()}
+        self.assertTrue(artifact_skills, "found no behaviour case to count")
         shipped = len(eval_cases.shipped_skills())
         text = read(os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md"))
         self.assertIn("%d of %d skills" % (len(artifact_skills), shipped), text)

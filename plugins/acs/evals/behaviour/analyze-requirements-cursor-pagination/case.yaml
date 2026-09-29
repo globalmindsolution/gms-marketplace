@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: analyze-requirements-cursor-pagination
+context:
+  scaffold_script: scaffold.sh

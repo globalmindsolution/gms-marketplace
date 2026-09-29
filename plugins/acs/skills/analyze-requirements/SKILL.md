@@ -1,6 +1,6 @@
 ---
 name: analyze-requirements
-description: Analyze a ticket before anything is planned — survey the codebase to map the impact across components/files/tests, clarify the open questions, assumed defaults and refined acceptance criteria with the user through the clarification ledger, then write, review and publish analysis.md to the ticket's docs folder as the reusable record later skills and re-analyses start from. Names the risks, the load-bearing surfaces it touches and whether a design is needed; its api_surface flag decides whether an API contract is written. Use as the first Build step on a ticket, before /acs:create-impl-plan.
+description: Analyze a ticket before anything is planned — survey the codebase to map the impact across components/files/tests, clarify the open questions, assumed defaults and refined acceptance criteria with the user through the clarification ledger, then write, review and publish analysis.md to the ticket's docs folder as the reusable record later skills and re-analyses start from. Names the risks, the load-bearing surfaces it touches and whether a design is needed; its api_surface flag decides whether an API contract is written. Use as the first Build step on a ticket, before /acs:create-impl-plan, and whenever the user asks what a ticket really changes, touches or risks, or wants its open questions and acceptance criteria pinned down before it is planned. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -81,7 +81,7 @@ Parse the printed context JSON. Fields you will use:
 - `settings` — you need `formats.branch_name`, `formats.commit_message`.
 - `models` — per-tier `{model, effort}`: the analyst runs on the `executor`
   tier, the impact reviewer on the `verifier` tier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see
+- `reconcile`, `handoff_summary`, `prior_status` — see
   `references/resume.md`.
 
 Throughout this file `<partition>` means the `partition` path from the context

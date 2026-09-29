@@ -1,0 +1,2 @@
+PASS if, like the reference, the run detects the existing settings (a re-run) with suites.e2e configured, applies the e2e install alone through `setup apply`, keeps the formats and the suite definition, and tells the user the `E2E suite` check only blocks merges once an admin makes it required (giving or describing the command).
+FAIL if the run installs the conventions or tests gate, rewrites or removes the suites.e2e definition, hand-copies the templates instead of applying, attempts a branch-protection change, or asks the user a question.

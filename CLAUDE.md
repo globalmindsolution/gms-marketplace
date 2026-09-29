@@ -78,9 +78,12 @@ install fetches it.
 
 The eval suite is `claude plugin eval` case files in the layout
 <https://code.claude.com/docs/en/plugin-evals> specifies — one directory per case,
-holding `prompt.md` and `graders/*.md`, grouped under `routing/`, `artifacts/` and `setup/`
-(the first per-skill behaviour suite: what `/acs:setup` writes, scored against a
-no-plugin baseline). **The case files are the source of truth**: there is no dataset
+holding `prompt.md` and `graders/*.md`, grouped under `routing/`, `behaviour/`, `artifacts/`
+and `setup/`. Every shipped skill has a behaviour case (ADR-0113): what it writes, records
+and replies, with free graders calibrated by `tests/evals/check_grader_calibration.py` and a
+`baseline` grader once `scripts/record_baseline.py` has recorded the case's reference
+transcript — which needs a host where Claude Code's Bash sandbox starts (not the cloud
+container). **The case files are the source of truth**: there is no dataset
 they are rendered from and no generator.
 Edit a case by editing its files. `plugins/acs/evals/README.md` is the reference for tags,
 grading, and the suite's known limits — read it before quoting a number.
@@ -156,16 +159,6 @@ Two load-bearing conventions you will otherwise trip over:
 in place. `plugins/acs/docs/` (INTERNALS, AUTHORING) is the implementation contract for anyone
 changing the plugin itself.
 
-## Conventions enforced in CI
-
-The required `Branch / PR / commit conventions` check runs `.acs/ci/check-conventions.py --mode pr`
-and enforces one rule: the PR description names its ticket — `MAR-<n>`, a `#<n>` issue reference,
-or an issue link (ADR-0106). CI does not check the branch name, PR title, description sections or
-the `ACS` label. Work not backed by a ticket needs the `acs-exempt` label. The same checker runs as
-this repo's local git hooks (`.pre-commit-config.yaml`) against acs's built-in formats: `commit-msg`
-holds each subject to `{ticket_id} {summary}` with the `MAR` prefix (`enforcement.checks.commit_message`
-is on here), and `pre-push` checks the branch name (`{type}/{ticket_id}-{slug}`) and the pushed
-subjects. The checker is a copy of `plugins/acs/templates/ci/check-conventions.py`: re-copy it,
-never edit it in place.
+## Branching
 
 `main` is protected — branch off it, never commit to it directly.

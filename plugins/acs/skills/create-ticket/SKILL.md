@@ -1,6 +1,6 @@
 ---
 name: create-ticket
-description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, an epic-only needs_design flag, and child fan-out for epics; also runs in --fan-out mode to mint an already-designed epic's children. Use when the user asks to create or import a ticket, describes new work that has no ticket yet, or wants to fan out an existing epic's children after its design is approved.
+description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, an epic-only needs_design flag, and child fan-out for epics; also runs in --fan-out mode to mint an already-designed epic's children. Use when the user asks to create or import a ticket, describes new work that has no ticket yet, or wants to fan out an existing epic's children after its design is approved. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "<request or remote-key> | <epic-id> --fan-out"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -47,7 +47,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ti
   Relay that stderr verbatim, obtain the confirmed start number from the user
   — never invent it — and re-run `acs step start` with `--seed-next <n>` added.
 - Parse the printed context JSON. Bind: `partition`, `ticket_id`, `ticket`,
-  `settings`, `models`, `reconcile`, `prior_run_status`, `handoff_summary`,
+  `settings`, `models`, `reconcile`, `prior_status`, `handoff_summary`,
   `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
 
 ## Remote import

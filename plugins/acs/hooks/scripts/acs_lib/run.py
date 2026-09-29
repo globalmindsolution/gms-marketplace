@@ -450,6 +450,30 @@ def _settle_loop(doc, step, wf, outcome):
     return False
 
 
+def conclude_standalone_run(rdir, step, status):
+    """run -> `completed` / `failed` when the one skill it carries ends.
+
+    A delivery-ticket skill (the product skills, `standardize-project`) is never
+    a step of the workflow, but `acs step start --allocate` opens a run over its
+    delivery ticket so its state has a partition. That run records no workflow
+    step, so `finish_step` never touches it: left alone it stayed `in_progress`
+    with its cursor on the workflow's FIRST step, and the checkout's pointer kept
+    naming it -- the next `/acs:ship` from that checkout resumed the delivery
+    ticket at `analyze-requirements`. An `interrupted` skill leaves the run open,
+    so its resume finds it.
+    """
+    doc = require_run(rdir)
+    if status not in ("completed", "failed") or doc.get("steps"):
+        return doc
+    doc["status"] = status
+    doc["ended_at"] = now_iso()
+    doc["cursor"] = None
+    doc["concluded_by"] = step
+    save_run(rdir, doc)
+    _reindex(rdir, doc)
+    return doc
+
+
 def abandon_run(rdir, reason=None):
     """run -> `abandoned`. Writer: `acs run abandon`, a human. The one
     transition no hook makes."""

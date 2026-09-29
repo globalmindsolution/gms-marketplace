@@ -18,6 +18,24 @@
         },
         "children": {
           "type": "array"
+        },
+        "prd_trace": {
+          "type": "object",
+          "properties": {
+            "feature": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "divergence": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

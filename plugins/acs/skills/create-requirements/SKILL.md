@@ -1,6 +1,6 @@
 ---
 name: create-requirements
-description: Bootstrap or amend the consumer requirements/ doc set (functional + non-functional, one file per feature/item) — brownfield reverse-engineers it from the existing codebase (architecture-aware, code-cited, DRAFT), greenfield elicits it interactively, and amend augments only absent/ungrounded areas — shipped as a docs-only PR on its own delivery ticket. Use to bootstrap living requirements on an existing codebase, or to refresh the set after a gap is found.
+description: Bootstrap or amend the consumer requirements/ doc set (functional + non-functional, one file per feature/item) — brownfield reverse-engineers it from the existing codebase (architecture-aware, code-cited, DRAFT), greenfield elicits it interactively, and amend augments only absent/ungrounded areas — shipped as a docs-only PR on its own delivery ticket. Use to bootstrap living requirements on an existing codebase, or to refresh the set after a gap is found. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -100,7 +100,7 @@ continuing:
    single author; `iter-<n>/reviewer-<slice>.md` per reviewer slice and the
    joined `iter-<n>/reviewer.md`), the slice plans
    (`iter-<n>/<role>-slices.json`) and
-   `<partition>/create-requirements-state.json` to see which phases completed.
+   `steps/create-requirements/state.json` to see which phases completed.
 2. Re-read the `<requirements_dir>` tree against recorded author claims — does
    the actual `<functional_dir>`/`<non_functional_dir>` file set match what the
    recorded author results claim?

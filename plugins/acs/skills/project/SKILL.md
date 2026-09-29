@@ -1,6 +1,6 @@
 ---
 name: project
-description: Set up a product repository's structure and tooling — auto-detects from on-disk evidence whether this repo is greenfield (no build manifest yet) or an existing codebase, states the mode it chose and the evidence for it, then runs the matching leg: a full greenfield scaffold (layout, build, test framework with coverage, lint, pre-commit, CI, a minimal green vertical slice), or an additive audit of an existing repo that only adds the missing docs, config and tooling and never rewrites source.
+description: Set up a product repository's structure and tooling — auto-detects from on-disk evidence whether this repo is greenfield (no build manifest yet) or an existing codebase, states the mode it chose and the evidence for it, then runs the matching leg: a full greenfield scaffold (layout, build, test framework with coverage, lint, pre-commit, CI, a minimal green vertical slice), or an additive audit of an existing repo that only adds the missing docs, config and tooling and never rewrites source. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 when_to_use: Use to scaffold a fresh product repo after /acs:create-architecture, or to bring an existing repo up to acs's structural and tooling expectations.
 argument-hint: "(no arguments)"
 disallowed-tools: Edit, NotebookEdit

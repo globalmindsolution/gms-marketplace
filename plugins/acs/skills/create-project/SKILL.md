@@ -44,7 +44,7 @@ entry. Parse the printed context JSON; the fields you will use:
 - `checkout_root` — the consumer repo root (the only tree the scaffolder mutates)
 - `settings` — `test_coverage_percent`, `formats`, `tracker`
 - `models` — per-tier `{model, effort}` resolved from settings
-- `reconcile`, `handoff_summary`, `prior_run_status`, `pipeline`
+- `reconcile`, `handoff_summary`, `prior_status`, `pipeline`
 
 If `acs step start` exits non-zero: stop and surface its stderr verbatim — do not improvise.
 
@@ -95,11 +95,15 @@ or chose the no-architecture fallback. Either way, YOU verify the repo is actual
 greenfield before any planning:
 
 ```bash
-git -C <checkout_root> ls-files | grep -vE '^(docs/|\.acs/|\.claude/|\.gitignore$|README[^/]*$|LICENSE[^/]*$|CLAUDE\.md$)'
+git -C <checkout_root> ls-files | grep -vE '^(docs/|\.acs/|\.claude/|\.github/|\.gitignore$|README[^/]*$|LICENSE[^/]*$|CLAUDE\.md$)'
 ```
 
-Any output (source trees, package manifests, lockfiles, CI workflows) means
-substantive sources already exist; `<architecture_dir>` and `<prd>` count as docs
+Any output (source trees, package manifests, lockfiles) means substantive
+sources already exist. `.github/` is excluded because `/acs:setup` writes its CI
+workflows (`acs-conventions.yml`, `acs-tests.yml`, `acs-e2e.yml`) onto a repo
+with no source at all, and `/acs:project` (`acs_lib.project_mode`) deliberately
+does not count them either — counting them here refused the very repo
+`/acs:project` had just routed to this leg; `<architecture_dir>` and `<prd>` count as docs
 even when they sit outside `docs/`. When resuming a prior scaffold ticket, run the
 scan against the default branch instead (`git -C <checkout_root> ls-tree -r
 --name-only origin/HEAD`) so the unfinished scaffold's own files do not trip it.
@@ -140,7 +144,7 @@ pinned are confirmed with the user instead, BEFORE the scaffolder builds anythin
    same entries.
 
 If the user cannot be reached, the existing rule holds — never guess a stack: Finish
-with `status: "handed_off"` and the open questions. The completion report recommends
+with `status: "interrupted"`, `stop_reason: "needs_input"` and the open questions. The completion report recommends
 `/acs:create-architecture` so a doc set catches up with the scaffold; that
 recommendation is advice, never a precondition.
 
@@ -510,8 +514,8 @@ architecture doc set already pins. With no architecture doc set, the stack, layo
 coverage tooling are always asked — once, grouped (see No-architecture fallback).
 
 If you genuinely cannot reach the user (e.g. a non-interactive run): do NOT
-guess. Run Finish with `status: "handed_off"` and the open questions in
-`handoff_summary`, and return a `<handoff skill="create-project" ticket-id="..."
+guess. Run Finish with `status: "interrupted"`, `stop_reason: "needs_input"` and
+the open questions in `summary`, and return a `<handoff skill="create-project" ticket-id="..."
 status="needs_input">` carrying the `<questions>` as your final message.
 
 ## Context pressure
@@ -525,8 +529,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --
 ```
 
 Tell the user the `continue_with` command it prints, then stop. handoff.py has
-already finalized the run as `handed_off` and released the lock — do NOT also run
-the post-hook in this path.
+already finalized the step `interrupted` with `stop_reason: context_pressure`
+(the summary recorded on the invocation as `handoff_summary`) and released the
+lock — do NOT also write result.json or run the post-hook in this path.
 
 ## Finish
 
@@ -548,7 +553,9 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
 }
 ```
 
-   - `status`: `completed | failed | interrupted | handed_off`.
+   - `status`: `completed | failed | interrupted` — nothing else is admitted.
+     An `interrupted` result also carries `stop_reason`
+     (`session_end | needs_input | context_pressure`).
    - `states.scaffold` keys are EXACTLY `build`, `lint`, `tests`, `coverage_tooling`
      — booleans reflecting what the BUILD-CHECKER (its `run` slice's `## Verdict`
      block in the joined report) or the PR's CI saw pass, not what the scaffolder
@@ -558,7 +565,9 @@ MANDATORY final step — never skipped, also on failure and on the greenfield re
    - `states.pr` (`number`, `url`, `branch`) only when a PR was opened.
    - `findings`: every open finding as
      `{"severity": "blocking|info", "dimension": "...", "detail": "..."}`.
-   - `handoff_summary`: only when `status` is `handed_off`.
+   - There is no `handoff_summary` field here: `result.schema.json` refuses
+     unknown keys. A context-pressure handoff never writes this file —
+     `handoff.py` records its summary on the invocation.
 
 2. Run the post-hook:
 

@@ -14,7 +14,7 @@
       "additionalProperties": false
     },
     "outcome": {
-      "description": "no_harness: the repo configures no e2e suite. nothing_to_run: it does, and this run added no e2e rows.",
+      "description": "passed: every suite in the run set ran and passed. no_harness: the repo configures no suite at all -- settings.suites resolves to {} (no settings.e2e and no suites entry), so there is nothing to invoke. nothing_to_run: suites are configured, but this run has none to run -- the plan's ## Contract declares owes.e2e: false (the pre-hook records this without spawning the coordinator), or the run set resolved empty. A run where any suite failed finishes status failed with no outcome.",
       "enum": [
         "passed",
         "no_harness",

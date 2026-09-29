@@ -1,6 +1,6 @@
 ---
 name: create-prd
-description: Define or amend the product PRD — vision, problem, personas, goals with measurable success metrics, prioritized features, NFRs, constraints — plus a roadmap, shipped as a docs-only PR on its own delivery ticket. Use when starting a product, onboarding acs onto an existing codebase, or when scope changes require a PRD amendment. Invoke it directly on such a request — it confirms scope and gathers what it needs from the user itself, so there is nothing to ask before running it.
+description: Define or amend the product PRD — vision, problem, personas, goals with measurable success metrics, prioritized features, NFRs, constraints — plus a roadmap, shipped as a docs-only PR on its own delivery ticket. Use when starting a product, onboarding acs onto an existing codebase, or when scope changes require a PRD amendment. Use for any request to write down what a product is, its problem, users and success metrics, or to amend its scope, priorities or roadmap — including when leadership cuts or reprioritizes a feature the existing PRD still lists. Invoke it directly on such a request — it confirms scope and gathers what it needs from the user itself, so there is nothing to ask before running it.
 argument-hint: "[product notes | delivery-ticket-id to resume]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -94,7 +94,7 @@ continuing:
    and `iter-1/authoring-<id>.md` per slice; `iter-<n>/author.json`;
    `iter-<n>/reviewer-<slice>.md` per reviewer slice and the joined
    `iter-<n>/reviewer.md`), the slice plans (`iter-<n>/<role>-slices.json`) and
-   `<partition>/create-prd-state.json` to see which phases completed.
+   `steps/create-prd/state.json` to see which phases completed.
 2. Re-read `<repo>/<prd>` and `<repo>/<roadmap>` — does their content
    match what the recorded author results claim?
 3. Check delivery progress: does the delivery branch exist

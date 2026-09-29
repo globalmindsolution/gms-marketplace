@@ -1,0 +1,22 @@
+---
+description: >-
+  /acs:review-code on a ticket branch whose changeset carries a real
+  off-by-one: page_bounds documents 1-based pages and computes 0-based bounds,
+  and the changeset's only test checks a page's length, so it passes. A
+  correct review confirms a blocking finding, writes a failing verdict, and
+  modifies nothing.
+expected_outcome: >-
+  verdict.json written; the kernel derives a blocking finding from it; the
+  finding names the page_bounds off-by-one; src/shop/__init__.py still holds
+  the defective line; no new source or test module.
+tags: [behaviour]
+max_turns: 120
+timeout_seconds: 2400
+allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
+---
+
+Run the /acs:review-code skill on ticket EVAL-1: review the ticket branch that
+is checked out now against main. Review only; don't fix anything, don't run
+/acs:code, and don't push. Don't ask me anything: the ticket's acceptance
+criteria are the requirements, and there is no separate plan or design. Finish
+the review step and tell me what you found.

@@ -1,0 +1,2 @@
+PASS if, like the reference, the run's detect reports a re-run with retired keys, and the reply names workspace_path and prd_path in .acs/settings.json as retired and ignored (state now lives in the repo's .acs/state-machine/; documents are found, not configured), applies the kept defaults with no CI, and leaves ticket_prefix EVAL in place.
+FAIL if the run never mentions the retired keys, claims they still take effect, hand-edits or rewrites .acs/settings.json, installs a CI gate, or asks the user a question.

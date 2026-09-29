@@ -21,7 +21,7 @@ plans against the ticket as written.
 **Where the cross-references below point.** "Stage 2", "Stage 3", "Finish" and
 the front matter are SKILL.md's.
 
-### Not ready for planning → `needs_input`
+### Not ready for planning → `interrupted` / `needs_input`
 
 When the analysis cannot honestly say the ticket is plannable — a question
 where every default could build the wrong thing is still open (a
@@ -29,7 +29,8 @@ contradiction with the code, a design document or an ADR; a behaviour the
 acceptance criteria depend on that nothing defines; a fork in scope), the
 ticket contradicts the design or the requirements, or the problem itself is
 undefined — set front-matter `ready_for_planning: false`, say exactly what is
-missing in `## Verdict`, and finish as `needs_input`:
+missing in `## Verdict`, and finish `interrupted` with
+`stop_reason: needs_input`:
 
 1. Record every outgoing question as `open` (`clarify.py add` without
    `--answer`).
@@ -37,9 +38,12 @@ missing in `## Verdict`, and finish as `needs_input`:
    questions in `## Questions` — and publish it when it passed the impact
    review: a not-ready analysis is still the artifact the answers come back
    to, and the next run's survey starts from it.
-3. Write result.json with `"status": "needs_input"`, `stop_reason` "needs user
-   input", `states.ready_for_planning: false`, run the Finish steps, and return
-   a `<handoff status="needs_input">` whose `<questions>` carry them.
+3. Write result.json with `"status": "interrupted"`,
+   `"stop_reason": "needs_input"` and `states.ready_for_planning: false`, run
+   the Finish steps, and return a `<handoff status="needs_input">` whose
+   `<questions>` carry them. `needs_input` is a STOP REASON, never a status:
+   the post-hook admits only `completed | failed | interrupted` (plus
+   `in_progress`, which does not finalize) and refuses anything else.
 
 `/acs:ship` asks the user each question and re-invokes this same skill with the
 answers as context — the re-run's ledger check finds them recorded and its

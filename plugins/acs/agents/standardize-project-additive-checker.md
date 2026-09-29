@@ -95,8 +95,8 @@ git -C <checkout_root> diff --name-status <default_branch>...HEAD
    allowlist is the auditor's prose, not a mechanically derived list, and the
    scaffolder then wrote within it. Missing notes are a blocking finding on their own.
 5. **completion-report shape** — the result document (once written by the coordinator)
-   carries the `recommended_follow_ups` field and the `states.audit`/`states.scaffold`/
-   `states.pr` keys.
+   carries the `states.audit`/`states.scaffold`/`states.pr`/`states.recommended_follow_ups`
+   keys.
 
 Iteration >= 2, additionally: confirm EVERY prior finding from `<context>` is verifiably
 fixed against the same frozen `iter-1-authoring.md`, including re-confirming dimension 1 fresh

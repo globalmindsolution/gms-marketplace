@@ -1,6 +1,6 @@
 ---
 name: create-test-docs
-description: Derive the ticket's test cases from its acceptance criteria, plan and API contract — each case with an id, the AC it traces, its type (unit/integration/e2e), preconditions, steps, expected result and target suite. Writes test-cases.md with every acceptance criterion traced by at least one case. Use after /acs:create-impl-plan and before /acs:code.
+description: Derive the ticket's test cases from its acceptance criteria, plan and API contract — each case with an id, the AC it traces, its type (unit/integration/e2e), preconditions, steps, expected result and target suite. Writes test-cases.md with every acceptance criterion traced by at least one case. Use after /acs:create-impl-plan and before /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -75,7 +75,7 @@ Parse the printed context JSON. Fields you will use:
   `formats.commit_message`.
 - `models` — per-tier `{model, effort}`: the test-designer runs on the
   `executor` tier, the trace-reviewer on the `verifier` tier.
-- `reconcile`, `handoff_summary`, `prior_run_status` — see Resume & reconcile.
+- `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
@@ -144,10 +144,11 @@ copy of those exact bytes (see Publish).
 
 ## Resume & reconcile
 
-If `context.reconcile` is true (prior run `in_progress`/`failed`/`interrupted`/
-`handed_off`), verify recorded progress against reality BEFORE continuing:
+If `context.reconcile` is true (the previous
+invocation ended `interrupted` or `failed`; `context.prior_status` says
+which), verify recorded progress against reality BEFORE continuing:
 
-1. Read `<partition>/create-test-docs-state.json` (`runs[-1]` and `states`) and
+1. Read `steps/create-test-docs/state.json` (`invocations[-1]` and `states`) and
    the phase artifacts under `steps/create-test-docs/` to see where
    the prior run stopped.
 2. Re-resolve the artifact (above) and read it if it exists. Trust nothing you
@@ -459,9 +460,12 @@ drop it and do NOT invent a case that only appears to cover it:
 1. Record it as an open ledger question naming the criterion.
 2. Publish the document anyway when it verified — a document with a named gap
    is what the answer comes back to.
-3. Write result.json with `"status": "needs_input"`, `stop_reason` "needs user
-   input", `states.untraced_acs` listing the criteria, run the Finish steps, and
-   return a `<handoff status="needs_input">` whose `<questions>` carry them.
+3. Write result.json with `"status": "interrupted"`,
+   `"stop_reason": "needs_input"` and `states.untraced_acs` listing the
+   criteria, run the Finish steps, and return a `<handoff status="needs_input">`
+   whose `<questions>` carry them. (`needs_input` is a stop reason, not a
+   status: the post-hook refuses any status but
+   `completed | failed | interrupted`.)
 
 A ticket with ZERO acceptance criteria is the vacuous case: `untraced_acs` is
 `[]` because there is nothing to trace, which is not the same as coverage. Say
@@ -519,10 +523,10 @@ MANDATORY final step — never skipped, also on failure or handoff:
      opinion. Zero is a legitimate value: `/acs:create-e2e-tests` then refuses,
      and `workflows/ship.yaml` has nothing to hand it.
    - `untraced_acs` (list): acceptance criteria no case covers. Empty on a
-     completed run; populated on the `needs_input` arm above.
+     completed run; populated on the `interrupted` / `needs_input` arm above.
 
-   `outcome` is required on every result document — the post-hook refuses one
-   without it, because this step completes in two ways: `cases_written` when
+   `outcome` is required on every `completed` result document — the post-hook
+   refuses one without it, because this step completes in two ways: `cases_written` when
    the loop ran, `no_cases_owed` when the pre-hook settled the step from a plan
    whose `## Contract` block owes no test cases (then this coordinator never
    runs). A run on a ticket with criteria always writes cases.

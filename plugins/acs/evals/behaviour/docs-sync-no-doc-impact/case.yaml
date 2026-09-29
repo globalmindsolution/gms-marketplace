@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: docs-sync-no-doc-impact
+context:
+  scaffold_script: scaffold.sh

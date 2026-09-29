@@ -1,6 +1,6 @@
 ---
 name: create-docs
-description: Bootstrap or maintain the product doc sets — quality (test strategy, coverage policy), operations (release process, runbooks, observability, incident response, test scheduling), principles (engineering principles + rationale) and standards (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set when present, each set delivered as its own docs-only PR on its own delivery ticket.
+description: Bootstrap or maintain the product doc sets — quality (test strategy, coverage policy), operations (release process, runbooks, observability, incident response, test scheduling), principles (engineering principles + rationale) and standards (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set when present, each set delivered as its own docs-only PR on its own delivery ticket. Use for any request to write, refresh or finish any of those four sets or a document in them — a test strategy, a coverage policy, a runbook, a release process, an incident playbook, engineering principles or coding standards. Call it as your first action on such a request — do not Glob, Grep, Read or look for a shell first: it reads the PRD, architecture and existing sets itself.
 when_to_use: Takes `all` or a comma-separated list of sets, runs the eligible ones in capped parallel, and resumes an interrupted set from its delivery-ticket id. Use when asked to create, bootstrap, generate, regenerate or maintain any of those doc sets; reads the architecture set when present (/acs:create-architecture is recommended first, never required).
 argument-hint: "[all | <set>[,<set>...] | <delivery-ticket-id to resume>]"
 disallowed-tools: Edit, NotebookEdit
@@ -540,7 +540,8 @@ has no architecture set (and, for
 things those docs already answer.
 
 If you genuinely cannot reach the user (a non-interactive run), do not guess
-— return a `<handoff skill="create-docs" ticket-id="<id>" status="needs_input">`
+— run Finish with `status: "interrupted"` and `stop_reason: "needs_input"`,
+then return a `<handoff skill="create-docs" ticket-id="<id>" status="needs_input">`
 with the `<questions>` list instead.
 
 ## Delivery (branch, commit, PR) — per set, one independent PR each
@@ -596,8 +597,11 @@ MANDATORY final step for every set started — never skipped, also on failure:
 
    On failure: `status: "failed"`, the blocking findings in `findings`, the
    reason in `summary`, keep whatever is true in `states` (e.g. the
-   written `doc_set` files without `pr`). On handoff: `status: "handed_off"`
-   plus `handoff_summary`.
+   written `doc_set` files without `pr`). On
+   handoff you write no result document: the handoff in
+   `references/resume-and-handoff.md` runs `handoff.py`, which finalizes the step `interrupted` with
+   `stop_reason: context_pressure` and records its summary on the invocation.
+   (`handed_off` is not a status and `handoff_summary` is not a result field.)
 
 2. Run, from the session checkout:
 

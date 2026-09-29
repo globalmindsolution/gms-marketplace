@@ -1,0 +1,2 @@
+PASS if, like the reference, the run reads the installed version from the plugin manifest, tries the gh release list and the raw-file fallback, and when both fail reports the version check as unavailable with status failed, printing the manual refresh and verify commands, writing nothing.
+FAIL if the run invents a latest version or claims the plugin is up to date, reports the marketplace refreshed, edits any file, or asks the user a question.
