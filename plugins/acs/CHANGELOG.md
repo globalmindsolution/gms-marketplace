@@ -253,7 +253,7 @@ JSON validated by JSON Schema, one central envelope plus a
   XSD and `validate_xml.py` gone, nothing acs runs shells out to an XML tool.
   A consumer that installed it for acs can drop it; nothing else changes.
 
-- **Fixed: the three pre-hook gates that had gone silent.** `/acs:merge-pr`
+- **Fixed: the three pre-hook gates that had gone silent** (MAR-586). `/acs:merge-pr`
   and `/acs:create-design` exited 0 on every profile — a merge with no PR
   reference recorded anywhere was reachable, and so was a design for a ticket
   never flagged for one. Neither skill is a step of `ship.yaml` v3, and the
