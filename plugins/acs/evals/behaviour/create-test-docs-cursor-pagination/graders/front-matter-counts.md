@@ -1,7 +1,7 @@
 ---
 type: regex
 target: { source: file, path: docs/tickets/EVAL-1/test-cases.md }
-pattern: '^---\n(?=(?:[a-z0-9_]+:[^\n]*\n)*cases:[ \t]*[1-9]\d*[ \t]*\n)(?=(?:[a-z0-9_]+:[^\n]*\n)*e2e_cases:[ \t]*\d+[ \t]*\n)'
+pattern: '^-{3}\n(?=(?:[a-z0-9_]+:[^\n]*\n)*cases:[ \t]*[1-9]\d*[ \t]*\n)(?=(?:[a-z0-9_]+:[^\n]*\n)*e2e_cases:[ \t]*\d+[ \t]*\n)'
 ---
 
 `cases` and `e2e_cases` are integers in the front matter: the

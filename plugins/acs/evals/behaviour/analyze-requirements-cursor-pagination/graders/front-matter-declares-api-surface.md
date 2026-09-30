@@ -1,7 +1,7 @@
 ---
 type: regex
 target: { source: file, path: docs/tickets/EVAL-1/analysis.md }
-pattern: '^---\n(?:[a-z_]+:[^\n]*\n)*api_surface:[ \t]*true[ \t]*\n(?:[a-z_]+:[^\n]*\n)*---'
+pattern: '^-{3}\n(?:[a-z_]+:[^\n]*\n)*api_surface:[ \t]*true[ \t]*\n(?:[a-z_]+:[^\n]*\n)*-{3}'
 ---
 
 `api_surface` is read by machines: ship.yaml's `api_surface_changed`
