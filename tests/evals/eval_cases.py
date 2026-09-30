@@ -153,6 +153,15 @@ def split_frontmatter(path):
     end = text.find("\n---\n", 4)
     if end < 0:
         raise CaseFormatError("%s: frontmatter is never closed" % path)
+    # The CLI closes the frontmatter at the first `---` it finds, not the
+    # first line that IS `---`: a pattern holding one (a markdown fence, a
+    # table rule) cuts the YAML mid-string and the case fails to load --
+    # seven behaviour graders did, in the 2026-09-29 release gate. Write the
+    # run as `-{3}` in a regex.
+    if "---" in text[4:end]:
+        raise CaseFormatError(
+            "%s: '---' inside the frontmatter -- the CLI ends the frontmatter "
+            "there; write it as -{3} in a pattern" % path)
     return parse_yaml_subset(text[4:end], path), text[end + 5:]
 
 
