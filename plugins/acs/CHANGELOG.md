@@ -1129,6 +1129,21 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Fixed
 
+- **review-code routes on "don't change anything" reviews.** The 2026-09-29
+  release gate measured review-code at 84/100, below the 9/10 floor: a
+  no-ticket branch review phrased "don't change anything" routed 0/10 and
+  "no edits, just a verdict" 4/10. A kept trace showed why. The description
+  said the skill "writes verdict.json", and the model declined to call it lest
+  that break the user's "don't change anything". The verdict is recorded in
+  acs's own state outside the working tree, and the description now says the
+  skill never edits the code it reviews. Its 10 routing cases and the 7
+  neighbours that name it then routed 170/170 at 10 runs each.
+- **Every behaviour case loads in the eval CLI.** The CLI ends a case file's
+  front matter at the first `---` it finds, even inside a quoted regex, so
+  seven behaviour graders whose patterns held a markdown fence or a table rule
+  failed to load. Their patterns now write the run as `-{3}`, and the free
+  case check refuses any `---` inside front matter.
+
 - **A refused gate stays refused, and `acs step start` holds the brakes.**
   - The PreToolUse(Skill) hook writes its gate evidence before it decides, and
     `acs step start` read the evidence of a BLOCKED call as
