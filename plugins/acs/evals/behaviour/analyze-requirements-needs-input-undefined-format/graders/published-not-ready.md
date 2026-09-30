@@ -1,7 +1,7 @@
 ---
 type: regex
 target: { source: file, path: docs/tickets/EVAL-1/analysis.md }
-pattern: '^---\n(?:[a-z_]+:[^\n]*\n)*ready_for_planning:[ \t]*false[ \t]*\n(?:[a-z_]+:[^\n]*\n)*---'
+pattern: '^-{3}\n(?:[a-z_]+:[^\n]*\n)*ready_for_planning:[ \t]*false[ \t]*\n(?:[a-z_]+:[^\n]*\n)*-{3}'
 ---
 
 A not-ready analysis is still published -- "the artifact the answers come back
