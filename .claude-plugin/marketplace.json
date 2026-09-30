@@ -1,12 +1,12 @@
 {
   "name": "gms-marketplace",
   "displayName": "GMS Marketplace",
-  "version": "0.4.9",
+  "version": "0.5.0",
   "owner": {
     "name": "Global Mind Solution"
   },
   "metadata": {
-    "description": "Global Mind Solution plugin marketplace for Claude Code. Plugins: acs (Claude Code agentic workflow \u2014 autonomous coding skills: PRD, architecture, specs, TDD, PR, merge). Plugin updates are per-plugin versioned (see each plugin's CHANGELOG.md)."
+    "description": "Global Mind Solution plugin marketplace for Claude Code. Plugins: acs (Claude Code agentic workflow — autonomous coding skills: PRD, architecture, specs, TDD, PR, merge). Plugin updates are per-plugin versioned (see each plugin's CHANGELOG.md)."
   },
   "plugins": [
     {

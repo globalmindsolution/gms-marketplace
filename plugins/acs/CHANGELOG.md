@@ -19,6 +19,8 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-30
+
 > ### ⚠️ v0.5.0 IS the implementation-pipeline redesign
 >
 > This section is APPEND-ONLY, so the entries below it are the cycle's own
@@ -253,7 +255,7 @@ JSON validated by JSON Schema, one central envelope plus a
   XSD and `validate_xml.py` gone, nothing acs runs shells out to an XML tool.
   A consumer that installed it for acs can drop it; nothing else changes.
 
-- **Fixed: the three pre-hook gates that had gone silent** (MAR-586). `/acs:merge-pr`
+- **Fixed: the three pre-hook gates that had gone silent.** `/acs:merge-pr`
   and `/acs:create-design` exited 0 on every profile — a merge with no PR
   reference recorded anywhere was reachable, and so was a design for a ticket
   never flagged for one. Neither skill is a step of `ship.yaml` v3, and the
@@ -265,6 +267,7 @@ JSON validated by JSON Schema, one central envelope plus a
   and the PR-reference lookup is re-expressed over run-keyed state — a
   completed step carrying `states.pr` on one of the ticket's runs — rather
   than the retired `flow: ticket|product` split.
+  Ticket: MAR-586.
 
   **`acs gate --skill <name>` now answers what the hook answers.** It reported
   `{"ok": true}` for an epic `pre-code.py` refuses outright, because
