@@ -16,9 +16,12 @@ name: Release
 #   3. Add a matching "## [<version>] - YYYY-MM-DD" section to
 #      plugins/acs/CHANGELOG.md (move entries out of [Unreleased]).
 #   4. Merge to main. This workflow reads the marketplace version, and if tag
-#      v<version> does not exist yet, creates an annotated tag and a GitHub
-#      release whose notes are that changelog section. If the tag exists, it
-#      skips gracefully. Consumers pin with @v<version>.
+#      v<version> does not exist yet, creates an annotated tag, and creates a
+#      GitHub release whose notes are that changelog section (capped below
+#      GitHub's 125000-character body limit, linking the full CHANGELOG). If
+#      the tag and the release both exist, it skips gracefully; a tag with no
+#      release (a previously failed publish) gets its release created.
+#      Consumers pin with @v<version>.
 
 on:
   push:
@@ -52,22 +55,32 @@ jobs:
           echo "Release version: ${VERSION}"
           echo "Release title: ${TITLE}"
 
-      - name: Check whether tag already exists
+      - name: Check whether tag and release already exist
         id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ steps.version.outputs.version }}"
           if git rev-parse -q --verify "refs/tags/${TAG}" > /dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag ${TAG} already exists — nothing to release."
+            echo "Tag ${TAG} already exists."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag ${TAG} does not exist — releasing."
+            echo "Tag ${TAG} does not exist."
+          fi
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "release_exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${TAG} already exists — nothing to publish."
+          else
+            echo "release_exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release ${TAG} does not exist — publishing."
           fi
 
       - name: Extract changelog section
-        if: steps.tag.outputs.exists == 'false'
+        if: steps.tag.outputs.release_exists == 'false'
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           python3 - <<'EOF'
           import os
@@ -91,6 +104,19 @@ jobs:
               if not re.match(r"^\[[^\]]+\]:\s*\S", line)
           ]
           notes = "\n".join(lines).strip() + "\n"
+          # GitHub rejects a release body over 125000 characters. Cut at a
+          # line boundary and point at the full section instead.
+          limit = 120000
+          if len(notes) > limit:
+              tail = (
+                  f"\n\n---\n\n_Release notes truncated: the full "
+                  f"[{version}] section is in "
+                  f"[plugins/acs/CHANGELOG.md]"
+                  f"(https://github.com/{os.environ['GITHUB_REPOSITORY']}"
+                  f"/blob/v{version}/plugins/acs/CHANGELOG.md)._\n"
+              )
+              cut = notes.rfind("\n", 0, limit - len(tail))
+              notes = notes[:cut].rstrip() + tail
           with open("release-notes.md", "w", encoding="utf-8") as fh:
               fh.write(notes)
           print(f"Release notes for v{version}:\n{notes}")
@@ -106,7 +132,7 @@ jobs:
           git push origin "${TAG}"
 
       - name: Create GitHub release
-        if: steps.tag.outputs.exists == 'false'
+        if: steps.tag.outputs.release_exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
