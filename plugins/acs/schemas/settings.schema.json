@@ -163,20 +163,6 @@
       },
       "additionalProperties": true
     },
-    "hook_gates": {
-      "description": "What acs does when it detects that the hook gates are not firing for a run. acs's enforcement is carried by the hooks bound in hooks/hooks.json to Claude Code lifecycle events; on a runtime that does not raise them nothing is gated, and `acs step start` reports that in the context document it prints. when_absent: warn (the default) prints the degraded-enforcement notice naming every enforcement not in force and lets the run continue, so an install on a hookless runtime keeps working; refuse blocks the run with exit 2 before any partition, lock, pointer or ledger write. Deliberately top-level and NOT under `enforcement`, which scopes the CI conventions checker.",
-      "type": "object",
-      "properties": {
-        "when_absent": {
-          "enum": [
-            "warn",
-            "refuse"
-          ],
-          "default": "warn"
-        }
-      },
-      "additionalProperties": true
-    },
     "models": {
       "description": "Subagent model and reasoning effort by TIER. Every subagent role runs on one tier, picked by its kind (acs_lib.skills): survey roles (surveyor, auditor) and create-impl-plan's planner on `planner`, write roles (author, implementer, scaffolder, ...) on `executor`, judge roles (reviewer, plan-reviewer, build-checker, ...) on `verifier`. Resolution per field: overrides.<skill>.<tier> -> <tier> -> inherit.",
       "type": "object",

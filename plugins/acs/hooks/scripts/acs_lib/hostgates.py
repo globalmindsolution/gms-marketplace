@@ -39,11 +39,6 @@ from datetime import datetime, timezone
 from ._common import now_iso, parse_iso, read_json, write_json
 from .repo import sessions_dir
 
-#: settings.hook_gates.when_absent. `warn` never blocks a run, and is the
-#: default everywhere: an install on a hookless runtime keeps working.
-GATE_RESPONSES = ("warn", "refuse")
-DEFAULT_GATE_RESPONSE = "warn"
-
 #: How long a hook fire's evidence answers for a run that starts after it.
 GATE_EVIDENCE_MAX_AGE_SECONDS = 15 * 60
 
@@ -56,13 +51,6 @@ HOOK_ENFORCEMENTS = (
     (("SubagentStart:^acs:", "SubagentStop:^acs:"), "phase-artifact validation"),
     (("Stop", "PreCompact", "SessionEnd"), "session bookkeeping"),
 )
-
-
-def gate_response(settings):
-    """Resolve settings.hook_gates.when_absent; anything unrecognized is warn."""
-    block = (settings or {}).get("hook_gates")
-    value = block.get("when_absent") if isinstance(block, dict) else None
-    return value if value in GATE_RESPONSES else DEFAULT_GATE_RESPONSE
 
 
 def gate_evidence_path(workspace, repo_id, ckid):
@@ -143,7 +131,6 @@ def gate_evidence(ctx, skill):
     verdict = {
         "gated": gated,
         "reason": "gate_evidence_accepted" if gated else reason,
-        "response": gate_response(ctx.get("settings")),
         # `unconfirmed`, not `not_in_force`: this run found no evidence for these
         # enforcements, which is not the same as establishing their absence.
         "unconfirmed": [] if gated else [name for _bindings, name in HOOK_ENFORCEMENTS],
@@ -190,15 +177,5 @@ def gate_notice(verdict):
         "Treat the run as ungated: a skill can start with an unmet predecessor, "
         "an executor can write outside its file map, and no phase artifact is "
         "validated.")
-    if verdict.get("response") == "refuse":
-        lines.append(
-            "settings.hook_gates.when_absent is 'refuse', so this run is blocked "
-            "on the absence of that evidence — which includes a gate that fired "
-            "and could not record it. Run acs on a host that fires the hooks, or "
-            "set the key to 'warn' to continue ungated.")
-    else:
-        lines.append(
-            "settings.hook_gates.when_absent is 'warn' (the default), so this run "
-            "continues ungated. Set the key to 'refuse' to block runs whose "
-            "gating cannot be confirmed.")
+    lines.append("This run continues ungated.")
     return "\n".join(lines)

@@ -64,10 +64,9 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     sessions_dir, ticket_dir,
     ticket_id_from_text)  # noqa: F401)  # noqa: F401
 
-from .hostgates import (DEFAULT_GATE_RESPONSE, GATE_EVIDENCE_MAX_AGE_SECONDS,
-    GATE_RESPONSES, HOOK_ENFORCEMENTS,
+from .hostgates import (GATE_EVIDENCE_MAX_AGE_SECONDS, HOOK_ENFORCEMENTS,
     accepted_gate_evidence, consume_gate_evidence,
-    gate_evidence, gate_evidence_path, gate_notice, gate_response,
+    gate_evidence, gate_evidence_path, gate_notice,
     record_gate_evidence, refuse_gate_evidence)  # noqa: F401
 
 from .planrules import (PLAN_FILE_MAP_HEADING, RETIRED_PLAN_SECTIONS,

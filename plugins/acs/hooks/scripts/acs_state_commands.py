@@ -378,22 +378,17 @@ def _run_from_invocation(ctx, step, text):
 def cmd_step_start(args):
     """step -> in_progress, after the invariants hold. Writer for the
     PreToolUse(Skill) transition."""
-    # The gate verdict FIRST, and the refusal with it. Under
-    # `hook_gates.when_absent: refuse` a run with no evidence that the gates
-    # fired is blocked BEFORE any partition, lock, pointer or ledger write, so
-    # a refused run leaves nothing to unwind and no invocation carrying a
-    # verdict nobody acted on.
+    # The gate verdict FIRST, and the refusal with it, BEFORE any partition,
+    # lock, pointer or ledger write, so a refused run leaves nothing to unwind.
+    # A run with NO evidence that the gates fired only warns (the notice is in
+    # the context document): the evidence write is fail-open, so its absence
+    # cannot tell a hookless host from a failed write.
     ctx = context_or_die("step start")
     evidence, verdict = lib.gate_evidence(ctx, args.step)
-    if verdict.get("response") == "refuse" and not verdict.get("gated"):
-        notice = lib.gate_notice(verdict)
-        if notice:
-            sys.stderr.write(notice + "\n")
-        sys.exit(2)
     if verdict.get("reason") == "gate_refused":
-        # The hook fired AND refused. Whatever `when_absent` says, that is not
-        # an absence to warn about: it is a refusal, and starting the step
-        # anyway is exactly what the refusal exists to prevent.
+        # The hook fired AND refused. That is not an absence to warn about: it
+        # is a refusal, and starting the step anyway is exactly what the
+        # refusal exists to prevent.
         sys.stderr.write(lib.gate_notice(verdict) + "\n")
         sys.exit(2)
     if getattr(args, "pr", None):
