@@ -15,10 +15,13 @@ name: Release
 #      so that ref resolves once this workflow runs.
 #   3. Add a matching "## [<version>] - YYYY-MM-DD" section to
 #      plugins/acs/CHANGELOG.md (move entries out of [Unreleased]).
-#   4. Merge to main. This workflow reads the marketplace version, and if tag
-#      v<version> does not exist yet, creates an annotated tag and a GitHub
-#      release whose notes are that changelog section. If the tag exists, it
-#      skips gracefully. Consumers pin with @v<version>.
+#   4. Merge to main. This workflow reads the marketplace version, and if the
+#      GitHub release v<version> does not exist yet, creates the annotated tag
+#      (unless it already exists) and the release, whose notes are that
+#      changelog section (cut short, with a link to the full section, past
+#      GitHub's 125,000-character body limit). If the release exists, it skips
+#      gracefully. A run that tagged but failed to publish is finished by
+#      re-running it (workflow_dispatch). Consumers pin with @v<version>.
 
 on:
   push:
@@ -52,49 +55,34 @@ jobs:
           echo "Release version: ${VERSION}"
           echo "Release title: ${TITLE}"
 
-      - name: Check whether tag already exists
+      - name: Check whether the tag and the release exist
         id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ steps.version.outputs.version }}"
           if git rev-parse -q --verify "refs/tags/${TAG}" > /dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag ${TAG} already exists — nothing to release."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag ${TAG} does not exist — releasing."
+          fi
+          # A tag without its release is a half-finished run (v0.5.0's notes
+          # were over GitHub's body limit): publish the release, keep the tag.
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "release_exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${TAG} already exists — nothing to release."
+          else
+            echo "release_exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release ${TAG} does not exist — releasing."
           fi
 
       - name: Extract changelog section
-        if: steps.tag.outputs.exists == 'false'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
+        if: steps.tag.outputs.release_exists == 'false'
         run: |
-          python3 - <<'EOF'
-          import os
-          import re
-          import sys
-
-          version = os.environ["VERSION"]
-          with open("plugins/acs/CHANGELOG.md", encoding="utf-8") as fh:
-              text = fh.read()
-          pattern = rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)"
-          match = re.search(pattern, text, re.M | re.S)
-          if not match:
-              sys.exit(
-                  f"No '## [{version}]' section found in plugins/acs/CHANGELOG.md — "
-                  "add one before releasing (semver discipline: version bump + "
-                  "changelog section ship together)."
-              )
-          # Drop Keep-a-Changelog link-reference definitions from the notes.
-          lines = [
-              line for line in match.group(1).splitlines()
-              if not re.match(r"^\[[^\]]+\]:\s*\S", line)
-          ]
-          notes = "\n".join(lines).strip() + "\n"
-          with open("release-notes.md", "w", encoding="utf-8") as fh:
-              fh.write(notes)
-          print(f"Release notes for v{version}:\n{notes}")
-          EOF
+          python3 .github/scripts/release_notes_body.py \
+            "${{ steps.version.outputs.version }}" \
+            "${{ github.server_url }}/${{ github.repository }}" \
+            release-notes.md
 
       - name: Create annotated tag
         if: steps.tag.outputs.exists == 'false'
@@ -106,11 +94,12 @@ jobs:
           git push origin "${TAG}"
 
       - name: Create GitHub release
-        if: steps.tag.outputs.exists == 'false'
+        if: steps.tag.outputs.release_exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ steps.version.outputs.version }}"
           gh release create "${TAG}" \
+            --verify-tag \
             --title "${{ steps.version.outputs.title }} ${TAG}" \
             --notes-file release-notes.md
