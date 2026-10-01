@@ -34,10 +34,15 @@ missing in `## Verdict`, and finish `interrupted` with
 
 1. Record every outgoing question as `open` (`clarify.py add` without
    `--answer`).
-2. Run Stage 3 anyway — the draft pass writes the analysis with the open
-   questions in `## Questions` — and publish it when it passed the impact
-   review: a not-ready analysis is still the artifact the answers come back
-   to, and the next run's survey starts from it.
+2. Report Stage 2 with `acs.py analysis record-clarify --blocking-open`, and
+   follow the controller through Stage 3 anyway — the draft pass writes the
+   analysis with `ready_for_planning: false` (the `draft` action carries the
+   reason as `not_ready`) and the open questions in `## Questions`, and the
+   `publish` action publishes it once it passed the impact review: a
+   not-ready analysis is still the artifact the answers come back to, and
+   the next run's survey starts from it. The loop then ends `blocked` with
+   `kind: "needs_input"` instead of `completed`; no iteration is spent on the
+   question itself.
 3. Write result.json with `"status": "interrupted"`,
    `"stop_reason": "needs_input"` and `states.ready_for_planning: false`, run
    the Finish steps, and return a `<handoff status="needs_input">` whose
@@ -46,6 +51,8 @@ missing in `## Verdict`, and finish `interrupted` with
    `in_progress`, which does not finalize) and refuses anything else.
 
 `/acs:ship` asks the user each question and re-invokes this same skill with the
-answers as context — the re-run's ledger check finds them recorded and its
-Stage 2 asks nothing already answered; a direct invocation stops with the
+answers as context — the re-run plans a fresh loop (`acs.py analysis next`
+answers `plan` once the needs_input invocation is finished), its survey
+starts from the published analysis, its ledger check finds the answers
+recorded and its Stage 2 asks nothing already answered; a direct invocation stops with the
 questions in the completion report.

@@ -13,7 +13,7 @@ component follows.
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 30 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 32 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 33 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,stacked-base,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 17 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
@@ -848,7 +848,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-32 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 32 reachable —
+33 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 33 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -862,13 +862,15 @@ has a **kind** in `acs_lib.skills.ROLE_KINDS` that the hooks act on:
 | `judge` | re-derives and judges fresh; read-only by charter | recorded, not guarded | `verifier` |
 
 `create-impl-plan`'s `planner` is a `write` role that runs on the `planner`
-tier its name promises (`acs_lib.skills.model_tier`). So `settings.models`
+tier its name promises, and `analyze-requirements`' `impact-analyst` is a
+`survey` role that runs on the `executor` tier the analyst's impact survey ran
+on before ADR-0114 split it out (`acs_lib.skills.model_tier`). So `settings.models`
 keeps its three keys, and a new role needs one line in `ROLE_KINDS` and no new
 setting.
 
 | Skill | Subagents (kind) |
 |---|---|
-| `analyze-requirements` | `analyst` (write — a `survey` pass, a `synthesis` pass after a sliced survey, then a `draft` pass after the user's answers) · `impact-reviewer` (judge) |
+| `analyze-requirements` | `analyst` (write — a `requirements` survey lane, a `synthesis` pass, then a `draft` pass after the user's answers) · `impact-analyst` (survey — one per code area, on the `executor` tier) · `impact-reviewer` (judge); the loop is run by a controller, `acs.py analysis` (ADR-0114) |
 | `create-prd`, `create-requirements` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
 | `create-architecture` | `architect` (write) · `reviewer` (judge) |
 | `create-design` | `designer` (write) · `design-reviewer` (judge) |
@@ -917,6 +919,49 @@ Conventions:
   artifacts.
 - Judges re-run the actual checks (tests, coverage, builds, doc diffs) —
   trust nothing recorded that they can cheaply re-verify.
+
+## The analyze-requirements controller (ADR-0114)
+
+`/acs:analyze-requirements` is the one skill whose loop runs on a controller
+rather than on SKILL.md prose. `acs.py analysis <verb>` (`acs_analysis_commands.py`
+over `acs_lib/analysis_loop.py` and `acs_lib/analysis_publish.py`) owns the
+loop's position in `steps/analyze-requirements/loop.json` — written only by
+the controller, validated against `schemas/analysis-loop.schema.json` on every
+write. The coordinator performs ONE action at a time and reports it:
+
+| Verb | Reads / does | Moves the loop to |
+|---|---|---|
+| `next` | read-only: prints the one action (`plan`, `survey`, `synthesize`, `clarify`, `draft`, `review`, `publish`, `completed`, `blocked`, `failed`) with every path it involves | — |
+| `plan --areas a,b` | declares the survey lanes once: the analyst's `requirements` lane + one `impact-analyst` lane per area (`repo` when none; `requirements`, `synthesis`, `survey`, `repo` are reserved → `area-<name>`) | `survey` |
+| `record-survey` | every lane's `<result>` snapshot, notes and JSON report; joins the notes into `iter-1/authoring.md` | `synthesize` (always: ≥ 2 lanes) |
+| `record-synthesis` | the synthesis snapshot and notes; re-joins with the synthesis last | `clarify` |
+| `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
+| `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 | `review` |
+| `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>` | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
+| `publish` | refuses unless the last review passed and the draft is the reviewed bytes; runs `front_matter_check` and `structure_lint` (a finding fails the iteration); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `formats.commit_message`; never pushes | (unchanged) |
+| `record-publication` | re-reads the published bytes and `git show HEAD:<path>` | `completed` |
+
+Rules the code holds, each with a transition test in
+`tests/acs/test_analysis_loop.py`:
+
+- **Derived, never asserted.** No verb takes a verdict. An iteration passes
+  iff every judge slice returned `status="completed"` with zero
+  `severity="blocking"` findings; a slice with `status="failed"` contributes a
+  `review-failed` blocking finding.
+- **Stall.** The blocking set — (dimension, file, whitespace-normalised text),
+  de-duplicated, order-insensitive — identical to the previous iteration's
+  ends the run `failed` with `stop_reason: stalled`.
+- **Cap.** 3 draft → review cycles; lanes and the synthesis do not count.
+- **Blocked spends nothing.** A missing or malformed snapshot, a snapshot whose
+  `skill`/`phase`/`iteration`/`slice`/`ticket-id` is not the dispatched one, a
+  missing artifact or an unreadable report blocks (`kind: machinery`); an
+  agent's `status="failed"` blocks (`agent_failed`); `needs_input` blocks and
+  hands back `clarify` on the same iteration. The same `record` verb clears
+  the block once the evidence is there.
+- **Restart.** A loop that ended (`completed`/`failed`) under a step
+  invocation that was itself finished (or interrupted with `needs_input`) is
+  history: the next invocation's `next` answers `plan`. A loop that ended under
+  an invocation interrupted for any other reason resumes straight to Finish.
 
 ## Workspace layout (normative example)
 

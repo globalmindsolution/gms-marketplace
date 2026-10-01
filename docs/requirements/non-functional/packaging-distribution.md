@@ -38,7 +38,7 @@ unchanged).
     (ADR-0089) and its review to `review-code`, which bundles a lens and an
     adjudicator; the three **apply-work skills** (`create-ticket`,
     `create-pr`, `merge-pr`) run inline and bundle no subagent.
-    32 agent files exist on disk and 32 are reachable (27 for the twelve
+    33 agent files exist on disk and 33 are reachable (28 for the twelve
     authoring skills + 2 for `create-docs` + 1 for `code` + 2 for
     `review-code`): every file name
     resolves to a shipped skill and a role in `acs_lib.skills.ROLE_KINDS`,

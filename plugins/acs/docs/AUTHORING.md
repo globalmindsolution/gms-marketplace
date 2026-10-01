@@ -264,6 +264,13 @@ them for ordering or safety guarantees.
   reader (gates in `acs_lib/gates.py`, downstream SKILL.mds, tests).
 - **Plan mode:** never instruct skills or agents to enter native plan mode —
   see INTERNALS.md "Why not Claude Code's native plan mode".
+- **A loop decision belongs in code, not prose (ADR-0114).** Ordering, the
+  cap, the pass rule, stall detection and publication mechanics are
+  decisions a coordinator can get wrong on any iteration. When a skill's loop
+  has them, give it a controller the way `/acs:analyze-requirements` has
+  `acs.py analysis next` / `record-*` / `publish` (INTERNALS.md "The
+  analyze-requirements controller"): SKILL.md then says what each action
+  MEANS, and every transition gets a unit test instead of a prose pin.
 - **Test the deterministic layer.** Any change to `hooks/scripts/*` needs a
   test in `tests/` (`python3 -m unittest discover -s tests`); CI also
   byte-compiles scripts and checks every SKILL.md / agent file has

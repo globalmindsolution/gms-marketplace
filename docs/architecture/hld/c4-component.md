@@ -58,7 +58,7 @@ subagents that logic needs, each named for its work (ADR 0109). Every role
 has a kind — `survey`, `write` or `judge` (`acs_lib.skills.ROLE_KINDS`) — and
 the kind picks its model tier and whether the file-map guard is armed. The
 **twelve authoring skills** and `create-docs` run a write → judge reflection
-loop over their own roles: `analyze-requirements` (analyst, impact-reviewer), `create-prd`
+loop over their own roles: `analyze-requirements` (analyst, impact-analyst, impact-reviewer), `create-prd`
 and `create-requirements` (surveyor, author, reviewer), `create-architecture`
 (architect, reviewer), `create-design` (designer, design-reviewer),
 `create-docs` (author, reviewer), `create-impl-plan` (planner,
@@ -66,7 +66,7 @@ plan-reviewer), `create-api-contract` (contract-author, contract-reviewer),
 `create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
 (test-writer, suite-runner), `docs-sync` (doc-updater, drift-reviewer),
 `create-project` (scaffolder, build-checker) and `standardize-project`
-(auditor, scaffolder, additive-checker) — **29 agents**. No skill has a plan
+(auditor, scaffolder, additive-checker) — **30 agents**. No skill has a plan
 phase before its writer (ADR 0092): a surveyor or auditor runs on iteration 1
 only and freezes its notes, and where there is none the writer surveys first
 and records `iter-<n>/authoring.md`; the judge judges the deliverable against
@@ -76,7 +76,7 @@ apply-work skills** (create-ticket, create-pr, merge-pr) run **inline**: the
 coordinator does the work directly from its `references/` and spawns no
 subagent in any lane; correctness is gated instead (create-ticket by schema +
 Step-2 confirmation; create-pr/merge-pr by `/acs:review-code`). That gives
-**32 agent files, all reachable**: every file name resolves to a shipped
+**33 agent files, all reachable**: every file name resolves to a shipped
 skill and a known role, so no agent file is orphaned. `/create-impl-plan`'s
 planner is spawned on every run: MAR-72/ADR 0074's coordinator-authored fast
 path went with the lanes (ADR 0095).

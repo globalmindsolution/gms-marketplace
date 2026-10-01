@@ -57,16 +57,17 @@ cosmetic defect — it is the wrong pipeline.
    order, no executor decomposition, no proposed patch. A criterion rewrite
    the ledger does not record as confirmed is a proposal, never presented as
    already applied to the ticket.
-7. `authoring-conformance` — the draft is what the analyst's authoring notes
-   (`steps/analyze-requirements/iter-<n>/authoring.md`) surveyed: every
+7. `authoring-conformance` — the draft is what the survey's authoring notes
+   (`steps/analyze-requirements/iter-<n>/authoring.md` — the analyst's
+   requirements lane and the impact analysts' code lanes, joined) surveyed: every
    impact-surface entry in the notes is a row of the draft's impact map (or
    its omission is recorded in the notes), the API-surface and
    design-significance verdicts agree between notes and front matter, every
    open question in the notes is a ledger entry, and every entry in the notes
    cites a file you can open and that says what the entry claims. Missing
    notes are a blocking finding on their own — a draft with no survey behind
-   it is unverifiable work. When the survey ran sliced (the notes carry
-   `<!-- slice: <area> -->` markers), the synthesis pass reconciled the
+   it is unverifiable work. The survey runs sliced (the notes carry
+   `<!-- slice: <id> -->` markers, one per lane), and the synthesis pass reconciled the
    slices before the user was asked anything: judge that the notes'
    `## Synthesis` is honest: a missing `## Synthesis` section, a
    contradiction between slices it does not record, a resolution whose cited
@@ -113,8 +114,8 @@ the dimension numbers you own (`surface`: 2, 3 · `form`: 4, 5, 6 ·
   to the re-derivation and checks its own dimensions require.
 - Write your report to
   `steps/analyze-requirements/iter-<n>/impact-reviewer-<slice>.md`, not the
-  un-sliced name — the coordinator joins the slices into
-  `iter-<n>/impact-reviewer.md` with `acs.py notes merge`, which merges by
+  un-sliced name — the controller (`acs.py analysis record-review`) joins the
+  slices into `iter-<n>/impact-reviewer.md` with the `acs.py notes merge` join, which merges by
   `## ` heading, so give each dimension its own `## <dimension>` section and
   put the findings under `## Findings`.
 - Your result carries the slice and counts only your dimensions:
@@ -167,6 +168,13 @@ actionable (file, expectation, observed behavior):
 
 - `status="completed"` means the review RAN — pass/fail is the findings count
   (empty `<findings>` = pass).
+- The pass is DERIVED from this element, not from your prose: `acs.py
+  analysis record-review` parses every `<finding>`'s `severity`, `dimension`
+  and `file` attributes and its text, counts `severity="blocking"` ones, and
+  hands them verbatim to the next draft pass. A blocking finding identical
+  (dimension, file, text) to one you returned the iteration before, with
+  nothing new, ends the run as stalled — so say precisely what is still
+  wrong.
 - `status="failed"` only when the review itself was impossible (unreadable
   inputs, draft missing) — one `<error>` per cause.
 
