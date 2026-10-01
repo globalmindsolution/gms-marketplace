@@ -645,4 +645,3 @@ def record_check_failure(loop, findings):
     entry["blocking"] = dedupe(entry["blocking"] + findings)[0]
     loop["blocked"] = None
     return _after_failed_iteration(loop, entry)
-
