@@ -1,6 +1,6 @@
 {
   "name": "gms-marketplace",
-  "version": "0.4.9",
+  "version": "0.5.0",
   "description": "Global Mind Solution plugin marketplace for Devin. Meta-plugin: installing this repo pulls in the plugins under requiredPlugins (today: acs).",
   "author": {
     "name": "Global Mind Solution"
@@ -18,7 +18,8 @@
     {
       "source": "git-subdir",
       "url": "https://github.com/globalmindsolution/gms-marketplace.git",
-      "path": "plugins/acs"
+      "path": "plugins/acs",
+      "ref": "v0.5.0"
     }
   ]
 }

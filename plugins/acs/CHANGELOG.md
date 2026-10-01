@@ -19,6 +19,8 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-30
+
 > ### ⚠️ v0.5.0 IS the implementation-pipeline redesign
 >
 > This section is APPEND-ONLY, so the entries below it are the cycle's own
@@ -265,6 +267,7 @@ JSON validated by JSON Schema, one central envelope plus a
   and the PR-reference lookup is re-expressed over run-keyed state — a
   completed step carrying `states.pr` on one of the ticket's runs — rather
   than the retired `flow: ticket|product` split.
+  Ticket: MAR-586.
 
   **`acs gate --skill <name>` now answers what the hook answers.** It reported
   `{"ok": true}` for an epic `pre-code.py` refuses outright, because
