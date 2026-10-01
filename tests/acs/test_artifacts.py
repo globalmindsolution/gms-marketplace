@@ -580,10 +580,16 @@ class TestCommitOwnership(unittest.TestCase):
         return " ".join(raw.split())
 
     def test_analyze_ticket_commits_the_whole_docs_folder(self):
+        """ADR-0114 moved the publish into `acs.py analysis publish`: the
+        controller stages and commits the docs folder (pathspec-limited), and
+        tests/acs/test_analysis_loop.py proves what the commit carries."""
         body = self.skill("analyze-requirements")
-        self.assertIn('git add "<docs_dir>"', body,
+        self.assertIn("It commits **the ticket's whole docs folder**", body,
                       "analyze-requirements's publish step must stage the ticket's docs folder")
         self.assertIn("ticket.md", body)
+        source = read_text(os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts",
+                                        "acs_lib", "analysis_publish.py"))
+        self.assertIn('_git(root, "add", "--", docs_dir)', source)
 
     def test_create_design_publishes_and_does_not_commit_on_the_default_branch(self):
         body = self.skill("create-design")

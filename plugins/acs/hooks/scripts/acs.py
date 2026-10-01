@@ -63,6 +63,10 @@ Usage:
   acs.py workflow validate [--file PATH]
   acs.py artifacts migrate [--dry-run]
   acs.py artifacts show --ticket MAR-1
+  acs.py analysis next [--run MAR-1]
+  acs.py analysis plan --areas api,web
+  acs.py analysis record-survey | record-synthesis | record-clarify | record-draft
+  acs.py analysis record-review | publish | record-publication
 """
 
 import argparse
@@ -91,6 +95,7 @@ from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_sho
     cmd_step_finish, cmd_step_show, cmd_step_start, cmd_ticket_save,
     cmd_ticket_show, cmd_tracker_sync, cmd_verdict_show,
     cmd_workflow_show, cmd_workflow_validate)
+import acs_analysis_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -372,6 +377,8 @@ def build_parser():
     amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
                           help="list the moves without making them")
     amigrate.set_defaults(func=cmd_artifacts_migrate)
+
+    acs_analysis_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

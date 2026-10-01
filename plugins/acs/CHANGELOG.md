@@ -365,6 +365,32 @@ JSON validated by JSON Schema, one central envelope plus a
 
 ### Changed
 
+- **`/acs:analyze-requirements` runs on a controller, not on prose
+  (ADR-0114).** A new `acs.py analysis` group owns the loop:
+  `next` (read-only) prints exactly one action — `plan`, `survey`,
+  `synthesize`, `clarify`, `draft`, `review`, `publish`, `completed`,
+  `blocked` or `failed` — with every path it involves, and `plan --areas`,
+  `record-survey`, `record-synthesis`, `record-clarify [--blocking-open]`,
+  `record-draft`, `record-review`, `publish` and `record-publication` move it.
+  State lives in `steps/analyze-requirements/loop.json`, written only by the
+  controller and held to the new `schemas/analysis-loop.schema.json`. Every
+  record verb reads the `<result>` snapshots and artifacts itself; none takes
+  a verdict. `record-review` derives the pass from the three judge slices'
+  `<finding>`s; a blocking set identical to the previous iteration's
+  (dimension, file, normalised text, order-insensitive) ends the run
+  `failed`/`stalled` instead of spending another draft pass; the cap stays 3.
+  A missing or malformed snapshot, a wrong `skill`/`phase`/`iteration`/`slice`,
+  a missing artifact or a `needs_input` result now **blocks** with the reason
+  and spends no iteration. `publish` refuses unless the last review passed on
+  the exact draft bytes, runs `front_matter_check` and `structure_lint`,
+  copies the draft byte-for-byte, and commits ONLY the ticket's docs folder
+  with `formats.commit_message`; it never pushes. The code-impact survey moved
+  to a new agent, `acs:analyze-requirements-impact-analyst` (a `survey` role on
+  the `executor` tier, one per declared code area); the analyst keeps a
+  `requirements` lane, the synthesis and the draft. SKILL.md now says what
+  each action means and no longer decides ordering, the pass rule or publish
+  mechanics; its description is unchanged. 33 agent files, all reachable.
+
 - **Every skill's documented modes are behaviour cases.** `evals/behaviour/`
   grew from 27 to 105 cases, 2–7 per skill. Each documented mode, branch and
   refusal now has a case: resuming after a handoff, the evidenced no-ops, the

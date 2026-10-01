@@ -48,7 +48,7 @@ Every **workflow** skill MUST:
   and records notes and questions, a `write` role that produces the
   deliverable, a `judge` role that re-derives and judges it fresh. The
   twelve **authoring skills** and `create-docs` run a write → judge Reflection cycle over
-  their own roles — `analyze-requirements` (analyst, impact-reviewer),
+  their own roles — `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
   `create-prd` and `create-requirements` (surveyor, author, reviewer),
   `create-architecture` (architect, reviewer), `create-design` (designer,
   design-reviewer), `create-docs` (author, reviewer), `create-impl-plan`
@@ -955,10 +955,13 @@ with the user, and say plainly whether it is ready to plan.
   `analysis.md`, each read when present. Pre-hook check: the ticket resolves. Brake: an **epic** is
   refused (epics are designed and fanned out, never implemented).
 - MUST run three stages, in order (2026-09-27):
-  1. **Impact — survey the codebase.** The analyst's SURVEY pass
-     (`pass` = `survey`) MUST be separate from its DRAFT pass: it derives the
-     impact map from the CODE and writes only the authoring notes
-     (`iter-1/authoring.md`), never the draft. When a published analysis
+  1. **Impact — survey the codebase.** The survey MUST be separate from the
+     DRAFT pass and runs as parallel lanes the controller names (ADR-0114):
+     the analyst's requirements lane (`pass` = `requirements`) and one
+     `acs:analyze-requirements-impact-analyst` lane per code area, which
+     derives the impact map from the CODE. Lanes write only authoring notes,
+     never the draft; the analyst's synthesis pass merges them into
+     `iter-1/authoring.md`. When a published analysis
      exists the survey MUST start from it — re-verify each impact row against
      the current code (still true / changed / gone), carry forward the
      answered `C-n` entries, and record `## Changes since the last analysis`.
@@ -1018,8 +1021,11 @@ with the user, and say plainly whether it is ready to plan.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
 - `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
   apply to this ticket; `api_surface: false` skips it.
-- Subagents: `analyze-requirements-analyst` (survey, synthesis and draft
-  passes), `analyze-requirements-impact-reviewer` (analyse → impact review — ADR-0109).
+- Subagents: `analyze-requirements-analyst` (requirements lane, synthesis and
+  draft passes), `analyze-requirements-impact-analyst` (one code-impact lane per
+  area — ADR-0114), `analyze-requirements-impact-reviewer` (analyse → impact
+  review — ADR-0109). The loop is run by `acs.py analysis next` / `record-*` /
+  `publish` (ADR-0114).
 - State file: `analyze-requirements-state.json`; states `ready_for_planning`,
   `api_surface`, `questions_open`.
 

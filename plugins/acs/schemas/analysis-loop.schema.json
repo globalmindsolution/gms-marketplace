@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/analysis-loop.schema.json",
+  "title": "acs analysis loop (runs/<run-id>/steps/analyze-requirements/loop.json)",
+  "description": "The /acs:analyze-requirements controller's state (ADR-0114). Written ONLY by acs_lib.analysis_loop / acs_lib.analysis_publish through `acs.py analysis <verb>`, and validated against this schema on every write. `phase` is the action `acs.py analysis next` hands out while `blocked` is null; `history` holds one entry per draft -> review cycle, its pass DERIVED from the judge slices' <result> snapshots.",
+  "type": "object",
+  "required": ["version", "skill", "run_id", "ticket_id", "invocation", "cap", "iteration",
+               "phase", "lanes", "blocked", "stop_reason", "failure", "history", "draft",
+               "publication", "needs_input", "events", "created_at", "updated_at"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "skill": {"const": "analyze-requirements"},
+    "run_id": {"type": "string", "minLength": 1},
+    "ticket_id": {"type": "string", "minLength": 1},
+    "invocation": {"type": "integer", "minimum": 0},
+    "cap": {"const": 3},
+    "iteration": {"type": "integer", "minimum": 1},
+    "phase": {"enum": ["survey", "synthesize", "clarify", "draft", "review", "publish",
+                       "completed", "failed"]},
+    "lanes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["lane", "phase", "slice", "area"],
+        "additionalProperties": false,
+        "properties": {
+          "lane": {"enum": ["requirements", "impact"]},
+          "phase": {"enum": ["analyst", "impact-analyst"]},
+          "slice": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]{0,39}$"},
+          "area": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "blocked": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["kind", "reason", "retry", "at"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["machinery", "needs_input", "agent_failed"]},
+            "reason": {"type": "string", "minLength": 1},
+            "retry": {"enum": ["survey", "synthesize", "clarify", "draft", "review", "publish"]},
+            "at": {"type": "string"}
+          }
+        }
+      ]
+    },
+    "stop_reason": {"enum": [null, "stalled", "cap"]},
+    "failure": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["stop_reason", "reason", "iteration"],
+          "properties": {
+            "stop_reason": {"enum": ["stalled", "cap"]},
+            "reason": {"type": "string"},
+            "iteration": {"type": "integer", "minimum": 1}
+          }
+        }
+      ]
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["iteration", "passed", "blocking", "slices"],
+        "properties": {
+          "iteration": {"type": "integer", "minimum": 1},
+          "passed": {"type": "boolean"},
+          "blocking": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["dimension", "file", "text"],
+              "properties": {
+                "slice": {"type": "string"},
+                "severity": {"type": "string"},
+                "dimension": {"type": "string"},
+                "file": {"type": "string"},
+                "text": {"type": "string"}
+              }
+            }
+          },
+          "dropped": {"type": "integer", "minimum": 0},
+          "slices": {"type": "array"},
+          "draft_sha256": {"type": ["string", "null"]},
+          "at": {"type": "string"}
+        }
+      }
+    },
+    "draft": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["iteration", "sha256"],
+          "properties": {
+            "iteration": {"type": "integer", "minimum": 1},
+            "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          }
+        }
+      ]
+    },
+    "publication": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["path", "sha256", "bytes", "committed", "commit", "at"],
+          "properties": {
+            "path": {"type": "string", "minLength": 1},
+            "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "bytes": {"type": "integer", "minimum": 0},
+            "docs_dir": {"type": ["string", "null"]},
+            "committed": {"type": "boolean"},
+            "commit": {"type": ["string", "null"]},
+            "message": {"type": ["string", "null"]},
+            "verified": {"type": "boolean"},
+            "at": {"type": "string"}
+          }
+        }
+      ]
+    },
+    "needs_input": {
+      "description": "Set by record-clarify --blocking-open: the analysis is still drafted, reviewed and published with ready_for_planning false, and `next` then answers blocked/needs_input instead of completed.",
+      "oneOf": [
+        {"type": "null"},
+        {"type": "object", "required": ["reason"], "properties": {"reason": {"type": "string"}}}
+      ]
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["at", "event"],
+        "properties": {
+          "at": {"type": "string"},
+          "event": {"type": "string"},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "created_at": {"type": "string"},
+    "updated_at": {"type": "string"}
+  }
+}
