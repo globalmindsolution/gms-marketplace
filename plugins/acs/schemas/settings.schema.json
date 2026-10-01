@@ -346,28 +346,13 @@
       "type": "object",
       "properties": {
         "checks": {
-          "description": "Which local-hook checks run (absent key = the default shown). The CI check, the ticket link, is not a toggle.",
+          "description": "Which local-hook checks run (absent key = the default shown). The CI check, the ticket link, is not a toggle. The retired pr_title, pr_description and acs_label flags and enforcement.pr_description_sections (ADR-0106) are still accepted and ignored.",
           "type": "object",
           "properties": {
             "branch_name": {
               "type": "boolean",
               "default": true,
               "description": "Check the branch name against formats.branch_name in the local pre-push hook."
-            },
-            "pr_title": {
-              "type": "boolean",
-              "default": true,
-              "description": "Retired (ADR-0106): accepted and ignored. CI checks only that the PR description names its ticket."
-            },
-            "pr_description": {
-              "type": "boolean",
-              "default": true,
-              "description": "Retired (ADR-0106): accepted and ignored. CI checks only that the PR description names its ticket."
-            },
-            "acs_label": {
-              "type": "boolean",
-              "default": true,
-              "description": "Retired (ADR-0106): accepted and ignored. CI checks only that the PR description names its ticket."
             },
             "commit_message": {
               "type": "boolean",
@@ -398,19 +383,6 @@
             "renovate/*"
           ],
           "description": "Branch-name globs (fnmatch) that skip the CI check \u2014 releases, bot PRs, etc."
-        },
-        "pr_description_sections": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "Summary",
-            "Ticket",
-            "Changes",
-            "Test plan"
-          ],
-          "description": "Retired (ADR-0106): accepted and ignored. CI no longer checks the PR description's sections; the PR template sets them."
         },
         "design_sections": {
           "type": "array",

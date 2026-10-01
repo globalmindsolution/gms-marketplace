@@ -3663,7 +3663,7 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
         self.assertEqual(
             set(schema["properties"]["enforcement"]["properties"].keys()),
             {"checks", "require_label", "exempt_label", "exempt_branches",
-             "pr_description_sections", "design_sections"})
+             "design_sections"})
 
 
 if __name__ == "__main__":
