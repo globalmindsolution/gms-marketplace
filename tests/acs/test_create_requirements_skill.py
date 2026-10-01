@@ -189,8 +189,8 @@ class Mar143CountBumpCase(unittest.TestCase):
     def test_c4_component_bumped_counts_present(self):
         body = self._c4_component()
         self.assertIn("twelve authoring skills", body)
-        self.assertIn("— **29 agents**", body)
-        self.assertIn("32 agent files, all reachable", body)
+        self.assertIn("— **30 agents**", body)
+        self.assertIn("33 agent files, all reachable", body)
         self.assertIn("create-requirements", body)
 
     def test_c4_component_stale_counts_absent(self):

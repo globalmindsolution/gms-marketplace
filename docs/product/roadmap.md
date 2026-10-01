@@ -58,8 +58,8 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics *(removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md))*, helper CLIs.
-- 30 skills + 32 agent files on disk (verified `ls plugins/acs/skills` = 30,
-  `ls plugins/acs/agents` = 32; ADR-0095 added `/acs:code`'s four delivery-path
+- 30 skills + 33 agent files on disk (verified `ls plugins/acs/skills` = 30,
+  `ls plugins/acs/agents` = 33; ADR-0095 added `/acs:code`'s four delivery-path
   legs, which own no agents of their own and spawn `code`'s implementer); the
   reflection (write → judge) protocol is active on the twelve authoring skills
   and `/acs:create-docs`, each over subagents named for its own work
@@ -668,7 +668,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 32 vs 32 reachable). **(ii) is
+  disk equals reachable-agent count (today 33 vs 33 reachable). **(ii) is
   DONE** — ADR-0092 deleted those six and made each skill declare the roles
   it owns. Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic

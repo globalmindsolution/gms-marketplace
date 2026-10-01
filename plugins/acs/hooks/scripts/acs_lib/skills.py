@@ -55,6 +55,7 @@ ROLE_KINDS = {
     # survey -- read-only on the repo, writes its notes into the workspace
     "surveyor": "survey",
     "auditor": "survey",
+    "impact-analyst": "survey",
     # write -- produces the deliverable
     "analyst": "write",
     "author": "write",
@@ -190,10 +191,15 @@ def role_kind(role):
 
 def model_tier(role):
     """The `settings.models` key a role's model and effort come from, else None.
-    By kind, with one exception: the `planner` role (create-impl-plan's) runs
-    on the `planner` tier its name promises, though it writes a draft."""
+    By kind, with two exceptions: the `planner` role (create-impl-plan's) runs
+    on the `planner` tier its name promises, though it writes a draft; and the
+    `impact-analyst` (analyze-requirements', ADR-0114) runs on the `executor`
+    tier the analyst's impact survey ran on before it was split out, though it
+    is read-only on the repo."""
     if role == "planner":
         return "planner"
+    if role == "impact-analyst":
+        return "executor"
     return KIND_MODEL_TIERS.get(role_kind(role))
 
 

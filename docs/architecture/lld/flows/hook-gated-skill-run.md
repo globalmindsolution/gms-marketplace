@@ -19,13 +19,18 @@ how the twelve authoring skills run (`create-prd`, `create-architecture`,
 `create-api-contract`, `create-test-docs`, `create-e2e-tests`), and how
 `create-docs` runs it too. Each skill spawns its own roles, named for its
 work (ADR 0109): an optional **survey** role (`create-prd-surveyor`,
-`create-requirements-surveyor`, `standardize-project-auditor`) on iteration 1
+`create-requirements-surveyor`, `standardize-project-auditor`,
+`analyze-requirements-impact-analyst`) on iteration 1
 only, which records the survey in `iter-1/authoring.md` and freezes it; a
 **write** role that authors the deliverable (and, with no survey role before
 it, surveys first); and a **judge** role that judges the deliverable against
 those notes among its other dimensions. No skill has a plan phase before its
 writer (ADR 0092), so iteration-2+ findings route straight to the write
-role's `<context>`. `/acs:create-impl-plan`'s `planner` authors `plan.md` on
+role's `<context>`. `/acs:analyze-requirements` runs the same loop on a
+controller (ADR 0114): `acs.py analysis next` hands its coordinator one action
+at a time and the `record-*` verbs derive each transition — the pass, stall
+detection, the cap of 3 and publication — from the snapshots the
+`SubagentStop` hook writes, rather than from the coordinator's reading. `/acs:create-impl-plan`'s `planner` authors `plan.md` on
 every run: the MAR-72/ADR 0074 fork on which the coordinator wrote it itself
 went with the lanes (ADR 0095). `/acs:code` runs no loop of its own: its
 legs spawn `code-implementer`s against the approved plan, and the review is

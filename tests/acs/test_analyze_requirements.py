@@ -22,8 +22,9 @@ markdown and would otherwise drift away from the deterministic layer:
     owes that judgement is evidence — load-bearing surfaces named in `## Risks`
     — not a rigor setting written ahead of it;
   * the pair's shape (analyst -> impact review, artifacts, grounding);
-  * the three stages, in order -- Impact (the analyst's survey pass, separate
-    from its draft pass, starting from the previously published analysis),
+  * the three stages, in order -- Impact (the survey lanes -- the analyst's
+    requirements lane and the impact analysts' code lanes -- separate from
+    the draft pass, starting from the previously published analysis),
     Clarify (one grouped ask, defaults asked as confirmations when the user
     is reachable, confirmed criteria written into the ticket, one follow-up
     round), Store (draft, review, publish the reusable record).
@@ -65,7 +66,7 @@ import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
 
-ROLES = ("analyst", "impact-reviewer")
+ROLES = ("analyst", "impact-analyst", "impact-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
 STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open")
@@ -468,12 +469,19 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("artifacts show --ticket <id>", self.body)
         self.assertIn("acs_lib.artifacts.artifact_path", self.body)
 
-    def test_publishing_copies_the_verified_bytes(self):
-        self.assertRegex(self.body, r"cp \"<partition>/steps/analyze-requirements/analysis.md\"")
-        self.assertRegex(self.body, r"Copy, never re-author")
+    def test_publishing_is_the_controller_s_script(self):
+        """ADR-0114 §5: no prose `cp`/`git add` -- the controller copies the
+        reviewed bytes and commits the docs folder (tests/acs/test_analysis_loop.py
+        proves the bytes, the pathspec and the absent push)."""
+        self.assertIn('acs.py" analysis publish', self.body)
+        self.assertIn('acs.py" analysis record-publication', self.body)
+        self.assertNotRegex(self.body, r"(?m)^cp ")
+        self.assertNotIn('git add "<docs_dir>"', self.body)
+        self.assertIn("It never pushes.", self.body)
 
-    def test_the_coordinator_publishes_and_the_guard_is_named(self):
-        self.assertIn("never a subagent", self.body)
+    def test_the_coordinator_never_publishes_and_the_guard_is_named(self):
+        self.assertIn("You never copy or commit the analysis yourself, and no "
+                      "subagent does", " ".join(self.body.split()))
         self.assertIn("acs_lib/filemap.py", self.body)
 
     def test_the_analyst_is_barred_from_the_published_file(self):
@@ -530,6 +538,7 @@ class TestSubagentShape(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(AGENTS, "analyze-requirements-planner.md")))
         self.assertRegex(body, r"fixed \*\*3\*\*\s+on every run")
         self.assertRegex(body, r"no path-driven verify depth")
+        self.assertRegex(body, r"the controller counts it")
         self.assertIn("never spawn subagents", body.lower())
 
     def test_the_analyst_surveys_first_and_does_not_plan_the_implementation(self):
@@ -583,16 +592,19 @@ class TestParallelism(unittest.TestCase):
         self.assertIn("**two or more disjoint top-level areas**", self.skill)
         self.assertIn("no directory belongs to two areas, so no two slices "
                       "survey the same path", self.skill)
-        self.assertIn('phase="analyst" slice="<area>"', self.skill)
+        self.assertIn('phase="impact-analyst" slice="<area>"', self.skill)
+        self.assertIn('phase="analyst" slice="requirements"', self.skill)
         self.assertIn('<constraint name="survey_area">', self.skill)
         self.assertIn("iter-1/authoring-<area>.md", self.skill)
+        self.assertIn("iter-1/impact-analyst-<area>.json", self.skill)
         self.assertIn("ONE grouped clarification-ledger ask", self.skill)
+        self.assertIn("acs.py analysis plan --areas", self.skill)
 
-    def test_survey_slices_are_joined_by_notes_merge(self):
-        self.assertIn(
-            '/hooks/scripts/acs.py" notes merge --out '
-            "<partition>/steps/analyze-requirements/iter-1/authoring.md",
-            self.skill)
+    def test_survey_lanes_are_joined_by_the_controller(self):
+        self.assertIn("`record-survey` joins every lane's notes into "
+                      "`iter-1/authoring.md`", self.skill)
+        self.assertIn("`record-synthesis` joins the synthesis last", self.skill)
+        self.assertNotIn("notes merge --out", self.skill)
 
     def test_judge_slice_table_covers_all_seven_dimensions_once(self):
         owned = []
@@ -606,26 +618,38 @@ class TestParallelism(unittest.TestCase):
         self.assertIn('<constraint name="dimensions">', self.skill)
 
     def test_judge_slices_are_joined_into_the_one_report(self):
-        self.assertIn(
-            "notes merge --out "
-            "<partition>/steps/analyze-requirements/iter-<n>/impact-reviewer.md",
-            self.skill)
-        for sid in JUDGE_SLICES:
-            self.assertIn("iter-<n>/impact-reviewer-%s.md" % sid, self.skill)
+        self.assertIn("`record-review` joins them, in the table's order, into "
+                      "`iter-<n>/impact-reviewer.md`", self.skill)
+        self.assertIn("iter-<n>/impact-reviewer-<slice>.md", self.skill)
+        from acs_lib import analysis_loop as L
+        self.assertEqual([sid for sid, _d in L.JUDGE_SLICES], list(JUDGE_SLICES))
+        for sid, dims in L.JUDGE_SLICES:
+            self.assertEqual(tuple(n for n, _name in dims), JUDGE_SLICES[sid])
+            self.assertTrue(L.review_report_path("/r", 2, sid).endswith(
+                "iter-2/impact-reviewer-%s.md" % sid))
 
     def test_sliced_pass_rule(self):
+        """The rule is stated once, and DERIVED by record-review; the
+        coordinator hands it no verdict."""
         self.assertIn("the iteration passes only if EVERY slice returned "
                       '`status="completed"` with zero blocking findings', self.skill)
         self.assertIn("never \"pass with a missing slice\"", self.skill)
-        self.assertIn("every finding of every slice, verbatim", self.skill)
+        self.assertIn("the previous iteration's blocking findings, verbatim", self.skill)
+        self.assertIn("ends the run `stalled`", self.skill)
+        self.assertIn("never conclude a pass yourself", self.skill)
 
-    def test_resume_reruns_only_missing_slices(self):
-        self.assertIn("re-run ONLY the slices whose report is missing", self.contract)
+    def test_resume_reruns_only_missing_agents(self):
+        self.assertIn("Re-run ONLY the agents whose evidence is missing", self.contract)
+        self.assertIn("is never re-run", self.contract)
 
     def test_the_agents_know_how_to_run_as_a_slice(self):
         self.assertIn("## When you are one survey slice", self.analyst)
         self.assertIn("steps/analyze-requirements/iter-1/authoring-<area>.md",
                       self.analyst)
+        self.assertIn("steps/analyze-requirements/iter-1/authoring-<area>.md",
+                      norm(agent("impact-analyst")))
+        self.assertIn('<result skill="analyze-requirements" phase="impact-analyst" slice=',
+                      norm(agent("impact-analyst")))
         self.assertIn("Do NOT write the draft.", self.analyst)
         self.assertIn('<result skill="analyze-requirements" phase="analyst" slice=',
                       self.analyst)
@@ -641,13 +665,13 @@ class TestParallelism(unittest.TestCase):
         """A join is not a synthesis: contradictions between area slices are
         resolved with evidence under `## Synthesis`, or raised as questions for
         the user -- by a dedicated synthesis pass, not by the draft pass."""
-        self.assertIn("The merge is a join, not a synthesis: this run MUST "
-                      "reconcile the slices before anything is asked.", self.skill)
-        self.assertIn('Spawn ONE synthesis analyst (`slice="synthesis"`, '
+        self.assertIn("is a join, not a synthesis: this run MUST reconcile the "
+                      "lanes before anything is asked.", self.skill)
+        self.assertIn('the ONE synthesis analyst the action names (`slice="synthesis"`, '
                       '`<constraint name="pass">synthesis</constraint>`)', self.skill)
         self.assertIn("under a `## Synthesis` section of the notes", self.skill)
         self.assertIn("never silently picks one", self.skill)
-        self.assertIn("de-duplicates the slices' `## Questions for the user` into "
+        self.assertIn("de-duplicates the lanes' `## Questions for the user` into "
                       "ONE list", self.skill)
         self.assertIn("the draft pass consumes these reconciled notes — it does "
                       "not reconcile slices itself", self.skill)
@@ -659,18 +683,13 @@ class TestParallelism(unittest.TestCase):
                       "when no source does", self.analyst)
         self.assertIn("Never write the merged `iter-1/authoring.md`", self.analyst)
 
-    def test_the_synthesis_is_joined_last_by_notes_merge(self):
-        raw = norm(read(SKILL_PATH))
-        self.assertRegex(
-            raw,
-            r'notes merge --out <partition>/steps/analyze-requirements/iter-1/'
-            r'authoring\.md (?:<partition>/steps/analyze-requirements/iter-1/'
-            r'authoring-<area-\d>\.md )+… <partition>/steps/analyze-requirements/'
-            r'iter-1/authoring-synthesis\.md')
-
-    def test_an_unsliced_survey_skips_the_synthesis_pass(self):
-        self.assertIn("A ticket inside one area runs the survey un-sliced, "
-                      "exactly as above, and skips the synthesis pass.", self.skill)
+    def test_every_survey_is_reconciled(self):
+        """ADR-0114: the requirements lane always runs beside at least one
+        impact lane, so the controller always hands out `synthesize`."""
+        self.assertIn("A ticket inside one area declares none, and gets one impact "
+                      "lane over the whole repository.", self.skill)
+        self.assertIn("every survey has at least two lanes and is always reconciled "
+                      "by a synthesis pass", self.skill)
 
     def test_the_impact_reviewer_judges_the_synthesis(self):
         self.assertIn("judge that the notes' `## Synthesis` is honest", self.reviewer)
@@ -678,12 +697,8 @@ class TestParallelism(unittest.TestCase):
                       "blocking finding", self.reviewer)
 
     def test_judge_slice_findings_are_de_duplicated(self):
-        self.assertIn("Drop a finding that cites the same location and the same "
-                      "defect as another slice's finding, keep the higher severity",
-                      self.skill)
-        self.assertIn("append a `## De-duplicated findings` section to "
-                      "`iter-<n>/impact-reviewer.md`", self.skill)
-        self.assertIn("Never drop a finding for any other reason.", self.skill)
+        self.assertIn("drops exact duplicates (same dimension, file and text) under "
+                      "a `## De-duplicated findings` section", self.skill)
 
     def test_a_single_writer_has_no_integration_pass(self):
         self.assertIn("with one writer there is no integration pass to run", self.skill)
@@ -728,7 +743,7 @@ class TestThreeStages(unittest.TestCase):
         positions = [_pos(self.raw, "\n%s\n" % heading) for heading in self.STAGES]
         self.assertEqual(positions, sorted(positions))
         # Publishing and the draft are Stage 3's; the ask is Stage 2's.
-        self.assertGreater(_pos(self.raw, "### Publish — the coordinator"),
+        self.assertGreater(_pos(self.raw, "### Phase: publish — the controller"),
                            positions[2])
         self.assertGreater(_pos(self.raw, "### Phase: analyst draft pass"),
                            positions[2])
@@ -736,48 +751,35 @@ class TestThreeStages(unittest.TestCase):
                            positions[1])
 
     def test_the_survey_pass_is_separate_from_the_draft_pass(self):
-        self.assertIn('`<constraint name="pass">survey</constraint>`', self.skill)
+        self.assertIn('`<constraint name="pass">requirements</constraint>`', self.skill)
         self.assertIn('`<constraint name="pass">draft</constraint>`', self.skill)
-        self.assertIn("The survey writes ONLY the notes and its report "
-                      "(`iter-1/analyst-survey.json`) — never the draft.", self.skill)
+        self.assertIn("No lane writes the draft.", self.skill)
         self.assertIn("The survey never writes the draft and the draft pass never "
                       "re-surveys", self.skill)
         self.assertIn("## Which pass you run", self.analyst)
-        self.assertIn("Run ONLY the pass your task names: a survey or synthesis "
-                      "pass never writes the draft; a draft pass never re-surveys.",
-                      self.analyst)
-        for row in ("| `survey` |", "| `synthesis` |", "| `draft` |"):
+        self.assertIn("Run ONLY the pass your task names: a requirements or "
+                      "synthesis pass never writes the draft; a draft pass never "
+                      "re-surveys.", self.analyst)
+        for row in ("| `requirements` |", "| `synthesis` |", "| `draft` |"):
             self.assertIn(row, agent("analyst"))
 
     def test_each_pass_has_its_own_report_and_snapshot(self):
-        """The survey and the draft both run on iteration 1 as `analyst`; with
-        the same slice they would share a SubagentStop snapshot, and the
-        draft's would overwrite the survey's. The pass table names every file,
-        and the snapshots are exactly what the hook writes."""
-        from acs_lib import lifecycle
-        rows = re.findall(
-            r"(?m)^\| (survey, un-sliced|survey, one area|synthesis|draft) \| "
-            r"([^|]+) \| `([^`]+)` \| `([^`]+)` \|$", self.raw)
-        self.assertEqual([r[0] for r in rows],
-                         ["survey, un-sliced", "survey, one area", "synthesis", "draft"])
-        reports = [r[2] for r in rows]
-        snapshots = [r[3] for r in rows]
-        self.assertEqual(len(set(reports)), 4, reports)
-        self.assertEqual(len(set(snapshots)), 4, snapshots)
-        for (_, attrs, _report, snapshot) in rows:
-            slice_match = re.search(r'slice="([^"]+)"', attrs)
-            sid = slice_match.group(1) if slice_match else None
-            if sid == "<area>":
-                sid = "api"
-                snapshot = snapshot.replace("<area>", "api")
-            expected = lifecycle.phase_artifact_path(
-                "/r", "analyze-requirements", 1, "analyst", slice_id=sid)
-            self.assertEqual(os.path.basename(expected),
-                             os.path.basename(snapshot), attrs)
-        for name in ("iter-1/analyst-survey.json", "iter-1/analyst-synthesis.json",
+        """The requirements lane, the synthesis and the draft all run on
+        iteration 1 as `analyst`; with the same slice they would share a
+        SubagentStop snapshot. The controller names every file -- through the
+        hook's own path function -- so the names cannot collide."""
+        from acs_lib import analysis_loop as L
+        snaps = {L.snapshot_path("/r", 1, "analyst", "requirements"),
+                 L.snapshot_path("/r", 1, "analyst", "synthesis"),
+                 L.snapshot_path("/r", 1, "analyst"),
+                 L.snapshot_path("/r", 1, "impact-analyst", "repo")}
+        self.assertEqual(len(snaps), 4)
+        self.assertIn("requirements", L.RESERVED_SLICES)
+        self.assertIn("synthesis", L.RESERVED_SLICES)
+        for name in ("iter-1/analyst-requirements.json", "iter-1/analyst-synthesis.json",
                      "iter-<n>/analyst.json"):
             self.assertIn(name, self.analyst)
-        self.assertIn("`survey` and `synthesis` are reserved slice ids", self.skill)
+        self.assertIn("Use the paths it prints; never derive them yourself.", self.skill)
 
     def test_the_survey_starts_from_the_published_analysis(self):
         self.assertIn("Stage 1's survey starts from it (reuse — see Stage 1)",
@@ -804,7 +806,7 @@ class TestThreeStages(unittest.TestCase):
         self.assertIn("Researchable facts are never questions", self.skill)
 
     def test_the_synthesis_runs_before_the_ask(self):
-        synthesis = _pos(self.raw, 'Spawn ONE synthesis analyst (`slice="synthesis"`')
+        synthesis = _pos(self.raw, 'the ONE synthesis analyst the action names')
         self.assertLess(synthesis, _pos(self.raw, "\n%s\n" % self.STAGES[1]))
 
     def test_every_remaining_question_goes_in_one_grouped_ask(self):
@@ -883,12 +885,14 @@ class TestThreeStages(unittest.TestCase):
         self.assertIn("the partition fallback, for the no-checkout case only",
                       self.skill)
 
-    def test_resume_knows_which_stage_it_is_in(self):
+    def test_resume_asks_the_controller_where_it_is(self):
+        """ADR-0114: the loop's position is loop.json, written from the
+        artifacts -- the resume no longer reconstructs the stage from files."""
         resume = norm(read(os.path.join(SKILL_REFERENCES, "resume.md")))
-        for question in ("**Survey report present?**", "**Answers recorded?**",
-                         "**Draft present?**"):
-            self.assertIn(question, resume)
-        self.assertIn("the first \"no\" is where you continue", resume)
+        self.assertIn('acs.py" analysis next', resume)
+        self.assertIn("You do NOT work out which stage the prior run reached", resume)
+        for action in ("`plan`", "`clarify`", "`publish`", "`completed` / `failed`"):
+            self.assertIn(action, resume)
 
 
 class TestReviewerQuestionCoverage(unittest.TestCase):
