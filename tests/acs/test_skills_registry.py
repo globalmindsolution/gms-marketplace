@@ -104,14 +104,6 @@ class AgentConventionTest(unittest.TestCase):
         for role, kind in K.ROLE_KINDS.items():
             self.assertIn(kind, K.ROLE_KIND_NAMES, role)
 
-    def test_every_role_has_a_model_tier(self):
-        for role in K.ROLE_KINDS:
-            self.assertIn(K.model_tier(role), ("planner", "executor", "verifier"), role)
-        self.assertEqual(K.model_tier("planner"), "planner")
-        self.assertEqual(K.model_tier("surveyor"), "planner")
-        self.assertEqual(K.model_tier("implementer"), "executor")
-        self.assertEqual(K.model_tier("reviewer"), "verifier")
-
     def test_hyphenated_skills_and_roles_split_right(self):
         """Neither half is positional: `code` is a prefix of `code-small`, and
         `plan-reviewer` is a role with a hyphen of its own."""

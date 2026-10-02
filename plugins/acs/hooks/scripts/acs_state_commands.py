@@ -507,6 +507,11 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
     entry = lib.step_entry(doc, step)
     subject = doc.get("subject") or {}
     ticket_id = subject.get("ticket_id")
+    # The agents this step's coordinator spawns, after the generated copies are
+    # made to match settings.models. Done once, at Start, so a settings edit
+    # takes effect on the next step with nothing to remember.
+    agents = lib.agent_sync.sync_for_step(
+        ctx["settings"], ctx.get("checkout_root") or os.getcwd(), step)
     out = {
         "ok": True,
         "run_id": doc["run_id"],
@@ -526,7 +531,8 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
         "plugin_root": ctx["plugin_root"],
         "settings": ctx["settings"],
         "settings_sources": ctx["settings_sources"],
-        "models": (ctx["settings"].get("models") or {}),
+        "agents": agents["agents"],
+        "agents_sync": {"sync": agents["sync"], "error": agents["error"]},
         "reconcile": reconcile,
         "handoff_summary": handoff_summary,
         "prior_status": prior_status,

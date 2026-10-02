@@ -7,20 +7,6 @@
       "project_number": 1
     }
   },
-  "models": {
-    "planner": {
-      "model": "claude-opus-5",
-      "effort": "high"
-    },
-    "executor": {
-      "model": "claude-opus-5",
-      "effort": "high"
-    },
-    "verifier": {
-      "model": "claude-opus-5",
-      "effort": "high"
-    }
-  },
   "enforcement": {
     "checks": {
       "commit_message": true
@@ -65,5 +51,169 @@
   "tests": {
     "setup": "sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils && python3 -m pip install --quiet \"coverage>=7.14.2\" jsonschema",
     "command": "export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage report --fail-under=$ACS_COVERAGE"
+  },
+  "models": {
+    "analyze-requirements": {
+      "analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "impact-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "impact-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "code": {
+      "implementer": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      }
+    },
+    "create-api-contract": {
+      "contract-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "contract-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-architecture": {
+      "architect": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-design": {
+      "design-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "designer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-docs": {
+      "author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-e2e-tests": {
+      "suite-runner": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "test-writer": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      }
+    },
+    "create-impl-plan": {
+      "plan-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "planner": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-prd": {
+      "author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "surveyor": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-project": {
+      "build-checker": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "scaffolder": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      }
+    },
+    "create-requirements": {
+      "author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "surveyor": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-test-docs": {
+      "test-designer": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "trace-reviewer": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      }
+    },
+    "docs-sync": {
+      "doc-updater": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "drift-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "review-code": {
+      "adjudicator": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "lens": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      }
+    },
+    "standardize-project": {
+      "additive-checker": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "auditor": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "scaffolder": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      }
+    }
   }
 }

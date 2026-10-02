@@ -222,24 +222,13 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
             schema = json.load(fh)
         self.assertNotIn("spec_template", schema["properties"]["formats"]["properties"])
         self.assertNotIn("spec_sections", schema["properties"]["enforcement"]["properties"])
-        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
-            "propertyNames"]["enum"]
-        self.assertNotIn("create-spec", overrides_enum)
+        self.assertNotIn("create-spec", json.dumps(schema["properties"]["models"]))
 
-    def test_settings_schema_overrides_enum_tracks_hooked_skills(self):
-        """The schema enum and acs_lib.HOOKED_SKILLS are two copies of one list.
-
-        The schema half is hand-maintained, so nothing but this test notices
-        when a skill is hooked (or unhooked) and only one copy is updated --
-        which is the drift MAR-516 exists to close.
-        """
+    def test_settings_schema_descriptions_do_not_reference_create_spec(self):
         schema_path = os.path.join(
             REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
-            "propertyNames"]["enum"]
-        self.assertEqual(sorted(overrides_enum), sorted(lib.HOOKED_SKILLS))
         for field in ("e2e",):
             self.assertNotIn(
                 "/create-spec", schema["properties"][field]["description"],

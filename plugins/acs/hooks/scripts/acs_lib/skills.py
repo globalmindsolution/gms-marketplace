@@ -86,8 +86,6 @@ ROLE_KINDS = {
 #: Every role acs spawns, in a stable order.
 AGENT_ROLES = tuple(sorted(ROLE_KINDS))
 
-#: kind -> the `settings.models` tier the role runs on.
-KIND_MODEL_TIERS = {"survey": "planner", "write": "executor", "judge": "verifier"}
 
 #: {leg: entry point}. A leg keeps its SKILL.md (and, for the project legs,
 #: its agents, hooks and gate) and stays Skill-invocable, but a workflow never
@@ -187,20 +185,6 @@ def skill_legs():
 def role_kind(role):
     """`survey`, `write` or `judge` for a role acs spawns, else None."""
     return ROLE_KINDS.get(role)
-
-
-def model_tier(role):
-    """The `settings.models` key a role's model and effort come from, else None.
-    By kind, with two exceptions: the `planner` role (create-impl-plan's) runs
-    on the `planner` tier its name promises, though it writes a draft; and the
-    `impact-analyst` (analyze-requirements', ADR-0114) runs on the `executor`
-    tier the analyst's impact survey ran on before it was split out, though it
-    is read-only on the repo."""
-    if role == "planner":
-        return "planner"
-    if role == "impact-analyst":
-        return "executor"
-    return KIND_MODEL_TIERS.get(role_kind(role))
 
 
 def split_agent_name(name, skills=None):

@@ -48,7 +48,7 @@ GATE_EVIDENCE_MAX_AGE_SECONDS = 15 * 60
 HOOK_ENFORCEMENTS = (
     (("PreToolUse:Skill",), "precondition gate"),
     (("PreToolUse:Write|Edit|MultiEdit|NotebookEdit",), "file-map guard"),
-    (("SubagentStart:^acs:", "SubagentStop:^acs:"), "phase-artifact validation"),
+    (("SubagentStart:^acs[:-]", "SubagentStop:^acs[:-]"), "phase-artifact validation"),
     (("Stop", "PreCompact", "SessionEnd"), "session bookkeeping"),
 )
 

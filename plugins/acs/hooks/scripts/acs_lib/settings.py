@@ -14,7 +14,8 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import GateError, HOOKED_SKILLS, TICKET_TYPES, deep_merge, read_json
+from ._common import GateError, TICKET_TYPES, deep_merge, read_json
+from .models import validate_models
 from .repo import checkout_root, default_state_root, main_repo_root
 
 
@@ -42,7 +43,6 @@ DEFAULT_SETTINGS = {
     "suites": {},
     "workflow": {"advisories": True},
     "tracker": {"provider": "local"},
-    "models": {},
     "formats": {
         "branch_name": "{type}/{ticket_id}-{slug}",
         "commit_message": "{ticket_id} {summary}",
@@ -210,98 +210,6 @@ def validate_formats(formats):
             raise GateError("formats.tickets.%s: unknown ticket type (epic|story|task)." % ttype)
         if isinstance(conf, dict) and "title" in conf:
             check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
-
-
-#: The per-role models acs recommends, and the single source of truth for that
-#: recommendation. /acs:setup no longer offers models -- it configures
-#: conventions and CI only -- so a repo that wants them pinned copies these
-#: into its `models` block by hand; a new model generation is a change here.
-#:
-#: A consumer repo's own choice never edits this constant -- what acs recommends
-#: is not what any one repo happens to run. Nothing in the runtime reads it
-#: either: the recommendation is a product fact, not an input to gate or spawn
-#: behaviour, both of which take their models from the repo's settings.
-RECOMMENDED_MODELS = {
-    "planner":  {"model": "claude-opus-5",   "effort": "high"},
-    "executor": {"model": "claude-sonnet-5", "effort": "high"},
-    "verifier": {"model": "claude-opus-5",   "effort": "high"},
-}
-
-#: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
-MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
-#: The model TIERS a model/effort pair can be configured for. Subagent roles
-#: are per skill (`create-prd-surveyor`, `code-implementer`, ...); each runs on
-#: the tier its kind picks -- acs_lib.skills.model_tier -- so a new role never
-#: needs a new settings key.
-MODEL_ROLES = ("planner", "executor", "verifier")
-
-
-def _model_override_skills():
-    """Skills that spawn reflection subagents, so a per-skill override is meaningful.
-
-    Derived from HOOKED_SKILLS rather than hand-listed: /ship spawns no
-    subagents of its own and every hooked skill can."""
-    return frozenset(HOOKED_SKILLS)
-
-
-MODEL_OVERRIDE_SKILLS = _model_override_skills()
-
-
-def validate_models(models):
-    if not isinstance(models, dict):
-        raise GateError("models must be an object.")
-
-    def check_role(path, value):
-        if isinstance(value, str):
-            if not value.strip():
-                raise GateError("models.%s must be a non-empty model string or a {model, effort} object." % path)
-            return
-        if isinstance(value, dict):
-            extra = set(value) - {"model", "effort"}
-            if extra:
-                raise GateError("models.%s: unknown key(s) %s (allowed: model, effort)." % (path, ", ".join(sorted(extra))))
-            effort = value.get("effort")
-            if effort is not None and effort not in MODEL_EFFORTS:
-                raise GateError("models.%s.effort: unknown value %r (allowed: %s)."
-                                % (path, effort, ", ".join(MODEL_EFFORTS)))
-            return
-        raise GateError("models.%s must be a model string or a {model, effort} object." % path)
-
-    for role in MODEL_ROLES:
-        if role in models:
-            check_role(role, models[role])
-    overrides = models.get("overrides", {})
-    if not isinstance(overrides, dict):
-        raise GateError("models.overrides must be an object of skill -> role -> model.")
-    for skill, roles in overrides.items():
-        if skill not in MODEL_OVERRIDE_SKILLS:
-            raise GateError("models.overrides.%s: unknown skill (allowed: %s)."
-                            % (skill, ", ".join(sorted(MODEL_OVERRIDE_SKILLS))))
-        if not isinstance(roles, dict):
-            raise GateError("models.overrides.%s must be an object of role -> model." % skill)
-        for role, value in roles.items():
-            if role not in MODEL_ROLES:
-                raise GateError("models.overrides.%s.%s: unknown role (allowed: %s)."
-                                % (skill, role, ", ".join(MODEL_ROLES)))
-            check_role("overrides.%s.%s" % (skill, role), value)
-
-
-def resolve_role_model(settings, skill, role):
-    """Per-field resolution: overrides.<skill>.<role> -> models.<role> -> inherit."""
-    models = settings.get("models", {}) or {}
-
-    def as_obj(value):
-        if isinstance(value, str):
-            return {"model": value}
-        return dict(value or {})
-
-    resolved = {}
-    for source in (models.get(role), (models.get("overrides", {}) or {}).get(skill, {}).get(role)):
-        if source:
-            for key, value in as_obj(source).items():
-                if value and value != "inherit":
-                    resolved[key] = value
-    return {"model": resolved.get("model", "inherit"), "effort": resolved.get("effort", "inherit")}
 
 
 def render_format(template, mapping):

@@ -55,7 +55,7 @@ START_CONTEXT_KEYS = {
     "ok", "step", "status", "in_workflow", "iteration", "run_id", "subject",
     "ticket_id", "ticket", "partition", "workflow", "cursor", "repo_id",
     "workspace", "checkout_id", "checkout_root", "plugin_root", "settings",
-    "settings_sources", "models", "prior_status", "reconcile", "handoff_summary",
+    "settings_sources", "agents", "agents_sync", "prior_status", "reconcile", "handoff_summary",
     "design",
 }
 

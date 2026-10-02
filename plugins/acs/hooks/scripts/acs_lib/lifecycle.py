@@ -49,6 +49,7 @@ from .tickets import load_ticket
 from .step import last_invocation, last_status, load_state
 from . import verdict
 from . import skills as skills_registry
+from .agent_sync import agent_name_parts
 
 #: Roles the lifecycle hooks do not track. /acs:review-code's lenses and
 #: adjudicators fan out in parallel, one per lens and one per finding, and the
@@ -98,17 +99,16 @@ _MESSAGE_RE = re.compile(r"<(result|handoff)\b(?:[^>]*/>|.*?</\1>)", re.DOTALL)
 
 
 def parse_agent_type(agent_type):
-    """('code', 'implementer') from 'acs:code-implementer'; (None, None) for
-    anything the lifecycle hooks do not track.
+    """('code', 'implementer') from 'acs:code-implementer' or its generated
+    copy 'acs-code-implementer'; (None, None) for anything the lifecycle hooks
+    do not track.
 
     Not a positional split: skill names AND role names contain hyphens
     (`create-impl-plan-plan-reviewer`), so the skill is the longest shipped
     skill name the agent name starts with and the rest must be a role acs
     spawns (acs_lib.skills.split_agent_name).
     """
-    if not isinstance(agent_type, str) or not agent_type.startswith("acs:"):
-        return None, None
-    skill, role = skills_registry.split_agent_name(agent_type[len("acs:"):])
+    skill, role = agent_name_parts(agent_type)
     if not skill or skill not in HOOKED_SKILLS or role in UNTRACKED_ROLES:
         return None, None
     return skill, role

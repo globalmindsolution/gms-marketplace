@@ -601,13 +601,3 @@ class TestLibraryUnits(unittest.TestCase):
     def test_save_loop_refuses_an_invalid_document(self):
         with self.assertRaises(lib.GateError):
             L.save_loop("/nonexistent", {"phase": "nope"})
-
-    def test_role_registered_on_the_executor_tier(self):
-        self.assertEqual(lib.ROLE_KINDS["impact-analyst"], "survey")
-        self.assertEqual(lib.model_tier("impact-analyst"), "executor")
-        self.assertEqual(lib.split_agent_name("analyze-requirements-impact-analyst"),
-                         ("analyze-requirements", "impact-analyst"))
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -114,12 +114,6 @@ class AuditScaffoldCheckLoopTest(unittest.TestCase):
         self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
         self.assertRegex(norm(read(AUDITOR)), r"(?i)Read-only on the repo: never create, edit, rename, move, or delete a repo file")
 
-    def test_each_role_runs_on_its_kind_s_model_tier(self):
-        self.assertEqual(acs_lib.model_tier("auditor"), "planner")
-        self.assertEqual(acs_lib.model_tier("scaffolder"), "executor")
-        self.assertEqual(acs_lib.model_tier("additive-checker"), "verifier")
-        self.assertRegex(self.norm, r"(?i)`planner` for the auditor, `executor` for the scaffolder, `verifier` for the additive-checker")
-
     def test_findings_feed_the_scaffolder_context_with_no_plan_phase_in_between(self):
         no_plan_re = re.compile(r"(?i)(no|never|without)\W{0,20}plan(ner| phase)")
         for m in re.finditer(r"(?i)findings", self.norm):
