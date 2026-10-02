@@ -97,9 +97,10 @@ class DocUpdaterDriftReviewerLoopTest(unittest.TestCase):
         self.assertIn('<result skill="docs-sync" phase="doc-updater"', read(DOC_UPDATER))
         self.assertIn('<result skill="docs-sync" phase="drift-reviewer"', read(DRIFT_REVIEWER))
 
-    def test_each_role_names_its_model_tier(self):
-        self.assertIn("`context.models.executor.model` / `.effort` for the doc-updater", self.norm)
-        self.assertIn("`context.models.verifier.model` / `.effort` for the drift-reviewer", self.norm)
+    def test_each_role_is_spawned_under_its_configured_agent_name(self):
+        self.assertIn("`context.agents.<role>`", self.norm)
+        self.assertIn("generated `acs-docs-sync-<role>` copy", self.norm)
+        self.assertNotIn("context.models", self.norm)
 
     def test_the_doc_updater_writes_authoring_notes_and_the_drift_reviewer_reads_them(self):
         self.assertIn("iter-<n>/authoring.md", self.body)

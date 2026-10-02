@@ -109,7 +109,7 @@ them to any subagent, on any delivery path or iteration. Open
 and follow it alongside these steps: it carries the ordering and safety rules
 that bind them (what may be mutated, no force-push, no fabricated body
 content), how each outcome ends the run, and the publish report's shape. There
-is no `<task>`/`<result>` exchange and no model tier to apply.
+is no `<task>`/`<result>` exchange and no subagent model to configure.
 
 1. **Branch, base, and the stacked-base pre-flight.** Verify the ticket branch
    from `steps/code/state.json` `states.branch` exists locally

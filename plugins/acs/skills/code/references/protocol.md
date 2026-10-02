@@ -59,8 +59,8 @@ Parse the printed context JSON. Fields you will use:
 - `settings` — you need `formats.branch_name`, `formats.commit_message`, and
   `e2e` when set. The repo's standards set and `test_coverage_percent` are
   the **reviewer's** inputs, not yours.
-- `models` — per-tier `{model, effort}`; the implementer runs on the
-  `executor` tier.
+- `agents` — the agent name to spawn per role; the implementer's model and
+  effort come from `settings.models.code.implementer` (inheriting when unset).
 - `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 ---
@@ -76,10 +76,12 @@ implementer follows.
 
 Spawn subagents with the Agent tool: `acs:code-implementer` (fall back to the
 un-namespaced `code-implementer` only if the runtime rejects the namespaced
-one). The implementer is a `write`-kind role and runs on the `executor` model
-tier: apply `context.models.executor.model` / `.effort` at spawn when not
-`"inherit"`; if the runtime rejects the model or effort, FAIL the run with
-that exact error — no silent fallback.
+one). The implementer is a `write`-kind role. Spawn it under the name in
+`context.agents.implementer` — the plugin's `acs:code-implementer`, or the
+generated `acs-code-implementer` copy `acs step start` wrote where
+`settings.models` sets a model or effort for it. Model and effort travel with
+that agent, so pass none of your own. If the runtime rejects the agent, FAIL the
+run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the implementer's result is your

@@ -9,10 +9,8 @@ You are the coordinator of /acs:create-e2e-tests. Your job: turn the e2e-typed
 rows of ONE ticket's `test-cases.md` into real end-to-end suites — written in
 this repo's e2e harness, under this repo's e2e location, named after the ticket,
 and committed on the ticket branch. You orchestrate two subagents over XML —
-the **test-writer** (`acs:create-e2e-tests-test-writer`, a `write` role on the
-`executor` model tier) decides and writes the suites, and the **suite-runner**
-(`acs:create-e2e-tests-suite-runner`, a `judge` role on the `verifier` model
-tier) judges them fresh and RUNS them once. Test-writer → suite-runner, no
+the **test-writer** (`acs:create-e2e-tests-test-writer`, a `write` role) decides and writes the suites, and the **suite-runner**
+(`acs:create-e2e-tests-suite-runner`, a `judge` role) judges them fresh and RUNS them once. Test-writer → suite-runner, no
 planner (ADR-0092): the suite layout is decided in the test-writer's own
 authoring notes, never in a separate plan. You never write the suite code
 yourself.
@@ -106,8 +104,9 @@ Parse the printed context JSON. Fields you will use:
   optional `setup`/`teardown`; `settings.e2e` is normalized into it at load
   time, so read `suites["e2e"]` and never the raw alias),
   `formats.branch_name`, `formats.commit_message`.
-- `models` — per-tier `{model, effort}`: the test-writer runs on the
-  `executor` tier, the suite-runner on the `verifier` tier.
+- `agents` — the agent name to spawn per role; the test-writer's and the
+  suite-runner's model and effort come from
+  `settings.models.create-e2e-tests.<role>` (inheriting when unset).
 - `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -311,10 +310,12 @@ Messaging rules (`the SubagentStop hook's message check`):
   "acs:create-e2e-tests-test-writer"` and `subagent_type:
   "acs:create-e2e-tests-suite-runner"` — fall back to the un-namespaced name
   (`create-e2e-tests-test-writer`, `create-e2e-tests-suite-runner`) only if the
-  runtime rejects the namespaced one. Apply `context.models.<tier>.model` /
-  `.effort` at spawn when not `"inherit"` — tier `executor` for the
-  test-writer, `verifier` for the suite-runner; if the runtime rejects the
-  model or effort, FAIL the run with that exact error — no silent fallback.
+  runtime rejects the namespaced one. Spawn each role under the name in
+  `context.agents.<role>` — the plugin's `acs:create-e2e-tests-<role>`, or the
+  generated `acs-create-e2e-tests-<role>` copy `acs step start` wrote where
+  `settings.models` sets a model or effort for it. Model and effort travel with
+  that agent, so pass none of your own. If the runtime rejects the agent, FAIL
+  the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your

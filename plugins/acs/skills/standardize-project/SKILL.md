@@ -238,23 +238,23 @@ through this same one array, never a second output channel.
 
 Three subagents, each doing one thing, at most 3 iterations:
 
-- **auditor** — `acs:standardize-project-auditor`, a `survey` role on the `planner`
-  model tier, read-only on the repo. Runs on **iteration 1 only**, before anything is
+- **auditor** — `acs:standardize-project-auditor`, a `survey` role,
+  read-only on the repo. Runs on **iteration 1 only**, before anything is
   scaffolded: it AUDITS the repo (read-only) and writes the run's authoring notes —
   the gap list, the frozen Additive-surface allowlist, the `recommended_follow_ups`
   candidates — plus its report. It runs as three audit-category slices in parallel,
   each writing `iter-1/authoring-<slice>.md` and `iter-1/auditor-<slice>.json`, joined
   into `iter-1/authoring.md` (Parallelism below); an un-sliced auditor writes
   `iter-1/auditor.json`.
-- **scaffolder** — `acs:standardize-project-scaffolder`, a `write` role on the
-  `executor` model tier. Additively scaffolds exactly the allowlisted gaps from the
+- **scaffolder** — `acs:standardize-project-scaffolder`, a `write` role.
+  Additively scaffolds exactly the allowlisted gaps from the
   frozen notes, one scaffolder per allowlist slice in parallel from iteration 1, then
   one integration scaffolder that reconciles the seams and the audit slices; on
   iterations 2-3 it remediates the additive-checker's findings from the same notes.
   Report: `iter-<n>/scaffolder-<slice>.json` (`iter-<n>/scaffolder.json` un-sliced;
   the integration pass's `iter-<n>/scaffolder-integration.json`).
-- **additive-checker** — `acs:standardize-project-additive-checker`, a `judge` role on
-  the `verifier` model tier, read-only on the repo. Re-runs the additive-only check and
+- **additive-checker** — `acs:standardize-project-additive-checker`, a `judge` role,
+  read-only on the repo. Re-runs the additive-only check and
   its other dimensions fresh, EVERY iteration, as two dimension slices in parallel.
   Report: `iter-<n>/additive-checker-<slice>.md`, joined into
   `iter-<n>/additive-checker.md`.
@@ -265,10 +265,12 @@ into the next scaffolder `<task>` `<context>` and the scaffolder authors the
 remediation; the audit is never re-run and the notes are never re-authored. Spawn
 subagents via the Agent tool with `subagent_type` `acs:standardize-project-auditor` /
 `acs:standardize-project-scaffolder` / `acs:standardize-project-additive-checker`
-(fall back to the un-namespaced name if the runtime rejects the namespaced one). Apply
-`context.models.<tier>.model`/`.effort` at spawn when not `"inherit"` — `planner` for
-the auditor, `executor` for the scaffolder, `verifier` for the additive-checker; fail
-the run (no silent fallback) if the runtime rejects the model/effort. Communicate in
+(fall back to the un-namespaced name if the runtime rejects the namespaced one). Spawn
+each role under the name in `context.agents.<role>` — the plugin's
+`acs:standardize-project-<role>`, or the generated `acs-standardize-project-<role>`
+copy `acs step start` wrote where `settings.models` sets a model or effort for it.
+Model and effort travel with that agent, so pass none of your own. If the runtime
+rejects the agent, FAIL the run with that exact error — no silent fallback. Communicate in
 XML per message — every `<task>` and `<result>` carries `phase=` = the role, and a
 sliced instance's also `slice="<id>"` (an un-sliced one omits it) — re-request
 an invalid message once, then fail with the validation error recorded in `errors`.

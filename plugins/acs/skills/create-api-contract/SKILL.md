@@ -95,8 +95,9 @@ Parse the printed context JSON. Fields you will use:
   and read it for the interface decisions it already settled. Call it
   `<design_doc>`.
 - `settings` — you need `formats.branch_name`, `formats.commit_message`.
-- `models` — per-tier `{model, effort}`: the contract-author runs on the
-  `executor` tier, the contract-reviewer on the `verifier` tier.
+- `agents` — the agent name to spawn per role; the contract-author's and the
+  contract-reviewer's model and effort come from
+  `settings.models.create-api-contract.<role>` (inheriting when unset).
 - `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
@@ -278,10 +279,12 @@ Messaging rules (`the SubagentStop hook's message check`):
   `"acs:create-api-contract-contract-reviewer"` — fall back to the
   un-namespaced name (`create-api-contract-contract-author`,
   `create-api-contract-contract-reviewer`) only if the runtime rejects the
-  namespaced one. Apply `context.models.<tier>.model` / `.effort` at spawn when
-  not `"inherit"` — tier `executor` for the contract-author, `verifier` for the
-  contract-reviewer; if the runtime rejects the model or effort, FAIL the run
-  with that exact error — no silent fallback.
+  namespaced one. Spawn each role under the name in
+  `context.agents.<role>` — the plugin's `acs:create-api-contract-<role>`, or the
+  generated `acs-create-api-contract-<role>` copy `acs step start` wrote where
+  `settings.models` sets a model or effort for it. Model and effort travel with
+  that agent, so pass none of your own. If the runtime rejects the agent, FAIL
+  the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your

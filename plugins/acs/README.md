@@ -341,7 +341,7 @@ over the built-in defaults. The most-used keys:
 | `ticket_prefix` | `"ACS"` | Ticket id prefix (`ACS` → `ACS-123`); optional — set your own by hand (`SHOP` → `SHOP-123`) |
 | `test_coverage_percent` | `90` | `/acs:code` TDD coverage target (hard fail if missed) |
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
-| `models` | inherit | Model + reasoning effort by tier (`planner` / `executor` / `verifier`, per-skill overrides). Each subagent runs on the tier its kind picks: survey roles and `create-impl-plan`'s planner on `planner`, write roles on `executor`, judge roles on `verifier` |
+| `models` | inherit | Model + reasoning effort per subagent, `models.<skill>.<role> = {model, effort}` (a model alias or id, an effort `low`…`max`, or `inherit`). Written in full by `acs.py settings scaffold --write`; `acs step start` turns each entry that sets a value into a `.claude/agents/acs-<skill>-<role>.md` copy and spawns that. An absent skill, role or field inherits the parent session |
 | `tracker` | `{ "provider": "local" }` | Ticket backend: `local`, `github` (Projects v2), or `jira` |
 | `formats` | built-ins | Branch/commit/PR/ticket formats (`branch_name` must embed `{ticket_id}`) |
 

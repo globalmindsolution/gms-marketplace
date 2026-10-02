@@ -861,11 +861,9 @@ has a **kind** in `acs_lib.skills.ROLE_KINDS` that the hooks act on:
 | `write` | produces the deliverable — the repo, or the workspace draft | the file-map guard applies while it runs | `executor` |
 | `judge` | re-derives and judges fresh; read-only by charter | recorded, not guarded | `verifier` |
 
-`create-impl-plan`'s `planner` is a `write` role that runs on the `planner`
-tier its name promises, and `analyze-requirements`' `impact-analyst` is a
-`survey` role that runs on the `executor` tier the analyst's impact survey ran
-on before ADR-0114 split it out (`acs_lib.skills.model_tier`). So `settings.models`
-keeps its three keys, and a new role needs one line in `ROLE_KINDS` and no new
+A role's kind does not pick its model: `settings.models.<skill>.<role>` does
+(ADR-0115). A new role needs one line in `ROLE_KINDS`, one in the scaffold table
+(`acs_lib.models`), and no new
 setting.
 
 | Skill | Subagents (kind) |
@@ -899,12 +897,13 @@ Conventions:
   for `/acs:<skill>`, ending "Spawned by the /acs:<skill> coordinator with a
   JSON task; not for direct invocation."). Survey and judge roles carry
   `tools: Read, Glob, Grep, Bash, Write`; write roles carry
-  `disallowedTools: Agent, Skill`. No `model:` key — the *actual*
-  model/effort comes from `settings.json` (`models.<tier>`,
-  `models.overrides.<skill>.<tier>`), resolved by `acs step start` into
-  `context.models` and applied by the coordinator at spawn time for the
-  role's tier. An unknown model id or unsupported effort fails at spawn —
-  surface the error, never silently fall back.
+  `disallowedTools: Agent, Skill`. No `model:` or `effort:` key — the
+  *actual* model/effort comes from `settings.json` `models.<skill>.<role>`
+  (inheriting where unset). `acs step start` writes
+  `.claude/agents/acs-<skill>-<role>.md`, a copy of the agent carrying that
+  `model:`/`effort:`, for every entry that sets one, and reports the name to
+  spawn per role in `context.agents`. An unknown model id or unsupported effort
+  fails at spawn — surface the error, never silently fall back.
 - Spawn with `subagent_type: "acs:<skill>-<role>"`; the task and the result
   carry `phase="<role>"`.
 - Survey and judge roles are read-only with ONE exception: each writes its

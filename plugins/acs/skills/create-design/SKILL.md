@@ -39,8 +39,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-de
   directory — all state lives here), `ticket` (full ticket doc: type, description,
   acceptance criteria, parent, children), `ticket_id`, `settings` (notably
   `formats` and `enforcement.design_sections`),
-  `models` (resolved model+effort per tier: the designer runs on `executor`,
-  the design reviewer on `verifier`), `reconcile`,
+  `agents` (the agent name to spawn per role; each role's model and effort come
+  from `settings.models.create-design.<role>`, inheriting when unset), `reconcile`,
   `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
   (consumer repo root).
 - Locate the repo documents this skill reads, once, the way any session finds
@@ -156,10 +156,10 @@ alone — subagents never spawn subagents; every fan-out below is yours.
 `/acs:create-design` has no path-driven review-depth selection: the cap is
 a fixed 3 on every run.
 
-| Role | Kind | Agent | Model tier |
+| Role | Kind | Agent | Spawn as |
 |------|------|-------|------------|
-| designer | write | `acs:create-design-designer` | `context.models.executor` |
-| design-reviewer | judge | `acs:create-design-design-reviewer` | `context.models.verifier` |
+| designer | write | `acs:create-design-designer` | `context.agents.designer` |
+| design-reviewer | judge | `acs:create-design-design-reviewer` | `context.agents.design-reviewer` |
 
 For every phase:
 
@@ -191,11 +191,12 @@ For every phase:
 3. Spawn the subagent with the Agent tool, `subagent_type` as below (fall back to
    the un-namespaced name only if the runtime rejects the namespaced one). The
    `phase=` of every task and result is the role (`designer`,
-   `design-reviewer`). Apply the role's tier — `context.models.executor.model`
-   / `.effort` for the designer, `context.models.verifier.model` / `.effort`
-   for the design reviewer — at spawn when not `"inherit"`; if the runtime
-   rejects the model or effort, FAIL the run with that exact error — no
-   silent fallback.
+   `design-reviewer`). Spawn each role under the name in `context.agents.<role>`
+   — the plugin's `acs:create-design-<role>`, or the generated
+   `acs-create-design-<role>` copy `acs step start` wrote where
+   `settings.models` sets a model or effort for it. Model and effort travel
+   with that agent, so pass none of your own. If the runtime rejects the
+   agent, FAIL the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your

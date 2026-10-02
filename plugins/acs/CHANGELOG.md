@@ -19,6 +19,22 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+### Changed
+
+- **Models are set per skill and role** (ADR-0115): `settings.models.<skill>.<role>`
+  is `{model, effort}`, both optional, scaffolded in full by
+  `acs.py settings scaffold --write` and inheriting where absent. `acs step start`
+  writes `.claude/agents/acs-<skill>-<role>.md` copies for the entries that set a
+  value and reports the names to spawn in `context.agents`; the SubagentStart and
+  SubagentStop hooks now match `^acs[:-]`. Replaces the `planner` / `executor` /
+  `verifier` tiers, `models.overrides` and `context.models` (**breaking**: an old
+  `models` block is rejected; run the scaffold).
+- **`hook_gates` is removed.** A run with no evidence that the gates fired always
+  warns; a gate that fired and refused still stops the step.
+- The retired `enforcement.checks.pr_title`, `pr_description`, `acs_label` and
+  `enforcement.pr_description_sections` are no longer declared in the schema
+  (they are still accepted and ignored).
+
 ## [0.5.0] - 2026-09-30
 
 > ### ⚠️ v0.5.0 IS the implementation-pipeline redesign

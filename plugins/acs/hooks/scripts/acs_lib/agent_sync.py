@@ -195,3 +195,23 @@ def sync_for_step(settings, project_root, step, plugin_root=None):
     except OSError as exc:
         return {"agents": spawn_names({}, skill, plugin_root), "sync": None,
                 "error": "agent sync failed (%s); spawning the plugin's agents, which inherit" % exc}
+
+
+def with_spawn_names(obj, settings, plugin_root=None):
+    """`obj` with every `agent` field naming a plugin agent (`acs:<skill>-<role>`)
+    rewritten to the name to spawn. For a controller that prints the agent per
+    action (analysis_loop) instead of leaving the coordinator to look it up."""
+    if isinstance(obj, list):
+        return [with_spawn_names(item, settings, plugin_root) for item in obj]
+    if not isinstance(obj, dict):
+        return obj
+    out = {}
+    for key, value in obj.items():
+        if key == "agent" and isinstance(value, str) and value.startswith(PLUGIN_PREFIX):
+            skill, role = split_agent_name(value[len(PLUGIN_PREFIX):])
+            if skill:
+                value = spawn_names(settings, skill, plugin_root).get(role, value)
+        else:
+            value = with_spawn_names(value, settings, plugin_root)
+        out[key] = value
+    return out

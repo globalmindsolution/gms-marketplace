@@ -61,7 +61,7 @@ only after the check has reported a conclusion at least once (avoids the
 exact `gh api … /protection` command **once** and continues — never
 hard-fails `/acs:setup` (the report-once safeguard). No new settings key is
 introduced by any of this.
-| `models` | object | inherit | No | Which Claude model **and reasoning effort** each subagent role runs on: `models.executor`, `models.verifier` (a `models.planner` entry is still accepted but inert — no skill spawns a planner since ADR 0092), with per-skill overrides under `models.overrides.<skill>`. Each role accepts a model string or a `{ "model", "effort" }` object. See [Subagent models](#subagent-models). |
+| `models` | object | inherit | No | Which Claude model **and reasoning effort** each subagent runs on: `models.<skill>.<role>`, an object with optional `model` (an alias, a full model id or `inherit`) and `effort` (`low`, `medium`, `high`, `xhigh`, `max` or `inherit`). The skills and roles are the agents the plugin ships; `acs.py settings scaffold --write` adds every entry a file lacks. See [Subagent models](#subagent-models). |
 | `tracker` | object | `{ "provider": "local" }` | No | Ticket tracking backend. `provider` is `local` (default), `github` (GitHub Projects), or `jira` (Jira board). Tickets are always stored **local-first** in the workspace; when `github`/`jira` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the official CLIs: `gh` (GitHub) and `acli` (Jira). Provider-specific sub-keys live under `tracker.github` / `tracker.jira`. |
 | `formats` | object | built-in defaults | No | Formats for generated artifacts. Short fields are inline template strings with placeholders such as `{ticket_id}`, `{title}`, `{type}`, `{summary}`: `formats.branch_name` (MUST embed `{ticket_id}`), `formats.commit_message`, `formats.pr_title`, and per-ticket-type titles under `formats.tickets.<type>` (`epic`, `story`, `task`). **Descriptions** (PR description, ticket descriptions) use **pre-defined templates** shipped with the plugin, referenced by name; users can select another template or point to a custom template file. |
 | `evals` | object | unset | No | **Read by nothing.** Accepted by the schema and ignored: its only reader was the behavioural-eval harness's forge tier, retired when the eval suite moved to `claude plugin eval` case files. It never affected the hook layer, so it changes no acs runtime behavior. Kept in the schema so a consumer's existing settings stay valid; removing it is a schema change for its own release. `evals.forge_repo` named the forge-tier target repo (`owner/name`) and MUST NOT be a production repo. |
@@ -181,15 +181,19 @@ configured under `models`:
   of what the chosen model supports. Any other value is a settings error, not
   a late spawn-time failure.
 - Resolution is **per field** — `model` and `effort` resolve independently:
-  `models.overrides.<skill>.<role>` → `models.<role>` → **inherit** (the
-  model/effort of the session/parent context). So a per-skill override can
-  raise just the effort without changing the model.
+  `models.<skill>.<role>` → **inherit** (the model/effort of the
+  session/parent context). So an entry can raise just the effort without
+  changing the model.
 - Model values are Claude model aliases or full model ids, passed through to
   the subagent spawn. The literal `"inherit"` (or omitting a key) uses the
   parent's value.
-- `models.overrides.<skill>` accepts only a skill that spawns reflection
-  subagents — the hooked skills. An unknown skill name (`ship`, say, which
-  spawns none of its own) is a settings error.
+- `models.<skill>` accepts only a skill that ships subagents, and
+  `models.<skill>.<role>` only a role it ships. An unknown skill or role (`ship`,
+  say, which spawns none of its own) is a settings error that lists the valid ones.
+- Effort has no per-call form, so an entry that sets a value is applied through a
+  generated agent, `.claude/agents/acs-<skill>-<role>.md`, that `acs step start`
+  keeps in step with the settings and the coordinator spawns by the name in
+  `context.agents` (ADR 0115).
 - Model choice is team-shareable (committed `settings.json`) and can be
   overridden per scope like any other key. acs records no token usage, so its
   effect on spend is read where Claude Code reports it

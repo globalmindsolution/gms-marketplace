@@ -665,7 +665,16 @@ class HooksJsonTest(unittest.TestCase):
         output as an acs phase artifact."""
         for event in ("SubagentStart", "SubagentStop"):
             with self.subTest(event=event):
-                self.assertEqual(self.doc["hooks"][event][0]["matcher"], "^acs:")
+                matcher = self.doc["hooks"][event][0]["matcher"]
+                self.assertEqual(matcher, "^acs[:-]")
+                import re
+                # The plugin's own agents and their generated copies
+                # (.claude/agents/acs-<skill>-<role>.md), nothing else.
+                for hit in ("acs:code-implementer", "acs-code-implementer"):
+                    self.assertTrue(re.search(matcher, hit), hit)
+                for miss in ("Explore", "Plan", "general-purpose", "other:code-implementer",
+                             "my-acs-code-implementer", "acsx"):
+                    self.assertFalse(re.search(matcher, miss), miss)
 
     def test_stop_and_precompact_take_no_matcher(self):
         for event in ("Stop", "PreCompact"):

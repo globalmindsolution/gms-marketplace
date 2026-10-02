@@ -144,20 +144,20 @@ iterations 2-3 the reviewer's findings go verbatim into the next author
 never runs again; its notes are the fixed baseline every later iteration is
 judged against.
 
-| Role | Kind | Agent | Model tier |
+| Role | Kind | Agent | Spawn as |
 |------|------|-------|------------|
-| surveyor | survey | `acs:create-requirements-surveyor` | `context.models.planner` |
-| author | write | `acs:create-requirements-author` | `context.models.executor` |
-| reviewer | judge | `acs:create-requirements-reviewer` | `context.models.verifier` |
+| surveyor | survey | `acs:create-requirements-surveyor` | `context.agents.surveyor` |
+| author | write | `acs:create-requirements-author` | `context.agents.author` |
+| reviewer | judge | `acs:create-requirements-reviewer` | `context.agents.reviewer` |
 
 Spawn subagents with the Agent tool: `subagent_type`
 `acs:create-requirements-surveyor` / `acs:create-requirements-author` /
 `acs:create-requirements-reviewer` (fall back to the un-namespaced name if the runtime
-rejects the namespaced one). Apply the role's tier — `context.models.planner.model`
-/ `.effort` for the surveyor, `context.models.executor.*` for the author,
-`context.models.verifier.*` for the reviewer — at spawn when not `"inherit"`; if
-the runtime rejects the model/effort, FAIL the run with that error — no silent
-fallback.
+rejects the namespaced one). Spawn each role under the name in `context.agents.<role>` — the plugin's
+`acs:create-requirements-<role>`, or the generated `acs-create-requirements-<role>`
+copy `acs step start` wrote where `settings.models` sets a model or effort for it.
+Model and effort travel with that agent, so pass none of your own. If the runtime
+rejects the agent, FAIL the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your

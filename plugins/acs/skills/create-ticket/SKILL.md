@@ -152,7 +152,7 @@ the user confirmed: for them, open
 `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/materialize.md` and
 follow it yourself, in its order — it carries every command, the ordering and
 safety rules, the per-ticket failure classification, and the per-iteration
-report. There is no `<task>`/`<result>` exchange and no model tier to apply:
+report. There is no `<task>`/`<result>` exchange and no subagent model to configure:
 your own session does the work.
 
 Persist the materialize report to

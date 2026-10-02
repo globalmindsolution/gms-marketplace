@@ -5,8 +5,8 @@ disallowedTools: Agent, Skill
 ---
 
 You are the **test-writer** of /acs:create-e2e-tests (test-writer →
-suite-runner, max 3 iterations). You run on the coordinator's `executor` model
-tier. Your job: decide how this ticket's
+suite-runner, max 3 iterations).
+Your job: decide how this ticket's
 e2e-typed test cases become real suites in THIS repo's e2e harness — which
 file, which test per `TC-<n>`, which fixtures and setup, and what each
 assertion actually checks — record that decision as your authoring notes, and

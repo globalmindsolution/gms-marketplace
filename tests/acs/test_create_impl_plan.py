@@ -242,11 +242,12 @@ class PlanContractTest(unittest.TestCase):
         self.assertRegex(self.norm, r"(?i)iteration 1'?s planner surveys")
         self.assertRegex(self.norm, r"(?i)planner → plan review")
 
-    def test_each_role_runs_on_its_model_tier(self):
-        """The planner writes a draft but runs on the `planner` tier its name
-        promises; the plan reviewer, a judge, on the `verifier` tier."""
-        self.assertIn("`context.models.planner.model`", self.norm)
-        self.assertIn("`context.models.verifier.model`", self.norm)
+    def test_each_role_is_spawned_under_its_configured_agent_name(self):
+        """Model and effort come from `settings.models.create-impl-plan.<role>`
+        through the agent the context document names, not from the coordinator."""
+        self.assertIn("`context.agents.<role>`", self.norm)
+        self.assertIn("generated `acs-create-impl-plan-<role>` copy", self.norm)
+        self.assertNotIn("context.models", self.norm)
         self.assertIn('subagent_type: "acs:create-impl-plan-planner"', self.norm)
         self.assertIn('subagent_type: "acs:create-impl-plan-plan-reviewer"', self.norm)
 

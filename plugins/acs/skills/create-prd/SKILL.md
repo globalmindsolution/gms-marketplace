@@ -76,7 +76,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 If `acs step start` exits non-zero: STOP and surface its stderr verbatim.
 
 Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
-`settings` (`formats`, `ticket_prefix`), `models` (per-tier model/effort),
+`settings` (`formats`, `ticket_prefix`), `agents` (agent name to spawn per role),
 `reconcile`, `handoff_summary`, `design`, `pipeline`, `post_hook`.
 
 Keep the free text of `$ARGUMENTS` (product notes, amendment request): it is
@@ -138,20 +138,20 @@ to iteration 1 and is not a round of its own. `/acs:create-prd` has no
 path-driven review-depth selection: the cap is a fixed 3 in every lane, and
 this ticket introduces none.
 
-| Role | Kind | Agent | Model tier |
+| Role | Kind | Agent | Spawn as |
 |------|------|-------|------------|
-| surveyor | survey | `acs:create-prd-surveyor` | `context.models.planner` |
-| author | write | `acs:create-prd-author` | `context.models.executor` |
-| reviewer | judge | `acs:create-prd-reviewer` | `context.models.verifier` |
+| surveyor | survey | `acs:create-prd-surveyor` | `context.agents.surveyor` |
+| author | write | `acs:create-prd-author` | `context.agents.author` |
+| reviewer | judge | `acs:create-prd-reviewer` | `context.agents.reviewer` |
 
 Spawn subagents with the Agent tool: `subagent_type`
 `acs:create-prd-surveyor` / `acs:create-prd-author` /
 `acs:create-prd-reviewer` (fall back to the un-namespaced name if the runtime rejects
-the namespaced one). Apply the role's tier — `context.models.planner.model` /
-`.effort` for the surveyor, `context.models.executor.*` for the author,
-`context.models.verifier.*` for the reviewer — at spawn when not
-`"inherit"`; if the runtime rejects the model/effort, FAIL the run with that error —
-no silent fallback.
+the namespaced one). Spawn each role under the name in `context.agents.<role>` — the plugin's
+`acs:create-prd-<role>`, or the generated `acs-create-prd-<role>` copy
+`acs step start` wrote where `settings.models` sets a model or effort for it.
+Model and effort travel with that agent, so pass none of your own. If the runtime
+rejects the agent, FAIL the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your

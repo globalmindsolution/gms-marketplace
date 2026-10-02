@@ -208,6 +208,26 @@ class SpawnNamesTest(unittest.TestCase):
         self.assertEqual(agent_sync.agent_name_parts("other:review-code-lens"), (None, None))
 
 
+class ActionNamesTest(unittest.TestCase):
+    """The analyze-requirements controller prints an `agent` per action."""
+
+    S = {"models": {"analyze-requirements": {"analyst": {"effort": "max"}}}}
+
+    def test_a_configured_agent_is_renamed_and_the_rest_are_left(self):
+        action = {"kind": "spawn", "lanes": [
+            {"agent": "acs:analyze-requirements-analyst", "phase": "analyst"},
+            {"agent": "acs:analyze-requirements-impact-reviewer", "phase": "reviewer"}]}
+        out = agent_sync.with_spawn_names(action, self.S)
+        self.assertEqual(out["lanes"][0]["agent"], "acs-analyze-requirements-analyst")
+        self.assertEqual(out["lanes"][1]["agent"], "acs:analyze-requirements-impact-reviewer")
+        self.assertEqual(action["lanes"][0]["agent"], "acs:analyze-requirements-analyst",
+                         "the input is not mutated")
+
+    def test_non_agent_values_and_foreign_names_pass_through(self):
+        obj = {"agent": "other:thing", "note": "acs:analyze-requirements-analyst", "n": 3}
+        self.assertEqual(agent_sync.with_spawn_names(obj, self.S), obj)
+
+
 class CommittedFilesTest(unittest.TestCase):
     def test_schema_models_property_matches_the_shipped_agents(self):
         with open(SCHEMA, encoding="utf-8") as fh:
