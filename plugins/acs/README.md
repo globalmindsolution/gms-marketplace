@@ -42,6 +42,10 @@ claude plugin install acs@gms-marketplace
 Or through the UI: run `/plugin` inside a Claude Code session, add the
 marketplace `globalmindsolution/gms-marketplace`, then install `acs` from it.
 
+On **omp** (Oh My Pi) the same marketplace works — see
+[Oh My Pi](../README.md#oh-my-pi) for install commands and two known
+degradations (hooks ungated, `CLAUDE_PLUGIN_ROOT` must be exported).
+
 ## Quick start
 
 No setup is required: acs runs in any repo on its defaults. Tickets are
