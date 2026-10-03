@@ -70,8 +70,8 @@ Parse the printed context JSON. Fields you will use:
   `<design.dir>/design.md` when an older design still lives in the partition)
   and read it for the behaviour the design already settled. Call it
   `<design_doc>`.
-- `settings` — you need `suites` (the configured suites a case's target may
-  name, with the reserved `e2e` entry).
+- `settings` — you need `tests` (the named suites a case's target may
+  name — every key except `coverage` — including the `e2e` suite).
 - `agents` — the agent name to spawn per role; the test-designer's and the
   trace-reviewer's model and effort come from
   `settings.models.create-test-docs.<role>` (inheriting when unset).
@@ -200,7 +200,7 @@ Read these yourself and name them by path in the test-designer's `<inputs>`
    belongs at unit level versus integration versus e2e in THIS repo, and this
    document follows it rather than inventing a pyramid of its own.
 7. The consumer repo's existing tests: the suites configured in
-   `settings.suites`, the test directories, the naming and fixture conventions
+   `settings.tests`, the test directories, the naming and fixture conventions
    already in use. A case's target suite must be a place this repo actually
    has, and its style must be the style the repo already writes.
 
@@ -228,7 +228,7 @@ Messaging rules (`the SubagentStop hook's message check`):
 - Every phase's `<constraints>` carry `required_sections` (the four headings
   below) and `<constraint name="audience_style_profile">implementers and
   reviewers (precise, executable cases)</constraint>`, plus `suites` (the
-  configured suite names) and `quality_dir` when the repo has one.
+  configured suite names, the keys of `settings.tests` other than `coverage`) and `quality_dir` when the repo has one.
 - A sliced instance's task carries its slice id,
   `<task skill="create-test-docs" phase="trace-reviewer" slice="trace" …>`,
   and its `<result … slice="trace" …>` echoes it, so the SubagentStop snapshot

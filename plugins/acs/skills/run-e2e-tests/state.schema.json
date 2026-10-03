@@ -14,7 +14,7 @@
       "additionalProperties": false
     },
     "outcome": {
-      "description": "passed: every suite in the run set ran and passed. no_harness: the repo configures no suite at all -- settings.suites resolves to {} (no settings.e2e and no suites entry), so there is nothing to invoke. nothing_to_run: suites are configured, but this run has none to run -- the plan's ## Contract declares owes.e2e: false (the pre-hook records this without spawning the coordinator), or the run set resolved empty. A run where any suite failed finishes status failed with no outcome.",
+      "description": "passed: every suite in the run set ran and passed. no_harness: the repo configures no suite at all -- no suite is configured under settings.tests, so there is nothing to invoke. nothing_to_run: suites are configured, but this run has none to run -- the plan's ## Contract declares owes.e2e: false (the pre-hook records this without spawning the coordinator), or the run set resolved empty. A run where any suite failed finishes status failed with no outcome.",
       "enum": [
         "passed",
         "no_harness",

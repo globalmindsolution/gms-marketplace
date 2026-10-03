@@ -27,7 +27,7 @@ conversation history:
   `steps/<skill>/state.json` for a product-level ticket);
 - `<partition>/ticket.json` — `ticket.external` drives the tracker step;
 - `settings.merge_strategy` (`squash`|`merge`|`rebase`) and
-  `settings.tracker.provider` (`local`|`github`|`jira`);
+  `settings.tracker.provider` (`local`|`github`);
 - the cleanup inventory Step 0 took: the local branch, the worktree holding
   it, whether a tracker transition is needed.
 
@@ -117,8 +117,6 @@ about to remove.
      with `gh project item-list <project_number> --owner <owner> --format json`,
      then `gh project item-edit --id <item-id> --project-id <project-id>
      --field-id <status-field-id> --single-select-option-id <done-option-id>`.
-   - `jira`: `acli jira workitem transition --key <external.key> --status
-     "Done"`.
 5. **Touch NOTHING else.** Do not edit `ticket.json` status, do not archive
    the partition, do not mark the parent epic done — `post-merge-pr.py` owns
    all of that; duplicating it corrupts workspace state.

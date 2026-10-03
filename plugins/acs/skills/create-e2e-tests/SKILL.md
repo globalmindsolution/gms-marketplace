@@ -62,10 +62,11 @@ partition, or an epic. It never refuses because an upstream artifact is
 missing: this skill is independent, and decides for itself what it can do with
 what it finds. Before the loop, check three things yourself:
 
-- **An e2e suite is configured** (`settings.e2e` or `settings.suites.e2e`).
+- **An e2e suite is configured** (`settings.tests.e2e`).
   That is the repo's configuration, not an upstream step, and the suite-runner
   needs its command to run the suites at all. Missing → do NOT invent a
-  runner: add a `suites.e2e` entry to `.acs/settings.json` by hand
+  runner: add a `tests.e2e` entry (`command`, optional
+  `setup`/`teardown`) to `.acs/settings.json` by hand
   (`/acs:setup` no longer configures suites). If the repo already has an e2e
   harness, ask the user to confirm its command and record the answer (User
   interaction); if it has none, finish `interrupted` with
@@ -100,9 +101,8 @@ Parse the printed context JSON. Fields you will use:
   artifacts go in `steps/create-e2e-tests/`.
 - `checkout_root` — the consumer repo root; every suite path is repo-relative
   to it.
-- `settings` — you need `suites` (the reserved `e2e` entry: its `command`,
-  optional `setup`/`teardown`; `settings.e2e` is normalized into it at load
-  time, so read `suites["e2e"]` and never the raw alias).
+- `settings` — you need `tests.e2e` (its `command`, optional
+  `setup`/`teardown`).
 - `agents` — the agent name to spawn per role; the test-writer's and the
   suite-runner's model and effort come from
   `settings.models.create-e2e-tests.<role>` (inheriting when unset).
@@ -172,7 +172,7 @@ test for the same id is a duplicate suite, not coverage.
 
 ### The e2e location — derive it, never invent it
 
-`settings.suites["e2e"]` carries a COMMAND, not a directory. Resolve where this
+`settings.tests.e2e` carries a COMMAND, not a directory. Resolve where this
 repo's e2e suites live, once, before planning, and state it in the plan's
 `<constraints>`:
 
@@ -254,7 +254,7 @@ Read these yourself and name them by path in the test-writer's `<inputs>`
    seen.
 5. `<checkout_root>/<quality_dir>/` when the repo has one — the repo's test
    strategy, including what it says about e2e scope, determinism and runtime.
-6. `settings.suites["e2e"]` — `command`, `setup`, `teardown`. The suites must be
+6. `settings.tests.e2e` — `command`, `setup`, `teardown`. The suites must be
    runnable by THAT command with no new runner, no new flag and no new
    dependency; needing one is a question for the user, not a silent addition.
 

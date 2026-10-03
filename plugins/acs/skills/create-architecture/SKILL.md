@@ -66,8 +66,8 @@ unset), `reconcile`, `handoff_summary`,
 The allocated delivery ticket is type `task`, titled
 `Product architecture doc set` (`PRODUCT_TICKET_TITLES`); `acs step start` has
 already created the partition, ticket.json, the lock, the session pointer,
-and the `in_progress` run entry. If `settings.tracker.provider` is `github`
-or `jira`, sync the ticket out via `gh`/`acli` per the tracker config.
+and the `in_progress` run entry. If `settings.tracker.provider` is `github`,
+sync the ticket out via `gh` per the tracker config.
 
 ## Resume & reconcile
 

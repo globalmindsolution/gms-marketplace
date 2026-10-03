@@ -63,9 +63,9 @@ unavailable, record the decision as an assumption under that rule.
 
 Call `acs_lib.build_context(cwd)` to resolve `settings`, `workspace`, and
 `repo_id` exactly as other unhooked skills do. Read
-`ctx["settings"].get("suites", {})` — this is the already-resolved suites map
-(it carries the normalized `"e2e"` entry automatically when `settings.e2e` is
-configured; you never read the raw `e2e` key yourself).
+`ctx["settings"].get("tests", {})` — the suites this run can run are its
+keys other than `coverage` (the coverage target is a number, not a suite);
+call that map `suites` below.
 
 Parse `$ARGUMENTS` for zero or more `--suite <name>` flags:
 
@@ -76,8 +76,8 @@ Parse `$ARGUMENTS` for zero or more `--suite <name>` flags:
   named suite is not a key in `suites`, fail fast with a clear error
   identifying the unknown name(s) — do not silently skip it or fall back to
   running all suites.
-- If `suites` itself is `{}` — the repo configures no suite at all, neither
-  `settings.e2e` nor any `settings.suites` entry — report that plainly ("no
+- If `suites` itself is `{}` — the repo configures no suite under
+  `settings.tests` — report that plainly ("no
   suites configured: no harness to run") and finish `completed` with
   `outcome: no_harness`.
 - If `suites` is non-empty but this run's run set resolves to `{}` (see
@@ -112,7 +112,7 @@ For each suite to run, in order:
 `teardown` by string-interpolating captured failure output, another suite's
 exit code, or any other runtime-captured text into a shell command. Each
 suite's `setup`/`command`/`teardown` strings come verbatim from
-`settings.suites.<name>` as configured — never rewritten, wrapped, or
+`settings.tests.<name>` as configured — never rewritten, wrapped, or
 concatenated with captured data before execution. Captured output is stored
 as artifact data only; it is never re-injected as executable input.
 
@@ -176,7 +176,7 @@ sharing a file.
 The run's DOCUMENTS narrow it; the `e2e` key never does on its own. Which
 rule applies depends only on which documents the run has:
 
-1. The reserved `e2e` key, if `ctx["settings"]["suites"]` carries one, is
+1. The reserved `e2e` key, if `suites` carries one, is
    ADDED to whatever rule 2 or 3 selects — it is the suite
    `/acs:create-e2e-tests` wrote into, so a run that has documents always
    runs it. It is not a selector by itself: it never decides between rules
@@ -189,7 +189,7 @@ rule applies depends only on which documents the run has:
    the plan's Test-strategy section, at `steps/create-impl-plan/plan.md` —
    plus rule 1.
 4. When the run has NEITHER document — a run started from a prompt against a
-   repo, with nothing planned — every entry in `ctx["settings"]["suites"]`,
+   repo, with nothing planned — every entry in `suites`,
    whether or not an `e2e` key is among them. A ticket run with no
    `test-cases.md` and no plan lands here too: the `e2e` key alone does not
    narrow it to `{e2e}`. That is the honest answer there: nothing has said
@@ -198,7 +198,7 @@ rule applies depends only on which documents the run has:
 This is re-resolved on every invocation, never cached from an earlier call, so
 a later case-document or plan write is picked up automatically. A suite named
 in either document is included only when it is also a key in
-`ctx["settings"]["suites"]`.
+`suites`.
 
 **When nothing resolves** — suites are configured, and rule 2 or 3 applied
 but named none of them and there is no `e2e` key — record
@@ -221,8 +221,7 @@ the just-written `results.json` — either is acceptable) and produce:
    <suite-name>:<normalized-failing-test-id>
    ```
 
-   where `<suite-name>` is the exact `suites` map key (or the reserved `e2e`
-   key) the failure came from, and `<normalized-failing-test-id>` is the
+   where `<suite-name>` is the exact suite name (the `settings.tests` key) the failure came from, and `<normalized-failing-test-id>` is the
    lowercase, whitespace-collapsed identifier of the single failing test
    parsed out of the suite's failure output.
 
@@ -372,8 +371,7 @@ The status and outcome are read from that document — a step's transition is
 read from its result, not asserted on the command line. The two empty
 outcomes mean one thing each, the same as in the fragment
 (`skills/run-e2e-tests/state.schema.json`): `no_harness` — the repo
-configures no suite at all (`settings.suites` resolves to `{}`, no
-`settings.e2e` either); `nothing_to_run` — suites are configured but this run
+configures no suite at all (no suite under `settings.tests`); `nothing_to_run` — suites are configured but this run
 has none to run (the plan's `owes.e2e: false`, settled by the pre-hook, or a
 run set that resolved empty). Both are honest completions, not failures: a
 step with nothing to do says which kind of nothing, rather than failing a run

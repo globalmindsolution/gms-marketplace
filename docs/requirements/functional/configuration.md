@@ -34,23 +34,20 @@ validated against `settings.schema.json`.
 
 | Key | Type | Default | Required | Description |
 |-----|------|---------|----------|-------------|
-| `test_coverage_percent` | number | `90` | No | Coverage target used by `/code` when generating unit tests and running them in the TDD cycle. Missing the target is a hard fail. |
 | `merge_strategy` | string | `"squash"` | No | How `/merge-pr` merges: `squash` \| `merge` \| `rebase`. |
 | `ticket_prefix` | string | `"ACS"` | No | Prefix for generated ticket ids (`<prefix>-<sequence>`): `ACS-1`, `ACS-2`, … by default. A repo that wants its own — e.g. `SHOP` for a shop product — sets it by hand in `.acs/settings.json`; `/setup` does not ask. Two repos that keep the default both mint `ACS-1`; ids are per-repo state and never cross repos, so a repo that shares a tracker with others sets its own. Changing it later strands the older ids' branches. The per-repo sequence counter lives in the workspace (`counters.json`). |
-| `e2e` | object | unset | No | **Deprecated compatibility alias** for `suites.e2e`: `{ "command", "setup"?, "teardown"?, "per_iteration"? }`. Still accepted and validated exactly as before, but normalized at load time into `suites["e2e"]` — new configuration should prefer `suites.e2e` directly (moving an existing `e2e` key across is a hand edit). Unset = no e2e suite. When configured: spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and `/acs:review-code`'s final gate runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict; `per_iteration: false` (default) defers the run past iterations that already have other blocking findings. `/create-project` scaffolds the harness and proposes this block for greenfield repos with a user-facing surface. This same `e2e`/`suites.e2e` configuration is also the **single opt-in signal** for the CI required merge gate — no dedicated `e2e.ci`/`suites.e2e.ci` enable key exists, or is ever introduced (see the e2e merge gate note below). |
-| `suites` | object | `{}` | No | The single source of truth for named test commands: `{ "<name>": { "command", "setup"?, "teardown"?, "per_iteration"? } }`. The reserved name `e2e` is auto-populated at load from a configured `e2e` key (see above). `/acs:test` is the consumer — it runs all configured suites, or a `--suite`-selected subset, capturing pass/fail results to an auditable workspace artifact. |
-| `tests` | object | unset | No | Unit/integration suite for the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 3, opt-in): `{ "command", "setup"? }`. `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`); acs exports `ACS_COVERAGE` (= `test_coverage_percent`) into the environment. Installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install). A merge gate once made a required status check (`Tests & coverage`) on a protected default branch. |
+| `tests` | object | unset | No | Everything about running tests: `{ "coverage"?, "unit"?, "e2e"?, "<name>"? }`. `coverage` is a number in `(0, 100]`, default `90` — the `/code` TDD coverage target (missing it is a hard fail) and the floor of the CI tests gate, exported to the gate as `ACS_COVERAGE`. `unit` (`{ "command", "setup"? }`) is the suite of the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 3, opt-in): `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`). It is installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install); a merge gate once made a required status check (`Tests & coverage`) on a protected default branch. Every key of `tests` except `coverage` is a **named suite** `{ "command", "setup"?, "teardown"? }`; `/acs:run-e2e-tests` runs all of them, or a `--suite`-selected subset, capturing pass/fail results to an auditable workspace artifact. `e2e` is the end-to-end suite: unset = no e2e suite; when configured, spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and `/acs:review-code`'s final gate runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict. `/create-project` scaffolds the harness and proposes this block for greenfield repos with a user-facing surface. `tests.e2e` is also the **single opt-in signal** for the CI required merge gate — no dedicated `tests.e2e.ci` enable key exists, or is ever introduced (see the e2e merge gate note below). |
+| `test_coverage_percent`, `suites`, top-level `e2e`, `per_iteration` | — | — | — | **Removed.** Replaced by `tests.coverage`, `tests.<name>` and `tests.e2e` (`per_iteration` was accepted and inert, and is gone). Until a settings file is migrated every acs skill refuses to start, naming the keys; `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" settings migrate [--write]` rewrites an old-shape file (dry-run by default). The old CI-gate keys `tests.command` / `tests.setup` are now `tests.unit.command` / `tests.unit.setup`. |
 | `enforcement` | — | — | — | **Removed.** There is no enforcement block. The CI convention check scaffolded by `/acs:setup` (`.github/workflows/acs-conventions.yml` + `.acs/ci/check-conventions.py`) enforces one rule — the PR description names its ticket (the acs id, a `#<n>` issue reference or an issue link, [ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)) — with fixed exemptions: the `acs-exempt` label and `release/*`, `dependabot/*`, `renovate/*` branches. The `ACS` label `/create-pr` applies and `/merge-pr --pr` reads is fixed too (`acs_lib.conventions`). The local `commit-msg`/`pre-push` hooks and `/acs:install-hooks` are gone. A block a repo still carries is accepted and ignored. |
 
-**e2e required merge gate (`/acs:setup`, opt-in).** When `e2e`/
-`suites.e2e` is already configured — by hand; `/acs:setup` does not configure
+**e2e required merge gate (`/acs:setup`, opt-in).** When `tests.e2e` is already configured — by hand; `/acs:setup` does not configure
 a suite — `/acs:setup` offers the gate at Step 2 and Step 3 scaffolds
 `.github/workflows/acs-e2e.yml` + `.acs/ci/run-e2e.py` — the same
 committed-settings-reading pattern as the tests gate, independent of it (a
 repo can gate on one, both, or neither). **Opt-in invariant**: when
-`e2e`/`suites.e2e` is unset, the gate is never offered — no files copied, no
+`tests.e2e` is unset, the gate is never offered — no files copied, no
 `gh api` call, zero new behavior. `run-e2e.py` resolves the command from
-`suites["e2e"]` or the raw `e2e` alias, runs `setup` → `command` → `teardown`
+`tests.e2e`, runs `setup` → `command` → `teardown`
 (teardown always, in a `finally`; a non-zero teardown is a logged warning and
 never flips a green `command` result to red), and exits with `command`'s
 status. On `admin=true` **and** explicit user consent, Step 4 extends the
@@ -62,9 +59,9 @@ exact `gh api … /protection` command **once** and continues — never
 hard-fails `/acs:setup` (the report-once safeguard). No new settings key is
 introduced by any of this.
 | `models` | object | inherit | No | Which Claude model **and reasoning effort** each subagent runs on: `models.<skill>.<role>`, an object with optional `model` (an alias, a full model id or `inherit`) and `effort` (`low`, `medium`, `high`, `xhigh`, `max` or `inherit`). The skills and roles are the agents the plugin ships; `acs.py settings scaffold --write` adds every entry a file lacks. See [Subagent models](#subagent-models). |
-| `tracker` | object | `{ "provider": "local" }` | No | Ticket tracking backend. `provider` is `local` (default), `github` (GitHub Projects), or `jira` (Jira board). Tickets are always stored **local-first** in the workspace; when `github`/`jira` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the official CLIs: `gh` (GitHub) and `acli` (Jira). Provider-specific sub-keys live under `tracker.github` / `tracker.jira`. |
+| `tracker` | object | `{ "provider": "local" }` | No | Ticket tracking backend. `provider` is `local` (default) or `github` (GitHub Projects). Tickets are always stored **local-first** in the workspace; when `github` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the `gh` CLI, the only tracker transport. Provider-specific sub-keys live under `tracker.github`. Jira is not supported. |
 | `formats` | — | — | — | **Removed.** Branch, commit and PR-title style are the model's to follow (it reads `CLAUDE.md`, `CONTRIBUTING.md` and recent history). What a script must parse is fixed in `acs_lib.conventions`: the branch name `<type>/<ticket_id>-<slug>` (ticket detection depends on the id), the built-in template names (`pr-default`, `epic-default`, `story-default`, `task-default`, `design-default`; a repo's `.acs/templates/<name>.md` replaces one) and an epic's `[EPIC] ` title prefix. A block a repo still carries is accepted and ignored. |
-| `evals` | object | unset | No | **Read by nothing.** Accepted by the schema and ignored: its only reader was the behavioural-eval harness's forge tier, retired when the eval suite moved to `claude plugin eval` case files. It never affected the hook layer, so it changes no acs runtime behavior. Kept in the schema so a consumer's existing settings stay valid; removing it is a schema change for its own release. `evals.forge_repo` named the forge-tier target repo (`owner/name`) and MUST NOT be a production repo. |
+| `evals` | object | unset | No | **Read by nothing.** Accepted by the schema and ignored: its only reader was the behavioural-eval harness's forge tier, retired when the eval suite moved to `claude plugin eval` case files. It never affected the hook layer, so it changes no acs runtime behavior. Kept in the schema so a consumer's existing settings stay valid; removing it is a schema change for its own release. |
 
 More keys are expected as requirements grow — the file format MUST tolerate
 unknown keys for forward compatibility.
@@ -112,7 +109,7 @@ titles) use `{placeholder}` syntax. The supported vocabulary:
 | `{slug}` | Kebab-case slug of the title (lowercase `a–z0–9-`, ≤ 40 chars) | `branch_name` |
 | `{summary}` | Short generated summary of the change | `commit_message`, `pr_title` |
 | `{external_key}` | Remote tracker key (empty when not synced) | all |
-| `{ticket_ref}` | The tracker's native reference when the ticket is synced (`#399` on GitHub, the issue key on Jira), else the local id | `pr_title` |
+| `{ticket_ref}` | The tracker's native reference when the ticket is synced (`#399` on GitHub), else the local id | `pr_title` |
 
 The built-in defaults are `{type}/{ticket_id}-{slug}` for `branch_name`,
 `{ticket_id} {summary}` for `commit_message`, and `{title}` for `pr_title`.
@@ -153,10 +150,6 @@ templates may use the same placeholder vocabulary.
   ticket **type** maps to a `Type` single-select field (`Epic`/`Story`/
   `Task`, set when the board defines one — acs does not create it) and
   **status** maps to the project's `Status` field.
-- **Jira** (`tracker.jira`): `{ "base_url": "<url>", "project_key": "<KEY>"
-  }` — types map to Jira's standard issue types (epic → Epic, story →
-  Story, task → Task); status changes use Jira transitions (In Progress,
-  Done); epic↔child links use Jira's parent/epic link.
 
 ### Subagent models
 
@@ -210,7 +203,7 @@ configured under `models`:
 - No settings file is required: with none, every key resolves to its
   default and every pre-hook runs. A pre-hook MUST fail clearly if the
   workspace cannot be derived.
-- `test_coverage_percent` MUST be a number in `(0, 100]`; absent → `90`.
+- `tests.coverage` MUST be a number in `(0, 100]`; absent → `90`.
 - `ticket_prefix` is optional (absent → `ACS`, otherwise set by hand)
   and MUST be a non-empty uppercase identifier — ticket ids are
   `<prefix>-<n>`, scoped per repo. A malformed one is refused (exit 2) with
@@ -236,7 +229,10 @@ included, is added by hand.
 
 ```json
 {
-  "test_coverage_percent": 90,
+  "tests": {
+    "coverage": 90,
+    "unit": { "command": "python3 -m coverage run -m unittest discover -s tests && python3 -m coverage report --fail-under=$ACS_COVERAGE" }
+  },
   "merge_strategy": "squash",
   "ticket_prefix": "SHOP",
   "models": {
@@ -249,11 +245,10 @@ included, is added by hand.
     }
   },
   "tracker": {
-    "provider": "jira",
-    "jira": {
-      "base_url": "https://acme.atlassian.net",
-      "project_key": "SHOP",
-      "board": "SHOP board"
+    "provider": "github",
+    "github": {
+      "owner": "acme",
+      "project_number": 7
     }
   }
 }
