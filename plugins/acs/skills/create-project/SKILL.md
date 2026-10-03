@@ -42,7 +42,7 @@ entry. Parse the printed context JSON; the fields you will use:
 
 - `ticket_id`, `ticket`, `partition` — the delivery ticket and its workspace partition
 - `checkout_root` — the consumer repo root (the only tree the scaffolder mutates)
-- `settings` — `test_coverage_percent`, `tracker`
+- `settings` — `tests.coverage`, `tracker`
 - `agents` — the agent name to spawn per role, resolved from settings
 - `reconcile`, `handoff_summary`, `prior_status`, `pipeline`
 
@@ -130,7 +130,7 @@ pinned are confirmed with the user instead, BEFORE the scaffolder builds anythin
    (whatever docs, READMEs or notes it holds): the stack (languages, frameworks,
    package manager, test framework, linter/formatter, CI provider); the directory
    layout (the top-level components and where each lives); the coverage tooling and
-   its threshold (`settings.test_coverage_percent`); and whether an e2e harness is
+   its threshold (`settings.tests.coverage`); and whether an e2e harness is
    wanted.
 2. Run the clarification ledger (User interaction below): reuse any recorded answer,
    and ask everything still open in ONE grouped interaction — stack, layout and
@@ -338,7 +338,7 @@ always runs as a single instance — there are no survey slices to synthesize.
 
 Spawn the pin-pass scaffolder (one instance, no `slice`). Build the input paths
 from the `<architecture_dir>` and `<prd>` you located at Start (defaults shown);
-put `settings.test_coverage_percent` in the constraints. Under the no-architecture
+put `settings.tests.coverage` in the constraints. Under the no-architecture
 fallback the `hld/` inputs are absent and the `C-n` entries go in `<context>`
 instead (see No-architecture fallback). Example (iteration 1, repo-relative input
 paths):
@@ -372,7 +372,7 @@ The notes MUST pin, concretely, with nothing left open, before any scaffolder bu
   the matching `e2e` settings block proposed to the user (`command`, setup/
   teardown) for `.acs/settings.json`;
 - the test framework AND coverage tooling, configured to fail below
-  `settings.test_coverage_percent`;
+  `settings.tests.coverage`;
 - linter/formatter and pre-commit configuration;
 - a CI workflow (e.g. `.github/workflows/ci.yml`) running build, lint, tests, and
   coverage;
@@ -428,7 +428,7 @@ the exact commands the notes pinned, and see them pass — in the `run` slice, o
 3. lint — exit 0;
 4. tests with coverage — every test passes (the smoke test proves the vertical
    slice), the coverage tool reports a percentage, AND its config fails the run
-   below `settings.test_coverage_percent`.
+   below `settings.tests.coverage`.
 
 Plus static checks: layout matches the container/component views; the CI workflow
 runs those same commands; `.gitignore` and README exist; the pre-commit config

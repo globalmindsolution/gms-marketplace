@@ -50,14 +50,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardi
 
 If `acs step start` exits non-zero: stop immediately and surface its stderr to the user
 verbatim — do not improvise. Otherwise parse the printed context JSON; the fields you
-need: `partition`, `ticket_id`, `ticket`, `settings` (`test_coverage_percent`, `e2e`,
+need: `partition`, `ticket_id`, `ticket`, `settings` (`tests.coverage`, `tests.e2e`,
 `tracker`), `models`, `reconcile`, `handoff_summary`, `post_hook`, `pipeline`,
 `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled **"Brownfield project standardization"**
 (`DELIVERY_TICKET_TITLES`); `acs step start` has already created the
 partition, ticket.json, the lock, the session pointer, and the `in_progress` run entry.
-If `settings.tracker.provider` is `github` or `jira`, sync the ticket out via `gh`/`acli`
+If `settings.tracker.provider` is `github`, sync the ticket out via `gh`
 per the tracker config.
 
 **No refusal guard on the principles or standards set.** `standardize-project` owns no
@@ -142,8 +142,8 @@ scaffolded:
   - pre-commit config presence (e.g. `.pre-commit-config.yaml` or the stack's
     equivalent).
   - coverage-tool config presence AND whether it fails the run below
-    `settings.test_coverage_percent`.
-  - e2e harness/config presence relative to `settings.e2e`/`suites.e2e`:
+    `settings.tests.coverage`.
+  - e2e harness/config presence relative to `settings.tests.e2e`:
     - **Unset** ⇒ this whole dimension is **N/A** (the opt-in invariant: unset means no
       scaffold — no e2e suite, no gate, unchanged).
     - **Set AND `.github/workflows/acs-e2e.yml` absent** ⇒ a concrete scaffold-able gap:
@@ -469,7 +469,7 @@ audit-inputs contract and the narrowed allowlist together; the `structure` and
     <constraint name="standards_dir">docs/standards</constraint>
     <constraint name="coverage_target">90</constraint>
     <constraint name="no-doc-set-authorship">principles_dir/standards_dir content is never a scaffold target — a missing set is always a recommended_follow_ups entry, never authored or invoked inline.</constraint>
-    <constraint name="e2e-opt-in">settings.e2e unset means the e2e readiness dimension is N/A — no e2e scaffold, no gate.</constraint>
+    <constraint name="e2e-opt-in">settings.tests.e2e unset means the e2e readiness dimension is N/A — no e2e scaffold, no gate.</constraint>
   </constraints>
 </task>
 ```
@@ -663,7 +663,7 @@ MANDATORY final step — never skipped, also on failure:
    `states.audit.*` values for `principles`/`standards`/`project_structure` are one of
    `"present" | "absent"` (`"absent"` when the repo has no such set or file yet);
    `readiness_tooling.e2e` is boolean OR the literal string `"n/a"` when
-   `settings.e2e` is unset. On failure: `status: "failed"`, blocking findings in
+   `settings.tests.e2e` is unset. On failure: `status: "failed"`, blocking findings in
    `findings`, reason in `summary`, keep whatever is true in `states`,
    `recommended_follow_ups` still reflects whatever the auditor's frozen notes found
    (plus any converted refusals). On

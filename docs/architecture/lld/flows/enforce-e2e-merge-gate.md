@@ -16,7 +16,7 @@ sequenceDiagram
     Dev->>GH: open or update PR (opened, reopened, synchronize)
     GH->>WF: trigger acs-e2e.yml for the PR head SHA
     WF->>RUN: python3 .acs/ci/run-e2e.py
-    RUN->>RUN: read committed .acs/settings.json, resolve suites e2e or the e2e alias
+    RUN->>RUN: read committed .acs/settings.json, resolve tests.e2e
     RUN->>RUN: run setup, if configured
     RUN->>RUN: run command, the e2e suite
     RUN->>RUN: run teardown, always, in a finally block

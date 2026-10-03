@@ -72,8 +72,8 @@ asking again.
    | Offer | What declining costs |
    |---|---|
    | **Convention check** (`conventions`) | a PR can merge without naming its ticket. Required check: `Branch / PR / commit conventions`. It fails a PR whose description names no ticket — its id, a `#<n>` reference or an issue link; the `acs-exempt` label or a `release/*`, `dependabot/*` or `renovate/*` branch skips it. |
-   | **Tests + coverage gate** (`tests`) | the suite and the coverage target are not enforced on PRs. Needs `tests.command` — lead with `test_command_candidates` — which must run the suite and fail below `$ACS_COVERAGE` (the coverage target, default 90); `apply` refuses the gate without one. Required check: `Tests & coverage`. |
-   | **e2e merge gate** (`e2e`) — offered only when `e2e`/`suites.e2e` is already configured | e2e failures do not block a merge. Required check: `E2E suite`. |
+   | **Tests + coverage gate** (`tests`) | the suite and the coverage target are not enforced on PRs. Needs `tests.unit.command` (and optionally `tests.unit.setup`) — lead with `test_command_candidates` — which must run the suite and fail below `$ACS_COVERAGE` (the coverage target, `tests.coverage`, default 90); `apply` refuses the gate without one. Required check: `Tests & coverage`. |
+   | **e2e merge gate** (`e2e`) — offered only when `tests.e2e.command` is already configured | e2e failures do not block a merge. Required check: `E2E suite`. |
 3. **Model settings** — offered once: whether to scaffold the `models` block so
    each skill's model and effort can be tuned in one visible place. Only on a
    yes, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" settings scaffold --write`
@@ -87,7 +87,7 @@ left behind untracked. They carry only what the user chose — `settings` (e.g. 
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup apply --answers - <<'JSON'
-{"settings": {"ticket_prefix": "SHOP", "tests": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}},
+{"settings": {"ticket_prefix": "SHOP", "tests": {"unit": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}}},
  "ci": ["conventions", "tests"]}
 JSON
 ```
@@ -145,7 +145,7 @@ reference. Both are written for you; neither survives being deleted by hand.
 
 ## Step 5 — Summary and next steps
 
-Print a table of each setting you touched (ticket prefix, tests command, models),
+Print a table of each setting you touched (ticket prefix, unit-test command, models),
 its value, and where it landed (`.acs/settings.json`, or "default — not written"). The next steps come from
 `commands` — run it now (`--cwd .` is enough) if Step 4 did not: `next_steps`
 carries the greenfield/brownfield call, the pipeline read from `ship.yaml` and

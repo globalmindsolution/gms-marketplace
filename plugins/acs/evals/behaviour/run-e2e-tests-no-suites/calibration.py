@@ -58,7 +58,7 @@ def _configured_a_suite(ws):
     _start(ws)
     ws.write(".acs/settings.json", json.dumps({
         "ticket_prefix": "EVAL",
-        "suites": {"unit": {"command": "PYTHONPATH=src python3 -m pytest -q"}}}, indent=2))
+        "tests": {"unit": {"command": "PYTHONPATH=src python3 -m pytest -q"}}}, indent=2))
     cmd = "PYTHONPATH=src python3 -m pytest -q"
     _results(ws, [{"name": "unit", "command": cmd, "exit_code": 0, "duration_s": 0.1,
                    "status": "pass"}])

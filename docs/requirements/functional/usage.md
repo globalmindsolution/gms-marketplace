@@ -109,8 +109,8 @@ resolution order is explicit argument → session context → branch name.
 /ship SHOP-123         # continues from the first incomplete step
                        #   (ledger decides; gates re-verify)
 
-# ticket only exists in Jira / GitHub Projects?
-/create-ticket PROJ-456    # imports it: local id + external mapping,
+# ticket only exists in GitHub Projects?
+/create-ticket '#456'    # imports it: local id + external mapping,
                            #   then normal analysis/clarification
 /ship SHOP-124             # ship the imported ticket
 ```

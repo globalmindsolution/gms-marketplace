@@ -60,7 +60,7 @@ ADR 0092): the scaffolder's writable surface is monotonically non-increasing
 across iterations, and the additive-checker judges every iteration against
 that same literal path rather than a per-iteration re-derivation.
 
-**E2E-2 delta note.** When `settings.e2e`/`suites.e2e` is set and
+**E2E-2 delta note.** When `tests.e2e` is set and
 `.github/workflows/acs-e2e.yml` is missing, the scaffolder's "add missing
 docs/config/CI files" step (above) additionally scaffolds `acs-e2e.yml` +
 `run-e2e.py` — reused verbatim from E2E-1's committed

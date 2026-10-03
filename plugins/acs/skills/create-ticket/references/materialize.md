@@ -25,7 +25,7 @@ paraphrase of them. Before writing anything, re-read:
 - `steps/create-ticket/iter-<n>/authoring.md` when the analysis was persisted
   there, plus the clarification ledger (`clarify.py list --ticket <id>`);
 - the settings and template files you need: the built-in ticket templates
-  (`epic-default`, `story-default`, `task-default`), `tracker_provider` (`local`|`github`|`jira`) and whether tracker sync
+  (`epic-default`, `story-default`, `task-default`), `tracker_provider` (`local`|`github`) and whether tracker sync
   is on;
 - the confirmed decisions: the final type, `needs_design` (`true` for epics —
   stated, never user-confirmed; otherwise `false`, never offered), the child
@@ -34,7 +34,7 @@ paraphrase of them. Before writing anything, re-read:
 ## GitHub call failure policy, as it applies here
 
 Canon lives in `create-ticket/SKILL.md`'s own "GitHub call failure policy"
-section — this reference classifies no `gh`/`acli` call itself, it only
+section — this reference classifies no `gh` call itself, it only
 follows that classification (critical for the remote-import read; critical per
 ticket, soft per batch for Step 5's `gh issue create` tracker-sync call;
 non-critical for the labels/assignee/milestone/Projects v2 field-fill
@@ -105,8 +105,8 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    Create ONLY the
    confirmed children; on a resumed run never re-mint ones already in
    the epic's `children`. Re-read `ticket.json` after fan-out.
-5. **Tracker sync** — only when `settings.tracker.provider` is `github` or
-   `jira`; skip entirely for `local`.
+5. **Tracker sync** — only when `settings.tracker.provider` is `github`;
+   skip entirely for `local`.
    - **The "tickets to sync" set:** `[root ticket, unless it is an import] +
      [every child minted in step 4]`, EXCLUDING any ticket whose title is a
      product-flow delivery title (`PRODUCT_TICKET_TITLES`: "Product definition
@@ -145,17 +145,11 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
        `parent` value is `null` is skipped silently, no finding — a null value
        is expected data, not a gap. Record the printed `findings` verbatim as
        the `project_fields` object per synced ticket.
-
-     - `jira`: `acli jira workitem create --project <project_key> --type
-       "Epic" --summary "<rendered title>" --description "<description>"`
-       (epic→Epic, story→Story, task→Task; children pass the epic's remote key
-       as the parent link). Store `external = {"provider": "jira", "key":
-       "<KEY-n>"}`.
    - Write `external` into each synced ticket's own `ticket.json` — root and
      every child — via `python3
      "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-external.py" --ticket
      <ticket-id> --provider <provider> --key <key>` once per successfully
-     synced ticket. A failed `gh`/`acli` call for any one ticket in the set
+     synced ticket. A failed `gh` call for any one ticket in the set
      is **critical (per ticket), soft (per batch)**: it produces an
      **error**-severity finding naming that ticket's id, the verbatim
      error, and the canonical hint from `acs_lib.gh_failure_hint`,
@@ -191,7 +185,7 @@ stays `[]`:
   ],
   "findings": [
     {"severity": "info", "dimension": "children", "detail": "minted SHOP-124, SHOP-125"},
-    {"severity": "info", "dimension": "external", "detail": "synced as jira PROJ-789"}
+    {"severity": "info", "dimension": "external", "detail": "synced as github 789"}
   ],
   "decisions_applied": ["type epic (C-1)", "children SHOP-124, SHOP-125 confirmed at the fan-out gate"],
   "problems": []
@@ -230,7 +224,7 @@ you actually read or ran in THIS run:
   report: file path with line numbers or section heading for anything based
   on repo code, docs, the ticket, specs, design, or workspace state.
 - **Quote the exact command and the relevant output** for anything based on a
-  command run (new-ticket.py, tracker sync, gh/acli state).
+  command run (new-ticket.py, tracker sync, gh state).
 - **Never assert what you did not observe**: the content of a file you did not
   open, a remote issue you did not check, a key a command did not print. If an
   input you need is missing or unreadable, record it in `problems` instead of

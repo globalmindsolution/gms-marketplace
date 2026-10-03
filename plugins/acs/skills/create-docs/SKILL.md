@@ -217,8 +217,8 @@ Otherwise parse the printed context JSON; the fields you need: `partition`,
 `reconcile`, `handoff_summary`, `post_hook`, `pipeline`, `checkout_root`. The
 delivery ticket is type `task`; `acs step start` has already created the
 partition, ticket.json, the lock, the session pointer, and the `in_progress`
-run entry. If `settings.tracker.provider` is `github` or `jira`, sync the
-ticket out via `gh`/`acli` per the tracker config.
+run entry. If `settings.tracker.provider` is `github`, sync the
+ticket out via `gh` per the tracker config.
 
 **Where `acs step start` runs.** Every step through a set's Start runs from
 the **session checkout** (`cwd` unchanged), never from its worktree: running

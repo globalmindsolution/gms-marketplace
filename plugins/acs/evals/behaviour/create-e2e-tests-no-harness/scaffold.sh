@@ -2,7 +2,7 @@
 # /acs:create-e2e-tests with no e2e harness at all: EVAL-1 added GET /customers
 # to the shop's WSGI front (done and committed on its branch), and its
 # committed test-cases.md types two cases e2e -- but .acs/settings.json
-# configures no suite (no `suites`, no `e2e`), and the repo has no e2e tests, no
+# configures no suite (no suite under `tests`), and the repo has no e2e tests, no
 # runner config and no declared layout. The skill's own check: "if it has none,
 # finish needs_input with that question -- a harness is a repo-structure
 # decision, not this skill's". What the run must produce: no suite, no runner,

@@ -84,7 +84,7 @@ word for a command you can run yourself.
    passes, zero skipped-by-default surprises.
 4. `coverage-tooling` — run the coverage command; it must produce a numeric figure and the
    configured threshold must equal the `coverage_target` constraint
-   (`test_coverage_percent`). Prove the gate bites: the config file must fail the run
+   (`tests.coverage`). Prove the gate bites: the config file must fail the run
    below threshold (check `fail_under` / `--cov-fail-under` / `coverageThreshold` wiring).
 5. `vertical-slice` — the entrypoint exists, starts or runs as the notes describe, and the
    smoke test genuinely exercises it (not a tautological `assert true`).
@@ -153,7 +153,7 @@ Escape `&` and `<` in text content. Self-check with
     <file>/abs/workspace/owner-name/SHOP-3/steps/create-project/iter-1/build-checker.md</file>
   </outputs>
   <findings>
-    <finding severity="blocking" dimension="coverage-tooling" file="pyproject.toml">fail_under is 80 but test_coverage_percent is 90; coverage run passes at 85% when it must fail</finding>
+    <finding severity="blocking" dimension="coverage-tooling" file="pyproject.toml">fail_under is 80 but tests.coverage is 90; coverage run passes at 85% when it must fail</finding>
   </findings>
   <errors/>
   <stop-reason>10 of 11 dimensions pass; 1 blocking finding</stop-reason>

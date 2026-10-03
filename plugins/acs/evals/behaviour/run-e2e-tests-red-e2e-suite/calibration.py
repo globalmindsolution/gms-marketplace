@@ -25,7 +25,7 @@ KEY = "e2e:test_customers_e2e.customerse2e.test_customers_default_page_is_50"
 
 def _settings(ws):
     with open(os.path.join(ws.path, ".acs", "settings.json"), encoding="utf-8") as fh:
-        return json.load(fh)["suites"]
+        return json.load(fh)["tests"]
 
 
 def _run_suites(ws, names):

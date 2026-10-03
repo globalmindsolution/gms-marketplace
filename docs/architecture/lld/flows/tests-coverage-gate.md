@@ -1,7 +1,7 @@
 # Flow — tests-coverage-gate
 
 This repo's own `Tests & coverage` required check (job name defined in
-`acs-tests.yml:29`) runs `.acs/settings.json`'s `tests.command` — `coverage
+`acs-tests.yml:29`) runs `.acs/settings.json`'s `tests.unit.command` — `coverage
 combine` feeding `coverage report --fail-under`, graded repo-wide against
 the whole measured `source` tree. See the companion
 `tests-coverage-gate.evidence.md` sidecar for the code anchors this doc
@@ -24,8 +24,8 @@ sequenceDiagram
     participant Report as coverage report
 
     GHA->>Runner: python3 .acs/ci/run-tests.py
-    Runner->>Runner: run tests.setup - install coverage
-    Runner->>ParentCov: run tests.command with ACS_COV_ROOT and COVERAGE_PROCESS_START set
+    Runner->>Runner: run tests.unit.setup - install coverage
+    Runner->>ParentCov: run tests.unit.command with ACS_COV_ROOT and COVERAGE_PROCESS_START set
     ParentCov->>Suite: -m unittest discover -s tests
     Suite->>TestCase: invoke test method, e.g. the run_script helper
     TestCase->>Child: spawn subprocess.run(sys.executable, script)

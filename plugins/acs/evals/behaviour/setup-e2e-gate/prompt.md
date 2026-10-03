@@ -7,7 +7,7 @@ description: >-
   branch protection.
 expected_outcome: >-
   .acs/ci/run-e2e.py and .github/workflows/acs-e2e.yml are created; no
-  conventions or tests gate; .acs/settings.json still defines suites.e2e;
+  conventions or tests gate; .acs/settings.json still defines tests.e2e;
   the reply names the `E2E suite` check.
 tags: [behaviour]
 max_turns: 40

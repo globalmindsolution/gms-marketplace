@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # /acs:run-e2e-tests on a repo that configures no suite at all: the shop has a
-# unit test, but .acs/settings.json carries no `suites` (and no `e2e`) entry,
+# unit test, but .acs/settings.json configures no suite under `tests`,
 # and no plan on the run said anything about e2e impact -- so the pre-hook has
 # no evidenced no-op to settle and the skill runs. Its run set resolves to {}:
 # it must say so plainly, still write the empty-arrays results artifact, and

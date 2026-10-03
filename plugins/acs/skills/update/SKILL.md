@@ -95,7 +95,24 @@ they do.
 
 ## Step 6 — Post-update migration checks (also run when "up to date")
 
-1. **Settings still valid** against the (possibly new) schema:
+1. **Migrate old-shape settings.** Run the dry run first:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" settings migrate
+   ```
+
+   It lists which settings files would change and what it will do:
+   `test_coverage_percent` becomes `tests.coverage`, `suites` / `e2e` become
+   `tests.<name>`, `tests.command` / `tests.setup` become `tests.unit`,
+   `per_iteration` is dropped, the old model tiers are replaced with the full
+   `models.<skill>.<role>` block, and `tracker.jira` is dropped. Jira is no
+   longer supported, so a `tracker.provider: jira` becomes `local`. Show the
+   user that output, and when they agree apply it with
+   `acs.py settings migrate --write`. Tell them an old-shape settings file is
+   refused by every acs skill, with a message naming the old keys and this
+   command, until it is migrated. Nothing to change means nothing to report.
+
+2. **Settings still valid** against the (possibly new) schema:
 
    ```bash
    python3 - "${CLAUDE_PLUGIN_ROOT}/hooks/scripts" <<'PY'
@@ -113,14 +130,14 @@ they do.
 
    On INVALID: recommend `/acs:setup` (it updates files in place).
 
-2. **A leftover acs status line** — acs no longer ships status-line scripts
+3. **A leftover acs status line** — acs no longer ships status-line scripts
    (ADR-0103). Read `~/.claude/settings.json` and
    `<repo>/.claude/settings.json`; a `statusLine` / `subagentStatusLine`
    command naming `statusline.py` or `subagent-statusline.py` under an acs
    install points at a file that no longer exists → tell the user to remove
    that setting from that file.
 
-3. **Workspace reachable** — resolve the workspace the same way item 1 does
+4. **Workspace reachable** — resolve the workspace the same way item 2 does
    (`acs_lib.load_settings` + `acs_lib.validate_settings`, which derives the
    in-repo `<main-checkout>/.acs/state-machine` — there is no override), then
    check the resolved directory exists and is writable; if not, the next

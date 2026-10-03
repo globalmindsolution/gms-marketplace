@@ -28,7 +28,6 @@ On the machine running Claude Code, inside the consumer repo:
 | `git` | Yes | Branches, worktrees, repo identity |
 | `python3` 3.9+ | Yes | All hooks and helper CLIs (stdlib only — no pip installs) |
 | `gh` (authenticated) | Yes | Pull requests; ticket sync when `tracker.provider` is `github` |
-| `acli` (authenticated) | Only with `tracker.provider: "jira"` | Jira ticket sync |
 
 ## Install
 
@@ -166,7 +165,7 @@ recorded the PR reference completed — an artifact, not a position.
 | `/acs:create-architecture` | Settings exist | Works from the PRD when there is one; without one, from the run's subject (a document in its arguments, else your focus notes plus the codebase), confirming goals, NFRs and constraints through the clarification ledger. Writes HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) in the repo's architecture set, else `docs/architecture/`, all Mermaid; docs PR. |
 | `/acs:create-docs` | Settings exist; the skill itself stops at Start without the architecture doc set | Bootstraps or maintains the four product doc sets — `quality` (test strategy, coverage policy), `operations` (release process, runbooks, observability, incident response, test scheduling), `principles` (engineering principles + rationale), `standards` (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set. Takes `all`, a comma-separated list of sets, or a delivery-ticket id to resume one; runs the eligible sets in capped parallel (at most 2 at a time, a limit the skill sets for itself — `ship.yaml` carries no `max_parallel`), each as its own docs-only PR on its own delivery ticket. One author and one reviewer serve every set (the set rides in the task constraints); `standards` reads the `principles` set when present and never blocks on its absence. |
 | `/acs:project` | — (unhooked umbrella; each leg keeps its own gate) | The only user-facing command for repository structure and tooling. Decides its own mode from declared on-disk evidence (`acs_lib.PROJECT_MODE_SENTINEL` — ten packaging/build/tooling files): no evidence at all ⇒ `bootstrap`, any evidence ⇒ `standardize`. States the mode and the evidence it rests on, then dispatches to that leg as a real Skill-tool call. |
-| `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional Jira/GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
+| `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
 
 #### Internal legs — not commands you run
@@ -338,10 +337,10 @@ over the built-in defaults. The most-used keys:
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `ticket_prefix` | `"ACS"` | Ticket id prefix (`ACS` → `ACS-123`); optional — set your own by hand (`SHOP` → `SHOP-123`) |
-| `test_coverage_percent` | `90` | `/acs:code` TDD coverage target (hard fail if missed) |
+| `tests` | `{ "coverage": 90 }` | `{coverage?, unit?, e2e?, <name>?}`: `coverage` is the `/acs:code` TDD coverage target (hard fail if missed) and the CI tests-gate floor; `unit` is the CI tests-gate suite (`{command, setup?}`); `e2e` and every other key are named suites (`{command, setup?, teardown?}`) |
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
 | `models` | inherit | Model + reasoning effort per subagent, `models.<skill>.<role> = {model, effort}` (a model alias or id, an effort `low`…`max`, or `inherit`). Written in full by `acs.py settings scaffold --write`; `acs step start` turns each entry that sets a value into a `.claude/agents/acs-<skill>-<role>.md` copy and spawns that. An absent skill, role or field inherits the parent session |
-| `tracker` | `{ "provider": "local" }` | Ticket backend: `local`, `github` (Projects v2), or `jira` |
+| `tracker` | `{ "provider": "local" }` | Ticket backend: `local` or `github` (Projects v2); `gh` is the only transport |
 
 No key locates a document: acs finds the repo's documents through `CLAUDE.md`
 and the repo itself, creates a missing one at the `docs/` conventions
@@ -353,6 +352,10 @@ Full reference: [docs/requirements/functional/configuration.md](../../docs/requi
 (all keys, placeholder vocabulary, description templates, tracker mapping)
 and the machine-readable
 [schemas/settings.schema.json](schemas/settings.schema.json).
+
+## Migrating old settings
+
+The settings shape changed (`test_coverage_percent`, `suites` and the top-level `e2e` moved under `tests`; Jira support was removed). `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" settings migrate` shows what it would rewrite (a dry run); add `--write` to rewrite every existing settings file to the new shape. Until a settings file is migrated every acs skill refuses to start, with a message naming the offending keys and this command. `/acs:update` runs it as its post-update settings step.
 
 ## Migrating an existing external workspace
 

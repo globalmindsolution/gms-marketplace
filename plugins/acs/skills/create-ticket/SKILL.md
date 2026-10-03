@@ -55,8 +55,6 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ti
 Decide BEFORE planning whether `$ARGUMENTS` is a remote key for
 `settings.tracker.provider`:
 
-- provider `jira` and `$ARGUMENTS` matches `[A-Z][A-Z0-9]*-[0-9]+` (e.g. `PROJ-456`):
-  pull with `acli jira workitem view PROJ-456`.
 - provider `github` and `$ARGUMENTS` is `#123`, a bare integer, or a GitHub issue
   URL: pull with `gh issue view 123 --json number,title,body,labels,assignees,url`.
 - provider `local`, or no match: not an import — treat `$ARGUMENTS` as the request.
@@ -66,15 +64,14 @@ proceed without — stop and surface the CLI error verbatim plus the canonical
 hint from `acs_lib.gh_failure_hint(stderr)` (see "GitHub call failure
 policy" below), with no fallback to any other transport. Otherwise seed the
 working title/description from the remote issue and record the mapping
-`external = {"provider": "jira", "key": "PROJ-456"}` (or `{"provider": "github",
-"key": "123"}`) for Step 3 to write into `ticket.json`. Then run the NORMAL
+`external = {"provider": "github", "key": "123"}` for Step 3 to write into `ticket.json`. Then run the NORMAL
 analysis below on the imported description — imports get the same clarification,
 typing, PRD trace, and needs_design decision as a local request. Never create a new
 remote issue for an imported ticket: the mapping points at the existing one.
 
 ### GitHub call failure policy
 
-`gh` (and `acli` for Jira) are the only tracker transports this skill uses —
+`gh` is the only tracker transport this skill uses —
 no MCP-based transport, no second credential path (ADR-0088). Three classes apply to
 every call below: **critical** (a gate input this step cannot proceed
 without — gh's verbatim stderr plus ONE canonical hint from
@@ -121,7 +118,7 @@ precedence is `--fan-out` -> split -> remote import -> raw request:
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/epic-fan-out.md` | `$ARGUMENTS` resolves to a local ticket id AND carries `--fan-out`. It mints an already-created epic's children and replaces Steps 1-3. |
 | `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/split-ticket.md` | `$ARGUMENTS` asks to split or restructure an existing local ticket (e.g. `split SHOP-123 per <plan path>`). It converts that ticket into an epic keeping its id. |
-| `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/tracker-sync.md` | `settings.tracker.provider` is `github` or `jira`. It is Step 5 of the flow below, and the two modes above reach it through the same pointer. On the default `local` provider there is nothing to sync and the step does not run. |
+| `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/tracker-sync.md` | `settings.tracker.provider` is `github`. It is Step 5 of the flow below, and the two modes above reach it through the same pointer. On the default `local` provider there is nothing to sync and the step does not run. |
 
 ## Resume & reconcile
 
@@ -318,12 +315,11 @@ the parent epic's `design.md`. Capture each printed `ticket_id`.
 
 ### Step 5 — Tracker sync
 
-Only when `settings.tracker.provider` is `github` or `jira` — on `local`
+Only when `settings.tracker.provider` is `github` — on `local`
 there is no remote, so skip to Finish. When it does apply, open
 `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/tracker-sync.md` and
 follow it: which tickets enter the sync set and which are excluded, the
-`acs.py tracker sync` batch call and how to read its JSON, the `acli`
-sequence for jira, and the per-ticket failure rule that surfaces a failed
+`acs.py tracker sync` batch call and how to read its JSON, and the per-ticket failure rule that surfaces a failed
 sync without aborting the batch.
 
 ## User interaction
@@ -421,7 +417,7 @@ MANDATORY final step — never skipped, also on failure:
 
    ```xml
    <handoff skill="create-ticket" ticket-id="SHOP-123" status="completed">
-     <summary>Created epic SHOP-123 "Wishlist" (needs_design=true); no children yet — fan out later with /acs:create-ticket SHOP-123 --fan-out after its design; traced to PRD feature "Wishlist (Must-have)"; synced to jira PROJ-789.</summary>
+     <summary>Created epic SHOP-123 "Wishlist" (needs_design=true); no children yet — fan out later with /acs:create-ticket SHOP-123 --fan-out after its design; traced to PRD feature "Wishlist (Must-have)"; synced to github issue 789.</summary>
      <artifacts>
        <file><partition>/ticket.json</file>
        <file>steps/create-ticket/result.json</file>

@@ -94,7 +94,7 @@ PY
 cat > .acs/settings.json <<'JSON'
 {
   "ticket_prefix": "EVAL",
-  "suites": {
+  "tests": {
     "unit": {
       "command": "PYTHONPATH=src python3 -m unittest discover -s tests/unit -p 'test_*.py'"
     },

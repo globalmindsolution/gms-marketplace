@@ -204,7 +204,7 @@ tracker is configured, it MUST hold the local↔remote id mapping used for
 two-way sync ([configuration.md](configuration.md)), e.g.:
 
 ```json
-"external": { "provider": "jira", "key": "PROJ-456" }
+"external": { "provider": "github", "key": "456" }
 ```
 
 `status` is **DERIVED from the run ledger, never stored** — a stored status
