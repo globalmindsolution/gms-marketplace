@@ -82,6 +82,35 @@ which each release cut points at the new `v<version>` tag
 (`release.extra_refs` in [`.acs/settings.json`](.acs/settings.json)) — so on the
 Devin side the pin is still per-plugin.
 
+### Oh My Pi
+
+**omp** accepts the same `.claude-plugin/marketplace.json` catalog as a
+Claude Code-compatible fallback, so this repository installs without changes.
+In a session use `/marketplace add` and `/marketplace install`; the CLI
+equivalents:
+
+```text
+# Add the catalog, then install acs (default scope: user — all projects)
+omp plugin marketplace add globalmindsolution/gms-marketplace
+omp plugin install acs@gms-marketplace
+```
+
+Then `/reload-plugins` (or restart the session) and invoke skills as
+`/skill:acs/<name>` — e.g. `/skill:acs/create-ticket`, `/skill:acs/ship`.
+
+**Two degradations.** Skills, `agents/` and slash commands load as-is, but:
+
+- acs's `hooks/hooks.json` is Claude Code shell-command format; omp discovers
+  only `.ts`/`.js` hook factories under `hooks/pre|post/`. The skill brakes,
+  file-map guard, and session bookkeeping **do not fire** — the pipeline runs
+  **ungated**, same as under Devin.
+- omp substitutes `${CLAUDE_PLUGIN_ROOT}` in MCP config only, not in skill
+  bodies — every acs skill shells out to
+  `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py"`. Export
+  `CLAUDE_PLUGIN_ROOT` pointing at the cached plugin directory
+  (`~/.omp/plugins/cache/plugins/gms-marketplace___acs___<version>/`) or
+  those commands fail.
+
 ### Releasing & updating
 
 **Recommended: `/acs:release <version>`** — a one-command skill that drafts
