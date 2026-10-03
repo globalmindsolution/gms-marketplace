@@ -152,6 +152,7 @@ from .workflow import (OVERRIDE_WORKFLOW_RELPATH,  # noqa: F401
 
 from . import skills as skills_registry  # noqa: F401,E402
 from . import models  # noqa: F401,E402
+from . import launch_config  # noqa: F401,E402
 from . import migrate_settings  # noqa: F401,E402
 from . import conventions  # noqa: F401,E402
 from . import agent_sync  # noqa: F401,E402

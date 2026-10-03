@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Optionally configure acs for the current repo — set the ticket prefix, install the CI ticket-link check (every PR names its ticket) and the test gates, and scaffold the model settings. Use when setting up acs on a new repo, when the user wants a ticket prefix, wants the ticket-link check or the tests/e2e gates enforced in CI, or wants the pipeline protected from being bypassed. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Optionally configure acs for the current repo — set the ticket prefix, install the CI ticket-link check (every PR names its ticket) and the test gates, scaffold the model settings, and write the Claude Code Desktop app's preview-server config (.claude/launch.json). Use when setting up acs on a new repo, when the user wants a ticket prefix, wants the ticket-link check or the tests/e2e gates enforced in CI, wants the pipeline protected from being bypassed, or wants the dev server the Desktop app previews set up for the team. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
@@ -43,7 +43,9 @@ whether a broad rule is swallowing files CI must read
 (`swallowed_by_a_broad_rule`), the `toolchain` and `missing_tools`, plausible
 test commands (`test_command_candidates`), which CI installs are already
 present (`ci`), retired settings keys still sitting in a settings file
-(`retired_keys`), and the git facts — `default_branch` is the branch to
+(`retired_keys`), the preview-server config `.claude/launch.json` (`launch`:
+whether it exists, its configuration names, `problems`, and `candidates` — a
+guessed dev server when there is none), and the git facts — `default_branch` is the branch to
 protect (null when it cannot be told; never guess it from `current_branch`).
 No git repository → STOP. `missing_tools` non-empty → name each gap and its
 install hint now; nothing here blocks on it.
@@ -78,17 +80,26 @@ asking again.
    each skill's model and effort can be tuned in one visible place. Only on a
    yes, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" settings scaffold --write`
    after Step 3's apply.
+4. **Preview servers** — offered only when `launch.exists` is false and
+   `launch.candidates` is non-empty. `.claude/launch.json` tells the Claude Code
+   Desktop app (Code tab and Browser pane) how to start and preview the dev
+   server; it is committed, and Claude would otherwise guess one per session.
+   Show each candidate — `runtimeExecutable`, `runtimeArgs`, `port` (the tool's
+   default, a guess) — and let the user correct it. Never put secrets in `env`.
+   An existing file is never rewritten: a configuration it already has is kept.
 
 ## Step 3 — Apply
 
 Pass the answers on stdin — never as a file in the repo, where it would be
 left behind untracked. They carry only what the user chose — `settings` (e.g. `ticket_prefix`,
-`tests`) and `ci` (any of `conventions`, `tests`, `e2e`):
+`tests`), `ci` (any of `conventions`, `tests`, `e2e`) and `launch`
+(`{"configurations": [...]}` from Step 2 item 4):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup apply --answers - <<'JSON'
 {"settings": {"ticket_prefix": "SHOP", "tests": {"unit": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}}},
- "ci": ["conventions", "tests"]}
+ "ci": ["conventions", "tests"],
+ "launch": {"configurations": [{"name": "web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000}]}}
 JSON
 ```
 
@@ -99,7 +110,10 @@ lines land in `unchanged`, which is how you show the run was safe. `defaulted`
 lists answers that equal the built-in default and were therefore not written (or
 removed from the file, when an earlier run had written them). `warnings` is what
 you relay but must not fix for them — a conflicting `!.acs/` negation, or a broad
-rule swallowing `.acs/settings.json`, is their configuration to decide. `errors`
+rule swallowing `.acs/settings.json`, is their configuration to decide (an `env`
+name that looks like a secret is warned about too). `launch` reports the
+configurations `added` and `kept`; a launch.json with comments is refused, since a
+rewrite would drop them, so tell the user what to add by hand. `errors`
 non-empty means apply refused and **wrote nothing** — an answer that does not
 validate, or a gate missing the command it runs: say why, settle the answer
 with the user, and apply again.

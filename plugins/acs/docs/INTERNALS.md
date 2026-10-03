@@ -1385,8 +1385,12 @@ what makes the arm reachable for a real ticket rather than only for a fixture.
 skill asks and explains; `setup_wizard.py` writes, reached as two commands:
 
 Setup is optional (ADR-0105): no skill needs it first. It sets the ticket
-prefix and installs the CI gates — the ticket-link check, tests and e2e — and
-scaffolds the `models` block; every other setting keeps its default until
+prefix and installs the CI gates — the ticket-link check, tests and e2e —
+scaffolds the `models` block, and writes `.claude/launch.json`, the Claude Code
+Desktop app's preview-server config, from a dev server it guesses and the user
+confirms (`acs_lib.launch_config`: validated against the documented schema,
+merged by configuration name so an existing entry is never replaced, and never
+written over a file with comments); every other setting keeps its default until
 someone edits `.acs/settings.json` by hand.
 
 - **`acs.py setup detect`** — read-only. Which settings exist and **in which

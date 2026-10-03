@@ -60,7 +60,7 @@ IGNORE_ENTRIES = (".acs/settings.local.json", ".acs/state-machine/")
 
 #: Paths a broad ignore rule must NOT swallow. Warned about, never fixed for
 #: the user: a `!.acs/` negation is their configuration to decide.
-MUST_STAY_TRACKED = (".acs/settings.json", ".acs/ci/check-conventions.py")
+MUST_STAY_TRACKED = (".acs/settings.json", ".acs/ci/check-conventions.py", ".claude/launch.json")
 
 #: install name -> (files copied into .acs/ci/, workflow copied into
 #: .github/workflows/, the required-status-check context the gate uses).
@@ -223,6 +223,9 @@ def detect(cwd):
         "test_command_candidates": test_command_candidates(root),
         "ci": installed_ci(root),
         "retired_keys": retired_keys(scope_files(cwd, settings_root)),
+        # The Desktop app's preview-server config: what is there, and a guess
+        # at a dev server when nothing is.
+        "launch": lib.launch_config.detect(root),
     }
 
 
@@ -580,6 +583,10 @@ def apply(cwd, answers, dry_run=False):
     values, defaulted = split_defaults(raw_settings)
     refused = refusals(cwd, settings_path, raw_settings, values, defaulted,
                        list(answers.get("ci") or ()))
+    launch_doc, launch = (None, None)
+    if "launch" in answers:
+        launch_doc, launch = lib.launch_config.plan(root, answers["launch"])
+        refused = refused + launch["errors"]
     if refused:
         out = changes.as_dict()
         out.update({"ok": False, "dry_run": dry_run, "settings_path": settings_path,
@@ -597,6 +604,14 @@ def apply(cwd, answers, dry_run=False):
     workspace = apply_workspace(cwd, changes, dry_run=dry_run)
     staged, installed_ci = apply_ci(root, answers.get("ci") or (), changes,
                                     dry_run=dry_run)
+    if launch is not None:
+        if launch_doc is not None and not dry_run:
+            lib.launch_config.write(root, launch_doc)
+        changes.note(launch_doc is not None, "wrote %s" % os.path.join(*lib.launch_config.PATH_PARTS))
+        if launch_doc is not None:
+            staged.append(os.path.join(*lib.launch_config.PATH_PARTS))
+        for warning in launch["warnings"]:
+            changes.warn(warning)
 
     settings, _sources = lib.load_settings(cwd)
     errors = list(changes.errors)
@@ -613,7 +628,8 @@ def apply(cwd, answers, dry_run=False):
                 # Only the installs that ACTUALLY landed: a required check for
                 # a workflow that was never installed blocks every future PR.
                 "required_check_contexts": [CI_INSTALLS[n][2] for n in installed_ci
-                                            if n in CI_INSTALLS]})
+                                            if n in CI_INSTALLS],
+                "launch": launch})
     return out
 
 
@@ -628,6 +644,7 @@ from setup_wizard_commands import (PIPELINE_ORDER, SETUP_LABELS,  # noqa: E402,F
 ANSWER_TYPES = {
     "settings": (dict, "an object of setting keys"),
     "ci": (list, "a list of any of %s" % ", ".join(sorted(CI_INSTALLS))),
+    "launch": (dict, "an object with `configurations` (and optional `autoVerify`)"),
 }
 
 
