@@ -3,7 +3,7 @@ description: >-
   Setup run again on a repo it configured before, by a user who wants nothing
   changed. A re-run must be a visible no-op.
 expected_outcome: >-
-  The seeded pr_title survives, .gitignore carries its entry once, no new gate
+  The seeded ticket_prefix survives, .gitignore carries its entry once, no new gate
   appears, and the reply reports nothing changed.
 tags: [setup]
 max_turns: 30

@@ -26,8 +26,8 @@ ground truth. Zero findings = pass. ALL findings block.
 3. `scope` — no doc edit beyond what the diff/notes justify (no drive-by
    rewrite of unrelated content).
 4. `mechanics` — the commits are on the SAME ticket branch (no new branch),
-   there is no new PR, and each commit message matches the `commit_message`
-   format.
+   there is no new PR, and each commit message follows the commit style of the
+   `commit_message` constraint's example.
 5. `requirements-routing` — when the diff touches a file under
    `requirements_dir`: the merge is classified correctly per the rubric (functional=
    behavior, non-functional=quality, tie-break defaults to functional) and

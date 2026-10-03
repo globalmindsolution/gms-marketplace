@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Don't scaffold any tooling or restructure the repo. I only want acs's own conventions configured here, plus the CI check that every PR references its ticket.
+Don't scaffold any tooling or restructure the repo. I only want acs's own settings configured here, plus the CI check that every PR references its ticket.

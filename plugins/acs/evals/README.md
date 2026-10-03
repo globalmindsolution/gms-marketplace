@@ -7,16 +7,16 @@ Edit a case by editing its files.
 
 ```
 evals/
-├── routing/                  # 258 cases: does a prompt reach the right skill?
+├── routing/                  # 244 cases: does a prompt reach the right skill?
 │   └── <case>/
 │       ├── prompt.md         # frontmatter: description, expected_outcome, tags, limits; body: the prompt
 │       └── graders/<name>.md # one grader per file
 ├── artifacts/                # 2 cases: did the skill WRITE the right workspace state?
 │   └── <case>/               # + case.yaml (scaffold) + a seed script
-├── setup/                    # 8 cases: does /acs:setup configure exactly what was asked?
+├── setup/                    # 6 cases: does /acs:setup configure exactly what was asked?
 │   ├── _fixtures/            # the repo every case starts from (not a case)
 │   └── <case>/               # prompt.md + case.yaml (scaffold.sh) + graders/
-├── behaviour/                # 105 cases: 2–7 per skill, every mode — what did it DO? (behaviour/README.md)
+├── behaviour/                # 100 cases: 2–7 per skill, every mode — what did it DO? (behaviour/README.md)
 │   ├── _fixtures/repo.sh     # the shared repo; state seeded through the plugin's own CLIs
 │   └── <case>/               # + calibration.py, baseline.criteria.md, and once recorded baseline.jsonl
 └── results/                  # written by each run; gitignored
@@ -47,15 +47,15 @@ release gate's ~2,500 runs cost about $190.
 
 | Tag | Cases | Asserts |
 |---|---|---|
-| `routing` | all 258 routing cases | a prompt reaches (or avoids) a skill |
-| `description` | 240 | a natural-language request, never naming the skill, reaches it — ten phrasings for each of 24 skills |
-| `confusable` | 72 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
-| `explicit` | 8 | a typed `/acs:<skill>` reaches it — see the limit below |
+| `routing` | all 244 routing cases | a prompt reaches (or avoids) a skill |
+| `description` | 227 | a natural-language request, never naming the skill, reaches it — ten phrasings for each of 24 skills |
+| `confusable` | 68 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
+| `explicit` | 7 | a typed `/acs:<skill>` reaches it — see the limit below |
 | `negative` | 6 | a description of an internal leg's subject does NOT reach the leg |
 | `control` | 4 | a request answered in prose invokes no skill at all |
 | `artifacts` | 2 | the skill wrote the expected workspace state |
-| `setup` | 8 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
-| `behaviour` | 105 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–7 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
+| `setup` | 6 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
+| `behaviour` | 100 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–7 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
 
 `--tag` keeps a case if ANY of its tags match, so `--tag description --tag
 negative --tag control` runs the routing cases that are fully measurable —
@@ -205,16 +205,14 @@ from before, made by the plugin's own wizard.
 
 | Case | Asks | Graded on |
 |---|---|---|
-| `01-keep-defaults` | keep the formats, no CI | no settings file, no CI files, the ignore entry written, no stray answers file, no re-asked question |
-| `02-custom-pr-title` | a bracketed-id PR title + the convention check, not an admin | only `pr_title` written, the convention workflow and checker installed, no other gate, no branch-protection PUT, the reply names the required check |
+| `01-keep-defaults` | keep the ticket prefix, no CI | no settings file, no CI files, the ignore entry written, no stray answers file, no re-asked question |
 | `03-tests-gate` | the tests-and-coverage gate | a pytest `tests.command` that enforces `$ACS_COVERAGE`, `acs-tests.yml` installed, nothing else |
-| `04-rerun` | run it again, change nothing | the custom format kept, no duplicate ignore line, no new gate, the reply reports nothing changed |
-| `05-no-choices` | "Set up acs for this repo." | nothing written; the reply asks about formats and CI |
-| `06-invalid-branch-format` | a branch format without `{ticket_id}` | no settings file left behind; the reply explains why and offers a working format |
+| `04-rerun` | run it again, change nothing | the seeded ticket prefix kept, no duplicate ignore line, no new gate, the reply reports nothing changed |
+| `05-no-choices` | "Set up acs for this repo." | nothing written; the reply asks about the ticket prefix and CI |
 | `07-neg-github-actions`, `08-neg-pre-commit` | CI or tooling work that is not about acs | setup never fires, no acs file is created, the request itself is done |
 
-Every `llm` grader also fails a reply that asks for a ticket prefix or a
-workspace location, which setup no longer asks about. Use `--judge-model
+Every `llm` grader also fails a reply that asks for a workspace location, which
+setup does not ask about. Use `--judge-model
 sonnet`: the default judge is a small model.
 
 The free graders are calibrated by `tests/evals/check_grader_calibration.py` (above).
@@ -246,7 +244,7 @@ Pilot with `--runs 1 --no-publish` first.
 - **Explicit invocation is not reliably observable.** A typed `/acs:<skill>` can
   be expanded by the CLI before any model turn, in which case no `Skill` call
   happens and the grader reads 0x for a probe that routed. In the first full run
-  `install-hooks` and `update` scored 1.00 and all six internal legs scored
+  `update` and one since-removed skill scored 1.00 and all six internal legs scored
   0.00. No invocation flag in the skills' frontmatter explains the split; it is
   unexplained, not diagnosed. Hence the `explicit` tag, and why the gate does
   not run it.
@@ -304,7 +302,7 @@ hook runs `scripts/eval_changed.py` on `git push`. It diffs your branch against
 job. It is **on by default**:
 
 ```bash
-pre-commit install --hook-type pre-push      # once per clone (also enables the branch/commit pre-push check)
+pre-commit install --hook-type pre-push      # once per clone (enables the `acs-evals` push hook)
 claude plugin eval plugins/acs --case ignores-regex-request --runs 1 --ablation none   # once, in a terminal: trust this directory
 
 python3 scripts/eval_changed.py --dry-run    # what your change would run (runs nothing)
@@ -323,7 +321,7 @@ git config acs.evalsBudget 40                # optional: runaway guard on comput
 
 A description change runs four routing cases at the median. The most is eight,
 for `code`, whose four legs each have a `negative` case. A skill's files add its
-behaviour cases (2–7; `setup` adds twelve). The hook lists the eval cases your branch edited but did not
+behaviour cases (2–7; `setup` adds nine). The hook lists the eval cases your branch edited but did not
 run, and the release gate runs them all. The two controls that name no skill,
 `ignores-regex-request` and `ignores-unrelated-request`, run only there. To tie
 a `negative` or `control` case to a skill, name the skill as `/acs:<skill>` in

@@ -17,6 +17,5 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:project skill on this repo to bring its structure and tooling up
 to what acs expects. Answers to anything it might ask: the coverage target
-stays at 90%, CI is GitHub Actions, no e2e suite, default branch and commit
-formats. Don't ask me anything. Don't change our acs settings either -- if
+stays at 90%, CI is GitHub Actions, no e2e suite. Don't ask me anything. Don't change our acs settings either -- if
 something about them is wrong, stop and tell me exactly what the error says.

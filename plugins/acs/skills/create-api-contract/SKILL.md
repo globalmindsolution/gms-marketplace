@@ -94,7 +94,6 @@ Parse the printed context JSON. Fields you will use:
   `<design.dir>/design.md` when an older design still lives in the partition)
   and read it for the interface decisions it already settled. Call it
   `<design_doc>`.
-- `settings` — you need `formats.branch_name`, `formats.commit_message`.
 - `agents` — the agent name to spawn per role; the contract-author's and the
   contract-reviewer's model and effort come from
   `settings.models.create-api-contract.<role>` (inheriting when unset).
@@ -114,10 +113,9 @@ simply has none; this skill does not create it.
 
 `api-contract.md` (in the ticket's docs folder, `docs/tickets/<id>/`) and
 every machine-readable contract file belong on the ticket branch with the rest
-of the change. Render `settings.formats.branch_name` (default
-`"{type}/{ticket_id}-{slug}"`) with `{ticket_id}`, `{type}` (`ticket.type`),
-`{slug}` (`acs.py slug --text "<title>"`) and `{external_key}`, then create or
-reuse it:
+of the change. Name the branch `<type>/<ticket_id>-<slug>` with
+`<ticket_id>`, `<type>` (`ticket.type`) and `<slug>`
+(`acs.py slug --text "<title>"`), then create or reuse it:
 
 ```bash
 git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
@@ -125,8 +123,8 @@ git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git chec
 
 The branch normally already exists — `/acs:analyze-requirements` and
 `/acs:create-impl-plan` ran before this step. Reuse it; never recreate or reset
-it. Commit with `settings.formats.commit_message` (default
-`"{ticket_id} {summary}"`). Do NOT push — `/acs:create-pr` pushes.
+it. Commit in the repo's own style, naming the ticket id (default
+`<ticket_id> <summary>`). Do NOT push — `/acs:create-pr` pushes.
 
 ### Contract artifact resolution
 

@@ -75,8 +75,7 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   the other tickets sync, and a failed one keeps `external` null so it can be
   retried on its own. Every finding carries the `ticket_id` it came from, so a
   batch's flat list stays attributable. Everything after the issue is created
-  — labels, assignee, milestone (from `ticket.milestone`, else
-  `settings.tracker.milestone`), Projects — is **non-critical**: one `info`
+  — labels, assignee, milestone (from `ticket.milestone` only), Projects — is **non-critical**: one `info`
   finding with a replayable, shell-quoted command, never a failed ticket. A board that does not define a
   field (`Type`, `Status`, `Priority`, `Story Points`, `Parent`) is one info
   finding naming exactly what was skipped: a schema-undefined field is

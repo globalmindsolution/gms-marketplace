@@ -167,7 +167,7 @@ parallel) must, in order:
    implementer report's `problems` field, so `/acs:docs-sync` (which reads
    every implementer report's `problems` as a mandatory input) repairs it on
    the same branch/PR.
-5. **Commit** the spec's work on the ticket branch per
-   `formats.commit_message` (one or a few coherent commits per spec), staging
+5. **Commit** the spec's work on the ticket branch in
+   the repo's own commit style, naming the ticket id (one or a few coherent commits per spec), staging
    only the implementer's own paths by name; on `index.lock` contention, wait
    briefly and retry. Never push, never force.

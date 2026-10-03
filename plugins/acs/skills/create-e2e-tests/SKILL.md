@@ -102,8 +102,7 @@ Parse the printed context JSON. Fields you will use:
   to it.
 - `settings` — you need `suites` (the reserved `e2e` entry: its `command`,
   optional `setup`/`teardown`; `settings.e2e` is normalized into it at load
-  time, so read `suites["e2e"]` and never the raw alias),
-  `formats.branch_name`, `formats.commit_message`.
+  time, so read `suites["e2e"]` and never the raw alias).
 - `agents` — the agent name to spawn per role; the test-writer's and the
   suite-runner's model and effort come from
   `settings.models.create-e2e-tests.<role>` (inheriting when unset).
@@ -122,10 +121,9 @@ One the repo does not have is simply absent; this skill creates neither.
 ## Branch — the suites are repo files
 
 The e2e suites are part of the ticket's changeset and belong on the ticket
-branch. Render `settings.formats.branch_name` (default
-`"{type}/{ticket_id}-{slug}"`) with `{ticket_id}`, `{type}` (`ticket.type`),
-`{slug}` (`acs.py slug --text "<title>"`) and `{external_key}`, then create or
-reuse it:
+branch. Name the branch `<type>/<ticket_id>-<slug>` with `<ticket_id>`,
+`<type>` (`ticket.type`) and `<slug>` (`acs.py slug --text "<title>"`), then
+create or reuse it:
 
 ```bash
 git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
@@ -133,7 +131,8 @@ git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git chec
 
 The branch normally already exists — `/acs:code` ran on it. Reuse it; never
 recreate or reset it, and never rebase it. Commit the suites with
-`settings.formats.commit_message` (default `"{ticket_id} {summary}"`). Do NOT
+the repo's own commit style, naming the ticket id (default
+`<ticket_id> <summary>`). Do NOT
 push — `/acs:create-pr` pushes.
 
 Unlike the ticket's documents, which live in its docs folder
@@ -561,7 +560,7 @@ flows the test-writer's authoring notes derived.
 ### Commit
 
 Once the suite-runner passes and the coverage check is clean, commit the suite and
-fixture files on the ticket branch with `settings.formats.commit_message`.
+fixture files on the ticket branch in the repo's own commit style, naming the ticket id.
 Commit ONLY the paths in the file map; if `git status` shows anything else
 changed, STOP and surface it — an unexpected modified file under the source tree
 means the "never write product code" rule was breached and the run must not

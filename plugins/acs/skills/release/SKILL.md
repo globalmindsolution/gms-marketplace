@@ -208,10 +208,10 @@ Only reached when Step 2 found no in-flight/done cut.
    prefix itself is not settings-driven — it stays the fixed convention
    matching this repo's own prior real cuts; only the version-rendering
    suffix comes from the block. A consumer's `release_branch_format` should
-   be chosen to match its own `enforcement.exempt_branches` glob, or the
-   release PR will fight the conventions gate — this marketplace's profile
-   #1 already satisfies this (`release/v{version}` matches the existing
-   `release/*` glob); this skill does not itself validate the match.
+   be chosen to start with `release/` — the fixed `release/*` exemption from the
+   CI ticket-link check — or the release PR will fight that check; this
+   marketplace's profile #1 already satisfies this (`release/v{version}`);
+   this skill does not itself validate the match.
 
 4. **Open the PR:**
 
@@ -223,9 +223,9 @@ Only reached when Step 2 found no in-flight/done cut.
    `<base_branch>` = the block's `base_branch` field (profile #1: `main`).
    No `--draft` — the PR is ready for review immediately. The PR title is
    the fixed `"release: cut <release_tag>"` convention (matching prior real
-   cuts, tag portion block-rendered) — not rendered via `pr-conventions.py`,
-   since there is no ticket to derive `settings.formats.pr_title` from and
-   `release/*` is already exempt from the conventions gate. The PR body
+   cuts, tag portion block-rendered), written directly — there is no ticket
+   to derive a title from and `release/*` is already exempt from the CI
+   ticket-link check. The PR body
    embeds: a **Pre-release gate** section — each `pre_release_gate`
    command with its exit code and output tail from step 0, or the
    statement that this repo declares none — the coverage report (N/M/K +

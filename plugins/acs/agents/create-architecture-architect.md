@@ -158,9 +158,9 @@ heading each, so the coordinator's join lands each section once):
 - **Flow selection** — each flow with a one-line purpose and its sequence-diagram
   participants, every participant named identically to a C4 container/component.
 
-- **Delivery step** — your final task, gated on the review passing: branch per
-  `formats.branch_name` (embeds the ticket id), docs-only commits per
-  `formats.commit_message`, push, `gh` PR against the default branch with the `ACS` label.
+- **Delivery step** — your final task, gated on the review passing: branch
+  `<type>/<ticket_id>-<slug>` (embeds the ticket id), docs-only commits in the
+  repo's own style naming the ticket id, push, `gh` PR against the default branch with the `ACS` label.
 - **Risks & open decisions** — anything that could invalidate the design.
 - **Reviewer checklist** — enumerate every check dimension the reviewer must apply this
   iteration: doc-set-completeness (including `hld/project-structure.md`),
@@ -231,8 +231,8 @@ iteration's notes.
 6. Regeneration runs: preserve still-accurate existing content, update what shifted —
    do not rewrite sections the upstream does not touch.
 7. **Delivery — only when your task explicitly includes it** (it is gated on
-   the review passing): create the branch per `formats.branch_name` (embeds the ticket
-   id), commit per `formats.commit_message`, push, and open the docs-only PR against the
+   the review passing): create the branch `<type>/<ticket_id>-<slug>` (embeds the ticket
+   id), commit in the repo's own style naming the ticket id, push, and open the docs-only PR against the
    default branch with the `ACS` label via `gh pr create`.
 8. On iteration >= 2, fix every finding listed in `<context>` and nothing beyond what
    your notes cover; leaving a listed finding unaddressed fails the next review.

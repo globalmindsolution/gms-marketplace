@@ -56,8 +56,7 @@ Parse the printed context JSON. Fields you will use:
   show --iteration <n-1>` prints that copy validated. Then see
   **On iteration 2+** in your leg's SKILL.md.
 - `design` — `{required, dir, source}` when a design document applies.
-- `settings` — you need `formats.branch_name`, `formats.commit_message`, and
-  `e2e` when set. The repo's standards set and `test_coverage_percent` are
+- `settings` — you need `e2e` when set. The repo's standards set and `test_coverage_percent` are
   the **reviewer's** inputs, not yours.
 - `agents` — the agent name to spawn per role; the implementer's model and
   effort come from `settings.models.code.implementer` (inheriting when unset).
@@ -143,15 +142,15 @@ onto a path and implementing it.
 
 ## Branch — FIRST, before any code
 
-All work happens on the run's branch. Render `settings.formats.branch_name`
-(default `"{type}/{ticket_id}-{slug}"`) with:
+All work happens on the run's branch. Name the branch
+`<type>/<ticket_id>-<slug>` (e.g. `task/MAR-12-fix-thing`; ticket detection
+depends on the id being in it) with:
 
-- `{ticket_id}` — the run's ticket id when the subject is a ticket, the run id
+- `<ticket_id>` — the run's ticket id when the subject is a ticket, the run id
   otherwise;
-- `{type}` — the subject's type (`epic|story|task`), `task` when it has none;
-- `{slug}` — the slugified subject title: lowercase, every non-alphanumeric run
-  becomes `-`, trimmed, max 40 chars (`acs slug` renders exactly this);
-- `{external_key}` — the tracker's key when set, else empty.
+- `<type>` — the subject's type (`epic|story|task`), `task` when it has none;
+- `<slug>` — the slugified subject title: lowercase, every non-alphanumeric run
+  becomes `-`, trimmed, max 40 chars (`acs slug` renders exactly this).
 
 Then create or reuse it:
 
@@ -160,8 +159,9 @@ git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git chec
 ```
 
 On resume the branch usually already exists — reuse it, never recreate or reset
-it. Every commit message follows `settings.formats.commit_message` (default
-`"{ticket_id} {summary}"`). Commit work on this branch as the plan's tasks
+it. Every commit message follows the repo's own style (recent `git log`,
+CLAUDE.md/CONTRIBUTING.md) and names the ticket id (default
+`<ticket_id> <summary>`). Commit work on this branch as the plan's tasks
 land; do NOT push — `/acs:create-pr` owns the push and the PR.
 
 ---

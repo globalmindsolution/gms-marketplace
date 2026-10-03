@@ -232,7 +232,10 @@ class PrdG39DesignTemplateTest(unittest.TestCase):
     def test_schema_cross_pin(self):
         schema = read(SETTINGS_SCHEMA)
         self.assertNotIn("spec_template", schema)
-        self.assertIn("design_template", schema)
+        # The design template is no longer a setting: it is the built-in
+        # `design-default`, replaceable by .acs/templates/design-default.md
+        # (acs_lib.conventions.DESIGN_TEMPLATE).
+        self.assertNotIn("design_template", schema)
 
     def test_sidecar_cross_pin(self):
         self.assertIn(".evidence.md", read(DOCS_SYNC_EXECUTOR))

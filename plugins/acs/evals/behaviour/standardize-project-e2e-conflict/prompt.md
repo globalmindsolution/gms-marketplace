@@ -19,8 +19,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 Run the /acs:standardize-project skill on this repo: audit it against its
 docs and acs's tooling expectations, and add only what's missing. Answers up
 front: the coverage target stays at 90%, CI is GitHub Actions, the e2e suite
-is the one already configured in `.acs/settings.json`, and keep the default
-branch and commit formats. Our own e2e workflow is at
+is the one already configured in `.acs/settings.json`. Our own e2e workflow is at
 `.github/workflows/acs-e2e.yml` -- it boots the service first, so it must
 stay exactly as it is. Don't ask me anything; record anything you had to
 assume. If pushing or opening the PR fails, stop there and tell me what

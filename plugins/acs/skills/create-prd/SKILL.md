@@ -76,7 +76,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 If `acs step start` exits non-zero: STOP and surface its stderr verbatim.
 
 Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
-`settings` (`formats`, `ticket_prefix`), `agents` (agent name to spawn per role),
+`settings` (`ticket_prefix`), `agents` (agent name to spawn per role),
 `reconcile`, `handoff_summary`, `design`, `pipeline`, `post_hook`.
 
 Keep the free text of `$ARGUMENTS` (product notes, amendment request): it is
@@ -335,8 +335,7 @@ DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
 git fetch origin "$DEFAULT_BRANCH" && git checkout -b "<branch>" "origin/$DEFAULT_BRANCH"
 ```
 
-`<branch>` renders `settings.formats.branch_name` (default
-`{type}/{ticket_id}-{slug}`) with `ticket_id` = delivery ticket id, `type` = `task`,
+`<branch>` is `<type>/<ticket_id>-<slug>` with `ticket_id` = delivery ticket id, `type` = `task`,
 `slug` = slugified ticket title — e.g. `task/MAR-51-amend-prd-add-org-enforcement-policy`. On a
 fresh repo with no remote default branch yet, `git checkout -b "<branch>"` from the
 current HEAD instead. If checkout fails (conflicting local changes), surface the git
@@ -467,12 +466,12 @@ Only after the reviewer passes:
 
 ```bash
 git add "<prd>" "<roadmap>"
-git commit -m "<rendered formats.commit_message>"      # default {ticket_id} {summary}, e.g. "SHOP-1 Add product requirements document and roadmap"
+git commit -m "<commit message>"      # repo's own style, naming the ticket id; default <ticket_id> <summary>, e.g. "SHOP-1 Add product requirements document and roadmap"
 git push -u origin "<branch>"
 ```
 
 Then follow `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` for the
-label, the rendered title, the body template, the pre-open self-check and
+label, the PR title, the body template, the pre-open self-check and
 `gh pr create` — the mechanics every delivery-ticket skill shares. Three
 things are this run's own:
 

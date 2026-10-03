@@ -20,7 +20,7 @@ Run the /acs:project skill on this repo. It's a new product: we only have
 the PRD and the approved architecture docs so far, and the stack is pinned in
 `docs/architecture/hld/tech-stack.md`. Answers to anything it might ask: the
 coverage target stays at 90%, we don't want an e2e harness yet, CI is GitHub
-Actions, and keep the default branch and commit formats. Don't ask me
+Actions. Don't ask me
 anything -- decide from the repo and this message, and record anything you
 had to assume. If pushing or opening the PR fails, stop there and tell me
 what happened. In your final message, tell me which mode you picked and what

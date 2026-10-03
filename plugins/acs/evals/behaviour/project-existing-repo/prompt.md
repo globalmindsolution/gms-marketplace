@@ -18,8 +18,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 Run the /acs:project skill on this repo. We want its structure and tooling
 brought up to what acs expects before we start using the ticket pipeline.
 Answers to anything it might ask: the coverage target stays at 90%, we don't
-want an e2e suite, CI is GitHub Actions, and keep the default branch and
-commit formats. Don't ask me anything -- decide from the repo and this
+want an e2e suite, and CI is GitHub Actions. Don't ask me anything -- decide from the repo and this
 message, and record anything you had to assume. If pushing or opening the PR
 fails, stop there and tell me what happened. In your final message, tell me
 which mode you picked and what on disk decided it.

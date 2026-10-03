@@ -29,6 +29,14 @@ matching section here, and merge to `main` — the Release workflow tags
   SubagentStop hooks now match `^acs[:-]`. Replaces the `planner` / `executor` /
   `verifier` tiers, `models.overrides` and `context.models` (**breaking**: an old
   `models` block is rejected; run the scaffold).
+- **`formats` and `enforcement` are removed** (ADR-0116). Branch, commit and PR-title
+  style are the model's to follow; what a script must parse is fixed in
+  `acs_lib.conventions` (branch `<type>/<ticket_id>-<slug>`, the CI exemptions, the
+  `ACS` label, template names). The CI ticket-link check stays. Removed with them:
+  the local `commit-msg`/`pre-push` hooks and `install-hooks.sh`, the
+  `/acs:install-hooks` skill, `stacked-base.py`, `pr-conventions.py render-title`
+  and `tracker.milestone` (a ticket's own `milestone` stays). **Breaking** for a repo
+  that set a custom format; a leftover block is accepted and ignored.
 - **`hook_gates` is removed.** A run with no evidence that the gates fired always
   warns; a gate that fired and refused still stops the step.
 - The retired `enforcement.checks.pr_title`, `pr_description`, `acs_label` and

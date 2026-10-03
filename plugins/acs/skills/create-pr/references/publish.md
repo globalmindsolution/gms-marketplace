@@ -14,9 +14,9 @@ publish report — never improvise a different flow.
 **Where the cross-references below point.** Step numbers are the Inline apply
 flow's in SKILL.md, which states each step in full; this file holds what binds
 them together — the order, the rules each one must not break, and the report
-the run leaves behind. The stacked-base remedy is
-`${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md`;
-resuming is `references/resume.md`.
+the run leaves behind. Resuming is `references/resume.md`; reading a red
+ticket-link check is
+`${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md`.
 
 ## What you work from
 
@@ -28,7 +28,7 @@ history:
 - `steps/code/state.json`, `specs/*.md`, and `design.md` when the ticket
   has one;
 - the resolved body template file;
-- the values you settle along the way: the rendered `pr_title`, the
+- the values you settle along the way: the PR title, the
   `base_branch`, the ticket `branch`, and `tracker_provider`.
 
 ## GitHub call failure policy, as it applies here
@@ -47,41 +47,11 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
 ## Ship the PR, in this order
 
-1. **Branch, base, and the stacked-base pre-flight.** Verify the ticket branch
+1. **Branch and base.** Verify the ticket branch
    exists (`git rev-parse --verify <branch>` locally, or already on origin —
    `git ls-remote origin <branch>`). Detect the base BEFORE anything is
-   pushed — `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`
-   — then refresh it and run the pre-flight (the helper is read-only and
-   network-free, so the fetch is yours to do):
-
-   ```bash
-   git fetch origin <base>
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stacked-base.py" check \
-     --base <base> --commit-message-format "<settings.formats.commit_message>" \
-     --ticket-prefix <settings.ticket_prefix>
-   ```
-
-   Exit 0 (`verdict` `clean` or `own_violations`) — nothing is stacked, carry
-   on: with `notes` empty a non-conforming subject is this branch's own and
-   gets the ordinary gate failure. With `notes` NON-empty the run qualified its
-   own report — a commit it could not test, an index it could not build, or
-   absorbed-looking content with no safe replay point — so do not conclude
-   ownership from it: record the report's `message` VERBATIM as one `info`
-   finding and CONTINUE, the same shape as exit 2.
-   Exit 1 (`verdict` `stacked_base`) — the branch is stacked on a base that
-   was squash-merged. With `settings.enforcement.checks.commit_message` on, the
-   local pre-push hook refuses those subjects: do NOT push and do NOT create or
-   edit a PR; surface the report's `message` VERBATIM as a blocking problem
-   (it names the offending subjects and the replay command with real SHAs — a
-   paraphrase drops exactly what the author needs), record it in the publish
-   report, and take SKILL.md's Finish failure path. With it off (the default)
-   CI refuses nothing here (ADR-0106): record the `message` VERBATIM as one
-   `warning` finding and CONTINUE. The author replays the branch; you never
-   rewrite it. Exit 2 (unevaluable — the base ref does not
-   resolve, or the histories share no merge base; `acs stacked-base: <reason>`
-   on stderr) — one `info` finding, then CONTINUE, and treat a failed
-   `git fetch` the same way; an advisory pre-flight never fails a good PR.
-   Only then push: `git push -u origin <branch>`; skip the push when it exists
+   pushed — `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`.
+   Then push: `git push -u origin <branch>`; skip the push when it exists
    only on origin and is current. NEVER commit new work — uncommitted
    implementation changes are /acs:code's job: stop and ask the user (SKILL.md's
    User interaction; a non-interactive run hands off `needs_input`).
@@ -94,8 +64,8 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    state files. Checklist items are `[x]` ONLY when
    code-state substantiates them (e.g. review loop passed only when
    `review.findings_open == 0`) — an unearned tick is a lie the reviewer of the
-   PR will catch. Render the title with `pr-conventions.py render-title` and
-   pass it verbatim.
+   PR will catch. Write the title directly (concise, normally the ticket's
+   title) and pass it verbatim.
 3. **Label.** Ensure the label exists, then rely on it at create/edit time:
    `gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true`
 4. **Pre-open self-check.** `pr-conventions.py check` on the filled body, with
@@ -104,10 +74,10 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 5. **Create or update.** Follow the branch's state
    (`gh pr list --head <branch> --state open --json number,url,baseRefName,isDraft`):
    - No open PR for the branch:
-     `gh pr create --base <default-branch> --head <branch> --title "<rendered pr_title>" --body-file steps/create-pr/pr-body.md --label ACS`
+     `gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file steps/create-pr/pr-body.md --label ACS`
      — no `--draft`; PRs ship ready-for-review.
    - An open PR already exists: update it —
-     `gh pr edit <number> --title "<rendered pr_title>" --body-file <body> --add-label ACS`,
+     `gh pr edit <number> --title "<PR title>" --body-file <body> --add-label ACS`,
      plus `gh pr edit <number> --base <default-branch>` when its base is wrong and
      `gh pr ready <number>` when it is a draft.
 6. **Record.** `gh pr view <branch> --json number,url,baseRefName,headRefName,isDraft,labels`
@@ -147,7 +117,7 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    - `jira`: `acli jira workitem comment --key <external.key> --body "ACS: PR opened for <ticket-id> — <url>"`
 
 On a resumed run (`references/resume.md`), redo exactly what the reconcile
-found unfinished — re-render the title, re-fill the body, re-push, re-label,
+found unfinished — re-write the title, re-fill the body, re-push, re-label,
 fix the base, whatever it names — and nothing else beyond what that requires.
 
 ## The publish report

@@ -22,8 +22,7 @@ including `docs/architecture/hld/tech-stack.md`, and no code at all. Scaffold
 the project skeleton exactly as the tech stack says: Python 3.11, a
 `pyproject.toml`, pytest with pytest-cov failing below our 90% coverage target,
 ruff, pre-commit, one GitHub Actions workflow, and the `GET /health` smoke
-slice. We don't want an e2e harness yet. Keep the default branch and commit
-formats. Everything you'd need to decide is in the architecture docs or this
+slice. We don't want an e2e harness yet. Everything you'd need to decide is in the architecture docs or this
 message, so don't ask me anything -- if something is still open, pick the
 option the tech stack points to and record it as an assumption. If pushing or
 opening the PR fails, stop there and tell me what happened.

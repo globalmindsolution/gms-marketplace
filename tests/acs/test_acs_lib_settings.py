@@ -394,25 +394,6 @@ class TestValidateSettings(unittest.TestCase):
         self.assertIn("e2e.per_iteration", str(ctx.exception))
 
 
-class TestValidateFormats(unittest.TestCase):
-    """629, 649, 652: blank template, non-object formats.tickets, unknown ticket type."""
-
-    def test_rejects_blank_template(self):
-        with self.assertRaises(lib.GateError) as ctx:
-            lib.validate_formats({"branch_name": "   "})
-        self.assertIn("formats.branch_name", str(ctx.exception))
-
-    def test_rejects_non_object_tickets(self):
-        with self.assertRaises(lib.GateError) as ctx:
-            lib.validate_formats({"tickets": "nope"})
-        self.assertIn("formats.tickets", str(ctx.exception))
-
-    def test_rejects_unknown_ticket_type_key(self):
-        with self.assertRaises(lib.GateError) as ctx:
-            lib.validate_formats({"tickets": {"bogus": {}}})
-        self.assertIn("unknown ticket type", str(ctx.exception))
-
-
 class TestResolveTemplate(unittest.TestCase):
     """707-714: built-in, repo-local, absolute-path, and unresolvable branches."""
 

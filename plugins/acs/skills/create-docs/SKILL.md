@@ -213,7 +213,7 @@ Starts proceed normally.
 
 Otherwise parse the printed context JSON; the fields you need: `partition`,
 `ticket_id`, `ticket` (its `doc_set` names the set; its title is
-`doc_sets[<set>].title`), `settings` (`formats`, `tracker`), `models`,
+`doc_sets[<set>].title`), `settings` (`tracker`), `models`,
 `reconcile`, `handoff_summary`, `post_hook`, `pipeline`, `checkout_root`. The
 delivery ticket is type `task`; `acs step start` has already created the
 partition, ticket.json, the lock, the session pointer, and the `in_progress`
@@ -552,14 +552,14 @@ The delivery-ticket pattern, done by you, inside that set's worktree
 
 1. **Branch** (before the first author writes): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
-   proceeding). Render `settings.formats.branch_name` (default
-   `{type}/{ticket_id}-{slug}`) with `type=task`, the ticket id, and the
+   proceeding). Name the branch
+   `<type>/<ticket_id>-<slug>` with `type=task`, the ticket id, and the
    slugified title — e.g. `task/SHOP-2-product-quality-doc-set` — and
    `git checkout -b` it from the default branch.
 2. **Commit** (after the reviewer passes): stage ONLY `<location>/` and verify
    the diff is docs-only (`git diff --cached --name-only` — every path under
-   the set's location). Commit with `settings.formats.commit_message` (default
-   `{ticket_id} {summary}`), e.g. `SHOP-2 Add product quality doc set` (or
+   the set's location). Commit in the repo's own style, naming the ticket id (default
+   `<ticket_id> <summary>`), e.g. `SHOP-2 Add product quality doc set` (or
    `Regenerate …` on re-run).
 3. **Push & PR**: `git push -u origin <branch>`, then follow
    `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label,

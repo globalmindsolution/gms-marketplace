@@ -14,8 +14,8 @@ timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
-Run the /acs:setup skill for this repo: keep the default branch, commit and
-PR title formats, and add the convention check to CI. I'm not an admin, so
+Run the /acs:setup skill for this repo: keep the default ticket prefix and
+add the convention check to CI. I'm not an admin, so
 leave branch protection alone. Don't ask me anything, and don't commit
 anything -- just tell me what I need to stage and anything I need to sort
 out myself.

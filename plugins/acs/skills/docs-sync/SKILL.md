@@ -158,7 +158,7 @@ validate — never invent a variant such as `commit_message_format` or
 
 `checkout_root` is `context.checkout_root`; `branch` is the ticket branch
 confirmed above; `default_branch` is the base the diff is taken against;
-`commit_message` is `settings.formats.commit_message`; the requirements
+`commit_message` is a message in the repo's own commit style naming the ticket id (default `<ticket_id> <summary>`); the requirements
 trio is the requirements set and its functional and non-functional
 subfolders. Add the other document locations the doc-updater's charter names —
 `architecture_dir` and `adr_dir` — each as its own `<constraint>` under that
@@ -419,8 +419,8 @@ list in the authoring notes — which doc files need which specific changes
 and why, each cross-referenced to the diff lines / `docs_updated` entries /
 `problems` entries that justify it — and then apply those doc updates as
 additional commits on the SAME
-ticket branch (never a new branch, never a new PR), rendered with the same
-`commit_message` format `/code` already uses. Author the doc-delta report
+ticket branch (never a new branch, never a new PR), in the same
+commit style `/code` already uses (the `commit_message` constraint carries an example). Author the doc-delta report
 using the FIXED v1 structure — the per-iteration role report every hooked
 skill already writes (`iter-<n>/doc-updater.json` here, beside the
 drift-reviewer's `iter-<n>/drift-reviewer.md`; every authoring skill's

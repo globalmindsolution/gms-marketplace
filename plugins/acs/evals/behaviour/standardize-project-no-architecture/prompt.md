@@ -21,6 +21,6 @@ Run the /acs:standardize-project skill on this repo: audit it and add only
 what's missing. We never wrote architecture docs -- don't write them now,
 just tell me. Answers up front: the coverage target stays at 90%, CI is
 GitHub Actions, we don't want an e2e suite, keep our pre-commit hook as it
-is, and keep the default branch and commit formats. Don't ask me anything;
+is. Don't ask me anything;
 record anything you had to assume. If pushing or opening the PR fails, stop
 there and tell me what happened.

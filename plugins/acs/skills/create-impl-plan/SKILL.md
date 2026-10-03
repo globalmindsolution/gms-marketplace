@@ -56,7 +56,7 @@ Parse the printed context JSON. Fields you will use:
   still lives in the partition. Call it `<design_doc>`; the plan is judged
   against it.
 - `settings` — you need `test_coverage_percent` (the coverage target the plan
-  states), `formats.branch_name`, `formats.commit_message`, and `e2e` when set.
+  states) and `e2e` when set.
 - `agents` — the agent name to spawn per role; the planner's and the plan
   reviewer's model and effort come from
   `settings.models.create-impl-plan.<role>` (inheriting when unset).
@@ -87,18 +87,18 @@ child.
 
 `plan.md` is a file in the consumer repo — the ticket's docs folder,
 `docs/tickets/<id>/` — and belongs on the ticket branch with every other
-change for this ticket. Render
-`settings.formats.branch_name` (default `"{type}/{ticket_id}-{slug}"`) with
-`{ticket_id}`, `{type}` (`ticket.type`), `{slug}` (the slugified ticket title —
-`acs.py slug --text "<title>"`), and `{external_key}`, then create or reuse it:
+change for this ticket. Name the
+branch `<type>/<ticket_id>-<slug>` with
+`<ticket_id>`, `<type>` (`ticket.type`) and `<slug>` (the slugified ticket title —
+`acs.py slug --text "<title>"`), then create or reuse it:
 
 ```bash
 git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
 ```
 
 On resume the branch usually already exists — reuse it, never recreate or reset
-it. Commit the published plan with `settings.formats.commit_message` (default
-`"{ticket_id} {summary}"`). Do NOT push — `/acs:create-pr` pushes.
+it. Commit the published plan in the repo's own commit style, naming the ticket id (default
+`<ticket_id> <summary>`). Do NOT push — `/acs:create-pr` pushes.
 
 When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the
 docs folder to) the plan is written to the workspace partition instead, nothing

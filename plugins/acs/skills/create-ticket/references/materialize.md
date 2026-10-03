@@ -24,8 +24,8 @@ paraphrase of them. Before writing anything, re-read:
 - `<partition>/ticket.json` — its parent directory IS the partition;
 - `steps/create-ticket/iter-<n>/authoring.md` when the analysis was persisted
   there, plus the clarification ledger (`clarify.py list --ticket <id>`);
-- the settings and template files you need: `formats` (the rendered-format
-  rules), `tracker_provider` (`local`|`github`|`jira`) and whether tracker sync
+- the settings and template files you need: the built-in ticket templates
+  (`epic-default`, `story-default`, `task-default`), `tracker_provider` (`local`|`github`|`jira`) and whether tracker sync
   is on;
 - the confirmed decisions: the final type, `needs_design` (`true` for epics —
   stated, never user-confirmed; otherwise `false`, never offered), the child
@@ -48,14 +48,12 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
 ## Materialization steps, in this order
 
-1. **Render the title** from `settings.formats.tickets.<type>.title` with
-   placeholders `{ticket_id}`, `{type}`, `{title}`, `{external_key}` (empty
-   string when unsynced).
-2. **Build the description** from the type's `description_template`.
-   Resolution: a built-in name maps to
-   `${CLAUDE_PLUGIN_ROOT}/templates/<name>.md` (`epic-default`,
-   `story-default`, `task-default`); otherwise `<repo>/.acs/templates/<name>.md`;
-   otherwise an absolute path. Fill EVERY section with real content from the
+1. **Set the title**: an epic's title is prefixed `[EPIC] `; a story's and a
+   task's is the title as given.
+2. **Build the description** from the type's fixed built-in template
+   (`${CLAUDE_PLUGIN_ROOT}/templates/<name>.md` — `epic-default`,
+   `story-default`, `task-default`); a repo's own `<repo>/.acs/templates/<name>.md`
+   of the same name replaces it. Fill EVERY section with real content from the
    confirmed proposal; delete the HTML comments.
 3. **Rewrite `<partition>/ticket.json`**, PRESERVING `id`, `status`, and
    `created_at`, and setting every field required by

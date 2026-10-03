@@ -70,7 +70,7 @@ coordinator's prose.
   artifacts.
 - **Blocks** when the skill claims a key it does not write, or writes one the
   post-hook is supposed to derive.
-- **Today this is the weakest dimension in the set**: 2 of 30 skills have any
+- **Today this is the weakest dimension in the set**: 2 of 29 skills have any
   artifact-level assertion (`create-ticket`, `code`). Every other
   skill is unmeasured here, which is exactly what PRD **G31** tracks.
 

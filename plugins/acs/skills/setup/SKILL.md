@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Optionally configure acs for the current repo — keep or change the branch/commit/PR conventions, and install the CI check that every PR names its ticket. Use when setting up acs on a new repo, when changing an acs convention format, or when the user wants acs conventions enforced in CI or the pipeline protected from being bypassed. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Optionally configure acs for the current repo — set the ticket prefix, install the CI ticket-link check (every PR names its ticket) and the test gates, and scaffold the model settings. Use when setting up acs on a new repo, when the user wants a ticket prefix, wants the ticket-link check or the tests/e2e gates enforced in CI, or wants the pipeline protected from being bypassed. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
@@ -11,20 +11,23 @@ reflection loop.
 runs: no settings file is required, and tickets take the default prefix `ACS`
 (`ACS-1`, `ACS-2`, …). No other skill needs setup first.
 
-Setup configures two things: **conventions** (the branch/commit/PR formats)
-and the **CI** gates on pull requests. Nothing else. Every other setting has a
-working default, and no setting locates a document or the workspace
-(ADR-0102). A user who wants to change one — ticket prefix, tracker, models,
-merge strategy, coverage target, test suites — edits `.acs/settings.json`
-against `${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`; setup does not
-ask about them. A repo that wants its own prefix sets `ticket_prefix` there by
-hand (uppercase letters and digits: `SHOP` → `SHOP-123`).
+Setup does three things: it sets the **ticket prefix** (`ticket_prefix`),
+installs the **CI** gates on pull requests (the ticket-link check
+`conventions`, `tests`, `e2e`), and can scaffold the **`models`** block. Nothing
+else. Branch names, commit messages and PR titles are not configured: the branch
+is always `<type>/<ticket_id>-<slug>`, and commits and PR titles follow the
+repo's own style. Every other setting has a working default, and no setting
+locates a document or the workspace (ADR-0102). A user who wants to change one —
+tracker, merge strategy, coverage target, test suites — edits
+`.acs/settings.json` against
+`${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`; setup does not ask about
+them.
 
 **Your job is the conversation.** Every write — the settings, the ignore
 entries, the workspace, the CI copies — is performed by the two commands below.
 You ask, you explain the trade-off, you record the answer; you never hand-write
 a `.gitignore` line or a JSON dict. Settings go to the project file
-`.acs/settings.json` (committed: conventions are the team's). Unknown keys in an
+`.acs/settings.json` (committed: they are the team's). Unknown keys in an
 existing file are legal and preserved, and a value equal to its default is never
 written.
 
@@ -58,45 +61,33 @@ files.
 ## Step 2 — Ask
 
 Use AskUserQuestion, in this order, for what the request has **not already
-answered**. "Keep the defaults, no CI" answers both questions: apply it without
+answered**. "Keep the defaults, no CI" answers every question: apply it without
 asking again.
 
-1. **Conventions** — show the three formats with their built-in defaults and
-   ask whether to keep them:
-
-   | Format | Default | Example |
-   |---|---|---|
-   | `formats.branch_name` | `{type}/{ticket_id}-{slug}` | `task/ACS-12-add-wishlist` |
-   | `formats.commit_message` | `{ticket_id} {summary}` | `ACS-12 Add the wishlist endpoint` |
-   | `formats.pr_title` | `{title}` | `Add wishlist support` |
-
-   Keeping a default writes nothing. A custom format uses the placeholders
-   `{ticket_id}`, `{type}`, `{slug}`, `{summary}`, `{title}`, `{ticket_ref}` and
-   `{external_key}`; `branch_name` must embed `{ticket_id}`, because every acs
-   skill finds the current ticket from the branch name. The default PR title
-   carries no ticket id — the PR description's Ticket section links the
-   ticket; a team that wants the id in titles adds `{ticket_id}` or
-   `{ticket_ref}`. In `pr_title`, `{ticket_ref}` renders the tracker's native
-   reference when the ticket is synced and the local id when unsynced;
-   `branch_name` and `commit_message` stay id-based and unconditional in every
-   case.
+1. **Ticket prefix** — tickets default to `ACS` (`ACS-12`). Ask whether the
+   repo wants its own (uppercase letters and digits: `SHOP` → `SHOP-123`);
+   keeping the default writes nothing.
 2. **CI enforcement** — offered explicitly, never installed silently:
 
    | Offer | What declining costs |
    |---|---|
-   | **Convention check** (`conventions`) | a PR can merge without naming its ticket. Required check: `Branch / PR / commit conventions`. It fails a PR whose description names no ticket — its id, a `#<n>` reference or an issue link; the `acs-exempt` label or a `release/*`, `dependabot/*` or `renovate/*` branch skips it. Branch names and commit subjects are checked only by the local hooks it also copies in, which each clone turns on with `/acs:install-hooks`; their commit-message check is off under squash merges — ask whether to turn it on (`enforcement.checks.commit_message: true`). |
+   | **Convention check** (`conventions`) | a PR can merge without naming its ticket. Required check: `Branch / PR / commit conventions`. It fails a PR whose description names no ticket — its id, a `#<n>` reference or an issue link; the `acs-exempt` label or a `release/*`, `dependabot/*` or `renovate/*` branch skips it. |
    | **Tests + coverage gate** (`tests`) | the suite and the coverage target are not enforced on PRs. Needs `tests.command` — lead with `test_command_candidates` — which must run the suite and fail below `$ACS_COVERAGE` (the coverage target, default 90); `apply` refuses the gate without one. Required check: `Tests & coverage`. |
    | **e2e merge gate** (`e2e`) — offered only when `e2e`/`suites.e2e` is already configured | e2e failures do not block a merge. Required check: `E2E suite`. |
+3. **Model settings** — offered once: whether to scaffold the `models` block so
+   each skill's model and effort can be tuned in one visible place. Only on a
+   yes, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" settings scaffold --write`
+   after Step 3's apply.
 
 ## Step 3 — Apply
 
 Pass the answers on stdin — never as a file in the repo, where it would be
-left behind untracked. They carry only what the user chose — `settings` and
-`ci` (any of `conventions`, `tests`, `e2e`):
+left behind untracked. They carry only what the user chose — `settings` (e.g. `ticket_prefix`,
+`tests`) and `ci` (any of `conventions`, `tests`, `e2e`):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup apply --answers - <<'JSON'
-{"settings": {"tests": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}},
+{"settings": {"ticket_prefix": "SHOP", "tests": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}},
  "ci": ["conventions", "tests"]}
 JSON
 ```
@@ -109,7 +100,7 @@ lists answers that equal the built-in default and were therefore not written (or
 removed from the file, when an earlier run had written them). `warnings` is what
 you relay but must not fix for them — a conflicting `!.acs/` negation, or a broad
 rule swallowing `.acs/settings.json`, is their configuration to decide. `errors`
-non-empty means apply refused and **wrote nothing** — a format that does not
+non-empty means apply refused and **wrote nothing** — an answer that does not
 validate, or a gate missing the command it runs: say why, settle the answer
 with the user, and apply again.
 `stage_for_commit` lists what to stage (never commit unless asked);
@@ -154,8 +145,8 @@ reference. Both are written for you; neither survives being deleted by hand.
 
 ## Step 5 — Summary and next steps
 
-Print a table of every convention setting, its value, and where it landed
-(`.acs/settings.json`, or "default — not written"). The next steps come from
+Print a table of each setting you touched (ticket prefix, tests command, models),
+its value, and where it landed (`.acs/settings.json`, or "default — not written"). The next steps come from
 `commands` — run it now (`--cwd .` is enough) if Step 4 did not: `next_steps`
 carries the greenfield/brownfield call, the pipeline read from `ship.yaml` and
 the solo-maintainer caveat, so you report them rather than re-deriving them.
@@ -180,7 +171,7 @@ empty; replace the Ticket line with **Repo** (no ticket at init time):
 
 - **Repo**: <repo> (<greenfield|brownfield>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: toolchain preflight outcome (tools present / still missing with the install hint); conventions written, per key (or "defaults"); retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined)
+- **Results**: toolchain preflight outcome (tools present / still missing with the install hint); settings written, per key (or "defaults"); models scaffolded (yes / no); retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined)
 - **Findings**: <open findings, or "none">
 - **Artifacts**: <files written or staged>
 - **Metrics**: <wall time>

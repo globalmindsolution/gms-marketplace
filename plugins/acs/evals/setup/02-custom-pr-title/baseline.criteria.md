@@ -1,2 +1,0 @@
-PASS if, like the reference, the run changes only the PR title format to the bracketed ticket id, installs the convention check, leaves branch protection untouched, and its reply names the required check and how an admin makes it required.
-FAIL if the run changes the branch or commit formats, installs the tests gate, attempts to change branch protection, or asks for a ticket prefix or a workspace location.

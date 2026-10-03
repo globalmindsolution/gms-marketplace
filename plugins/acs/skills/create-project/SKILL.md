@@ -42,7 +42,7 @@ entry. Parse the printed context JSON; the fields you will use:
 
 - `ticket_id`, `ticket`, `partition` — the delivery ticket and its workspace partition
 - `checkout_root` — the consumer repo root (the only tree the scaffolder mutates)
-- `settings` — `test_coverage_percent`, `formats`, `tracker`
+- `settings` — `test_coverage_percent`, `tracker`
 - `agents` — the agent name to spawn per role, resolved from settings
 - `reconcile`, `handoff_summary`, `prior_status`, `pipeline`
 
@@ -393,8 +393,7 @@ see Build-check below for where iteration 2+ findings go.
 
 Iteration 1 only — create the delivery branch before any scaffolder runs (you own the
 branch, the push and the PR; a scaffolder commits on the branch its notes name but
-never pushes or opens the PR). Branch name per `settings.formats.branch_name`
-(default `{type}/{ticket_id}-{slug}`) with `type=task`, the real ticket id, and the
+never pushes or opens the PR). Branch name `<type>/<ticket_id>-<slug>` with `type=task`, the real ticket id, and the
 slug of the ticket title:
 
 ```bash
@@ -448,8 +447,8 @@ with no plan phase in between — the scaffolder authors the remediation. After 
 
 Only after a build-check pass (zero findings):
 
-1. Commit on the scaffold branch, message per `settings.formats.commit_message`
-   (default `{ticket_id} {summary}`), and push. `git add -A` is right here and
+1. Commit on the scaffold branch, message in the repo's own style, naming the ticket id
+   (default `<ticket_id> <summary>`), and push. `git add -A` is right here and
    only here: a scaffold is new files by definition, so there is no existing
    source for a broad add to sweep up (contrast /acs:standardize-project, which
    forbids the same command for exactly that reason):

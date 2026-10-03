@@ -55,9 +55,9 @@ below.
   those. Say so in the notes' Analysis ("no architecture set: these clarification
   entries stand in for it") and cite the `C-n` id wherever you would cite
   `tech-stack.md` or a C4 view. Its absence is never a reason to stop.
-- `settings.json` — `test_coverage_percent` (the threshold to wire into coverage config),
-  `formats.branch_name` and `formats.commit_message` (compute the literal branch name and
-  commit message using the real ticket id from the task).
+- `settings.json` — `test_coverage_percent` (the threshold to wire into coverage config).
+  Compute the literal branch name (`<type>/<ticket_id>-<slug>`) and commit message (the repo's
+  own style, default `<ticket_id> <summary>`) using the real ticket id from the task.
 - The repo itself (`git ls-files`, `ls`) — confirm it is greenfield: docs and config only,
   no real source tree. If substantial source code already exists, do not scaffold over
   it; return `status="failed"` with stop-reason "repo is not greenfield".
@@ -148,7 +148,7 @@ Work in this order (a build slice does steps 2-7 for its own `files` only, with 
 self-check and commit rules of "When you are one slice"):
 
 1. Un-sliced only: create and check out the branch named in the notes' Delivery section
-   (it embeds the ticket id per `formats.branch_name`). If it already exists from a prior
+   (it embeds the ticket id: `<type>/<ticket_id>-<slug>`). If it already exists from a prior
    iteration, check it out and continue on it. A build slice skips this step — the
    coordinator has the branch checked out.
 2. Create every file in the notes' manifest. Wire the coverage threshold to the

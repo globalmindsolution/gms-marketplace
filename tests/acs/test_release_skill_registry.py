@@ -89,8 +89,8 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         # `project` umbrella, 11 -> 12. v0.5.0 retired the `test` alias and
         # promoted run-e2e-tests to a hooked step of its own, and create-docs
         # moved to PRODUCT_SKILLS, 12 -> 9. ADR-0104 removed metrics and
-        # usage, 9 -> 7.
-        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 7)
+        # usage, 9 -> 7. /acs:install-hooks went with the local hooks, 7 -> 6.
+        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 6)
 
     def test_hooked_skills_count(self):
         # Literal advances as later producer children register (MAR-143:

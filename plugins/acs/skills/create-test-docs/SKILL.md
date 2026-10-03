@@ -71,8 +71,7 @@ Parse the printed context JSON. Fields you will use:
   and read it for the behaviour the design already settled. Call it
   `<design_doc>`.
 - `settings` — you need `suites` (the configured suites a case's target may
-  name, with the reserved `e2e` entry), `formats.branch_name`,
-  `formats.commit_message`.
+  name, with the reserved `e2e` entry).
 - `agents` — the agent name to spawn per role; the test-designer's and the
   trace-reviewer's model and effort come from
   `settings.models.create-test-docs.<role>` (inheriting when unset).
@@ -96,10 +95,10 @@ the user to fan the epic out with `/acs:create-ticket <id>` and run
 
 `test-cases.md` is a file in the consumer repo — the ticket's docs folder,
 `docs/tickets/<id>/` — and belongs on the ticket branch with every other change
-for this ticket. Render
-`settings.formats.branch_name` (default `"{type}/{ticket_id}-{slug}"`) with
-`{ticket_id}`, `{type}` (`ticket.type`), `{slug}` (the slugified ticket title —
-`acs.py slug --text "<title>"`) and `{external_key}`, then create or reuse it:
+for this ticket. Name the branch
+`<type>/<ticket_id>-<slug>` with `<ticket_id>`, `<type>` (`ticket.type`) and
+`<slug>` (the slugified ticket title — `acs.py slug --text "<title>"`), then
+create or reuse it:
 
 ```bash
 git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
@@ -107,7 +106,8 @@ git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git chec
 
 The branch normally already exists — the earlier Build steps ran on it. Reuse
 it; never recreate or reset it. Commit the published document with
-`settings.formats.commit_message` (default `"{ticket_id} {summary}"`). Do NOT
+the repo's own commit style, naming the ticket id (default
+`<ticket_id> <summary>`). Do NOT
 push — `/acs:create-pr` pushes.
 
 When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the

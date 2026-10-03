@@ -19,7 +19,6 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:project skill on this repo so its structure and tooling match
 what acs expects. Answers to anything it might ask: the coverage target
-stays at 90%, CI is GitHub Actions, we don't want an e2e suite, and keep the
-default branch and commit formats. Don't ask me anything -- decide from the
+stays at 90%, CI is GitHub Actions, and we don't want an e2e suite. Don't ask me anything -- decide from the
 repo and this message. If a step refuses, don't work around it: stop and
 tell me what refused, why, and what I should do next.

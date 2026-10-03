@@ -265,26 +265,6 @@ class RefusalTest(WizardCase):
         self.assertFalse(out["ok"])
         self.assertFalse(os.path.exists(os.path.join(self.repo, ".github")))
 
-    def test_an_invalid_format_is_refused_before_anything_is_written(self):
-        """It was written to .acs/settings.json and only then validated, so
-        the run reported ok:false and left a file that made every other acs
-        skill refuse to start until someone edited it by hand."""
-        for formats in ({"branch_name": "{type}/{slug}"}, {"pr_title": "{nope} {title}"}):
-            with self.subTest(formats=formats):
-                out = self.apply({"settings": {"formats": formats}, "ci": ["conventions"]})
-                self._nothing_written(out)
-
-    def test_an_invalid_format_leaves_an_existing_file_untouched(self):
-        path = os.path.join(self.repo, ".acs", "settings.json")
-        os.makedirs(os.path.dirname(path))
-        original = '{\n  "ticket_prefix": "SHOP"\n}\n'
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(original)
-        out = self.apply({"settings": {"formats": {"branch_name": "{slug}"}}})
-        self.assertFalse(out["ok"])
-        with open(path, encoding="utf-8") as fh:
-            self.assertEqual(fh.read(), original)
-
     def test_a_re_run_adds_no_duplicate_to_either_layer(self):
         """The .gitignore write is guarded by git itself; the exclude append
         was guarded only by an EXACT-STRING test, so a file already carrying
@@ -345,21 +325,20 @@ class SettingsWriteTest(WizardCase):
     def test_a_value_equal_to_its_default_is_never_written(self):
         out = self.apply(self.answers(settings={
             "ticket_prefix": "SHOP", "merge_strategy": "squash",
-            "formats": {"branch_name": lib.DEFAULT_SETTINGS["formats"]["branch_name"],
-                        "pr_title": "{ticket_id}: {title}"}}))
+            "workflow": {"advisories": lib.DEFAULT_SETTINGS["workflow"]["advisories"],
+                         "extra": 1}}))
         doc = json.loads(self.read(".acs", "settings.json"))
-        self.assertEqual(doc, {"ticket_prefix": "SHOP",
-                               "formats": {"pr_title": "{ticket_id}: {title}"}})
+        self.assertEqual(doc, {"ticket_prefix": "SHOP", "workflow": {"extra": 1}})
         self.assertIn("merge_strategy", out["defaulted"])
-        self.assertIn("formats.branch_name", out["defaulted"])
+        self.assertIn("workflow.advisories", out["defaulted"])
 
     def test_choosing_the_default_again_removes_an_earlier_value(self):
         """Otherwise the stale value would silently override the choice just
         made -- the file would say rebase while the user picked the default."""
         self.apply(self.answers(settings={"ticket_prefix": "SHOP", "merge_strategy": "rebase",
-                                          "formats": {"pr_title": "{ticket_id}: {title}"}}))
+                                          "workflow": {"advisories": False}}))
         self.apply(self.answers(settings={"merge_strategy": "squash",
-                                          "formats": {"pr_title": lib.DEFAULT_SETTINGS["formats"]["pr_title"]}}))
+                                          "workflow": {"advisories": True}}))
         doc = json.loads(self.read(".acs", "settings.json"))
         self.assertEqual(doc, {"ticket_prefix": "SHOP"})
 
@@ -432,9 +411,10 @@ class CiInstallTest(WizardCase):
     def test_each_install_copies_its_files_and_its_workflow(self):
         out = self.apply(self.answers(ci=["conventions", "tests"],
                                       settings=dict(self.TESTS, ticket_prefix="SHOP")))
-        for name in ("check-conventions.py", "commit-msg", "pre-push",
-                     "install-hooks.sh", "run-tests.py"):
+        for name in ("check-conventions.py", "run-tests.py"):
             self.assertTrue(os.path.exists(os.path.join(self.repo, ".acs", "ci", name)), name)
+        for gone in ("commit-msg", "pre-push", "install-hooks.sh"):
+            self.assertFalse(os.path.exists(os.path.join(self.repo, ".acs", "ci", gone)), gone)
         for workflow in ("acs-conventions.yml", "acs-tests.yml"):
             self.assertTrue(os.path.exists(
                 os.path.join(self.repo, ".github", "workflows", workflow)), workflow)

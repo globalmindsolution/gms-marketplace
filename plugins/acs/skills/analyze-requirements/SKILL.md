@@ -88,8 +88,6 @@ Parse the printed context JSON. Fields you will use:
   `<design.dir>/design.md` while it still lives in the partition. Call it
   `<design_doc>`; the analysis is bounded by a design that already exists,
   never a second opinion on it.
-- `settings` — you need `formats.branch_name` (the controller renders
-  `formats.commit_message` itself when it publishes).
 - `agents` — the agent name to spawn per role; the analyst's, impact analysts'
   and impact reviewer's model and effort come from
   `settings.models.analyze-requirements.<role>` (inheriting when unset).
@@ -109,10 +107,10 @@ out with `/acs:create-ticket <id>`, then run `/acs:analyze-requirements` on a ch
 
 `analysis.md` is a file in the consumer repo — in the ticket's docs folder,
 `docs/tickets/<id>/`, a fixed location rather than a setting — and belongs on
-the ticket branch with every other change for this ticket. Render
-`settings.formats.branch_name` (default `"{type}/{ticket_id}-{slug}"`) with
-`{ticket_id}`, `{type}` (`ticket.type`), `{slug}` (the slugified ticket title —
-`acs.py slug --text "<title>"`), and `{external_key}`, then create or reuse it
+the ticket branch with every other change for this ticket. Name the
+branch `<type>/<ticket_id>-<slug>` with
+`<ticket_id>`, `<type>` (`ticket.type`) and `<slug>` (the slugified ticket title —
+`acs.py slug --text "<title>"`), then create or reuse it
 BEFORE the first `acs.py analysis` call:
 
 ```bash
@@ -616,7 +614,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
 the next draft pass, or ends the run at the cap), never patched by you. Then
 it copies the draft byte-for-byte to the resolved analysis path and reads it
 back; inside the repo it runs `git add` on the ticket's docs folder ONLY and
-commits that folder ONLY with `settings.formats.commit_message`. It commits
+commits that folder ONLY, in the repo's own commit style naming the ticket id. It commits
 **the ticket's whole docs folder**, not only `analysis.md`: `ticket.md` and,
 when the ticket needed one, `design.md` were published in the Design phase
 before this branch existed, and acs never commits to the default branch, so

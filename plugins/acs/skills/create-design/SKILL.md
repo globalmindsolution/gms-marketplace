@@ -38,7 +38,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-de
 - Parse the printed context JSON. Fields you will use: `partition` (the ticket
   directory — all state lives here), `ticket` (full ticket doc: type, description,
   acceptance criteria, parent, children), `ticket_id`, `settings` (notably
-  `formats` and `enforcement.design_sections`),
+  `models`),
   `agents` (the agent name to spawn per role; each role's model and effort come
   from `settings.models.create-design.<role>`, inheriting when unset), `reconcile`,
   `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
@@ -359,20 +359,16 @@ The designer and design-reviewer tasks both carry two declared constraints —
 (decision + trade-off narrative)</constraint>` — mirroring `create-prd/SKILL.md`'s
 precedent.
 
-`required_sections` is settings-sourced, NOT a hardcoded literal: the coordinator
-RESOLVES the configured `settings.formats.design_template` (default
-`design-default`) exactly as `create-pr` resolves `pr_description_template` — a
-built-in name (`design-default`) maps to `${CLAUDE_PLUGIN_ROOT}/templates/<name>.md`;
-otherwise `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path —
-and passes `settings.enforcement.design_sections` (the section list defaulted from
-that template) as the constraint on the designer and design-reviewer tasks:
+`required_sections` is template-derived, NOT a hardcoded literal: the coordinator
+RESOLVES the design template — the built-in `design-default`
+(`${CLAUDE_PLUGIN_ROOT}/templates/design-default.md`), replaced by
+`<checkout_root>/.acs/templates/design-default.md` when the repo has one — and
+passes the section list DERIVED from that template file (there is no section-list
+setting) as the constraint on the designer and design-reviewer tasks:
 `<constraint name="required_sections">Context &amp; constraints; Options considered;
 Decision &amp; rationale; Architecture; Impact &amp; risks; Rollout/migration</constraint>`
-(the same six headings above). Because `enforcement.design_sections` defaults to
-exactly that list, an absent `design_template`/`design_sections` key yields the
-identical constraint — byte-identical to the prior hardcoded gate. A consumer repo
-that supplies its own `<checkout_root>/.acs/templates/design-default.md` (or a
-custom-named template plus a matching `enforcement.design_sections`) has its
+(the same six headings above, which the built-in template yields). A consumer repo
+that supplies its own `<checkout_root>/.acs/templates/design-default.md` has its
 `design.md` gated against ITS sections. The `audience_style_profile` constraint
 (MAR-150) is unchanged.
 
@@ -486,7 +482,7 @@ branch. Leave the published file in the working tree — the first Build step
 docs folder, which carries this design into the branch and into the PR. If a
 ticket branch for `<id>` is ALREADY the checked-out branch (a re-design
 mid-ticket), commit `<design_path>` on it yourself with
-`settings.formats.commit_message` and do not push — `/acs:create-pr` pushes.
+the repo's own commit style (naming the ticket id) and do not push — `/acs:create-pr` pushes.
 A design published to the workspace partition (no docs folder, above) is
 never committed.
 

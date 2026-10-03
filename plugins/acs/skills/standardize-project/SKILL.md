@@ -51,7 +51,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step standardi
 If `acs step start` exits non-zero: stop immediately and surface its stderr to the user
 verbatim — do not improvise. Otherwise parse the printed context JSON; the fields you
 need: `partition`, `ticket_id`, `ticket`, `settings` (`test_coverage_percent`, `e2e`,
-`formats`, `tracker`), `models`, `reconcile`, `handoff_summary`, `post_hook`, `pipeline`,
+`tracker`), `models`, `reconcile`, `handoff_summary`, `post_hook`, `pipeline`,
 `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled **"Brownfield project standardization"**
@@ -565,18 +565,18 @@ The delivery-ticket pattern, done by the coordinator itself:
 
 1. **Branch** (before the first scaffolder writes, so the additive-checker's `git diff
    --name-status <default_branch>...HEAD` has a meaningful base): require a clean
-   working tree; render `settings.formats.branch_name` with `type=task`, the ticket id,
+   working tree; name the branch `<type>/<ticket_id>-<slug>` with `type=task`, the ticket id,
    and the slugified title (e.g. `task/SHOP-9-brownfield-project-standardization`);
    `git checkout -b` from the default branch.
 2. **Commit** (after the additive-checker passes): stage exactly the files the additive-checker's final
    passing diff-status check confirmed — **never a broader `git add -A`**, which could
    sweep up source this skill is forbidden to touch. (/acs:create-project uses `git add
    -A` on its own scaffold, where every file is new; that carve-out does not reach
-   here.) Commit with `settings.formats.commit_message` (e.g.
+   here.) Commit in the repo's own style, naming the ticket id (e.g.
    `SHOP-9 Additively scaffold missing docs/config/tooling`).
 3. **Push & PR**: `git push -u origin <branch>`, then follow
    `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label, the
-   rendered title, the body template, the pre-open self-check, `gh pr create`, and
+   PR title, the body template, the pre-open self-check, `gh pr create`, and
    recording `{number, url, branch}` for the result document.
 
    **One addition to the body, this skill's own.** After filling the standard template

@@ -11,9 +11,10 @@ does INSTEAD of a partition — which is nothing.
 `/acs:merge-pr --pr <PRNUMBER>` (also `#N` or a PR URL) merges a **legitimate
 one-off non-ticket PR** — a hotfix, a chore, a doc tweak that never went
 through the pipeline — without inventing a ticket for it. It is the sanctioned
-counterpart to the convention-enforcement gate's `exempt_label` /
-`exempt_branches` escape hatch: instead of a raw `gh pr merge` (which the gate
-fights), the user labels the PR with the exempt label and merges it here. Like
+counterpart to the CI ticket-link check's fixed exemptions (the `acs-exempt`
+label, or `release/*`, `dependabot/*`, `renovate/*` branches): instead of a raw
+`gh pr merge` (which the gate fights), the user labels the PR `acs-exempt` and
+merges it here. Like
 the ticket path, it runs the same readiness brakes (including the
 approved-review requirement) and branch-protection checks before merging;
 /acs:ship never invokes it.

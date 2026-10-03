@@ -61,18 +61,18 @@ item 2). The registry at
 [`acs_lib/_common.py:28-54`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
 into **19 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and the subagent roles its `agents/<skill>-<role>.md`
-files name, when it owns any) and **7 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
+files name, when it owns any) and **6 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
 four delivery-path legs, which are gated as their entry point and own neither
 scripts nor agents (ADR-0095). Re-derive with `ls -1 plugins/acs/skills | wc -l`
-(→ `30`) and a Python one-liner importing `acs_lib` and printing
-`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `19 7`).
+(→ `29`) and a Python one-liner importing `acs_lib` and printing
+`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `19 6`).
 
 Each column below is a **rule**, applied mechanically — a cell is derived,
 never hand-picked:
 
 - **Structure (1)** — the skill's `SKILL.md` is asserted by
   `test_skill_contracts.py` (its `ALL_SKILLS` list at `:106`, asserted against
-  the skills directory at `:141`) → 30 of 30.
+  the skills directory at `:141`) → 29 of 29.
 - **Gate (2)** — the skill has a registered gate function in `acs_lib.GATES`
   → 19 of 19 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
   (`test_all_hooked_skills_have_a_gate`, a per-hooked-skill
@@ -83,7 +83,7 @@ never hand-picked:
   set) and `:71-72`, which separately confirms one such skill (`release`)
   is absent from `GATES`.
 - **Trigger (5)** — the skill has a routing case under
-  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 30 of 30.
+  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 29 of 29.
   This column is no longer maintained by hand: `tests/evals/check_cases.py`'s
   `CoverageTest` fails when any shipped skill lacks a routing case, or any case
   names a skill that does not ship, so running that module IS the check. Its
@@ -114,7 +114,7 @@ never hand-picked:
   call names is made non-invocable again.
 - **Artifact (6)** — an artifact case under
   [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md)
-  asserts that skill's own workspace state → 2 of 30: `create-ticket`
+  asserts that skill's own workspace state → 2 of 29: `create-ticket`
   (`create-ticket-artifacts`) and `code` (`resume-and-verify`). Both are marked
   † below: their seeds are verified by hand, but neither case has yet completed
   end to end — in the container this suite was built in, Bash is non-functional
@@ -157,7 +157,6 @@ rows, which are not.
 | `ship` | ✅ | n/a (unhooked) | ✅ | — |
 | `handoff` | ✅ | n/a (unhooked) | ✅ | — |
 | `update` | ✅ | n/a (unhooked) | ✅ | — |
-| `install-hooks` | ✅ | n/a (unhooked) | ✅ | — |
 | `test` | ✅ | n/a (unhooked) | ✅ | — |
 | `release` | ✅ | n/a (unhooked) | ✅ | — |
 | `create-docs` | ✅ | n/a (unhooked) | ✅ | — |
@@ -168,16 +167,16 @@ network rules do not reach. They were covered — `create-pr` partly, since its
 scenario skipped without an onboarded target — by a forge tier in the retired
 behavioural harness. The other `—` cells are the gap itself.
 
-**Structure is complete: 30 of 30** (`test_skill_contracts.py:141` pins the
+**Structure is complete: 29 of 29** (`test_skill_contracts.py:141` pins the
 on-disk set against the `ALL_SKILLS` literal at
 `test_skill_contracts.py:106`, not against `acs_lib` — and no test pins this
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 **Gating is complete for what can be gated: 19 of 19 hooked skills**; the other
 11 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 30 of 30** — 254 routing cases in all (240 by
+none should. **Routing covers 29 of 29** — 254 routing cases in all (240 by
 description, ten phrasings for each of 24 skills; 8 by explicit command; 6
 negative) plus four off-domain controls, and `tests/evals/check_cases.py`
-(local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 30 of 30 skills but run for none**
+(local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 29 of 29 skills but run for none**
 ([ADR-0113](../adr/0113-behaviour-case-per-skill-with-baselines.md)): every
 skill has 2–7 behaviour cases, one per documented mode, branch and refusal
 (105 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
