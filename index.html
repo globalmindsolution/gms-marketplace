@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>acs — agentic software delivery</title>
+<meta name="description" content="PRD in. Merged PR out. acs is a hook-gated, subagent-driven delivery pipeline for Claude Code.">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --cyan:#00F0FF; --purple:#B026FF; --orange:#FF4D4D; }
+  html { scroll-behavior: smooth; }
+  body { background:#050505; font-family:'Inter',sans-serif; overflow-x:hidden; }
+  .mono { font-family:'JetBrains Mono',monospace; }
+
+  /* ambient mesh orbs */
+  .orb { position:fixed; border-radius:50%; filter:blur(120px); pointer-events:none; z-index:0; }
+  .orb-1 { width:55vw; height:55vw; top:-20vw; left:-15vw;
+    background:radial-gradient(circle, var(--cyan) 0%, transparent 70%);
+    opacity:.14; animation:drift1 26s ease-in-out infinite alternate; }
+  .orb-2 { width:45vw; height:45vw; top:10vh; right:-18vw;
+    background:radial-gradient(circle, var(--purple) 0%, transparent 70%);
+    opacity:.13; animation:drift2 32s ease-in-out infinite alternate; }
+  .orb-3 { width:40vw; height:40vw; bottom:-15vh; left:25vw;
+    background:radial-gradient(circle, var(--orange) 0%, transparent 70%);
+    opacity:.09; animation:drift3 38s ease-in-out infinite alternate; }
+  @keyframes drift1 { from { transform:translate(0,0) scale(1); } to { transform:translate(12vw,9vh) scale(1.15); } }
+  @keyframes drift2 { from { transform:translate(0,0) scale(1.1); } to { transform:translate(-10vw,14vh) scale(0.95); } }
+  @keyframes drift3 { from { transform:translate(0,0) scale(0.9); } to { transform:translate(9vw,-11vh) scale(1.2); } }
+
+  /* hero text load */
+  .rise { opacity:0; transform:translateY(28px); animation:rise .9s cubic-bezier(.16,1,.3,1) forwards; }
+  .d1 { animation-delay:.15s; } .d2 { animation-delay:.35s; } .d3 { animation-delay:.55s; } .d4 { animation-delay:.75s; }
+  @keyframes rise { to { opacity:1; transform:translateY(0); } }
+
+  .grad-text {
+    background:linear-gradient(92deg,#fff 0%,var(--cyan) 35%,var(--purple) 70%,var(--orange) 105%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+
+  /* floating card */
+  .floaty { animation:floaty 6s ease-in-out infinite; }
+  @keyframes floaty { 0%,100% { transform:translateY(0) rotate(-1deg); } 50% { transform:translateY(-16px) rotate(0.5deg); } }
+
+  /* marquee */
+  .marquee { display:flex; width:max-content; animation:scroll 30s linear infinite; }
+  @keyframes scroll { to { transform:translateX(-50%); } }
+
+  /* pulsing status dot */
+  .pulse { position:relative; }
+  .pulse::after { content:''; position:absolute; inset:-4px; border-radius:50%;
+    background:var(--cyan); opacity:.5; animation:ping 1.8s cubic-bezier(0,0,.2,1) infinite; }
+  @keyframes ping { 75%,100% { transform:scale(2.2); opacity:0; } }
+
+  /* scroll reveal */
+  .reveal { opacity:0; transform:translateY(32px); transition:opacity .8s cubic-bezier(.16,1,.3,1), transform .8s cubic-bezier(.16,1,.3,1); }
+  .reveal.on { opacity:1; transform:translateY(0); }
+
+  /* bento hover spotlight */
+  .bento { transition:border-color .35s, box-shadow .35s; }
+  .bento:hover { border-color:rgba(0,240,255,.4); box-shadow:0 0 40px -8px rgba(0,240,255,.18), inset 0 0 30px -20px rgba(0,240,255,.25); }
+
+  /* primary CTA */
+  .cta {
+    box-shadow:0 0 24px -4px rgba(0,240,255,.55), inset 0 0 12px rgba(0,240,255,.25);
+    transition:all .3s ease-out;
+  }
+  .cta:hover { transform:scale(1.05); box-shadow:0 0 44px -2px rgba(0,240,255,.8), inset 0 0 18px rgba(0,240,255,.4); }
+
+  /* highlighted quickstart card */
+  .hl { border:1px solid transparent; background-clip:padding-box; position:relative; }
+  .hl::before { content:''; position:absolute; inset:-1px; border-radius:inherit; padding:1px;
+    background:linear-gradient(135deg,var(--cyan),var(--purple),var(--orange));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none; }
+  .hl { box-shadow:0 0 50px -14px rgba(176,38,255,.45); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orb-1,.orb-2,.orb-3,.floaty,.marquee,.pulse::after,.rise { animation:none; }
+    .reveal { opacity:1; transform:none; transition:none; }
+  }
+</style>
+</head>
+<body class="text-white antialiased">
+
+<!-- ambient background -->
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<!-- navbar -->
+<nav class="sticky top-0 z-50 border-b border-white/10 bg-white/5 backdrop-blur-xl">
+  <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <a href="#" class="text-xl font-extrabold tracking-tight">acs<span class="text-cyan-300">.</span></a>
+    <span class="mono hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70 sm:flex">
+      <span class="pulse h-1.5 w-1.5 rounded-full bg-cyan-400"></span>
+      v0.5.0 · live
+    </span>
+    <button data-copy class="cta mono rounded-full border border-cyan-400/40 bg-cyan-400/10 px-4 py-2 text-xs font-medium text-cyan-200">
+      <span class="label">copy install command</span>
+    </button>
+  </div>
+</nav>
+
+<!-- hero -->
+<header class="relative z-10 mx-auto max-w-6xl px-6 pb-16 pt-20 md:pt-28">
+  <div class="grid items-center gap-14 md:grid-cols-2">
+    <div>
+      <p class="rise d1 mono mb-5 text-xs uppercase tracking-[0.3em] text-cyan-300/80">agentic software delivery</p>
+      <h1 class="rise d2 grad-text text-5xl font-black leading-[1.05] tracking-tight md:text-7xl">
+        PRD in. Merged&nbsp;PR out.
+      </h1>
+      <p class="rise d3 mt-6 max-w-md text-lg leading-relaxed text-white/60">
+        A hook-gated, subagent-driven pipeline for Claude&nbsp;Code — PRD → architecture → tickets → design → TDD code → PR → merge.
+      </p>
+      <div class="rise d4 mt-9 flex flex-wrap items-center gap-4">
+        <button data-copy class="cta mono rounded-full border border-cyan-400/50 bg-cyan-400/15 px-7 py-3.5 text-sm font-semibold text-white">
+          <i class="ph ph-terminal-window mr-2 align-middle"></i><span class="label">claude plugin marketplace add globalmindsolution/gms-marketplace</span>
+        </button>
+        <a href="https://github.com/globalmindsolution/gms-marketplace" class="mono rounded-full border border-white/15 px-6 py-3.5 text-sm text-white/70 transition-all duration-300 hover:border-white/40 hover:text-white">github →</a>
+      </div>
+    </div>
+
+    <!-- floating pipeline card -->
+    <div class="rise d3 relative">
+      <div class="floaty rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl">
+        <div class="mono mb-5 flex items-center justify-between text-xs text-white/40">
+          <span><i class="ph ph-terminal mr-2"></i>~/product — acs pipeline</span>
+          <span class="flex gap-1.5">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-400/60"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-yellow-400/60"></span>
+            <span class="h-2.5 w-2.5 rounded-full bg-green-400/60"></span>
+          </span>
+        </div>
+        <div class="mono space-y-3 text-sm">
+          <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-2.5">
+            <span class="text-white/70"><span class="text-cyan-300">✓</span> prd</span><span class="text-white/30 text-xs">approved</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-2.5">
+            <span class="text-white/70"><span class="text-cyan-300">✓</span> architecture</span><span class="text-white/30 text-xs">c4 + adr-0108</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-2.5">
+            <span class="text-white/70"><span class="text-cyan-300">✓</span> tickets</span><span class="text-white/30 text-xs">3 sliced</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5">
+            <span class="text-cyan-200"><span class="animate-pulse">◉</span> code <span class="text-white/40">/acs:code</span></span><span class="text-cyan-300 text-xs">tdd · 42/42 ✓</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-2.5">
+            <span class="text-white/40">◦ pr <span class="text-white/25">→ review → merge</span></span><span class="text-white/20 text-xs">queued</span>
+          </div>
+        </div>
+        <div class="mono mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-xs">
+          <span class="text-white/30">.acs/state-machine</span>
+          <span class="text-purple-300">hook gate <span class="text-cyan-300">armed</span></span>
+        </div>
+      </div>
+      <div class="absolute -inset-8 -z-10 rounded-[40px] bg-gradient-to-br from-cyan-500/15 via-purple-500/10 to-transparent blur-2xl"></div>
+    </div>
+  </div>
+</header>
+
+<!-- marquee -->
+<div class="relative z-10 border-y border-white/10 py-5 opacity-40">
+  <div class="marquee mono text-sm tracking-[0.25em] text-white/70">
+    <span class="whitespace-nowrap">PRD&nbsp;&nbsp;·&nbsp;&nbsp;ARCHITECTURE&nbsp;&nbsp;·&nbsp;&nbsp;TICKETS&nbsp;&nbsp;·&nbsp;&nbsp;DESIGN&nbsp;&nbsp;·&nbsp;&nbsp;TDD CODE&nbsp;&nbsp;·&nbsp;&nbsp;PR&nbsp;&nbsp;·&nbsp;&nbsp;REVIEW&nbsp;&nbsp;·&nbsp;&nbsp;MERGE&nbsp;&nbsp;·&nbsp;&nbsp;</span>
+    <span class="whitespace-nowrap" aria-hidden="true">PRD&nbsp;&nbsp;·&nbsp;&nbsp;ARCHITECTURE&nbsp;&nbsp;·&nbsp;&nbsp;TICKETS&nbsp;&nbsp;·&nbsp;&nbsp;DESIGN&nbsp;&nbsp;·&nbsp;&nbsp;TDD CODE&nbsp;&nbsp;·&nbsp;&nbsp;PR&nbsp;&nbsp;·&nbsp;&nbsp;REVIEW&nbsp;&nbsp;·&nbsp;&nbsp;MERGE&nbsp;&nbsp;·&nbsp;&nbsp;</span>
+  </div>
+</div>
+
+<!-- bento features -->
+<section class="relative z-10 mx-auto max-w-6xl px-6 py-24">
+  <h2 class="reveal mb-3 text-3xl font-extrabold tracking-tight md:text-4xl">The pipeline <span class="grad-text">enforces itself.</span></h2>
+  <p class="reveal mb-12 max-w-lg text-white/50">Agents propose. Hooks decide. Every phase emits a verdict recomputed from artifacts — never trusted.</p>
+
+  <div class="grid gap-5 md:grid-cols-3">
+    <div class="bento reveal rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl md:col-span-2">
+      <i class="ph ph-shield-check text-3xl text-cyan-300"></i>
+      <h3 class="mt-4 text-xl font-bold">Hook-gated pipeline</h3>
+      <p class="mt-2 text-sm leading-relaxed text-white/50">PreToolUse and SubagentStop hooks gate every skill transition. A phase can't advance on a claimed pass — the gate recomputes <span class="mono text-white/70">passed</span> from the artifact itself.</p>
+    </div>
+    <div class="bento reveal rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl">
+      <i class="ph ph-users-three text-3xl text-purple-300"></i>
+      <h3 class="mt-4 text-xl font-bold">Dedicated subagents</h3>
+      <p class="mt-2 text-sm leading-relaxed text-white/50">Every phase spawns isolated author + reviewer subagents with file-map partitions — fresh context, zero drift.</p>
+    </div>
+    <div class="bento reveal rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl">
+      <i class="ph ph-database text-3xl text-orange-300"></i>
+      <h3 class="mt-4 text-xl font-bold">Derived state machine</h3>
+      <p class="mt-2 text-sm leading-relaxed text-white/50">Runs partition per ticket under a gitignored <span class="mono text-white/70">.acs/state-machine/</span> — resumable, auditable, outside the tree.</p>
+    </div>
+    <div class="bento reveal rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl md:col-span-2">
+      <i class="ph ph-chart-line-up text-3xl text-cyan-300"></i>
+      <h3 class="mt-4 text-xl font-bold">Verified delivery</h3>
+      <p class="mt-2 text-sm leading-relaxed text-white/50">TDD executors write failing tests first; a two-layer eval suite — free calibration checks in CI, paid session graders at release — grades routing and behavior, not vibes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- quickstart -->
+<section class="relative z-10 border-t border-white/10 py-24">
+  <div class="mx-auto max-w-6xl px-6">
+    <h2 class="reveal mb-3 text-center text-3xl font-extrabold tracking-tight md:text-4xl">Ship a feature in <span class="grad-text">three commands.</span></h2>
+    <p class="reveal mx-auto mb-14 max-w-md text-center text-white/50">Open source, zero build, zero servers. Everything runs inside Claude Code.</p>
+
+    <div class="grid gap-5 md:grid-cols-3">
+      <div class="reveal rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl">
+        <span class="mono text-xs text-cyan-300">01</span>
+        <h3 class="mt-3 font-bold">Add the marketplace</h3>
+        <pre class="mono mt-4 whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-black/50 p-3 text-xs text-white/80">claude plugin marketplace add globalmindsolution/gms-marketplace</pre>
+      </div>
+      <div class="hl reveal rounded-3xl border border-white/10 bg-white/10 p-7 backdrop-blur-xl">
+        <span class="mono text-xs text-purple-300">02</span>
+        <h3 class="mt-3 font-bold">Install acs</h3>
+        <pre class="mono mt-4 whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-black/50 p-3 text-xs text-white/80">claude plugin install acs@gms-marketplace</pre>
+      </div>
+      <div class="reveal rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl">
+        <span class="mono text-xs text-orange-300">03</span>
+        <h3 class="mt-3 font-bold">Cut a ticket</h3>
+        <pre class="mono mt-4 whitespace-pre-wrap break-words rounded-xl border border-white/10 bg-black/50 p-3 text-xs text-white/80">/acs:create-ticket "your feature"</pre>
+      </div>
+    </div>
+
+    <div class="reveal mt-12 text-center">
+      <button data-copy class="cta mono rounded-full border border-cyan-400/50 bg-cyan-400/15 px-8 py-4 text-sm font-semibold text-white">
+        <i class="ph ph-clipboard mr-2 align-middle"></i><span class="label">copy install command</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- footer -->
+<footer class="relative z-10 border-t border-white/10">
+  <div class="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 md:flex-row md:items-center md:justify-between">
+    <span class="mono text-xs text-white/40">© 2026 global mind solution</span>
+    <div class="mono flex flex-wrap gap-6 text-xs text-white/50">
+      <a href="https://github.com/globalmindsolution/gms-marketplace" class="transition-colors hover:text-cyan-300">repo ↗</a>
+      <a href="https://github.com/globalmindsolution/gms-marketplace/issues" class="transition-colors hover:text-cyan-300">issues ↗</a>
+      <a href="https://github.com/globalmindsolution/gms-marketplace/blob/main/plugins/acs/README.md" class="transition-colors hover:text-cyan-300">docs ↗</a>
+    </div>
+    <span class="mono text-xs text-white/30">acs v0.5.0 · mit</span>
+  </div>
+</footer>
+
+<script>
+  // scroll reveal
+  const io = new IntersectionObserver(es => {
+    es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); } });
+  }, { threshold: 0.15 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // copy install command
+  const CMD = 'claude plugin marketplace add globalmindsolution/gms-marketplace';
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const label = btn.querySelector('.label'), orig = label.textContent;
+      try { await navigator.clipboard.writeText(CMD); }
+      catch { const t = document.createElement('textarea'); t.value = CMD; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+      label.textContent = 'copied ✓';
+      setTimeout(() => label.textContent = orig, 2000);
+    });
+  });
+</script>
+</body>
+</html>
