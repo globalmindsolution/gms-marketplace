@@ -106,20 +106,20 @@ class PlanApprovalPredicatePurityTest(unittest.TestCase):
                 mock.patch("os.path.exists", side_effect=_raise), \
                 mock.patch("subprocess.run", side_effect=_raise):
             eligible, _evaluation = lib.plan_approval_eligible(
-                CONFORMING_PLAN, {"test_coverage_percent": 90})
+                CONFORMING_PLAN, {"tests": {"coverage": 90}})
         self.assertTrue(eligible)
 
     def test_predicate_needs_no_clock(self):
         with mock.patch.object(lib, "now_iso", side_effect=AssertionError("no clock")):
             _eligible, evaluation = lib.plan_approval_eligible(
-                CONFORMING_PLAN, {"test_coverage_percent": 90})
+                CONFORMING_PLAN, {"tests": {"coverage": 90}})
         dumped = json.dumps(evaluation)
         self.assertNotIn("approved_at", dumped)
         self.assertNotIn("now_iso", dumped)
 
     def test_predicate_is_deterministic(self):
-        r1 = lib.plan_approval_eligible(CONFORMING_PLAN, {"test_coverage_percent": 90})
-        r2 = lib.plan_approval_eligible(CONFORMING_PLAN, {"test_coverage_percent": 90})
+        r1 = lib.plan_approval_eligible(CONFORMING_PLAN, {"tests": {"coverage": 90}})
+        r2 = lib.plan_approval_eligible(CONFORMING_PLAN, {"tests": {"coverage": 90}})
         self.assertEqual(r1, r2)
 
     def test_predicate_signature_takes_plain_values(self):
@@ -134,21 +134,21 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
 
     def test_conforming_plan_is_eligible(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}})
         self.assertTrue(eligible, evaluation["failures"])
         self.assertEqual(evaluation["failures"], [])
 
     def test_a_plan_with_no_contract_block_fails(self):
         mutated = CONFORMING_PLAN.replace("## Contract", "## Notes", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("missing-section: Contract", evaluation["failures"])
 
     def test_a_contract_with_no_delivery_path_fails(self):
         mutated = CONFORMING_PLAN.replace("delivery_path: small\n", "", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("contract: delivery_path is not declared",
                       evaluation["failures"])
@@ -157,7 +157,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         mutated = CONFORMING_PLAN.replace("delivery_path: small",
                                           "delivery_path: enormous", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertTrue(
             any(f.startswith("contract: delivery_path:") for f in evaluation["failures"]),
@@ -167,7 +167,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         mutated = CONFORMING_PLAN.replace("  e2e:          false",
                                           "  e2e:          false\n  telemetry: true", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertTrue(
             any(f.startswith("contract:") for f in evaluation["failures"]),
@@ -177,7 +177,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         mutated = CONFORMING_PLAN.replace("### Executor tasks & file map",
                                           "### Files", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("missing-section: Executor tasks & file map",
                       evaluation["failures"])
@@ -188,7 +188,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         mutated = CONFORMING_PLAN.replace(
             "- task 1: src/retry/policy.py, tests/retry/test_policy.py\n", "")
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("empty-section: Executor tasks & file map",
                       evaluation["failures"])
@@ -204,14 +204,14 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
                 self.assertNotIn("## %s" % retired, CONFORMING_PLAN)
                 self.assertNotIn("### %s" % retired, CONFORMING_PLAN)
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}})
         self.assertTrue(eligible, evaluation["failures"])
 
     def test_coverage_target_absent_fails(self):
         mutated = CONFORMING_PLAN.replace(
             "the coverage target is 90", "the coverage target is 80")
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertTrue(
             any(f.startswith("coverage-target-not-stated:") for f in evaluation["failures"]),
@@ -219,7 +219,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
 
     def test_blank_plan_fails(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            "   \n\n  ", {"test_coverage_percent": 90})
+            "   \n\n  ", {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("empty-plan", evaluation["failures"])
 
@@ -230,7 +230,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         for value in (True, False, None):
             with self.subTest(fold_active=value):
                 eligible, evaluation = lib.plan_approval_eligible(
-                    CONFORMING_PLAN, {"test_coverage_percent": 90},
+                    CONFORMING_PLAN, {"tests": {"coverage": 90}},
                     fold_active=value)
                 self.assertTrue(eligible, evaluation["failures"])
         self.assertEqual(
@@ -245,11 +245,11 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
 
     def test_inputs_carry_sha256_of_the_text(self):
         _eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}})
         expected = hashlib.sha256(CONFORMING_PLAN.encode("utf-8")).hexdigest()
         self.assertEqual(evaluation["inputs"]["plan_sha256"], expected)
         _eligible2, evaluation2 = lib.plan_approval_eligible(
-            CONFORMING_PLAN + "x", {"test_coverage_percent": 90})
+            CONFORMING_PLAN + "x", {"tests": {"coverage": 90}})
         self.assertNotEqual(evaluation["inputs"]["plan_sha256"],
                             evaluation2["inputs"]["plan_sha256"])
 
@@ -261,12 +261,12 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
 
     def test_float_coverage_target_matches_integer_display(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90.0})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}.0})
         self.assertTrue(eligible, evaluation["failures"])
 
     def test_evaluation_is_json_serializable(self):
         _eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}})
         json.dumps(evaluation)  # must not raise
 
 

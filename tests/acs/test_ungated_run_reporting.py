@@ -83,7 +83,7 @@ class SkillStartCase(acs_case.AcsWorkspaceCase):
 
     def settings(self, **extra):
         """Rewrite .acs/settings.json."""
-        data = {"ticket_prefix": "SHOP", "test_coverage_percent": 90}
+        data = {"ticket_prefix": "SHOP", "tests": {"coverage": 90}}
         data.update(extra)
         self.write_settings(data)
 

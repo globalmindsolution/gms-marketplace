@@ -134,7 +134,7 @@ class Mar114ValidateSettingsSuitesCase(unittest.TestCase):
     per-entry rules as e2e; DEFAULT_SETTINGS['suites'] == {}."""
 
     def _base(self, **overrides):
-        settings = {"test_coverage_percent": 90}
+        settings = {"tests": {"coverage": 90}}
         settings.update(overrides)
         return settings
 

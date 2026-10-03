@@ -33,7 +33,7 @@ class RunTestsCase(unittest.TestCase):
                               capture_output=True, text=True)
 
     def test_passes_and_exports_coverage(self):
-        out = self.run_in({"test_coverage_percent": 85,
+        out = self.run_in({"tests": {"coverage": 85},
                            "tests": {"command": 'test "$ACS_COVERAGE" = 85'}})
         self.assertEqual(out.returncode, 0, out.stderr)
 
@@ -47,7 +47,7 @@ class RunTestsCase(unittest.TestCase):
         self.assertIn("failed", out.stderr)
 
     def test_missing_command_errors(self):
-        out = self.run_in({"test_coverage_percent": 90})
+        out = self.run_in({"tests": {"coverage": 90}})
         self.assertEqual(out.returncode, 1)
         self.assertIn("tests.command", out.stderr)
 

@@ -138,9 +138,6 @@ def validate_settings(settings, cwd, require_workspace=True):
             "`python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py\" settings migrate --write` "
             "to rewrite it." % "; ".join(legacy))
     validate_tests(settings.get("tests", {}))
-    provider = (settings.get("tracker") or {}).get("provider", "local")
-    if provider not in ("local", "github"):
-        raise GateError("tracker.provider must be local or github; got %r." % (provider,))
     strategy = settings.get("merge_strategy", "squash")
     if strategy not in ("squash", "merge", "rebase"):
         raise GateError("merge_strategy must be one of squash|merge|rebase; got %r." % (strategy,))

@@ -610,7 +610,7 @@ class ForgeCliTest(AcsWorkspaceCase):
 
     def setUp(self):
         super().setUp()
-        self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90,
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90},
                              "tracker": {"provider": "github",
                                          "github": {"owner": "acme", "project_number": 7}}})
         self.ticket = self.new_ticket("Bulk import", "task")
@@ -707,7 +707,7 @@ class ForgeCliTest(AcsWorkspaceCase):
         self.assertIn("does not exist", message)
 
     def test_tracker_sync_is_a_no_op_for_a_local_provider(self):
-        self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90})
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90}})
         out = self.run_script("acs.py", "tracker", "sync", "--ticket", self.ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertTrue(json.loads(out.stdout)["skipped"])
