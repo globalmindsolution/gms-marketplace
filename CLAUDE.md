@@ -125,7 +125,7 @@ lives in hooks, bound in `hooks/hooks.json`:
 
 - `PreToolUse` on `Skill` — the pipeline precondition gate
 - `PreToolUse` on `Write|Edit|MultiEdit|NotebookEdit` — the executor file-map guard
-- `SubagentStart` / `SubagentStop` matching `^acs:` — phase-artifact validation, session bookkeeping
+- `SubagentStart` / `SubagentStop` matching `^acs[:-]` (the plugin's agents and their generated `acs-<skill>-<role>` copies) — phase-artifact validation, session bookkeeping
 - `Stop`, `PreCompact`, `SessionEnd`
 
 On a host that does not fire these events, the skills still read as instructions and a pipeline
