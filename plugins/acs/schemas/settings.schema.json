@@ -902,19 +902,6 @@
           ],
           "default": "local"
         },
-        "milestone": {
-          "description": "Default milestone title applied to every synced ticket that does not set its own. The milestone must already exist in the tracker -- creating one is a project decision, not a sync side effect -- so a title the forge does not know is one info finding, never a failed sync.",
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "github": {
           "type": "object",
           "properties": {
@@ -942,118 +929,6 @@
             }
           },
           "additionalProperties": true
-        }
-      },
-      "additionalProperties": true
-    },
-    "formats": {
-      "description": "Formats for generated artifacts. Inline fields use {placeholder} syntax; an unknown placeholder is a validation error (pre-hooks exit 2). branch_name MUST embed {ticket_id}. {ticket_ref} is pr_title-scoped only -- it renders the tracker's native reference when the ticket is synced (#<issue-number> for github, <JIRA-KEY> for jira) and the local ticket id when unsynced; it is not valid in branch_name or commit_message. Description and section templates are referenced by built-in name (pr-default, epic-default, story-default, task-default, design-default), repo-relative name under .acs/templates/, or absolute path.",
-      "type": "object",
-      "properties": {
-        "branch_name": {
-          "type": "string",
-          "pattern": ".*\\{ticket_id\\}.*",
-          "default": "{type}/{ticket_id}-{slug}"
-        },
-        "commit_message": {
-          "type": "string",
-          "default": "{ticket_id} {summary}"
-        },
-        "pr_title": {
-          "type": "string",
-          "default": "{title}",
-          "description": "No ticket id by default: the PR description's Ticket section links the ticket (ADR-0105). {ticket_ref} and {ticket_id} are still available."
-        },
-        "pr_description_template": {
-          "type": "string",
-          "default": "pr-default"
-        },
-        "design_template": {
-          "type": "string",
-          "default": "design-default"
-        },
-        "tickets": {
-          "type": "object",
-          "propertyNames": {
-            "enum": [
-              "epic",
-              "story",
-              "task"
-            ]
-          },
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "title": {
-                "type": "string"
-              },
-              "description_template": {
-                "type": "string"
-              }
-            },
-            "additionalProperties": false
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    "enforcement": {
-      "description": "Repo-side convention enforcement scaffolded by /acs:setup: a GitHub Actions check (.github/workflows/acs-conventions.yml) that fails a PR whose description names no ticket (ADR-0106), and optional local git hooks that check branch names and commit subjects against formats.*. The CI check becomes a true merge gate only when made a required status check on a protected default branch. CI reads only the committed <repo>/.acs/settings.json.",
-      "type": "object",
-      "properties": {
-        "checks": {
-          "description": "Which local-hook checks run (absent key = the default shown). The CI check, the ticket link, is not a toggle. The retired pr_title, pr_description and acs_label flags and enforcement.pr_description_sections (ADR-0106) are still accepted and ignored.",
-          "type": "object",
-          "properties": {
-            "branch_name": {
-              "type": "boolean",
-              "default": true,
-              "description": "Check the branch name against formats.branch_name in the local pre-push hook."
-            },
-            "commit_message": {
-              "type": "boolean",
-              "default": false,
-              "description": "Check commit subjects against formats.commit_message in the local commit-msg and pre-push hooks. Off by default \u2014 noisy under squash-merge, where only the PR title reaches main."
-            }
-          },
-          "additionalProperties": false
-        },
-        "require_label": {
-          "type": "string",
-          "default": "ACS",
-          "description": "The label /acs:create-pr applies to a pipeline PR; /acs:merge-pr --pr reads it to tell a pipeline PR from an exempt one. CI no longer requires it (ADR-0106)."
-        },
-        "exempt_label": {
-          "type": "string",
-          "default": "acs-exempt",
-          "description": "A PR carrying this label skips the CI check (for legitimate non-ticket PRs)."
-        },
-        "exempt_branches": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "release/*",
-            "dependabot/*",
-            "renovate/*"
-          ],
-          "description": "Branch-name globs (fnmatch) that skip the CI check \u2014 releases, bot PRs, etc."
-        },
-        "design_sections": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "Context & constraints",
-            "Options considered",
-            "Decision & rationale",
-            "Architecture",
-            "Impact & risks",
-            "Rollout/migration"
-          ],
-          "description": "Markdown section headings the create-design structure gate requires in design.md; defaulted from the configured formats.design_template."
         }
       },
       "additionalProperties": true

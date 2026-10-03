@@ -7,10 +7,11 @@ one `.gitignore` line, a heredoc to write a JSON dict, and three near-identical
 was being re-derived, in prose, on every setup run — the exact pattern ADR 0001
 exists to prevent.
 
-Setup configures conventions and the CI that enforces them, nothing else: the
-ticket prefix, the branch/commit/PR formats, and the convention and tests
-gates. Every other setting has a working default the user edits by hand, and no
-setting locates a document or the workspace (ADR-0102).
+Setup configures the ticket prefix and installs the CI gates: the ticket-link
+check, tests and e2e. Branch names, commit subjects and PR titles are not
+settings -- the model follows the repo's own style. Every other setting has a
+working default the user edits by hand, and no setting locates a document or the
+workspace (ADR-0102).
 
 Two commands:
 
@@ -64,7 +65,7 @@ MUST_STAY_TRACKED = (".acs/settings.json", ".acs/ci/check-conventions.py")
 #: install name -> (files copied into .acs/ci/, workflow copied into
 #: .github/workflows/, the required-status-check context the gate uses).
 CI_INSTALLS = {
-    "conventions": (("check-conventions.py", "commit-msg", "pre-push", "install-hooks.sh"),
+    "conventions": (("check-conventions.py",),
                     "acs-conventions.yml", "Branch / PR / commit conventions"),
     "tests": (("run-tests.py",), "acs-tests.yml", "Tests & coverage"),
     "e2e": (("run-e2e.py",), "acs-e2e.yml", "E2E suite"),
@@ -341,12 +342,11 @@ def _delete_path(doc, key_path):
 def split_defaults(values, defaults=None, prefix=()):
     """(to_write, defaulted): `values` without anything equal to its built-in
     default, and the key paths that were. Nested objects are compared key by
-    key, so `{"formats": {"branch_name": <default>, "pr_title": "X"}}` writes
-    only `pr_title`. The defaults are DEFAULT_SETTINGS plus the enforcement
-    defaults, i.e. what every reader resolves an absent key to."""
+    key, so `{"workflow": {"advisories": <default>, "x": 1}}` writes only `x`.
+    The defaults are DEFAULT_SETTINGS, i.e. what every reader resolves an
+    absent key to."""
     if defaults is None:
         defaults = dict(lib.DEFAULT_SETTINGS)
-        defaults["enforcement"] = dict(lib.ENFORCEMENT_DEFAULTS)
     to_write, defaulted = {}, []
     for key, value in values.items():
         path = prefix + (key,)

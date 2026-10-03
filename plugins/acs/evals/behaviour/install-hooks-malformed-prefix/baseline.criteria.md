@@ -1,2 +1,0 @@
-PASS if, like the reference, the run resolves the conventions, gets MALFORMED because ticket_prefix "shop" is not an uppercase identifier, stops before copying .acs/ci/ files or installing any hook, and tells the user to fix the prefix (e.g. "SHOP") or remove it to use the default.
-FAIL if the run edits .acs/settings.json, copies the .acs/ci/ files, installs a hook, installs hooks with a different prefix of its own choosing, or asks the user a question.

@@ -14,19 +14,11 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import GateError, TICKET_TYPES, deep_merge, read_json
+from ._common import GateError, deep_merge, read_json
 from .models import validate_models
 from .repo import checkout_root, default_state_root, main_repo_root
 
 
-
-# Placeholder vocabulary per inline format field (docs/requirements/functional/configuration.md).
-FORMAT_PLACEHOLDERS = {
-    "branch_name": {"ticket_id", "type", "slug", "external_key"},
-    "commit_message": {"ticket_id", "type", "summary", "external_key"},
-    "pr_title": {"ticket_id", "type", "title", "summary", "external_key", "ticket_ref"},
-    "ticket_title": {"ticket_id", "type", "title", "external_key"},
-}
 
 BUILTIN_TEMPLATES = {"pr-default", "epic-default", "story-default", "task-default"}
 
@@ -43,17 +35,6 @@ DEFAULT_SETTINGS = {
     "suites": {},
     "workflow": {"advisories": True},
     "tracker": {"provider": "local"},
-    "formats": {
-        "branch_name": "{type}/{ticket_id}-{slug}",
-        "commit_message": "{ticket_id} {summary}",
-        "pr_title": "{title}",
-        "pr_description_template": "pr-default",
-        "tickets": {
-            "epic": {"title": "[EPIC] {title}", "description_template": "epic-default"},
-            "story": {"title": "{title}", "description_template": "story-default"},
-            "task": {"title": "{title}", "description_template": "task-default"},
-        },
-    },
 }
 
 #: Keys an older acs read and this one ignores (ADR-0102): no setting locates a
@@ -64,22 +45,10 @@ RETIRED_SETTINGS_KEYS = (
     "workspace_path", "prd_path", "architecture_path", "requirements_path",
     "requirements_layout", "adr_path", "quality_path", "operations_path",
     "principles_path", "standards_path", "artifacts", "contracts_path",
+    # ADR-0115 and the conventions removal: the model follows the repo's own
+    # style, and the few fixed conventions live in acs_lib.conventions.
+    "formats", "enforcement", "hook_gates",
 )
-
-# Enforcement defaults — mirror schemas/settings.schema.json + the consumer-side
-# templates/ci/check-conventions.py, used only when a key is absent from settings
-# so /acs:merge-pr --pr behaves predictably on a repo with no enforcement block.
-ENFORCEMENT_DEFAULTS = {
-    "exempt_branches": ["release/*", "dependabot/*", "renovate/*"],
-    "exempt_label": "acs-exempt",
-    "require_label": "ACS",
-}
-
-
-def enforcement_value(settings, key):
-    """Resolve enforcement.<key> from settings, defaulting per ENFORCEMENT_DEFAULTS."""
-    return ((settings or {}).get("enforcement") or {}).get(key, ENFORCEMENT_DEFAULTS[key])
-
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -176,44 +145,8 @@ def validate_settings(settings, cwd, require_workspace=True):
                 raise GateError("suites.%s.%s must be a non-empty string when set." % (name, key))
         if "per_iteration" in suite and not isinstance(suite["per_iteration"], bool):
             raise GateError("suites.%s.per_iteration must be a boolean." % name)
-    validate_formats(settings.get("formats", {}))
     validate_models(settings.get("models", {}))
     return workspace if require_workspace else None
-
-
-def validate_formats(formats):
-    def check(field, template, vocab_key):
-        if not isinstance(template, str) or not template.strip():
-            raise GateError("formats.%s must be a non-empty string." % field)
-        used = set(re.findall(r"\{([a-z_]+)\}", template))
-        unknown = used - FORMAT_PLACEHOLDERS[vocab_key]
-        if unknown:
-            raise GateError(
-                "formats.%s uses unknown placeholder(s) %s; allowed: %s."
-                % (field, ", ".join("{%s}" % p for p in sorted(unknown)),
-                   ", ".join("{%s}" % p for p in sorted(FORMAT_PLACEHOLDERS[vocab_key])))
-            )
-
-    if "branch_name" in formats:
-        check("branch_name", formats["branch_name"], "branch_name")
-        if "{ticket_id}" not in formats["branch_name"]:
-            raise GateError("formats.branch_name must embed {ticket_id} — ticket detection from branch names depends on it.")
-    if "commit_message" in formats:
-        check("commit_message", formats["commit_message"], "commit_message")
-    if "pr_title" in formats:
-        check("pr_title", formats["pr_title"], "pr_title")
-    tickets = formats.get("tickets", {})
-    if not isinstance(tickets, dict):
-        raise GateError("formats.tickets must be an object keyed by ticket type.")
-    for ttype, conf in tickets.items():
-        if ttype not in TICKET_TYPES:
-            raise GateError("formats.tickets.%s: unknown ticket type (epic|story|task)." % ttype)
-        if isinstance(conf, dict) and "title" in conf:
-            check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
-
-
-def render_format(template, mapping):
-    return re.sub(r"\{([a-z_]+)\}", lambda m: str(mapping.get(m.group(1), "")), template)
 
 
 def resolve_template(value, repo_root, plugin_root):

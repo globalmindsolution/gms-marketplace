@@ -7,11 +7,6 @@
       "project_number": 1
     }
   },
-  "enforcement": {
-    "checks": {
-      "commit_message": true
-    }
-  },
   "release": {
     "version_locations": [
       ".claude-plugin/marketplace.json",
