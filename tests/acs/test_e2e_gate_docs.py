@@ -95,9 +95,9 @@ class TestContractsMd(unittest.TestCase):
     def setUpClass(cls):
         cls.body = read(CONTRACTS_PATH)
 
-    def test_contracts_md_lists_tests_and_enforcement(self):
+    def test_contracts_md_lists_tests_and_no_enforcement_block(self):
         self.assertIn("tests?", self.body)
-        self.assertIn("enforcement?", self.body)
+        self.assertNotIn("enforcement?", self.body)
 
     def test_contracts_md_notes_e2e_artifact_family(self):
         self.assertIn("acs-e2e.yml", self.body)

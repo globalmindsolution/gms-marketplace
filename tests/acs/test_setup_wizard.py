@@ -561,10 +561,11 @@ class SkillShapeTest(unittest.TestCase):
     def test_the_conversation_is_not(self):
         """Everything a user is told stays: the offers, their defaults, what
         declining costs, and the trade-offs no command can make."""
-        for kept in ("ticket_prefix", "formats.branch_name", "formats.commit_message",
-                     "formats.pr_title", "What declining costs", "suites.e2e",
+        for kept in ("ticket_prefix", "What declining costs", "suites.e2e",
                      "Completion report (normative)"):
             self.assertIn(kept, self.body, kept)
+        for gone in ("formats.", "enforcement.", "install-hooks", "commit-msg", "pre-push"):
+            self.assertNotIn(gone, self.body, gone)
 
     def test_setup_configures_conventions_and_ci_only(self):
         """What setup no longer does: write a CLAUDE.md block, set the status

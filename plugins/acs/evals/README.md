@@ -7,7 +7,7 @@ Edit a case by editing its files.
 
 ```
 evals/
-├── routing/                  # 244 cases: does a prompt reach the right skill?
+├── routing/                  # 247 cases: does a prompt reach the right skill?
 │   └── <case>/
 │       ├── prompt.md         # frontmatter: description, expected_outcome, tags, limits; body: the prompt
 │       └── graders/<name>.md # one grader per file
@@ -47,8 +47,8 @@ release gate's ~2,500 runs cost about $190.
 
 | Tag | Cases | Asserts |
 |---|---|---|
-| `routing` | all 244 routing cases | a prompt reaches (or avoids) a skill |
-| `description` | 227 | a natural-language request, never naming the skill, reaches it — ten phrasings for each of 24 skills |
+| `routing` | all 247 routing cases | a prompt reaches (or avoids) a skill |
+| `description` | 230 | a natural-language request, never naming the skill, reaches it — ten phrasings for each of 24 skills |
 | `confusable` | 68 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
 | `explicit` | 7 | a typed `/acs:<skill>` reaches it — see the limit below |
 | `negative` | 6 | a description of an internal leg's subject does NOT reach the leg |
