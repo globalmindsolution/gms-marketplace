@@ -1,0 +1,2 @@
+PASS if, like the reference, the run detects that .claude/launch.json is absent with a package.json dev-script candidate, applies the launch answer alone through `setup apply`, keeps the ticket prefix, installs no CI gate, and tells the user which server (`pnpm run dev`) and port (5173) it configured.
+FAIL if the run hand-writes .claude/launch.json instead of applying, puts secrets or an env block in it, invents a server the repo does not have, installs a CI gate, or asks the user a question.
