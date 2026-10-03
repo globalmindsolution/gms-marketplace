@@ -170,10 +170,16 @@ optional — with none, every key resolves to its default and no pre-hook
 refuses ([ADR-0105](../../adr/0105-acs-runs-without-setup.md)); validated by
 every pre-hook, which still refuses a malformed value
 (`settings.schema.json`): `ticket_prefix` (default `ACS`),
-`test_coverage_percent`, `merge_strategy`, `e2e?`, `suites?`,
-`tests?`, `models`, `tracker`, `release?`.
-`e2e?` is a deprecated compatibility alias, normalized at load time into
-`suites["e2e"]` — new configuration should prefer `suites.e2e` directly.
+`merge_strategy`, `tests`, `workflow`, `models`, `tracker`, `release?`
+(plus a tolerated `evals` object that nothing reads).
+`tests` is `{coverage?, unit?, e2e?, <name>?}`: `coverage` is the TDD target and
+CI-gate floor (default 90, exported to the gate as `ACS_COVERAGE`), `unit` is the
+CI tests-gate suite (`{command, setup?}`), and every other key is a named suite
+`{command, setup?, teardown?}` — the end-to-end suite is `tests.e2e`. The old
+top-level `test_coverage_percent`, `suites` and `e2e` keys are gone: a file that
+still carries them makes every acs skill refuse to start until
+`acs.py settings migrate [--write]` rewrites it. `tracker.provider` is `local` or
+`github`; `gh` is the only tracker transport.
 `models` is `models.<skill>.<role> = {model?, effort?}`: an absent skill, role or
 field, or the value `inherit`, inherits the parent session; the skills and roles
 are the agents the plugin ships, and `acs.py settings scaffold --write` writes the
@@ -185,18 +191,18 @@ CI exemptions (`acs-exempt`, `release/*`, `dependabot/*`, `renovate/*`), the `AC
 pipeline label and the built-in template names (a repo's
 `.acs/templates/<name>.md` of the same name replaces one). A `formats`,
 `enforcement` or `hook_gates` block a repo still carries is accepted and ignored.
-`tests?` backs the opt-in CI gates `/acs:setup` can scaffold (offered at Step 2,
+`tests.unit` backs the opt-in CI gates `/acs:setup` can scaffold (offered at Step 2,
 installed by Step 3's `setup apply`): `acs-conventions.yml`+`check-conventions.py`,
 which checks one rule, that the PR description names its ticket
 ([ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)), and
-`acs-tests.yml`+`run-tests.py` (`tests`). The e2e
+`acs-tests.yml`+`run-tests.py` (`tests.unit`). The e2e
 CI-gate artifact family (the same install, offered only when an e2e suite is
 configured) is the same
 shape: `acs-e2e.yml` + `run-e2e.py` (the committed
-template pair), built from `e2e?`/`suites?` — no dedicated settings key of
+template pair), built from `tests.e2e` — no dedicated settings key of
 its own — and wired as the `E2E suite` required-check context.
 `/acs:setup` is optional; it writes only the project file, and only the gates'
-keys (`tests.command`); `setup_wizard.split_defaults` drops any
+keys (`tests.unit.command`); `setup_wizard.split_defaults` drops any
 answer equal to its built-in default and removes one an earlier run wrote.
 Every other key, `ticket_prefix` included, is edited by hand.
 `templates/ci/check-conventions.py` runs without the plugin, so it holds its own

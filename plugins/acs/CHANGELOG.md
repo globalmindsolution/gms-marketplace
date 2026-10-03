@@ -21,6 +21,15 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ### Changed
 
+- **One `tests` block** (ADR-0117): `tests.coverage` replaces `test_coverage_percent`,
+  `tests.unit` the CI-gate `tests.command`/`setup`, and `tests.e2e` / `tests.<name>`
+  replace `e2e` and `suites`. `per_iteration` is gone. **Breaking:** an old-shape
+  file is refused by every skill until `acs.py settings migrate --write` rewrites it
+  (`/acs:update` runs this step).
+- **Jira is removed** (ADR-0117): `tracker.provider` is `local` or `github`;
+  `tracker.jira`, `acli` and Jira sync are gone, and a `jira` provider migrates to
+  `local`.
+
 - **Models are set per skill and role** (ADR-0115): `settings.models.<skill>.<role>`
   is `{model, effort}`, both optional, scaffolded in full by
   `acs.py settings scaffold --write` and inheriting where absent. `acs step start`

@@ -96,7 +96,7 @@ class TestContractsMd(unittest.TestCase):
         cls.body = read(CONTRACTS_PATH)
 
     def test_contracts_md_lists_tests_and_no_enforcement_block(self):
-        self.assertIn("tests?", self.body)
+        self.assertIn("`tests` is `{coverage?, unit?, e2e?, <name>?}`", self.body)
         self.assertNotIn("enforcement?", self.body)
 
     def test_contracts_md_notes_e2e_artifact_family(self):

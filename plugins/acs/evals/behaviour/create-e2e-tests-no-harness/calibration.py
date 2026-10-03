@@ -46,13 +46,13 @@ GOOD_SUITE = ('import json\nimport unittest\n\nfrom shop.web import app\n\n\n'
 
 def _invented_a_harness(ws):
     _start(ws)
-    ws.write(".acs/settings.json", json.dumps({"ticket_prefix": "EVAL", "suites": {"e2e": {
+    ws.write(".acs/settings.json", json.dumps({"ticket_prefix": "EVAL", "tests": {"e2e": {
         "command": "PYTHONPATH=src python3 -m unittest discover -s tests/e2e"}}}, indent=2))
     ws.write(SUITE, GOOD_SUITE)
     ws.sh("git add -- %s && git commit -qm 'EVAL-1 e2e suite' -- %s" % (SUITE, SUITE))
     _finish(ws, {"status": "completed", "outcome": "tests_written",
                  "states": {"suites_written": [SUITE], "cases_covered": ["TC-1", "TC-2"]}})
-    ws.reply = "Wrote %s and configured suites.e2e." % SUITE
+    ws.reply = "Wrote %s and configured tests.e2e." % SUITE
 
 
 def _wrote_uncommitted(ws):

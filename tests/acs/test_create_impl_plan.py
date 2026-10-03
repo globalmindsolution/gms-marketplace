@@ -213,7 +213,7 @@ class PlanContractTest(unittest.TestCase):
             r"(?i)every `ticket\.acceptance_criteria` entry maps to at least "
             r"one test")
         self.assertRegex(
-            self.norm, r"(?i)`settings\.test_coverage_percent` is stated")
+            self.norm, r"(?i)`settings\.tests\.coverage` is stated")
         for retired in FOLD_SECTIONS:
             with self.subTest(section=retired):
                 self.assertNotIn("### %s" % retired, self.body)

@@ -5,7 +5,7 @@ The deterministic write seam for tracker sync (MAR-84 spec 01): `gh issue
 create` / `gh project item-add` / field-set calls stay in prose
 (create-ticket/SKILL.md Step 5, references/materialize.md step 5). Once that
 prose sequence has a real remote {provider, key} in hand for one ticket, it
-calls this helper to record it. This helper does NOT call gh/acli, does not
+calls this helper to record it. This helper does NOT call gh, does not
 touch the network, and does not decide whether a ticket should be synced — it
 only performs (and validates) the single-ticket write, once per invocation.
 

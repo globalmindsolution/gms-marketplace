@@ -56,7 +56,7 @@ Parse the printed context JSON. Fields you will use:
   show --iteration <n-1>` prints that copy validated. Then see
   **On iteration 2+** in your leg's SKILL.md.
 - `design` — `{required, dir, source}` when a design document applies.
-- `settings` — you need `e2e` when set. The repo's standards set and `test_coverage_percent` are
+- `settings` — you need `tests.e2e` when set. The repo's standards set and `tests.coverage` are
   the **reviewer's** inputs, not yours.
 - `agents` — the agent name to spawn per role; the implementer's model and
   effort come from `settings.models.code.implementer` (inheriting when unset).

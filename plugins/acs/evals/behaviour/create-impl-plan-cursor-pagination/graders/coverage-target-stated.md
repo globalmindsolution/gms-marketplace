@@ -5,5 +5,5 @@ pattern: '\b90[ \t]*%|fail-under[= \t]*90\b|coverage[^\n]*\b90\b'
 flags: i
 ---
 
-`settings.test_coverage_percent` (90, the default) must be stated explicitly:
+`settings.tests.coverage` (90, the default) must be stated explicitly:
 the approval predicate checks it mechanically.

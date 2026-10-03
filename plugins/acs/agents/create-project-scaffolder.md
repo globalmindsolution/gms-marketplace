@@ -55,7 +55,7 @@ below.
   those. Say so in the notes' Analysis ("no architecture set: these clarification
   entries stand in for it") and cite the `C-n` id wherever you would cite
   `tech-stack.md` or a C4 view. Its absence is never a reason to stop.
-- `settings.json` — `test_coverage_percent` (the threshold to wire into coverage config).
+- `settings.json` — `tests.coverage` (the threshold to wire into coverage config).
   Compute the literal branch name (`<type>/<ticket_id>-<slug>`) and commit message (the repo's
   own style, default `<ticket_id> <summary>`) using the real ticket id from the task.
 - The repo itself (`git ls-files`, `ls`) — confirm it is greenfield: docs and config only,

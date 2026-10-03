@@ -23,7 +23,7 @@ flowchart LR
             CO2["worktree per ticket (parallel sessions)"]
             WS["Workspace folder<br/>(.acs/state-machine, gitignored,<br/>anchored to main checkout)"]
         end
-        PY["python3 (stdlib) · git · gh · acli? · xmllint?"]
+        PY["python3 (stdlib) · git · gh · xmllint?"]
     end
 
     MR -- "claude plugin install acs@gms-marketplace" --> PI_ACS

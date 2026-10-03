@@ -748,7 +748,7 @@ class TestGuardControlInput(FileMapGuardCase):
     def test_a_stale_tickets_path_null_does_not_lift_the_denial(self):
         """ADR-0102: the opt-out went with the key -- a consumer file that still
         carries it gets no unguarded ticket docs."""
-        self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90,
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90},
                              "artifacts": {"tickets_path": None}})
         self.declare("docs/")
         self.spawn_writer()

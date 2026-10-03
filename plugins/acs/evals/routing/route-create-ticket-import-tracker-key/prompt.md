@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Import JIRA-482 from our tracker into the workspace so we can start working on it.
+Import GitHub issue #482 from our tracker into the workspace so we can start working on it.

@@ -206,7 +206,7 @@ from before, made by the plugin's own wizard.
 | Case | Asks | Graded on |
 |---|---|---|
 | `01-keep-defaults` | keep the ticket prefix, no CI | no settings file, no CI files, the ignore entry written, no stray answers file, no re-asked question |
-| `03-tests-gate` | the tests-and-coverage gate | a pytest `tests.command` that enforces `$ACS_COVERAGE`, `acs-tests.yml` installed, nothing else |
+| `03-tests-gate` | the tests-and-coverage gate | a pytest `tests.unit.command` that enforces `$ACS_COVERAGE`, `acs-tests.yml` installed, nothing else |
 | `04-rerun` | run it again, change nothing | the seeded ticket prefix kept, no duplicate ignore line, no new gate, the reply reports nothing changed |
 | `05-no-choices` | "Set up acs for this repo." | nothing written; the reply asks about the ticket prefix and CI |
 | `07-neg-github-actions`, `08-neg-pre-commit` | CI or tooling work that is not about acs | setup never fires, no acs file is created, the request itself is done |

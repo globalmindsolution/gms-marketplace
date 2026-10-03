@@ -14,7 +14,7 @@ C4Container
     System_Ext(cc, "Claude Code runtime")
     ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/runs/<run-id>/ partitions (steps/, subject/) plus ticket partitions and repo-level index/counters/sessions, gitignored, anchored to the main checkout (ADR-0086); no override (ADR-0102)")
     System_Ext(repo, "Consumer repo")
-    System_Ext(trackers, "GitHub / Jira")
+    System_Ext(trackers, "GitHub")
 
     Container(tests_plugin, "tests/<plugin>/", "Python unittest", "Per-plugin deterministic tests; discovered by unittest discover -s tests")
     Container(evals_plugin, "plugins/<plugin>/evals/", "Markdown + YAML case files, run by claude plugin eval", "Per-plugin eval cases (routing, artifacts); run locally and at the release gate, NOT in CI")
@@ -27,7 +27,7 @@ C4Container
     Rel(agents, ws, "phase artifacts (per-role reports, lens/adjudication)")
     Rel(hooks, ws, "state files, ledger, locks, index")
     Rel(agents, repo, "write roles edit source/docs on ticket branch")
-    Rel(skills, trackers, "gh / acli (sync, PRs) -- critical calls stop the run, incl. gate-input reads whose failure leaves a readiness gate unevaluable; metadata calls degrade to findings and continue (ADR-0088)")
+    Rel(skills, trackers, "gh (sync, PRs) -- critical calls stop the run, incl. gate-input reads whose failure leaves a readiness gate unevaluable; metadata calls degrade to findings and continue (ADR-0088)")
     Rel(skills, schemas, "validate messages & state; render templates")
     Rel(tests_plugin, mkt, "validates per-plugin schemas, hooks, skills presence-gated")
 ```

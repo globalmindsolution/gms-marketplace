@@ -81,7 +81,7 @@ class AcsWorkspaceCase(unittest.TestCase):
         with open(os.path.join(self.repo, ".git", "info", "exclude"), "a") as fh:
             fh.write(".acs/state-machine/\n")
         os.makedirs(os.path.join(self.repo, ".acs"))
-        self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90})
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90}})
         self.seed_counters(next_n=1)
 
     def _counters_path(self, repo_id="acme-shop"):

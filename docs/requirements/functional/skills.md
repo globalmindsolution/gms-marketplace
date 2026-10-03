@@ -112,8 +112,8 @@ Purpose: let a team change the branch/commit/PR conventions and install the
 CI that enforces them — nothing else. It is **optional**: every setting has a
 working default, so no skill needs `/setup` to have run first
 ([ADR-0105](../../adr/0105-acs-runs-without-setup.md)). Every other setting
-(ticket prefix, coverage target, merge strategy, tracker, models, suites,
-advisories) keeps its default and is edited by hand in `.acs/settings.json`,
+(ticket prefix, coverage target, merge strategy, tracker, models, named test
+suites, advisories) keeps its default and is edited by hand in `.acs/settings.json`,
 validated against `settings.schema.json`.
 
 - MUST write only the project settings file (`<repo>/.acs/settings.json`,
@@ -131,8 +131,8 @@ validated against `settings.schema.json`.
 - MUST offer each CI gate explicitly, never installing one silently: the
   convention check (the PR description names its ticket,
   [ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)), the tests +
-  coverage gate (which needs `tests.command`),
-  and the e2e merge gate — the last offered only when `e2e`/`suites.e2e` is
+  coverage gate (which needs `tests.unit.command`),
+  and the e2e merge gate — the last offered only when `tests.e2e` is
   already configured. When a gate is installed, SHOULD then offer the
   one-time branch protection and labels (on admin rights and consent;
   otherwise print the command once and continue).
@@ -241,15 +241,15 @@ this skill owns the workflow around it.
 
 ## /acs:run-e2e-tests (test)
 
-Purpose: the standing, schedulable **suite runner** over the `suites`
-settings map — runs the product's configured test commands (unit,
+Purpose: the standing, schedulable **suite runner** over the named suites of the
+`tests` settings key — runs the product's configured test commands (unit,
 integration, e2e, regression, or any other named suite) and reports results,
 closing the loop on failures with a regression ticket.
 
 - **Model-invocable** (it does not set `disable-model-invocation`): a
   natural-language request to run the configured test suites, run a named
   suite, or check whether anything broke routes here.
-- **Argument contract:** no `--suite` flag runs every suite in `suites`; one
+- **Argument contract:** no `--suite` flag runs every named suite in `tests`; one
   or more `--suite <name>` flags run only the named subset.
 - **Unhooked** — like `/setup`/`/update`,
   `/acs:run-e2e-tests` spawns no subagents, has no pre- or
@@ -345,7 +345,7 @@ skills, while not running the ticket pipeline, MUST each create their own
 - The skill creates the ticket first (type **task**, e.g.
   `SHOP-1 — Product definition (PRD)`): a normal id from the per-repo
   counter, a normal workspace partition, tracker sync when configured (so
-  PRD/architecture/scaffold work is visible in Jira / GitHub Projects), and
+  PRD/architecture/scaffold work is visible in GitHub Projects), and
   the standard archive lifecycle. Re-running a product-level skill (e.g. a
   PRD amendment) creates a **new ticket** for that change. Re-running
   `/create-prd` for an amendment creates a new ticket with a specific title
@@ -654,10 +654,10 @@ architecture, so the ticket pipeline works from the very first ticket.
   - directory layout matching the container/component views;
   - package/build configuration;
   - the **test framework and coverage tooling**, wired to measure
-    `test_coverage_percent` — the `/code` TDD gates depend on this existing
+    `tests.coverage` — the `/code` TDD gates depend on this existing
     from ticket #1;
   - an **e2e harness** (plus one smoke e2e test and CI wiring, and a proposed
-    `e2e` settings block) when the architecture has a user-facing or
+    `tests.e2e` settings block) when the architecture has a user-facing or
     cross-component surface;
   - linter/formatter and pre-commit configuration;
   - a CI workflow running build, lint, tests, and coverage;
@@ -701,7 +701,7 @@ the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
   the additive-checker re-runs `git diff --name-status` every iteration
   (`classify_additive_diff`) and blocks on any status outside the
   allowlist (D6).
-- **e2e CI-gate scaffold (E2E-2):** when `settings.e2e`/`suites.e2e` is set and
+- **e2e CI-gate scaffold (E2E-2):** when `tests.e2e` is set and
   `.github/workflows/acs-e2e.yml` is missing, the readiness-tooling audit's e2e
   dimension becomes a concrete scaffold target — `acs-e2e.yml` + `run-e2e.py`,
   reused verbatim from `/acs:setup`'s (E2E-1) committed templates, under
@@ -796,13 +796,12 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   title/description format ([configuration.md](configuration.md)).
 - Tickets are **local-first**: the ticket JSON in the workspace is the local
   source of truth. Optionally, based on the `tracker` config in
-  `settings.json`, the ticket syncs **two-way** with a **GitHub Project** or
-  **Jira board**:
+  `settings.json`, the ticket syncs **two-way** with a **GitHub Project**:
   - `ticket.json` MUST hold a mapping field linking the local ACS id to the
-    remote key (e.g. Jira `PROJ-456`); the local `<ticket-id>` always names
+    remote key (e.g. GitHub `#456`); the local `<ticket-id>` always names
     the workspace partition.
-  - Tracker access goes through the official CLIs — **`gh`** for GitHub and
-    **`acli`** for Jira — which handle authentication themselves.
+  - Tracker access goes through the official **`gh`** CLI, the only tracker
+    transport, which handles authentication itself.
 - MUST persist the ticket (and its `<ticket-id>`) into the workspace; the
   `<ticket-id>` names the workspace partition for the whole pipeline.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
@@ -1193,7 +1192,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   **`complex`** delivery paths only, at the leg's Start, `/code` MUST record a
   **deterministic plan-approval verdict**: `plan-approval.py` computes
   `acs_lib.plan_approval_eligible` from the plan artifact's own content plus
-  `settings.test_coverage_percent` and is the **sole writer** of
+  `tests.coverage` and is the **sole writer** of
   `<run>/steps/code/plan-approval.json` — never a subagent's `Write`, never
   the coordinator's, never an LLM self-assertion. The record carries the
   predicate's inputs, checks, failures and the approved plan's **sha256**, and
@@ -1221,7 +1220,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
 - MUST implement features, bug fixes, and tasks using the **TDD pattern**:
   write tests first, then implementation, iterating until green.
 - MUST generate unit tests and run them targeting the configured
-  `test_coverage_percent` (default 90) from `settings.json` — measured once,
+  `tests.coverage` (default 90) from `settings.json` — measured once,
   at the review's gate, never inside an iteration that may be discarded.
 - MUST run the tests its change touches, not the full suite: the full suite is
   the review's final gate, run once, last, on the iteration that survives
@@ -1377,7 +1376,7 @@ full unit suite runs.
        Corroboration is NOT a filter — per-finding re-derivation is.
     3. **A final gate**, only when stage 2 leaves nothing blocking: build,
        lint, the full unit suite, and coverage against
-       `settings.test_coverage_percent`. This is the only place the full suite
+       `tests.coverage`. This is the only place the full suite
        runs in the pipeline. A gate failure is a blocking finding of
        `kind: gate` with the failing command as its evidence.
 - `/acs:review-code` MUST review the changeset — **business logic**,
@@ -1411,10 +1410,10 @@ Purpose: write the ticket's end-to-end suites from the e2e-typed rows of its
 test cases, so the post-code e2e run has something ticket-specific to run.
 
 - Input: the e2e-typed rows of `test-cases.md` and the repo's e2e
-  configuration (`settings.e2e` / `settings.suites.e2e`). Pre-hook input
+  configuration (`settings.tests.e2e`). Pre-hook input
   checks: an e2e suite is configured **and** `test-cases.md` lists at least
   one e2e case — a repo with no e2e layer is refused with a pointer at adding
-  `suites.e2e` to `.acs/settings.json`, and `ship.yaml` skips the step for it entirely
+  `tests.e2e` to `.acs/settings.json`, and `ship.yaml` skips the step for it entirely
   (`when: e2e_configured`).
 - MUST write the suites at the repo's configured e2e location, named after
   the ticket, committed on the ticket branch.

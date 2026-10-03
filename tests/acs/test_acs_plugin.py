@@ -90,12 +90,12 @@ class TestGates(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_e2e_settings_validation(self):
-        self.write_settings({"ticket_prefix": "SHOP", "e2e": {"setup": "x"}})
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"e2e": {"setup": "x"}}})
         result = self.pre("create-ticket")
         self.assertEqual(result.returncode, 2)
-        self.assertIn("e2e", result.stderr)
+        self.assertIn("tests.e2e", result.stderr)
         self.write_settings({"ticket_prefix": "SHOP",
-                             "e2e": {"command": "make e2e", "per_iteration": False}})
+                             "tests": {"e2e": {"command": "make e2e"}}})
         self.assertEqual(self.pre("create-ticket").returncode, 0)
 
     def plan(self, ticket):
@@ -205,7 +205,7 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
             REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        for field in ("e2e",):
+        for field in ("tests",):
             self.assertNotIn(
                 "/create-spec", schema["properties"][field]["description"],
                 "%s description must not reference the deleted /create-spec" % field)
@@ -455,7 +455,7 @@ class ToolchainTests(unittest.TestCase):
 
     def test_reports_every_known_tool(self):
         names = [r["name"] for r in lib.check_toolchain()]
-        self.assertEqual(set(names), {"git", "python3", "gh", "pre-commit", "acli"})
+        self.assertEqual(set(names), {"git", "python3", "gh", "pre-commit"})
 
     def test_core_tools_present_and_required(self):
         rows = {r["name"]: r for r in lib.check_toolchain()}
@@ -467,12 +467,10 @@ class ToolchainTests(unittest.TestCase):
     def test_tracker_bumps_conditional_tools_to_required(self):
         gh = {r["name"]: r for r in lib.check_toolchain({"tracker": {"provider": "github"}})}["gh"]
         self.assertEqual(gh["kind"], "required")
-        acli = {r["name"]: r for r in lib.check_toolchain({"tracker": {"provider": "jira"}})}["acli"]
-        self.assertEqual(acli["kind"], "required")
         # local tracker leaves them at their baseline kinds
         base = {r["name"]: r for r in lib.check_toolchain()}
         self.assertEqual(base["gh"]["kind"], "recommended")
-        self.assertEqual(base["acli"]["kind"], "optional")
+        self.assertNotIn("acli", base)
 
     def test_missing_tools_excludes_present_and_optional(self):
         missing = lib.missing_tools()  # required + recommended by default

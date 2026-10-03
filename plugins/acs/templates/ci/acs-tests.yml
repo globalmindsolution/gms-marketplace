@@ -3,11 +3,11 @@
 #
 # Runs the configured test suite on every PR and fails on a failing suite or a
 # coverage shortfall (the command enforces coverage; acs passes
-# ACS_COVERAGE = test_coverage_percent). Make this a REQUIRED status check on
+# ACS_COVERAGE = tests.coverage). Make this a REQUIRED status check on
 # your default branch (and block direct pushes) so a PR with failing tests or
 # low coverage cannot merge — /acs:setup offers to configure that.
 #
-# Toolchain: ubuntu-latest ships python3/node/go/etc.; `tests.setup` installs
+# Toolchain: ubuntu-latest ships python3/node/go/etc.; `tests.unit.setup` installs
 # your dependencies. For a pinned runtime version, add the matching setup-*
 # action (e.g. actions/setup-node) before the run step.
 name: ACS tests
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # Python is for the acs runner only; your suite uses the repo's own
-      # toolchain (present on ubuntu-latest, deps installed by tests.setup).
+      # toolchain (present on ubuntu-latest, deps installed by tests.unit.setup).
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"

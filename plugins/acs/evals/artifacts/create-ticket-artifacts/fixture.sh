@@ -22,7 +22,7 @@ mkdir -p .acs
 cat > .acs/settings.json <<'JSON'
 {
   "ticket_prefix": "EVAL",
-  "test_coverage_percent": 90,
+  "tests": { "coverage": 90 },
   "merge_strategy": "squash",
   "tracker": { "provider": "none" }
 }

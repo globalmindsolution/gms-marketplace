@@ -55,8 +55,8 @@ Parse the printed context JSON. Fields you will use:
   (`docs/tickets/<that id>/`), or `<design.dir>/design.md` when an older design
   still lives in the partition. Call it `<design_doc>`; the plan is judged
   against it.
-- `settings` — you need `test_coverage_percent` (the coverage target the plan
-  states) and `e2e` when set.
+- `settings` — you need `tests.coverage` (the coverage target the plan
+  states) and `tests.e2e` when set.
 - `agents` — the agent name to spawn per role; the planner's and the plan
   reviewer's model and effort come from
   `settings.models.create-impl-plan.<role>` (inheriting when unset).
@@ -316,7 +316,7 @@ source/docs the subject touches. Its authoring notes are
   what the PreToolUse write guard enforces.
 - The test strategy per slice: which failing tests to write first, the repo's
   test/coverage tooling and the exact commands to run them, how
-  `settings.test_coverage_percent` will be measured.
+  `settings.tests.coverage` will be measured.
 - The documentation map: whether any factual claims in `docs/product/prd.md`
   or `docs/product/roadmap.md` are made stale by the change (factual items:
   agent/subagent counts, shipped-vs-planned status, topology, version numbers,
@@ -398,7 +398,7 @@ have written — the scope, the approach at contract level, the API and data
 changes, the test plan, what is out of scope — is simply part of what the plan
 says, in whatever shape this change needs. Two things that content must carry
 wherever it lands: every `ticket.acceptance_criteria` entry maps to at least
-one test the plan will write, and `settings.test_coverage_percent` is stated
+one test the plan will write, and `settings.tests.coverage` is stated
 explicitly. The approval predicate checks the second mechanically; the
 plan reviewer checks the first.
 

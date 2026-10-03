@@ -69,7 +69,7 @@ the seam, so the coordinator can route it to the next integration pass.
 ## Run the suites once — and read the failure honestly
 
 ```bash
-# setup (only when settings.suites.e2e.setup is configured), then the command,
+# setup (only when settings.tests.e2e.setup is configured), then the command,
 # then teardown ALWAYS -- pass or fail.
 <e2e_setup>
 <e2e_command>

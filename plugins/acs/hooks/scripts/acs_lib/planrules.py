@@ -131,7 +131,7 @@ def plan_approval_eligible(plan_text, settings, fold_active=None):
 
     text = plan_text or ""
     settings = settings or {}
-    coverage_target = settings.get("test_coverage_percent", DEFAULT_SETTINGS["test_coverage_percent"])
+    coverage_target = (settings.get("tests") or {}).get("coverage", DEFAULT_SETTINGS["tests"]["coverage"])
     norm_text = re.sub(r"\s+", " ", text)
 
     failures = []

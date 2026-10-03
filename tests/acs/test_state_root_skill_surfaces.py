@@ -171,7 +171,7 @@ class HandoffScopeClaimCase(unittest.TestCase):
 
 
 class UpdateWorkspaceReachableCase(unittest.TestCase):
-    """AC4 — update/SKILL.md Step 6 item 3 'Workspace reachable'."""
+    """AC4 — update/SKILL.md Step 6 item 4 'Workspace reachable'."""
 
     @classmethod
     def setUpClass(cls):
@@ -187,27 +187,27 @@ class UpdateWorkspaceReachableCase(unittest.TestCase):
         return self.step6[m.start():end]
 
     def test_workspace_reachable_no_longer_assumes_a_bare_key(self):
-        """Item 3 no longer reads 'workspace_path exists and is writable' as
+        """Item 4 no longer reads 'workspace_path exists and is writable' as
         if the key is always set — that assumption is gone."""
-        item3 = self.item(3, "Workspace reachable")
+        item3 = self.item(4, "Workspace reachable")
         self.assertNotIn(
             "`workspace_path` exists and is writable", item3,
-            msg="item 3 must no longer assume workspace_path is always a set key (AC4)",
+            msg="item 4 must no longer assume workspace_path is always a set key (AC4)",
         )
 
     def test_workspace_reachable_resolves_like_item_one(self):
-        """Item 3 resolves the workspace the same way item 1 already does
+        """Item 4 resolves the workspace the same way item 2 already does
         (acs_lib.load_settings + acs_lib.validate_settings), rather than
         reading a possibly-absent workspace_path key directly."""
-        item1 = self.item(1, "Settings still valid")
-        item3 = self.item(3, "Workspace reachable")
+        item1 = self.item(2, "Settings still valid")
+        item3 = self.item(4, "Workspace reachable")
         self.assertIn("acs_lib.load_settings", item1)
         self.assertIn("acs_lib.validate_settings", item1)
         for marker in ("acs_lib.load_settings", "acs_lib.validate_settings"):
             self.assertIn(
                 marker, item3,
-                msg="item 3 must resolve the workspace via %r, the same "
-                    "resolution approach item 1 already uses (AC4)" % marker,
+                msg="item 4 must resolve the workspace via %r, the same "
+                    "resolution approach item 2 already uses (AC4)" % marker,
             )
 
 

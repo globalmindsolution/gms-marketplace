@@ -89,8 +89,8 @@ Audit each of the four categories independently — none gates the others:
 4. **acs-readiness tooling** — four independently-graded checks:
    - CI workflow presence.
    - pre-commit config presence.
-   - coverage-tool config presence, and whether it fails below `settings.test_coverage_percent`.
-   - e2e harness/config presence relative to `settings.e2e`/`suites.e2e`:
+   - coverage-tool config presence, and whether it fails below `settings.tests.coverage`.
+   - e2e harness/config presence relative to `settings.tests.e2e`:
      - **Unset** ⇒ **N/A** — the opt-in invariant: unset means no scaffold — no e2e
        suite, no gate, unchanged.
      - **Set AND `.github/workflows/acs-e2e.yml` absent** ⇒ emit a concrete

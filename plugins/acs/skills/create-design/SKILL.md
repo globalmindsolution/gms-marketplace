@@ -450,7 +450,7 @@ each a finding `dimension`:
 When Start located a standards set, `standards_dir` is passed into the
 design-reviewer `<task>`'s `<constraints>` (present only when found) — mirroring how
 `code/SKILL.md` conditionally passes `e2e_command`/`e2e_setup`/
-`e2e_teardown`/`e2e_per_iteration`.
+`e2e_teardown`.
 
 ALL findings block — zero findings = pass. **Pass rule:** the iteration
 passes only if EVERY design-reviewer slice returned `status="completed"`

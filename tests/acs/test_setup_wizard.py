@@ -247,12 +247,12 @@ class RefusalTest(WizardCase):
         runner exits 1 on every PR because there is no command to run."""
         out = self.apply({"settings": {}, "ci": ["tests"]})
         self._nothing_written(out)
-        self.assertTrue(any("tests.command" in e for e in out["errors"]), out["errors"])
+        self.assertTrue(any("tests.unit.command" in e for e in out["errors"]), out["errors"])
 
     def test_an_e2e_gate_without_a_suite_is_refused(self):
         out = self.apply({"settings": {}, "ci": ["e2e"]})
         self._nothing_written(out)
-        self.assertTrue(any("suites.e2e.command" in e for e in out["errors"]), out["errors"])
+        self.assertTrue(any("tests.e2e.command" in e for e in out["errors"]), out["errors"])
 
     def test_a_tests_command_ci_cannot_read_does_not_count(self):
         """CI reads only the committed project file, so a command that lives
@@ -260,7 +260,7 @@ class RefusalTest(WizardCase):
         local = os.path.join(self.repo, ".acs", "settings.local.json")
         os.makedirs(os.path.dirname(local))
         with open(local, "w", encoding="utf-8") as fh:
-            json.dump({"tests": {"command": "pytest"}}, fh)
+            json.dump({"tests": {"unit": {"command": "pytest"}}}, fh)
         out = self.apply({"settings": {}, "ci": ["tests"]})
         self.assertFalse(out["ok"])
         self.assertFalse(os.path.exists(os.path.join(self.repo, ".github")))
@@ -313,13 +313,14 @@ class SettingsWriteTest(WizardCase):
         self.assertEqual(after["merge_strategy"], "rebase")
 
     def test_a_nested_object_is_merged_not_replaced(self):
-        """A run that sets tracker.provider must not drop the tracker.github
-        block a previous run wrote."""
+        """A run that sets one tracker key must not drop the tracker.provider
+        and tracker.github block a previous run wrote."""
         self.apply(self.answers(settings={"tracker": {"provider": "github",
                                                       "github": {"owner": "acme"}}}))
-        self.apply(self.answers(settings={"tracker": {"provider": "jira"}}))
+        self.apply(self.answers(settings={"tracker": {"note": "kept"}}))
         tracker = json.loads(self.read(".acs", "settings.json"))["tracker"]
-        self.assertEqual(tracker["provider"], "jira")
+        self.assertEqual(tracker["provider"], "github")
+        self.assertEqual(tracker["note"], "kept")
         self.assertEqual(tracker["github"], {"owner": "acme"})
 
     def test_a_value_equal_to_its_default_is_never_written(self):
@@ -405,8 +406,9 @@ class IgnoreTest(WizardCase):
 
 class CiInstallTest(WizardCase):
 
-    TESTS = {"tests": {"command": "python3 -m pytest -q --cov-fail-under=$ACS_COVERAGE"}}
-    E2E = {"suites": {"e2e": {"command": "npx playwright test"}}}
+    UNIT = {"command": "python3 -m pytest -q --cov-fail-under=$ACS_COVERAGE"}
+    TESTS = {"tests": {"unit": UNIT}}
+    E2E = {"command": "npx playwright test"}
 
     def test_each_install_copies_its_files_and_its_workflow(self):
         out = self.apply(self.answers(ci=["conventions", "tests"],
@@ -443,7 +445,7 @@ class CiInstallTest(WizardCase):
         self.assertNotIn("# tampered", open(path, encoding="utf-8").read())
 
     def test_the_required_check_contexts_come_back_for_branch_protection(self):
-        settings = dict(self.TESTS, ticket_prefix="SHOP", **self.E2E)
+        settings = {"ticket_prefix": "SHOP", "tests": {"unit": self.UNIT, "e2e": self.E2E}}
         out = self.apply(self.answers(ci=["conventions", "tests", "e2e"], settings=settings))
         self.assertEqual(out["required_check_contexts"],
                          ["Branch / PR / commit conventions", "Tests & coverage", "E2E suite"])
@@ -561,7 +563,7 @@ class SkillShapeTest(unittest.TestCase):
     def test_the_conversation_is_not(self):
         """Everything a user is told stays: the offers, their defaults, what
         declining costs, and the trade-offs no command can make."""
-        for kept in ("ticket_prefix", "What declining costs", "suites.e2e",
+        for kept in ("ticket_prefix", "What declining costs", "tests.e2e",
                      "Completion report (normative)"):
             self.assertIn(kept, self.body, kept)
         for gone in ("formats.", "enforcement.", "install-hooks", "commit-msg", "pre-push"):

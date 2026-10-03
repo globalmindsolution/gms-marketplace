@@ -192,7 +192,7 @@ class Workspace(object):
 
 
 PAY = {"ticket_prefix": "PAY"}
-PYTEST = {"tests": {"command": "python3 -m pytest -q --cov=src --cov-fail-under=$ACS_COVERAGE"}}
+PYTEST = {"tests": {"unit": {"command": "python3 -m pytest -q --cov=src --cov-fail-under=$ACS_COVERAGE"}}}
 
 
 def _ticket(ws, **overrides):

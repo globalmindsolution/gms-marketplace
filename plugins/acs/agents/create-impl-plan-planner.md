@@ -45,7 +45,7 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   source/doc paths; and on iteration 2+ the iteration-1 authoring notes.
   READ EVERY ONE. Derive `<partition>` from the directory containing the run
   ledger named in `<inputs>`;
-- `<constraints>` — at least `coverage_target` (settings.test_coverage_percent),
+- `<constraints>` — at least `coverage_target` (settings.tests.coverage),
   `branch` (the ticket branch name), `commit_message` (an example in the repo's commit style),
   `plan_draft` (the draft path you write) and `docs_only` when it applies;
   plus `architecture_dir`, `requirements_dir` and `adr_dir` when the repo has

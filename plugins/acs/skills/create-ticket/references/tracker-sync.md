@@ -1,6 +1,6 @@
 # /acs:create-ticket — Step 5, tracker sync
 
-Open this ONLY when `settings.tracker.provider` is `github` or `jira`. On the
+Open this ONLY when `settings.tracker.provider` is `github`. On the
 default `local` provider there is no remote to sync to and this whole step is
 skipped: no issue is created, and every ticket's `external` stays null.
 
@@ -11,7 +11,7 @@ a bare "above" naming it means that file, not a section of this one.
 
 ### Step 5 — Tracker sync
 
-Only when `settings.tracker.provider` is `github` or `jira` (skip entirely for
+Only when `settings.tracker.provider` is `github` (skip entirely for
 `local`). Sync is on-demand — this creation run pushes the new ticket(s) out; no
 background sync. For `local` (unsynced) tickets, none of this step's github
 field-fill behavior fires — no issue is created, so the `acs-ticket:` body line
@@ -34,7 +34,7 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   same split MAR-69's own fan-out produced (issue kept, new issues created
   for the children only). **For each ticket to
   sync**, run the `gh issue create` sequence below once per ticket — this is
-  a **critical (per ticket), soft (per batch)** gh call: a failed `gh`/`acli`
+  a **critical (per ticket), soft (per batch)** gh call: a failed `gh`
   call for any one ticket is never silently swallowed: it produces an
   **error**-severity finding naming that ticket's id + error + the canonical
   hint from `acs_lib.gh_failure_hint`, `replayable: false`, surfaced in
@@ -82,15 +82,6 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   surfaced, never silently ignored, and never a wrong-type write.
 
 
-- `jira` (`tracker.jira.base_url`, `tracker.jira.project_key`): for each
-  `ticket_to_sync` in the set defined above, run the sequence below, once per
-  ticket. `acli jira workitem create --project <project_key> --type "Epic"
-  --summary "<rendered title>" --description "<description>"` (types map
-  epic→Epic, story→Story, task→Task; children pass the epic's remote key as
-  parent link). Store `external = {"provider": "jira", "key": "<KEY-n>"}`. A
-  failed `acli` call for any one ticket follows the same per-ticket
-  failure-handling rule stated above (surfaced, never silent, does not abort
-  the batch, that ticket's `external` stays null).
 - Write `external` into each synced ticket's own `ticket.json` — root and
   every child — via `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-external.py"
   --ticket <ticket-id> --provider <provider> --key <key>` once per successfully

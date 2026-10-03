@@ -75,8 +75,8 @@ Parse the printed context JSON. Fields you will use:
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
   artifacts go in `steps/merge-pr/`.
 - `settings` — `settings.merge_strategy` (`squash` | `merge` | `rebase`,
-  default `squash`) and `settings.tracker` (`provider` `local`/`github`/`jira`
-  plus `tracker.github` / `tracker.jira` sub-keys).
+  default `squash`) and `settings.tracker` (`provider` `local`/`github`
+  plus the `tracker.github` sub-keys).
 - `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 Resolve the PR reference from workspace state — never from conversation
 history: read `states.pr` (`{number, url, branch, base}`) from the ticket's
@@ -358,8 +358,6 @@ removed):
      --format json`, then `gh project item-edit --id <item-id> --project-id
      <project-id> --field-id <status-field-id> --single-select-option-id
      <done-option-id>`.
-   - `jira`: `acli jira workitem transition --key <external.key> --status
-     "Done"`.
 4. Touch NOTHING else: do not edit `ticket.json` status, do not archive the
    partition, do not mark the parent epic — `acs step finish` marks the
    ticket done, archives the partition to `archive/<ticket-id>/`, and

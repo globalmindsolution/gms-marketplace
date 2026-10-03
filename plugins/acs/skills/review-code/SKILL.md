@@ -127,7 +127,7 @@ record the commands and their output in `iter-<n>/gate.json`:
 - **build** succeeds
 - **lint** clean
 - **full unit test suite** green
-- **coverage ≥ `settings.test_coverage_percent`**
+- **coverage ≥ `settings.tests.coverage`**
 
 This is the only place the full suite runs in the whole pipeline. It runs
 last, exactly once per iteration that survives review. A gate failure is a

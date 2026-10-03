@@ -176,7 +176,7 @@ class TestsAndCoverageTest(DeriveCase):
     def test_numbers_come_from_the_execute_report(self):
         self.write_execute(tests={"passed": 84, "failed": 0},
                            coverage={"percent": 93.4, "target": 90})
-        value, why = lib.derive_tests(self.rdir_path, "code", {"test_coverage_percent": 90})
+        value, why = lib.derive_tests(self.rdir_path, "code", {"tests": {"coverage": 90}})
         self.assertEqual(value, {"passed": 84, "failed": 0,
                                  "coverage_percent": 93.4, "coverage_target": 90})
         self.assertIn("implementer.json", why)
@@ -205,7 +205,7 @@ class TestsAndCoverageTest(DeriveCase):
     def test_coverage_target_comes_from_settings_not_from_the_report(self):
         """The target is a setting, so it is never anyone's claim."""
         self.write_execute(coverage={"percent": 91.0, "target": 50})
-        value, _why = lib.derive_tests(self.rdir_path, "code", {"test_coverage_percent": 90})
+        value, _why = lib.derive_tests(self.rdir_path, "code", {"tests": {"coverage": 90}})
         self.assertEqual(value["coverage_target"], 90)
 
     def test_no_report_derives_nothing_rather_than_zero(self):

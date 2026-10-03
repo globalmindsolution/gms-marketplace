@@ -13,7 +13,7 @@ import sys
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 RESULT = ".acs/state-machine/example-shop/runs/EVAL-1/steps/standardize-project/result.json"
 CONFLICT = {"title": "Reconcile the existing .github/workflows/acs-e2e.yml with acs's e2e gate",
-            "rationale": "suites.e2e is configured, but .github/workflows/acs-e2e.yml already "
+            "rationale": "tests.e2e is configured, but .github/workflows/acs-e2e.yml already "
                          "holds the team's own workflow; it was not overwritten",
             "target_path": ".github/workflows/acs-e2e.yml"}
 

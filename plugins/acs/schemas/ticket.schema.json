@@ -26,7 +26,7 @@
           "type": "object",
           "required": ["provider", "key"],
           "properties": {
-            "provider": {"enum": ["github", "jira"]},
+            "provider": {"enum": ["github"]},
             "key": {"type": "string", "minLength": 1}
           },
           "additionalProperties": true
@@ -35,7 +35,7 @@
     },
     "assignee": {"oneOf": [{"type": "string"}, {"type": "null"}]},
     "milestone": {
-      "description": "Optional tracker milestone title this ticket belongs to; the tracker sync writes it verbatim (`gh issue edit --milestone`). Falls back to settings.tracker.milestone when null, and is skipped entirely when both are null. Declared because the sync reads it: an undeclared field is one no document can be validated against and no operator can be told to set.",
+      "description": "Optional tracker milestone title this ticket belongs to; the tracker sync writes it verbatim (`gh issue edit --milestone`). Skipped entirely when null. Declared because the sync reads it: an undeclared field is one no document can be validated against and no operator can be told to set.",
       "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
       "default": null
     },

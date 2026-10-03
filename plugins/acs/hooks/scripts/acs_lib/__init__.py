@@ -45,7 +45,7 @@ from ._common import (DELIVERY_TICKET_SKILLS,
     _git, deep_merge, now_iso, parse_iso, plugin_root, read_json, slugify, write_json)  # noqa: F401
 
 from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, DEFAULT_TICKET_PREFIX,
-    RETIRED_SETTINGS_KEYS, _normalize_e2e_into_suites,
+    RETIRED_SETTINGS_KEYS, coverage_target, test_suites, validate_tests,
     load_settings,
     resolve_template, settings_files,
     validate_settings)  # noqa: F401
@@ -152,6 +152,7 @@ from .workflow import (OVERRIDE_WORKFLOW_RELPATH,  # noqa: F401
 
 from . import skills as skills_registry  # noqa: F401,E402
 from . import models  # noqa: F401,E402
+from . import migrate_settings  # noqa: F401,E402
 from . import conventions  # noqa: F401,E402
 from . import agent_sync  # noqa: F401,E402
 from .models import validate_models  # noqa: F401,E402

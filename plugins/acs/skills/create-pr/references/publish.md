@@ -110,11 +110,10 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    `metadata_fill.findings` verbatim — each is an `info` finding carrying the
    command, ready to re-run — and never fail the PR over one.
 
-7. **Tracker sync** — only when `tracker_provider` is `github` or `jira` AND
+7. **Tracker sync** — only when `tracker_provider` is `github` AND
    `ticket.external.key` is set (skip for `local`; when the provider is configured
    but the ticket was never synced, record an info finding instead):
    - `github`: `gh issue comment <external.key> --body "ACS: PR #<number> opened for <ticket-id> — <url>"`
-   - `jira`: `acli jira workitem comment --key <external.key> --body "ACS: PR opened for <ticket-id> — <url>"`
 
 On a resumed run (`references/resume.md`), redo exactly what the reconcile
 found unfinished — re-write the title, re-fill the body, re-push, re-label,

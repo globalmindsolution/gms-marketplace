@@ -3,7 +3,7 @@
 # architecture set (tech-stack.md, project-structure.md), principles and
 # standards sets, a CI workflow, a pre-commit config and a coverage config
 # failing below 90% -- and an e2e suite configured in .acs/settings.json
-# (suites.e2e, written through acs's own `setup apply`) whose workflow path
+# (tests.e2e, written through acs's own `setup apply`) whose workflow path
 # .github/workflows/acs-e2e.yml is ALREADY taken by the team's own
 # hand-written workflow. standardize-project/SKILL.md, Inputs & mode: "Set
 # AND .github/workflows/acs-e2e.yml already present => standardize-project
@@ -83,7 +83,7 @@ printf '[run]\nsource = src\n\n[report]\nfail_under = 90\n' > .coveragerc
 git add -A && git commit -qm "Docs, CI, e2e suite and tooling"
 
 python3 "$ACS_SCRIPTS/acs.py" setup apply --answers - >/dev/null <<'JSON'
-{"settings": {"suites": {"e2e": {"command": "python3 -m pytest -q e2e"}}}, "ci": []}
+{"settings": {"tests": {"e2e": {"command": "python3 -m pytest -q e2e"}}}, "ci": []}
 JSON
 git add -A && git commit -qm "Configure the e2e suite for acs"
 acs_local_origin

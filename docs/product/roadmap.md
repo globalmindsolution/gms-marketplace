@@ -149,7 +149,7 @@ configured and have not yet been validated against a live remote.
   dedicated eval CI workflow. (A 2026-06-14 CI dispatch had confirmed the full
   paid path runs green in CI before paid was moved local-only.) Since **MAR-579**
   it is no longer this repo's per-ticket gate either: `.acs/settings.json` carries
-  no `e2e`/`suites.e2e`, so `/acs:ship`'s post-code test step resolves off. PRs
+  no `tests.e2e`, so `/acs:ship`'s post-code test step resolves off. PRs
   here are gated by the plugin's unit suite, the coverage hard-fail and the free
   pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic) becomes
   this repo's per-PR CI brake once a workflow is wired to run it. The suite
@@ -164,7 +164,7 @@ configured and have not yet been validated against a live remote.
 Traces the "team on a shared repo" persona. Independent of E1/E3 — slot in once
 dogfooding is rolling.
 
-- Conflict-resolution UX, bulk import, epic-link fidelity on Jira / GitHub
+- Conflict-resolution UX, bulk import, epic-link fidelity on GitHub
   Projects.
 
 #### Epic E6 — Tracker-first delivery (PRD-optional mode) *(Must-have — urgent; builds on E2)*
@@ -460,7 +460,7 @@ required e2e merge gate) may start independently.
   - **E2E-1 — Optional required e2e merge gate.** `/acs:setup` scaffolds a repo-side e2e CI workflow + runner from `settings.e2e` and, opt-in, wires it as a REQUIRED status check on the protected default branch — a red e2e becomes a fail-closed merge brake (symmetric to E5's convention gate and the coverage hard-fail), making `/acs:merge-pr`'s report-only CI read enforceable via branch protection. The fresh-init EXPLICIT e2e OFFER (raising e2e from silently-defaultable to explicitly-offered at init, G21) ships in **v0.3.4** (M2.5); E2E-1 here adds only the CI workflow + required-status-check gate on top of an already-offered e2e config. Maps to PRD acs Should-have (e2e bullet). Traces **G13**, **G9**.
   - **E2E-2 — Brownfield e2e scaffolding via `/acs:standardize-project`.** The greenfield-only `/acs:create-project` e2e scaffolding gains a brownfield counterpart: `/acs:standardize-project` additively scaffolds the e2e CI workflow + runner for an EXISTING repo that lacks one, as part of its one reviewed PR — never moving or renaming source (C-2). Maps to PRD acs Could-have (`/acs:standardize-project`). Traces **G13**, **G10**.
   - **E2E-3 — Measured e2e integrity (G13).** Validate the metric on the dogfood repo: 0 PRs merged with a red e2e suite (gate enabled) and 100% of user-facing-surface specs declare e2e impact, per release. Maps to PRD **G13**. **Validated 2026-07-12 (MAR-127)** — see the `prd.md` G13 annotation for the recorded result (sub-metric (a) vacuous-0, gate not yet wired; sub-metric (b) 2/2 = 100%).
-  The opt-in invariant holds throughout: `settings.e2e` unset = no e2e suite, no gate.
+  The opt-in invariant holds throughout: `tests.e2e` unset = no e2e suite, no gate.
 
 **Cross-wave dependency:** see Wave 1 above for the `/acs:test`/e2e schema-rebase note.
 
@@ -618,7 +618,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
 - **Epic: brownfield-adaptive coverage policy (G27)** — a configurable coverage
   policy — baseline ratchet (no regression + a new-code coverage target) or
   per-path targets — instead of only today's single repo-wide
-  `test_coverage_percent` hard-fail; additive (no coverage-policy config set =
+  `tests.coverage` hard-fail; additive (no coverage-policy config set =
   today's single hard-fail, byte-identical). Natural companion to the M3
   brownfield standardize-project epic (above) and its E2E-2 brownfield e2e
   scaffolding — a coverage baseline pairs naturally with brownfield readiness

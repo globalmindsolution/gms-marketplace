@@ -736,7 +736,7 @@ the computed value wins:
 | Key | Source | When it cannot be computed |
 |---|---|---|
 | `verifier_passed` | `/acs:review-code`'s `iter-<n>/verdict.json` for the highest iteration (MAR-527), whose own `passed` is derived from its findings | **`false`** — this key answers "may the next step run", and with no evidence the answer is no |
-| `tests` | the review's own suite run, else the last iteration's `iter-<n>/implementer*.json` reports (`coverage_target` from `settings.test_coverage_percent`; a run started before ADR-0109 has `execute*.json`, read the same way) | the coordinator's value is kept |
+| `tests` | the review's own suite run, else the last iteration's `iter-<n>/implementer*.json` reports (`coverage_target` from `tests.coverage`; a run started before ADR-0109 has `execute*.json`, read the same way) | the coordinator's value is kept |
 | `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
 | `review.iterations` | `/acs:review-code`'s verdict, lens and adjudication artifacts on disk | the coordinator's value is kept |
 | `review.guard_denials` | the length of `invocations[-1].guard_events` on `steps/<skill>/state.json` | **absent, not `0`** — a run that never tripped the file-map guard carries no key |
@@ -804,7 +804,7 @@ runnable on its own:
 | `create-impl-plan` | `analysis.md` and `design.md` when present, else the ticket | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
 | `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts where the repo keeps them (else `docs/api/`) | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
 | `create-test-docs` | the ticket's ACs, `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
-| `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.e2e`/`suites.e2e` | e2e suites at the repo's configured location, on the ticket branch | `run-e2e-tests` executes them |
+| `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.tests.e2e` | e2e suites at the repo's configured location, on the ticket branch | `run-e2e-tests` executes them |
 | `run-e2e-tests` | the ticket's suites (from `test-cases.md`, falling back to the plan's Test-plan section) | the run artifact + triage | `on_fail: {relay_to: code}` with the fix-loop cap |
 
 `/acs:code` keeps the implementers, the escalation triggers and the boundary;
@@ -1176,15 +1176,15 @@ suites against the finished changeset and drives the triage loop. Three layers:
 | Layer | Authored | Executed & gated |
 |-------|----------|------------------|
 | Unit + coverage | /code implementers, tests-first (TDD) per the spec's Test plan | Implementers iterate against the AFFECTED tests only. The full suite runs **once per review iteration**, in `/acs:review-code`'s final gate, which runs it and reads coverage off that same run vs `test_coverage_percent` — hard fail below target (`docs_only` relaxes only this layer's authoring, never the suite-must-stay-green rule). It records both in `iter-<n>/verdict.json`, and `states.tests` derives from there, so the recorded numbers are the review's independent finding rather than the implementer's self-report; `acs_lib.derive_tests` falls back to the implementer reports when a verdict carries none |
-| E2E (`settings.e2e`: command + optional setup/teardown) | /create-e2e-tests writes the ticket's e2e suites after /code; /code implementers run the AFFECTED e2e tests for a spec that declares e2e impact; /create-project scaffolds the harness for greenfield repos with a user-facing surface; /setup detects and offers the config | **`/acs:run-e2e-tests` owns the full suite** (setup → command → teardown always) — `workflows/ship.yaml` runs it after `create-e2e-tests`, which is the first point at which the suite is complete. `/acs:review-code` judges the DIFF instead: a spec declaring e2e impact with no matching e2e test change is blocking. `per_iteration` is accepted and inert — it existed to skip a review-time e2e run that no longer happens |
+| E2E (`tests.e2e`: command + optional setup/teardown) | /create-e2e-tests writes the ticket's e2e suites after /code; /code implementers run the AFFECTED e2e tests for a spec that declares e2e impact; /create-project scaffolds the harness for greenfield repos with a user-facing surface; /setup detects and offers the config | **`/acs:run-e2e-tests` owns the full suite** (setup → command → teardown always) — `workflows/ship.yaml` runs it after `create-e2e-tests`, which is the first point at which the suite is complete. `/acs:review-code` judges the DIFF instead: a spec declaring e2e impact with no matching e2e test change is blocking. |
 | CI (scaffolded by /create-project; runs unit + e2e on the PR) | — | /merge-pr readiness reads CI status — report-only, never auto-fixed |
 
 The chain of declarations keeps e2e honest: `test-cases.md` types each `TC-n`
 case (unit / integration / e2e) and traces it to an acceptance criterion → the
 implementation plan maps the unit and integration cases into implementer tasks →
 `/acs:create-e2e-tests` writes suites for the e2e-typed cases → `/acs:review-code`
-demands matching test diffs. A repo without `settings.e2e` /
-`settings.suites.e2e` skips the layer entirely — `e2e_configured` is false, so
+demands matching test diffs. A repo without `tests.e2e`
+skips the layer entirely — `e2e_configured` is false, so
 ship.yaml records `create-e2e-tests` and `run-e2e-tests` as `skipped` and
 `create-pr` proceeds, and a hand run of `/acs:create-e2e-tests` refuses with
 the same reason. Adding the config later is one `/acs:setup` re-run.
@@ -1340,8 +1340,7 @@ is expected data, not a gap.
 The runner is injectable and the resolvers are pure, so every arm — including
 the ones that only fire when a board lacks a field, or when one call in five
 fails — is exercised from a recorded `gh` transcript with no forge. `--gh-replay
-FILE` gives the CLI the same seam. The **jira** path stays in prose: it goes
-through `acli`, not `gh`.
+FILE` gives the CLI the same seam. Jira is not supported: `gh` is the only tracker transport.
 
 Four rules keep the two flows honest about what they did:
 
@@ -1474,7 +1473,7 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
 
 `git`, `python3` (3.9+, stdlib only), `gh` (PRs; also tracker sync when
 `tracker.provider=github`), `pre-commit` (recommended — shared local convention
-hooks) and `acli` (only when `tracker.provider=jira`). `xmllint` is no longer
+hooks). `xmllint` is no longer
 one of them: the XSD and `validate_xml.py` are gone, and what a subagent
 returns is checked in-process (see Subagent messaging above), so nothing acs
 runs needs an external XML tool. `acs_lib.check_toolchain()` is

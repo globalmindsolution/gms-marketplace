@@ -151,7 +151,7 @@ class TheGateRunsLastAndOnlyOnACleanReadTest(unittest.TestCase):
     def test_the_four_checks_are_named(self):
         body = norm(REVIEW_SKILL)
         for check in ("build", "lint", "full unit test suite",
-                      "settings.test_coverage_percent"):
+                      "settings.tests.coverage"):
             with self.subTest(check=check):
                 self.assertIn(check, body)
 
@@ -187,7 +187,7 @@ class TheVerdictIsTheSourceOfRecordTest(unittest.TestCase):
         self._verdict(tests={"passed": 84, "failed": 0, "command": "pytest -q"},
                       coverage={"percent": 93.4, "command": "pytest --cov"})
         value, why = lib.derive_tests(self.rdir, "review-code",
-                                      {"test_coverage_percent": 90})
+                                      {"tests": {"coverage": 90}})
         self.assertEqual(value, {"passed": 84, "failed": 0,
                                  "coverage_percent": 93.4,
                                  "coverage_target": 90})
@@ -205,7 +205,7 @@ class TheVerdictIsTheSourceOfRecordTest(unittest.TestCase):
                        "coverage": {"percent": 91.0}}, skill="review-code")
         self._verdict()
         value, why = lib.derive_tests(self.rdir, "review-code",
-                                      {"test_coverage_percent": 90})
+                                      {"tests": {"coverage": 90}})
         self.assertEqual(value["passed"], 12)
         self.assertEqual(value["coverage_percent"], 91.0)
         self.assertIn("execute report", why)
@@ -235,7 +235,7 @@ class TheVerdictIsTheSourceOfRecordTest(unittest.TestCase):
         self._verdict(tests={"passed": 1, "failed": 0},
                       coverage={"percent": 91.0, "target": 50})
         value, _why = lib.derive_tests(self.rdir, "review-code",
-                                       {"test_coverage_percent": 90})
+                                       {"tests": {"coverage": 90}})
         self.assertEqual(value["coverage_target"], 90)
 
 
@@ -329,11 +329,11 @@ class GeneralisedNotHardcodedTest(unittest.TestCase):
     settings rather than assumed."""
 
     def test_the_target_comes_from_settings(self):
-        self.assertIn("settings.test_coverage_percent", norm(REVIEW_SKILL))
+        self.assertIn("settings.tests.coverage", norm(REVIEW_SKILL))
 
     def test_the_schema_says_the_target_is_not_the_verdicts_to_choose(self):
         description = self.__class__._coverage_description()
-        self.assertIn("settings.test_coverage_percent", description)
+        self.assertIn("settings.tests.coverage", description)
         self.assertIn("never from here", description)
 
     @staticmethod

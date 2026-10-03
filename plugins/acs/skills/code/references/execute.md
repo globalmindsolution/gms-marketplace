@@ -113,7 +113,7 @@ parallel) must, in order:
    plan: write one test per case, name the `TC-n` id in the test's docstring,
    and report any case you could not write as a `problems` entry rather than
    silently dropping it. When the Test plan names e2e flows
-   and `settings.e2e` is configured, the new/updated e2e tests are part of
+   and `settings.tests.e2e` is configured, the new/updated e2e tests are part of
    this step — same changeset, never a follow-up.
 2. **Implement** until the tests pass, iterating against the TARGETED set the
    plan's test strategy names for that implementer's file map — `plan.md` is
@@ -134,7 +134,7 @@ parallel) must, in order:
    The implementer also applies the **Simplicity First** and **Surgical
    Changes** authoring rules (see code-implementer.md Charter) throughout.
 3. **Coverage** is measured in the review's final gate, off that same run,
-   against `settings.test_coverage_percent`; implementers record
+   against `settings.tests.coverage`; implementers record
    `{"percent": null, "target": "measured in review"}`. When a spec's code
    genuinely cannot be covered (e.g. untestable generated code), the implementer
    says so in `problems` — that reason, not a number, is what you need for the

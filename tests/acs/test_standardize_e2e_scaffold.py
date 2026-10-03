@@ -97,8 +97,8 @@ class Mar126SkillE2eBulletCase(unittest.TestCase):
 
     def test_ac1_opt_in_gate_and_absence_condition_cooccur(self):
         self.assertTrue(
-            re.search(r"(?is)(settings\.e2e|suites\.e2e).{0,300}absent", self.window)
-            or re.search(r"(?is)absent.{0,300}(settings\.e2e|suites\.e2e)", self.window),
+            re.search(r"(?is)(settings\.tests\.e2e|tests\.e2e).{0,300}absent", self.window)
+            or re.search(r"(?is)absent.{0,300}(settings\.tests\.e2e|tests\.e2e)", self.window),
             "the set-and-missing trigger must co-occur with the e2e opt-in gate",
         )
 
@@ -174,7 +174,7 @@ class Mar126PlannerE2eItem4Case(unittest.TestCase):
 
     def test_set_and_missing_emits_scaffoldable_gap(self):
         self.assertTrue(
-            re.search(r"(?is)(settings\.e2e|suites\.e2e).{0,300}absent.{0,300}scaffold", self.window)
+            re.search(r"(?is)(settings\.tests\.e2e|tests\.e2e).{0,300}absent.{0,300}scaffold", self.window)
             or re.search(r"(?is)absent.{0,300}scaffold", self.window)
         )
 

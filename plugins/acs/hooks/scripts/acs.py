@@ -61,6 +61,7 @@ Usage:
   acs.py doctor
   acs.py agents sync [--dry-run]
   acs.py settings scaffold [--write]
+  acs.py settings migrate [--write]
   acs.py workflow show
   acs.py workflow validate [--file PATH]
   acs.py artifacts migrate [--dry-run]

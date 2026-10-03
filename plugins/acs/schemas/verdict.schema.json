@@ -187,7 +187,7 @@
     },
     "coverage": {
       "type": "object",
-      "description": "Coverage read off the SAME run recorded in `tests`, not a second one: on most repos the test command reports coverage because it is the command the coverage gate runs. `percent` is the measured figure; the target it is judged against comes from settings.test_coverage_percent, never from here.",
+      "description": "Coverage read off the SAME run recorded in `tests`, not a second one: on most repos the test command reports coverage because it is the command the coverage gate runs. `percent` is the measured figure; the target it is judged against comes from settings.tests.coverage, never from here.",
       "properties": {
         "percent": {
           "type": "number",

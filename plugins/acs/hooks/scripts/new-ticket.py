@@ -8,7 +8,7 @@ epic <-> child link and the repo-level tickets-index.json.
 Usage:
   new-ticket.py --title "Wishlist API" --type story [--parent SHOP-122]
                 [--description "..."] [--priority high] [--needs-design true]
-                [--external jira:PROJ-456] [--assignee jane] [--story-points 3]
+                [--external github:123] [--assignee jane] [--story-points 3]
 
 Prints {"ticket_id": ..., "partition": ..., "ticket_document": ...} on
 success. `ticket_document` is the file the ticket was written to: the
@@ -40,7 +40,7 @@ def main():
                         help="override the needs_design flag (epics default to true)")
     parser.add_argument("--docs-only", dest="docs_only", choices=["true", "false"], default="false",
                         help="user-confirmed docs-only flag (relaxes /code TDD/coverage gates)")
-    parser.add_argument("--external", help="remote tracker mapping, e.g. jira:PROJ-456 or github:123")
+    parser.add_argument("--external", help="remote tracker mapping, e.g. github:123")
     parser.add_argument("--assignee")
     parser.add_argument("--story-points", dest="story_points", type=int)
     parser.add_argument("--due-date", dest="due_date",

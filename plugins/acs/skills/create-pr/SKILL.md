@@ -47,7 +47,7 @@ Parse the printed context JSON. Fields you will use:
   no script renders it, and the body's Ticket section names the ticket. The
   body template is the built-in `pr-default` (a repo's
   `.acs/templates/pr-default.md` replaces it).
-- `settings.tracker` — `provider` is `local` (no sync), `github`, or `jira`.
+- `settings.tracker` — `provider` is `local` (no sync) or `github`.
 - `checkout_root`, `plugin_root` — for template resolution.
 - `reconcile`, `handoff_summary`, `prior_status` — see
   `references/resume.md`.
@@ -262,11 +262,10 @@ is no `<task>`/`<result>` exchange and no subagent model to configure.
    says so rather than guessing.
 
 
-7. **Tracker sync.** When `settings.tracker.provider` is `github` or `jira`
+7. **Tracker sync.** When `settings.tracker.provider` is `github`
    AND `ticket.external.key` is set, comment on the remote issue with the PR
    URL:
    - `github`: `gh issue comment <external.key> --body "ACS: PR #<number> opened for <ticket-id> — <url>"`
-   - `jira`: `acli jira workitem comment --key <external.key> --body "ACS: PR opened for <ticket-id> — <url>"`
    Skip for `local`; report an info finding when the provider is configured but
    the ticket was never synced.
 

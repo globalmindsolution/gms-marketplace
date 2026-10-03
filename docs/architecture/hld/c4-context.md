@@ -12,18 +12,16 @@ C4Context
     System_Ext(repo, "Consumer repository", "Any git repo: source, tests, docs/product, docs/architecture")
     System_Ext(ws, "Workspace folder", "In-repo (.acs/state-machine, gitignored, main-checkout-anchored, no override) — per-repo/ticket pipeline state, locks")
     System_Ext(gh, "GitHub", "PRs (gh CLI, acs's sole GitHub transport -- ADR-0088), optional Projects v2 tracker, marketplace distribution")
-    System_Ext(jira, "Jira", "Optional tracker (acli CLI), two-way ticket sync")
 
     Rel(dev, cc, "types /acs:* commands, answers questions")
     Rel(cc, mkt, "loads skills/agents, fires PreToolUse / SessionEnd hooks")
     Rel(mkt, repo, "reads code/docs; /code edits source on ticket branches")
     Rel(mkt, ws, "all pipeline state: tickets, states, ledger, locks")
     Rel(mkt, gh, "push branch, open/merge PR; sync issues/Projects")
-    Rel(mkt, jira, "two-way ticket sync (optional)")
 ```
 
-Trust boundaries: the marketplace plugins never store credentials — `gh` and
-`acli` own authentication. No second GitHub transport is sanctioned
+Trust boundaries: the marketplace plugins never store credentials — `gh` owns
+authentication. No second GitHub transport is sanctioned
 (ADR-0088): `gh` remains the only GitHub credential holder in every
 environment. The workspace defaults to an in-repo, gitignored
 folder anchored to the repo's main checkout, so every linked worktree

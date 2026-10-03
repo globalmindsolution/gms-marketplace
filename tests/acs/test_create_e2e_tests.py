@@ -176,7 +176,7 @@ class TestGateAgreement(unittest.TestCase):
         self.assertRegex(self.body, r'outcome: "no_e2e_owed"')
 
     def test_the_skill_still_describes_the_e2e_configuration_it_needs(self):
-        self.assertIn("settings.e2e", self.body)
+        self.assertIn("settings.tests.e2e", self.body)
         self.assertIn("/acs:setup", self.body)
 
     def test_nothing_owed_completes_the_step_without_spawning_it(self):
@@ -288,9 +288,10 @@ class TestE2eLocation(unittest.TestCase):
         self.assertRegex(self.body, r"named after the ticket")
         self.assertRegex(self.body, r"carries its `TC-<n>` id")
 
-    def test_the_normalized_suites_entry_is_what_is_read(self):
-        """settings.e2e is normalized into suites['e2e'] at load time."""
-        self.assertRegex(self.body, r'read `suites\["e2e"\]` and never the raw alias')
+    def test_the_e2e_suite_is_read_from_tests_e2e(self):
+        """The e2e suite lives at tests.e2e; the retired suites/e2e shapes are gone."""
+        self.assertIn("`tests.e2e`", self.body)
+        self.assertNotIn('suites["e2e"]', self.body)
 
 
 class TestResultDocument(unittest.TestCase):

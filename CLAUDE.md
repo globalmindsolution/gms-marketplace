@@ -21,7 +21,7 @@ python3 -m unittest discover -s tests -v
 python3 -m unittest tests.acs.test_acs_plugin
 python3 -m unittest tests.acs.test_acs_plugin.SomeTest.test_case
 
-# The required "Tests & coverage" gate, byte-identical to .acs/settings.json tests.command
+# The required "Tests & coverage" gate, byte-identical to .acs/settings.json tests.unit.command
 export ACS_COVERAGE=90
 export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc
 python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage report --fail-under=$ACS_COVERAGE
@@ -125,7 +125,7 @@ lives in hooks, bound in `hooks/hooks.json`:
 
 - `PreToolUse` on `Skill` — the pipeline precondition gate
 - `PreToolUse` on `Write|Edit|MultiEdit|NotebookEdit` — the executor file-map guard
-- `SubagentStart` / `SubagentStop` matching `^acs:` — phase-artifact validation, session bookkeeping
+- `SubagentStart` / `SubagentStop` matching `^acs[:-]` (the plugin's agents and their generated `acs-<skill>-<role>` copies) — phase-artifact validation, session bookkeeping
 - `Stop`, `PreCompact`, `SessionEnd`
 
 On a host that does not fire these events, the skills still read as instructions and a pipeline

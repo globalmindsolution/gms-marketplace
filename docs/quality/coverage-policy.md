@@ -3,15 +3,15 @@
 ## Target and hard-fail rule
 
 The floor is **90%**. `.acs/ci/run-tests.py` reads it as
-`settings.get("test_coverage_percent", 90)` — `.acs/settings.json` carries no
-`test_coverage_percent` key, so the live floor is that documented default,
-exported as `ACS_COVERAGE` into `tests.command`'s environment. A shortfall
+`settings.get("tests", {}).get("coverage", 90)` — `.acs/settings.json` carries no
+`tests.coverage` key, so the live floor is that documented default,
+exported as `ACS_COVERAGE` into `tests.unit.command`'s environment. A shortfall
 **hard-fails** the `Tests & coverage` required check
 (`.github/workflows/acs-tests.yml`) on every PR; there is no soft-warning mode.
 
-The gate is **repo-wide**: `.acs/settings.json`'s `tests.command` ends in
+The gate is **repo-wide**: `.acs/settings.json`'s `tests.unit.command` ends in
 `python3 -m coverage report --fail-under=$ACS_COVERAGE`
-(`.acs/settings.json:122`), so the whole measured `source` tree is graded on
+(`.acs/settings.json:48`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
 [`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
 for its sequence diagram. Repo-wide TOTAL is **94%** (10782 statements,
@@ -75,7 +75,7 @@ version matrix. A separate `3.9`/`3.12` matrix runs in `.github/workflows/ci.yml
 `Tests & validation` job, but that job runs the plain suite
 (`python3 -m unittest discover -s tests -v`, `ci.yml:32-33`) with no coverage
 measurement, and it is not a required check.
-`.acs/settings.json`'s `tests.command` is (shown with its `;`/`&&` chaining
+`.acs/settings.json`'s `tests.unit.command` is (shown with its `;`/`&&` chaining
 kept verbatim, just line-wrapped for readability — a failing suite short-
 circuits the rest via `&&`, so it never reaches `coverage report`):
 
