@@ -191,7 +191,7 @@ class Workspace(object):
         shutil.rmtree(self.path, ignore_errors=True)
 
 
-BRACKETED = {"formats": {"pr_title": "[{ticket_id}] {title}"}}
+PAY = {"ticket_prefix": "PAY"}
 PYTEST = {"tests": {"command": "python3 -m pytest -q --cov=src --cov-fail-under=$ACS_COVERAGE"}}
 
 
@@ -241,15 +241,7 @@ PLAYS = {
         lambda ws: (ws.skill("setup"), ws.setup_apply({}, [])),
         {"wrote CI, a settings file and an answers file": lambda ws: (
             ws.skill("setup"), ws.write("answers.json", "{}"), ws.setup_apply({}, ["conventions"]),
-            ws.write(".acs/settings.json", '{"formats": {"branch_name": "{type}/{ticket_id}-{slug}"}}\n'))},
-    ),
-    "02-custom-pr-title": (
-        lambda ws: (ws.skill("setup"), ws.setup_apply(BRACKETED, ["conventions"])),
-        {"kept the default title, wrote the prefix, added a tests gate, changed protection":
-            lambda ws: (ws.skill("setup"), ws.setup_apply({}, []),
-                        ws.write(".acs/settings.json", '{"ticket_prefix": "ACS"}\n'),
-                        ws.write(".github/workflows/acs-tests.yml", "x"),
-                        ws.called("Bash", command="gh api -X PUT repos/example/shop/branches/main/protection"))},
+            ws.write(".acs/settings.json", '{"ticket_prefix": "ACS"}\n'))},
     ),
     "03-tests-gate": (
         lambda ws: (ws.skill("setup"), ws.setup_apply(PYTEST, ["tests"])),
@@ -258,8 +250,8 @@ PLAYS = {
             ws.write(".github/workflows/acs-conventions.yml", "x"))},
     ),
     "04-rerun": (
-        lambda ws: (ws.skill("setup"), ws.setup_apply(BRACKETED, ["conventions"])),
-        {"lost the custom format, duplicated the ignore line, added a gate": lambda ws: (
+        lambda ws: (ws.skill("setup"), ws.setup_apply(PAY, ["conventions"])),
+        {"lost the custom prefix, duplicated the ignore line, added a gate": lambda ws: (
             ws.skill("setup"), ws.write(".acs/settings.json", "{}\n"),
             ws.write(".gitignore", ".acs/state-machine/\n", append=True),
             ws.write(".acs/ci/run-tests.py", "x"))},
@@ -269,14 +261,6 @@ PLAYS = {
         {"configured without asking": lambda ws: (
             ws.skill("setup"), ws.setup_apply({}, ["conventions"]),
             ws.write(".acs/settings.json", "{}\n"))},
-    ),
-    "06-invalid-branch-format": (
-        # The wizard validates before writing and refuses: nothing is written.
-        lambda ws: (ws.skill("setup"),
-                    ws.setup_apply({"formats": {"branch_name": "{type}/{slug}"}}, [])),
-        {"wrote the invalid format, then refused": lambda ws: (
-            ws.skill("setup"),
-            ws.write(".acs/settings.json", '{"formats": {"branch_name": "{type}/{slug}"}}\n'))},
     ),
     "07-neg-github-actions": (
         lambda ws: ws.write(".github/workflows/ci.yml", "on: [push]\n"),

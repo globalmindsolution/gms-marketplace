@@ -334,10 +334,10 @@ class CoverageTest(unittest.TestCase):
 
     def test_only_directly_typed_skills_are_probed_explicitly(self):
         """Two kinds earn an explicit case: the internal legs, which a user types
-        to resume a run already judged onto that path, and the two user actions
-        (`install-hooks`, `update`) that are commands rather than pipeline steps."""
+        to resume a run already judged onto that path, and the user action
+        (`update`) that is a command rather than a pipeline step."""
         explicit = {c.skill for c in ec.probe_cases() if c.kind == "explicit"}
-        self.assertEqual(explicit, _internal_legs() | {"install-hooks", "update"})
+        self.assertEqual(explicit, _internal_legs() | {"update"})
 
     #: Phrasings per skill with a description positive. One prompt per skill
     #: measures one sentence; ten measure the description. The release gate
