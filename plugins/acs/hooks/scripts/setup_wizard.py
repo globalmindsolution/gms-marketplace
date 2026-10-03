@@ -555,15 +555,16 @@ def refusals(cwd, settings_path, raw_settings, values, defaulted, installs):
         # wizard did not set.
         return errors + ["%s exists but is not valid JSON. The wizard will not "
                          "overwrite it -- fix or remove it, then re-run." % settings_path]
-    command = (project.get("tests") or {}).get("command") if isinstance(project.get("tests"), dict) else None
+    project_tests = project.get("tests") if isinstance(project.get("tests"), dict) else {}
+    unit = project_tests.get("unit") if isinstance(project_tests.get("unit"), dict) else {}
+    command = unit.get("command")
     if "tests" in installs and not (isinstance(command, str) and command.strip()):
-        errors.append("the tests gate needs tests.command in .acs/settings.json -- the "
+        errors.append("the tests gate needs tests.unit.command in .acs/settings.json -- the "
                       "command that runs the suite and fails below $ACS_COVERAGE. CI reads "
                       "only that file, so without it the gate fails on every PR.")
-    suites = project.get("suites") if isinstance(project.get("suites"), dict) else {}
-    e2e = suites.get("e2e") or project.get("e2e")
+    e2e = project_tests.get("e2e")
     if "e2e" in installs and not (isinstance(e2e, dict) and e2e.get("command")):
-        errors.append("the e2e gate needs an e2e suite (suites.e2e.command) in "
+        errors.append("the e2e gate needs an e2e suite (tests.e2e.command) in "
                       ".acs/settings.json. CI reads only that file, so without it the "
                       "gate fails on every PR.")
     return errors

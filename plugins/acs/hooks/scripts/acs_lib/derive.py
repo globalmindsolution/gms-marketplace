@@ -242,7 +242,7 @@ def derive_tests(tdir, skill, settings=None):
     if value is None:
         return None, why
 
-    target = (settings or {}).get("test_coverage_percent")
+    target = ((settings or {}).get("tests") or {}).get("coverage")
     if target is not None:
         value["coverage_target"] = target
     return value, why

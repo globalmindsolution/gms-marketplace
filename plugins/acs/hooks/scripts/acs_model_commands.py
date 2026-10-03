@@ -4,6 +4,9 @@
     acs.py settings scaffold [--write]   the full `models` block; --write adds the
                                          entries a project settings.json lacks and
                                          changes nothing it already has
+    acs.py settings migrate [--write]    rewrite old-shape settings files (every scope
+                                         that exists) to the current shape; without
+                                         --write it only reports what would change
 
 `step start` runs the sync itself; the verb is for a person who wants to see or
 force it. `scaffold` is for /acs:setup and /acs:update, and for anyone starting
@@ -36,8 +39,7 @@ def cmd_settings_scaffold(args):
     if not args.write:
         emit({"ok": True, "models": scaffold})
         return
-    ctx = context_or_die("settings scaffold")
-    root = ctx.get("checkout_root") or os.getcwd()
+    root = lib.checkout_root(os.getcwd()) or os.getcwd()
     path = os.path.join(root, ".acs", "settings.json")
     data = lib.read_json(path) if os.path.isfile(path) else {}
     if not isinstance(data, dict):
@@ -50,6 +52,29 @@ def cmd_settings_scaffold(args):
         fh.write("\n")
     emit({"ok": True, "path": path, "added": added, "kept": sum(
         len(v) for v in merged.values()) - len(added)})
+
+
+def cmd_settings_migrate(args):
+    # No validated context: an old-shape file is exactly what validation refuses.
+    root = lib.checkout_root(os.getcwd()) or os.getcwd()
+    reports = []
+    for path in lib.settings_files(root):
+        if not os.path.isfile(path):
+            continue
+        data = lib.read_json(path)
+        if not isinstance(data, dict):
+            reports.append({"path": path, "changed": False,
+                            "notes": ["not a JSON object; fix it by hand"]})
+            continue
+        new, notes = lib.migrate_settings.migrate(data)
+        changed = new != data
+        if changed and args.write:
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(new, fh, indent=2)
+                fh.write("\n")
+        reports.append({"path": path, "changed": changed, "notes": notes})
+    emit({"ok": True, "written": bool(args.write), "files": reports,
+          "changed": [r["path"] for r in reports if r["changed"]]})
 
 
 def add_parser(group):
@@ -68,3 +93,8 @@ def add_parser(group):
     scaffold.add_argument("--write", action="store_true",
                           help="add the missing entries to .acs/settings.json")
     scaffold.set_defaults(func=cmd_settings_scaffold)
+    migrate = settings_sub.add_parser(
+        "migrate", help="rewrite old-shape settings files to the current shape")
+    migrate.add_argument("--write", action="store_true",
+                         help="write the rewritten files (default: report only)")
+    migrate.set_defaults(func=cmd_settings_migrate)

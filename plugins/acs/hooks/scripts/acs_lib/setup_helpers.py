@@ -399,14 +399,12 @@ def tracker_cli_warning(settings):
     provider = (settings.get("tracker") or {}).get("provider", "local")
     if provider == "github" and not shutil.which("gh"):
         return "tracker.provider is 'github' but the gh CLI is not installed — tracker sync will fail."
-    if provider == "jira" and not shutil.which("acli"):
-        return "tracker.provider is 'jira' but the acli CLI is not installed — tracker sync will fail."
     return None
 
 
 # Every external tool the full acs workflow touches. kind: required (no pipeline
 # without it), recommended (a major capability needs it), optional (graceful
-# fallback). gh/acli are bumped to required by tracker provider. /setup's Step 0b
+# fallback). gh is bumped to required by tracker provider. /setup's Step 0b
 # preflight reports these and offers to install the missing ones.
 TOOLCHAIN = [
     {"name": "git", "kind": "required",
@@ -420,12 +418,9 @@ TOOLCHAIN = [
      "install": {"macos": "brew install gh",
                  "debian": "see https://github.com/cli/cli/blob/trunk/docs/install_linux.md"}},
     {"name": "pre-commit", "kind": "recommended",
-     "why": "shared, tracked local convention hooks (commit-msg + pre-push)",
+     "why": "shared, tracked local checks (a repo's own pre-commit configuration)",
      "install": {"macos": "brew install pre-commit",
                  "any": "pipx install pre-commit   # or: pip install --user pre-commit"}},
-    {"name": "acli", "kind": "optional",
-     "why": "Jira tracker sync (only when tracker.provider = jira)",
-     "install": {"any": "see https://developer.atlassian.com/cloud/acli/"}},
 ]
 
 
@@ -451,8 +446,6 @@ def check_toolchain(settings=None):
     for spec in TOOLCHAIN:
         kind = spec["kind"]
         if spec["name"] == "gh" and provider == "github":
-            kind = "required"
-        if spec["name"] == "acli" and provider == "jira":
             kind = "required"
         present = shutil.which(spec["name"]) is not None
         rows.append({

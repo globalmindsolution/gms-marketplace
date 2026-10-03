@@ -4,7 +4,7 @@
 Installed by /acs:setup Step 7f into the consumer repo at .acs/ci/run-e2e.py and
 run by .github/workflows/acs-e2e.yml on every PR. The CI runner has no acs
 install, so this reads the raw committed <repo>/.acs/settings.json directly
-(no acs_lib import) and replicates its e2e/suites["e2e"] alias fallback,
+(no acs_lib import), reads `tests.e2e`,
 runs the optional setup then the command then optional teardown (always, in a
 finally block — a non-zero teardown is a warning, never flips a green result
 to red), and exits 0 on a green command or 1 otherwise.
@@ -24,10 +24,9 @@ def fail(msg):
 
 
 def resolve_e2e(settings):
-    """suites["e2e"] takes precedence; falls back to the raw `e2e` alias.
-    Tolerates `suites` being absent, null, or present without an "e2e" key."""
-    suites = settings.get("suites") or {}
-    return suites.get("e2e") or settings.get("e2e")
+    """`tests.e2e`. Tolerates `tests` being absent, null, or without an "e2e" key."""
+    tests = settings.get("tests")
+    return tests.get("e2e") if isinstance(tests, dict) else None
 
 
 def run_step(name, command, env):
