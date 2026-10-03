@@ -224,7 +224,7 @@ class SecurityDocsTest(unittest.TestCase):
     def test_gh_owns_auth_sentence_is_unchanged(self):
         self.assertIsNotNone(
             re.search(
-                r"(?i)which manage their own authentication.{0,10}gh auth login",
+                r"(?i)which manages its own authentication.{0,10}gh auth login",
                 self.norm,
             )
         )

@@ -178,7 +178,7 @@ class TestD1AttributionFix(unittest.TestCase):
 
     def test_optin_invariant_sentence_preserved(self):
         self.assertIn(
-            "The e2e layer stays OPT-IN: a repo with `settings.e2e` unset "
+            "The e2e layer stays OPT-IN: a repo with `tests.e2e` unset "
             "has no e2e suite and no e2e merge gate; the gate is configured "
             "only on explicit opt-in.",
             self.body,

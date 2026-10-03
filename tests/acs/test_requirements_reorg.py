@@ -278,6 +278,22 @@ RETIRED_BY_ADR_0116 = {
     ),
 }
 
+#: ADR-0117 folded the test settings into one `tests` block (`tests.coverage` plus
+#: one object per named suite) and dropped Jira, so the clauses and table rows that
+#: described `test_coverage_percent`, `suites`, the old `tests` gate object, the
+#: `e2e` alias and the Jira tracker are reworded or gone; the successor rows live
+#: in the configuration docs under the new names.
+RETIRED_BY_ADR_0117 = {
+    'configuration.md': (
+        '- `test_coverage_percent` MUST be a number in `(0, 100]`; absent → `90`.',
+        'project keys, formats). `/setup` and the pre-hooks SHOULD check that the',
+        '| `suites` | object | `{}` | No | The single source of truth for named test commands: `{ "<name>": { "command", "setup"?, "teardown"?, "per_iteration"? } }`. The reserved name `e2e` is auto-populated at load from a configured `e2e` key (see above). `/acs:test` is the consumer — it runs all configured suites, or a `--suite`-selected subset, capturing pass/fail results to an auditable workspace artifact. |',
+        '| `test_coverage_percent` | number | `90` | No | Coverage target used by `/code` when generating unit tests and running them in the TDD cycle. Missing the target is a hard fail. |',
+        '| `tests` | object | unset | No | Unit/integration suite for the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 3, opt-in): `{ "command", "setup"? }`. `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`); acs exports `ACS_COVERAGE` (= `test_coverage_percent`) into the environment. Installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install). A merge gate once made a required status check (`Tests & coverage`) on a protected default branch. |',
+        '| `tracker` | object | `{ "provider": "local" }` | No | Ticket tracking backend. `provider` is `local` (default), `github` (GitHub Projects), or `jira` (Jira board). Tickets are always stored **local-first** in the workspace; when `github`/`jira` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the official CLIs: `gh` (GitHub) and `acli` (Jira). Provider-specific sub-keys live under `tracker.github` / `tracker.jira`. |',
+    ),
+}
+
 #: The v0.5.0 implementation-pipeline redesign REWORDED two clauses rather
 #: than retiring them: the guarantee each carried is still in the tree, under
 #: the name its carrier now has. That is a different fact from the four
@@ -446,7 +462,7 @@ def _retired():
     for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
                   RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING,
                   RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105,
-                  RETIRED_BY_ADR_0116):
+                  RETIRED_BY_ADR_0116, RETIRED_BY_ADR_0117):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     for rewording in REWORDING_TABLES:

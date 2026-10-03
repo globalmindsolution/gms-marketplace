@@ -366,10 +366,10 @@ class TestValidateSettings(unittest.TestCase):
     def test_rejects_out_of_range_coverage_percent(self):
         for bad in (150, 0, "ninety"):
             settings = {"ticket_prefix": "SHOP",
-                        "test_coverage_percent": bad}
+                        "tests": {"coverage": bad}}
             with self.assertRaises(lib.GateError) as ctx:
                 lib.validate_settings(settings, self.repo)
-            self.assertIn("test_coverage_percent", str(ctx.exception))
+            self.assertIn("tests.coverage", str(ctx.exception))
 
     def test_rejects_unknown_merge_strategy(self):
         settings = {"ticket_prefix": "SHOP",
@@ -381,17 +381,16 @@ class TestValidateSettings(unittest.TestCase):
     def test_rejects_blank_e2e_setup_and_teardown(self):
         for key in ("setup", "teardown"):
             settings = {"ticket_prefix": "SHOP",
-                        "e2e": {"command": "run", key: "  "}}
+                        "tests": {"e2e": {"command": "run", key: "  "}}}
             with self.assertRaises(lib.GateError) as ctx:
                 lib.validate_settings(settings, self.repo)
-            self.assertIn("e2e.%s" % key, str(ctx.exception))
+            self.assertIn("tests.e2e.%s" % key, str(ctx.exception))
 
-    def test_rejects_non_boolean_e2e_per_iteration(self):
-        settings = {"ticket_prefix": "SHOP",
-                     "e2e": {"command": "run", "per_iteration": "yes"}}
+    def test_rejects_legacy_e2e_key_pointing_at_migrate(self):
+        settings = {"ticket_prefix": "SHOP", "e2e": {"command": "run"}}
         with self.assertRaises(lib.GateError) as ctx:
             lib.validate_settings(settings, self.repo)
-        self.assertIn("e2e.per_iteration", str(ctx.exception))
+        self.assertIn("settings migrate", str(ctx.exception))
 
 
 class TestResolveTemplate(unittest.TestCase):

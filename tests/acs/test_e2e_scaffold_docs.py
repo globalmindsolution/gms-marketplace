@@ -50,7 +50,7 @@ class TestFlowFileDeltaNote(unittest.TestCase):
 
     def test_delta_note_gated_on_e2e_set_and_file_missing(self):
         self.assertTrue(
-            re.search(r"(?is)(settings\.e2e|suites\.e2e).{0,300}missing", self.body)
+            re.search(r"(?is)(tests\.e2e).{0,300}missing", self.body)
         )
 
     def test_delta_note_references_e2e1_reuse(self):

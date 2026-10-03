@@ -1003,8 +1003,8 @@ class TestCreatePrConventionWiring(unittest.TestCase):
                       "AC-5 [create-pr]: the finish transition must survive")
         self.assertIn("gh issue comment", body,
                       "AC-5 [create-pr]: github tracker-sync invocation must survive")
-        self.assertIn("acli jira workitem comment", body,
-                      "AC-5 [create-pr]: jira tracker-sync invocation must survive")
+        self.assertNotIn("acli", body,
+                         "AC-5 [create-pr]: Jira is removed; gh is the only tracker transport")
 
     def test_the_pre_open_check_verifies_what_ci_checks(self):
         """ADR-0106: CI checks only that the description names its ticket, so
@@ -1239,7 +1239,7 @@ class TestGeneralizedFold(unittest.TestCase):
         self.assertIn(
             "every `ticket.acceptance_criteria` entry maps to at least one "
             "test the plan will write", body)
-        self.assertIn("`settings.test_coverage_percent` is stated explicitly", body)
+        self.assertIn("`settings.tests.coverage` is stated explicitly", body)
         self.assertNotIn(
             "no separate /acs:create-spec invocation and no separate "
             "create-spec planner subagent", body,

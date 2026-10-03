@@ -48,8 +48,8 @@ class TestTestStrategyRequiredSections(unittest.TestCase):
                       "test-strategy.md must cover testing philosophy/pyramid")
 
     def test_has_coverage_percent_policy_section(self):
-        self.assertIn("test_coverage_percent", self.body,
-                      "test-strategy.md must reference the test_coverage_percent policy")
+        self.assertIn("tests.coverage", self.body,
+                      "test-strategy.md must reference the tests.coverage policy")
 
     def test_has_suite_inventory_section(self):
         self.assertIn("configured test suites", self.body,
@@ -77,8 +77,8 @@ class TestCoveragePolicyRequiredSections(unittest.TestCase):
         self.body = read(template_path("coverage-policy"))
 
     def test_has_target_hard_fail_section(self):
-        self.assertIn("test_coverage_percent", self.body,
-                      "coverage-policy.md must mirror the test_coverage_percent target "
+        self.assertIn("tests.coverage", self.body,
+                      "coverage-policy.md must mirror the tests.coverage target "
                       "and hard-fail rule")
 
     def test_has_exclusions_section(self):

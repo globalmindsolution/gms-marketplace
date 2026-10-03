@@ -241,7 +241,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         eligible, evaluation = lib.plan_approval_eligible(CONFORMING_PLAN, None)
         self.assertTrue(eligible, evaluation["failures"])
         self.assertEqual(evaluation["inputs"]["coverage_target"],
-                         lib.DEFAULT_SETTINGS["test_coverage_percent"])
+                         lib.DEFAULT_SETTINGS["tests"]["coverage"])
 
     def test_inputs_carry_sha256_of_the_text(self):
         _eligible, evaluation = lib.plan_approval_eligible(
@@ -255,13 +255,13 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
 
     def test_coverage_target_none_in_settings_fails_without_crashing(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": None})
+            CONFORMING_PLAN, {"tests": {"coverage": None}})
         self.assertFalse(eligible)
         self.assertFalse(evaluation["checks"]["coverage_target_stated"])
 
     def test_float_coverage_target_matches_integer_display(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"tests": {"coverage": 90}.0})
+            CONFORMING_PLAN, {"tests": {"coverage": 90.0}})
         self.assertTrue(eligible, evaluation["failures"])
 
     def test_evaluation_is_json_serializable(self):
