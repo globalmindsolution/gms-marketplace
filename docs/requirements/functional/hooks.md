@@ -195,7 +195,7 @@ Twenty hooked skills, each with one pre-hook and one post-hook:
 | `/merge-pr` | `pre-merge-pr.py` | `post-merge-pr.py` | `merge-pr-state.json` |
 
 The utility skills (`/setup`, `/ship`, `/handoff`, `/update`,
-`/install-hooks`, `/release`) are **unhooked**: they
+`/release`) are **unhooked**: they
 have no pre- or post-hook and take no position in a run. The `/test` alias is
 removed — `/run-e2e-tests` is the skill, and it is hooked like any other
 step.

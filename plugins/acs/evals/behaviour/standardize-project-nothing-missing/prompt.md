@@ -20,7 +20,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 Run the /acs:standardize-project skill on this repo: audit it against its
 docs and acs's tooling expectations, and add only what's missing -- I think
 we're already fully set up, so tell me if there's nothing to do. Answers up
-front: the coverage target stays at 90%, CI is GitHub Actions, we don't want
-an e2e suite, and keep the default branch and commit formats. Don't ask me
+front: the coverage target stays at 90%, CI is GitHub Actions, and we don't want
+an e2e suite. Don't ask me
 anything; record anything you had to assume. If a PR step fails or there is
 nothing to put in a PR, stop there and tell me.

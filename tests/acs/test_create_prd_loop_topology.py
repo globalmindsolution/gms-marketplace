@@ -81,14 +81,6 @@ class TopologyTest(unittest.TestCase):
     def test_the_prose_names_the_loop(self):
         self.assertRegex(norm(read(PRD_SKILL)), r"(?i)surveyor → author → review")
 
-    def test_each_role_uses_its_models_tier(self):
-        body = norm(read(PRD_SKILL))
-        for role, tier in (("surveyor", "planner"), ("author", "executor"),
-                           ("reviewer", "verifier")):
-            self.assertEqual(acs_lib.model_tier(role), tier)
-            self.assertRegex(body, r"\| %s \|[^|]*\|[^|]*\| `context\.models\.%s` \|"
-                             % (role, tier))
-
     def test_no_unnegated_replan_instruction(self):
         negating = re.compile(r"(?i)never|no |not|without|instead of")
         for m in re.finditer(r"(?i)re-?plan\w*", read(PRD_SKILL)):

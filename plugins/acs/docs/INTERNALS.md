@@ -12,10 +12,10 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 30 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 29 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 33 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,stacked-base,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 17 |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
@@ -693,7 +693,7 @@ pipeline end.
 entirely rather than reporting a fraction of a loop it never ran. That is a
 property, not a list: it covers the inline apply-work skills (`create-ticket`,
 `create-pr`, `merge-pr`), the unhooked utilities (`setup`, `update`, `test`,
-`release`, `install-hooks`), and the orchestrators that drive other skills'
+`release`), and the orchestrators that drive other skills'
 loops without running one of their own (`ship`, `handoff`). The
 thirteen skills that run a write → judge loop over their own subagents
 report it, with a constant `<cap>` of **3**. `/acs:code` reports the
@@ -703,7 +703,7 @@ that loop's `max_iterations`, the same on every delivery path.
 **Sanctioned substitutions.** A skill that runs without a ticket drops
 `<ticket-id>` from the heading and replaces the **Ticket** line with a
 one-line label naming what the run covered — **Scope** for the
-configuration utilities (`setup`, `update`, `install-hooks`), **Run** for the
+configuration utilities (`setup`, `update`), **Run** for the
 two run-oriented ones (`test`, `release`), whose subject is an execution
 rather than a scope. `/acs:handoff` additionally puts the `continue_with` command in **Next**. No other label
 substitution is sanctioned; per-skill Results/Next content is fixed in each
@@ -861,11 +861,9 @@ has a **kind** in `acs_lib.skills.ROLE_KINDS` that the hooks act on:
 | `write` | produces the deliverable — the repo, or the workspace draft | the file-map guard applies while it runs | `executor` |
 | `judge` | re-derives and judges fresh; read-only by charter | recorded, not guarded | `verifier` |
 
-`create-impl-plan`'s `planner` is a `write` role that runs on the `planner`
-tier its name promises, and `analyze-requirements`' `impact-analyst` is a
-`survey` role that runs on the `executor` tier the analyst's impact survey ran
-on before ADR-0114 split it out (`acs_lib.skills.model_tier`). So `settings.models`
-keeps its three keys, and a new role needs one line in `ROLE_KINDS` and no new
+A role's kind does not pick its model: `settings.models.<skill>.<role>` does
+(ADR-0115). A new role needs one line in `ROLE_KINDS`, one in the scaffold table
+(`acs_lib.models`), and no new
 setting.
 
 | Skill | Subagents (kind) |
@@ -899,12 +897,13 @@ Conventions:
   for `/acs:<skill>`, ending "Spawned by the /acs:<skill> coordinator with a
   JSON task; not for direct invocation."). Survey and judge roles carry
   `tools: Read, Glob, Grep, Bash, Write`; write roles carry
-  `disallowedTools: Agent, Skill`. No `model:` key — the *actual*
-  model/effort comes from `settings.json` (`models.<tier>`,
-  `models.overrides.<skill>.<tier>`), resolved by `acs step start` into
-  `context.models` and applied by the coordinator at spawn time for the
-  role's tier. An unknown model id or unsupported effort fails at spawn —
-  surface the error, never silently fall back.
+  `disallowedTools: Agent, Skill`. No `model:` or `effort:` key — the
+  *actual* model/effort comes from `settings.json` `models.<skill>.<role>`
+  (inheriting where unset). `acs step start` writes
+  `.claude/agents/acs-<skill>-<role>.md`, a copy of the agent carrying that
+  `model:`/`effort:`, for every entry that sets one, and reports the name to
+  spawn per role in `context.agents`. An unknown model id or unsupported effort
+  fails at spawn — surface the error, never silently fall back.
 - Spawn with `subagent_type: "acs:<skill>-<role>"`; the task and the result
   carry `phase="<role>"`.
 - Survey and judge roles are read-only with ONE exception: each writes its
@@ -938,7 +937,7 @@ write. The coordinator performs ONE action at a time and reports it:
 | `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
 | `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 | `review` |
 | `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>` | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
-| `publish` | refuses unless the last review passed and the draft is the reviewed bytes; runs `front_matter_check` and `structure_lint` (a finding fails the iteration); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `formats.commit_message`; never pushes | (unchanged) |
+| `publish` | refuses unless the last review passed and the draft is the reviewed bytes; runs `front_matter_check` and `structure_lint` (a finding fails the iteration); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `conventions.COMMIT_SUBJECT`; never pushes | (unchanged) |
 | `record-publication` | re-reads the published bytes and `git show HEAD:<path>` | `completed` |
 
 Rules the code holds, each with a transition test in
@@ -1386,11 +1385,10 @@ what makes the arm reachable for a real ticket rather than only for a fixture.
 `setup/SKILL.md` was 1,003 lines, most of them mechanics. Since MAR-526 the
 skill asks and explains; `setup_wizard.py` writes, reached as two commands:
 
-Setup is optional (ADR-0105): no skill needs it first. It configures
-conventions and the CI that enforces them — the `formats.*` strings and the
-convention and tests gates — and nothing else; every other setting, the ticket
-prefix included, keeps its default until someone edits `.acs/settings.json` by
-hand.
+Setup is optional (ADR-0105): no skill needs it first. It sets the ticket
+prefix and installs the CI gates — the ticket-link check, tests and e2e — and
+scaffolds the `models` block; every other setting keeps its default until
+someone edits `.acs/settings.json` by hand.
 
 - **`acs.py setup detect`** — read-only. Which settings exist and **in which
   scope**, the resolved workspace, whether both ignore layers are in place and
@@ -1402,8 +1400,7 @@ hand.
   its built-in default is never written, and is removed when an earlier run
   wrote it (`defaulted` in the result), so the file carries only choices.
 
-**Idempotence is the contract.** `/acs:setup` is re-run whenever a format
-changes, and a repo initialised by an older acs is expected to be *repaired* by
+**Idempotence is the contract.** `/acs:setup` is re-run whenever a gate is added, and a repo initialised by an older acs is expected to be *repaired* by
 a re-run. So every settings write is a read-update-write merge (unknown keys
 preserved for forward compatibility, nested objects merged rather than
 replaced), every ignore entry is added only when `git check-ignore` says it is
@@ -1414,17 +1411,18 @@ no-op rather than silently one; `warnings` is what setup must relay but must
 not fix (a `!.acs/` negation is the user's configuration to decide); and
 `--dry-run` reports without writing.
 
-## Settings, formats, templates
+## Settings and templates
 
 - Resolution: `settings.local.json` -> project `settings.json` -> user
   `~/.acs/settings.json`, deep-merged per key (defaults in `acs_lib/settings.py`).
   No settings file is required: every key has a default, `ticket_prefix`
   included (`ACS`, ADR-0105), and only a malformed value (a lowercase prefix,
-  an unknown placeholder) is refused.
+  an unknown skill or role under `models`) is refused.
   A linked worktree without its own gitignored `settings.local.json` inherits
   the main checkout's.
-- Inline formats are validated by every pre-hook (unknown placeholder = exit 2;
-  `branch_name` must embed `{ticket_id}`).
+- There are no format settings: the model follows the repo's own branch, commit and
+  PR-title style, and the branch name a script parses is fixed as
+  `<type>/<ticket_id>-<slug>` in `acs_lib.conventions`.
 - Long descriptions come from templates: built-in name -> `templates/`;
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
 - One key configures the pipeline itself, with a working default so an
@@ -1439,48 +1437,38 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   delivery pipeline itself is NOT a settings key: it is the resolved
   `workflows/ship.yaml`, overridden wholesale at `<repo>/.acs/workflows/ship.yaml`
   when a repo ships one.
-- `enforcement` (opt-in, /setup Step 2): repo-side CI that fails *every* PR
-  whose description names no ticket — its id (`PREFIX-\d+`), a `#<n>`
-  reference or an issue link (ADR-0106). /setup copies
+- The CI ticket-link check (opt-in, /setup Step 2) has no settings block: repo-side
+  CI that fails *every* PR whose description names no ticket — its id
+  (`PREFIX-\d+`), a `#<n>` reference or an issue link (ADR-0106). /setup copies
   `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
   `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
   is intentionally **standalone (stdlib only, no `acs_lib` import)** because it
-  runs on a CI runner with no acs install — it reads `ticket_prefix` +
-  `formats` from the committed project `settings.json` over its own copy of the
-  plugin's defaults (ADR-0105), so a repo with no settings file is checked
-  against the defaults, and for the local hooks it re-derives the conventions by
-  compiling the `formats.*` strings to regexes ({ticket_id} ->
-  `PREFIX-\d+`, {type} -> `epic|story|task`, {slug} -> lower-kebab, free text ->
-  `.+`). A present but malformed value fails closed; tested by
-  `tests/test_conventions_check.py`.
+  runs on a CI runner with no acs install — it reads only `ticket_prefix` from
+  the committed project `settings.json` over its own copy of the plugin's
+  default (ADR-0105), so a repo with no settings file is checked against the
+  default. A present but malformed prefix fails closed; tested by
+  `tests/acs/test_conventions_check.py`, which also keeps the checker's copy of
+  the exemption constants level with `acs_lib.conventions`.
   The CI check is necessary-but-not-sufficient (workspace proof lives off-repo),
-  so the real gate is a required status check on a protected default branch;
-  `exempt_branches`/`exempt_label` are the escape hatch for non-ticket PRs.
-  The sanctioned way to LAND such a PR is `/acs:merge-pr --pr <n>` (also `#n` or
-  a PR URL): a non-ticket mode that runs the same four readiness dimensions and
-  branch/worktree cleanup as the ticket path but resolves no ticket, writes no
-  partition/state, and skips tracker sync and archiving — `acs step start --pr`
-  validates the PR carries the `exempt_label` (or an `exempt_branches` head) and
-  refuses + redirects to `/acs:merge-pr <ticket-id>` when the PR looks
-  ticket-backed. acs writes nothing into a consumer's `CLAUDE.md`: that file is
-  the repo's own project instructions, and the enforcement above is what holds
-  a hand-made PR to naming its ticket.
-  The same checker runs three modes off one config: `--mode pr` (CI: the
-  ticket link, and nothing else), `--mode pre-push` (local hook: branch +
-  commit subjects of the push range), `--mode commit-msg` (local hook: the
-  commit subject as written). Each mode's checks are `MODE_CHECKS[mode]`; the
-  local ones are further intersected with the `enforcement.checks.*` toggles
-  (`branch_name`, `commit_message`), so the local hooks enforce the same
-  user-configured `formats.*` the pipeline renders. The CI check is not a
-  toggle. `enforcement.checks.pr_title` / `pr_description` / `acs_label` and
-  `enforcement.pr_description_sections` are retired: accepted and ignored.
-  `require_label` (default `ACS`) stays live as the label `/acs:create-pr`
-  applies and `/acs:merge-pr --pr` reads; CI does not require it.
-  Local hooks install via the pre-commit framework (tracked/shared) or raw
-  `.git/hooks/*` (per-clone), both `--no-verify`-bypassable. The per-clone
-  install is the unhooked, user-invoked skill `/acs:install-hooks` (wrapping the
-  committed `.acs/ci/install-hooks.sh`, which a teammate can run without the
-  plugin) — the `pre-commit install` equivalent for acs.
+  so the real gate is a required status check on a protected default branch.
+  The exemptions are fixed: the `acs-exempt` label, or a head branch matching
+  `release/*`, `dependabot/*` or `renovate/*`. The sanctioned way to LAND such a
+  PR is `/acs:merge-pr --pr <n>` (also `#n` or a PR URL): a non-ticket mode that
+  runs the same four readiness dimensions and branch/worktree cleanup as the
+  ticket path but resolves no ticket, writes no partition/state, and skips
+  tracker sync and archiving — `acs step start --pr` validates the PR carries
+  the `acs-exempt` label (or an exempt head branch) and refuses + redirects to
+  `/acs:merge-pr <ticket-id>` when the PR looks ticket-backed. acs writes
+  nothing into a consumer's `CLAUDE.md`: that file is the repo's own project
+  instructions, and the check above is what holds a hand-made PR to naming its
+  ticket.
+  Branch names, commit subjects and PR titles are not checked and not
+  configured: the model follows the repo's own style, and the one convention a
+  script parses — the branch name `<type>/<ticket_id>-<slug>` — is fixed in
+  `acs_lib.conventions`, which also holds the exemptions, the `ACS` pipeline
+  label (applied by `/acs:create-pr`, read by `/acs:merge-pr --pr`) and the
+  built-in template names. There are no local git hooks: a repo that wants them
+  uses its own pre-commit configuration.
 
 ## Consumer-repo prerequisites
 

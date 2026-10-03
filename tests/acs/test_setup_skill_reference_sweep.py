@@ -389,8 +389,8 @@ class StaleInitializeLiteralTest(unittest.TestCase):
             with self.subTest(path=rel):
                 body = read(path)
                 self.assertIn(
-                    _SETUP_TURNS_IT_ON_NEEDLE, body,
-                    "%s must say 'setup turns it on'" % rel)
+                    "/acs:setup copies this file", body,
+                    "%s must name /acs:setup as what installs it" % rel)
                 self.assertNotIn(
                     _INITIALIZE_TURNS_IT_ON_NEEDLE, body,
                     "%s must not say 'initialize turns it on'" % rel)
@@ -402,7 +402,6 @@ class StaleInitializeLiteralTest(unittest.TestCase):
 # vacuously), so this positively asserts the replacement landed.
 T2_T3_SETUP_PATHS = (
     "plugins/acs/skills/handoff/SKILL.md",
-    "plugins/acs/skills/install-hooks/SKILL.md",
     "plugins/acs/skills/merge-pr/SKILL.md",
     "plugins/acs/skills/ship/SKILL.md",
     "plugins/acs/skills/standardize-project/SKILL.md",
@@ -417,15 +416,9 @@ T2_T3_SETUP_PATHS = (
     "plugins/acs/templates/ci/acs-tests.yml",
     "plugins/acs/templates/ci/acs-e2e.yml",
     "plugins/acs/templates/ci/check-conventions.py",
-    "plugins/acs/templates/ci/commit-msg",
-    "plugins/acs/templates/ci/install-hooks.sh",
-    "plugins/acs/templates/ci/pre-push",
     "plugins/acs/templates/ci/run-tests.py",
     "plugins/acs/templates/ci/run-e2e.py",
     ".acs/ci/check-conventions.py",
-    ".acs/ci/commit-msg",
-    ".acs/ci/install-hooks.sh",
-    ".acs/ci/pre-push",
     ".acs/ci/run-tests.py",
     ".github/workflows/acs-conventions.yml",
     ".github/workflows/acs-tests.yml",

@@ -57,9 +57,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ar
 
 If `acs step start` exits non-zero: stop immediately and surface its stderr to the
 user verbatim. Otherwise parse the printed context JSON; the fields you need:
-`partition`, `ticket_id`, `ticket`, `settings` (`formats`, `tracker`), `models`
-(the `executor` tier the architect runs on, the `verifier` tier the reviewer
-runs on), `reconcile`, `handoff_summary`,
+`partition`, `ticket_id`, `ticket`, `settings` (`tracker`), `agents`
+(the agent name to spawn per role; the architect's and the reviewer's model and
+effort come from `settings.models.create-architecture.<role>`, inheriting when
+unset), `reconcile`, `handoff_summary`,
 `post_hook`, `pipeline`, `checkout_root`.
 
 The allocated delivery ticket is type `task`, titled
@@ -164,19 +165,20 @@ subagents; every fan-out below is yours.
 survey pass belongs to iteration 1). `/acs:create-architecture` has no
 path-driven review-depth selection: the cap is a fixed 3 on every run.
 
-| Role | Kind | Agent | Model tier |
+| Role | Kind | Agent | Spawn as |
 |------|------|-------|------------|
-| architect | write | `acs:create-architecture-architect` | `context.models.executor` |
-| reviewer | judge | `acs:create-architecture-reviewer` | `context.models.verifier` |
+| architect | write | `acs:create-architecture-architect` | `context.agents.architect` |
+| reviewer | judge | `acs:create-architecture-reviewer` | `context.agents.reviewer` |
 
 Spawn subagents with the Agent tool: subagent_type
 `acs:create-architecture-architect` /
 `acs:create-architecture-reviewer` (fall back to the un-namespaced name if
-the runtime rejects the namespaced one). Apply the role's tier —
-`context.models.executor.model` / `.effort` for the architect,
-`context.models.verifier.model` / `.effort` for the reviewer — at spawn when
-not `"inherit"`; if the runtime rejects the model or effort, FAIL the run
-with that error — no silent fallback.
+the runtime rejects the namespaced one). Spawn each role under the name in
+`context.agents.<role>` — the plugin's `acs:create-architecture-<role>`, or the
+generated `acs-create-architecture-<role>` copy `acs step start` wrote where
+`settings.models` sets a model or effort for it. Model and effort travel with
+that agent, so pass none of your own. If the runtime rejects the agent, FAIL the
+run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -475,19 +477,19 @@ The delivery-ticket pattern, done by you
 
 1. **Branch** (before the write pass's architects write): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
-   proceeding). Render `settings.formats.branch_name` (default
-   `{type}/{ticket_id}-{slug}`) with `type=task`, the ticket id, and the
+   proceeding). Name the branch
+   `<type>/<ticket_id>-<slug>` with `type=task`, the ticket id, and the
    slugified title — e.g. `task/SHOP-2-product-architecture-doc-set` — and
    `git checkout -b` it from the default branch.
 2. **Commit** (after the reviewer passes): stage ONLY
    `<architecture_dir>/` and verify the diff is docs-only
    (`git diff --cached --name-only` — every path under
-   `<architecture_dir>`). Commit with `settings.formats.commit_message`
-   (default `{ticket_id} {summary}`), e.g.
+   `<architecture_dir>`). Commit in the repo's own style, naming the ticket id
+   (default `<ticket_id> <summary>`), e.g.
    `SHOP-2 Add product architecture doc set` (or `Regenerate …` on re-run).
 3. **Push & PR**: `git push -u origin <branch>`, then follow
    `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label,
-   the rendered title, the body template, the pre-open self-check, `gh pr
+   the PR title, the body template, the pre-open self-check, `gh pr
    create`, and recording `{number, url, branch}` for the result document.
    Nothing about this skill changes those steps.
 

@@ -4,36 +4,6 @@
   "title": "acs settings.json",
   "description": "Optional acs configuration: every key has a default, so a repo needs no file at all (ADR-0105); /acs:setup writes the conventions a team changes. Scopes: ~/.acs/settings.json (user), <repo>/.acs/settings.json (project, committed), <repo>/.acs/settings.local.json (machine-specific, gitignored). Per-key merge: local -> project -> user. Unknown keys are tolerated for forward compatibility. No key locates a document or the workspace: skills find the repo's docs through CLAUDE.md and the repo itself, and the workspace is always <main-checkout>/.acs/state-machine (ADR-0102).",
   "type": "object",
-  "$defs": {
-    "roleModel": {
-      "oneOf": [
-        {
-          "type": "string",
-          "minLength": 1
-        },
-        {
-          "type": "object",
-          "properties": {
-            "model": {
-              "type": "string",
-              "minLength": 1
-            },
-            "effort": {
-              "enum": [
-                "low",
-                "medium",
-                "high",
-                "xhigh",
-                "max",
-                "inherit"
-              ]
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    }
-  },
   "properties": {
     "ticket_prefix": {
       "description": "Per-repo prefix for ticket ids (<prefix>-<n>). Optional: a repo that sets none uses ACS (ADR-0105).",
@@ -163,73 +133,759 @@
       },
       "additionalProperties": true
     },
-    "hook_gates": {
-      "description": "What acs does when it detects that the hook gates are not firing for a run. acs's enforcement is carried by the hooks bound in hooks/hooks.json to Claude Code lifecycle events; on a runtime that does not raise them nothing is gated, and `acs step start` reports that in the context document it prints. when_absent: warn (the default) prints the degraded-enforcement notice naming every enforcement not in force and lets the run continue, so an install on a hookless runtime keeps working; refuse blocks the run with exit 2 before any partition, lock, pointer or ledger write. Deliberately top-level and NOT under `enforcement`, which scopes the CI conventions checker.",
-      "type": "object",
-      "properties": {
-        "when_absent": {
-          "enum": [
-            "warn",
-            "refuse"
-          ],
-          "default": "warn"
-        }
-      },
-      "additionalProperties": true
-    },
     "models": {
-      "description": "Subagent model and reasoning effort by TIER. Every subagent role runs on one tier, picked by its kind (acs_lib.skills): survey roles (surveyor, auditor) and create-impl-plan's planner on `planner`, write roles (author, implementer, scaffolder, ...) on `executor`, judge roles (reviewer, plan-reviewer, build-checker, ...) on `verifier`. Resolution per field: overrides.<skill>.<tier> -> <tier> -> inherit.",
+      "description": "Model and effort per subagent, keyed skill -> role. An absent skill, role or field, or the value 'inherit', inherits the parent session's value. A model is an alias, a full model id or 'inherit'. Written in full by `acs settings scaffold`.",
       "type": "object",
       "properties": {
-        "planner": {
-          "$ref": "#/$defs/roleModel"
-        },
-        "executor": {
-          "$ref": "#/$defs/roleModel"
-        },
-        "verifier": {
-          "$ref": "#/$defs/roleModel"
-        },
-        "overrides": {
+        "analyze-requirements": {
           "type": "object",
-          "propertyNames": {
-            "enum": [
-              "analyze-requirements",
-              "code",
-              "create-api-contract",
-              "create-architecture",
-              "create-design",
-              "create-docs",
-              "create-e2e-tests",
-              "create-impl-plan",
-              "create-pr",
-              "create-prd",
-              "create-project",
-              "create-requirements",
-              "create-test-docs",
-              "create-ticket",
-              "docs-sync",
-              "merge-pr",
-              "review-code",
-              "run-e2e-tests",
-              "standardize-project"
-            ]
-          },
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "planner": {
-                "$ref": "#/$defs/roleModel"
+          "properties": {
+            "analyst": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
               },
-              "executor": {
-                "$ref": "#/$defs/roleModel"
-              },
-              "verifier": {
-                "$ref": "#/$defs/roleModel"
-              }
+              "additionalProperties": false
             },
-            "additionalProperties": false
-          }
+            "impact-analyst": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "impact-reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "code": {
+          "type": "object",
+          "properties": {
+            "implementer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-api-contract": {
+          "type": "object",
+          "properties": {
+            "contract-author": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "contract-reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-architecture": {
+          "type": "object",
+          "properties": {
+            "architect": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-design": {
+          "type": "object",
+          "properties": {
+            "design-reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "designer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-docs": {
+          "type": "object",
+          "properties": {
+            "author": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-e2e-tests": {
+          "type": "object",
+          "properties": {
+            "suite-runner": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "test-writer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-impl-plan": {
+          "type": "object",
+          "properties": {
+            "plan-reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "planner": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-prd": {
+          "type": "object",
+          "properties": {
+            "author": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "surveyor": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-project": {
+          "type": "object",
+          "properties": {
+            "build-checker": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "scaffolder": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-requirements": {
+          "type": "object",
+          "properties": {
+            "author": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "surveyor": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-test-docs": {
+          "type": "object",
+          "properties": {
+            "test-designer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "trace-reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "docs-sync": {
+          "type": "object",
+          "properties": {
+            "doc-updater": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "drift-reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "review-code": {
+          "type": "object",
+          "properties": {
+            "adjudicator": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "lens": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "standardize-project": {
+          "type": "object",
+          "properties": {
+            "additive-checker": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "auditor": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "scaffolder": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -245,19 +901,6 @@
             "jira"
           ],
           "default": "local"
-        },
-        "milestone": {
-          "description": "Default milestone title applied to every synced ticket that does not set its own. The milestone must already exist in the tracker -- creating one is a project decision, not a sync side effect -- so a title the forge does not know is one info finding, never a failed sync.",
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         },
         "github": {
           "type": "object",
@@ -286,146 +929,6 @@
             }
           },
           "additionalProperties": true
-        }
-      },
-      "additionalProperties": true
-    },
-    "formats": {
-      "description": "Formats for generated artifacts. Inline fields use {placeholder} syntax; an unknown placeholder is a validation error (pre-hooks exit 2). branch_name MUST embed {ticket_id}. {ticket_ref} is pr_title-scoped only -- it renders the tracker's native reference when the ticket is synced (#<issue-number> for github, <JIRA-KEY> for jira) and the local ticket id when unsynced; it is not valid in branch_name or commit_message. Description and section templates are referenced by built-in name (pr-default, epic-default, story-default, task-default, design-default), repo-relative name under .acs/templates/, or absolute path.",
-      "type": "object",
-      "properties": {
-        "branch_name": {
-          "type": "string",
-          "pattern": ".*\\{ticket_id\\}.*",
-          "default": "{type}/{ticket_id}-{slug}"
-        },
-        "commit_message": {
-          "type": "string",
-          "default": "{ticket_id} {summary}"
-        },
-        "pr_title": {
-          "type": "string",
-          "default": "{title}",
-          "description": "No ticket id by default: the PR description's Ticket section links the ticket (ADR-0105). {ticket_ref} and {ticket_id} are still available."
-        },
-        "pr_description_template": {
-          "type": "string",
-          "default": "pr-default"
-        },
-        "design_template": {
-          "type": "string",
-          "default": "design-default"
-        },
-        "tickets": {
-          "type": "object",
-          "propertyNames": {
-            "enum": [
-              "epic",
-              "story",
-              "task"
-            ]
-          },
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "title": {
-                "type": "string"
-              },
-              "description_template": {
-                "type": "string"
-              }
-            },
-            "additionalProperties": false
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    "enforcement": {
-      "description": "Repo-side convention enforcement scaffolded by /acs:setup: a GitHub Actions check (.github/workflows/acs-conventions.yml) that fails a PR whose description names no ticket (ADR-0106), and optional local git hooks that check branch names and commit subjects against formats.*. The CI check becomes a true merge gate only when made a required status check on a protected default branch. CI reads only the committed <repo>/.acs/settings.json.",
-      "type": "object",
-      "properties": {
-        "checks": {
-          "description": "Which local-hook checks run (absent key = the default shown). The CI check, the ticket link, is not a toggle.",
-          "type": "object",
-          "properties": {
-            "branch_name": {
-              "type": "boolean",
-              "default": true,
-              "description": "Check the branch name against formats.branch_name in the local pre-push hook."
-            },
-            "pr_title": {
-              "type": "boolean",
-              "default": true,
-              "description": "Retired (ADR-0106): accepted and ignored. CI checks only that the PR description names its ticket."
-            },
-            "pr_description": {
-              "type": "boolean",
-              "default": true,
-              "description": "Retired (ADR-0106): accepted and ignored. CI checks only that the PR description names its ticket."
-            },
-            "acs_label": {
-              "type": "boolean",
-              "default": true,
-              "description": "Retired (ADR-0106): accepted and ignored. CI checks only that the PR description names its ticket."
-            },
-            "commit_message": {
-              "type": "boolean",
-              "default": false,
-              "description": "Check commit subjects against formats.commit_message in the local commit-msg and pre-push hooks. Off by default \u2014 noisy under squash-merge, where only the PR title reaches main."
-            }
-          },
-          "additionalProperties": false
-        },
-        "require_label": {
-          "type": "string",
-          "default": "ACS",
-          "description": "The label /acs:create-pr applies to a pipeline PR; /acs:merge-pr --pr reads it to tell a pipeline PR from an exempt one. CI no longer requires it (ADR-0106)."
-        },
-        "exempt_label": {
-          "type": "string",
-          "default": "acs-exempt",
-          "description": "A PR carrying this label skips the CI check (for legitimate non-ticket PRs)."
-        },
-        "exempt_branches": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "release/*",
-            "dependabot/*",
-            "renovate/*"
-          ],
-          "description": "Branch-name globs (fnmatch) that skip the CI check \u2014 releases, bot PRs, etc."
-        },
-        "pr_description_sections": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "Summary",
-            "Ticket",
-            "Changes",
-            "Test plan"
-          ],
-          "description": "Retired (ADR-0106): accepted and ignored. CI no longer checks the PR description's sections; the PR template sets them."
-        },
-        "design_sections": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "Context & constraints",
-            "Options considered",
-            "Decision & rationale",
-            "Architecture",
-            "Impact & risks",
-            "Rollout/migration"
-          ],
-          "description": "Markdown section headings the create-design structure gate requires in design.md; defaulted from the configured formats.design_template."
         }
       },
       "additionalProperties": true

@@ -79,39 +79,15 @@ class TestGates(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("ticket id", result.stderr)
 
-    def test_unknown_placeholder_rejected(self):
+    def test_retired_formats_and_enforcement_settings_are_ignored(self):
+        """Branch, commit and title style are the model's to follow, so a
+        `formats` or `enforcement` block a repo still carries is tolerated and
+        ignored -- it can no longer make a gate refuse."""
         self.write_settings({"ticket_prefix": "SHOP",
-                             "formats": {"branch_name": "{nope}/{ticket_id}"}})
-        result = self.pre("create-ticket")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("placeholder", result.stderr)
-
-    def test_pr_title_ticket_ref_placeholder_accepted(self):
-        """MAR-80: {ticket_ref} is a valid pr_title-scoped placeholder (renders
-        the tracker's native reference when synced, the local ticket id when
-        not) -- validate_formats/FORMAT_PLACEHOLDERS must accept it in
-        formats.pr_title."""
-        self.write_settings({"ticket_prefix": "SHOP",
-                             "formats": {"pr_title": "[{ticket_ref}] {title}"}})
+                             "formats": {"branch_name": "{nope}/{ticket_id}"},
+                             "enforcement": {"checks": {"commit_message": True}}})
         result = self.pre("create-ticket")
         self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_ticket_ref_rejected_in_branch_name(self):
-        """Scope fence (AC-4): {ticket_ref} is pr_title-scoped only -- it must
-        stay rejected in branch_name (and, by the same vocabulary table,
-        commit_message)."""
-        self.write_settings({"ticket_prefix": "SHOP",
-                             "formats": {"branch_name": "{type}/{ticket_ref}-{slug}"}})
-        result = self.pre("create-ticket")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("placeholder", result.stderr)
-
-    def test_branch_name_must_embed_ticket_id(self):
-        self.write_settings({"ticket_prefix": "SHOP",
-                             "formats": {"branch_name": "{type}/{slug}"}})
-        result = self.pre("create-ticket")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("ticket_id", result.stderr)
 
     def test_e2e_settings_validation(self):
         self.write_settings({"ticket_prefix": "SHOP", "e2e": {"setup": "x"}})
@@ -220,26 +196,15 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
             REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        self.assertNotIn("spec_template", schema["properties"]["formats"]["properties"])
-        self.assertNotIn("spec_sections", schema["properties"]["enforcement"]["properties"])
-        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
-            "propertyNames"]["enum"]
-        self.assertNotIn("create-spec", overrides_enum)
+        for gone in ("formats", "enforcement", "hook_gates"):
+            self.assertNotIn(gone, schema["properties"])
+        self.assertNotIn("create-spec", json.dumps(schema["properties"]["models"]))
 
-    def test_settings_schema_overrides_enum_tracks_hooked_skills(self):
-        """The schema enum and acs_lib.HOOKED_SKILLS are two copies of one list.
-
-        The schema half is hand-maintained, so nothing but this test notices
-        when a skill is hooked (or unhooked) and only one copy is updated --
-        which is the drift MAR-516 exists to close.
-        """
+    def test_settings_schema_descriptions_do_not_reference_create_spec(self):
         schema_path = os.path.join(
             REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
-            "propertyNames"]["enum"]
-        self.assertEqual(sorted(overrides_enum), sorted(lib.HOOKED_SKILLS))
         for field in ("e2e",):
             self.assertNotIn(
                 "/create-spec", schema["properties"][field]["description"],

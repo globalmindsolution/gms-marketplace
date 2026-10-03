@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: install-hooks-malformed-prefix
-context:
-  scaffold_script: scaffold.sh

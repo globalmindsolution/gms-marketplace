@@ -158,7 +158,7 @@ validate — never invent a variant such as `commit_message_format` or
 
 `checkout_root` is `context.checkout_root`; `branch` is the ticket branch
 confirmed above; `default_branch` is the base the diff is taken against;
-`commit_message` is `settings.formats.commit_message`; the requirements
+`commit_message` is a message in the repo's own commit style naming the ticket id (default `<ticket_id> <summary>`); the requirements
 trio is the requirements set and its functional and non-functional
 subfolders. Add the other document locations the doc-updater's charter names —
 `architecture_dir` and `adr_dir` — each as its own `<constraint>` under that
@@ -220,10 +220,10 @@ neither needs a second wave.
 docs-sync has no path-driven review-depth selection: the cap is a fixed 3 on
 every run, and this ticket does not introduce one.
 
-| Role | Agent | Kind | Model tier | Writes |
+| Role | Agent | Kind | Spawn as | Writes |
 |---|---|---|---|---|
-| doc-updater | `acs:docs-sync-doc-updater` | write | `executor` | one instance per doc area: the doc files in its area its notes name (committed on the ticket branch), `iter-<n>/authoring-<area>.md`, `iter-<n>/doc-updater-<area>.json` — you join the notes into `iter-<n>/authoring.md` |
-| drift-reviewer | `acs:docs-sync-drift-reviewer` | judge | `verifier` | one instance per dimension slice: `iter-<n>/drift-reviewer-<slice>.md` only — you join them into `iter-<n>/drift-reviewer.md` |
+| doc-updater | `acs:docs-sync-doc-updater` | write | `context.agents.doc-updater` | one instance per doc area: the doc files in its area its notes name (committed on the ticket branch), `iter-<n>/authoring-<area>.md`, `iter-<n>/doc-updater-<area>.json` — you join the notes into `iter-<n>/authoring.md` |
+| drift-reviewer | `acs:docs-sync-drift-reviewer` | judge | `context.agents.drift-reviewer` | one instance per dimension slice: `iter-<n>/drift-reviewer-<slice>.md` only — you join them into `iter-<n>/drift-reviewer.md` |
 
 ### Doc areas — the doc-updater partition
 
@@ -382,11 +382,12 @@ For every phase:
 3. Spawn the subagent with the Agent tool, `subagent_type` as below (fall
    back to the un-namespaced name — `docs-sync-doc-updater`,
    `docs-sync-drift-reviewer` — only if the runtime rejects the
-   namespaced one). Apply the role's model tier at spawn —
-   `context.models.executor.model` / `.effort` for the doc-updater,
-   `context.models.verifier.model` / `.effort` for the drift-reviewer — when
-   not `"inherit"`; if the runtime rejects the model or effort, FAIL
-   the run with that exact error — no silent fallback.
+   namespaced one). Spawn each role under the name in
+   `context.agents.<role>` — the plugin's `acs:docs-sync-<role>`, or the generated
+   `acs-docs-sync-<role>` copy `acs step start` wrote where `settings.models` sets
+   a model or effort for it. Model and effort travel with that agent, so pass none
+   of your own. If the runtime rejects the agent, FAIL the run with that exact
+   error — no silent fallback.
 4. Every phase output is persisted at the phase boundary, BEFORE the next
    phase starts: the SubagentStop hook snapshots each returned message to
    `steps/docs-sync/iter-<n>/<phase>-message.xml` — a sliced instance's at
@@ -418,8 +419,8 @@ list in the authoring notes — which doc files need which specific changes
 and why, each cross-referenced to the diff lines / `docs_updated` entries /
 `problems` entries that justify it — and then apply those doc updates as
 additional commits on the SAME
-ticket branch (never a new branch, never a new PR), rendered with the same
-`commit_message` format `/code` already uses. Author the doc-delta report
+ticket branch (never a new branch, never a new PR), in the same
+commit style `/code` already uses (the `commit_message` constraint carries an example). Author the doc-delta report
 using the FIXED v1 structure — the per-iteration role report every hooked
 skill already writes (`iter-<n>/doc-updater.json` here, beside the
 drift-reviewer's `iter-<n>/drift-reviewer.md`; every authoring skill's

@@ -83,8 +83,8 @@ the artifacts alone.
      accepted decision records, commit those records as ADRs under
      `<adr_dir>`.
 4. Commit the doc changes on the ticket branch — one or a few coherent
-   commits, each message rendered from the `commit_message` format `/code`
-   already uses (e.g. `SHOP-123 sync API doc for the new 409 response`).
+   commits, each message in the commit style `/code`
+   already uses (the `commit_message` constraint's example) (e.g. `SHOP-123 sync API doc for the new 409 response`).
    Stage and commit ONLY your own paths — `git add -- <paths>` then
    `git commit -m "<msg>" -- <paths>` — never `git add -A`, `git add .` or
    `git commit -a`: sibling doc-updaters commit on the same branch in the same

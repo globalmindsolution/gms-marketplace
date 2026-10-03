@@ -46,9 +46,10 @@ instructions and a pipeline appears to run while nothing gates it. acs reports
 that state rather than leaving it silent: the `PreToolUse(Skill)` gate records
 evidence that it fired, `acs.py step start` spends it once, and a run with no
 accepted evidence gets a `gate_enforcement` verdict with `gated: false`, the
-reason, and the enforcements it cannot confirm. `settings.hook_gates.when_absent`
-decides what follows — `warn` (the default) continues ungated with the notice
-on stderr, `refuse` blocks the run before anything is written.
+reason, and the enforcements it cannot confirm. The run continues ungated with
+the notice on stderr: the evidence write is fail-open, so its absence cannot
+tell a host that never fires the hooks from a failed write. A gate that fired
+and refused is different — `step start` exits 2 over it.
 
 ## What is not recorded
 

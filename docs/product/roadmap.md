@@ -58,7 +58,7 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics *(removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md))*, helper CLIs.
-- 30 skills + 33 agent files on disk (verified `ls plugins/acs/skills` = 30,
+- 29 skills + 33 agent files on disk (verified `ls plugins/acs/skills` = 29,
   `ls plugins/acs/agents` = 33; ADR-0095 added `/acs:code`'s four delivery-path
   legs, which own no agents of their own and spawn `code`'s implementer); the
   reflection (write → judge) protocol is active on the twelve authoring skills
@@ -117,8 +117,8 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 30 green across 38 probes (matches
-  `s04_skill_triggers.py`'s 30-skill routing coverage, up from the original 12,
+  routes to the right skill — target all 29 green across 38 probes (matches
+  `s04_skill_triggers.py`'s 29-skill routing coverage, up from the original 12,
   which is every one of the 30 shipped skill directories: the `test` alias, once
   the one unprobed directory, is gone, and `/acs:metrics` and `/acs:usage` left
   with their probes by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md). The six internal legs —

@@ -43,7 +43,6 @@ their place either — acs records no token count, no dollar figure and no
 | `clarify.py add\|answer\|list` | the Q&A ledger (`clarifications.json`); assumptions need `--rationale` |
 | `handoff.py --summary` | finalizes the in-flight step `interrupted` with `stop_reason: context_pressure`, releases the lock, prints `continue_with` |
 | `codeowners.py resolve --repo-root --changed-files [--codeowners-path]` | stdout: `{source, owners[], reason}`; exit 0 on all data outcomes, exit 2 on malformed invocation |
-| `stacked-base.py check --base B --commit-message-format F --ticket-prefix P [--repo-root P]` | stdout: one compact JSON object — `verdict` (`clean`\|`own_violations`\|`stacked_base`), `base_ref`, `merge_base`, `range`, `checked`, `stacked[]`, `own[]`, `ignored[]`, `notes[]`, `message`, plus `replay_onto` **only when `stacked` is non-empty**; **exit 1** on verdict `stacked_base` — a *verdict*, neither a failure nor a finding, and the one signal `/acs:create-pr` stops its step-1 run on, before the push; **exit 2** when the condition cannot be evaluated at all (the base ref does not resolve, or the histories share no merge base) with `acs stacked-base: <reason>` on stderr and **no stdout at all** — the JSON object is printed on exits 0 and 1 only. Read-only and network-free: every tree test runs against a throwaway `GIT_INDEX_FILE` under `tempfile.mkdtemp()`, nothing under `.git` is written, and the caller performs the `git fetch`. A non-empty `notes` qualifies the report — `message` accounts for every entry, each named exactly once — so a qualified exit 0 is advisory, never a settled result |
 | `mermaid_lint.py FILE.md [FILE.md ...]` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; also importable — `lint_text(text, source="<text>")`, `lint_file(path)`, `Finding(source, line, rule, message)` |
 | `structure_lint.py --sections "A; B; C" [--ordered] DOC.md` | stderr: `source:line: [rule] message` per finding; exit 1 on any finding, exit 0 clean, exit 2 on usage error or unreadable file; `--sections` is `;`-delimited (a name containing `&` is not split); also importable — `lint_structure(text, sections, ordered=True, source="<text>")`, `lint_file(path, sections, ordered=True)`, `Finding(source, line, rule, message)` (same 4-field shape as `mermaid_lint.Finding`) |
 | `citation_check.py --plan <plan.md> --root <name>=<path> [--root …]` | stdout: one JSON line per resolved citation — `{claim, path, line, excerpt}`, where `line` is the citation's line in the **plan** file, never a locus in the cited file; stderr: `source:line: [rule] message` per finding (`citation-unresolved`, `citation-excerpt-not-found`, `citation-inventory-empty`); exit 1 on any finding, exit 0 clean (≥ 1 citation, all resolved and excerpt-matched), exit 2 on usage error or an unreadable plan file; also importable — `extract_citations(text, heading=…)`, `resolve_and_check(citations, roots, plan_path)`, `Finding(source, line, rule, message)` (same 4-field shape as `structure_lint.Finding`) |
@@ -59,9 +58,7 @@ because its `O_EXCL` guard was held for the whole budget (`GuardTimeout`, a
 and any ticket lock the command took is released first), or a malformed
 invocation — **unless a row above states otherwise** (`post-<skill>.py` exits 1 on the
 failure arms listed in its row; `mermaid_lint.py`/`structure_lint.py`/`citation_check.py`/
-`prd_conformance_check.py` exit 1 on findings, and `stacked-base.py check`
-exits 1 to report the `stacked_base` verdict, which is neither a failure nor a
-finding). Always with actionable stderr.
+`prd_conformance_check.py` exit 1 on findings). Always with actionable stderr.
 
 ## Hook events (Claude Code)
 
@@ -174,34 +171,37 @@ refuses ([ADR-0105](../../adr/0105-acs-runs-without-setup.md)); validated by
 every pre-hook, which still refuses a malformed value
 (`settings.schema.json`): `ticket_prefix` (default `ACS`),
 `test_coverage_percent`, `merge_strategy`, `e2e?`, `suites?`,
-`tests?`, `enforcement?`, `models`, `tracker`, `formats`
-(array of glob strings; absent key resolves to the seed default
-`["auth/**","payments/**","migrations/**","public-api/**","security/**"]`).
+`tests?`, `models`, `tracker`, `release?`.
 `e2e?` is a deprecated compatibility alias, normalized at load time into
 `suites["e2e"]` — new configuration should prefer `suites.e2e` directly.
-`tests?` and `enforcement?` back the opt-in CI gates `/acs:setup` can scaffold
-(offered at Step 2, installed by Step 3's `setup apply`):
-`acs-conventions.yml`+`check-conventions.py` (`enforcement`)
-and `acs-tests.yml`+`run-tests.py` (`tests`). In CI the conventions gate
-checks one rule, that the PR description names its ticket
-([ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md));
-`enforcement.checks.branch_name`/`commit_message` gate only the local git
-hooks, and `checks.pr_title`, `checks.pr_description`, `checks.acs_label` and
-`pr_description_sections` are retired (accepted and ignored). The e2e
+`models` is `models.<skill>.<role> = {model?, effort?}`: an absent skill, role or
+field, or the value `inherit`, inherits the parent session; the skills and roles
+are the agents the plugin ships, and `acs.py settings scaffold --write` writes the
+full block ([ADR-0115](../../adr/0115-models-per-skill-and-role-through-generated-agents.md)).
+There is no `formats` or `enforcement` block: branch, commit and PR-title style are
+the model's to follow, and what a script must parse is fixed in
+`acs_lib.conventions` — the branch name `<type>/<ticket_id>-<slug>`, the
+CI exemptions (`acs-exempt`, `release/*`, `dependabot/*`, `renovate/*`), the `ACS`
+pipeline label and the built-in template names (a repo's
+`.acs/templates/<name>.md` of the same name replaces one). A `formats`,
+`enforcement` or `hook_gates` block a repo still carries is accepted and ignored.
+`tests?` backs the opt-in CI gates `/acs:setup` can scaffold (offered at Step 2,
+installed by Step 3's `setup apply`): `acs-conventions.yml`+`check-conventions.py`,
+which checks one rule, that the PR description names its ticket
+([ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)), and
+`acs-tests.yml`+`run-tests.py` (`tests`). The e2e
 CI-gate artifact family (the same install, offered only when an e2e suite is
 configured) is the same
 shape: `acs-e2e.yml` + `run-e2e.py` (the committed
 template pair), built from `e2e?`/`suites?` — no dedicated settings key of
 its own — and wired as the `E2E suite` required-check context.
-`/acs:setup` is optional; it writes only the project file, and only the
-`formats.*` conventions and the chosen gates' keys (`tests.command`,
-`enforcement.checks.commit_message`); `setup_wizard.split_defaults` drops any
+`/acs:setup` is optional; it writes only the project file, and only the gates'
+keys (`tests.command`); `setup_wizard.split_defaults` drops any
 answer equal to its built-in default and removes one an earlier run wrote.
-Every other key, `ticket_prefix` included, is edited by hand. The default
-`formats.pr_title` is `{title}`; `templates/ci/check-conventions.py` runs
-without the plugin, so it holds its own copy of the defaults it checks against
-(a test fails when the copies differ) and checks a repo with no settings file
-against them.
+Every other key, `ticket_prefix` included, is edited by hand.
+`templates/ci/check-conventions.py` runs without the plugin, so it holds its own
+copy of the few constants it checks against (a test fails when the copies differ)
+and checks a repo with no settings file against them.
 No key locates the workspace or a document ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)): the
 workspace is always `<main-checkout>/.acs/state-machine` (anchored via
 `git rev-parse --git-common-dir`, ADR-0086; ignored by its own `.gitignore`
@@ -212,12 +212,10 @@ through `CLAUDE.md` and the repo, creating a missing one at its `docs/`
 convention. `release_notes.py --workspace` (above) is unaffected in shape —
 still an absolute path argument — and its caller passes this resolved
 value.
-`formats.design_template` (default `design-default`) resolves identically to
-`formats.pr_description_template` (built-in name → `.acs/templates/<name>.md`
-→ absolute path); its section companion `enforcement.design_sections`
-defaults from the configured template — the built-in default encodes today's
-exact required-section list, so an absent key is byte-identical to the prior
-hardcoded gate (ADR 0065). create-design's design-reviewer enforces the resolved
+The design template is the built-in `design-default`, or a repo's
+`.acs/templates/design-default.md`; the required-section list is derived from the
+template itself, so the built-in default encodes today's exact required-section
+list (ADR 0065). create-design's design-reviewer enforces the resolved
 list as a blocking `structure` dimension via `structure_lint.py`.
 The requirements set (found in the repo, else `docs/requirements/`) has a
 **functional** and a **non-functional** subfolder (`functional/` and

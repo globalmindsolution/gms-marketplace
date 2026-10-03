@@ -143,7 +143,7 @@ skill"; what a SKILL.md must say is:
 | `description` | One sentence saying what this role does for `/acs:<skill>`, ending "Spawned by the /acs:<skill> coordinator with a JSON task; not for direct invocation." |
 | `tools` | Survey and judge roles: `Read, Glob, Grep, Bash, Write` (Write *solely* for its own `steps/<skill>/` artifacts — restate this in the body; Bash is for read-only inspection and running tests/builds). The allowlist deliberately omits `Agent` and `Skill`. Write roles: omit `tools` (they need broad file/shell access) but set `disallowedTools: Agent, Skill` — decomposition is the coordinator's job, and a skill invocation from inside a subagent would re-enter the hook pipeline. |
 | `disallowedTools` | `Agent, Skill` on every write role (see above). |
-| `model` / `effort` | **Never set.** The coordinator resolves `settings.json` `models.<tier>` / `models.overrides.<skill>.<tier>` for the role's tier — `planner` for survey roles (and `create-impl-plan`'s planner), `executor` for write roles, `verifier` for judge roles (`acs_lib.skills.model_tier`) — and applies them at spawn; frontmatter values would silently fight user configuration. |
+| `model` / `effort` | **Never set.** They come from `settings.json` `models.<skill>.<role>`: `acs step start` writes a generated copy of the agent (`.claude/agents/acs-<skill>-<role>.md`) carrying them, and the coordinator spawns the name in `context.agents.<role>`. Frontmatter values would be overwritten in that copy and, in the plugin agent, would silently fight user configuration. A new role also needs a row in `acs_lib.models`' scaffold table. |
 
 ### Body (the system prompt)
 
@@ -299,7 +299,7 @@ owns the agents named after it. In order:
    `hooks/scripts/pre-<name>.py` and `post-<name>.py` wrappers, and a line in
    `.coveragerc`'s forwarder omit list. `HOOKED_SKILLS` is derived from the
    three lists, so `acs step start --step`, `dispatch.py`, the SessionEnd net
-   and `models.overrides` all follow for free. An UNHOOKED skill (a utility)
+   and `settings.models` all follow for free. An UNHOOKED skill (a utility)
    needs none of this and must appear in `UNHOOKED_SKILLS` instead.
 4. **Decide whether it is a LEG.** A skill another skill dispatches to (as
    `/acs:code` dispatches to its delivery-path legs) is listed in

@@ -16,7 +16,7 @@ getting it wrong is how a delivery PR goes bad:
   same command, because a broad add would sweep up source it is not allowed to
   touch. Those two rules contradict each other on purpose. Take your own.
 - **The branch and its slug**, which your skill renders from
-  `settings.formats.branch_name` before its first writing subagent runs.
+  `<type>/<ticket_id>-<slug>` rule before its first writing subagent runs.
 - **Anything your skill does after the PR is open** — watching CI, appending a
   section to the body, or opening one PR per set rather than one per run.
 
@@ -24,26 +24,20 @@ Everything below is the same on every one of those paths.
 
 ## 1. Label and title
 
-Render the title with the helper — NOT LLM prose composition — capturing its
-stdout as `<rendered title>`:
+Write the title directly — concise, normally the delivery ticket's title. No
+script renders it; the body's Ticket section names the ticket.
 
 ```bash
 gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-  --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type <ticket.type> \
-  --title "<delivery ticket's title>" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-  --provider "<ticket.external.provider or empty>"
 ```
 
-The title renders `settings.formats.pr_title` (default `{title}`: no ticket id —
-the body's Ticket section links the ticket).
 The label already existing is not an error — that is what the `|| true` is for.
 
 ## 2. Body
 
-The body comes from `settings.formats.pr_description_template`: built-in name
-`pr-default` -> `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
-`<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path. Fill
+The body comes from the built-in `pr-default` template
+(`${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; a repo's
+`<checkout_root>/.acs/templates/pr-default.md` replaces it). Fill
 its placeholders from `ticket.json` and the review result — never from
 conversation memory. Conversation memory is the one source that cannot be
 re-derived later, so a body filled from it is a body nobody can check.
@@ -74,7 +68,7 @@ red check on a PR a reviewer is already looking at.
 ## 4. Open it
 
 ```bash
-gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file <body.md> --label ACS
+gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file <body.md> --label ACS
 ```
 
 ## 5. Record it

@@ -112,7 +112,7 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 # skills/code/references/.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 ALL_SKILLS = (HOOKED_SKILLS + CODE_PATH_LEGS
-              + ["setup", "ship", "handoff", "update", "install-hooks", "release",
+              + ["setup", "ship", "handoff", "update", "release",
                  "project"])
 #: Every role acs spawns, and its kind (survey / write / judge).
 ROLES = list(lib.AGENT_ROLES)
@@ -208,7 +208,7 @@ class TestSkillContracts(unittest.TestCase):
         for name in HOOKED_SKILLS + ["ship"]:
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$", name)
-        for name in ("setup", "handoff", "update", "install-hooks"):
+        for name in ("setup", "handoff", "update"):
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertNotIn("disallowed-tools", fm, name)
 
@@ -955,15 +955,13 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         self.assertIn("pr-conventions.py", body,
                       "create-pr/SKILL.md must reference pr-conventions.py")
 
-    def test_title_rendered_via_helper_not_prose(self):
-        """AC-1: render-title co-occurs with pr_title within a bounded window,
-        and the result is passed verbatim to gh pr create/edit --title."""
+    def test_the_title_is_written_directly(self):
+        """The PR title is free text the author writes, so there is no renderer:
+        the helper offers only the pre-open body check, and no `formats.pr_title`
+        remains for a skill to name."""
         body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?s)render-title.{0,400}pr_title|pr_title.{0,400}render-title", body),
-            "AC-1 [create-pr]: render-title must co-occur with pr_title within a bounded window")
-        self.assertIn("verbatim", body,
-                      "AC-1 [create-pr]: rendered title must be stated as passed verbatim to gh pr")
+        self.assertNotIn("render-title", body)
+        self.assertNotIn("pr_title", body)
 
     def test_pre_open_self_check_present_and_blocks_or_retries(self):
         """AC-2: the check subcommand is present, and a mismatch blocks/retries."""
@@ -1008,16 +1006,6 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         self.assertIn("acli jira workitem comment", body,
                       "AC-5 [create-pr]: jira tracker-sync invocation must survive")
 
-    def test_render_title_call_includes_provider(self):
-        """MAR-80 spec 03 AC-1/AC-2/AC-3: the render-title call site passes
-        --provider so build_title's compute_ticket_ref (spec 01) can compute
-        the tracker-native reference. Bounded-window co-occurrence pattern,
-        mirroring test_title_rendered_via_helper_not_prose."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
-            "MAR-80 [create-pr]: render-title must co-occur with --provider within a bounded window")
-
     def test_the_pre_open_check_verifies_what_ci_checks(self):
         """ADR-0106: CI checks only that the description names its ticket, so
         the pre-open self-check takes the body and the prefix and nothing else.
@@ -1060,13 +1048,12 @@ class TestProductSkillConventionWiring(unittest.TestCase):
             self.assertIn("pr-conventions.py", body,
                           "%s: SKILL.md must reference pr-conventions.py" % skill)
 
-    def test_renders_title_via_helper_not_prose(self):
-        """render-title co-occurs with pr_title within a bounded window, per skill."""
+    def test_no_title_renderer_remains(self):
+        """The PR title is written directly; there is no render-title helper."""
         for skill in self.SKILLS:
             body = read_skill_contract(skill)
-            self.assertIsNotNone(
-                re.search(r"(?s)render-title.{0,400}pr_title|pr_title.{0,400}render-title", body),
-                "%s: render-title must co-occur with pr_title within a bounded window" % skill)
+            self.assertNotIn("render-title", body, skill)
+            self.assertNotIn("settings.formats", body, skill)
 
     def test_self_checks_before_gh_pr_create(self):
         """The check subcommand token appears BEFORE the actual gh pr create
@@ -1109,17 +1096,6 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         self.assertIn("states.pr", body)
         self.assertIn("gh pr checks", body)
         self.assertIn("--watch", body)
-
-    def test_render_title_call_includes_provider(self):
-        """MAR-80 spec 03 AC-1/AC-2/AC-3: each product skill's render-title
-        call site passes --provider so build_title's compute_ticket_ref
-        (spec 01) can compute the tracker-native reference -- the same
-        uniform mechanism as create-pr, no per-skill carve-out."""
-        for skill in self.SKILLS:
-            body = read_skill_contract(skill)
-            self.assertIsNotNone(
-                re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
-                "%s: render-title must co-occur with --provider within a bounded window" % skill)
 
 
 #: `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/references/<file>.md` as a SKILL.md
@@ -2446,33 +2422,6 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
             "clause — the Closes # bullet is omitted for unsynced tickets "
             "(MAR-75 AC-4)")
 
-    def test_init_documents_reconciliation_convention(self):
-        """AC-5 (prose proof + R-1 guard): setup/SKILL.md's formats section
-        notes the reconciliation convention. Since MAR-80 (which makes
-        pr_title provider-aware), the block must instead state that pr_title
-        renders the tracker's native reference when synced and the local id
-        when unsynced, while branch_name/commit_message stay id-based and
-        unconditional."""
-        body = read(self.skill_path("setup"))
-        self.assertIsNotNone(
-            re.search(r"(?s)acs-ticket:.{0,800}Closes #|Closes #.{0,800}acs-ticket:", body),
-            "setup/SKILL.md must document both the acs-ticket: issue-body "
-            "convention and the Closes # PR-body convention within a bounded "
-            "window (MAR-75 AC-5)")
-        self.assertIsNotNone(
-            re.search(r"(?is)pr_title.{0,200}(tracker|synced)|"
-                      r"(tracker|synced).{0,200}pr_title", body),
-            "setup/SKILL.md must explicitly state that pr_title renders the "
-            "tracker's native reference when synced (MAR-80 AC-1/AC-2/AC-3, "
-            "AC-6)")
-        self.assertIsNotNone(
-            re.search(r"(?is)branch_name.{0,200}commit_message.{0,120}"
-                      r"(id-based|unconditional)|"
-                      r"(id-based|unconditional).{0,200}branch_name.{0,120}"
-                      r"commit_message", body),
-            "setup/SKILL.md must explicitly state that branch_name and "
-            "commit_message remain id-based and unconditional in every case "
-            "(MAR-80 AC-4 scope-fence)")
 
 
 class TestCreateTicketSyncFixtureIsAValidTicket(unittest.TestCase):
@@ -2495,11 +2444,11 @@ class TestCreateTicketSyncFixtureIsAValidTicket(unittest.TestCase):
         self.assertEqual(undeclared, [],
                          "the sync fixture must be a ticket, not a wish list")
 
-    def test_the_milestone_the_sync_reads_has_both_of_its_declared_sources(self):
+    def test_the_milestone_the_sync_reads_comes_from_the_ticket_alone(self):
         self.assertIn("milestone", self._schema("ticket.schema.json")["properties"])
         tracker = self._schema("settings.schema.json")["properties"]["tracker"]
-        self.assertIn("milestone", tracker["properties"],
-                      "the settings-level default the sync falls back to")
+        self.assertNotIn("milestone", tracker["properties"],
+                         "a ticket carries its own milestone; there is no settings-level default")
 
 
 class TestCreatePrTrackerMetadataFill(unittest.TestCase):
@@ -3652,18 +3601,12 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
 
     # ------------------------------------------------------------------ AC-6
 
-    def test_settings_schema_gains_no_new_formats_or_enforcement_keys(self):
+    def test_settings_schema_has_no_formats_or_enforcement_block(self):
         schema_path = os.path.join(PLUGIN, "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        self.assertEqual(
-            set(schema["properties"]["formats"]["properties"].keys()),
-            {"branch_name", "commit_message", "pr_title",
-             "pr_description_template", "design_template", "tickets"})
-        self.assertEqual(
-            set(schema["properties"]["enforcement"]["properties"].keys()),
-            {"checks", "require_label", "exempt_label", "exempt_branches",
-             "pr_description_sections", "design_sections"})
+        for gone in ("formats", "enforcement"):
+            self.assertNotIn(gone, schema["properties"])
 
 
 if __name__ == "__main__":

@@ -18,6 +18,5 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 Run the /acs:create-project skill itself on this repo -- not /acs:project --
 and scaffold the project skeleton from the tech stack in
 `docs/architecture/hld/tech-stack.md`: pytest with coverage failing below
-90%, ruff, pre-commit and a GitHub Actions workflow. No e2e harness, default
-branch and commit formats. Don't ask me anything. If it refuses, don't work
+90%, ruff, pre-commit and a GitHub Actions workflow. No e2e harness. Don't ask me anything. If it refuses, don't work
 around it or switch to another skill: tell me why and what to do instead.

@@ -174,10 +174,8 @@ Requirements:
   The three **apply-work** skills own no agent file at all (see the
   "Apply-work skills" subsection above).
 - Each role's **model and reasoning effort are user-configurable** in
-  `settings.json` by tier: survey roles and `create-impl-plan`'s planner run
-  on `models.planner`, write roles on `models.executor`, judge roles on
-  `models.verifier`, each with per-skill overrides; unset values inherit the
-  parent context's model and effort
+  `settings.json` per skill and role (`models.<skill>.<role>`); unset
+  values inherit the parent context's model and effort
   ([configuration.md](configuration.md#subagent-models)).
 
 > **Note:** the **changeset review** carries the broadest scope, and it is a

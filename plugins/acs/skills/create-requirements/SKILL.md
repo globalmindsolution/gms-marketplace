@@ -80,7 +80,7 @@ MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
 If `acs step start` exits non-zero: STOP and surface its stderr verbatim.
 
 Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
-`settings` (`formats`), `models`,
+`models`,
 `reconcile`, `handoff_summary`, `post_hook`.
 
 Keep the free text of `$ARGUMENTS` (focus notes, amendment request): it is surveyor and author input.
@@ -144,20 +144,20 @@ iterations 2-3 the reviewer's findings go verbatim into the next author
 never runs again; its notes are the fixed baseline every later iteration is
 judged against.
 
-| Role | Kind | Agent | Model tier |
+| Role | Kind | Agent | Spawn as |
 |------|------|-------|------------|
-| surveyor | survey | `acs:create-requirements-surveyor` | `context.models.planner` |
-| author | write | `acs:create-requirements-author` | `context.models.executor` |
-| reviewer | judge | `acs:create-requirements-reviewer` | `context.models.verifier` |
+| surveyor | survey | `acs:create-requirements-surveyor` | `context.agents.surveyor` |
+| author | write | `acs:create-requirements-author` | `context.agents.author` |
+| reviewer | judge | `acs:create-requirements-reviewer` | `context.agents.reviewer` |
 
 Spawn subagents with the Agent tool: `subagent_type`
 `acs:create-requirements-surveyor` / `acs:create-requirements-author` /
 `acs:create-requirements-reviewer` (fall back to the un-namespaced name if the runtime
-rejects the namespaced one). Apply the role's tier — `context.models.planner.model`
-/ `.effort` for the surveyor, `context.models.executor.*` for the author,
-`context.models.verifier.*` for the reviewer — at spawn when not `"inherit"`; if
-the runtime rejects the model/effort, FAIL the run with that error — no silent
-fallback.
+rejects the namespaced one). Spawn each role under the name in `context.agents.<role>` — the plugin's
+`acs:create-requirements-<role>`, or the generated `acs-create-requirements-<role>`
+copy `acs step start` wrote where `settings.models` sets a model or effort for it.
+Model and effort travel with that agent, so pass none of your own. If the runtime
+rejects the agent, FAIL the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -381,8 +381,7 @@ DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
 git fetch origin "$DEFAULT_BRANCH" && git checkout -b "<branch>" "origin/$DEFAULT_BRANCH"
 ```
 
-`<branch>` renders `settings.formats.branch_name` (default
-`{type}/{ticket_id}-{slug}`) with `ticket_id` = delivery ticket id, `type` = `task`,
+`<branch>` is `<type>/<ticket_id>-<slug>` with `ticket_id` = delivery ticket id, `type` = `task`,
 `slug` = slugified ticket title. On a fresh repo with no remote default branch yet,
 `git checkout -b "<branch>"` from the current HEAD instead. If checkout fails
 (conflicting local changes), surface the git error and ask the user. Iterations 2-3
@@ -612,24 +611,18 @@ Only after the reviewer passes:
 ```bash
 git add "<functional_dir>" "<non_functional_dir>"
 git add "<requirements_dir>/README.md" 2>/dev/null || true   # the decision-log row / index, when the set has a README
-git commit -m "<rendered formats.commit_message>"      # default {ticket_id} {summary}
+git commit -m "<commit message>"      # repo's own style, naming the ticket id; default <ticket_id> <summary>
 git push -u origin "<branch>"
 gh label create ACS 2>/dev/null || true                # create the label if missing
 ```
 
-- PR title renders via the helper — NOT LLM prose composition — capturing its
-  stdout as `<rendered title>`:
+- PR title: free text you write directly — concise, normally the delivery
+  ticket's title. No script renders it; the body's Ticket section names the
+  ticket.
 
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-    --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type <ticket.type> \
-    --title "<delivery ticket's title>" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-    --provider "<ticket.external.provider or empty>"
-  ```
-
-- PR body: resolve `settings.formats.pr_description_template` (default
-  `pr-default` -> `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; a custom name ->
-  `<repo>/.acs/templates/<name>.md`; else an absolute path). Fill `{ticket_id}`,
+- PR body: use the built-in `pr-default` template
+  (`${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; a repo's
+  `<repo>/.acs/templates/pr-default.md` replaces it). Fill `{ticket_id}`,
   `{type}`, `{title}`, `{summary}`, `{external_key}` from `ticket.json` and this
   run's state — never from conversation memory. Changes = the area files added or
   amended; Test plan = the review dimensions checked; mark TDD/coverage checklist
@@ -655,7 +648,7 @@ gh label create ACS 2>/dev/null || true                # create the label if mis
 
 ```bash
 gh pr create --base "$DEFAULT_BRANCH" --head "<branch>" \
-  --title "<rendered title>" \
+  --title "<PR title>" \
   --body-file "steps/create-requirements/pr-body.md" \
   --label ACS
 gh pr view "<branch>" --json number,url

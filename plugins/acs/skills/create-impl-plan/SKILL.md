@@ -56,9 +56,10 @@ Parse the printed context JSON. Fields you will use:
   still lives in the partition. Call it `<design_doc>`; the plan is judged
   against it.
 - `settings` — you need `test_coverage_percent` (the coverage target the plan
-  states), `formats.branch_name`, `formats.commit_message`, and `e2e` when set.
-- `models` — per-tier `{model, effort}`: the planner runs on the `planner`
-  tier, the plan reviewer on the `verifier` tier.
+  states) and `e2e` when set.
+- `agents` — the agent name to spawn per role; the planner's and the plan
+  reviewer's model and effort come from
+  `settings.models.create-impl-plan.<role>` (inheriting when unset).
 - `reconcile`, `handoff_summary`, `prior_status` — see
   `references/not-a-first-run.md`.
 
@@ -86,18 +87,18 @@ child.
 
 `plan.md` is a file in the consumer repo — the ticket's docs folder,
 `docs/tickets/<id>/` — and belongs on the ticket branch with every other
-change for this ticket. Render
-`settings.formats.branch_name` (default `"{type}/{ticket_id}-{slug}"`) with
-`{ticket_id}`, `{type}` (`ticket.type`), `{slug}` (the slugified ticket title —
-`acs.py slug --text "<title>"`), and `{external_key}`, then create or reuse it:
+change for this ticket. Name the
+branch `<type>/<ticket_id>-<slug>` with
+`<ticket_id>`, `<type>` (`ticket.type`) and `<slug>` (the slugified ticket title —
+`acs.py slug --text "<title>"`), then create or reuse it:
 
 ```bash
 git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
 ```
 
 On resume the branch usually already exists — reuse it, never recreate or reset
-it. Commit the published plan with `settings.formats.commit_message` (default
-`"{ticket_id} {summary}"`). Do NOT push — `/acs:create-pr` pushes.
+it. Commit the published plan in the repo's own commit style, naming the ticket id (default
+`<ticket_id> <summary>`). Do NOT push — `/acs:create-pr` pushes.
 
 When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the
 docs folder to) the plan is written to the workspace partition instead, nothing
@@ -170,15 +171,13 @@ skill and covers the API surface this plan declares.
 
 Two subagents, each named for what it does in this skill:
 
-| Role | Agent | Kind | Model tier | Writes |
+| Role | Agent | Kind | Spawn as | Writes |
 |---|---|---|---|---|
-| planner | `acs:create-impl-plan-planner` | write | `planner` | `iter-<n>/authoring.md`, the draft `steps/create-impl-plan/plan.md`, `iter-<n>/planner.json` |
-| plan reviewer | `acs:create-impl-plan-plan-reviewer` | judge | `verifier` | `iter-<n>/plan-reviewer-<slice>.md`, one per judge slice, joined into `iter-<n>/plan-reviewer.md` |
+| planner | `acs:create-impl-plan-planner` | write | `context.agents.planner` | `iter-<n>/authoring.md`, the draft `steps/create-impl-plan/plan.md`, `iter-<n>/planner.json` |
+| plan reviewer | `acs:create-impl-plan-plan-reviewer` | judge | `context.agents.plan-reviewer` | `iter-<n>/plan-reviewer-<slice>.md`, one per judge slice, joined into `iter-<n>/plan-reviewer.md` |
 
 The planner is a `write`-kind role — it produces the deliverable, a workspace
-draft — but it runs on the `planner` model tier its name promises
-(`acs_lib.skills.model_tier`): deciding the slices, the file map and the test
-strategy is the planning judgement that tier exists for.
+draft.
 
 Run planner → plan review until the plan reviewer returns zero blocking
 findings or the ceiling is reached. The planner is the only planning role:
@@ -284,11 +283,12 @@ Messaging rules (`the SubagentStop hook's message check`):
   "acs:create-impl-plan-planner"`, then `subagent_type:
   "acs:create-impl-plan-plan-reviewer"` — fall back to the un-namespaced name
   (`create-impl-plan-planner`, `create-impl-plan-plan-reviewer`) only if the
-  runtime rejects the namespaced one. Apply the role's tier at spawn —
-  `context.models.planner.model` / `.effort` for the planner,
-  `context.models.verifier.model` / `.effort` for the plan reviewer — when
-  not `"inherit"`; if the runtime rejects the model or effort, FAIL the run
-  with that exact error — no silent fallback.
+  runtime rejects the namespaced one. Spawn each role under the name in
+  `context.agents.<role>` — the plugin's `acs:create-impl-plan-<role>`, or the
+  generated `acs-create-impl-plan-<role>` copy `acs step start` wrote where
+  `settings.models` sets a model or effort for it. Model and effort travel with
+  that agent, so pass none of your own. If the runtime rejects the agent, FAIL
+  the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your

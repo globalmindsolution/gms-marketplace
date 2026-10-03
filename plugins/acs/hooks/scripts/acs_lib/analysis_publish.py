@@ -11,7 +11,7 @@ ticket's docs folder and nothing else. This is that step as code:
   3. copy the draft byte-for-byte to the resolved analysis path, and read it
      back to prove the copy;
   4. inside the repo, `git add` ONLY the ticket's docs folder and commit ONLY
-     that pathspec with `settings.formats.commit_message`. It never pushes:
+     that pathspec with `conventions.COMMIT_SUBJECT`. It never pushes:
      /acs:create-pr does.
 
 `record_publication` then re-derives all of it from disk and git before the
@@ -26,13 +26,12 @@ from ._common import GateError, now_iso
 from .analysis_loop import (_advance, _block, _expect, draft_path,
                             record_check_failure)
 from .artifacts import artifact_path, ticket_docs_dir
-from .settings import render_format
+from . import conventions
 
 FRONT_MATTER_SPEC = ("ticket: str; ready_for_planning: bool; api_surface: bool; "
                      "needs_design_recommendation: bool")
 SECTIONS = ("Problem restated; Impact map; Questions; Assumptions; Risks; "
             "Refined acceptance criteria; Verdict")
-DEFAULT_COMMIT_MESSAGE = "{ticket_id} {summary}"
 
 
 def run_checks(path, ticket_id):
@@ -106,13 +105,10 @@ def resolve_target(ctx, tdir, ticket_id):
 
 
 def commit_message(settings, ticket, summary):
-    template = ((settings or {}).get("formats") or {}).get("commit_message") \
-        or DEFAULT_COMMIT_MESSAGE
-    external = ticket.get("external") if isinstance(ticket.get("external"), dict) else {}
-    return render_format(template, {
-        "ticket_id": ticket.get("id") or "", "type": ticket.get("type") or "",
-        "title": ticket.get("title") or "", "summary": summary,
-        "external_key": external.get("key") or ""})
+    """The subject of the publish commit: `<ticket_id> <summary>` (a script's
+    commit cannot ask the repo's style, so it uses the fixed form)."""
+    return conventions.COMMIT_SUBJECT.format(
+        ticket_id=ticket.get("id") or "", summary=summary)
 
 
 def _reviewed_sha(loop):

@@ -133,8 +133,8 @@ never into the notes.
    `/acs:create-standards`, and this scaffolder cannot invoke either (no `Agent`/`Skill`
    tool access) nor author their content directly.
 6. **Delivery — only when your task explicitly includes it** (it is gated on
-   the additive-check passing): create the branch per `formats.branch_name`, commit per
-   `formats.commit_message`, push, and open the PR with the `ACS` label and the
+   the additive-check passing): create the branch `<type>/<ticket_id>-<slug>`, commit in
+   the repo's own style naming the ticket id, push, and open the PR with the `ACS` label and the
    `## Recommended follow-ups` section appended to the body.
 
 ## The scaffolder report

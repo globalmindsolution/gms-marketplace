@@ -265,6 +265,19 @@ RETIRED_BY_ADR_0105 = {
     ),
 }
 
+#: ADR-0116 removed the `formats` and `enforcement` settings, so the clauses that
+#: described them are reworded or gone: a branch name is now a fixed convention
+#: (`acs_lib.conventions`), the `models` rule names a skill and a role (ADR-0115),
+#: and the shared-project-file row and the `formats` row no longer list formats.
+RETIRED_BY_ADR_0116 = {
+    'configuration.md': (
+        '- `formats.branch_name` MUST include the `{ticket_id}` placeholder — ticket',
+        '- `models` entries MUST be non-empty strings or `{ "model", "effort" }`',
+        '| Project (shared) | `<repo>/.acs/settings.json` | **committed** | Team-shared, repo-specific settings (formats, tracker, coverage, merge strategy). |',
+        '| `formats` | object | built-in defaults | No | Formats for generated artifacts. Short fields are inline template strings with placeholders such as `{ticket_id}`, `{title}`, `{type}`, `{summary}`: `formats.branch_name` (MUST embed `{ticket_id}`), `formats.commit_message`, `formats.pr_title`, and per-ticket-type titles under `formats.tickets.<type>` (`epic`, `story`, `task`). **Descriptions** (PR description, ticket descriptions) use **pre-defined templates** shipped with the plugin, referenced by name; users can select another template or point to a custom template file. |',
+    ),
+}
+
 #: The v0.5.0 implementation-pipeline redesign REWORDED two clauses rather
 #: than retiring them: the guarantee each carried is still in the tree, under
 #: the name its carrier now has. That is a different fact from the four
@@ -432,7 +445,8 @@ def _retired():
     merged = {}
     for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
                   RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING,
-                  RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105):
+                  RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105,
+                  RETIRED_BY_ADR_0116):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     for rewording in REWORDING_TABLES:

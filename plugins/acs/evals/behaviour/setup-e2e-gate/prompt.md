@@ -17,6 +17,6 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:setup skill: we already configured our e2e suite for acs, and
 now I want acs's e2e merge gate in CI so a red e2e run blocks the PR. Keep
-the default formats and don't add any other CI check. I'm not an admin, so
+the ticket prefix as it is and don't add any other CI check. I'm not an admin, so
 don't touch branch protection -- just tell me what an admin needs to do.
 Don't ask me anything.

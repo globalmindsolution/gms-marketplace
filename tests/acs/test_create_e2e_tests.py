@@ -352,9 +352,14 @@ class TestSubagentShape(unittest.TestCase):
                               agent(role))
                 self.assertIn('phase="test-writer|suite-runner"', read(SKILL_PATH))
 
-    def test_each_role_names_its_model_tier(self):
-        self.assertIn("`executor` model", agent(WRITER))
-        self.assertIn("`verifier` model", agent(RUNNER))
+    def test_no_role_names_a_model_tier(self):
+        """Model and effort come from settings.models.create-e2e-tests.<role>
+        through the agent the coordinator spawns, not from the agent's text."""
+        for role in (WRITER, RUNNER):
+            with self.subTest(role=role):
+                body = agent(role)
+                self.assertNotIn("model tier", body)
+                self.assertNotRegex(body, r"`(planner|executor|verifier)` model")
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:

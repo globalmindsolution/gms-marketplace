@@ -102,12 +102,6 @@ class ScaffoldBuildCheckLoopTest(unittest.TestCase):
         self.assertRegex(norm(checker), r"(?i)run the notes'? build command")
         self.assertIn("iter-<n>/build-checker.md", checker)
 
-    def test_each_role_runs_on_its_kind_s_model_tier(self):
-        self.assertEqual(acs_lib.model_tier("scaffolder"), "executor")
-        self.assertEqual(acs_lib.model_tier("build-checker"), "verifier")
-        self.assertRegex(self.norm, r"(?i)scaffolder \(a `write` role\) runs on the `executor` tier")
-        self.assertRegex(self.norm, r"(?i)build-checker \(a `judge` role\) on the `verifier` tier")
-
     def test_findings_feed_the_scaffolder_context_with_no_plan_phase_in_between(self):
         no_plan_re = re.compile(r"(?i)(no|never|without)\W{0,20}plan(ner| phase)")
         for m in re.finditer(r"(?i)findings", self.norm):

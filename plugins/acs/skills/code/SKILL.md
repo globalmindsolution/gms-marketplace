@@ -25,7 +25,7 @@ task and result, report `iter-<n>/implementer-<k>.json`), at most
 (`${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md`, **Parallel
 implementers**). There is no planner (the plan is `/acs:create-impl-plan`'s) and no
 verifier (the review is `/acs:review-code`'s). The implementer is a `write`
-role and runs on the `executor` model tier.
+role.
 
 Four legs implement this step:
 

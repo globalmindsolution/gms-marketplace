@@ -99,10 +99,11 @@ class AuthorReviewLoopTest(unittest.TestCase):
         self.assertIn('<result skill="create-docs" phase="author"', read(AUTHOR))
         self.assertIn('<result skill="create-docs" phase="reviewer"', read(REVIEWER))
 
-    def test_each_role_names_its_model_tier(self):
+    def test_each_role_is_spawned_under_its_configured_agent_name(self):
         body = norm(read(SKILL))
-        self.assertIn("`context.models.executor.model` / `.effort` for the author", body)
-        self.assertIn("`context.models.verifier.model` / `.effort` for the reviewer", body)
+        self.assertIn("`context.agents.<role>`", body)
+        self.assertIn("generated `acs-create-docs-<role>` copy", body)
+        self.assertNotIn("context.models", body)
 
     def test_the_author_writes_authoring_notes_and_the_reviewer_reads_them(self):
         skill = read(SKILL)

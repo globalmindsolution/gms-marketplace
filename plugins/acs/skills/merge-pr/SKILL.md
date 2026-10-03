@@ -195,8 +195,8 @@ subagent; no delegation is sanctioned on any delivery path or iteration. Open
 follow it alongside the steps below: it carries the strict step order, the
 already-merged short-circuit, the safety rules (the BEHIND-only exception, no
 substitute strategy, no `--admin`), how each outcome ends the run, and the
-merge report. There is no `<task>`/`<result>` exchange and no model tier to
-apply.
+merge report. There is no `<task>`/`<result>` exchange and no subagent model to
+configure.
 
 **Phase artifact:** Persist the outcome to
 `steps/merge-pr/iter-<n>/merge.json` (the merge report `references/merge.md`

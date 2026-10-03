@@ -67,8 +67,7 @@ LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
 # pipeline skill in its default mode" framing it carried while it was the
 # `test` alias. That alias went with it (§6): the directory is deleted, and a
 # name in a list with no directory behind it is a name nothing can resolve.
-UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "install-hooks",
-                   "release", "project"]
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "release", "project"]
 
 #: A step's states (§4.3). `skipped` never existed here; `handed_off` did, and
 #: it is gone -- it named a REASON rather than a state, and the reason is now
@@ -218,9 +217,7 @@ DOC_SET_TITLES = {name: row["title"] for name, row in DOC_SETS.items()}
 # though standardize-project audits them: /acs:setup writes acs-conventions.yml
 # / acs-tests.yml / acs-e2e.yml onto a repo with no source at all, which would
 # misread a greenfield repo as brownfield. The pre-commit row is safe from that
-# same objection -- /acs:install-hooks only ever EDITS a .pre-commit-config.yaml
-# that is already present (install-hooks/SKILL.md's Step 3 branches to raw git
-# hooks when it is absent), and /acs:setup never writes one.
+# same objection -- /acs:setup never writes a .pre-commit-config.yaml.
 #
 # Adding a marker (another stack's manifest, another scaffold output) is a row
 # in both maps -- a data change, never an edit to project/SKILL.md.

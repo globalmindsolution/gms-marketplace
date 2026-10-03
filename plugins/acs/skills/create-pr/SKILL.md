@@ -43,11 +43,10 @@ Parse the printed context JSON. Fields you will use:
   `{provider, key}` remote-tracker mapping, when synced).
 - `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
   artifacts go in `steps/create-pr/`.
-- `settings.formats` — `pr_title` (default `{title}`, so the title carries no
-  ticket id: the body's Ticket section links the ticket; vocabulary
-  `{ticket_id}` `{type}` `{title}` `{summary}` `{external_key}` `{ticket_ref}`
-  for a repo that wants the id in its titles) and
-  `pr_description_template` (default `pr-default`).
+- The PR title is free text you write (concise, normally the ticket's title);
+  no script renders it, and the body's Ticket section names the ticket. The
+  body template is the built-in `pr-default` (a repo's
+  `.acs/templates/pr-default.md` replaces it).
 - `settings.tracker` — `provider` is `local` (no sync), `github`, or `jira`.
 - `checkout_root`, `plugin_root` — for template resolution.
 - `reconcile`, `handoff_summary`, `prior_status` — see
@@ -64,7 +63,7 @@ State inputs (read these; conversation history is NOT an input):
 - `<partition>/ticket.json` — title, type, description, acceptance criteria,
   `external` mapping.
 - `steps/code/state.json` — `invocations[-1].states`: `branch` (the ticket
-  branch /acs:code created per `formats.branch_name`), `specs_implemented`,
+  branch /acs:code created, `<type>/<ticket_id>-<slug>`), `specs_implemented`,
   `tests` `{passed, failed, coverage_percent, coverage_target}`,
   `docs_updated`, `review` `{iterations, findings_open}` (plus `guard_denials`,
   derived, only when the file-map guard denied a write during the /acs:code
@@ -77,14 +76,13 @@ State inputs (read these; conversation history is NOT an input):
 ## The two references, and when to open each
 
 Nearly all of this skill is one flow: check nothing is already open, push the
-branch, render the title and body, open the PR, record it. Two parts are not,
+branch, write the title and body, open the PR, record it. Two parts are not,
 and each row below is read by exactly one kind of run:
 
 | Open | When |
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/resume.md` | `context.reconcile` or `context.handoff_summary` is set. It carries the reconcile procedure, whose first job is to find out whether a PR already exists for this branch. A fresh run skips it. |
 | `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md` | The "Branch / PR / commit conventions" check reports failing after the PR is open. It carries the frozen-payload rule: a red run may be stale, a rerun replays the same stale payload, and an unverified check is never assumed green. |
-| `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md` | Step 1's stacked-base pre-flight exits 1. The same file read at a different moment: it carries the replay remedy for a branch stacked on a squash-merged base — the `git rebase --onto origin/<base> <old-base>` form, the warning that every commit SHA changes, and why `git log --cherry-pick` cannot detect the condition. |
 
 ## Inline apply flow
 
@@ -109,9 +107,9 @@ them to any subagent, on any delivery path or iteration. Open
 and follow it alongside these steps: it carries the ordering and safety rules
 that bind them (what may be mutated, no force-push, no fabricated body
 content), how each outcome ends the run, and the publish report's shape. There
-is no `<task>`/`<result>` exchange and no model tier to apply.
+is no `<task>`/`<result>` exchange and no subagent model to configure.
 
-1. **Branch, base, and the stacked-base pre-flight.** Verify the ticket branch
+1. **Branch and base.** Verify the ticket branch
    from `steps/code/state.json` `states.branch` exists locally
    (`git rev-parse --verify <branch>`) or on origin
    (`git ls-remote origin <branch>`). Detect the base branch here, BEFORE
@@ -119,56 +117,16 @@ is no `<task>`/`<result>` exchange and no model tier to apply.
    `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. That call
    is **critical**, so its failure now stops the run before the push instead of
    after it; step 2 reuses the `<base>` it yields rather than detecting it
-   again. Then refresh the base and run the pre-flight — the helper is
-   read-only and network-free, so the fetch is the caller's job:
+   again.
 
-   ```bash
-   git fetch origin <base>
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stacked-base.py" check \
-     --base <base> --commit-message-format "<settings.formats.commit_message>" \
-     --ticket-prefix <settings.ticket_prefix>
-   ```
-
-   Exit codes 0 and 1 print one compact JSON object on stdout; exit code 2
-   prints nothing on stdout and reports its reason on stderr instead:
-
-   - **Exit 0** (`verdict` `clean` or `own_violations`): nothing is stacked —
-     continue. With `notes` empty, a non-conforming subject here is this
-     branch's own and gets the ordinary gate failure, never replay advice. With
-     `notes` NON-empty the run qualified its own report — a commit it could not
-     test, an index it could not build, or absorbed-looking content with no safe
-     replay point — so do not conclude ownership from it: surface the report's
-     `message` VERBATIM as one `info` finding, record it, and CONTINUE, the same
-     shape as exit 2.
-   - **Exit 1** (`verdict` `stacked_base`): the branch is stacked on a base that
-     was squash-merged and still carries that PR's commits, whose
-     non-conforming subjects the author cannot fix by renaming them. CI no
-     longer reads commit subjects (ADR-0106), so whether this stops the run
-     turns on `settings.enforcement.checks.commit_message`. **On**, the local
-     pre-push hook refuses those subjects: do NOT push, and do NOT run
-     `gh pr create` / `gh pr edit`. Surface the report's `message` VERBATIM as
-     a blocking problem — it names the offending subjects and carries the
-     replay command with real SHAs, which a paraphrase would drop — write it
-     into the phase artifact and follow the Finish failure path (`states.pr`
-     omitted when no PR exists). **Off** (the default), nothing refuses the PR,
-     which would only carry the merged base's commits into review: surface the
-     `message` VERBATIM as one `warning` finding, record it, and CONTINUE. The
-     author runs the replay; this skill never rewrites their branch. The remedy
-     in full, with the rejected `--cherry-pick` record:
-     `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md`.
-   - **Exit 2** (unevaluable — `acs stacked-base: <reason>` on stderr: the base
-     ref does not resolve, or the histories share no merge base): one `info`
-     finding, then CONTINUE. Treat a failed `git fetch` the same way — an
-     advisory pre-flight must never become a new way to fail a good PR.
-
-   Only then push: `git push -u origin <branch>`. If the branch only exists on
+   Then push: `git push -u origin <branch>`. If the branch only exists on
    origin and is already current, skip the push. Never commit new work — if
    uncommitted implementation changes exist, that is /acs:code's job: surface it
    as a problem and stop.
 
-2. **Body.** Resolve the body template: a built-in name (`pr-default`) maps to
-   `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
-   `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path.
+2. **Body.** Resolve the body template: the built-in `pr-default`
+   (`${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`), or the repo's own
+   `<checkout_root>/.acs/templates/pr-default.md` when it has one.
    Unresolvable template = blocking problem, surface it. Fill the resolved
    template into `steps/create-pr/pr-body.md`: replace every
    placeholder (`{ticket_id}`, `{type}`, `{title}`, `{summary}`,
@@ -179,20 +137,11 @@ is no `<task>`/`<result>` exchange and no model tier to apply.
    `steps/code/state.json`, `specs/*.md`, `design.md` when required). The base
    branch is the repo's default — the `<base>` step 1 already detected; reuse
    that value rather than running the detect a second time.
-   Render the PR title via the helper — NOT LLM prose composition — capturing
-   its stdout as `<rendered title>`:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-     --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type <ticket.type> \
-     --title "<title-value>" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-     --provider "<ticket.external.provider or empty>"
-   ```
-
-   `<title-value>` and `<summary>` are derived exactly as before (from
-   `ticket.json` / `steps/code/state.json` / specs), only the render mechanism
-   changes. This is the exact value passed **verbatim** to `gh pr create
-   --title` / `gh pr edit --title` in step 5 — no further transformation.
+   Write the PR title directly — concise, normally the ticket's title
+   (`ticket.json` `title`); no script renders it. This is the exact value
+   passed **verbatim** to `gh pr create --title` / `gh pr edit --title` in
+   step 5 — no further transformation. The ticket is named by the body's
+   Ticket section, not the title.
    Body: Summary (from specs scope + design decision), Ticket (id, title,
    type, external key), Changes (from `specs_implemented`, `docs_updated`,
    and `git diff <base>...<branch> --stat`), Test plan (from
@@ -260,12 +209,12 @@ is no `<task>`/`<result>` exchange and no model tier to apply.
    If no open PR exists for the branch:
 
    ```bash
-   gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file steps/create-pr/pr-body.md --label ACS
+   gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file steps/create-pr/pr-body.md --label ACS
    ```
 
    No `--draft` — PRs are created ready-for-review. If an open PR already
    exists for the branch: update it instead —
-   `gh pr edit <number> --title "<rendered title>" --body-file <body> --add-label ACS`,
+   `gh pr edit <number> --title "<PR title>" --body-file <body> --add-label ACS`,
    plus `gh pr edit <number> --base <default-branch>` when its base is wrong
    and `gh pr ready <number>` when it is a draft.
 
@@ -419,7 +368,7 @@ steps, and return as your final message a handoff like:
 ## Context pressure
 
 If your context window is running low mid-run: do NOT burn the remainder on
-work that would be lost. Flush in-flight work plus soft context (rendered
+work that would be lost. Flush in-flight work plus soft context (PR
 title, body status, push/PR/sync progress, decisions, gotchas) to
 `steps/create-pr/handoff-context.md`, then run:
 

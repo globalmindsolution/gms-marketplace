@@ -17,7 +17,7 @@ import claude_code_adapter as cc  # noqa: E402
 
 from ._common import (DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1, DOC_SET_TITLES,
                       PROJECT_MODE_SENTINEL, PROJECT_MODE_SETTINGS_KEY, TICKET_ID_RE)
-from .settings import enforcement_value
+from . import conventions
 from .repo import ticket_id_from_text
 
 
@@ -354,9 +354,9 @@ def validate_exempt_pr(pr, settings):
     glob) and the C-3 ticket-backed refusal."""
     branch = pr.get("headRefName") or ""
     labels = _pr_labels(pr)
-    exempt_label = enforcement_value(settings, "exempt_label")
-    require_label = enforcement_value(settings, "require_label")
-    exempt_branches = enforcement_value(settings, "exempt_branches") or []
+    exempt_label = conventions.EXEMPT_LABEL
+    require_label = conventions.PIPELINE_LABEL
+    exempt_branches = conventions.EXEMPT_BRANCHES
     prefix = (settings or {}).get("ticket_prefix")
 
     # OPEN + not draft.

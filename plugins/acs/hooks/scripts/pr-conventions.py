@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-"""pr-conventions.py — deterministic PR title render + pre-open convention self-check.
+"""pr-conventions.py — pre-open convention self-check for a PR body.
 
-Gives /acs:create-pr and the three product-level skills (/acs:create-prd,
+Gives /acs:create-pr and the product-level skills (/acs:create-prd,
 /acs:create-architecture, /acs:create-project) a deterministic way to:
-
-  render-title  Render settings.formats.pr_title via acs_lib.render_format
-                (the deterministic path, not LLM prose) and print it verbatim
-                to stdout for the caller to pass straight to
-                `gh pr create/edit --title`.
 
   check         Self-check a filled PR body BEFORE the PR is opened against
                 exactly what CI will check -- that it names its ticket
@@ -20,11 +15,10 @@ Gives /acs:create-pr and the three product-level skills (/acs:create-prd,
 Stdlib-only, runtime-agnostic. Shape mirrors clarify.py / new-ticket.py:
 argparse with subparsers, JSON to stdout, sys.exit non-zero on failure.
 
-Usage:
-  pr-conventions.py render-title --template "[{ticket_ref}] {title}" \\
-      --ticket-id MAR-72 --type task --title "Fix thing" \\
-      --summary "..." --external-key "" --provider ""
+A PR's title is free text the author writes, like any contributor, so there is
+nothing to render.
 
+Usage:
   pr-conventions.py check --body-file pr-body.md --ticket-prefix MAR
 """
 
@@ -36,14 +30,12 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import acs_lib as lib  # noqa: E402
-
 # ---------------------------------------------------------------------------
 # Load check-conventions.py by file path — the SAME in-plugin template path
 # tests/acs/test_conventions_check.py loads, never a consumer-repo copy at
 # <checkout_root>/.acs/ci/check-conventions.py (which may be stale). This is
 # the single source of truth for convention evaluation (AC-3): this module
-# calls ONLY cc.evaluate/cc.format_to_regex, never re-implements them.
+# calls ONLY cc.evaluate, never re-implements it.
 _PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CHECKER = os.path.join(_PLUGIN_ROOT, "templates", "ci", "check-conventions.py")
 _cc_spec = importlib.util.spec_from_file_location("acs_check_conventions", CHECKER)
@@ -54,32 +46,6 @@ _cc_spec.loader.exec_module(cc)
 # headings, run in addition to (never instead of) cc.evaluate().
 _PLACEHOLDER_RE = re.compile(r"\{[a-z_]+\}")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-
-
-def compute_ticket_ref(provider, ticket_id, external_key):
-    """AC-1/AC-2/AC-3: tracker-native reference when synced, else local id."""
-    if provider == "github" and external_key:
-        return "#%s" % external_key
-    if provider == "jira" and external_key:
-        return external_key
-    return ticket_id or ""
-
-
-def build_title(template, ticket_id, type_, title, summary, external_key, provider=""):
-    """Render the PR title via acs_lib.render_format — the AC-1 mechanism.
-
-    No re-implementation: this is a thin mapping-builder around the existing
-    render_format(template, mapping) function (acs_lib/settings.py:621-622).
-    """
-    mapping = {
-        "ticket_id": ticket_id or "",
-        "type": type_ or "",
-        "title": title or "",
-        "summary": summary or "",
-        "external_key": external_key or "",
-        "ticket_ref": compute_ticket_ref(provider, ticket_id, external_key),
-    }
-    return lib.render_format(template, mapping)
 
 
 def _hygiene_errors(body):
@@ -118,18 +84,6 @@ def run_check(body, ticket_prefix):
 # argparse plumbing — testable core above is callable without it.
 # ---------------------------------------------------------------------------
 
-def _add_render_title_parser(sub):
-    p = sub.add_parser("render-title")
-    p.add_argument("--template", required=True)
-    p.add_argument("--ticket-id", default="")
-    p.add_argument("--type", dest="type_", default="")
-    p.add_argument("--title", default="")
-    p.add_argument("--summary", default="")
-    p.add_argument("--external-key", default="")
-    p.add_argument("--provider", default="")
-    return p
-
-
 def _add_check_parser(sub):
     p = sub.add_parser("check")
     p.add_argument("--body-file", required=True)
@@ -145,22 +99,8 @@ def _add_check_parser(sub):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
-    _add_render_title_parser(sub)
     _add_check_parser(sub)
     args = parser.parse_args(argv)
-
-    if args.cmd == "render-title":
-        title = build_title(
-            template=args.template,
-            ticket_id=args.ticket_id,
-            type_=args.type_,
-            title=args.title,
-            summary=args.summary,
-            external_key=args.external_key,
-            provider=args.provider,
-        )
-        print(title)
-        sys.exit(0)
 
     if args.cmd == "check":
         try:

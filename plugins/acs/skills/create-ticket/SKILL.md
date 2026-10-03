@@ -152,7 +152,7 @@ the user confirmed: for them, open
 `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/materialize.md` and
 follow it yourself, in its order — it carries every command, the ordering and
 safety rules, the per-ticket failure classification, and the per-iteration
-report. There is no `<task>`/`<result>` exchange and no model tier to apply:
+report. There is no `<task>`/`<result>` exchange and no subagent model to configure:
 your own session does the work.
 
 Persist the materialize report to
@@ -271,13 +271,12 @@ setting all fields required by `schemas/ticket.schema.json`:
   false), `due_date` (ISO-8601 date string or null); refresh `updated_at`
   (ISO-8601 UTC).
 
-Render the title from `settings.formats.tickets.<type>.title` with placeholders
-`{ticket_id}`, `{type}`, `{title}`, `{external_key}` (empty string when unsynced).
-Build the description from the type's `description_template` (defaults:
-`epic-default`, `story-default`, `task-default`). Resolution: a built-in name maps
-to `${CLAUDE_PLUGIN_ROOT}/templates/<name>.md`; otherwise
-`<repo>/.acs/templates/<name>.md`; otherwise an absolute path. Fill every section,
-drop the HTML comments.
+Set the title: an epic's title is prefixed `[EPIC] `; a story's and a task's is
+the title as given. Build the description from the type's fixed built-in
+template (`epic-default`, `story-default`, `task-default`, at
+`${CLAUDE_PLUGIN_ROOT}/templates/<name>.md`); a repo's own
+`<repo>/.acs/templates/<name>.md` of the same name replaces it. Fill every
+section, drop the HTML comments.
 
 Every description template carries an `acs-ticket: {ticket_id}` line in its
 `## Notes` section (epic-default's own `## Notes`, mirroring task/story) — the

@@ -33,3 +33,6 @@ __pycache__/
 .acs/settings.local.json
 .acs/state-machine/
 coverage.xml
+
+# acs: agents generated from .acs/settings.json models (acs agents sync)
+.claude/agents/acs-*.md

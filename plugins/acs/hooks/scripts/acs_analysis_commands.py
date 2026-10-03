@@ -36,13 +36,14 @@ def _resolve(command, explicit):
     return run_id, rdir, ctx, ticket_id, tdir
 
 
-def _next(rdir, loop):
-    return loop_lib.next_action(rdir, loop, loop_lib.invocations(rdir))
+def _next(rdir, loop, ctx):
+    action = loop_lib.next_action(rdir, loop, loop_lib.invocations(rdir))
+    return lib.agent_sync.with_spawn_names(action, ctx["settings"])
 
 
 def cmd_analysis_next(args):
     run_id, rdir, _ctx, ticket_id, _tdir = _resolve("analysis next", args.run)
-    out = _next(rdir, loop_lib.load_loop(rdir))
+    out = _next(rdir, loop_lib.load_loop(rdir), _ctx)
     emit(dict(out, ok=True, run_id=run_id, ticket_id=ticket_id))
 
 
@@ -53,7 +54,7 @@ def cmd_analysis_plan(args):
         loop = loop_lib.plan(rdir, run_id, ticket_id, areas)
     except lib.GateError as exc:
         die("analysis plan", str(exc))
-    emit({"ok": True, "run_id": run_id, "lanes": loop["lanes"], "next": _next(rdir, loop)})
+    emit({"ok": True, "run_id": run_id, "lanes": loop["lanes"], "next": _next(rdir, loop, _ctx)})
 
 
 def _record(command, args, fn):
@@ -65,7 +66,7 @@ def _record(command, args, fn):
     except lib.GateError as exc:
         die(command, str(exc))
     out = {"ok": True, "run_id": run_id, "recorded": not loop.get("blocked"),
-           "next": _next(rdir, loop)}
+           "next": _next(rdir, loop, ctx)}
     out.update(report)
     emit(out)
     return out

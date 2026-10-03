@@ -5,6 +5,6 @@ pattern: '^# Design[^\n]*EVAL-1[\s\S]*^## Context & constraints[ \t]*$[\s\S]*^##
 flags: m
 ---
 
-The title names the ticket and the six headings -- `enforcement.design_sections`,
-defaulted from the `design-default` template -- appear in order, as the design
+The title names the ticket and the six headings -- derived from the
+`design-default` template -- appear in order, as the design
 reviewer's `structure_lint.py` run requires.

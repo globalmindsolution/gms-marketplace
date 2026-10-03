@@ -1,2 +1,0 @@
-PASS if, like the reference, the run detects a fresh init, applies through `setup apply` with only enforcement.checks.commit_message true and the conventions install, keeps the default formats unwritten, relays the required check and that an admin must make it required, and tells the user each clone turns the local hooks on with /acs:install-hooks.
-FAIL if the run writes any format, hand-edits .acs/settings.json or .gitignore, installs the tests or e2e gate, attempts a branch-protection change, leaves the commit-message check off, or asks the user a question.

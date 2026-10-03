@@ -59,6 +59,8 @@ Usage:
   acs.py slug --text "Introduce the acs CLI"
   acs.py fanout ...
   acs.py doctor
+  acs.py agents sync [--dry-run]
+  acs.py settings scaffold [--write]
   acs.py workflow show
   acs.py workflow validate [--file PATH]
   acs.py artifacts migrate [--dry-run]
@@ -96,6 +98,7 @@ from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_sho
     cmd_ticket_show, cmd_tracker_sync, cmd_verdict_show,
     cmd_workflow_show, cmd_workflow_validate)
 import acs_analysis_commands  # noqa: E402
+import acs_model_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -379,6 +382,7 @@ def build_parser():
     amigrate.set_defaults(func=cmd_artifacts_migrate)
 
     acs_analysis_commands.add_parser(group)
+    acs_model_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

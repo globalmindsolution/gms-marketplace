@@ -91,28 +91,22 @@ def execute_region(body):
 
 
 class CreateDesignSkillResolutionTest(unittest.TestCase):
-    """AC-1/AC-3/AC-4: create-design SKILL resolves formats.design_template
-    (3-tier) and sources required_sections from enforcement.design_sections —
-    while keeping the six-heading literal present as the byte-identical
-    default."""
+    """create-design SKILL uses the built-in `design-default` template (a repo's
+    `.acs/templates/design-default.md` replaces it) and derives the required
+    sections from the template itself, with no settings key for either —
+    while keeping the six-heading literal present."""
 
     def setUp(self):
         self.skill = read(CREATE_DESIGN_SKILL)
 
-    def test_references_design_template_key(self):
-        self.assertIn("formats.design_template", self.skill,
-                      "create-design SKILL must name the configured formats.design_template key")
-
-    def test_describes_three_tier_resolution(self):
-        # identical resolution to create-pr's pr_description_template
-        self.assertIn("${CLAUDE_PLUGIN_ROOT}/templates/", self.skill)
+    def test_names_the_built_in_template_and_its_override(self):
+        self.assertIn("design-default", self.skill)
         self.assertIn(".acs/templates/", self.skill)
-        self.assertIn("absolute path", self.skill)
 
-    def test_required_sections_sourced_from_enforcement_key(self):
-        self.assertIn("enforcement.design_sections", self.skill,
-                      "required_sections must be sourced from enforcement.design_sections, "
-                      "not a sole hardcoded literal")
+    def test_names_no_removed_settings_key(self):
+        for gone in ("formats.design_template", "enforcement.design_sections",
+                     "settings.formats", "settings.enforcement"):
+            self.assertNotIn(gone, self.skill, gone)
 
     def test_six_heading_literal_still_present(self):
         # R-A: the schema module's byte-identical test greps THIS constraint;
@@ -135,8 +129,8 @@ class CreateDesignSkillResolutionTest(unittest.TestCase):
 
 
 class CreateDesignVerifierConfiguredSectionsTest(unittest.TestCase):
-    """AC-3: create-design-design-reviewer dim `structure` still invokes structure_lint
-    AND now notes the section list is the CONFIGURED one."""
+    """create-design-design-reviewer dim `structure` still invokes structure_lint
+    against the sections derived from the resolved design template."""
 
     def setUp(self):
         self.body = read(CREATE_DESIGN_VERIFIER)
@@ -147,10 +141,9 @@ class CreateDesignVerifierConfiguredSectionsTest(unittest.TestCase):
         self.assertIn('severity="blocking"', self.block)
         self.assertIn('dimension="structure"', self.block)
 
-    def test_structure_notes_configured_list(self):
-        self.assertIn("design_sections", self.block,
-                      "create-design-design-reviewer structure dim must note the "
-                      "configured enforcement.design_sections list")
+    def test_structure_names_no_removed_settings_key(self):
+        for gone in ("enforcement.design_sections", "formats.design_template"):
+            self.assertNotIn(gone, self.block, gone)
 
 
 if __name__ == "__main__":

@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-People keep bypassing the acs pipeline and pushing unticketed work. Turn on the enforcement that stops that on this repo.
+People keep bypassing the acs pipeline and pushing unticketed work. Turn on the CI check that stops that on this repo.

@@ -213,7 +213,7 @@ Starts proceed normally.
 
 Otherwise parse the printed context JSON; the fields you need: `partition`,
 `ticket_id`, `ticket` (its `doc_set` names the set; its title is
-`doc_sets[<set>].title`), `settings` (`formats`, `tracker`), `models`,
+`doc_sets[<set>].title`), `settings` (`tracker`), `models`,
 `reconcile`, `handoff_summary`, `post_hook`, `pipeline`, `checkout_root`. The
 delivery ticket is type `task`; `acs step start` has already created the
 partition, ticket.json, the lock, the session pointer, and the `in_progress`
@@ -294,10 +294,10 @@ next author `<task>` `<context>` and the author writes the remediation. This
 skill has no path-driven review-depth selection: the cap is a fixed 3 for
 every set.
 
-| Role | Agent | Kind | Model tier | Writes |
+| Role | Agent | Kind | Spawn as | Writes |
 |---|---|---|---|---|
-| author | `acs:create-docs-author` | write | `executor` | the set's `output-files` under its location, `iter-<n>/authoring.md`, `iter-<n>/author.json` |
-| reviewer | `acs:create-docs-reviewer` | judge | `verifier` | `iter-<n>/reviewer-<slice>.md` only, one per dimension slice — you join them into `iter-<n>/reviewer.md` |
+| author | `acs:create-docs-author` | write | `context.agents.author` | the set's `output-files` under its location, `iter-<n>/authoring.md`, `iter-<n>/author.json` |
+| reviewer | `acs:create-docs-reviewer` | judge | `context.agents.reviewer` | `iter-<n>/reviewer-<slice>.md` only, one per dimension slice — you join them into `iter-<n>/reviewer.md` |
 
 Drive this slice's sets together from this coordinator, in parallel phase
 batches — the mechanism `/acs:code`'s coordinator already uses to run several
@@ -415,11 +415,12 @@ so the two phases judge the same contract.
 Spawn subagents with the Agent tool: subagent_type `acs:create-docs-author`
 / `acs:create-docs-reviewer` (fall back to the un-namespaced name —
 `create-docs-author` / `create-docs-reviewer` — if the runtime rejects the
-namespaced one). Apply the role's model tier at spawn —
-`context.models.executor.model` / `.effort` for the author,
-`context.models.verifier.model` / `.effort` for the reviewer — when not
-`"inherit"`; if the runtime rejects the model or effort, FAIL that set's run
-with that error — no silent fallback.
+namespaced one). Spawn each role under the name in
+`context.agents.<role>` — the plugin's `acs:create-docs-<role>`, or the generated
+`acs-create-docs-<role>` copy `acs step start` wrote where `settings.models` sets a
+model or effort for it. Model and effort travel with that agent, so pass none of
+your own. If the runtime rejects the agent, FAIL that set's run with that exact
+error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -551,14 +552,14 @@ The delivery-ticket pattern, done by you, inside that set's worktree
 
 1. **Branch** (before the first author writes): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
-   proceeding). Render `settings.formats.branch_name` (default
-   `{type}/{ticket_id}-{slug}`) with `type=task`, the ticket id, and the
+   proceeding). Name the branch
+   `<type>/<ticket_id>-<slug>` with `type=task`, the ticket id, and the
    slugified title — e.g. `task/SHOP-2-product-quality-doc-set` — and
    `git checkout -b` it from the default branch.
 2. **Commit** (after the reviewer passes): stage ONLY `<location>/` and verify
    the diff is docs-only (`git diff --cached --name-only` — every path under
-   the set's location). Commit with `settings.formats.commit_message` (default
-   `{ticket_id} {summary}`), e.g. `SHOP-2 Add product quality doc set` (or
+   the set's location). Commit in the repo's own style, naming the ticket id (default
+   `<ticket_id> <summary>`), e.g. `SHOP-2 Add product quality doc set` (or
    `Regenerate …` on re-run).
 3. **Push & PR**: `git push -u origin <branch>`, then follow
    `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label,

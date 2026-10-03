@@ -42,16 +42,17 @@ entry. Parse the printed context JSON; the fields you will use:
 
 - `ticket_id`, `ticket`, `partition` — the delivery ticket and its workspace partition
 - `checkout_root` — the consumer repo root (the only tree the scaffolder mutates)
-- `settings` — `test_coverage_percent`, `formats`, `tracker`
-- `models` — per-tier `{model, effort}` resolved from settings
+- `settings` — `test_coverage_percent`, `tracker`
+- `agents` — the agent name to spawn per role, resolved from settings
 - `reconcile`, `handoff_summary`, `prior_status`, `pipeline`
 
 If `acs step start` exits non-zero: stop and surface its stderr verbatim — do not improvise.
 
-Apply `context.models.<tier>.model` / `.effort` when spawning each subagent, unless
-the value is `"inherit"`: the scaffolder (a `write` role) runs on the `executor` tier,
-the build-checker (a `judge` role) on the `verifier` tier. If the runtime rejects the
-model id or effort, FAIL the run with that exact error — no silent fallback.
+Spawn each role under the name in `context.agents.<role>` — the plugin's
+`acs:create-project-<role>`, or the generated `acs-create-project-<role>` copy
+`acs step start` wrote where `settings.models` sets a model or effort for it. Model
+and effort travel with that agent, so pass none of your own. If the runtime rejects
+the agent, FAIL the run with that exact error — no silent fallback.
 
 ## Resume & reconcile
 
@@ -152,8 +153,8 @@ recommendation is advice, never a precondition.
 
 The loop is scaffold -> build-check, at most 3 iterations, between two subagents:
 
-- **scaffolder** — `acs:create-project-scaffolder`, a `write` role on the
-  `executor` model tier. Iteration 1's scaffolder reads the architecture doc set (or,
+- **scaffolder** — `acs:create-project-scaffolder`, a `write` role.
+  Iteration 1's scaffolder reads the architecture doc set (or,
   under the no-architecture fallback, the confirmed `C-n` entries), pins the
   scaffold — layout, package/build config, test and coverage tooling, lint, CI,
   the vertical slice, the exact verification commands, and the Slices section
@@ -162,8 +163,8 @@ The loop is scaffold -> build-check, at most 3 iterations, between two subagents
   in parallel, from iteration 1 (Parallelism below), each building its own files
   green, and an integration scaffolder reconciles the seams and makes the whole
   tree build green together before the build-check.
-- **build-checker** — `acs:create-project-build-checker`, a `judge` role on the
-  `verifier` model tier, read-only on the repo. It re-runs the notes' commands
+- **build-checker** — `acs:create-project-build-checker`, a `judge` role,
+  read-only on the repo. It re-runs the notes' commands
   itself and judges the result fresh, as three dimension slices in parallel
   (Parallelism below).
 
@@ -392,8 +393,7 @@ see Build-check below for where iteration 2+ findings go.
 
 Iteration 1 only — create the delivery branch before any scaffolder runs (you own the
 branch, the push and the PR; a scaffolder commits on the branch its notes name but
-never pushes or opens the PR). Branch name per `settings.formats.branch_name`
-(default `{type}/{ticket_id}-{slug}`) with `type=task`, the real ticket id, and the
+never pushes or opens the PR). Branch name `<type>/<ticket_id>-<slug>` with `type=task`, the real ticket id, and the
 slug of the ticket title:
 
 ```bash
@@ -447,8 +447,8 @@ with no plan phase in between — the scaffolder authors the remediation. After 
 
 Only after a build-check pass (zero findings):
 
-1. Commit on the scaffold branch, message per `settings.formats.commit_message`
-   (default `{ticket_id} {summary}`), and push. `git add -A` is right here and
+1. Commit on the scaffold branch, message in the repo's own style, naming the ticket id
+   (default `<ticket_id> <summary>`), and push. `git add -A` is right here and
    only here: a scaffold is new files by definition, so there is no existing
    source for a broad add to sweep up (contrast /acs:standardize-project, which
    forbids the same command for exactly that reason):

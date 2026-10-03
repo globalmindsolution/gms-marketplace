@@ -14,19 +14,11 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import GateError, HOOKED_SKILLS, TICKET_TYPES, deep_merge, read_json
+from ._common import GateError, deep_merge, read_json
+from .models import validate_models
 from .repo import checkout_root, default_state_root, main_repo_root
-from .hostgates import DEFAULT_GATE_RESPONSE, GATE_RESPONSES
 
 
-
-# Placeholder vocabulary per inline format field (docs/requirements/functional/configuration.md).
-FORMAT_PLACEHOLDERS = {
-    "branch_name": {"ticket_id", "type", "slug", "external_key"},
-    "commit_message": {"ticket_id", "type", "summary", "external_key"},
-    "pr_title": {"ticket_id", "type", "title", "summary", "external_key", "ticket_ref"},
-    "ticket_title": {"ticket_id", "type", "title", "external_key"},
-}
 
 BUILTIN_TEMPLATES = {"pr-default", "epic-default", "story-default", "task-default"}
 
@@ -42,20 +34,7 @@ DEFAULT_SETTINGS = {
     "merge_strategy": "squash",
     "suites": {},
     "workflow": {"advisories": True},
-    "hook_gates": {"when_absent": DEFAULT_GATE_RESPONSE},
     "tracker": {"provider": "local"},
-    "models": {},
-    "formats": {
-        "branch_name": "{type}/{ticket_id}-{slug}",
-        "commit_message": "{ticket_id} {summary}",
-        "pr_title": "{title}",
-        "pr_description_template": "pr-default",
-        "tickets": {
-            "epic": {"title": "[EPIC] {title}", "description_template": "epic-default"},
-            "story": {"title": "{title}", "description_template": "story-default"},
-            "task": {"title": "{title}", "description_template": "task-default"},
-        },
-    },
 }
 
 #: Keys an older acs read and this one ignores (ADR-0102): no setting locates a
@@ -66,22 +45,10 @@ RETIRED_SETTINGS_KEYS = (
     "workspace_path", "prd_path", "architecture_path", "requirements_path",
     "requirements_layout", "adr_path", "quality_path", "operations_path",
     "principles_path", "standards_path", "artifacts", "contracts_path",
+    # ADR-0115 and the conventions removal: the model follows the repo's own
+    # style, and the few fixed conventions live in acs_lib.conventions.
+    "formats", "enforcement", "hook_gates",
 )
-
-# Enforcement defaults — mirror schemas/settings.schema.json + the consumer-side
-# templates/ci/check-conventions.py, used only when a key is absent from settings
-# so /acs:merge-pr --pr behaves predictably on a repo with no enforcement block.
-ENFORCEMENT_DEFAULTS = {
-    "exempt_branches": ["release/*", "dependabot/*", "renovate/*"],
-    "exempt_label": "acs-exempt",
-    "require_label": "ACS",
-}
-
-
-def enforcement_value(settings, key):
-    """Resolve enforcement.<key> from settings, defaulting per ENFORCEMENT_DEFAULTS."""
-    return ((settings or {}).get("enforcement") or {}).get(key, ENFORCEMENT_DEFAULTS[key])
-
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -158,18 +125,6 @@ def validate_settings(settings, cwd, require_workspace=True):
     strategy = settings.get("merge_strategy", "squash")
     if strategy not in ("squash", "merge", "rebase"):
         raise GateError("merge_strategy must be one of squash|merge|rebase; got %r." % (strategy,))
-    hook_gates = settings.get("hook_gates", {})
-    if not isinstance(hook_gates, dict):
-        raise GateError(
-            "hook_gates must be an object with an optional 'when_absent' key (%s); got %r."
-            % ("|".join(GATE_RESPONSES), hook_gates))
-    when_absent = hook_gates.get("when_absent", DEFAULT_GATE_RESPONSE)
-    if when_absent not in GATE_RESPONSES:
-        raise GateError(
-            "hook_gates.when_absent must be one of %s; got %r.\n"
-            "warn (the default) prints the degraded-enforcement notice and lets the run "
-            "continue; refuse blocks the run when the hook gates are not firing."
-            % ("|".join(GATE_RESPONSES), when_absent))
     e2e = settings.get("e2e")
     if e2e is not None:
         if not isinstance(e2e, dict) or not isinstance(e2e.get("command"), str) or not e2e["command"].strip():
@@ -190,136 +145,8 @@ def validate_settings(settings, cwd, require_workspace=True):
                 raise GateError("suites.%s.%s must be a non-empty string when set." % (name, key))
         if "per_iteration" in suite and not isinstance(suite["per_iteration"], bool):
             raise GateError("suites.%s.per_iteration must be a boolean." % name)
-    validate_formats(settings.get("formats", {}))
     validate_models(settings.get("models", {}))
     return workspace if require_workspace else None
-
-
-def validate_formats(formats):
-    def check(field, template, vocab_key):
-        if not isinstance(template, str) or not template.strip():
-            raise GateError("formats.%s must be a non-empty string." % field)
-        used = set(re.findall(r"\{([a-z_]+)\}", template))
-        unknown = used - FORMAT_PLACEHOLDERS[vocab_key]
-        if unknown:
-            raise GateError(
-                "formats.%s uses unknown placeholder(s) %s; allowed: %s."
-                % (field, ", ".join("{%s}" % p for p in sorted(unknown)),
-                   ", ".join("{%s}" % p for p in sorted(FORMAT_PLACEHOLDERS[vocab_key])))
-            )
-
-    if "branch_name" in formats:
-        check("branch_name", formats["branch_name"], "branch_name")
-        if "{ticket_id}" not in formats["branch_name"]:
-            raise GateError("formats.branch_name must embed {ticket_id} — ticket detection from branch names depends on it.")
-    if "commit_message" in formats:
-        check("commit_message", formats["commit_message"], "commit_message")
-    if "pr_title" in formats:
-        check("pr_title", formats["pr_title"], "pr_title")
-    tickets = formats.get("tickets", {})
-    if not isinstance(tickets, dict):
-        raise GateError("formats.tickets must be an object keyed by ticket type.")
-    for ttype, conf in tickets.items():
-        if ttype not in TICKET_TYPES:
-            raise GateError("formats.tickets.%s: unknown ticket type (epic|story|task)." % ttype)
-        if isinstance(conf, dict) and "title" in conf:
-            check("tickets.%s.title" % ttype, conf["title"], "ticket_title")
-
-
-#: The per-role models acs recommends, and the single source of truth for that
-#: recommendation. /acs:setup no longer offers models -- it configures
-#: conventions and CI only -- so a repo that wants them pinned copies these
-#: into its `models` block by hand; a new model generation is a change here.
-#:
-#: A consumer repo's own choice never edits this constant -- what acs recommends
-#: is not what any one repo happens to run. Nothing in the runtime reads it
-#: either: the recommendation is a product fact, not an input to gate or spawn
-#: behaviour, both of which take their models from the repo's settings.
-RECOMMENDED_MODELS = {
-    "planner":  {"model": "claude-opus-5",   "effort": "high"},
-    "executor": {"model": "claude-sonnet-5", "effort": "high"},
-    "verifier": {"model": "claude-opus-5",   "effort": "high"},
-}
-
-#: Reasoning-effort values a subagent role may carry (mirrors settings.schema.json).
-MODEL_EFFORTS = ("low", "medium", "high", "xhigh", "max", "inherit")
-#: The model TIERS a model/effort pair can be configured for. Subagent roles
-#: are per skill (`create-prd-surveyor`, `code-implementer`, ...); each runs on
-#: the tier its kind picks -- acs_lib.skills.model_tier -- so a new role never
-#: needs a new settings key.
-MODEL_ROLES = ("planner", "executor", "verifier")
-
-
-def _model_override_skills():
-    """Skills that spawn reflection subagents, so a per-skill override is meaningful.
-
-    Derived from HOOKED_SKILLS rather than hand-listed: /ship spawns no
-    subagents of its own and every hooked skill can."""
-    return frozenset(HOOKED_SKILLS)
-
-
-MODEL_OVERRIDE_SKILLS = _model_override_skills()
-
-
-def validate_models(models):
-    if not isinstance(models, dict):
-        raise GateError("models must be an object.")
-
-    def check_role(path, value):
-        if isinstance(value, str):
-            if not value.strip():
-                raise GateError("models.%s must be a non-empty model string or a {model, effort} object." % path)
-            return
-        if isinstance(value, dict):
-            extra = set(value) - {"model", "effort"}
-            if extra:
-                raise GateError("models.%s: unknown key(s) %s (allowed: model, effort)." % (path, ", ".join(sorted(extra))))
-            effort = value.get("effort")
-            if effort is not None and effort not in MODEL_EFFORTS:
-                raise GateError("models.%s.effort: unknown value %r (allowed: %s)."
-                                % (path, effort, ", ".join(MODEL_EFFORTS)))
-            return
-        raise GateError("models.%s must be a model string or a {model, effort} object." % path)
-
-    for role in MODEL_ROLES:
-        if role in models:
-            check_role(role, models[role])
-    overrides = models.get("overrides", {})
-    if not isinstance(overrides, dict):
-        raise GateError("models.overrides must be an object of skill -> role -> model.")
-    for skill, roles in overrides.items():
-        if skill not in MODEL_OVERRIDE_SKILLS:
-            raise GateError("models.overrides.%s: unknown skill (allowed: %s)."
-                            % (skill, ", ".join(sorted(MODEL_OVERRIDE_SKILLS))))
-        if not isinstance(roles, dict):
-            raise GateError("models.overrides.%s must be an object of role -> model." % skill)
-        for role, value in roles.items():
-            if role not in MODEL_ROLES:
-                raise GateError("models.overrides.%s.%s: unknown role (allowed: %s)."
-                                % (skill, role, ", ".join(MODEL_ROLES)))
-            check_role("overrides.%s.%s" % (skill, role), value)
-
-
-def resolve_role_model(settings, skill, role):
-    """Per-field resolution: overrides.<skill>.<role> -> models.<role> -> inherit."""
-    models = settings.get("models", {}) or {}
-
-    def as_obj(value):
-        if isinstance(value, str):
-            return {"model": value}
-        return dict(value or {})
-
-    resolved = {}
-    for source in (models.get(role), (models.get("overrides", {}) or {}).get(skill, {}).get(role)):
-        if source:
-            for key, value in as_obj(source).items():
-                if value and value != "inherit":
-                    resolved[key] = value
-    return {"model": resolved.get("model", "inherit"), "effort": resolved.get("effort", "inherit")}
-
-
-def render_format(template, mapping):
-    return re.sub(r"\{([a-z_]+)\}", lambda m: str(mapping.get(m.group(1), "")), template)
 
 
 def resolve_template(value, repo_root, plugin_root):

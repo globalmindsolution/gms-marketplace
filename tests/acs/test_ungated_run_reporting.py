@@ -10,11 +10,9 @@ skill-start.py -- the first action of every acs skill -- does with that answer:
   * when there is no evidence the gates fired it writes the notice naming the
     four enforcements this run cannot confirm to stderr as well, and records the
     verdict on the run entry, where an audit can still read it after the run;
-  * under `hook_gates.when_absent: refuse` it blocks the run with exit 2 BEFORE
-    any partition, lock, pointer or ledger write, so a refused run leaves
-    nothing to unwind and no run entry exists to carry a verdict;
-  * under the default `warn` a host with no hooks at all still completes -- the
-    degraded state is made visible, never closed by blocking work.
+  * a host with no hooks at all still completes -- the degraded state is made
+    visible, never closed by blocking work (the evidence write is fail-open, so
+    its absence cannot tell a hookless host from a failed write).
 
 The gated half is pinned just as hard: a run the real `dispatch.py pre`
 gated is silent, refuses nothing, and prints a payload that differs from the
@@ -57,7 +55,7 @@ START_CONTEXT_KEYS = {
     "ok", "step", "status", "in_workflow", "iteration", "run_id", "subject",
     "ticket_id", "ticket", "partition", "workflow", "cursor", "repo_id",
     "workspace", "checkout_id", "checkout_root", "plugin_root", "settings",
-    "settings_sources", "models", "prior_status", "reconcile", "handoff_summary",
+    "settings_sources", "agents", "agents_sync", "prior_status", "reconcile", "handoff_summary",
     "design",
 }
 
@@ -83,11 +81,9 @@ class SkillStartCase(acs_case.AcsWorkspaceCase):
     """A workspace plus the two ways a run becomes gated or ungated: firing the
     real pre-hook, or simply never firing it (the host with no hooks)."""
 
-    def settings(self, when_absent=None, **extra):
-        """Rewrite .acs/settings.json, optionally naming hook_gates.when_absent."""
+    def settings(self, **extra):
+        """Rewrite .acs/settings.json."""
         data = {"ticket_prefix": "SHOP", "test_coverage_percent": 90}
-        if when_absent is not None:
-            data["hook_gates"] = {"when_absent": when_absent}
         data.update(extra)
         self.write_settings(data)
 
@@ -161,7 +157,6 @@ class ContextFieldTest(SkillStartCase):
         verdict = payload["gate_enforcement"]
         self.assertFalse(verdict["gated"])
         self.assertEqual(verdict["reason"], "no_gate_evidence")
-        self.assertEqual(verdict["response"], "warn")
         self.assertTrue(verdict["checked_at"])
 
     def test_notice_lists_the_four_enforcements(self):
@@ -219,7 +214,6 @@ class LedgerTest(SkillStartCase):
         verdict = self.entry("SHOP-1")["gate_enforcement"]
         self.assertFalse(verdict["gated"])
         self.assertEqual(verdict["reason"], "no_gate_evidence")
-        self.assertEqual(verdict["response"], "warn")
         self.assertEqual(verdict["unconfirmed"], ENFORCEMENTS)
         self.assertIn("DEGRADED ENFORCEMENT", verdict["notice"])
 
@@ -257,7 +251,7 @@ class LedgerTest(SkillStartCase):
 
 
 class DefaultResponseTest(SkillStartCase):
-    """AC-5: warn is the default, so a host that fires no hooks still runs."""
+    """AC-5: a host that fires no hooks still runs, with the notice."""
 
     def test_ungated_run_exits_zero_and_writes_its_run_entry(self):
         self.mint("SHOP-1")
@@ -272,8 +266,8 @@ class DefaultResponseTest(SkillStartCase):
         self.mint("SHOP-1")
         code, payload, err = self.start("SHOP-1")
         self.assertEqual(code, 0, err)
-        self.assertEqual(payload["settings"]["hook_gates"]["when_absent"], "warn")
-        self.assertEqual(payload["gate_enforcement"]["response"], "warn")
+        self.assertNotIn("response", payload["gate_enforcement"])
+        self.assertIn("continues ungated", payload["gate_enforcement"]["notice"])
 
 
 class GatedRunIsSilentTest(SkillStartCase):
@@ -288,15 +282,6 @@ class GatedRunIsSilentTest(SkillStartCase):
         self.assertNotIn("DEGRADED ENFORCEMENT", err)
         self.assertEqual(err, "")
 
-    def test_gated_run_is_not_refused_even_under_refuse(self):
-        self.settings(when_absent="refuse")
-        self.mint("SHOP-1")
-        self.gate()
-        code, payload, err = self.start("SHOP-1")
-        self.assertEqual(code, 0, err)
-        self.assertTrue(payload["gate_enforcement"]["gated"])
-        self.assertEqual(payload["gate_enforcement"]["response"], "refuse")
-
     def test_gated_payload_is_otherwise_unchanged(self):
         self.mint("SHOP-1")
         self.gate()
@@ -305,61 +290,6 @@ class GatedRunIsSilentTest(SkillStartCase):
         self.assertIn("gate_enforcement", payload)
         self.assertEqual(set(payload) - {"gate_enforcement"},
                          START_CONTEXT_KEYS)
-
-
-class RefuseResponseTest(SkillStartCase):
-    """AC-6, second half: under refuse the run is blocked before anything
-    durable exists (clarification C-6), so there is nothing to unwind."""
-
-    def test_exit_2_with_actionable_stderr(self):
-        self.settings(when_absent="refuse")
-        self.mint("SHOP-1")
-        code, payload, err = self.start("SHOP-1")
-        self.assertEqual(code, 2)
-        self.assertIsNone(payload)
-        self.assertIn("DEGRADED ENFORCEMENT", err)
-        self.assertIn("refuse", err)
-        self.assertIn("precondition gate", err)
-        self.assertNotIn("Traceback", err)
-
-    def test_no_run_lock_pointer_or_state_is_written(self):
-        """A refused start leaves NOTHING to unwind. The refusal is weighed
-        before the run is even resolved, so no run directory is created, no
-        lock taken and no pointer written."""
-        self.settings(when_absent="refuse")
-        self.mint("SHOP-1")
-        code, _payload, _err = self.run_start_without_a_run("SHOP-1")
-        self.assertEqual(code, 2)
-        rdir = lib.run_dir(lib.repo_dir(self.ws, REPO_ID), "SHOP-1")
-        self.assertFalse(os.path.isdir(rdir), "no run directory may be created")
-        self.assertFalse(os.path.exists(lib.lock_path(rdir)))
-        # The POINTER's answer, not the file's existence: "this checkout was
-        # not pointed at a run" is the claim, and reading it back states that
-        # whether or not the pointer file happens to exist for other reasons.
-        repo = lib.repo_dir(self.ws, REPO_ID)
-        self.assertIsNone(
-            lib.sessions.current_run_id(repo, lib.checkout_id(self.repo)))
-
-    def test_refused_exempt_pr_mode_prints_no_payload(self):
-        self.settings(when_absent="refuse")
-        bindir = tempfile.mkdtemp(prefix="acs-fakebin-", dir=self.tmp)
-        env = acs_case.fake_gh(bindir, "echo '%s'" % json.dumps(EXEMPT_PR_DOC))
-        out = self.run_script("acs.py", "step", "start", "--step", "merge-pr",
-                              "--pr", "87", env=env)
-        self.assertEqual(out.returncode, 2)
-        self.assertEqual(out.stdout, "")
-        self.assertIn("DEGRADED ENFORCEMENT", out.stderr)
-
-    def test_acs_py_start_refuses_identically(self):
-        self.settings(when_absent="refuse")
-        self.mint("SHOP-1")
-        direct = self.run_script("acs.py", "step", "start", "--step", "code", "--run", "SHOP-1")
-        delegated = self.run_script("acs.py", "step", "start", "--step", "code",
-                                    "--run", "SHOP-1")
-        self.assertEqual(direct.returncode, 2, direct.stderr)
-        self.assertEqual(delegated.returncode, direct.returncode)
-        self.assertEqual(delegated.stderr, direct.stderr)
-        self.assertEqual(delegated.stdout, direct.stdout)
 
 
 class NoticePlacementTest(SkillStartCase):
@@ -371,16 +301,6 @@ class NoticePlacementTest(SkillStartCase):
         self.assertEqual(code, 2)
         self.assertNotIn("DEGRADED ENFORCEMENT", err)
         self.assertIn("no run 'SHOP-999'", err)
-
-    def test_the_refusal_the_gate_itself_raises_still_carries_it(self):
-        """...and it comes FIRST: the gate is weighed before the run is
-        resolved, so a refused host says so rather than reporting a missing
-        run the operator was never going to be allowed to start."""
-        self.settings(when_absent="refuse")
-        code, _payload, err = self.run_start_without_a_run("SHOP-999")
-        self.assertEqual(code, 2)
-        self.assertIn("DEGRADED ENFORCEMENT", err)
-        self.assertNotIn("no run 'SHOP-999'", err)
 
 
 class EvidenceConsumptionTest(SkillStartCase):

@@ -88,10 +88,9 @@ Parse the printed context JSON. Fields you will use:
   `<design.dir>/design.md` while it still lives in the partition. Call it
   `<design_doc>`; the analysis is bounded by a design that already exists,
   never a second opinion on it.
-- `settings` — you need `formats.branch_name` (the controller renders
-  `formats.commit_message` itself when it publishes).
-- `models` — per-tier `{model, effort}`: the analyst and the impact analysts
-  run on the `executor` tier, the impact reviewer on the `verifier` tier.
+- `agents` — the agent name to spawn per role; the analyst's, impact analysts'
+  and impact reviewer's model and effort come from
+  `settings.models.analyze-requirements.<role>` (inheriting when unset).
 - `reconcile`, `handoff_summary`, `prior_status` — see
   `references/resume.md`.
 
@@ -108,10 +107,10 @@ out with `/acs:create-ticket <id>`, then run `/acs:analyze-requirements` on a ch
 
 `analysis.md` is a file in the consumer repo — in the ticket's docs folder,
 `docs/tickets/<id>/`, a fixed location rather than a setting — and belongs on
-the ticket branch with every other change for this ticket. Render
-`settings.formats.branch_name` (default `"{type}/{ticket_id}-{slug}"`) with
-`{ticket_id}`, `{type}` (`ticket.type`), `{slug}` (the slugified ticket title —
-`acs.py slug --text "<title>"`), and `{external_key}`, then create or reuse it
+the ticket branch with every other change for this ticket. Name the
+branch `<type>/<ticket_id>-<slug>` with
+`<ticket_id>`, `<type>` (`ticket.type`) and `<slug>` (the slugified ticket title —
+`acs.py slug --text "<title>"`), then create or reuse it
 BEFORE the first `acs.py analysis` call:
 
 ```bash
@@ -247,11 +246,11 @@ pass no verdict, no finding count and no path.
 
 ## Subagents — roles, spawning and messages
 
-| Role | Agent | Kind | Model tier | Runs in |
+| Role | Agent | Kind | Spawn as | Runs in |
 |---|---|---|---|---|
-| analyst | `acs:analyze-requirements-analyst` | write | `executor` | `survey` (requirements lane), `synthesize`, `draft` |
-| impact analyst | `acs:analyze-requirements-impact-analyst` | survey | `executor` | `survey` (one lane per code area) |
-| impact reviewer | `acs:analyze-requirements-impact-reviewer` | judge | `verifier` | `review` (three judge slices) |
+| analyst | `acs:analyze-requirements-analyst` | write | `context.agents.analyst` | `survey` (requirements lane), `synthesize`, `draft` |
+| impact analyst | `acs:analyze-requirements-impact-analyst` | survey | `context.agents.impact-analyst` | `survey` (one lane per code area) |
+| impact reviewer | `acs:analyze-requirements-impact-reviewer` | judge | `context.agents.impact-reviewer` | `review` (three judge slices) |
 
 **Every analyst task names its pass** in
 `<constraint name="pass">requirements|synthesis|draft</constraint>` — the
@@ -348,11 +347,12 @@ slice". A failed iteration's blocking findings are the next `draft` action's
   "acs:analyze-requirements-analyst"`, `"acs:analyze-requirements-impact-analyst"`
   and `"acs:analyze-requirements-impact-reviewer"` — the action's `agent` —
   falling back to the un-namespaced name only if the runtime rejects the
-  namespaced one. Apply the role's tier at spawn —
-  `context.models.executor.model` / `.effort` for the analyst and the impact
-  analysts, `context.models.verifier.model` / `.effort` for the impact
-  reviewer — when not `"inherit"`; if the runtime rejects the model or
-  effort, FAIL the run with that exact error — no silent fallback.
+  namespaced one. Spawn each role under the name in
+  `context.agents.<role>` — the plugin's `acs:analyze-requirements-<role>`, or the
+  generated `acs-analyze-requirements-<role>` copy `acs step start` wrote where
+  `settings.models` sets a model or effort for it. Model and effort travel with
+  that agent, so pass none of your own. If the runtime rejects the agent, FAIL
+  the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
@@ -614,7 +614,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
 the next draft pass, or ends the run at the cap), never patched by you. Then
 it copies the draft byte-for-byte to the resolved analysis path and reads it
 back; inside the repo it runs `git add` on the ticket's docs folder ONLY and
-commits that folder ONLY with `settings.formats.commit_message`. It commits
+commits that folder ONLY, in the repo's own commit style naming the ticket id. It commits
 **the ticket's whole docs folder**, not only `analysis.md`: `ticket.md` and,
 when the ticket needed one, `design.md` were published in the Design phase
 before this branch existed, and acs never commits to the default branch, so

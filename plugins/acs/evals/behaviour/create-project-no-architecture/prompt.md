@@ -31,7 +31,6 @@ answers and don't ask me anything:
 - CI: one GitHub Actions workflow running install, lint and tests with
   coverage.
 - No e2e harness. The first slice is `GET /health` returning `ok`.
-- Keep the default branch and commit formats.
 
 Don't write the architecture docs yourself. If pushing or opening the PR
 fails, stop there and tell me what happened.

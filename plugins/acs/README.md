@@ -126,7 +126,7 @@ The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 30 skills
+## The 29 skills
 
 The tables group the skills by phase — Design, Build, Test, Ship or
 Utility. There is no registry file and no per-skill manifest: a skill is its
@@ -236,8 +236,7 @@ different.
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
-| `/acs:setup` | — (optional; no skill needs it first) | Configures conventions and CI: the branch/commit/PR formats, and the optional convention gate (every PR names its ticket) and tests gate. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
-| `/acs:install-hooks` | — (utility, user-invoked only) | Installs this clone's local convention hooks (`commit-msg` + `pre-push`) that enforce the configured `formats.*` before push — the `pre-commit install` equivalent for acs. Per-clone; each teammate runs it once. |
+| `/acs:setup` | — (optional; no skill needs it first) | Sets the ticket prefix and installs the CI gates: the optional ticket-link check (every PR names its ticket), tests and e2e; can scaffold the `models` block. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step (every member at once when the cursor sits in a parallel group), then asks again, until the list is done. Never merges. |
@@ -341,9 +340,8 @@ over the built-in defaults. The most-used keys:
 | `ticket_prefix` | `"ACS"` | Ticket id prefix (`ACS` → `ACS-123`); optional — set your own by hand (`SHOP` → `SHOP-123`) |
 | `test_coverage_percent` | `90` | `/acs:code` TDD coverage target (hard fail if missed) |
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
-| `models` | inherit | Model + reasoning effort by tier (`planner` / `executor` / `verifier`, per-skill overrides). Each subagent runs on the tier its kind picks: survey roles and `create-impl-plan`'s planner on `planner`, write roles on `executor`, judge roles on `verifier` |
+| `models` | inherit | Model + reasoning effort per subagent, `models.<skill>.<role> = {model, effort}` (a model alias or id, an effort `low`…`max`, or `inherit`). Written in full by `acs.py settings scaffold --write`; `acs step start` turns each entry that sets a value into a `.claude/agents/acs-<skill>-<role>.md` copy and spawns that. An absent skill, role or field inherits the parent session |
 | `tracker` | `{ "provider": "local" }` | Ticket backend: `local`, `github` (Projects v2), or `jira` |
-| `formats` | built-ins | Branch/commit/PR/ticket formats (`branch_name` must embed `{ticket_id}`) |
 
 No key locates a document: acs finds the repo's documents through `CLAUDE.md`
 and the repo itself, creates a missing one at the `docs/` conventions

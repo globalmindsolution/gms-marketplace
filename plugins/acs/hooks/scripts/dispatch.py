@@ -9,9 +9,9 @@ Registered in hooks/hooks.json:
   * `dispatch.py file-map`       on PreToolUse (matcher: the write tools) — exit 2
     denies a write outside the declared executor file map, but ONLY while an acs
     executor is active and a map has been declared.
-  * `dispatch.py subagent-start` on SubagentStart (matcher: `^acs:`) — records which
+  * `dispatch.py subagent-start` on SubagentStart (matcher: `^acs[:-]`) — records which
     acs agent is running, for the file-map guard.
-  * `dispatch.py subagent-stop`  on SubagentStop (matcher: `^acs:`) — validates the
+  * `dispatch.py subagent-stop`  on SubagentStop (matcher: `^acs[:-]`) — validates the
     returned XML and writes the phase snapshot. Exit 2 sends the subagent back for
     a corrected message, at most BLOCK_LIMIT times.
   * `dispatch.py stop`           on Stop — exit 2 refuses to end a turn that left a
