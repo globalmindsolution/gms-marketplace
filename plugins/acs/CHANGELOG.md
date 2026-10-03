@@ -19,6 +19,16 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+### Added
+
+- **`/acs:setup` writes `.claude/launch.json`**, the Claude Code Desktop app's
+  preview-server config (Code tab and Browser pane). `setup detect` reports the
+  file and guesses a dev server from `package.json` (npm, pnpm, yarn or bun), a
+  Django `manage.py` or `bin/rails`; `setup apply` takes a `launch` answer,
+  validates it against the documented schema, merges by configuration name
+  (an existing entry is never replaced), warns about secret-looking `env` names,
+  and refuses to rewrite a file that has comments.
+
 ### Changed
 
 - **One `tests` block** (ADR-0117): `tests.coverage` replaces `test_coverage_percent`,

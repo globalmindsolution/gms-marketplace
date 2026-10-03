@@ -239,7 +239,7 @@ different.
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
-| `/acs:setup` | — (optional; no skill needs it first) | Sets the ticket prefix and installs the CI gates: the optional ticket-link check (every PR names its ticket), tests and e2e; can scaffold the `models` block. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
+| `/acs:setup` | — (optional; no skill needs it first) | Sets the ticket prefix and installs the CI gates: the optional ticket-link check (every PR names its ticket), tests and e2e; can scaffold the `models` block and write `.claude/launch.json`, the Desktop app's preview-server config. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step (every member at once when the cursor sits in a parallel group), then asks again, until the list is done. Never merges. |
