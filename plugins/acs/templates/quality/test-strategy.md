@@ -13,7 +13,7 @@
 
 ## Coverage policy
 
-<!-- Summarize the test_coverage_percent target and the rationale for it;
+<!-- Summarize the tests.coverage target and the rationale for it;
 link to coverage-policy.md for the enforceable detail. -->
 
 ## Suite inventory
@@ -22,8 +22,8 @@ link to coverage-policy.md for the enforceable detail. -->
 
 ## CI gates
 
-<!-- Describe which suites and enforcement settings gate CI (tests/enforcement
-from settings.json) and what blocks a merge. -->
+<!-- Describe which suites gate CI (the `tests` block of settings.json and the
+ticket-link convention check) and what blocks a merge. -->
 
 ## Flaky-test policy
 

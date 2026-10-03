@@ -8,7 +8,7 @@
 
 ## Target and hard-fail rule
 
-<!-- State the test_coverage_percent target and whether missing it hard-fails
+<!-- State the tests.coverage target and whether missing it hard-fails
 the pipeline or is a soft warning. -->
 
 ## Exclusions
