@@ -108,6 +108,40 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ### Changed
 
+- **⚠️ BREAKING: only `/acs:create-pr` branches, commits and pushes** (ADR-0127).
+  Every other skill now leaves its output as uncommitted changes in the working
+  tree, on whatever branch is checked out, and records every path it wrote in its
+  result's `states.files` — `/acs:analyze-requirements`' publish, the plan, the API
+  contract, the test cases, `/acs:code`'s implementers, `/acs:docs-sync` and
+  `/acs:create-e2e-tests` no longer commit, and parallel writers no longer meet
+  `index.lock`. `/acs:create-pr` turns the changeset into small reviewable commits —
+  the ticket's documents, the design documents, per plan slice its tests then its
+  code, the doc updates, the e2e suites — from the new `acs.py pr plan-commits`,
+  shows them as a preview you confirm (or edit), and commits them with `acs.py pr
+  commit` by pathspec before it pushes; changed files no step recorded are left out
+  and listed, and files already dirty when the run began are never swept in. Its new
+  docs-only mode, `/acs:create-pr --docs`, delivers documents with no ticket and no
+  code run, one commit per doc set. `/acs:create-prd` and `/acs:create-architecture`
+  no longer mint a delivery ticket, cut a branch, commit or open a PR: they run
+  ticketless, like the audits, and leave their documents for `/acs:create-pr --docs`
+  (`--allocate` is `/acs:create-ticket`'s alone, `DELIVERY_TICKET_SKILLS` is empty,
+  and the shared `create-prd/references/delivery-pr.md` is deleted). A run records
+  `baseline.json` at its first `acs.py step start`; the new `acs.py changes
+  snapshot|diff` read the working-tree changeset in place of `git diff
+  <default>...HEAD`, and the verdict's `reviewed_sha` now holds the snapshot tree the
+  review judged. `/acs:release`'s `release/*` PR and `/acs:merge-pr`'s merge and
+  cleanup are unchanged. **Migration:** after updating, expect your working tree to
+  carry the pipeline's output until `/acs:create-pr` — do not commit it by hand
+  mid-run, or the commit plan has nothing left to group. Run two tickets at once in
+  a separate worktree each: one checkout has one working tree, so one changeset. A
+  ticket in flight across the update keeps the commits its earlier steps made; its
+  next step records a baseline and only later changes are grouped. Deliver a PRD or
+  architecture change with `/acs:create-pr --docs` and land it with `/acs:merge-pr
+  --pr <n>` (it is labelled `acs-exempt`); stop resuming product-level runs by a
+  delivery-ticket id — re-run the skill, which resumes this checkout's interrupted
+  run. A script that read `states.pr` from `create-prd`/`create-architecture`, or
+  the `commits` of `/acs:code`, reads `states.files` instead.
+
 - **Skills run more in parallel** (ADR-0125). Every multi-agent skill caps a fan-out
   at `settings.parallel.max_agents` instead of a literal four (`code-small` keeps 2,
   `code-trivial` 1; `/acs:review-code`'s five lenses are one message).

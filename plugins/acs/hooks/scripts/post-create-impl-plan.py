@@ -10,6 +10,8 @@ Result-document `states` this run records for the steps that follow it:
     lanes only; TRIVIAL/SMALL plans are coordinator-authored and unapproved).
   * file_map       obj  — the declared executor file map (`acs.py filemap set`),
     recorded so a later run can see what scope the plan claimed.
+  * files          list — repo-relative paths this run wrote and left
+    uncommitted in the working tree (ADR-0127); /acs:create-pr commits them.
 
 /acs:code REQUIRES the plan artifact, not these keys: a plan written by hand
 still opens its gate.

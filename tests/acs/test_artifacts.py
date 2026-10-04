@@ -568,11 +568,11 @@ class TestLoadSaveRouting(ArtifactsCase):
 
 class TestCommitOwnership(unittest.TestCase):
     """Every document in the docs tree is a tracked file, so each one needs a
-    committer. The Build skills commit what they publish; `ticket.md` and
-    `design.md` are published in the Design phase BEFORE a ticket branch
-    exists, so the first Build step's commit has to carry the folder -- these
-    assertions are what keeps that from silently regressing into a repo that
-    is permanently dirty and a /acs:create-pr that stops to ask about it."""
+    committer -- and since ADR-0127 there is exactly one: /acs:create-pr. The
+    Build skills publish into the working tree and record what they wrote
+    (`states.files`); create-pr splits those paths into reviewable commits,
+    the ticket docs folder first. These assertions keep a skill from quietly
+    growing its own commit step back."""
 
     def skill(self, name):
         """The SKILL.md with whitespace runs folded, so a phrase check cannot
@@ -594,18 +594,30 @@ class TestCommitOwnership(unittest.TestCase):
         self.assertNotIn('"commit"', source.split('"""', 2)[2])
         self.assertNotIn('"add"', source)
 
-    def test_create_design_publishes_and_does_not_commit_on_the_default_branch(self):
+    def test_create_design_publishes_and_commits_nothing_on_any_branch(self):
+        """ADR-0127: not on the default branch, and not on a ticket branch
+        that happens to be checked out for a re-design either."""
         body = self.skill("create-design")
         self.assertIn('cp "<partition>/steps/create-design/design.md" "<design_path>"', body)
-        self.assertIn("never commits to the repo's default branch", body)
+        self.assertIn("never stages, commits or pushes (ADR-0127) — not on the default branch, and "
+                      "not on a ticket branch", body)
+        self.assertIn("`states.files`", body)
+        self.assertNotRegex(body, r"commit `<design_path>` on it")
 
-    def test_the_build_skills_commit_what_they_publish(self):
+    def test_the_build_skills_leave_what_they_publish_uncommitted(self):
+        """ADR-0127: only /acs:create-pr branches and commits. Each Build skill
+        publishes into the working tree, records the path in `states.files`
+        for create-pr's commit plan, and never runs a branch or commit step."""
         for name, artifact in (("analyze-requirements", "analysis.md"), ("create-impl-plan", "plan.md"),
                                ("create-api-contract", "api-contract.md"),
                                ("create-test-docs", "test-cases.md")):
             with self.subTest(skill=name):
                 body = self.skill(name)
-                self.assertRegex(body, r"[Cc]ommit[^.]{0,120}ticket branch")
+                self.assertIn("never stages, commits or pushes (ADR-0127)", body)
+                self.assertIn("`states.files`", body)
+                self.assertIn("`/acs:create-pr`", body)
+                self.assertNotRegex(body, r"[Cc]ommit[^.]{0,120}on the ticket branch")
+                self.assertNotIn("git checkout -b", body)
                 self.assertIn(artifact, body)
 
 

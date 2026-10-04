@@ -2,8 +2,8 @@
 
 > Bootstrapped as the dogfood baseline, derived from the requirements set
 > (`docs/requirements/`) and the implemented plugin. Amendments go through
-> `/acs:create-prd` re-runs — each amendment is its own delivery ticket and
-> docs PR. This PRD covers the GMS Marketplace product and its plugin features
+> `/acs:create-prd` re-runs — each amendment is delivered as its own
+> docs-only PR through `/acs:create-pr --docs` (ADR-0127). This PRD covers the GMS Marketplace product and its plugin features
 > (acs, active; tabp, retired — see the MAR-97 Reversal note in Out of scope;
 > and future plugins); each plugin is a distinct capability delivered and
 > updated through one marketplace.
@@ -270,7 +270,8 @@ growth path.
   **run ledger** only. A ticket's human-facing documents (`ticket.md`,
   `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`)
   live in the consumer repo under `docs/tickets/<ID>/`, committed on the
-  ticket branch and reviewed in the PR; the ticket's `status` is derived from
+  ticket branch by `/acs:create-pr` — the only skill that commits (ADR-0127) —
+  and reviewed in the PR; the ticket's `status` is derived from
   the ledger rather than stored (ADR-0090). That location is fixed, not a
   setting ([ADR-0102](../architecture/adr/0102-documents-are-found-not-configured.md)).
   `default_state_root()` now derives the state root,

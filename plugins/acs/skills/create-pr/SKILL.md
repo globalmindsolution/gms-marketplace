@@ -177,8 +177,8 @@ C2. **Preview and confirm — ONE grouped question.** Show the user the whole
    - **confirm** — commit the plan as shown.
    - **edit** — the user moves a path between groups, drops a path from a
      group (it stays uncommitted), adds a `left_out` path to a group, or
-     rewords a subject (it keeps the configured commit-subject format,
-     `{ticket_id} {summary}`). Apply exactly those edits to the plan and show
+     rewords a subject (in ticket mode it keeps the configured commit-subject
+     format, `{ticket_id} {summary}`). Apply exactly those edits to the plan and show
      the edited plan once more for confirmation; never add a path the user did
      not name, and never an `excluded` one.
    - **cancel** — commit nothing, push nothing; finish `interrupted` /

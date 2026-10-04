@@ -686,7 +686,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
        "ready_for_planning": true,
        "api_surface": true,
        "questions_open": 0,
-       "files": ["docs/tickets/SHOP-123/analysis.md"]
+       "files": ["docs/tickets/SHOP-123/ticket.md", "docs/tickets/SHOP-123/analysis.md"]
      },
      "findings": [],
      "errors": []
@@ -705,8 +705,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - `questions_open` (int): clarifications still unanswered in the ledger —
      the count `clarify.py list --open --ticket <id>` prints after this run.
    - `files` (array): every repo-relative path this run wrote and left
-     uncommitted — the paths `acs.py analysis publish` reports writing (the
-     ticket docs folder's files). `/acs:create-pr` commits them; empty when
+     uncommitted — the publish action's `publication.files` (the ticket's
+     whole docs folder). `/acs:create-pr` commits them; empty when
      nothing was published.
 
    The needs_design recommendation is applied through its own CLI

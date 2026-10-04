@@ -70,7 +70,8 @@ class FinishExampleMatchesFragmentTest(unittest.TestCase):
 
     def test_the_two_drifted_fragments_now_declare_what_their_finish_writes(self):
         analyze = fragment("analyze-requirements")["properties"]["states"]["properties"]
-        self.assertEqual(sorted(analyze), ["api_surface", "questions_open", "ready_for_planning"])
+        self.assertEqual(sorted(analyze),
+                         ["api_surface", "files", "questions_open", "ready_for_planning"])
         plan = fragment("create-impl-plan")["properties"]["states"]["properties"]
         self.assertEqual(plan["file_map"]["type"], "object")
 
