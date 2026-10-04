@@ -4,52 +4,16 @@ Extracted from acs_lib.py by MAR-522 as `lanes`, when it also held the
 size x stakes routing grid. ADR-0095 retired that grid: the delivery path is
 judged from the plan by /acs:ship and recorded, so there is no lane to derive,
 no verify depth to look up, no ceiling table, and no escalation to clamp. What
-is left is what the name now says -- the deterministic half of plan approval,
-and the additive-only diff classifier that D6 Option A's verifier uses.
+is left is what the name now says -- the deterministic half of plan approval.
 """
 
 
-import fnmatch
 import hashlib
 import re
 import markdown_headings  # noqa: E402
 
 from .settings import DEFAULT_SETTINGS
 
-
-
-def classify_additive_diff(diff_output, allowlist_globs):
-    """Pure additive-only classifier for `git diff --name-status` text (D6 Option A
-    verifier half): returns [] when compliant, else a list of {status, path, reason}
-    violation dicts — A always compliant, M compliant only inside allowlist_globs,
-    R/D always violate, any unrecognized status token fails closed.
-    """
-    globs = list(allowlist_globs or [])
-    violations = []
-    for line in (diff_output or "").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split("\t")
-        status = parts[0]
-        prefix = status[0] if status else ""
-        if prefix == "A":
-            continue
-        if prefix == "M":
-            path = parts[1] if len(parts) > 1 else ""
-            if any(fnmatch.fnmatch(path, pattern) for pattern in globs):
-                continue
-            violations.append({"status": status, "path": path, "reason": "modify-outside-allowlist"})
-        elif prefix == "R":
-            path = parts[2] if len(parts) > 2 else (parts[1] if len(parts) > 1 else "")
-            violations.append({"status": status, "path": path, "reason": "rename"})
-        elif prefix == "D":
-            path = parts[1] if len(parts) > 1 else ""
-            violations.append({"status": status, "path": path, "reason": "delete"})
-        else:
-            path = parts[-1] if len(parts) > 1 else (parts[0] if parts else "")
-            violations.append({"status": status, "path": path, "reason": "unrecognized-status"})
-    return violations
 
 
 # ---------------------------------------------------------------------------

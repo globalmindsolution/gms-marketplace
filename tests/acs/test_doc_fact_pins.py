@@ -187,40 +187,6 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
             "because its entry point is the front door for descriptions")
 
 
-class LegResumeFormPinTest(unittest.TestCase):
-    """The fold's docs say a leg's own command survives for RESUME. Two of them
-    spelled that as a single universal template, `/acs:<leg> <ticket-id>` --
-    which is false for a leg whose own frontmatter takes no argument at all
-    (`create-project`, argument-hint `(no arguments)`, resumes by finding its
-    own unfinished scaffold ticket in `tickets-index.json`). The legs and their
-    argument-hints come from disk; only the claim is pinned here.
-    """
-
-    ADR = os.path.join(ADR_DIR, "0091-design-phase-entry-point-fold.md")
-    TEMPLATE = "`/acs:<leg> <ticket-id>`"
-
-    def _argumentless_legs(self):
-        found = set()
-        for leg in lib.skill_legs():
-            fm = _read(os.path.join(SKILLS_DIR, leg, "SKILL.md")).split("---")[1]
-            if re.search(r'(?m)^argument-hint: "\(no arguments\)"$', fm):
-                found.add(leg)
-        return found
-
-    def test_a_leg_that_takes_no_argument_exists(self):
-        """Ground truth: without one, the pin below would be vacuous."""
-        self.assertIn("create-project", self._argumentless_legs())
-
-    def test_no_doc_claims_one_universal_ticket_id_resume_form(self):
-        for path in (ACS_README, self.ADR):
-            with self.subTest(doc=os.path.basename(path)):
-                self.assertNotIn(self.TEMPLATE, _read(path),
-                                 "%s presents %s as every leg's resume form, but "
-                                 "%s take no argument"
-                                 % (os.path.basename(path), self.TEMPLATE,
-                                    ", ".join(sorted(self._argumentless_legs()))))
-
-
 class AdrIndexCompletenessTest(unittest.TestCase):
     """AC-3/AC-4: docs/adr/README.md's index table stays complete against the
     on-disk ADR files, bidirectionally, so the gap cannot silently reopen."""

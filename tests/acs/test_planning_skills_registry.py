@@ -32,9 +32,9 @@ from acs_lib import workflow  # noqa: E402
 PINNED_SORTED_HOOKED_SKILLS = [
     "analyze-requirements", "code", "create-api-contract", "create-architecture",
     "create-design", "create-docs", "create-e2e-tests", "create-impl-plan",
-    "create-pr", "create-prd", "create-project", "create-requirements",
+    "create-pr", "create-prd",
     "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "review-code",
-    "run-e2e-tests", "standardize-project",
+    "run-e2e-tests",
 ]
 HOOKED_SKILL_COUNT = len(PINNED_SORTED_HOOKED_SKILLS)
 

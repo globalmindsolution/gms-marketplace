@@ -90,16 +90,18 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         # promoted run-e2e-tests to a hooked step of its own, and create-docs
         # moved to PRODUCT_SKILLS, 12 -> 9. ADR-0104 removed metrics and
         # usage, 9 -> 7. /acs:install-hooks went with the local hooks, 7 -> 6.
-        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 6)
+        # ADR-0118 removed the `project` umbrella, 6 -> 5.
+        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 5)
 
     def test_hooked_skills_count(self):
         # Literal advances as later producer children register (MAR-143:
         # create-requirements, 14 -> 15; MAR-156: create-spec deleted, 15 -> 14;
         # MAR-160: docs-sync registered, 14 -> 15; the skills-independence
         # refactor hooks the five Build/Test skills, 15 -> 17; v0.5.0 adds
-        # review-code and run-e2e-tests, 17 -> 19) — /acs:release itself adds
-        # none.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 19)
+        # review-code and run-e2e-tests, 17 -> 19; ADR-0118 removes
+        # create-project, standardize-project and create-requirements, 19 -> 16)
+        # — /acs:release itself adds none.
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 16)
 
     def test_no_pre_or_post_release_script_on_disk(self):
         self.assertFalse(

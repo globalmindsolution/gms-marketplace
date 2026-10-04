@@ -188,7 +188,7 @@ The marketplace currently ships one plugin:
   through product definition (PRD), architecture, ticketing, design,
   requirements analysis, an implementation plan, an API contract and test
   cases, TDD implementation, a five-lens code review, end-to-end tests, doc
-  sync, pull request, and merge. Thirty skills (`/acs:setup`,
+  sync, pull request, and merge. Twenty-five skills (`/acs:setup`,
   `/acs:ship`, `/acs:code`, …), each an independent skill that spawns only
   the subagents its own work needs — a surveyor, author and reviewer for the
   PRD; a planner and plan reviewer for the plan; implementers for the code;

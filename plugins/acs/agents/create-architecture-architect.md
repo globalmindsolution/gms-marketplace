@@ -226,8 +226,8 @@ iteration's notes.
    citation(s) to that doc's companion `.evidence.md` sidecar
    (`<doc-basename-without-.md>.evidence.md`, created if absent), keyed by the
    anchor; a doc with zero in-scope citations gets no sidecar. This is the
-   SAME `.evidence.md` sidecar convention `create-requirements-author.md`
-   uses — reuse it, never fork a second scheme.
+   SAME `.evidence.md` sidecar convention ADR-0064 defines (the one
+   `docs-sync` follows) — reuse it, never fork a second scheme.
 6. Regeneration runs: preserve still-accurate existing content, update what shifted —
    do not rewrite sections the upstream does not touch.
 7. **Delivery — only when your task explicitly includes it** (it is gated on

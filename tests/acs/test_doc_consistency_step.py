@@ -36,13 +36,12 @@ SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skill
 # The agents that author a doc set's first draft carry the canonical block:
 # the remaining planners, and create-docs-author -- since ADR-0094 the four
 # doc-set legs are one skill with no planner, so its author runs the step.
-# create-prd and create-requirements run it in their read-only surveyor.
+# create-prd runs it in its read-only surveyor.
 PLANNERS = [
     "create-prd-surveyor.md",
     "create-architecture-architect.md",
     "create-design-designer.md",
     "create-docs-author.md",
-    "create-requirements-surveyor.md",
 ]
 
 NEW_VERIFIERS = ["create-docs-reviewer.md"]

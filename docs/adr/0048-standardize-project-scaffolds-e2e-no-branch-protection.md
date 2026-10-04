@@ -1,6 +1,6 @@
 # 0048 — `/acs:standardize-project` additively scaffolds the e2e gate, never wires branch protection
 
-**Status**: Accepted · **Date**: 2026-07-11
+**Status**: Superseded by [0118](0118-discovery-design-development-phases.md) (`standardize-project` is removed) · **Date**: 2026-07-11
 
 ## Context
 

@@ -54,7 +54,6 @@ ROLE_KIND_NAMES = ("survey", "write", "judge")
 ROLE_KINDS = {
     # survey -- read-only on the repo, writes its notes into the workspace
     "surveyor": "survey",
-    "auditor": "survey",
     "impact-analyst": "survey",
     # write -- produces the deliverable
     "analyst": "write",
@@ -67,7 +66,6 @@ ROLE_KINDS = {
     "implementer": "write",
     "test-writer": "write",
     "doc-updater": "write",
-    "scaffolder": "write",
     # judge -- read-only, re-derives and judges fresh
     "reviewer": "judge",
     "impact-reviewer": "judge",
@@ -77,8 +75,6 @@ ROLE_KINDS = {
     "trace-reviewer": "judge",
     "suite-runner": "judge",
     "drift-reviewer": "judge",
-    "build-checker": "judge",
-    "additive-checker": "judge",
     "lens": "judge",
     "adjudicator": "judge",
 }
@@ -87,15 +83,11 @@ ROLE_KINDS = {
 AGENT_ROLES = tuple(sorted(ROLE_KINDS))
 
 
-#: {leg: entry point}. A leg keeps its SKILL.md (and, for the project legs,
-#: its agents, hooks and gate) and stays Skill-invocable, but a workflow never
-#: names it -- its entry point dispatches to it. The code legs run under
-#: `code`'s gate and state (`LEG_ENTRY_POINTS`); the project legs are hooked
-#: skills of their own that `/acs:project` picks between.
-SKILL_LEGS = dict(LEG_ENTRY_POINTS, **{
-    "create-project": "project",
-    "standardize-project": "project",
-})
+#: {leg: entry point}. A leg keeps its SKILL.md and stays Skill-invocable, but
+#: a workflow never names it -- its entry point dispatches to it. The legs are
+#: `code`'s four delivery paths, which run under `code`'s gate and state
+#: (`LEG_ENTRY_POINTS`).
+SKILL_LEGS = dict(LEG_ENTRY_POINTS)
 
 #: A skill's own failures ARE workflow failures: a step list and the skills it
 #: names are two halves of one contract, and a caller that catches one should

@@ -252,8 +252,8 @@ class ScopeGuardTest(unittest.TestCase):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))
         hook_flow = read(
             os.path.join(DOCS, "architecture", "lld", "flows", "hook-gated-skill-run.md"))
-        self.assertIn("twelve authoring skills", overview)
-        self.assertIn("twelve authoring skills", hook_flow)
+        self.assertIn("nine authoring skills", overview)
+        self.assertIn("nine authoring skills", hook_flow)
 
     def test_no_project_structure_doc_hand_authored(self):
         self.assertFalse(

@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-nine skills in total. There is no registry file listing them: a skill is
+Twenty-five skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
 writes, or which group it belongs to, because nothing needs to: each skill
@@ -9,19 +9,16 @@ artifact is absent.
 
 The groups below are a reader's aid, not a structure the code knows about:
 
-- **Product & design** — `/acs:create-prd`, `/acs:create-requirements`,
-  `/acs:create-architecture`, `/acs:create-docs` (the four product doc sets,
-  one skill since ADR-0094), `/acs:create-project`,
-  `/acs:standardize-project`, `/acs:project`, `/acs:create-ticket`,
-  `/acs:create-design`.
+- **Product & design** — `/acs:create-prd`, `/acs:create-architecture`,
+  `/acs:create-docs` (the four product doc sets, one skill since ADR-0094),
+  `/acs:create-ticket`, `/acs:create-design`.
 - **Implementation** — `/acs:analyze-requirements`,
   `/acs:create-impl-plan`, `/acs:create-api-contract`,
   `/acs:create-test-docs`, `/acs:code` and its four delivery-path legs,
   `/acs:review-code`, `/acs:docs-sync`.
 - **Test** — `/acs:create-e2e-tests`, `/acs:run-e2e-tests`.
 - **Ship** — `/acs:create-pr`, `/acs:merge-pr`, `/acs:release`.
-- **Utility** — `/acs:setup`, `/acs:install-hooks`, `/acs:update`,
-  `/acs:handoff`, `/acs:ship`.
+- **Utility** — `/acs:setup`, `/acs:update`, `/acs:handoff`, `/acs:ship`.
 
 The ORDER of the implementation skills is `workflows/ship.yaml`'s list, and
 nothing else states it. A run's progress over that list is `run.json`; a
@@ -33,13 +30,16 @@ Test and Ship steps run in for a ticket is declared in
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Seventeen of the twenty-five are **hooked** (a pre-hook and a post-hook
-each): the eight Design-phase skills except `/acs:project`, all six
-Build-phase skills, `/create-e2e-tests`, `/create-pr` and `/merge-pr`. The
-the rest (`/setup`, `/ship`, `/handoff`, `/update`, `/install-hooks`,
-`/acs:release`, `/acs:project`) are unhooked and take
-no position in a run. `/run-e2e-tests` is a hooked step like any other; the
-`/acs:test` alias is removed.
+Sixteen of the twenty-five are **hooked** (a pre-hook and a post-hook
+each): the five Product & design skills, all seven Implementation skills,
+both Test skills, `/create-pr` and `/merge-pr`. Five (`/setup`, `/ship`,
+`/handoff`, `/update`, `/acs:release`) are unhooked and take no position in a
+run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
+itself. `/run-e2e-tests` is a hooked step like any other; the `/acs:test`
+alias is removed. A greenfield repo's scaffold is no skill of its own
+([ADR-0118](../../adr/0118-discovery-design-development-phases.md)): it is a
+ticket — `/acs:create-ticket "Scaffold the repository per the architecture
+docs"`, then `/acs:ship`.
 
 Every **workflow** skill MUST:
 
@@ -47,16 +47,15 @@ Every **workflow** skill MUST:
   (ADR-0109; [reflection.md](reflection.md)): a `survey` role that reads
   and records notes and questions, a `write` role that produces the
   deliverable, a `judge` role that re-derives and judges it fresh. The
-  twelve **authoring skills** and `create-docs` run a write → judge Reflection cycle over
+  nine **authoring skills** and `create-docs` run a write → judge Reflection cycle over
   their own roles — `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
-  `create-prd` and `create-requirements` (surveyor, author, reviewer),
+  `create-prd` (surveyor, author, reviewer),
   `create-architecture` (architect, reviewer), `create-design` (designer,
   design-reviewer), `create-docs` (author, reviewer), `create-impl-plan`
   (planner, plan-reviewer), `create-api-contract` (contract-author,
   contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
-  `create-e2e-tests` (test-writer, suite-runner), `docs-sync` (doc-updater,
-  drift-reviewer), `create-project` (scaffolder, build-checker) and
-  `standardize-project` (auditor, scaffolder, additive-checker). No skill has
+  `create-e2e-tests` (test-writer, suite-runner) and `docs-sync` (doc-updater,
+  drift-reviewer). No skill has
   a plan phase before its writer (ADR-0092). `code` spawns implementers only —
   its review is `/review-code`, which runs lenses and adjudicators. Three
   **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
@@ -345,7 +344,7 @@ skills, while not running the ticket pipeline, MUST each create their own
 - The skill creates the ticket first (type **task**, e.g.
   `SHOP-1 — Product definition (PRD)`): a normal id from the per-repo
   counter, a normal workspace partition, tracker sync when configured (so
-  PRD/architecture/scaffold work is visible in GitHub Projects), and
+  PRD/architecture/doc-set work is visible in GitHub Projects), and
   the standard archive lifecycle. Re-running a product-level skill (e.g. a
   PRD amendment) creates a **new ticket** for that change. Re-running
   `/create-prd` for an amendment creates a new ticket with a specific title
@@ -457,8 +456,8 @@ living system documentation the whole pipeline designs and verifies against.
   - `hld/deployment.md` — runtime and infrastructure topology;
   - `hld/tech-stack.md` — languages, frameworks, conventions;
   - `hld/project-structure.md` — the intended repo layout derived from the
-    C4 container/component views, the canonical target
-    `/acs:standardize-project` audits an existing repo against;
+    C4 container/component views, the canonical target a repo's structure
+    is reviewed against;
   - `lld/flows/<flow>.md` — **sequence diagrams** for the key runtime
     flows, one file per flow — bootstrapped for the main flows (selected by
     the architect's survey, confirmed with the user) and grown ticket by ticket;
@@ -585,177 +584,6 @@ internal leg skills that differed only in a table row, and that table,
   [product-level delivery rules](#product-level-delivery-tickets) — each
   run creates its own delivery ticket per set; the TDD pipeline does not
   apply to a docs-only change.
-
-## `/acs:create-requirements` (product-level)
-
-Purpose: bootstrap or amend the consumer **requirements doc set** — the
-living behavioral contract, one file per feature area under `functional/`
-and one file per NFR item under `non-functional/`.
-
-- Product-level and **ticket-independent**: not part of the per-ticket
-  pipeline. Run once to bootstrap a repo's requirements set, or re-run to
-  amend it; either way `/acs:code`'s documentation step keeps accreting into
-  the same files afterward.
-- **Three modes**, classified by the surveyor from the located
-  requirements set's content and the codebase:
-  - **brownfield** — reverse-engineer the set from an existing codebase
-    (architecture-aware feature-area enumeration, codebase-inventory
-    fallback; each requirement DRAFT / code-cited);
-  - **greenfield** — elicit the definition from the user when there is no
-    meaningful codebase and the set is absent (each requirement DRAFT /
-    grounded in the user's answer, no code-citation expected);
-  - **amend** — augment only absent/ungrounded area files on a
-    substantially-populated set, preserving every existing file
-    byte-for-byte.
-- **Standalone but architecture-aware**: uses the architecture doc set's
-  container/component views (`c4-container.md`/`c4-component.md`/
-  `project-structure.md`) when present, degrades to a codebase inventory
-  when absent; no hard PRD/architecture dependency (the skill checks for
-  neither at Start).
-- Produces the doc set in the consumer repo wherever the repo already keeps
-  it, else at `docs/requirements/`
-  ([configuration.md](configuration.md#document-and-workspace-locations)),
-  with `functional/` and `non-functional/` subfolders — or the subfolder
-  names an existing set already uses.
-- Runs the Reflection cycle as survey → author → review (ADR-0109) —
-  `create-requirements-surveyor` (iteration 1 only), `create-requirements-author`,
-  `create-requirements-reviewer` —
-  including a deterministic `structure` floor over each produced area file
-  (blocking) and a blocking `audience-style` check (an unwaived
-  audience-mismatch blocks; a `clarify.py --source assumption` waiver makes it
-  `severity="info"`, non-blocking), plus the
-  dimensions specific to this skill: coverage (≥90%, 0 silent omissions),
-  citation (100%; user-answer-cited for greenfield, code-cited for
-  brownfield), DRAFT-marker, no-fabrication, functional/non-functional
-  routing, and augment-only-absent/no-overwrite.
-- **Additive / no-overwrite**: never overwrites a human-authored area file;
-  every elicited/extracted requirement is DRAFT / human-confirm-required via
-  the interactive-confirm / clarify-ledger gate before write — uniform
-  across all three modes (C-22).
-- State lives in the delivery ticket's partition
-  (`create-requirements-state.json`)
-  ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: docs-only PR via the
-  [product-level delivery rules](#product-level-delivery-tickets) — each
-  run creates its own delivery ticket; the TDD pipeline does not apply to a
-  docs-only change.
-
-## `/create-project` (product-level)
-
-Purpose: scaffold a fresh product's repo skeleton from the approved
-architecture, so the ticket pipeline works from the very first ticket.
-
-- Product-level, ticket-independent, and **greenfield-only** — existing
-  codebases never need it. Runs once, after `/create-architecture`: the
-  skill checks for the architecture doc set (its `hld/tech-stack.md`) at
-  Start and stops when none is found (the tech stack and structure must be
-  settled before scaffolding).
-- Scaffolds, per `hld/tech-stack.md` and the HLD structure:
-  - directory layout matching the container/component views;
-  - package/build configuration;
-  - the **test framework and coverage tooling**, wired to measure
-    `tests.coverage` — the `/code` TDD gates depend on this existing
-    from ticket #1;
-  - an **e2e harness** (plus one smoke e2e test and CI wiring, and a proposed
-    `tests.e2e` settings block) when the architecture has a user-facing or
-    cross-component surface;
-  - linter/formatter and pre-commit configuration;
-  - a CI workflow running build, lint, tests, and coverage;
-  - `.gitignore`, README skeleton, and a **minimal green vertical slice**
-    (entrypoint + smoke test) proving the harness works.
-- Reflection cycle (scaffold → build-check — ADR-0109):
-  `create-project-scaffolder`, `create-project-build-checker` — the scaffolder pins
-  the scaffold in `iter-1-authoring.md` before writing it, and the build-checker
-  MUST actually run build, lint,
-  and tests and see them pass; a scaffold that doesn't run green fails
-  verification.
-- State lives in the delivery ticket's partition
-  (`create-project-state.json`)
-  ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: bootstrap PR via the
-  [product-level delivery rules](#product-level-delivery-tickets) — its own
-  delivery ticket. The scaffolded CI workflow runs on this very PR —
-  proving the harness green in CI, not just locally.
-
-## `/acs:standardize-project`
-
-Purpose: audit an EXISTING (brownfield) repo against the approved doc set
-and acs-readiness tooling, then additively scaffold whatever is missing —
-the brownfield counterpart to `/create-project`'s greenfield-only scaffold.
-
-- Its own reflection-loop workflow skill with its own delivery ticket per run
-  (type `task`, titled "Brownfield project standardization") — **not** a
-  doc-set producer and adds no new settings key (D5 Option B);
-  distinct from the product-level doc-set skills listed above.
-- Needs the architecture doc set: the skill checks for its
-  `hld/tech-stack.md` at Start and stops when none is found
-  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
-- Audits the repo's principles and standards sets (located through
-  `CLAUDE.md` and the repo), `hld/project-structure.md`
-  (MAR-120), and acs-readiness tooling (coverage/CI/pre-commit/e2e) against
-  the repo on disk. No refusal guard on its own set — it has none; a
-  missing principles or standards set gracefully degrades
-  to fewer audit inputs, never a hard block.
-- Scaffolds **additively only**: it may add missing docs/config/CI/tooling
-  files, but never moves, renames, deletes, or rewrites existing source —
-  the additive-checker re-runs `git diff --name-status` every iteration
-  (`classify_additive_diff`) and blocks on any status outside the
-  allowlist (D6).
-- **e2e CI-gate scaffold (E2E-2):** when `tests.e2e` is set and
-  `.github/workflows/acs-e2e.yml` is missing, the readiness-tooling audit's e2e
-  dimension becomes a concrete scaffold target — `acs-e2e.yml` + `run-e2e.py`,
-  reused verbatim from `/acs:setup`'s (E2E-1) committed templates, under
-  allowlist categories 1+2. An existing `acs-e2e.yml` is never overwritten; the
-  gap becomes a `recommended_follow_ups` entry instead. This skill never wires branch protection itself
-  — that stays with `/acs:setup`, surfaced as a `recommended_follow_ups` entry pointing there.
-- Runs the Reflection cycle as audit → scaffold → additive-check (ADR-0109) —
-  `standardize-project-auditor`, `standardize-project-scaffolder`,
-  `standardize-project-additive-checker` — as three separate subagent
-  contexts: iteration 1's auditor audits read-only and records the audit in
-  the authoring notes (`iter-1-authoring.md`); the scaffolder scaffolds from
-  them. The loop body on every later iteration is scaffold → additive-check,
-  cap 3 on every run, counting scaffold + additive-check rounds.
-- **Allowlist provenance and immutability (MAR-302).** The Additive-surface
-  allowlist is authored exactly once, by the iteration-1 auditor, in
-  `iter-1-authoring.md`, and is frozen and authoritative for the whole run: the
-  scaffolder's writable surface is monotonically non-increasing across
-  iterations 1-3 (it may shrink, e.g. via a narrowing finding, but never
-  grow), and the additive-checker re-reads that same literal frozen path every
-  iteration rather than trusting a per-iteration re-derivation. This bounds,
-  and does not close, the iteration-1 trust gap (ADR-0079).
-- **Out-of-scope-finding route (MAR-302).** An additive-checker finding whose
-  remediation would need a path/category outside the frozen iteration-1
-  allowlist is never silently added to the scaffolder's writable surface. It
-  degrades to `severity="info"` and is surfaced as a `recommended_follow_ups`
-  entry **only** when all four of these hold (fail-closed otherwise, i.e.
-  undetermined stays blocking): `dimension="plan-conformance"`; the finding
-  is of the missing-scaffold/under-coverage class (never the over-scaffold
-  "unplanned extra scaffold file" class); the remediation target lies
-  outside the frozen allowlist; and the target is absent from this
-  iteration's `git diff --name-status` output. `dimension="additive-only"`,
-  `dimension="doc-set-authorship"`, `dimension="recommended-follow-ups-only"`,
-  `completion-report` shape findings, and dimension 4's second clause ("no
-  unplanned extra scaffold file") are **never** degradable — they always
-  block (ADR-0079).
-- **Scaffolder-refusal route, class-scoped (MAR-302).** A scaffolder refusal
-  for an out-of-frozen-allowlist finding converts to a
-  `recommended_follow_ups` entry **only** when the underlying additive-checker
-  finding is of that same degradable `plan-conformance` missing-scaffold
-  class, judged from the additive-checker's own prior finding — never from the
-  scaffolder's self-report. Every other refusal class — including an
-  over-scaffold `plan-conformance` finding, or any `additive-only` /
-  `doc-set-authorship` / `recommended-follow-ups-only` / `completion-report`
-  shape finding — remains a genuine run failure. This is **not** an
-  unconditional conversion; fail closed on any undetermined class
-  (ADR-0079).
-- Structural gaps outside the additive-surface allowlist are surfaced as
-  `recommended_follow_ups` entries in the completion report and PR body —
-  **never** auto-minted as new tickets (D7).
-- State lives in the delivery ticket's partition
-  (`standardize-project-state.json`)
-  ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: one reviewed PR on its own delivery ticket, zero source
-  relocations; `/acs:merge-pr` lands it like any other ticket.
 
 ## 1. `/create-ticket`
 
@@ -1528,7 +1356,7 @@ Purpose: land the change.
   invokes `/merge-pr` itself. A failed readiness check is report-only.
 - MUST review PR readiness — **[ASSUMPTION]** at minimum: CI status, review
   approvals, merge conflicts, branch protection requirements.
-- Product-level delivery tickets (PRD, architecture, scaffold) merge like
+- Product-level delivery tickets (PRD, architecture, doc sets) merge like
   any other ticket — the PR reference is read from the skill's state file in
   the ticket partition
   ([Product-level delivery](#product-level-delivery-tickets)).

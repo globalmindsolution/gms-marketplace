@@ -34,14 +34,14 @@ SONNET = "claude-sonnet-5-5"
 #: document against a spec and the mechanical checks stay cheap.
 _RECOMMENDED = {
     # survey / plan / design: scope and design decisions compound downstream
-    "surveyor": (OPUS, "high"), "auditor": (OPUS, "high"),
+    "surveyor": (OPUS, "high"),
     "planner": (OPUS, "high"), "architect": (OPUS, "high"),
     "designer": (OPUS, "high"),
     "impact-analyst": (SONNET, "high"), "analyst": (SONNET, "high"),
     # write: produced against an upstream spec, then reviewed
     "author": (SONNET, "medium"), "contract-author": (SONNET, "medium"),
     "test-designer": (SONNET, "medium"), "doc-updater": (SONNET, "medium"),
-    "scaffolder": (SONNET, "medium"), "test-writer": (SONNET, "medium"),
+    "test-writer": (SONNET, "medium"),
     "implementer": (SONNET, "medium"),
     # judge: re-derives fresh, and is the gate before approval
     "reviewer": (OPUS, "high"), "plan-reviewer": (OPUS, "high"),
@@ -50,8 +50,7 @@ _RECOMMENDED = {
     "adjudicator": (OPUS, "xhigh"),
     "lens": (SONNET, "high"), "trace-reviewer": (SONNET, "high"),
     # mechanical: run a command or compare against a frozen list
-    "build-checker": (SONNET, "medium"), "suite-runner": (SONNET, "medium"),
-    "additive-checker": (SONNET, "medium"),
+    "suite-runner": (SONNET, "medium"),
 }
 
 

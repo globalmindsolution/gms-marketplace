@@ -38,12 +38,12 @@ def render_protect(slug, branch, contexts):
     return " ".join(shlex.quote(a) for a in argv)
 
 
-#: The design phase, in order, before the delivery workflow takes over. Entry
-#: points only: `project` is the design-phase umbrella, and `create-project`
-#: is one of the two internal legs it dispatches to -- a user runs the entry
-#: point, never the leg.
-PIPELINE_ORDER = ("create-prd", "create-architecture", "project",
-                  "create-ticket", "create-design")
+#: The design phase, in order, before the delivery workflow takes over.
+PIPELINE_ORDER = ("create-prd", "create-architecture", "create-ticket", "create-design")
+
+#: A greenfield repo's scaffold is ordinary ticket work: ticket it, then ship it.
+GREENFIELD_SCAFFOLD_STEP = ('/acs:create-ticket "Scaffold the repository per the '
+                            'architecture docs"')
 
 
 def delivery_steps(root=None):
@@ -63,10 +63,7 @@ def render_next_steps(greenfield, root=None):
     skill should not be re-deriving a branch it can be handed."""
     steps = ["/acs:create-prd", "/acs:create-architecture"]
     if greenfield:
-        # The entry point, not its `create-project` leg: /acs:project reads the
-        # same greenfield evidence off disk (acs_lib.project_mode) and
-        # dispatches to that leg itself.
-        steps.append("/acs:project")
+        steps.append(GREENFIELD_SCAFFOLD_STEP)
     return {
         "kind": "greenfield" if greenfield else "brownfield",
         "first": steps,

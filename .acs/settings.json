@@ -144,30 +144,6 @@
         "effort": "high"
       }
     },
-    "create-project": {
-      "build-checker": {
-        "model": "claude-sonnet-5-5",
-        "effort": "medium"
-      },
-      "scaffolder": {
-        "model": "claude-sonnet-5-5",
-        "effort": "medium"
-      }
-    },
-    "create-requirements": {
-      "author": {
-        "model": "claude-sonnet-5-5",
-        "effort": "medium"
-      },
-      "reviewer": {
-        "model": "claude-opus-5-5",
-        "effort": "high"
-      },
-      "surveyor": {
-        "model": "claude-opus-5-5",
-        "effort": "high"
-      }
-    },
     "create-test-docs": {
       "test-designer": {
         "model": "claude-sonnet-5-5",
@@ -196,20 +172,6 @@
       "lens": {
         "model": "claude-sonnet-5-5",
         "effort": "high"
-      }
-    },
-    "standardize-project": {
-      "additive-checker": {
-        "model": "claude-sonnet-5-5",
-        "effort": "medium"
-      },
-      "auditor": {
-        "model": "claude-opus-5-5",
-        "effort": "high"
-      },
-      "scaffolder": {
-        "model": "claude-sonnet-5-5",
-        "effort": "medium"
       }
     }
   }

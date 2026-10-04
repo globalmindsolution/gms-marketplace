@@ -110,7 +110,7 @@ releases — through the acs pipeline.
 | Seat | Mission | Decides on | Operates (skills) | Answers for | Failure mode to guard |
 |---|---|---|---|---|---|
 | **PdM** (1) | The right product gets built | PRD, roadmap, tickets, priorities, requirement clarifications | create-prd, create-ticket | Feature-to-goal tracing; **same-day clarification SLA**; release content | Clarification latency silently becoming pipeline latency |
-| **Principal AI Platform** (shared, dept-level) | The product is built right | Architecture, design sign-off, standards, platform + org policy — at a **declared capacity split** | create-architecture, create-design approval, setup; future standardize-project / create-standards | Architecture conformance; high-stakes review; policy floors | Two-hat overload; becoming the review bottleneck |
+| **Principal AI Platform** (shared, dept-level) | The product is built right | Architecture, design sign-off, standards, platform + org policy — at a **declared capacity split** | create-architecture, create-design approval, setup; create-docs principles,standards | Architecture conformance; high-stakes review; policy floors | Two-hat overload; becoming the review bottleneck |
 | **AI Product Builder** (2-4) | Tickets land | Implementation choices within spec; lane escalation acceptance | code, create-pr, merge-pr, ship, handoff | TDD/coverage on own tickets; cross-review quota | Being measured on code written instead of tickets landed + review quality |
 | **AI Quality & Evals Engineer** (1, shareable across 2 small teams) | The gates stay trustworthy | Test strategy, eval suites, coverage/e2e policy, release quality bar | e2e config; future create-quality, test | Verifier efficacy; per-release eval baselines; product evals (fairness, reproducibility, evidence) | Sliding into manual per-PR testing, duplicating the verifier |
 
@@ -183,7 +183,7 @@ every team.
 | Function | Accountable | Responsible day-to-day | Automated by |
 |---|---|---|---|
 | Delivery (what/when) | PdM | Builders per ticket; the pipeline is the delivery manager | Gates, verifier, merge readiness, release cut |
-| Deployment & infra | Principal / platform team | Builders deploy via CI/CD; incidents to on-call rotation | create-project scaffolds CI/CD; create-operations runbooks; failure-mode dashboards |
+| Deployment & infra | Principal / platform team | Builders deploy via CI/CD; incidents to on-call rotation | setup installs the CI gates; create-operations runbooks; failure-mode dashboards |
 | Security — pipeline & infra | Principal | Nobody manually | Secret scan, conventions gate, verifier security dimension, high-stakes escalation, branch protection, org policy floors |
 | Security — AI-specific (prompt injection, exfiltration, fairness) | AI Quality & Evals Engineer | Adversarial eval suites per release | Same eval harness; attacks become regression fixtures |
 | Security — compliance (privacy, PII, retention) | PdM (as product requirements) | Builders implement as gated tickets | Conformance chain + verifier |
@@ -224,18 +224,18 @@ Head-of split. Titles stay modest until scale demands headroom.
 
 ## Appendix A — SDLC phase to operating skill to accountable role
 
-**Skill** names the command the accountable role actually runs. Since the
-design-phase entry-point fold (ADR 0091) that is not always the skill doing the
-work: six skills are now **internal legs** invoked by an entry point, shown
-here as `entry-point (leg)`. The leg is still where the phase's work, gate and
-delivery ticket live — which is why G33's "every phase has an operating skill"
-reading is unchanged — but the role does not invoke it directly.
+**Skill** names the command the accountable role actually runs. That is not
+always the skill doing the work: `code` dispatches to one of four **internal
+legs**, its delivery paths (ADR-0095), which the role never invokes directly.
+A phase with no skill of its own runs as ordinary ticket work — since
+[ADR-0118](../adr/0118-discovery-design-development-phases.md), bootstrapping
+a greenfield repo is a ticket shipped through the pipeline.
 
 | Phase | Skill | Accountable |
 |---|---|---|
 | Product definition | create-prd | PdM |
 | Architecture | create-architecture | Principal |
-| Bootstrap | project (legs: create-project greenfield / standardize-project existing repo — the umbrella picks the mode from on-disk evidence) | Principal |
+| Bootstrap | create-ticket "Scaffold the repository per the architecture docs", then ship; setup for the CI gates | Principal |
 | Backlog | create-ticket + tracker sync | PdM |
 | Design | create-design (+ sign-off) | Principal |
 | Spec → code → PR → merge | code, create-pr, merge-pr, ship | Builders |

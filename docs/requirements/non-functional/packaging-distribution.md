@@ -12,7 +12,7 @@ unchanged).
   `claude plugin marketplace add` (or the equivalent UI flow) and install it.
 - acs MUST bundle, per standard Claude Code plugin layout:
   - **Skills** (slash commands): `/setup`, `/ship`, `/handoff`, `/update`,
-    `/create-prd`, `/create-architecture`, `/create-project`,
+    `/release`, `/create-prd`, `/create-architecture`, `/create-docs`,
     `/create-ticket`, `/create-design`, `/analyze-requirements`,
     `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
     `/code`, `/review-code`, `/create-e2e-tests`, `/docs-sync`,
@@ -21,30 +21,30 @@ unchanged).
     `workflows/ship.yaml` the delivery order is declared in (ADR-0089 as
     superseded by ADR-0096).
   - **Subagents**, one agent file per role a skill's own logic needs, named
-    `<skill>-<role>` for the work it does (ADR-0109): the twelve
+    `<skill>-<role>` for the work it does (ADR-0109): the nine
     **authoring skills** and `create-docs` each bundle a write role and a
     judge role —
-    `analyze-requirements` (analyst, impact-reviewer), `create-prd` and
-    `create-requirements` (plus a surveyor: surveyor, author, reviewer),
+    `analyze-requirements` (plus an impact analyst: impact-analyst, analyst,
+    impact-reviewer), `create-prd` (plus a surveyor: surveyor, author,
+    reviewer),
     `create-architecture` (architect, reviewer), `create-design` (designer,
     design-reviewer), `create-docs` (author, reviewer — one pair serving all
     four doc sets, ADR-0094), `create-impl-plan` (planner, plan-reviewer),
     `create-api-contract` (contract-author, contract-reviewer),
     `create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
-    (test-writer, suite-runner), `docs-sync` (doc-updater, drift-reviewer),
-    `create-project` (scaffolder, build-checker) and `standardize-project`
-    (plus an auditor: auditor, scaffolder, additive-checker); `code` bundles
+    (test-writer, suite-runner) and `docs-sync` (doc-updater,
+    drift-reviewer); `code` bundles
     one implementer, its plan phase having moved to `create-impl-plan`
     (ADR-0089) and its review to `review-code`, which bundles a lens and an
     adjudicator; the three **apply-work skills** (`create-ticket`,
     `create-pr`, `merge-pr`) run inline and bundle no subagent.
-    33 agent files exist on disk and 33 are reachable (28 for the twelve
+    25 agent files exist on disk and 25 are reachable (20 for the nine
     authoring skills + 2 for `create-docs` + 1 for `code` + 2 for
     `review-code`): every file name
     resolves to a shipped skill and a role in `acs_lib.skills.ROLE_KINDS`,
     so none is orphaned. See
     [../functional/reflection.md](../functional/reflection.md).
-  - **Hooks**: a pre and post hook per hooked skill (seventeen of each),
+  - **Hooks**: a pre and post hook per hooked skill (sixteen of each),
     implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).
 
 ## Distribution & versioning

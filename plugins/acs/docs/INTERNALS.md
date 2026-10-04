@@ -12,10 +12,10 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 29 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 33 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 25 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 25 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 16 pre + 16 post |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 16 pre + 16 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
@@ -33,7 +33,7 @@ onto the plugin hooks API like this:
 1. **Pre-hooks — deterministic, enforced.** `hooks.json` registers a
    `PreToolUse` hook matching the `Skill` tool. `dispatch.py pre` extracts the
    skill name from the tool input (handling the `acs:` namespace), no-ops
-   (exit 0) for anything that is not one of the seventeen hooked skills, and
+   (exit 0) for anything that is not one of the sixteen hooked skills, and
    otherwise runs that skill's gate from `acs_lib.gates` **in-process** (the
    `pre-<skill>.py` wrappers exist for tests and `acs.py gate`, not for the
    hook path).
@@ -96,7 +96,7 @@ onto the plugin hooks API like this:
    --iteration <n> --task <k> --file …`** (additive, per task, written to
    `steps/<skill>/iter-<n>/filemap.json`); a write outside it is denied while
    an acs agent of the **`write` kind** is running (`code-implementer`,
-   `create-prd-author`, `standardize-project-scaffolder`, … —
+   `create-prd-author`, `docs-sync-doc-updater`, … —
    `acs_lib.skills.ROLE_KINDS`), with the agent told to return `needs_input`
    for the file it needs. The guard is `filemap.file_map_guard`; it reads
    every live writer through `filemap.active_writers` (most recent first).
@@ -230,9 +230,8 @@ PRD or the architecture set lives, so the skill that reads one finds it at
 Start. `create-architecture` takes the PRD as its primary input and, without
 one, works from the run's subject (a document in its arguments, else the
 focus notes plus the codebase) and confirms goals, NFRs and constraints
-through the clarification ledger; `create-project`, `standardize-project` and
-`create-docs` stop without the architecture set's `hld/tech-stack.md`
-(ADR-0102). A
+through the clarification ledger; `create-docs` stops without the
+architecture set's `hld/tech-stack.md` (ADR-0102). A
 `SUBJECT_GATES` row is `f(ctx, payload)` raising `GateError` to refuse; it
 resolves a ticket and reads step state through path joins and `read_json`, so
 it opens no run and takes no lock, which is what lets `acs gate` reach it too.
@@ -318,7 +317,7 @@ validator derives an order from artifacts.
 
 **Legs are one table**, `acs_lib.skills.SKILL_LEGS`: the four delivery-path
 legs (`code-trivial`, `code-small`, `code-standard`, `code-complex`) map to
-`code`, and `create-project` and `standardize-project` map to `project`. A leg
+`code`. A leg
 keeps its SKILL.md and stays Skill-invocable, but a workflow names the entry
 point, which dispatches to it.
 
@@ -456,7 +455,7 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
    if context.handoff_summary: read it, light-verify, continue from where it points
 3. Reflection loop (max 3 iterations), over the skill's OWN roles, in the order
    its SKILL.md gives (see "Subagents" for every skill's roles):
-     survey -> spawn <skill>-<survey role> (surveyor, auditor), iteration 1 only:
+     survey -> spawn <skill>-<survey role> (surveyor, impact-analyst), iteration 1 only:
                read-only on the repo; records mode, inputs, evidence and open
                questions in iter-1/authoring.md; an open decision comes back as
                needs_input BEFORE any file is written. Later iterations reuse
@@ -472,7 +471,7 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
                coordinator-only. The file-map guard applies while one runs.
                A skill with no survey role has its writer survey first and
                record the survey in the same authoring notes.
-     judge  -> spawn <skill>-<judge role> (reviewer, plan-reviewer, build-checker, ...):
+     judge  -> spawn <skill>-<judge role> (reviewer, plan-reviewer, suite-runner, ...):
                re-derives and judges fresh; returns a result with findings.
                Sliced BY DEFAULT at five or more check dimensions: 2-3 slices
                over disjoint dimensions, joined by `acs notes merge`; the
@@ -502,9 +501,8 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 copy of the writing, so no skill runs a planning pass before its writer
 (ADR-0092). Where a skill's work genuinely has two jobs — a read-only survey
 that ends in questions, then a write after the answers — the jobs are two
-roles (ADR-0109): `create-prd` and `create-requirements` run a surveyor,
-`standardize-project` an auditor, on iteration 1 only, and their author or
-scaffolder writes from the frozen notes. Every other skill's writer surveys
+roles (ADR-0109): `create-prd` runs a surveyor on iteration 1 only, and its
+author writes from the frozen notes. Every other skill's writer surveys
 first and records the survey in its authoring notes. On iteration 2+ the
 judge's findings feed straight into the next write role's `<context>`, and
 the writer authors the remediation. `/acs:create-impl-plan`'s `planner` is the
@@ -523,7 +521,7 @@ runs in waves. Three kinds of work fan out:
 
 | Kind | When | Slice | Joined by |
 |---|---|---|---|
-| **Writers** | by default, from iteration 1, whenever the deliverable splits into disjoint files — authors per feature area, architects per HLD/LLD, scaffolders per allowlist slice, test-writers per suite file, doc-updaters per doc area, implementers per file-map partition. A deliverable that is one document keeps one writer, and its SKILL.md says so | one disjoint set of files, named by the skill's partition rule | the integration pass (below) |
+| **Writers** | by default, from iteration 1, whenever the deliverable splits into disjoint files — authors per feature area, architects per HLD/LLD, test-writers per suite file, doc-updaters per doc area, implementers per file-map partition. A deliverable that is one document keeps one writer, and its SKILL.md says so | one disjoint set of files, named by the skill's partition rule | the integration pass (below) |
 | **Judges** | by default when the judge has five or more check dimensions | two or three named slices over disjoint dimensions, as a table in the SKILL.md (slice id → dimension numbers), passed as `<constraint name="dimensions">`. Each deterministic checker runs in exactly one slice; a judge that runs something once (a build, a suite) keeps that run in one slice | `acs notes merge` into `iter-<n>/<role>.md`, then de-duplication |
 | **Surveys** | when the scope spans two or more disjoint top-level areas of the repo | one area | `acs notes merge` into `iter-1/authoring.md`, then the consumer's synthesis |
 
@@ -600,9 +598,9 @@ findings, error details, and stop reasons into workspace files):
 
 | Phase | Artifact (under `steps/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| authoring | `iter-<n>/authoring.md` (every skill that authors a deliverable, ADR-0092/ADR-0094; no skill writes `iter-<n>/plan.md`. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its planner's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the planner) | the survey role on iteration 1 where the skill has one (`surveyor`, `auditor`), else the write role | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the judge corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the judge's `authoring-conformance` dimension judges the draft against these notes. Sliced survey instances write `authoring-<id>.md`, joined into this file by `acs notes merge`; a single writer consuming the merged notes adds a `## Synthesis` section reconciling the slices (`/acs:analyze-requirements` runs that reconciliation as its own `slice="synthesis"` analyst pass, `authoring-synthesis.md` joined last, BEFORE the user is asked, so its draft pass consumes reconciled notes) |
+| authoring | `iter-<n>/authoring.md` (every skill that authors a deliverable, ADR-0092/ADR-0094; no skill writes `iter-<n>/plan.md`. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its planner's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the planner) | the survey role on iteration 1 where the skill has one (`surveyor`), else the write role | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the judge corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the judge's `authoring-conformance` dimension judges the draft against these notes. Sliced survey instances write `authoring-<id>.md`, joined into this file by `acs notes merge`; a single writer consuming the merged notes adds a `## Synthesis` section reconciling the slices (`/acs:analyze-requirements` runs that reconciliation as its own `slice="synthesis"` analyst pass, `authoring-synthesis.md` joined last, BEFORE the user is asked, so its draft pass consumes reconciled notes) |
 | survey / write | `iter-<n>/<role>.json` — `surveyor.json`, `author.json`, `planner.json`, `implementer.json`; a sliced instance writes `<role>-<id>.json` (parallel implementers: `implementer-<k>.json`), and the integration pass `<role>-integration.json` listing every seam it changed, … | survey and write roles | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
-| judge | `iter-<n>/<role>.md` — `reviewer.md`, `plan-reviewer.md`, `build-checker.md`, …; a sliced judge writes `<role>-<id>.md`, joined into `<role>.md` by `acs notes merge` | judge roles | the full report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
+| judge | `iter-<n>/<role>.md` — `reviewer.md`, `plan-reviewer.md`, `suite-runner.md`, …; a sliced judge writes `<role>-<id>.md`, joined into `<role>.md` by `acs notes merge` | judge roles | the full report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
 **A judge also writes a verdict** (MAR-527):
 `steps/<skill>/iter-<n>/verdict.json`, or one `lens-<A..E>.md` per lens for
@@ -695,7 +693,7 @@ property, not a list: it covers the inline apply-work skills (`create-ticket`,
 `create-pr`, `merge-pr`), the unhooked utilities (`setup`, `update`, `test`,
 `release`), and the orchestrators that drive other skills'
 loops without running one of their own (`ship`, `handoff`). The
-thirteen skills that run a write → judge loop over their own subagents
+ten skills that run a write → judge loop over their own subagents
 report it, with a constant `<cap>` of **3**. `/acs:code` reports the
 iteration of ship.yaml's review-code → code loop it is on, whose ceiling is
 that loop's `max_iterations`, the same on every delivery path.
@@ -770,7 +768,6 @@ every other key below is persisted verbatim from the result document:
 |-------|-----------------------------------|
 | create-prd | `prd` `{path, files:[...]}`, `pr` `{number, url, branch}` |
 | create-architecture | `architecture` `{path, hld:[...], lld:[...]}`, `pr` `{...}` |
-| create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (the published `design.md` — the docs folder, or the partition when there is no checkout), `decision` (one line) |
 | analyze-requirements | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
@@ -848,7 +845,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-33 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 33 reachable —
+25 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 25 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -869,7 +866,7 @@ setting.
 | Skill | Subagents (kind) |
 |---|---|
 | `analyze-requirements` | `analyst` (write — a `requirements` survey lane, a `synthesis` pass, then a `draft` pass after the user's answers) · `impact-analyst` (survey — one per code area, on the `executor` tier) · `impact-reviewer` (judge); the loop is run by a controller, `acs.py analysis` (ADR-0114) |
-| `create-prd`, `create-requirements` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
+| `create-prd` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
 | `create-architecture` | `architect` (write) · `reviewer` (judge) |
 | `create-design` | `designer` (write) · `design-reviewer` (judge) |
 | `create-docs` | `author` (write) · `reviewer` (judge), one pair per doc set |
@@ -880,14 +877,10 @@ setting.
 | `review-code` | `lens` · `adjudicator` (judge) |
 | `create-e2e-tests` | `test-writer` (write) · `suite-runner` (judge) |
 | `docs-sync` | `doc-updater` (write) · `drift-reviewer` (judge) |
-| `create-project` | `scaffolder` (write) · `build-checker` (judge) |
-| `standardize-project` | `auditor` (survey) · `scaffolder` (write) · `additive-checker` (judge) |
 | `create-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from `skills/<skill>/references/` (`materialize.md`, `publish.md`, `merge.md`) |
 
-The surveyor and the auditor run on iteration 1 only and freeze their notes;
-the author or scaffolder writes from them. `create-project` and
-`standardize-project` are `/acs:project`'s internal legs and keep their own
-agents. The lifecycle hooks do not track `review-code`'s lenses and
+The surveyor runs on iteration 1 only and freezes its notes; the author
+writes from them. The lifecycle hooks do not track `review-code`'s lenses and
 adjudicators (`acs_lib.lifecycle.UNTRACKED_ROLES`): they fan out one per lens
 and one per finding, and the coordinator persists what they return itself.
 
@@ -1176,8 +1169,8 @@ suites against the finished changeset and drives the triage loop. Three layers:
 | Layer | Authored | Executed & gated |
 |-------|----------|------------------|
 | Unit + coverage | /code implementers, tests-first (TDD) per the spec's Test plan | Implementers iterate against the AFFECTED tests only. The full suite runs **once per review iteration**, in `/acs:review-code`'s final gate, which runs it and reads coverage off that same run vs `test_coverage_percent` — hard fail below target (`docs_only` relaxes only this layer's authoring, never the suite-must-stay-green rule). It records both in `iter-<n>/verdict.json`, and `states.tests` derives from there, so the recorded numbers are the review's independent finding rather than the implementer's self-report; `acs_lib.derive_tests` falls back to the implementer reports when a verdict carries none |
-| E2E (`tests.e2e`: command + optional setup/teardown) | /create-e2e-tests writes the ticket's e2e suites after /code; /code implementers run the AFFECTED e2e tests for a spec that declares e2e impact; /create-project scaffolds the harness for greenfield repos with a user-facing surface; /setup detects and offers the config | **`/acs:run-e2e-tests` owns the full suite** (setup → command → teardown always) — `workflows/ship.yaml` runs it after `create-e2e-tests`, which is the first point at which the suite is complete. `/acs:review-code` judges the DIFF instead: a spec declaring e2e impact with no matching e2e test change is blocking. |
-| CI (scaffolded by /create-project; runs unit + e2e on the PR) | — | /merge-pr readiness reads CI status — report-only, never auto-fixed |
+| E2E (`tests.e2e`: command + optional setup/teardown) | /create-e2e-tests writes the ticket's e2e suites after /code; /code implementers run the AFFECTED e2e tests for a spec that declares e2e impact; /setup detects and offers the config and installs the e2e workflow/runner templates | **`/acs:run-e2e-tests` owns the full suite** (setup → command → teardown always) — `workflows/ship.yaml` runs it after `create-e2e-tests`, which is the first point at which the suite is complete. `/acs:review-code` judges the DIFF instead: a spec declaring e2e impact with no matching e2e test change is blocking. |
+| CI (the gates /setup installs; runs unit + e2e on the PR) | — | /merge-pr readiness reads CI status — report-only, never auto-fixed |
 
 The chain of declarations keeps e2e honest: `test-cases.md` types each `TC-n`
 case (unit / integration / e2e) and traces it to an acceptance criterion → the

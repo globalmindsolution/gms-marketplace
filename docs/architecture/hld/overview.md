@@ -27,7 +27,7 @@ is published today:
 |-----------|----------------------|
 | Enforceable ordering | Deterministic gate scripts on the `PreToolUse(Skill)` event; exit 2 blocks; gates fail closed. |
 | Resumability | File-based state only: append-only run history, phase artifacts, pipeline ledger; no conversation memory between steps. |
-| Verification independence | Separate writer and judge contexts on the twelve authoring skills and `create-docs`, each named for the skill's own work (ADR 0109): analyze-requirements (analyst / impact-analyst / impact-reviewer), create-prd and create-requirements (surveyor / author / reviewer), create-architecture (architect / reviewer), create-design (designer / design-reviewer), create-docs (author / reviewer), create-impl-plan (planner / plan-reviewer), create-api-contract (contract-author / contract-reviewer), create-test-docs (test-designer / trace-reviewer), create-e2e-tests (test-writer / suite-runner), docs-sync (doc-updater / drift-reviewer), create-project (scaffolder / build-checker), standardize-project (auditor / scaffolder / additive-checker) — no skill has a planning pass before its writer (ADR 0092); `code`'s implementers are judged by `/acs:review-code`'s lenses and adjudicators, a step of its own (ADR 0099). Judges anchor on gated upstream contracts and the authoring notes, and re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline with no subagent and are gated upstream by `/acs:review-code`. |
+| Verification independence | Separate writer and judge contexts on the nine authoring skills and `create-docs`, each named for the skill's own work (ADR 0109): analyze-requirements (analyst / impact-analyst / impact-reviewer), create-prd (surveyor / author / reviewer), create-architecture (architect / reviewer), create-design (designer / design-reviewer), create-docs (author / reviewer), create-impl-plan (planner / plan-reviewer), create-api-contract (contract-author / contract-reviewer), create-test-docs (test-designer / trace-reviewer), create-e2e-tests (test-writer / suite-runner), docs-sync (doc-updater / drift-reviewer) — no skill has a planning pass before its writer (ADR 0092); `code`'s implementers are judged by `/acs:review-code`'s lenses and adjudicators, a step of its own (ADR 0099). Judges anchor on gated upstream contracts and the authoring notes, and re-run all cheap checks. Apply-work skills (create-ticket, create-pr, merge-pr) run inline with no subagent and are gated upstream by `/acs:review-code`. |
 | Parallelism | Workspace partitioned by repo → ticket; per-checkout pointers; re-entrant per-checkout locks; worktree-per-ticket, plus phase-level fan-out from a single coordinator (e.g. `/acs:create-docs`, over its four doc sets) spawning independent delivery tickets in parallel worktrees — **capped**, never unbounded: the coordinator walks the declared batches in slices of at most 2 legs, a limit it sets for itself. Inside a step, a coordinator fans a role out over disjoint slices — writers by default, judges at five or more check dimensions, surveys over disjoint repo areas — at most 4 instances per phase, joined deterministically by `acs.py notes merge` and reconciled by an integration pass (ADR-0110). The ship pipeline runs one stage at a time: `ship.yaml` v3 carries no `max_parallel` (ADR-0096), and steps overlap only in a parallel group the list declares — the shipped one is `[create-e2e-tests, docs-sync]` — whose members `/acs:ship` drives in lockstep inside its own session (ADR-0110). |
 | Portability | stdlib-only Python ≥ 3.9 hooks; markdown skills/agents; no pip installs on consumer machines. |
 | Auditability | Pretty-printed JSON everywhere; archives never deleted; clarification ledger; an append-only invocation history per step. |
@@ -68,15 +68,13 @@ is published today:
    user-facing job, the surface is narrowed by declaring an entry point, not by
    merging the skills. The **legs** are one table in the plugin's code,
    `acs_lib.skills.SKILL_LEGS` (ADR 0109) — there is no per-skill manifest —
-   and each leg's SKILL.md names the entry point that owns it (six legs today: four
-   delivery paths behind `/acs:code`, two project-scaffold behind
-   `/acs:project`), and
-   the entry point invokes a leg as a genuine Skill-tool call, so the leg's own
-   gate, hooks, subagents and delivery ticket are untouched. The consequence that
-   matters architecturally: a narrower surface costs no verification
-   independence and no gate integrity, because no gate moved. The entry point
-   itself stays unhooked — it owns no agents and no gate of its own, exactly
-   like `/acs:ship` (ADR 0091).
+   and each leg's SKILL.md names the entry point that owns it (four legs today:
+   the delivery paths behind `/acs:code`; ADR 0118 removed `/acs:project` and
+   its two project-scaffold legs), and
+   the entry point invokes a leg as a genuine Skill-tool call. A code leg runs
+   under `code`'s own gate, hooks and implementer (ADR 0095). The consequence
+   that matters architecturally: a narrower surface costs no verification
+   independence and no gate integrity, because no gate moved.
 
 ## Document map
 

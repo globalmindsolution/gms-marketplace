@@ -72,8 +72,8 @@ class LegTest(unittest.TestCase):
         legs = K.skill_legs()
         for leg in ("code-trivial", "code-small", "code-standard", "code-complex"):
             self.assertEqual(legs.get(leg), "code", leg)
-        for leg in ("create-project", "standardize-project"):
-            self.assertEqual(legs.get(leg), "project", leg)
+        self.assertEqual(sorted(legs), ["code-complex", "code-small", "code-standard",
+                                        "code-trivial"])
 
     def test_all_four_code_legs_survive_the_redesign(self):
         self.assertEqual(K.legs_of("code"),
@@ -130,7 +130,7 @@ class AgentConventionTest(unittest.TestCase):
     def test_mechanical_skills_own_no_agents(self):
         """A dispatcher, and a skill whose work is a sequence of commands
         (create-ticket, create-pr, merge-pr), runs inline."""
-        for skill in ("ship", "create-ticket", "create-pr", "merge-pr", "project"):
+        for skill in ("ship", "create-ticket", "create-pr", "merge-pr"):
             self.assertEqual(K.agent_roles_of(skill), [], skill)
 
 

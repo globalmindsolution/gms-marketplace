@@ -8,4 +8,4 @@ match: not_contains
 
 The architect writes the doc set only ("no other repo files are touched").
 Source, build config or a compose file outside docs/ means the run started
-scaffolding -- /acs:project's job once this PR merges.
+scaffolding -- a scaffold ticket's job once this PR merges.

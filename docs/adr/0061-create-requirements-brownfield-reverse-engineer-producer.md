@@ -1,6 +1,6 @@
 # 0061 — `/acs:create-requirements` brownfield reverse-engineer producer
 
-**Status**: Accepted · **Date**: 2026-07-15
+**Status**: Superseded by [0118](0118-discovery-design-development-phases.md) (`/acs:create-requirements` is removed) · **Date**: 2026-07-15
 
 ## Context
 

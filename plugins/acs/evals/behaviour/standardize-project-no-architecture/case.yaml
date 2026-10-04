@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: standardize-project-no-architecture
-context:
-  scaffold_script: scaffold.sh

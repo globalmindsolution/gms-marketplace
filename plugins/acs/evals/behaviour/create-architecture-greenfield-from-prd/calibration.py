@@ -95,7 +95,8 @@ def IDEAL(ws):
     _deliver(ws)
     _finish(ws)
     ws.reply = ("EVAL-1 (greenfield): architecture doc set written on %s and pushed. gh pr create "
-                "failed, so no PR was opened. Next, once merged: /acs:project." % BRANCH)
+                "failed, so no PR was opened. Next, once merged: /acs:create-ticket for the "
+                "repository scaffold, then /acs:ship." % BRANCH)
 
 
 def _monolith(ws):

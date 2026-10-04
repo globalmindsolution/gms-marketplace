@@ -168,10 +168,6 @@ class StepAdmissionTest(unittest.TestCase):
     def test_a_leg_may_not_be_a_step(self):
         self._refuse("version: 3\nsteps:\n  - code-standard\n", "is a leg of 'code'")
 
-    def test_a_project_leg_may_not_be_a_step(self):
-        self._refuse("version: 3\nsteps:\n  - create-project\n", "is a leg of 'project'")
-
-
 class OrderIsTheAuthorsTest(unittest.TestCase):
     """The workflow only orders skills. Each skill is independent, so no order
     of skills that ship is refused for what one of them reads."""

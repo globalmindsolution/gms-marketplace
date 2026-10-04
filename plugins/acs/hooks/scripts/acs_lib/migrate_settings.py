@@ -16,6 +16,8 @@ running).
     models tiers / overrides   -> dropped, replaced by the full models.<skill>.<role> block
     tracker.milestone / .jira  -> dropped; provider jira -> local
     formats / enforcement / hook_gates -> dropped
+    models.<removed skill>     -> dropped (ADR-0118: create-project,
+                                  standardize-project, create-requirements)
 
 Nothing here reads the disk; the CLI (`acs.py settings migrate`) does that.
 """
@@ -29,6 +31,10 @@ MODEL_TIER_KEYS = ("planner", "executor", "verifier", "overrides")
 
 #: Blocks that are simply gone.
 DROPPED_BLOCKS = ("formats", "enforcement", "hook_gates")
+
+#: Skills ADR-0118 removed. A scaffolded `models` block names them, and
+#: validate_models would refuse an unknown skill outright.
+RETIRED_MODEL_SKILLS = ("create-project", "standardize-project", "create-requirements")
 
 #: Key of `tests` that is a number, not a suite.
 COVERAGE_KEY = "coverage"
@@ -51,6 +57,11 @@ def legacy_problems(settings):
     block = settings.get("models")
     if isinstance(block, dict) and any(k in block for k in MODEL_TIER_KEYS):
         problems.append("models.planner/executor/verifier/overrides are now models.<skill>.<role>")
+    if isinstance(block, dict):
+        retired = [k for k in RETIRED_MODEL_SKILLS if k in block]
+        if retired:
+            problems.append("models.%s name skills that were removed (ADR-0118)"
+                            % "/".join(retired))
     tracker = settings.get("tracker")
     if isinstance(tracker, dict) and (tracker.get("provider") == "jira" or "jira" in tracker):
         problems.append("tracker.jira is no longer supported (provider is local or github)")
@@ -101,6 +112,11 @@ def migrate(data):
         del position_after
 
     block = out.get("models")
+    if isinstance(block, dict):
+        for key in RETIRED_MODEL_SKILLS:
+            if key in block:
+                del block[key]
+                notes.append("removed models.%s (the skill was removed; ADR-0118)" % key)
     if isinstance(block, dict) and any(k in block for k in MODEL_TIER_KEYS):
         out["models"], _added = models.merge_missing(
             {k: v for k, v in block.items() if k not in MODEL_TIER_KEYS})

@@ -54,8 +54,8 @@ class ParseAgentTypeTest(unittest.TestCase):
                 ("acs:create-e2e-tests-suite-runner", ("create-e2e-tests", "suite-runner")),
                 ("acs:create-impl-plan-plan-reviewer", ("create-impl-plan", "plan-reviewer")),
                 ("acs:docs-sync-drift-reviewer", ("docs-sync", "drift-reviewer")),
-                ("acs:standardize-project-additive-checker",
-                 ("standardize-project", "additive-checker"))):
+                ("acs:analyze-requirements-impact-reviewer",
+                 ("analyze-requirements", "impact-reviewer"))):
             with self.subTest(agent_type=agent_type):
                 self.assertEqual(lib.parse_agent_type(agent_type), expected)
 

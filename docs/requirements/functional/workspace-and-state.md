@@ -185,9 +185,9 @@ Repo-level files (all maintained by hooks):
 
 Product-level skills have **no repo-level state**: each run creates its own
 delivery ticket, and the skill's state file (`create-prd-state.json`,
-`create-architecture-state.json`, `create-project-state.json`) lives in
+`create-architecture-state.json`, `create-docs-state.json`) lives in
 that ticket's partition; the skills' *outputs* (PRD, architecture doc set,
-repo skeleton) live in the consumer repo
+product doc sets) live in the consumer repo
 ([skills.md](skills.md#product-level-delivery-tickets)).
 
 The **ticket document** is the local source of truth for the ticket:

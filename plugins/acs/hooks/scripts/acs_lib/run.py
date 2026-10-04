@@ -453,7 +453,7 @@ def _settle_loop(doc, step, wf, outcome):
 def conclude_standalone_run(rdir, step, status):
     """run -> `completed` / `failed` when the one skill it carries ends.
 
-    A delivery-ticket skill (the product skills, `standardize-project`) is never
+    A delivery-ticket skill (the product skills) is never
     a step of the workflow, but `acs step start --allocate` opens a run over its
     delivery ticket so its state has a partition. That run records no workflow
     step, so `finish_step` never touches it: left alone it stayed `in_progress`

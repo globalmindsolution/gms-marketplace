@@ -142,11 +142,12 @@ design-time analysis this Decision describes. This amendment adds no new
 question type, no new `problems` field, and no new lifecycle.
 
 **Reconciling DR-2**: the Decision's participant list (`:21-45`) still names
-the pre-MAR-156 count. Today, **5** agents actually carry the canonical
+the pre-MAR-156 count. Today, **4** agents actually carry the canonical
 `### Design-time doc-consistency step (ADR 0012)` block: the executors of
-the five doc-producing skills — `create-prd-executor`,
-`create-architecture-executor`, `create-design-executor`,
-`create-requirements-executor` and `create-docs-executor` (ADR-0092 removed
+the four doc-producing skills — `create-prd-executor`,
+`create-architecture-executor`, `create-design-executor` and
+`create-docs-executor` (ADR-0118 removed `/acs:create-requirements` and its
+carrier, the fifth; ADR-0092 removed
 those skills' planners, and the block moved into each executor's survey,
 which is where the doc graph is read now). (As written on 2026-08-30 this
 paragraph counted **8** planner agents:

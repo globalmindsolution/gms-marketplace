@@ -107,6 +107,21 @@ class MigrateMappingsTest(unittest.TestCase):
         self.assertEqual(new, old)
         self.assertEqual(notes, [])
 
+    def test_removed_skills_leave_models(self):
+        """ADR-0118: a scaffolded block still names the removed skills, which
+        validate_models would refuse as unknown; migrate drops them and keeps
+        the rest."""
+        kept = {"code": {"implementer": {"model": "sonnet"}}}
+        old = {"models": dict(kept, **{
+            "create-project": {"scaffolder": {"model": "sonnet"}},
+            "standardize-project": {"auditor": {"model": "opus"}},
+            "create-requirements": {"author": {"model": "sonnet"}}})}
+        new, notes = migrate(old)
+        self.assertEqual(new, {"models": kept})
+        lib.validate_models(new["models"])
+        self.assertEqual(len(notes), 3, notes)
+        self.assertTrue(all("ADR-0118" in n for n in notes), notes)
+
     def test_jira_provider_becomes_local_and_jira_subkeys_go(self):
         new, notes = migrate({"tracker": {"provider": "jira", "jira": {"project": "X"},
                                           "milestone": "v1"}})
@@ -190,6 +205,9 @@ class LegacyProblemsTest(unittest.TestCase):
             ({"models": {"overrides": {}}}, "models.planner"),
             ({"tracker": {"provider": "jira"}}, "tracker.jira"),
             ({"tracker": {"jira": {}}}, "tracker.jira"),
+            ({"models": {"create-project": {}}}, "models.create-project"),
+            ({"models": {"standardize-project": {}}}, "models.standardize-project"),
+            ({"models": {"create-requirements": {}}}, "models.create-requirements"),
         ]
         for settings, needle in cases:
             with self.subTest(settings=settings):

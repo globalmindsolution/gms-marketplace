@@ -135,7 +135,7 @@ The architect writes EXACTLY this doc set under
 | `hld/data-model.md` | entities and relationships | `erDiagram` |
 | `hld/deployment.md` | runtime and infrastructure topology | `flowchart` |
 | `hld/tech-stack.md` | languages, frameworks, conventions | — |
-| `hld/project-structure.md` | intended repo layout derived from the C4 container/component views — the canonical target `/acs:standardize-project` audits an existing repo against | `flowchart` (directory-tree style) |
+| `hld/project-structure.md` | intended repo layout derived from the C4 container/component views — the canonical target a repo's structure is reviewed against | `flowchart` (directory-tree style) |
 | `lld/flows/<flow>.md` | one file per key runtime flow | `sequenceDiagram` |
 | `lld/contracts.md` | interface/API contracts between components | — |
 
@@ -581,9 +581,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --resu
 
 3. Report a compact summary to the user: mode, files written, review
    iterations, PR URL, and that /acs:merge-pr (after their review) lands it
-   — for a greenfield product, /acs:project is the next step once
-   merged (the entry point; it detects greenfield from on-disk evidence and
-   dispatches to its create-project leg itself). If you genuinely cannot reach the user (a non-interactive run),
+   — for a greenfield product, the next step once merged is to ticket the
+   scaffold (`/acs:create-ticket "Scaffold the repository per the architecture
+   docs"`) and ship it. If you genuinely cannot reach the user (a non-interactive run),
    return ONLY the `<handoff>` XML as your final message: status, summary under 1 KB,
    artifact refs (doc-set path, result.json, PR URL), and `<next-step>`.
 
@@ -603,5 +603,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:project` (greenfield) or `/acs:create-ticket` (brownfield)
+- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:create-ticket` (greenfield: a scaffold ticket first, then `/acs:ship` it)
 ```
