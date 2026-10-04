@@ -3478,7 +3478,8 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
     """MAR-160 AC-1/AC-2/AC-3/AC-6: docs-sync is a new hooked triad skill
     (SKILL.md + 3 agents + pre-/post-docs-sync.py) standing up spec 01 --
     structural existence/shape, the AC-3 five-input contract documented in
-    the planner, the AC-2 same-branch/no-new-PR mechanics, and the AC-6
+    the planner, the AC-2 no-branch/no-commit/no-new-PR mechanics (ADR-0127:
+    only /acs:create-pr branches and commits), and the AC-6
     no-new-settings-keys guard."""
 
     def _skill_body(self):
@@ -3515,8 +3516,11 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
         reports, and -- since /acs:code has no verifier -- the changeset
         review's verdict in place of the old code-verify.md."""
         body = self._agent_body("doc-updater")
-        for token in ("git diff", "result.json", "docs_updated", "problems"):
+        for token in ("acs.py\" changes diff --patch", "result.json", "docs_updated", "problems"):
             self.assertIn(token, body, token)
+        # The committed-range diff is named only to forbid it: the change is
+        # uncommitted, so `git diff <default>...HEAD` is silently empty.
+        self.assertIn("Never `git diff <default_branch>...HEAD`", body)
         self.assertRegex(body, r"steps/code/iter-.*/implementer\*\.json")
         self.assertIn("steps/review-code/verdict.json", body)
 
@@ -3528,18 +3532,20 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
         self.assertNotIn("create_branch", start)
         self.assertNotIn("gh pr create", start)
 
-    def test_start_section_confirms_same_branch(self):
+    def test_start_section_has_no_branch_precondition_and_never_commits(self):
+        """ADR-0127 replaced the AC-2 branch confirmation: docs-sync works on
+        whatever is checked out, refuses on no recorded branch, and never
+        creates a branch, commits or opens a PR."""
         body = self._skill_body()
         start = body[body.index("## Start"):body.index("## Resume & reconcile")]
+        self.assertIn("**No branch precondition.**", start)
+        self.assertNotIn("states.branch", start)
         self.assertIsNotNone(
-            re.search(r"(?i)branch", start),
-            "docs-sync/SKILL.md's Start section must confirm the branch "
-            "matches the ticket's recorded branch (AC-2)")
-        self.assertIsNotNone(
-            re.search(r"(?i)never (creates?|opens?) a (new )?(branch|.*PR)", start)
-            or re.search(r"(?i)same ticket branch", start),
+            re.search(r"(?i)never creates? a (new )?branch", start),
             "docs-sync/SKILL.md's Start section must state it never creates "
-            "a new branch or opens a new PR (AC-2)")
+            "a branch (AC-2)")
+        self.assertRegex(start, r"NEVER stages or commits")
+        self.assertRegex(start, r"NEVER opens a PR")
 
     # ------------------------------------------------------------------ AC-6
 

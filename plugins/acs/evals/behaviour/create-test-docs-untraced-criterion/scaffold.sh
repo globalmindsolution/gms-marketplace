@@ -2,10 +2,10 @@
 # create-test-docs (untraced criterion): the shop repo, story EVAL-1 (cursor
 # pagination) minted with FOUR acceptance criteria -- the fourth, "The
 # pagination code is clean and easy to maintain", has no observable outcome --
-# and the ticket branch carrying what the earlier Build steps would have
+# and the working tree (main, uncommitted -- ADR-0127) carrying what the earlier Build steps would have
 # published: analysis.md (C-5 about AC-4 left open), plan.md (AC-4 planned as
 # written, no test) and api-contract.md. Each is written in its SKILL.md
-# format and committed as its coordinator does with cp.
+# format and left uncommitted as its coordinator does with cp.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -23,7 +23,6 @@ printf '%s' '{"acceptance_criteria": [
   "The pagination code is clean and easy to maintain"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-cursor-pagination-for-get-customers
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/analysis.md <<'MD'
 ---
@@ -75,8 +74,6 @@ has no observable outcome; C-5 asks what would measure it -- open.
 
 Ready for planning; api_surface true; no design needed.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze cursor pagination"
 cat > docs/tickets/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Cursor pagination for GET /customers
 
@@ -114,8 +111,6 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/__init__.py, tests/test_customers.py, README.md
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan cursor pagination"
 cat > docs/tickets/EVAL-1/api-contract.md <<'MD'
 ---
 ticket: EVAL-1
@@ -164,5 +159,3 @@ Backward compatible, in place.
 
 Mode `no-machine-readable-contracts`.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Contract for cursor pagination"

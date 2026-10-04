@@ -22,9 +22,10 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:create-api-contract skill for ticket EVAL-1 (publish
 order.shipped when an order ships). The analysis and the implementation plan
-are already published on the ticket branch that is checked out. Take the
-skill all the way through: contract published to the ticket's docs folder and
-committed on that branch, and the step finished.
+are already published in the ticket's docs folder, uncommitted, on main. Take
+the skill all the way through: contract published to the ticket's docs folder
+and left uncommitted (no branch, no commit: /acs:create-pr commits later), and
+the step finished.
 
 I can't answer questions during this run, so don't ask me anything. The
 decisions are settled: the event is named order.shipped and uses the same

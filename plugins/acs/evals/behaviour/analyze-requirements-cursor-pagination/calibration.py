@@ -2,9 +2,9 @@
 
 IDEAL does what /acs:analyze-requirements' coordinator does, through the
 plugin's own writers where they exist: `acs step start`, `clarify.py add` for
-each answer the prompt relayed, the draft in the step directory, the ticket
-branch, the Publish copy into docs/tickets/EVAL-1/ and its commit, then
-result.json and the post-hook. The analyst's and impact reviewer's own phase
+each answer the prompt relayed, the draft in the step directory, the Publish
+copy into docs/tickets/EVAL-1/ left uncommitted on main (no branch, no
+commit -- ADR-0127), then result.json with `files` and the post-hook. The analyst's and impact reviewer's own phase
 files are workspace detail no grader reads, so only the draft is played.
 """
 
@@ -73,6 +73,12 @@ ANSWERS = [
 ]
 
 
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _start(ws):
     ws.skill("analyze-requirements")
     started = ws.acs("step", "start", "--step", "analyze-requirements", "--ticket", "EVAL-1")
@@ -84,6 +90,7 @@ def _finish(ws, status="completed", api_surface=True):
               "states": {"ready_for_planning": status == "completed",
                          "api_surface": api_surface, "questions_open": 0},
               "findings": [], "errors": []}
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-analyze-requirements.py" --result-file "%s/result.json"'
           % (SCRIPTS, STEP))
@@ -95,9 +102,7 @@ def IDEAL(ws):
         ws.sh('python3 "%s/clarify.py" add --skill analyze-requirements --ticket EVAL-1 '
               '--question "%s" --answer "%s"' % (SCRIPTS, question, answer))
     ws.write(STEP + "/analysis.md", ANALYSIS)
-    ws.sh('git checkout -q -b "%s"' % BRANCH)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" "%s" && git add docs/tickets/EVAL-1 '
-          '&& git commit -qm "EVAL-1 Analyze cursor pagination"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" "%s"' % (STEP, PUBLISHED))
     _finish(ws)
 
 
@@ -106,8 +111,8 @@ def _started_only(ws):
 
 
 def _prose_on_main(ws):
-    """Wrote an analysis by hand on main: no front matter, no impact map from
-    the code, no ticket branch, and the step never finished."""
+    """Wrote an analysis by hand and committed it: no front matter, no impact
+    map from the code, and the step never finished."""
     _start(ws)
     ws.write(PUBLISHED, "# Analysis of EVAL-1\n\nAdd a cursor to GET /customers. "
                         "Low risk; no API change.\n")
@@ -119,7 +124,6 @@ def _api_surface_false(ws):
     would be skipped."""
     _start(ws)
     ws.write(STEP + "/analysis.md", ANALYSIS.replace("api_surface: true", "api_surface: false"))
-    ws.sh('git checkout -q -b "%s"' % BRANCH)
     ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" "%s"' % (STEP, PUBLISHED))
     _finish(ws, api_surface=False)
 
@@ -129,3 +133,13 @@ BAD = {
     "hand-wrote a prose analysis on main": _prose_on_main,
     "declared api_surface false": _api_surface_false,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """The pre-ADR-0127 publish: everything right, then a ticket branch and a
+    commit -- only /acs:create-pr branches and commits now."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b "%s" && git add docs && git commit -qm "EVAL-1 Analyze"' % BRANCH)
+
+
+BAD["committed the analysis on a new ticket branch"] = _committed_on_a_ticket_branch

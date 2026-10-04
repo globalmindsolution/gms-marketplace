@@ -20,8 +20,8 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:analyze-requirements skill for ticket EVAL-1 (live order tracking
 from carrier updates) and take it all the way through: survey, analysis
-published to the ticket's docs folder and committed on the ticket branch, and
-the step finished.
+published to the ticket's docs folder and left uncommitted (no branch, no
+commit: /acs:create-pr commits later), and the step finished.
 
 I can't answer questions during this run, so here are my answers — record
 them as answered, don't ask me anything:

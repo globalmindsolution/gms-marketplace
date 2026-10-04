@@ -399,10 +399,13 @@ class DiffJudgeGoesLastTest(unittest.TestCase):
                   encoding="utf-8") as handle:
             return " ".join(handle.read().split())
 
-    def test_ship_holds_a_diff_reading_judge_until_every_sibling_writer_committed(self):
+    def test_ship_holds_a_diff_reading_judge_until_every_sibling_writer_has_written(self):
+        """ADR-0127: writers write, they do not commit; the judge waits on
+        the last write, and no member contends for the index."""
         text = self.read("ship")
-        self.assertIn("A judge that reads the branch diff goes last.", text)
-        self.assertIn("spawns only after every sibling writer has committed", text)
+        self.assertIn("A judge that reads the changeset goes last.", text)
+        self.assertIn("spawns only after every sibling writer has written (not committed", text)
+        self.assertNotIn("index.lock", text)
         self.assertIn("run that judge once more before the member finishes", text)
 
     def test_docs_sync_says_its_drift_review_judges_the_final_diff(self):

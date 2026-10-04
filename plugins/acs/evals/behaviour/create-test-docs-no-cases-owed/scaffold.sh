@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # create-test-docs (nothing owed): the shop repo and a DOCS-ONLY task,
 # EVAL-1 "Document how to run the tests", minted through new-ticket.py with
-# --docs-only true. The ticket branch carries its published plan, whose
+# --docs-only true. The working tree (main, uncommitted -- ADR-0127) carries its published plan, whose
 # Contract block owes no test cases (`test_cases: false`, with a reason), and
 # the create-impl-plan step is RUN through the plugin's own writers (`acs step
 # start`, the draft, `acs.py filemap set`, result.json,
@@ -20,7 +20,6 @@ python3 "$ACS_SCRIPTS/new-ticket.py" --title "Document how to run the tests" --t
 printf '%s' '{"acceptance_criteria": [
   "CONTRIBUTING.md has a Running the tests section naming the pytest command and the 90% coverage floor"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
-acs_branch task/EVAL-1-document-how-to-run-the-tests
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Document how to run the tests
@@ -40,8 +39,6 @@ owes:
 ### Executor tasks & file map
 - task 1: CONTRIBUTING.md
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan the contributing docs"
 step="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan"
 python3 "$ACS_SCRIPTS/acs.py" step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
 cp docs/tickets/EVAL-1/plan.md "$step/plan.md"

@@ -2,10 +2,10 @@
 # create-api-contract (event surface): the shop repo with an event bus
 # (src/shop/events.py) that already publishes order.created, whose contract
 # the repo keeps as a JSON Schema, schemas/events/order.created.json -- one
-# file per event. Story EVAL-1 adds order.shipped. The ticket branch carries
+# file per event. Story EVAL-1 adds order.shipped. The working tree (main, uncommitted -- ADR-0127) carries
 # its published analysis (api_surface: true: a new event, no HTTP change) and
 # plan (owes api_contract: true), written in their SKILL.md formats and
-# committed as their coordinators do with cp.
+# left uncommitted as their coordinators do with cp.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -77,7 +77,6 @@ printf '%s' '{"acceptance_criteria": [
   "Publishing is at-least-once; consumers deduplicate by event_id"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-publish-order-shipped-when-an-order-ship
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/analysis.md <<'MD'
 ---
@@ -125,8 +124,6 @@ The three criteria on the ticket are confirmed as written.
 
 Ready for planning; api_surface true (a new event, no HTTP change); no design needed.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze order.shipped"
 cat > docs/tickets/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Publish order.shipped when an order ships
 
@@ -158,5 +155,3 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/orders.py, tests/test_order_events.py
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan order.shipped"

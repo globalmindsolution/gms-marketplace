@@ -20,10 +20,10 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
 Run the /acs:create-test-docs skill for ticket EVAL-1 (serve the customer
-listing over HTTP). The implementation plan is already published on the
-ticket branch that is checked out. Take the skill all the way through: test
-cases published to the ticket's docs folder and committed on that branch, and
-the step finished.
+listing over HTTP). The implementation plan is already published in the
+ticket's docs folder, uncommitted, on main. Take the skill all the way
+through: test cases published to the ticket's docs folder and left uncommitted
+(no branch, no commit: /acs:create-pr commits later), and the step finished.
 
 I can't answer questions during this run, so don't ask me anything. The
 first two criteria are about the running HTTP app and belong in this repo's

@@ -16,8 +16,8 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
 Run the /acs:create-api-contract skill for ticket EVAL-1 (log slow customer
-listings). The analysis and the implementation plan are already published on
-the ticket branch that is checked out.
+listings). The analysis and the implementation plan are already published in
+the ticket's docs folder, uncommitted, on main.
 
 I can't answer questions during this run, so don't ask me anything. If it
 turns out this step has nothing to do for this ticket, don't write anything —

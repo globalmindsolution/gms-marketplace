@@ -3,8 +3,8 @@
 IDEAL does what /acs:create-impl-plan's coordinator does, through the
 plugin's own writers where they exist: `acs step start`, the planner's draft
 in the step directory, `acs.py filemap set` for the one executor task, the
-Publish copy into docs/tickets/EVAL-1/ and its commit on the ticket branch the
-scaffold checked out, then result.json and the post-hook. The planner's and
+Publish copy into docs/tickets/EVAL-1/ left uncommitted on main (ADR-0127: no
+branch, no commit), then result.json and the post-hook. The planner's and
 plan reviewer's own phase files are workspace detail no grader reads.
 """
 
@@ -69,6 +69,12 @@ owes:
 """
 
 
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _start(ws):
     ws.skill("create-impl-plan")
     started = ws.acs("step", "start", "--step", "create-impl-plan", "--ticket", "EVAL-1")
@@ -79,14 +85,14 @@ def _finish(ws, file_map):
     result = {"status": "completed", "summary": "calibration",
               "states": {"plan_path": PUBLISHED, "plan_approved": False, "file_map": file_map},
               "findings": [], "errors": []}
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-impl-plan.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 
 
 def _publish(ws, text):
     ws.write(STEP + "/plan.md", text)
-    ws.sh('cp "%s/plan.md" "%s" && git add "%s" && git commit -qm "EVAL-1 Plan cursor pagination"'
-          % (STEP, PUBLISHED, PUBLISHED))
+    ws.sh('cp "%s/plan.md" "%s"' % (STEP, PUBLISHED))
 
 
 def IDEAL(ws):
@@ -123,3 +129,13 @@ BAD = {
     "a plan without the Contract block, map undeclared": _template_plan_no_contract,
     "owed no API contract": _owes_no_contract,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """The pre-ADR-0127 publish: everything right, then a ticket branch and a
+    commit -- only /acs:create-pr branches and commits now."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b story/EVAL-1-x && git add -A && git commit -qm "EVAL-1 publish"')
+
+
+BAD["committed what it published on a new ticket branch"] = _committed_on_a_ticket_branch

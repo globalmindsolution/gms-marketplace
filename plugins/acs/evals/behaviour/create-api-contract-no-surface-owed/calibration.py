@@ -15,6 +15,12 @@ STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-api-contract"
 PUBLISHED = "docs/tickets/EVAL-1/api-contract.md"
 
 
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _gate(ws):
     ws.skill("create-api-contract")
     payload = json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Skill",
@@ -38,6 +44,7 @@ def _wrote_one_anyway(ws):
     ws.sh('cp "%s/api-contract.md" "%s"' % (STEP, PUBLISHED))
     result = {"status": "completed", "outcome": "contract_written", "summary": "x",
               "states": {"items": 1, "contract_path": PUBLISHED}, "findings": [], "errors": []}
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-api-contract.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
     ws.reply = "Contract written."

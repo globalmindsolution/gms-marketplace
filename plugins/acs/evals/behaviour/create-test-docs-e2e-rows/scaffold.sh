@@ -3,8 +3,8 @@
 # (src/shop/web.py, /health only) and an e2e harness that drives it in process
 # (tests/e2e/, a stdlib unittest suite), configured as the `e2e` suite in
 # .acs/settings.json. Task EVAL-1 wires GET /customers; two of its criteria
-# are HTTP behaviour. The ticket branch carries the published plan (SKILL.md's
-# format, committed as the planning coordinator does with cp) owing test
+# are HTTP behaviour. The working tree (main, uncommitted -- ADR-0127) carries the published plan (SKILL.md's
+# format, left uncommitted as the planning coordinator does with cp) owing test
 # cases AND e2e.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -83,7 +83,6 @@ printf '%s' '{"acceptance_criteria": [
   "list_customers rejects a negative offset with ValueError"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch task/EVAL-1-serve-the-customer-listing-over-http
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Serve the customer listing over HTTP
@@ -116,5 +115,3 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/web.py, src/shop/__init__.py, tests/unit/test_customers.py
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan the HTTP customer listing"

@@ -89,6 +89,12 @@ ANSWERS = [
 ]
 
 
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _start(ws):
     ws.skill("create-design")
     started = ws.acs("step", "start", "--step", "create-design", "--ticket", "EVAL-1")
@@ -100,6 +106,7 @@ def _finish(ws):
               "states": {"design_path": PUBLISHED,
                          "decision": "Charge cards synchronously at checkout with an idempotency key (Option A)"},
               "findings": [], "errors": []}
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-design.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 
@@ -143,3 +150,13 @@ BAD = {
     "one option, no flow diagram": _one_option,
     "implemented checkout instead of designing it": _built_it,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """Everything right, then a ticket branch and a commit -- only
+    /acs:create-pr branches and commits (ADR-0127)."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b story/EVAL-1-x && git add -A && git commit -qm "EVAL-1 publish"')
+
+
+BAD["committed the design on a new ticket branch"] = _committed_on_a_ticket_branch

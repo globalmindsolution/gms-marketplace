@@ -19,10 +19,11 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
 Run the /acs:create-impl-plan skill for ticket EVAL-1 (cursor pagination for
-GET /customers). The analysis is already published on the ticket branch that
-is checked out. Take the skill all the way through: plan published to the
-ticket's docs folder and committed on that branch, the executor file map
-declared, and the step finished.
+GET /customers). The analysis is already published in the ticket's docs
+folder, uncommitted, on main. Take the skill all the way through: plan
+published to the ticket's docs folder and left uncommitted (no branch, no
+commit: /acs:create-pr commits later), the executor file map declared, and the
+step finished.
 
 I can't answer questions during this run, so don't ask me anything. Every
 open point is already settled in docs/tickets/EVAL-1/analysis.md. The tests

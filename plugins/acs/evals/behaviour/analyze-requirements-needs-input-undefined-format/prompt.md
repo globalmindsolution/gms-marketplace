@@ -21,8 +21,8 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:analyze-requirements skill for ticket EVAL-1 (customer export for
 finance) and take it as far as it can honestly go: survey, clarification
-ledger, analysis published to the ticket's docs folder on the ticket branch,
-and the step finished.
+ledger, analysis published to the ticket's docs folder (uncommitted), and the
+step finished.
 
 I can't answer questions during this run, so don't ask me anything. And I
 genuinely don't know the answer to the big one: nobody has told us which

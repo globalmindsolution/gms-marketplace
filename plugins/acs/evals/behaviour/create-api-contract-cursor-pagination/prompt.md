@@ -20,9 +20,10 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:create-api-contract skill for ticket EVAL-1 (cursor pagination
 for GET /customers). The analysis and the implementation plan are already
-published on the ticket branch that is checked out. Take the skill all the way
-through: contract published to the ticket's docs folder and committed on that
-branch, and the step finished.
+published in the ticket's docs folder, uncommitted, on main. Take the skill
+all the way through: contract published to the ticket's docs folder and left
+uncommitted (no branch, no commit: /acs:create-pr commits later), and the step
+finished.
 
 I can't answer questions during this run, so don't ask me anything. The
 compatibility decisions are settled: the change is backward compatible and in

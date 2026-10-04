@@ -140,7 +140,7 @@ class NonEpicSectionDefenseInDepthTest(unittest.TestCase):
     epic anyway has to refuse it rather than judge it onto a path."""
 
     def _section(self):
-        return section(_code_contract(), "### Epics are never implemented", "## Branch")
+        return section(_code_contract(), "### Epics are never implemented", "## Working tree")
 
     def test_invariant_sentence_still_present_verbatim(self):
         self.assertIn(
