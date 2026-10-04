@@ -173,7 +173,9 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
         message = commit_message(ctx.get("settings"), ticket, summary)
         lld_files = recorded_lld_files(rdir, ctx, loop.get("ticket_id"))
         pathspecs = [docs_dir] + lld_files
-        _git(root, "add", "--", *pathspecs)
+        _git(root, "add", "--", docs_dir)
+        if lld_files:
+            _git(root, "add", "--", *lld_files)
         staged = _git(root, "diff", "--cached", "--quiet", "--", *pathspecs, check=False)
         if staged.returncode == 1:
             _git(root, "commit", "-q", "-m", message, "--", *pathspecs)

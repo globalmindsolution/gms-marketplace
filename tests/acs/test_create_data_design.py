@@ -111,7 +111,7 @@ class ProseContractTest(unittest.TestCase):
         self.assertIn("design init --status <proposed|implemented> --ticket <id> --feature <slug>",
                       body)
         self.assertIn("design bump --ticket <id>", body)
-        self.assertIn("classDef planned stroke-dasharray: 5 5", body)
+        self.assertIn("`%% planned` comment", body)
         self.assertIn("--feature <feature>", flat("agents", "%s-designer.md" % SKILL))
 
     def test_gap_analysts_run_in_the_same_message_as_the_survey(self):

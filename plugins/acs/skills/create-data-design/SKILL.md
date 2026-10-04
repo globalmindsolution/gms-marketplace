@@ -207,9 +207,9 @@ redo the iteration-1 join with that file appended. It reports
 set only through `acs.py design`: a new file `design init --status
 <proposed|implemented> --ticket <id> --feature <slug>` (`implemented` when it
 documents the code as built, `proposed` when it designs ahead of it); a changed
-file `design bump --ticket <id>`. Elements designed but not built are drawn with
-`classDef planned stroke-dasharray: 5 5` (`ENTITY:::planned`) and marked
-`(planned)` in prose. The README files are indexes, not designs: no version front
+file `design bump --ticket <id>`. Elements designed but not built carry a `%% planned`
+comment on their line in the `erDiagram` (which has no styling every renderer
+shows) and are marked `(planned)` in prose. The README files are indexes, not designs: no version front
 matter.
 
 On iterations 2-3 the write designer re-runs with ALL findings verbatim in

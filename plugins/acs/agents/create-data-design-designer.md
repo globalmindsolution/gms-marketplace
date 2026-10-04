@@ -93,8 +93,8 @@ finding.
    PK,FK`), one statement per line, every diagram a fenced ```mermaid block.
 6. **Gaps and versions (ADR-0122).** Handle every gap in `iter-1/gaps.md` and record how
    under `## Gaps handled`: undocumented → documented as built; unimplemented → kept and
-   planned — `classDef planned stroke-dasharray: 5 5` (`ENTITY:::planned`) and `(planned)`
-   in prose; drifted → as the answer in `<context>` says. Front matter only through
+   planned — a `%% planned` comment on the entity's line in the `erDiagram` and
+   `(planned)` in prose; drifted → as the answer in `<context>` says. Front matter only through
    `acs.py design`: a new file `design init --status <proposed|implemented> --ticket <id>
    --feature <feature>` (`implemented` when it documents the code as built); a changed
    file `design bump --ticket <id>`. Run `acs.py design check <your data documents>` last

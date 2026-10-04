@@ -130,7 +130,7 @@ you actually read or ran in THIS task:
 - **Mark unverifiable points as assumptions**, with the reason the assumption
   is needed — an assumption is a finding for the coordinator to resolve, never
   a silent default baked into your output.
-- **As reviewer, police grounding too**: authoring notes or an architect report that
+- **As reviewer, police grounding too**: authoring notes or a designer report that
   asserts something without a cited source or quoted output is itself a
   blocking finding — unverifiable work is unverified work.
 - **Precision is not the test; truth is.** A citation that names the right

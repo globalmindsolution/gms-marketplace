@@ -183,6 +183,34 @@
         "model": "claude-opus-5-5",
         "effort": "high"
       }
+    },
+    "create-data-design": {
+      "designer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-flows": {
+      "designer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
     }
   }
 }
