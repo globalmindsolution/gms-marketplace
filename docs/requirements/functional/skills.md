@@ -37,7 +37,7 @@ both Test skills, `/create-pr` and `/merge-pr`. Five (`/setup`, `/ship`,
 run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
 itself. `/run-e2e-tests` is a hooked step like any other; the `/acs:test`
 alias is removed. A greenfield repo's scaffold is no skill of its own
-([ADR-0118](../../adr/0118-discovery-design-development-phases.md)): it is a
+([ADR-0118](../../architecture/adr/0118-discovery-design-development-phases.md)): it is a
 ticket — `/acs:create-ticket "Scaffold the repository per the architecture
 docs"`, then `/acs:ship`.
 
@@ -110,7 +110,7 @@ table; none of its runtime obligations changed.
 Purpose: let a team change the branch/commit/PR conventions and install the
 CI that enforces them — nothing else. It is **optional**: every setting has a
 working default, so no skill needs `/setup` to have run first
-([ADR-0105](../../adr/0105-acs-runs-without-setup.md)). Every other setting
+([ADR-0105](../../architecture/adr/0105-acs-runs-without-setup.md)). Every other setting
 (ticket prefix, coverage target, merge strategy, tracker, models, named test
 suites, advisories) keeps its default and is edited by hand in `.acs/settings.json`,
 validated against `settings.schema.json`.
@@ -121,7 +121,7 @@ validated against `settings.schema.json`.
   earlier run wrote, so the file carries only choices.
 - The workspace derives silently to `<main-checkout>/.acs/state-machine` —
   no prompt, no required input, and no override (ADR-0086,
-  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+  [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
 - MUST NOT ask for a `ticket_prefix`: it defaults to `ACS`, and a repo that
   wants its own sets it by hand.
 - MUST show the three conventions — `formats.branch_name`,
@@ -129,7 +129,7 @@ validated against `settings.schema.json`.
   defaults, and ask whether to keep or customize them.
 - MUST offer each CI gate explicitly, never installing one silently: the
   convention check (the PR description names its ticket,
-  [ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)), the tests +
+  [ADR-0106](../../architecture/adr/0106-ci-checks-the-ticket-link-only.md)), the tests +
   coverage gate (which needs `tests.unit.command`),
   and the e2e merge gate — the last offered only when `tests.e2e` is
   already configured. When a gate is installed, SHOULD then offer the
@@ -232,7 +232,7 @@ this skill owns the workflow around it.
 - Runs post-update migration checks: settings valid against the new schema,
   no leftover `statusLine` / `subagentStatusLine` setting still pointing at an
   acs status-line script (acs no longer ships them —
-  [ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md); the fix is
+  [ADR 0103](../../architecture/adr/0103-no-status-line-no-cost-metering.md); the fix is
   removing that setting), workspace reachable.
 - Reloading is the user's action (`/reload-plugins` or a new session); the
   skill states this explicitly — the current session keeps the old version.
@@ -273,7 +273,7 @@ closing the loop on failures with a regression ticket.
   regression key and applies a three-way policy — mint a new ticket, comment-
   bump an existing open one, or open a new ticket linked to a closed one that
   recurred — never duplicating and never silently reopening a closed ticket.
-  See `docs/adr/0044-acs-test-closed-loop-ticketing.md` for the full policy.
+  See `docs/architecture/adr/0044-acs-test-closed-loop-ticketing.md` for the full policy.
 - **Scheduling is the caller's job** — Claude Code routines/cron invoke
   `/acs:run-e2e-tests` headless; the concrete recipe lives in
   `templates/operations/test-scheduling.md` (shipped by `/acs:create-docs operations`),
@@ -289,7 +289,7 @@ closing the loop on failures with a regression ticket.
   human: `on_fail` and its `relay_to`/`max_loops` bound are removed with the
   rest of the workflow language (ADR-0096), and the one loop the workflow
   declares is `review-code` → `code`. See
-  `docs/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
+  `docs/architecture/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
 
 ## /acs:release (utility)
 
@@ -375,7 +375,7 @@ else is verified against.
   codebase and docs, confirming open points with the user.
 - Produces the PRD doc set in the consumer repo wherever the repo already
   keeps its PRD — found through `CLAUDE.md` and the repo, not a setting
-  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)) — else at `docs/product/`
+  ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)) — else at `docs/product/`
   ([configuration.md](configuration.md#document-and-workspace-locations)):
   - `prd.md` — vision, problem statement, target users & personas, goals
     with **measurable success metrics**, prioritized features (e.g.
@@ -434,7 +434,7 @@ living system documentation the whole pipeline designs and verifies against.
   pipeline. Run once when starting a product (or onboarding `acs` onto an
   existing repo); re-run to regenerate after major shifts.
 - MUST take the **PRD** as its primary input — the skill locates it at
-  Start ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+  Start ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
   With no PRD it does not stop: it works from the run's subject — a document
   named in its arguments, else the user's focus notes plus the codebase —
   and confirms the goals, NFRs and constraints it designs to through the
@@ -509,7 +509,7 @@ internal leg skills that differed only in a table row, and that table,
   new set is created in when the repo has none (`docs/quality/`,
   `docs/operations/`, `docs/principles/`, `docs/standards/` — an existing
   set is found through `CLAUDE.md` and the repo, not configured,
-  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)), its
+  [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)), its
   delivery-ticket title, its template
   directory, its output files with the sections each must carry (the first
   file is the sentinel that says the set has shipped), its audience
@@ -532,7 +532,7 @@ internal leg skills that differed only in a table row, and that table,
   doc set (its `hld/tech-stack.md`, not merely a directory) at Start and
   stops when none is found — "no architecture doc set found (expected
   hld/tech-stack.md) — run /acs:create-architecture first." — once, before
-  any delivery ticket is minted ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+  any delivery ticket is minted ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
 - **One delivery ticket per set**: `acs.py step start --step create-docs
   --doc-set <set> --allocate` mints a `task` ticket titled from `DOC_SETS`
   that records its `doc_set`; each set runs in its own worktree on its own
@@ -674,7 +674,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   actually is, rather than what a request sounded like before anyone read the
   code. `ticket.json` therefore carries no `size`, `stakes` or `lane` field,
   and a ticket that still has them from an older build is read as if it did
-  not (`docs/adr/0095-static-delivery-path-routing.md`).
+  not (`docs/architecture/adr/0095-static-delivery-path-routing.md`).
 - MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400
   changed lines, one concern, grounded in a codebase survey); above the bar the
   coordinator recommends an epic with children cut at PR-sized, independently
@@ -760,7 +760,7 @@ tickets where the change is architecturally significant.
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - The design's accepted decision records are committed into the consumer
-  repo's ADR folder (found in the repo, else `docs/adr/` —
+  repo's ADR folder (found in the repo, else `docs/architecture/adr/` —
   [configuration.md](configuration.md#document-and-workspace-locations)) by
   `/code` as part of its documentation updates.
 
@@ -1299,7 +1299,7 @@ Purpose: ship the implementation as a pull request.
 - Before the PR is opened, the filled description MUST pass
   `pr-conventions.py check` — exactly what CI will check, that the
   description names its ticket
-  ([ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)), plus two
+  ([ADR-0106](../../architecture/adr/0106-ci-checks-the-ticket-link-only.md)), plus two
   template-hygiene scans (no unrendered `{placeholder}`, no leftover
   `<!-- -->` comment).
 - The PR targets the repo's **default branch** and MUST carry the **`ACS`**

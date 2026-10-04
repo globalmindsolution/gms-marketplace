@@ -62,7 +62,7 @@ lifts the average.
 
 The headroom that finding pointed at is gone with it. If TOTAL ever drops under
 the floor, the remedy is still a unit path for the uncovered code, not an
-`omit`: [ADR 0071](../adr/0071-coverage-omit-true-forwarder-shims-only.md)
+`omit`: [ADR 0071](../architecture/adr/0071-coverage-omit-true-forwarder-shims-only.md)
 restricts `omit` to true argument-forwarder shims, and PRD **G3** requires the
 target be met or hard-failed, never silently waived.
 

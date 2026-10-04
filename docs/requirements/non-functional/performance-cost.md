@@ -6,7 +6,7 @@ tie-break rule.
 
 - **acs measures no footprint.** It records no token count, no dollar figure
   and no per-run, per-ticket or per-repo totals, and ships no dashboard for
-  them ([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md));
+  them ([ADR 0104](../../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md));
   see [../functional/workspace-and-state.md](../functional/workspace-and-state.md#no-usage-recording).
   Tokens, spend and time per ticket are read where Claude Code reports them:
   its own `/cost`, the console, or its usage exports.

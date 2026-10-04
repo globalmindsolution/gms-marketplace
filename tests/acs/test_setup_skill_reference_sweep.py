@@ -70,7 +70,7 @@ THIS_FILE = os.path.realpath(__file__)
 # C-2's two frozen historical records, plus the m2-0 validation spike (ledger
 # C-7: a dated runbook/result-log of commands literally typed at the time,
 # structurally the same class of artifact as an ADR) -- never rewritten.
-ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "adr")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 SPIKE_DOC = os.path.join(REPO_ROOT, "docs", "product", "spikes", "m2-0-validation-spike.md")
 ADR_0047 = os.path.join(ADR_DIR, "0047-init-auto-wires-e2e-required-check-report-once.md")
@@ -301,7 +301,7 @@ class NoLiveReferenceOutsideHistoryTest(unittest.TestCase):
         self.assertEqual(
             hits, [],
             "live /acs:init or /init reference(s) found outside the historical "
-            "allowlist (docs/adr/**, plugins/acs/CHANGELOG.md, "
+            "allowlist (docs/architecture/adr/**, plugins/acs/CHANGELOG.md, "
             "docs/product/spikes/m2-0-validation-spike.md):\n" + "\n".join(hits))
 
     def test_no_live_acs_initialize_reference_outside_history(self):
@@ -328,7 +328,7 @@ class NoLiveReferenceOutsideHistoryTest(unittest.TestCase):
         self.assertEqual(
             hits, [],
             "live /acs:initialize or /initialize reference(s) found outside "
-            "the historical allowlist (docs/adr/**, plugins/acs/CHANGELOG.md, "
+            "the historical allowlist (docs/architecture/adr/**, plugins/acs/CHANGELOG.md, "
             "docs/product/spikes/m2-0-validation-spike.md, and the "
             "2026-08-13 docs/requirements/README.md ledger row):\n" + "\n".join(hits))
 
@@ -704,7 +704,7 @@ class GitignoredPathsNotSweptTest(unittest.TestCase):
         swept = {os.path.realpath(p) for p in iter_repo_files()}
         for rel in ("plugins/acs/hooks/scripts/acs_lib/_common.py",
                     "plugins/acs/hooks/scripts/acs.py",
-                    "docs/adr/README.md"):
+                    "docs/architecture/adr/README.md"):
             path = os.path.realpath(os.path.join(REPO_ROOT, rel))
             self.assertTrue(os.path.isfile(path),
                             "%s must exist for this test to mean anything" % rel)

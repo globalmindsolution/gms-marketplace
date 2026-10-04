@@ -228,18 +228,18 @@ class DocsSyncVerifierRequirementsRoutingTest(unittest.TestCase):
 
 
 class Adr0060ExistsAndOnTopicTest(unittest.TestCase):
-    """T1.3 (AC-7): `docs/adr/0060-*.md` exists (glob, not a hardcoded slug)
+    """T1.3 (AC-7): `docs/architecture/adr/0060-*.md` exists (glob, not a hardcoded slug)
     and its body mentions `requirements_layout`, the functional/
     non-functional split, and Decision E-i's rubric."""
 
     def test_adr_0060_file_exists(self):
-        matches = glob.glob(os.path.join(REPO_ROOT, "docs", "adr", "0060-*.md"))
-        self.assertEqual(len(matches), 1, "expected exactly one docs/adr/0060-*.md file")
+        matches = glob.glob(os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0060-*.md"))
+        self.assertEqual(len(matches), 1, "expected exactly one docs/architecture/adr/0060-*.md file")
         self._path = matches[0]
 
     def test_adr_0060_is_on_topic(self):
-        matches = glob.glob(os.path.join(REPO_ROOT, "docs", "adr", "0060-*.md"))
-        self.assertTrue(matches, "docs/adr/0060-*.md must exist")
+        matches = glob.glob(os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0060-*.md"))
+        self.assertTrue(matches, "docs/architecture/adr/0060-*.md must exist")
         body = read(matches[0])
         self.assertIn("requirements_layout", body)
         self.assertRegex(body, r"functional.*non-functional|non-functional.*functional", )

@@ -49,7 +49,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-de
   them repo-relative: `<architecture_dir>` (the folder holding
   `hld/tech-stack.md`), `<prd>` (the PRD file), `<standards_dir>` (the
   standards set) — each absent when not found — and `<adr_dir>`, the repo's
-  ADR folder, else `docs/adr/`. Subagents receive the folders as task
+  ADR folder, else `docs/architecture/adr/`. Subagents receive the folders as task
   constraints (`architecture_dir`, `adr_dir`, `standards_dir`) and the files
   by path in `<inputs>`; they never look a location up in settings.
 
@@ -175,7 +175,7 @@ For every phase:
      </inputs>
      <constraints>
        <constraint name="architecture_dir">docs/architecture</constraint>
-       <constraint name="adr_dir">docs/adr</constraint>
+       <constraint name="adr_dir">docs/architecture/adr</constraint>
        <constraint name="architecture">Conform to docs/architecture or list every doc-set change the design requires</constraint>
        <constraint name="nfr">Cover security and performance explicitly</constraint>
      </constraints>

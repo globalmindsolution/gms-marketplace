@@ -129,7 +129,7 @@ document belongs to exactly one of them:
 
 - **The repo docs tree** — `<repo>/docs/tickets/<ID>/`, a fixed location
   with no setting and no opt-out
-  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)), holds the
+  ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)), holds the
   **human-facing ticket documents**: `ticket.md`, `design.md`,
   `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`. They are
   committed on the ticket branch and reviewed in the PR like any other doc.
@@ -519,7 +519,7 @@ bootstrapped by the product-level `/create-architecture` skill
 `docs/architecture/` — is the stable frame around it. Every skill finds
 these documents the way any session does, through `CLAUDE.md` and the repo
 itself, rather than through a setting
-([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
 
 Above the architecture sits the **PRD** (found the same way, else
 `docs/product/prd.md`; bootstrapped and amended by `/create-prd`): vision,
@@ -568,7 +568,7 @@ markdown file per feature area):
 - The set grows organically from ticket #1: `/code`'s documentation step
   accretes acceptance criteria and behavior-defining clarifications into the
   touched area file. acs does not bootstrap the set in one run
-  ([ADR-0118](../../adr/0118-discovery-design-development-phases.md)); a set a
+  ([ADR-0118](../../architecture/adr/0118-discovery-design-development-phases.md)); a set a
   repo already keeps is optional context its readers use. Brownfield
   repos MAY seed area files during `/create-prd`'s baseline analysis.
 
@@ -587,7 +587,7 @@ ticket:
    produce the full system design (HLD + LLD).
 4. **`/create-ticket "Scaffold the repository per the architecture docs"`**,
    then **`/ship`** it — the repo skeleton is ordinary ticket work
-   ([ADR-0118](../../adr/0118-discovery-design-development-phases.md)):
+   ([ADR-0118](../../architecture/adr/0118-discovery-design-development-phases.md)):
    layout, build, **test framework + coverage tooling**, linters and a
    minimal green vertical slice, planned and implemented from that
    architecture like any other ticket. Without this, the `/code` TDD gates

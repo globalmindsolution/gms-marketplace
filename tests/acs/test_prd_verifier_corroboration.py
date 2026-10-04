@@ -388,12 +388,12 @@ class DimensionOrderUnchangedTest(unittest.TestCase):
 
 
 class Adr0081DecisionRecordTest(unittest.TestCase):
-    """AC-1: docs/adr/0081-...md exists, is Accepted, and names all nine
-    decision records; docs/adr/README.md carries a 0081 row (Task 3)."""
+    """AC-1: docs/architecture/adr/0081-...md exists, is Accepted, and names all nine
+    decision records; docs/architecture/adr/README.md carries a 0081 row (Task 3)."""
 
     ADR_PATH = os.path.join(
-        DOCS, "adr", "0081-create-prd-plan-conformance-corroboration-three-family-mechanism.md")
-    ADR_README = os.path.join(DOCS, "adr", "README.md")
+        DOCS, "architecture", "adr", "0081-create-prd-plan-conformance-corroboration-three-family-mechanism.md")
+    ADR_README = os.path.join(DOCS, "architecture", "adr", "README.md")
 
     @classmethod
     def setUpClass(cls):

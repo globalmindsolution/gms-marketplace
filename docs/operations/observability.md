@@ -4,7 +4,7 @@ acs ships no dashboard. `/acs:metrics` and `/acs:usage`, the in-session PM and
 usage views that realized PRD goal **G7**, were removed together with the
 usage recording that fed them — `metrics.json`, per-invocation token counts
 and the transcript read behind them
-([ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+([ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 What is left to observe is the workflow itself: what ran, when, with what
 outcome, what it was refused, and what it opened. That record is what
@@ -17,7 +17,7 @@ console, or its usage exports.
 - **Single repo.** Everything below reads the current repo's partition of the
   workspace, `<main-checkout>/.acs/state-machine/<repo-id>/` (active runs plus
   `archive/`). The location is derived, never configured
-  ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)).
+  ([ADR-0102](../architecture/adr/0102-documents-are-found-not-configured.md)).
 - **Read-only.** Every command below reads state and writes nothing. Each
   prints exactly one JSON object on stdout; a usage or precondition failure
   exits 2 with actionable stderr.

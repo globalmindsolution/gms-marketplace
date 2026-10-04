@@ -20,7 +20,7 @@ post-hook — always, even on failure.
 
 /acs:merge-pr is invocable by the user OR an authorized agent/model — there is
 no longer a human-only gate on invocation (MAR-42; see
-`docs/adr/0028-merge-pr-agent-invocable.md`). The safety guarantee is NOT "a
+`docs/architecture/adr/0028-merge-pr-agent-invocable.md`). The safety guarantee is NOT "a
 human must press merge" but "a merge happens only when the readiness gate
 (CI, approvals, conflicts, protections) AND the repo's branch protection pass,
 by whoever invokes; failures are report-only; every attempt is audited." The

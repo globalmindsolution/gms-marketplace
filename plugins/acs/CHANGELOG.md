@@ -62,6 +62,11 @@ matching section here, and merge to `main` — the Release workflow tags
   `enforcement.pr_description_sections` are no longer declared in the schema
   (they are still accepted and ignored).
 
+- **ADRs live under `docs/architecture/adr/`** (ADR-0119). When a repo has no ADR
+  folder, `/acs:create-design` and `/acs:docs-sync` create it there instead of
+  `docs/adr/`; an existing ADR folder is still found where it is, so nothing in a
+  consumer repo moves.
+
 ### Removed
 
 - **⚠️ BREAKING: `/acs:project`, `create-project`, `standardize-project` and

@@ -13,7 +13,7 @@ below belongs to exactly one of them:
 | **Written by** | the coordinator and the ticket skills; an executor MUST NOT write there (the file-map guard treats it as a control input) | hooks and the skills' own subagents |
 
 The docs-tree location is **fixed, never discovered**, and the split has no
-opt-out ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+opt-out ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
 Readers MUST still resolve a document by looking in the docs tree first and
 the partition second, so a partition written before the split keeps working
 unmigrated
@@ -31,7 +31,7 @@ unmigrated
   polluting the repo). It is achieved via the in-repo,
   main-checkout-anchored `.acs/state-machine` folder (gitignored, resolved
   from `git rev-parse --git-common-dir`), with no override (see ADR-0086,
-  [ADR-0102](../../adr/0102-documents-are-found-not-configured.md)); a layout
+  [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)); a layout
   that cannot resolve a main checkout (bare repo, submodule) is refused —
   acs must be run from a regular git checkout.
 - The workspace MUST ignore itself: the first state write under
@@ -40,7 +40,7 @@ unmigrated
   repo's root `.gitignore` names it. The root entries `/acs:setup` adds are
   no longer needed. Only a write creates the folder: a hook that only looks
   for state writes nothing, so a repo that never runs acs gets no folder
-  ([ADR-0105](../../adr/0105-acs-runs-without-setup.md)).
+  ([ADR-0105](../../architecture/adr/0105-acs-runs-without-setup.md)).
 - The workspace MUST be partitioned **by consumer repo, then by
   `<ticket-id>`**: every pipeline artifact for a ticket lives under
   `<workspace>/<repo>/<ticket-id>/`.
@@ -444,7 +444,7 @@ stored or summed.
 acs records **no usage**: no token count, no per-role or per-model
 breakdown, no dollar figure, no per-run or per-repo totals, and it reads no
 Claude Code transcript
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+([ADR 0104](../../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)).
 Tokens, spend and time per ticket are Claude Code's to report — its own
 `/cost`, the console, or its usage exports. A `metrics.json`, a `run.json`
 `totals` object or an invocation's `tokens` left by an older version is

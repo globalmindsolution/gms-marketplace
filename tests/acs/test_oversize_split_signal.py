@@ -40,7 +40,7 @@ SETTINGS_SCHEMA = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 REQ_README = os.path.join(REPO_ROOT, "docs", "requirements", "README.md")
 INTERNALS = os.path.join(PLUGIN, "docs", "INTERNALS.md")
-ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "adr")
 ADR_README = os.path.join(ADR_DIR, "README.md")
 REQ_FUNCTIONAL = os.path.join(REPO_ROOT, "docs", "requirements", "functional")
 REQ_NON_FUNCTIONAL = os.path.join(REPO_ROOT, "docs", "requirements", "non-functional")
@@ -371,13 +371,13 @@ class RequirementsReadmeSizeControlRowTest(unittest.TestCase):
 
 
 class Adr0069RecordTest(unittest.TestCase):
-    """Assertion 8: exactly one docs/adr/0069-*.md exists, is Accepted,
+    """Assertion 8: exactly one docs/architecture/adr/0069-*.md exists, is Accepted,
     records Decision 1's outcome, and has an index row."""
 
     def test_exactly_one_0069_file(self):
         matches = glob.glob(os.path.join(ADR_DIR, "0069-*.md"))
         self.assertEqual(len(matches), 1,
-                         "expected exactly one docs/adr/0069-*.md: %r" % matches)
+                         "expected exactly one docs/architecture/adr/0069-*.md: %r" % matches)
         self.adr_path = matches[0]
 
     def test_adr_is_accepted_and_records_decision(self):

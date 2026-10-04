@@ -13,8 +13,8 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ROADMAP = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
-ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
-ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_README = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "adr")
 ACS_README = os.path.join(REPO_ROOT, "plugins", "acs", "README.md")
 SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
 SKILLS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
@@ -189,7 +189,7 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
 
 
 class AdrIndexCompletenessTest(unittest.TestCase):
-    """AC-3/AC-4: docs/adr/README.md's index table stays complete against the
+    """AC-3/AC-4: docs/architecture/adr/README.md's index table stays complete against the
     on-disk ADR files, bidirectionally, so the gap cannot silently reopen."""
 
     NAMED_SEVENTEEN = [
@@ -341,21 +341,21 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
         ("plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md", "acs_lib/state.py"):
             "the same doc naming the module the redesign split; the problem statement cannot "
             "be written without the name of the module that had the problem",
-        ("docs/adr/0030-four-lane-hybrid-routing-from-size-stakes-axes.md", "acs_lib/lanes.py"):
+        ("docs/architecture/adr/0030-four-lane-hybrid-routing-from-size-stakes-axes.md", "acs_lib/lanes.py"):
             "a superseded ADR records what was decided and where it lived AT THE TIME; "
             "ADR-0095 retired the routing and renamed the module to planrules.py, and "
             "rewriting the record would falsify the decision it documents",
-        ("docs/adr/0034-light-verify-one-iteration-cap.md", "acs_lib/lanes.py"):
+        ("docs/architecture/adr/0034-light-verify-one-iteration-cap.md", "acs_lib/lanes.py"):
             "same: superseded by ADR-0095, kept verbatim as the record of the "
             "verify-depth decision it made",
         ("plugins/acs/CHANGELOG.md", "acs_lib/metrics.py"):
             "records metrics.py's removal with the usage dashboards (ADR-0104); the "
             "retired path is the fact being reported",
-        ("docs/adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md",
+        ("docs/architecture/adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md",
          "acs_lib/metrics.py"):
             "a superseded ADR records where its decision lived AT THE TIME; ADR-0104 "
             "removed the module, and rewriting the record would falsify it",
-        ("docs/adr/0104-no-usage-dashboards-no-usage-recording.md", "acs_lib/metrics.py"):
+        ("docs/architecture/adr/0104-no-usage-dashboards-no-usage-recording.md", "acs_lib/metrics.py"):
             "the ADR that removes metrics.py has to name what it removes",
         ("tests/acs/test_doc_fact_pins.py", "acs_lib/metrics.py"):
             "self-exemption for the metrics.py entries above, same recursion as lanes.py",
@@ -442,7 +442,7 @@ class AdjudicationIsPerFindingTest(unittest.TestCase):
     the docs must describe per-finding adjudication -- and the invented
     mechanism cannot come back under either name.
 
-    docs/adr/0067-*.md is deliberately NOT pinned here. Its Context quotes
+    docs/architecture/adr/0067-*.md is deliberately NOT pinned here. Its Context quotes
     epic MAR-155's design D4, whose partition is no longer on disk, so the
     quotation cannot be re-verified and rewriting it would falsify the record
     -- the same reason ScriptPathReferencesResolveTest above exempts

@@ -23,9 +23,9 @@ def _p(*parts):
     return os.path.join(REPO_ROOT, *parts)
 
 
-ADR_0003 = _p("docs", "adr", "0003-file-based-state-outside-repo.md")
-ADR_0086 = _p("docs", "adr", "0086-in-repo-anchored-state-machine.md")
-ADR_README = _p("docs", "adr", "README.md")
+ADR_0003 = _p("docs", "architecture", "adr", "0003-file-based-state-outside-repo.md")
+ADR_0086 = _p("docs", "architecture", "adr", "0086-in-repo-anchored-state-machine.md")
+ADR_README = _p("docs", "architecture", "adr", "README.md")
 
 OVERVIEW = _p("docs", "architecture", "hld", "overview.md")
 DEPLOYMENT = _p("docs", "architecture", "hld", "deployment.md")
@@ -92,7 +92,7 @@ MAR1_BASELINE = {
 # Stale "workspace lives outside the repo" claims each file must no longer
 # carry once rewritten. Checked against whitespace-normalized text so a
 # prose rewrap that moves a phrase across a line break doesn't defeat the
-# check. docs/adr/0003's historical Context/Decision/Consequences body is
+# check. docs/architecture/adr/0003's historical Context/Decision/Consequences body is
 # deliberately excluded -- it correctly records what ADR-0003 decided at
 # the time; only its Status line changes (see AdrCitationTest).
 STALE_CLAIMS = {
@@ -170,7 +170,7 @@ class AdrCitationTest(unittest.TestCase):
         self.assertRegex(
             body,
             r"\|\s*\[0086\]\(0086-in-repo-anchored-state-machine\.md\)\s*\|",
-            "docs/adr/README.md is missing the 0086 index row",
+            "docs/architecture/adr/README.md is missing the 0086 index row",
         )
         row_0003 = next((line for line in body.splitlines() if "[0003]" in line), "")
         self.assertIn("Superseded", row_0003, "0003's README row must flip to Superseded")
@@ -185,7 +185,7 @@ class AdrCitationTest(unittest.TestCase):
 class No0084MisattributionTest(unittest.TestCase):
     """Guards the ticket-text 0084/0086 numbering confusion: every touched
     file must say '0086', never the ticket's own literal '0084' typo --
-    except docs/adr/README.md, which keeps its one pre-existing, unrelated,
+    except docs/architecture/adr/README.md, which keeps its one pre-existing, unrelated,
     real ADR-0084 row (baseline count 2: link text + display text)."""
 
     def test_no_0084_outside_adr_readme(self):

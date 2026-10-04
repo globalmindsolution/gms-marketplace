@@ -31,7 +31,7 @@ import evidence_sidecar  # noqa: E402
 
 DOCS_ARCHITECTURE = os.path.join(REPO_ROOT, "docs", "architecture")
 DOCS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements")
-ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "adr")
 CHANGELOG_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
 
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".claude"}
@@ -92,9 +92,15 @@ class BodyCleanGlobalTest(unittest.TestCase):
     tree-wide, not merely the 3 migrated files."""
 
     def test_no_in_scope_citations_in_any_human_body(self):
+        # ADRs are immutable dated records, never living bodies, and were
+        # never in this rule's scope; ADR-0119 moved them under
+        # docs/architecture/, so they are skipped by path rather than by
+        # living outside the walked roots.
         offenders = {}
         for root in (DOCS_ARCHITECTURE, DOCS_REQUIREMENTS):
             for path in _markdown_files(root):
+                if os.path.commonpath([path, ADR_DIR]) == ADR_DIR:
+                    continue
                 matches = CITATION_RE.findall(read(path))
                 if matches:
                     offenders[path] = matches
@@ -183,17 +189,17 @@ class C22MarkersIntactTest(unittest.TestCase):
 
 
 class Adr0064ExistsAndOnTopicTest(unittest.TestCase):
-    """AC-6: docs/adr/0064-*.md exists (glob, not a hardcoded slug) and
+    """AC-6: docs/architecture/adr/0064-*.md exists (glob, not a hardcoded slug) and
     names Decision B / the sidecar convention / the intentional migration
     framing."""
 
     def test_adr_0064_file_exists_exactly_once(self):
         matches = glob.glob(os.path.join(ADR_DIR, "0064-*.md"))
-        self.assertEqual(len(matches), 1, "expected exactly one docs/adr/0064-*.md file")
+        self.assertEqual(len(matches), 1, "expected exactly one docs/architecture/adr/0064-*.md file")
 
     def test_adr_0064_names_decision_b_and_not_byte_identical(self):
         matches = glob.glob(os.path.join(ADR_DIR, "0064-*.md"))
-        self.assertTrue(matches, "docs/adr/0064-*.md must exist")
+        self.assertTrue(matches, "docs/architecture/adr/0064-*.md must exist")
         body = read(matches[0])
         self.assertRegex(body, r"(?i)\.evidence\.md")
         self.assertRegex(body, r"(?i)not byte-identical|non-byte-identical")

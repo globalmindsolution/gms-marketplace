@@ -36,7 +36,7 @@ CHANGELOG_PATH = os.path.join(PLUGIN, "CHANGELOG.md")
 C4_CONTAINER_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
 CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
 ADR_PATH = os.path.join(
-    REPO_ROOT, "docs", "adr",
+    REPO_ROOT, "docs", "architecture", "adr",
     "0065-configurable-design-spec-templates-byte-identical-defaults.md",
 )
 

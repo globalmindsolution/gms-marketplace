@@ -154,7 +154,8 @@ Two load-bearing conventions you will otherwise trip over:
 ### Docs
 
 `docs/` is a full-SDLC set: `product/` (PRD, roadmap) → `requirements/` → `architecture/`
-(HLD/LLD, Mermaid) → `adr/` → `principles/` · `standards/` · `quality/` · `operations/`.
+(HLD/LLD, Mermaid, and the ADRs in `architecture/adr/`) → `principles/` · `standards/` ·
+`quality/` · `operations/`.
 `docs/README.md` is the map. ADRs are immutable records — supersede them, never edit a decision
 in place. `plugins/acs/docs/` (INTERNALS, AUTHORING) is the implementation contract for anyone
 changing the plugin itself.

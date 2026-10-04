@@ -31,11 +31,11 @@ the step-by-step the maintainer follows.
    with `partial: true`, which is an unfinished run, not a result.
 
    The CLI only measures (`--threshold 0`); `scripts/eval_gate.py` judges
-   ([ADR-0107](../adr/0107-routing-gated-by-skill-not-by-prompt.md)). Negatives
+   ([ADR-0107](../architecture/adr/0107-routing-gated-by-skill-not-by-prompt.md)). Negatives
    and controls must pass every run; each skill, pooling its ten phrasings,
    must route at least 9/10 of its runs and the suite at least 99/100
-   ([ADR-0111](../adr/0111-routing-gate-ten-phrasings-ten-runs.md),
-   [ADR-0112](../adr/0112-routing-suite-rate-99-percent.md)); `explicit`
+   ([ADR-0111](../architecture/adr/0111-routing-gate-ten-phrasings-ten-runs.md),
+   [ADR-0112](../architecture/adr/0112-routing-suite-rate-99-percent.md)); `explicit`
    cases, which are not reliably observable, are not run. Read a red verdict
    before acting on it: the script names each failing skill or case. It refuses
    rather than passes a run it cannot trust — a partial run, a missing case, a
@@ -112,7 +112,7 @@ without any single cause being sufficient on its own:
    (ADR-0086), but this host's `.acs/settings.local.json` (gitignored)
    overrides it to an external, machine-local path
    (`/home/user/acs-workspace`, through the workspace override setting
-   [ADR-0102](../adr/0102-documents-are-found-not-configured.md) later
+   [ADR-0102](../architecture/adr/0102-documents-are-found-not-configured.md) later
    removed; as observed then, that
    directory was created 2026-09-01). That workspace holds exactly one
    ticket (`MAR-306`) and no
@@ -169,19 +169,19 @@ close.
 
 The `base_branch` commit-history fallback is a defensive recovery signal
 (already the sanctioned shape for PR-ref resolution per
-`docs/adr/0051-changelog-archive-primary-coverage-check.md:33-36`), not a
+`docs/architecture/adr/0051-changelog-archive-primary-coverage-check.md:33-36`), not a
 complete substitute for the archive. Its limitations are **accepted**, not
 open bugs to fix under this ticket:
 
 - **Tracker-ref-only squash subjects are not recoverable offline.** A
   subject like `[#399] Fix panel-6 ... (#413)` carries the tracker issue
   number the GitHub UI assigned, not the acs ticket id
-  (`docs/adr/0035-pr-title-ticket-ref-token.md`), and the acs id appears
+  (`docs/architecture/adr/0035-pr-title-ticket-ref-token.md`), and the acs id appears
   nowhere else in the commit (verified: `git log -1 --format=%B` on that
   commit shows no `MAR-N` token anywhere in subject or body). Such tickets
   under-count regardless of the fallback. The same holds whenever the squash
   subject is taken from a PR title rendered with the default `pr_title` of
-  `{title}` ([ADR-0105](../adr/0105-acs-runs-without-setup.md)): the subject
+  `{title}` ([ADR-0105](../architecture/adr/0105-acs-runs-without-setup.md)): the subject
   is the bare title plus `(#N)`, with no ticket id for the fallback to read,
   so such a ticket is recovered from the archive or not at all.
 - **A shallow clone bounds recall to whatever history was actually
