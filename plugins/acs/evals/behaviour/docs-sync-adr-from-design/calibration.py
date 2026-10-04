@@ -51,7 +51,7 @@ def _commit(ws, paths, flags=""):
 def _finish(ws, docs):
     result = {"status": "completed",
               "summary": "drift-reviewer passed with zero findings on iteration 1",
-              "states": {"docs_committed": docs, "commits": [MSG],
+              "states": {"files": docs,
                          "review": {"iterations": 1, "findings_open": 0}},
               "findings": [], "errors": []}
     ws.sh("python3 '%s/post-docs-sync.py' <<'JSON'\n%s\nJSON" % (SCRIPTS, json.dumps(result)))
@@ -60,9 +60,8 @@ def _finish(ws, docs):
 def IDEAL(ws):
     _start(ws)
     ws.write(ADR, ADR_TEXT)
-    _commit(ws, [ADR])
     _finish(ws, [ADR])
-    ws.reply = "Committed %s on task/EVAL-1-store-customers-in-sqlite. Next: /acs:create-pr EVAL-1" % ADR
+    ws.reply = "Wrote %s, left uncommitted. Next: /acs:create-pr EVAL-1" % ADR
 
 
 def _no_adr(ws):
@@ -70,7 +69,6 @@ def _no_adr(ws):
     with open(os.path.join(ws.path, "README.md"), encoding="utf-8") as fh:
         text = fh.read()
     ws.write("README.md", text + "\nCustomers are stored in SQLite.\n")
-    _commit(ws, ["README.md"])
     _finish(ws, ["README.md"])
 
 
@@ -80,13 +78,14 @@ def _edited_accepted_adr(ws):
     with open(os.path.join(ws.path, path), encoding="utf-8") as fh:
         text = fh.read()
     ws.write(path, text + "\nCustomers are now stored in SQLite (stdlib sqlite3).\n")
-    _commit(ws, [path])
     _finish(ws, [path])
 
 
-def _uncommitted(ws):
+def _committed(ws):
+    """The pre-ADR-0127 behaviour: a commit -- only /acs:create-pr commits."""
     _start(ws)
     ws.write(ADR, ADR_TEXT)
+    _commit(ws, [ADR])
     _finish(ws, [ADR])
 
 
@@ -94,7 +93,6 @@ def _misnumbered(ws):
     _start(ws)
     path = "docs/adr/0001-store-customers-in-sqlite.md"
     ws.write(path, ADR_TEXT)
-    _commit(ws, [path])
     _finish(ws, [path])
 
 
@@ -102,6 +100,6 @@ BAD = {
     "fired the skill and changed nothing": lambda ws: ws.skill("docs-sync"),
     "updated the README and skipped the ADR": _no_adr,
     "appended the decision to accepted ADR 0002": _edited_accepted_adr,
-    "wrote the ADR but never committed it": _uncommitted,
+    "committed the ADR": _committed,
     "numbered the ADR over an existing one": _misnumbered,
 }

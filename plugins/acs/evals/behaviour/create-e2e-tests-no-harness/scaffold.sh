@@ -39,7 +39,6 @@ git commit -qm "HTTP front with /health"
 
 acs_ticket "Serve the customer listing over HTTP" task false \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."
-acs_branch task/EVAL-1-serve-the-customer-listing-over-http
 
 python3 - <<'PY'
 path = "src/shop/web.py"
@@ -59,7 +58,6 @@ src = src.replace(
     '    return _send(start_response, "404 Not Found"', 1)
 open(path, "w").write(src)
 PY
-git commit -qam "EVAL-1 serve the customer listing over HTTP"
 
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/test-cases.md <<'MD'
@@ -89,5 +87,3 @@ e2e_cases: 2
 | AC-1 GET /customers lists customers, 20 per page by default | TC-1 |
 | AC-2 offset and limit are honoured | TC-2 |
 MD
-git add -A
-git commit -qm "EVAL-1 test cases"

@@ -21,7 +21,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import (LEGACY_DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS,
+from ._common import (LEGACY_DELIVERY_TICKET_SKILLS, is_docs_mode, GateError, HOOKED_SKILLS, PRODUCT_SKILLS,
                       now_iso, plugin_root, read_json, write_json)
 from .settings import load_settings, validate_settings
 from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, repo_partition_id, resolve_ticket_id, sessions_dir
@@ -293,6 +293,11 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
     subject_gate = SUBJECT_GATES.get(skill)
     if subject_gate:
         subject_gate(ctx, payload)
+    if is_docs_mode(skill, _merge_pr_arg_text(payload)):
+        # `/acs:create-pr --docs` (ADR-0127): a ticketless docs-only change.
+        # It is not a step of any ticket's run, so there is no ticket to
+        # resolve and no review to brake on; `step start` opens its own run.
+        return GateOutcome(None, None)
 
     # Only the skills the RESOLVED WORKFLOW runs go through a run. A skill
     # that declares reads/writes but is not a step of this workflow is a

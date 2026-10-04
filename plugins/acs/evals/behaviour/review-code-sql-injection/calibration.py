@@ -52,6 +52,15 @@ def find_customer_by_email(conn, email):
 '''
 
 
+def _snapshot(ws):
+    """`reviewed_sha` is the working-tree snapshot the review judged
+    (`acs.py changes snapshot`, ADR-0127) -- not a commit: inside a pipeline
+    the reviewed change is uncommitted."""
+    done = ws.acs("changes", "snapshot")
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)["tree"]
+
+
 def _review(ws, findings, passed=None, outcome=None, post=True, fix=False):
     ws.skill("review-code")
     start = ws.acs("step", "start", "--step", "review-code")
@@ -73,7 +82,7 @@ def _review(ws, findings, passed=None, outcome=None, post=True, fix=False):
         {"adjudications": [{"id": f["id"], "verdict": "confirmed"} for f in findings]}))
     verdict = json.dumps({
         "skill": "review-code", "run_id": "EVAL-1", "iteration": 1,
-        "reviewed_sha": ws.sh("git rev-parse main").strip(),
+        "reviewed_sha": _snapshot(ws),
         "passed": passed, "findings": findings}, indent=2)
     ws.write(REVIEW + "/verdict.json", verdict)
     ws.write(REVIEW + "/iter-1/verdict.json", verdict)

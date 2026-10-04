@@ -29,7 +29,6 @@ printf '%s\n' '{"acceptance_criteria": ["search_customers(customers, \"ali\") re
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "story/EVAL-1-search-customers-by-name"
 draft="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Search customers by name
@@ -79,8 +78,6 @@ acs filemap set --skill code --iteration 1 --task 2 \
   --file README.md --file CHANGELOG.md > /dev/null
 mkdir -p docs/tickets/EVAL-1
 cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; two disjoint executor tasks",

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# /acs:docs-sync's hard precondition, broken: EVAL-1 raised PAGE_SIZE from 20
-# to 50 on its ticket branch (README.md on main still says "20 per page"), and
-# /acs:code's step is recorded completed through the plugin's own writers with
-# states.branch naming that branch -- but the checkout has since been switched
-# back to `main`. The skill: "confirm [the current branch] matches the
-# ticket's recorded branch ... A mismatch is a fail-fast error -- stop and
-# surface it; never silently switch branches." What the run must produce:
-# nothing committed anywhere, HEAD still on main, and the step finished
-# `failed` with the mismatch surfaced.
+# /acs:docs-sync when the ticket's change is NOT in the working tree: EVAL-1
+# raised PAGE_SIZE from 20 to 50 and an older acs committed it on a ticket
+# branch, with /acs:code's step recorded completed through the plugin's own
+# writers -- but the checkout has since been switched back to `main`, whose
+# README ("20 per page") is true of main's code. docs-sync has no branch
+# precondition any more (ADR-0127): it reads the run's changeset with
+# `acs.py changes diff`, which here is EMPTY, so no doc is owed. What the run
+# must produce: no branch switched, nothing committed anywhere, README.md
+# untouched, and the step completed with an empty `files` -- never a checkout
+# of the ticket branch to "find" the change.
 #
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -29,5 +30,6 @@ python3 "$ACS_SCRIPTS/post-code.py" > /dev/null <<'JSON'
  "findings": [], "errors": []}
 JSON
 
-# Someone switched the checkout back to main afterwards.
+# Someone switched the checkout back to main afterwards; the change lives
+# only on the ticket branch.
 git checkout -q main

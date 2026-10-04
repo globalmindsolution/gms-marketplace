@@ -36,7 +36,7 @@ def _commit(ws, paths, flags=""):
 def _finish(ws, docs):
     result = {"status": "completed",
               "summary": "drift-reviewer passed with zero findings on iteration 1",
-              "states": {"docs_committed": docs, "commits": [MSG],
+              "states": {"files": docs,
                          "review": {"iterations": 1, "findings_open": 0}},
               "findings": [], "errors": []}
     ws.sh("python3 '%s/post-docs-sync.py' <<'JSON'\n%s\nJSON" % (SCRIPTS, json.dumps(result)))
@@ -49,16 +49,14 @@ def IDEAL(ws):
     _start(ws)
     for path in DOCS:
         _rename(ws, path)
-    _commit(ws, DOCS)
     _finish(ws, DOCS)
-    ws.reply = ("Committed README.md and docs/configuration.md on the ticket branch "
-                "(SHOP_PAGE_SIZE -> SHOP_CUSTOMERS_PAGE_SIZE). Next: /acs:create-pr EVAL-1")
+    ws.reply = ("Updated README.md and docs/configuration.md (SHOP_PAGE_SIZE -> "
+                "SHOP_CUSTOMERS_PAGE_SIZE), left uncommitted. Next: /acs:create-pr EVAL-1")
 
 
 def _readme_only(ws):
     _start(ws)
     _rename(ws, "README.md")
-    _commit(ws, ["README.md"])
     _finish(ws, ["README.md"])
 
 
@@ -69,14 +67,15 @@ def _both_names(ws):
     row = "| `%s` | `20` | Customers per page for `GET /customers`. |\n" % OLD
     ws.write("docs/configuration.md", text.replace(row, row + row.replace(OLD, NEW)))
     _rename(ws, "README.md")
-    _commit(ws, DOCS)
     _finish(ws, DOCS)
 
 
-def _uncommitted(ws):
+def _committed(ws):
+    """The pre-ADR-0127 behaviour: a commit -- only /acs:create-pr commits."""
     _start(ws)
     for path in DOCS:
         _rename(ws, path)
+    _commit(ws, DOCS)
     _finish(ws, DOCS)
 
 
@@ -92,6 +91,6 @@ BAD = {
     "fired the skill and changed nothing": lambda ws: ws.skill("docs-sync"),
     "fixed only the README": _readme_only,
     "documented both names as settings": _both_names,
-    "edited both docs but never committed": _uncommitted,
-    "amended the code commit": _amended,
+    "committed both docs": _committed,
+    "amended main's last commit": _amended,
 }

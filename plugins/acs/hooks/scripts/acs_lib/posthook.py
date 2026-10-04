@@ -15,7 +15,7 @@ import os
 import shutil
 import sys
 
-from ._common import (STANDALONE_RUN_SKILLS, GateError, WorkflowError, now_iso,
+from ._common import (STANDALONE_RUN_SKILLS, docs_mode_run, GateError, WorkflowError, now_iso,
                       read_json, write_json)
 from .repo import (GuardTimeout, archive_dir, current_branch,
                    find_ticket_partition, index_path, repo_dir, sessions_dir)
@@ -321,7 +321,11 @@ def run_post(skill):
     # but no position in a run, and I5 refuses a `steps` entry that the
     # workflow does not name. The two machines are separate, which is what
     # lets the invocation above be recorded either way.
-    if workflow.has_step(wf, skill):
+    if docs_mode_run(skill, doc):
+        # `/acs:create-pr --docs` ran in its own ticketless run (ADR-0127): it
+        # ends with the skill, and there is no ticket to move to review.
+        doc = run_machine.conclude_standalone_run(rdir, skill, status)
+    elif workflow.has_step(wf, skill):
         doc = run_machine.finish_step(
             rdir, skill, wf, status=status, outcome=result.get("outcome"),
             summary=result.get("summary") or result.get("stop_reason"),

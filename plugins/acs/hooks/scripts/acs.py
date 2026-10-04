@@ -395,6 +395,22 @@ def build_parser():
     return parser, sub.choices
 
 
+def _bind_args_values(argv):
+    """`--args VALUE` -> `--args=VALUE`. `--args` carries a skill's raw
+    argument text verbatim (`--args "$ARGUMENTS"`), and argparse refuses a
+    separate value that starts with a dash -- `/acs:create-pr --docs` would
+    otherwise be a usage error instead of a docs-only start."""
+    out, i = [], 0
+    while i < len(argv):
+        if argv[i] == "--args" and i + 1 < len(argv):
+            out.append("--args=" + argv[i + 1])
+            i += 2
+            continue
+        out.append(argv[i])
+        i += 1
+    return out
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] in DELEGATED:
@@ -407,7 +423,7 @@ def main(argv=None):
         sys.exit(delegate(argv[0], rest))
 
     parser, groups = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(_bind_args_values(argv))
     func = getattr(args, "func", None)
     if func is None:
         # A group with no subcommand ("acs.py path") — show THAT group's usage,

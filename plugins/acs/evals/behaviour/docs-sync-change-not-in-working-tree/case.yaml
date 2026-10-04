@@ -1,4 +1,4 @@
 schema_version: "1.1"
-name: docs-sync-branch-mismatch
+name: docs-sync-change-not-in-working-tree
 context:
   scaffold_script: scaffold.sh

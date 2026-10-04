@@ -24,7 +24,6 @@ printf '%s\n' '{"acceptance_criteria": ["list_customers() defaults to a limit of
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "task/EVAL-1-default-customer-page-size-should-be-25"
 draft="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Default customer page size should be 25
@@ -63,8 +62,6 @@ acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_page_size.py --file README.md > /dev/null
 mkdir -p docs/tickets/EVAL-1
 cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",

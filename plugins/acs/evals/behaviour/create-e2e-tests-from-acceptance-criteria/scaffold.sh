@@ -107,7 +107,6 @@ ticket["acceptance_criteria"] = [
 subprocess.run(acs + ["ticket", "save", "--ticket", "EVAL-1", "--from", "-"], check=True,
                input=json.dumps(ticket), capture_output=True, text=True)
 PY
-acs_branch task/EVAL-1-serve-the-customer-listing-over-http
 
 # The ticket branch: /acs:code's change. No test-cases.md anywhere.
 python3 - <<'PY'
@@ -125,4 +124,3 @@ src = src.replace(
     '    return _send(start_response, "404 Not Found"', 1)
 open(path, "w").write(src)
 PY
-git commit -qam "EVAL-1 serve the customer listing over HTTP"

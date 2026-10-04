@@ -97,6 +97,27 @@ LEGACY_DELIVERY_TICKET_SKILLS = list(PRODUCT_SKILLS)
 # concludes it. The Audit skills, and the product skills since ADR-0127.
 STANDALONE_RUN_SKILLS = AUDIT_SKILLS + PRODUCT_SKILLS
 
+#: `/acs:create-pr --docs` (ADR-0127): a docs-only change with no ticket. It is
+#: a ticketless standalone run, not a step of a ticket's run: no ticket is
+#: resolved, no review brake applies, and its post-hook concludes the run.
+DOCS_MODE_FLAG = "--docs"
+DOCS_MODE_SKILLS = ("create-pr",)
+
+
+def is_docs_mode(skill, text):
+    """True when `/acs:<skill> <text>` is a docs-only create-pr invocation."""
+    return skill in DOCS_MODE_SKILLS and DOCS_MODE_FLAG in str(text or "").split()
+
+
+def docs_mode_run(skill, doc):
+    """True when the run `doc` is the standalone run a docs-only `<skill>`
+    opened: a non-ticket subject whose text is that invocation."""
+    subject = (doc or {}).get("subject") or {}
+    text = str(subject.get("text") or "")
+    prefix = "/acs:%s" % skill
+    return (subject.get("kind") == "prompt" and text.split()[:1] == [prefix]
+            and is_docs_mode(skill, text[len(prefix):]))
+
 """The six plan headings create-impl-plan/SKILL.md requires on every run."""
 """The five spec-authoring-fold sections, in the order structure_lint's
 --ordered lint checks them (code/SKILL.md's fold contract)."""

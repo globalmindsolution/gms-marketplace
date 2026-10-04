@@ -24,7 +24,6 @@ printf '%s\n' '{"acceptance_criteria": ["list_customers(offset=-1) raises ValueE
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "task/EVAL-1-reject-a-negative-page-offset"
 draft="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Reject a negative page offset
@@ -69,8 +68,6 @@ acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_list_customers.py > /dev/null
 mkdir -p docs/tickets/EVAL-1
 cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",
