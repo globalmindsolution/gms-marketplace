@@ -219,12 +219,23 @@ coordinator joins after the previous iteration's notes.
    anchor; a doc with zero in-scope citations gets no sidecar. This is the
    SAME `.evidence.md` sidecar convention ADR-0064 defines (the one
    `docs-sync` follows) — reuse it, never fork a second scheme.
-6. Regeneration runs: preserve still-accurate existing content, update what shifted —
+6. **Gaps and versions (ADR-0122).** When `<inputs>` name `iter-1/gaps.md`, handle
+   every gap in it and record how under `## Gaps handled` in your notes: an
+   **undocumented** element is documented as built; an **unimplemented** one is kept
+   and marked planned — drawn with a dashed `planned` classDef
+   (`classDef planned stroke-dasharray: 5 5`) and written `(planned)` in prose; a
+   **drifted** one follows the user's answer in `<context>`. Every HLD file carries
+   version front matter, set only with `acs.py design` (never by hand): a new file
+   `design init --ticket <id> --status implemented` when it documents the code as
+   built, `--status proposed` when it designs ahead of the code; a file you change
+   `design bump --ticket <id>`; a file you leave unchanged keeps its block. Run
+   `acs.py design check <every file you wrote>` last and fix what it reports.
+7. Regeneration runs: preserve still-accurate existing content, update what shifted —
    do not rewrite sections the upstream does not touch. A file for a type no longer
    enabled is left as it is; never delete or edit anything under `lld/`.
-7. You never branch, commit, push or open the PR — the coordinator delivers once the
+8. You never branch, commit, push or open the PR — the coordinator delivers once the
    review passes.
-8. On iteration >= 2, fix every finding listed in `<context>` and nothing beyond what
+9. On iteration >= 2, fix every finding listed in `<context>` and nothing beyond what
    your notes cover; leaving a listed finding unaddressed fails the next review.
 
 ## The architect report

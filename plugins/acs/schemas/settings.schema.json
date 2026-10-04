@@ -148,6 +148,32 @@
           },
           "additionalProperties": false
         },
+        "audit-design": {
+          "type": "object",
+          "properties": {
+            "gap-analyst": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
         "code": {
           "type": "object",
           "properties": {
@@ -224,6 +250,26 @@
           "type": "object",
           "properties": {
             "architect": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "gap-analyst": {
               "type": "object",
               "properties": {
                 "model": {

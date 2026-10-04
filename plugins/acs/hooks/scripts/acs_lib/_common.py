@@ -35,7 +35,7 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-docs"]
 WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
                    "create-api-contract", "create-test-docs", "code", "review-code",
                    "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
-                   "merge-pr"]
+                   "merge-pr", "audit-design"]
 PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 # `code`'s four delivery-path legs (ADR-0095). Each is a real Skill-tool call
