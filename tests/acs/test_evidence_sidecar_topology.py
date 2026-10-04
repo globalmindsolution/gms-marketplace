@@ -92,9 +92,15 @@ class BodyCleanGlobalTest(unittest.TestCase):
     tree-wide, not merely the 3 migrated files."""
 
     def test_no_in_scope_citations_in_any_human_body(self):
+        # ADRs are immutable dated records, never living bodies, and were
+        # never in this rule's scope; ADR-0119 moved them under
+        # docs/architecture/, so they are skipped by path rather than by
+        # living outside the walked roots.
         offenders = {}
         for root in (DOCS_ARCHITECTURE, DOCS_REQUIREMENTS):
             for path in _markdown_files(root):
+                if os.path.commonpath([path, ADR_DIR]) == ADR_DIR:
+                    continue
                 matches = CITATION_RE.findall(read(path))
                 if matches:
                     offenders[path] = matches

@@ -65,14 +65,19 @@ def _base_ref():
 
 
 def range_diff_names(*paths, diff_filter=None):
+    """Changed names under `paths`, base...HEAD. The whole tree is diffed with
+    rename detection and filtered here, rather than limited by pathspec: a
+    pathspec drops a rename's old side, so a moved file (ADR-0119 moved every
+    ADR) would read as Added."""
     base = _base_ref()
-    cmd = ["git", "diff", "--name-only", "%s...HEAD" % base]
+    cmd = ["git", "diff", "--name-only", "-M", "%s...HEAD" % base]
     if diff_filter:
         cmd.append("--diff-filter=%s" % diff_filter)
-    out = subprocess.run(
-        cmd + ["--", *paths], cwd=REPO_ROOT, capture_output=True, text=True,
-    )
-    return out.stdout.strip()
+    out = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+    prefixes = [os.path.relpath(p, REPO_ROOT) for p in paths]
+    names = [n for n in out.stdout.split()
+             if any(n == p or n.startswith(p.rstrip("/") + "/") for p in prefixes)]
+    return "\n".join(names)
 
 
 class TestPrdG13Annotation(unittest.TestCase):
