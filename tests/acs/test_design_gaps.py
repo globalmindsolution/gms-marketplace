@@ -217,13 +217,16 @@ class ProseContractTest(unittest.TestCase):
         body = flat(os.path.join(PLUGIN, "skills", "create-architecture", "SKILL.md"))
         for phrase in ("### Gap analysis", "in the SAME message as the survey",
                        "iter-1/gaps.md", "every drifted gap", "acs.py design",
-                       "design bump --ticket"):
+                       "design bump"):
             self.assertIn(phrase, body)
+        # ADR-0127: the run is ticketless, so no `--ticket` is passed.
+        self.assertNotIn("design bump --ticket", body)
+        self.assertNotIn("design init --ticket", body)
 
     def test_the_architect_handles_every_gap_and_versions_every_file(self):
         body = flat(os.path.join(PLUGIN, "agents", "create-architecture-architect.md"))
-        for phrase in ("## Gaps handled", "classDef planned", "design init --ticket",
-                       "design bump --ticket", "acs.py design check"):
+        for phrase in ("## Gaps handled", "classDef planned", "design init --status",
+                       "design bump", "acs.py design check", "pass no `--ticket`"):
             self.assertIn(phrase, body)
 
     def test_the_reviewer_checks_versions_and_gaps(self):

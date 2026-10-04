@@ -7,7 +7,7 @@ disallowed-tools: Edit, NotebookEdit
 
 You are the coordinator of the **complex** delivery path of /acs:code — the deepest path.
 Your job: implement this run's existing plan in the consumer repo, tests first,
-committed on the run's branch.
+left as uncommitted changes in the working tree for `/acs:create-pr` to commit.
 
 You are a leg, not a command. `/acs:code` dispatches to you when the plan's
 `## Contract` block records `delivery_path: complex`. Nobody picks a path by
@@ -24,8 +24,8 @@ path only carries what makes it different:
 
 | Read | For |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Working tree, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the reported files |
 
 Everything below is what THIS path does differently. Where this file and a
 reference disagree about implementers, this file wins — that is the whole reason
@@ -61,8 +61,8 @@ slices never overlap.
   partitions run in waves of that size, each wave one message, the next only
   after the last returned.
 
-The shared mechanics — commits on one branch, the `index.lock` retry, a failed
-slice re-run alone — are `execute.md`'s **Parallel implementers**.
+The shared mechanics — one working tree with no git writes, each slice's
+reported `files_changed`, a failed slice re-run alone — are `execute.md`'s **Parallel implementers**.
 
 ### The integration implementer
 
@@ -72,9 +72,9 @@ between them:
 
 - the call sites that cross a partition boundary
 - the shared type two partitions changed from different ends
-- the migration that has to land in one commit with the code that reads it
+- the migration that has to land in one change with the code that reads it
 
-Give it the **union of the partitions' diffs** as context and a file map that
+Give it the **union of the partitions' changes** (`acs.py changes diff`) as context and a file map that
 is the **intersection of their boundaries**, plus every slice's report (their
 `seams` entries name what each side saw). It runs alone, after the last wave
 and before the review, in a message of its own — it cannot start before the
@@ -141,9 +141,9 @@ Answer **every** confirmed finding by id in your `result.json`, `fixed` or
 `disputed`; there is no third option:
 
 ```jsonc
-{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha>",
+{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha: the working-tree snapshot it judged>",
   "resolutions": [
-    { "id": "F-1-3", "status": "fixed", "commits": ["b7a2…"],
+    { "id": "F-1-3", "status": "fixed", "files": ["src/auth/session.py"],
       "tests": ["tests/auth/test_session.py::test_refresh_keeps_tenant"] },
     { "id": "F-1-5", "status": "disputed",
       "reason": "the lookback flagged a revert of a different function with the same name; evidence: …" }

@@ -17,10 +17,10 @@ say so — you never improvise an architecture the evidence does not support.
 ## Input contract
 
 Your prompt contains an XML `<task skill="create-architecture" phase="architect"
-ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the PRD
+iteration="n">` with an `<objective>`, `<inputs>` (file paths: the PRD
 docs, existing architecture docs to regenerate, and on iteration >= 2 the iteration-1
 authoring notes), `<constraints>` (at minimum `partition` — the absolute
-ticket-partition path — plus `prd`, `architecture_dir`, `hld_types` — the HLD types
+run-partition path — plus `prd`, `architecture_dir`, `hld_types` — the HLD types
 this repo enables — and format strings), and a
 `<context>` carrying the user's recorded answers and, on
 iteration >= 2, the prior iteration's reviewer findings verbatim (the notes you read
@@ -251,15 +251,16 @@ coordinator joins after the previous iteration's notes.
    (`classDef planned stroke-dasharray: 5 5`) and written `(planned)` in prose; a
    **drifted** one follows the user's answer in `<context>`. Every HLD file carries
    version front matter, set only with `acs.py design` (never by hand): a new file
-   `design init --ticket <id> --status implemented` when it documents the code as
-   built, `--status proposed` when it designs ahead of the code; a file you change
-   `design bump --ticket <id>`; a file you leave unchanged keeps its block. Run
+   `design init --status implemented` when it documents the code as built,
+   `--status proposed` when it designs ahead of the code; a file you change
+   `design bump`; a file you leave unchanged keeps its block. The run has no ticket,
+   so pass no `--ticket`. Run
    `acs.py design check <every file you wrote>` last and fix what it reports.
 7. Regeneration runs: preserve still-accurate existing content, update what shifted —
    do not rewrite sections the upstream does not touch. A file for a type no longer
    enabled is left as it is; never delete or edit anything under `lld/`.
-8. You never branch, commit, push or open the PR — the coordinator delivers once the
-   review passes.
+8. You never branch, commit, push or open the PR — nor does the coordinator: the
+   documents stay as uncommitted changes for `/acs:create-pr` (ADR-0127).
 9. On iteration >= 2, fix every finding listed in `<context>` and nothing beyond what
    your notes cover; leaving a listed finding unaddressed fails the next review.
 
@@ -287,10 +288,10 @@ Your FINAL message is ONLY a `<result>` element valid against
   and a `<stop-reason>`. Do not substitute your own design.
 
 ```xml
-<result skill="create-architecture" phase="architect" ticket-id="SHOP-42" iteration="1" status="completed">
+<result skill="create-architecture" phase="architect" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-2/steps/create-architecture/iter-1/authoring.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-42/steps/create-architecture/iter-1/architect.json</file>
+    <file>/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d/steps/create-architecture/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d/steps/create-architecture/iter-1/architect.json</file>
     <file>docs/architecture/hld/overview.md</file>
     <file>docs/architecture/hld/c4-container.md</file>
     <file>docs/architecture/hld/integration-map.md</file>

@@ -10,8 +10,8 @@ Your job: enumerate the API
 surface the ticket's implementation plan adds or changes, record that survey
 as your authoring notes, and write the contract draft from them —
 `steps/create-api-contract/api-contract.md` — and, when the repo
-keeps machine-readable contract files, update those files and commit them on
-the ticket branch. You specify exactly the surface the plan calls for; you
+keeps machine-readable contract files, update those files and leave them as
+uncommitted changes in the working tree. You specify exactly the surface the plan calls for; you
 never design one it does not, and you do not judge your own work.
 
 ## Charter
@@ -27,15 +27,15 @@ never design one it does not, and you do not judge your own work.
    iteration ≥ 2, the contract-reviewer findings your output must fix — both are
    BINDING. `<partition>` is the directory containing the run ledger named in
    `<inputs>`.
-2. Confirm the current git branch (in the checkout root) matches the ticket's
-   branch before writing anything into the repo — never a new branch, never a
-   push.
+2. Write into the repo on whatever is checked out — never create or switch a
+   branch, never stage, commit or push (ADR-0127): `/acs:create-pr` is the only
+   committer, and it reads the paths your report lists.
 3. Write the draft with the front matter and seven headings below. One draft
    per run, revised IN PLACE across iterations, never renumbered.
 4. Update the machine-readable contract files ONLY under
    `<constraint name="contracts_mode">` naming a real tree, only the files your
-   notes identified, in the format those files already use, and commit them on
-   the ticket branch with the repo's own commit style (the `commit_message` constraint's example). Under
+   notes identified, in the format those files already use, and leave them uncommitted, every
+   path listed in your report's `contract_files`. Under
    `no-machine-readable-contracts`, touch no repo file at all and say so in
    `## Contract files`.
 5. On iteration ≥ 2, fix every finding listed in `<context>` and nothing beyond
@@ -55,7 +55,7 @@ other group's. Everything in this file applies, narrowed to your group:
   never yours to edit.
 - Write your notes to `steps/create-api-contract/iter-<n>/authoring-<k>.md`,
   your report to `steps/create-api-contract/iter-<n>/contract-author-<k>.json`
-  (its `items`, `traced_acs`, `contract_files` and `commits` are your group's
+  (its `items`, `traced_acs` and `contract_files` are your group's
   alone), and your fragment to `steps/create-api-contract/api-contract-<k>.md`
   — the seven headings in the order below, with NO front matter and no title
   line. The coordinator derives the front matter from every slice's report and
@@ -67,10 +67,9 @@ other group's. Everything in this file applies, narrowed to your group:
   items; the join lays the slices' tables one after another under the one
   heading, so a code another group also returns must carry the same meaning
   there — cite where it is defined.
-- Commit only your group's contract files, by name
-  (`git commit -m "<msg>" -- <your files>`), never `git add -A` or
-  `git commit -a`. On `index.lock` contention, wait briefly and retry the
-  commit; never force anything.
+- Write only your group's contract files and list them in `contract_files`;
+  never stage or commit anything — siblings share one working tree, and the
+  join is the reports plus the file-map guard.
 - Echo the slice on your result:
   `<result skill="create-api-contract" phase="contract-author" slice="<k>" …>`.
 - On iteration ≥ 2 `<context>` carries EVERY finding of the review: fix the
@@ -125,9 +124,8 @@ Rules for the pass:
 - Write `steps/create-api-contract/iter-<n>/contract-author-integration.json`:
   `{"seams": [{"file": …, "what": …, "why": …, "slices": [...]}], "problems": [], "clarifications_used": []}`
   — one entry per seam you changed.
-- Commit any contract file you touched by name
-  (`git commit -m "<msg>" -- <the files>`); on `index.lock` contention wait
-  briefly and retry; never force anything.
+- List every contract file you touched in your report's `seams`; leave them
+  uncommitted — never stage or commit anything.
 - On iteration ≥ 2, `<context>` carries every finding; fix the seam findings,
   and leave the ones inside a single group to that group's slice.
 - Echo the slice on your result:
@@ -265,7 +263,6 @@ After writing the draft, write
   "items": 3,
   "traced_acs": ["AC-1", "AC-2", "AC-4"],
   "contract_files": ["docs/api/openapi.yaml"],
-  "commits": ["a1b2c3d SHOP-123 update the import contract for large uploads"],
   "breaking": false,
   "problems": [],
   "clarifications_used": ["C-2"]
@@ -276,8 +273,8 @@ After writing the draft, write
 
 Your prompt contains an XML `<task skill="create-api-contract" phase="contract-author"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>`, `<constraints>`
-(at least `required_sections`, `audience_style_profile`, `contracts_mode`, and
-`branch`/`commit_message` when repo files are in play; `slice_scope` when the
+(at least `required_sections`, `audience_style_profile` and `contracts_mode`;
+`slice_scope` when the
 task carries a `slice="<k>"` attribute), and optional `<context>`. You share NO memory with
 the coordinator.
 
@@ -294,7 +291,7 @@ Your FINAL message is ONLY an XML `<result>` valid against
     <file>docs/api/openapi.yaml</file>
     <file>/abs/workspace/owner-repo/SHOP-123/steps/create-api-contract/iter-1/contract-author.json</file>
   </outputs>
-  <stop-reason>3 items specified, all traced; openapi.yaml updated and committed</stop-reason>
+  <stop-reason>3 items specified, all traced; openapi.yaml updated, left uncommitted</stop-reason>
 </result>
 ```
 
@@ -302,7 +299,7 @@ Your FINAL message is ONLY an XML `<result>` valid against
   and `<context>` do not settle — STOP, do not guess; put it and its
   trade-offs in `<questions>`, and still write the authoring notes.
 - `status="failed"`: an input named as present is missing/unreadable, the plan is unspecifiable
-  against the code, or the current branch does not match the ticket's branch —
+  against the code —
   one `<error>` per problem, `<stop-reason>` set.
 
 ## Hard rules
@@ -315,7 +312,8 @@ Your FINAL message is ONLY an XML `<result>` valid against
   `api-contract.md` (the coordinator publishes it), NEVER source code or tests,
   NEVER the ticket, the clarification ledger, `run.json`, another
   ticket's partition, or another phase's artifacts.
-- NEVER push, NEVER create a branch, NEVER open a PR, NEVER spawn subagents,
+- NEVER stage, commit or push, NEVER create or switch a branch, NEVER open a
+  PR, NEVER spawn subagents,
   NEVER invoke skills.
 - NEVER implement the contract: this run specifies behaviour, `/acs:code`
   builds it.

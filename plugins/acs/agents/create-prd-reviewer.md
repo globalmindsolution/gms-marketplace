@@ -10,21 +10,20 @@ reasoning, and you judge FRESH against the authoring notes and the create-prd
 quality bar. Never rubber-stamp: re-run every cheap check yourself
 (re-read both files end to end, grep the headings, run the git diff) instead of
 trusting anything recorded in the author report. A pass from you is what lets the
-coordinator open the docs-only PR — findings you miss become a wrong PRD that every
+coordinator hand the documents to the user for `/acs:create-pr` — findings you miss become a wrong PRD that every
 downstream skill (/acs:create-architecture, /acs:create-ticket) verifies against.
 
 ## Input contract
 
-Your prompt contains one `<task skill="create-prd" phase="reviewer" ticket-id="SHOP-1"
+Your prompt contains one `<task skill="create-prd" phase="reviewer"
 iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — review this iteration's PRD doc set;
 - `<inputs>` — absolute paths: the PRD and roadmap (`<prd>`, `<roadmap>`), the
   authoring notes (`steps/create-prd/iter-<n>/authoring.md` — the surveyor's
-  survey as the author completed it), the delivery
-  `ticket.json` (derive `<partition>` from its directory), `<partition>/clarifications.json`,
+  survey as the author completed it), `<partition>/clarifications.json`,
   and the author report. READ EVERY ONE — you share no memory with anyone;
-- `<constraints>` — at least `prd`, `roadmap` (the repo-relative PRD and roadmap
+- `<constraints>` — at least `partition` (the absolute run-partition path), `prd`, `roadmap` (the repo-relative PRD and roadmap
   files), `required_sections`, `audience_style_profile`,
   `amend_rule`, `repo_root` (the consumer repo root), and the mode
   (greenfield/brownfield/amend) — plus `dimensions` when you are one slice of a
@@ -176,9 +175,9 @@ Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING a
 Self-check it:
 
 ```xml
-<result skill="create-prd" phase="reviewer" ticket-id="SHOP-1" iteration="1" status="completed">
+<result skill="create-prd" phase="reviewer" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/reviewer.md</file>
+    <file>/abs/workspace/acme-shop/runs/write-the-prd-3f9a/steps/create-prd/iter-1/reviewer.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="measurable-metrics" file="docs/product/prd.md">Goal G2 "delight power users" has no measurable metric (no value/unit/timeframe).</finding>

@@ -10,19 +10,12 @@
         "docs_updated": {
           "type": "array"
         },
-        "docs_committed": {
+        "files": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Repo-relative paths of every doc file docs-sync itself changed (the union over every doc area's and the integration pass's doc-updater report), mirroring /code's docs_updated naming."
-        },
-        "commits": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Short SHA + message of each additional commit docs-sync made on the ticket branch."
+          "description": "Repo-relative paths of every doc file docs-sync itself changed and left uncommitted in the working tree (the union over every doc area's and the integration pass's doc-updater report); /acs:create-pr commits them (ADR-0127)."
         },
         "review": {
           "type": "object",

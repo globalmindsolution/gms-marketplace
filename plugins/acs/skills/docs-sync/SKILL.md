@@ -1,20 +1,21 @@
 ---
 name: docs-sync
-description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from git diff <default_branch>...HEAD, /code's result.json, and the final changeset review verdict, never from a hand-off summary alone. Commits additional doc changes on the SAME ticket branch (no new branch, no new PR). Use whenever a change is done on its branch and the docs (README, API reference, configuration guide, runbook) must be brought in line with it — even a single stale value or sentence: a doc fix that follows from a ticket's change goes through this skill, not a direct edit. Call it as your first action on such a request — do not Glob, Grep, Read, ToolSearch or look for a shell or git first: it runs git itself and finds the branch, diff and docs.
-when_to_use: Use when a ticket has a changeset on its branch whose documentation still needs reconciling; workflows/ship.yaml places it after code and before create-pr, but it is runnable on its own whenever the docs have drifted from the diff.
+description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from the working-tree changeset (acs.py changes diff), /code's result.json, and the final changeset review verdict, never from a hand-off summary alone. Leaves the doc changes uncommitted beside the code (no branch, no commit, no PR — /acs:create-pr commits them). Use whenever a change is done and the docs (README, API reference, configuration guide, runbook) must be brought in line with it — even a single stale value or sentence: a doc fix that follows from a ticket's change goes through this skill, not a direct edit. Call it as your first action on such a request — do not Glob, Grep, Read, ToolSearch or look for a shell or git first: it runs git itself and finds the changeset and docs.
+when_to_use: Use when a ticket has a changeset in the working tree whose documentation still needs reconciling; workflows/ship.yaml places it after code and before create-pr, but it is runnable on its own whenever the docs have drifted from the diff.
 argument-hint: "[ticket-id]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:docs-sync. Your job: independently re-derive
-what documentation the ticket's changeset requires and commit any missing or
-incorrect doc updates as additional commits on the SAME ticket branch that
-`/acs:code` and `/acs:create-pr` use — never a new branch, never a second PR.
-You orchestrate two subagents over XML, each built for its half of the job:
-a **doc-updater** that re-derives the doc delta from the diff and commits
-the doc updates, and a fresh **drift-reviewer** that re-derives the doc
-impact independently and judges the committed changes (doc-updater →
-drift-reviewer). You never write doc content yourself.
+what documentation the ticket's changeset requires and write any missing or
+incorrect doc updates into the SAME working tree `/acs:code` left its change
+in — as uncommitted changes, never a branch, a commit or a PR (ADR-0127):
+`/acs:create-pr` commits them as the ticket's doc-sync group. You orchestrate
+two subagents over XML, each built for its half of the job: a **doc-updater**
+that re-derives the doc delta from the changeset and writes the doc updates,
+and a fresh **drift-reviewer** that re-derives the doc impact independently
+and judges the changed docs (doc-updater → drift-reviewer). You never write
+doc content yourself.
 
 `/code`'s own step 4 no longer authors general doc updates — it only
 reconciles factual claims in `docs/product/prd.md`/`docs/product/roadmap.md`
@@ -29,11 +30,11 @@ resolve, the ticket resolves to a live, unlocked partition. It never refuses
 because `/acs:code`, `/acs:review-code` or the post-code test steps have not
 recorded a completed run: pipeline order lives in `workflows/ship.yaml`, not in
 the gate, so docs-sync is an independent skill, runnable on its own against
-whatever the branch already holds. Run somewhere other than the run's cursor,
+whatever the working tree already holds. Run somewhere other than the run's cursor,
 the pre-hook prints ONE advisory line on stderr (`acs: docs-sync normally
 follows <predecessor> in ship.yaml; the cursor for <id> is <cursor>`) and lets
-the skill run. The real precondition is a CHANGESET: with no diff against the
-default branch there is nothing to re-derive — input 1 of "Inputs" below is
+the skill run. The real precondition is a CHANGESET: with nothing changed since
+the run's baseline there is nothing to re-derive — input 1 of "Inputs" below is
 where you find that out, and "No doc impact" below is how you stop. Every other input below is read when present and
 worked around when absent — the diff and the ticket are the fallback.
 
@@ -54,14 +55,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step docs-sync
 Throughout this file `<partition>` means the `partition` path from the
 context JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
 
-**Branch confirmation (hard precondition).** Read the current git branch in
-`<checkout_root>` and confirm it matches the ticket's recorded branch — read
-`states.branch` from `steps/code/result.json`, or the `branch`
-recorded in `<partition>/run.json`. docs-sync NEVER creates a
-branch and NEVER opens a PR; it always operates on the SAME ticket branch
-`/code`/`/create-pr` use, adding commits to the existing changeset (same
-PR/review). A mismatch is a fail-fast error — stop and surface it; never
-silently switch branches.
+**No branch precondition.** docs-sync works in `<checkout_root>` on whatever
+branch is checked out — it reads no recorded branch and refuses on none.
+docs-sync NEVER creates a branch, NEVER switches one, NEVER stages or commits,
+and NEVER opens a PR (ADR-0127); it adds its doc updates to the uncommitted
+changeset `/acs:code` left in the working tree — same ticket, same future PR,
+which `/acs:create-pr` opens.
 
 ## Resume & reconcile
 
@@ -70,8 +69,8 @@ silently switch branches.
   says which): verify recorded progress against reality
   BEFORE continuing — list `steps/docs-sync/iter-*/*-message.xml`,
   re-read `steps/docs-sync/state.json` if it exists, and check whether
-  its `states.docs_committed`/`commits` actually match `git log` on the
-  branch. Continue from the first unfinished phase/iteration; never redo
+  its `states.files` actually match the working tree
+  (`acs.py changes diff --name-only`). Continue from the first unfinished phase/iteration; never redo
   work that demonstrably holds.
 - If `context.handoff_summary` exists: read it plus
   `steps/docs-sync/handoff-context.md` (when present), do a
@@ -83,8 +82,8 @@ silently switch branches.
   notes (`iter-<n>/authoring.md`) belong to their iteration.
 - Both phases run sliced, so a phase can be half-done. A resumed iteration
   re-runs ONLY the slices whose report is missing: a doc area with no
-  `iter-<n>/doc-updater-<area>.json` (check `git log` for its commits first —
-  a commit that landed is kept, never redone), an integration pass that was
+  `iter-<n>/doc-updater-<area>.json` (check the working tree for its doc files
+  first — a doc edit already on disk is kept, never redone), an integration pass that was
   due and has no `iter-<n>/doc-updater-integration.json` (run after the
   areas, as always), or a drift-review slice with
   no `iter-<n>/drift-reviewer-<slice>.md` — spawned together in one message.
@@ -99,8 +98,12 @@ summary. Inputs 3-6 are read when present; an absent one is named as absent
 in the task and never stops the run (the diff and the ticket are the
 subject docs-sync falls back to):
 
-1. `git diff <default_branch>...HEAD` on the ticket branch (the ground-truth
-   changeset) — run from `<checkout_root>`.
+1. The ground-truth changeset, run from `<checkout_root>`:
+   `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --patch`
+   — everything the ticket's run changed since its baseline, untracked files
+   included. NEVER `git diff <default_branch>...HEAD`: it sees commits only,
+   and the change is uncommitted until `/acs:create-pr`, so it is silently
+   empty.
 2. The ticket (title, description, acceptance criteria) — `context.ticket`.
    On disk it is `docs/tickets/<id>/ticket.md` once the docs tree exists, or
    `ticket.json` in the ticket's workspace partition for one not yet migrated
@@ -147,18 +150,13 @@ validate — never invent a variant such as `commit_message_format` or
 <constraints>
   <constraint name="partition">/abs/workspace/owner-repo/SHOP-123</constraint>
   <constraint name="checkout_root">/abs/path/to/the/checkout</constraint>
-  <constraint name="branch">task/SHOP-123-add-user-login</constraint>
-  <constraint name="default_branch">main</constraint>
-  <constraint name="commit_message">{ticket_id} {summary}</constraint>
   <constraint name="requirements_dir">docs/requirements</constraint>
   <constraint name="functional_dir">docs/requirements/functional</constraint>
   <constraint name="non_functional_dir">docs/requirements/non-functional</constraint>
 </constraints>
 ```
 
-`checkout_root` is `context.checkout_root`; `branch` is the ticket branch
-confirmed above; `default_branch` is the base the diff is taken against;
-`commit_message` is a message in the repo's own commit style naming the ticket id (default `<ticket_id> <summary>`); the requirements
+`checkout_root` is `context.checkout_root`; the requirements
 trio is the requirements set and its functional and non-functional
 subfolders. Add the other document locations the doc-updater's charter names —
 `architecture_dir` and `adr_dir` — each as its own `<constraint>` under that
@@ -174,26 +172,26 @@ followed), `docs/architecture/`, `docs/architecture/adr/`.
 
 ### No doc impact — finish without the loop
 
-Take input 1 (`git diff <default_branch>...HEAD`) first. When it is **empty**
-— the branch carries no changeset — there is nothing to re-derive: spawn no
-subagent, commit nothing, and go straight to Finish with a completed result
+Take input 1 (`acs.py changes diff`) first. When it is **empty** — nothing
+changed since the run's baseline — there is nothing to re-derive: spawn no
+subagent, write nothing, and go straight to Finish with a completed result
 that says so:
 
 ```json
 {
   "status": "completed",
-  "summary": "no changeset against main: git diff main...HEAD is empty, so no doc is owed",
-  "states": {"docs_committed": [], "commits": [], "review": {"iterations": 0, "findings_open": 0}},
+  "summary": "no changeset: acs.py changes diff is empty, so no doc is owed",
+  "states": {"files": [], "review": {"iterations": 0, "findings_open": 0}},
   "findings": [],
   "errors": []
 }
 ```
 
 The same shape closes a run whose diff is non-empty but whose drift-reviewer
-passes with the doc-updaters having committed nothing (every doc the diff
-touches is already correct): `docs_committed: []` and `commits: []` on a
-`completed` result, `review.iterations` counting the rounds that ran. An empty
-`docs_committed` is an evidenced "no doc impact", never a failure — and never
+passes with the doc-updaters having written nothing (every doc the diff
+touches is already correct): `files: []` on a `completed` result,
+`review.iterations` counting the rounds that ran. An empty `files` is an
+evidenced "no doc impact", never a failure — and never
 an `outcome` value: this skill's fragment
 (`skills/docs-sync/state.schema.json`) declares no outcome vocabulary, so the
 result carries no `outcome` key at all.
@@ -205,7 +203,7 @@ the doc updates ahead of the doc-updater — no planner, no plan phase — becau
 the doc-delta list is a derivation only the doc-updater uses: iteration 1's
 doc-updater re-derives the doc impact from the six inputs, writes its
 authoring notes (the doc-delta list, each item justified by the diff), and
-commits the doc updates from them; the drift-reviewer re-derives the impact
+writes the doc updates from them; the drift-reviewer re-derives the impact
 itself and judges the result fresh. On iterations 2-3 the drift-reviewer's
 findings go verbatim into the next doc-updater `<task>` `<context>` and the
 doc-updater authors the remediation. Decomposition is YOURS alone —
@@ -223,7 +221,7 @@ every run, and this ticket does not introduce one.
 
 | Role | Agent | Kind | Spawn as | Writes |
 |---|---|---|---|---|
-| doc-updater | `acs:docs-sync-doc-updater` | write | `context.agents.doc-updater` | one instance per doc area: the doc files in its area its notes name (committed on the ticket branch), `iter-<n>/authoring-<area>.md`, `iter-<n>/doc-updater-<area>.json` — you join the notes into `iter-<n>/authoring.md` |
+| doc-updater | `acs:docs-sync-doc-updater` | write | `context.agents.doc-updater` | one instance per doc area: the doc files in its area its notes name (left uncommitted), `iter-<n>/authoring-<area>.md`, `iter-<n>/doc-updater-<area>.json` — you join the notes into `iter-<n>/authoring.md` |
 | drift-reviewer | `acs:docs-sync-drift-reviewer` | judge | `context.agents.drift-reviewer` | one instance per dimension slice: `iter-<n>/drift-reviewer-<slice>.md` only — you join them into `iter-<n>/drift-reviewer.md` |
 
 ### Doc areas — the doc-updater partition
@@ -248,18 +246,15 @@ file. Each instance reads all six inputs and re-derives the doc impact from
 the whole diff, but records and applies ONLY the doc-delta items whose target
 file its area owns; an item it finds for another area it names under
 "Out-of-area impact" in its notes, never edits. An area with no delta writes
-notes saying so, with the Diff-analysis evidence, and commits nothing.
+notes saying so, with the Diff-analysis evidence, and writes no doc.
 There is no separate survey role to slice: each area's doc-updater surveys
 the diff itself, so the area split is the survey split too.
 
-**Shared branch, one index.** The doc-updaters commit on the SAME ticket
-branch in the same checkout, so each stages and commits only its own paths
-(`git add -- <paths>` then `git commit -m "<msg>" -- <paths>`), never
-`git add -A`, `git add .` or `git commit -a`, which would sweep a sibling's
-staged files into its commit. On git `index.lock` contention (`Unable to
-create '…/.git/index.lock': File exists`), wait briefly and retry the same
-command; never delete the lock, never force anything, never amend or rewrite
-a sibling's commit.
+**One working tree, no git writes.** The doc-updaters write in the same
+checkout, so each writes ONLY its own area's paths and lists every one in its
+report's `files`; none stages, commits, stashes or touches a branch (ADR-0127),
+so siblings never contend for the index. The join is the reports plus the
+file-map guard; never revert or rewrite a sibling's file.
 
 A doc-updater that returned `failed` or no usable `<result>` is re-requested
 once; still failing, the run fails — the drift-reviewer never judges a
@@ -285,7 +280,7 @@ ONLY the seams:
 - **each area's "Out-of-area impact" notes** — every out-of-area item must
   be applied by the owning area or explicitly resolved. The integration pass
   records each item's disposition: *applied by `<area>`* (citing that area's
-  file and commit), *applied here* (only when the item is itself a seam),
+  file), *applied here* (only when the item is itself a seam),
   or *not needed* (with the evidence). An item that is substance its owning
   area missed is not the integration pass's to write: it lists it as
   *unapplied → `<area>`*, you re-run that area's doc-updater once for the
@@ -295,11 +290,11 @@ ONLY the seams:
 It never rewrites an area's substance. Where two areas' notes contradict each
 other, it records the resolution and its evidence under a `## Synthesis`
 section of its notes, or returns `status="needs_input"` with a question —
-never silently picks one. It commits only the seam files, with the same
-pathspec rule and `index.lock` retry as the areas, and writes
+never silently picks one. It writes only the seam files, lists them in
+its report like the areas, commits nothing, and writes
 `iter-<n>/authoring-integration.md` and `iter-<n>/doc-updater-integration.json`
 listing each seam it changed (file, what, why, which areas). **Skipped when
-only one area had changes** (at most one area's report lists a committed
+only one area had changes** (at most one area's report lists a changed
 doc, and no area recorded an out-of-area item): with a single writer there is
 no seam.
 
@@ -318,7 +313,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
 
 `iter-<n>/authoring.md` is then the one set of notes the drift-reviewer
 reads, each section once; the `iter-<n>/doc-updater-<slice>.json` reports stay
-per slice, and Finish takes the union of their `docs_committed` and `commits`.
+per slice, and Finish takes the union of their `files`.
 
 **Iterations 2-3.** Re-spawn, in one message, one doc-updater per area that
 owns the `file` of at least one finding; a finding with no `file`, or a file
@@ -418,10 +413,9 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 Objective, iteration 1: from the six inputs above, record the doc-delta
 list in the authoring notes — which doc files need which specific changes
 and why, each cross-referenced to the diff lines / `docs_updated` entries /
-`problems` entries that justify it — and then apply those doc updates as
-additional commits on the SAME
-ticket branch (never a new branch, never a new PR), in the same
-commit style `/code` already uses (the `commit_message` constraint carries an example). Author the doc-delta report
+`problems` entries that justify it — and then apply those doc updates in the
+working tree, left uncommitted beside the code change (never a branch, a
+commit or a PR — `/acs:create-pr` commits them). Author the doc-delta report
 using the FIXED v1 structure — the per-iteration role report every hooked
 skill already writes (`iter-<n>/doc-updater.json` here, beside the
 drift-reviewer's `iter-<n>/drift-reviewer.md`; every authoring skill's
@@ -452,7 +446,7 @@ in one message, for the same iteration with the answers in `<context>`.
 
 Spawned fresh (sees artifacts, never the doc-updater's reasoning);
 re-derives doc impact from the same six-input contract itself (not exempt
-from the independent-re-derivation rule) and checks each committed doc
+from the independent-re-derivation rule) and checks each doc
 change is accurate, complete against the diff, and consistent with
 `docs_updated` / `problems` / the final review verdict. It runs as the three
 dimension slices above, all in one message, joined into
@@ -465,15 +459,16 @@ final status `failed`.
 
 **In a parallel group, the drift-reviewer judges the FINAL diff.** When
 `/acs:ship` runs this step beside another member (the shipped workflow runs
-it with `create-e2e-tests`), that sibling's writers commit on the same
-branch while the doc-updaters work, so the doc-updaters may have derived the
-delta from a diff that was still growing. The drift-reviewer re-derives from
-the diff as it stands when it runs, so it is the check that catches it — and
-it only can if it runs after every sibling writer has committed for the last
-time. `/acs:ship` holds this phase until then (its "Running a parallel
-group"), and a sibling commit that lands after a passing drift review means
-one more drift review before Finish. A doc the sibling's commits made stale
-is an ordinary finding for the next iteration's doc-updater.
+it with `create-e2e-tests`), that sibling's writers write into the same
+working tree while the doc-updaters work, so the doc-updaters may have derived
+the delta from a changeset that was still growing. The drift-reviewer
+re-derives from the changeset as it stands when it runs, so it is the check
+that catches it — and it only can if it runs after every sibling writer has
+written for the last time. `/acs:ship` holds this phase until then (its
+"Running a parallel group"), and a sibling write that lands after a passing
+drift review means one more drift review before Finish. A doc the sibling's
+changes made stale is an ordinary finding for the next iteration's
+doc-updater.
 
 ## User interaction
 
@@ -522,8 +517,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
      "status": "completed",
      "summary": "drift-reviewer passed with zero findings on iteration 1",
      "states": {
-       "docs_committed": ["docs/api/import.md", "README.md"],
-       "commits": ["a1b2c3d SHOP-123 sync API doc for the new 409 response"],
+       "files": ["docs/api/import.md", "README.md"],
        "review": {"iterations": 1, "findings_open": 0}
      },
      "findings": [],
@@ -531,10 +525,10 @@ MANDATORY final step — never skipped, including on failure or handoff:
    }
    ```
 
-   `docs_committed`: repo-relative paths of every doc file docs-sync itself
-   changed, mirroring `/code`'s `docs_updated` naming. `commits`: short SHA +
-   message list of the additional commits docs-sync made. Both are the union
-   over every doc area's `iter-<n>/doc-updater-<area>.json`, every iteration. `review`:
+   `files`: repo-relative paths of every doc file docs-sync itself changed and
+   left uncommitted — the union over every doc area's (and the integration
+   pass's) `iter-<n>/doc-updater-<area>.json` `files`, every iteration.
+   `/acs:create-pr` commits them as the doc-sync group. `review`:
    `{iterations, findings_open}` — to which the post-hook's derivation may add
    `guard_denials` when the file-map guard denied a write during THIS run
    (the derivation reads `steps/<skill>/state.json` for every step,
@@ -554,11 +548,12 @@ MANDATORY final step — never skipped, including on failure or handoff:
    offering docs-sync instead of moving on.
 
 3. Report:
-   - Direct invocation: a compact summary — doc files committed, commits
-     made, iterations used, and the next step (`/acs:create-pr <id>`).
+   - Direct invocation: a compact summary — the doc files written (left
+     uncommitted in the working tree), iterations used, and the next step
+     (`/acs:create-pr <id>`, which commits them).
    - Under /acs:ship: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` <=1KB, `<artifacts>`
-     referencing the committed doc paths, `<next-step>/acs:create-pr
+     referencing the changed doc paths, `<next-step>/acs:create-pr
      message.
 
 ## Completion report (normative)
@@ -575,9 +570,9 @@ invocations:
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: doc files committed; commits made; review iterations and open findings
+- **Results**: doc files written (uncommitted); review iterations and open findings
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <partition files, repo paths, branch>
+- **Artifacts**: <uncommitted files written (repo-relative), partition files>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:create-pr <ticket-id>`
+- **Next**: `/acs:create-pr <ticket-id>` — it commits the uncommitted files
 ```

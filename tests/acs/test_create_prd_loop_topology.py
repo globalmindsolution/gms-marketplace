@@ -290,5 +290,30 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertIn("police grounding", reviewer)
 
 
+
+class TicketlessDeliveryTest(unittest.TestCase):
+    """ADR-0127: /acs:create-prd runs ticketless and delivers nothing itself.
+
+    The author writes into the working tree on whatever branch is checked
+    out; no role reads a delivery `ticket.json`, and the partition reaches
+    every agent as a constraint instead."""
+
+    def test_no_agent_reads_a_delivery_ticket_or_branch(self):
+        for path in (PRD_SURVEYOR, PRD_AUTHOR, PRD_REVIEWER):
+            body = norm(read(path))
+            self.assertNotIn("delivery `ticket.json`", body, path)
+            self.assertNotIn("delivery branch", body, path)
+            self.assertNotIn('ticket-id="SHOP-1"', body, path)
+            self.assertIn("`partition` (the absolute run-partition path)", body, path)
+
+    def test_the_skill_leaves_the_documents_uncommitted(self):
+        body = norm(read(PRD_SKILL))
+        delivery = norm(section(read(PRD_SKILL), "## Delivery", "## User interaction"))
+        self.assertIn("no branch, no commit, no push, no PR", delivery)
+        self.assertIn("`states.files`", delivery)
+        self.assertIn("`/acs:create-pr`", delivery)
+        self.assertNotIn("Prepare the delivery branch", body)
+        self.assertNotIn("--allocate", body)
+
 if __name__ == "__main__":
     unittest.main()

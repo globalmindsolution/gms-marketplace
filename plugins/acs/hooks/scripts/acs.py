@@ -43,6 +43,8 @@ Usage:
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py pr metadata fill --ticket MAR-1 --pr 42
+  acs.py pr plan-commits [--ticket MAR-1 | --docs] [--out plan.json]
+  acs.py pr commit --plan plan.json
   acs.py tracker sync --ticket MAR-1 --ticket MAR-2
   acs.py readiness --pr 42
   acs.py readiness --from recorded-pr.json
@@ -73,6 +75,8 @@ Usage:
   acs.py job wait --name gate-build --name gate-suite [--timeout 540]
   acs.py job status --name gate-suite
   acs.py job stop --name gate-suite
+  acs.py changes snapshot
+  acs.py changes diff [--since TREE] [--name-only | --stat | --patch]
 """
 
 import argparse
@@ -105,6 +109,7 @@ import acs_analysis_commands  # noqa: E402
 import acs_model_commands  # noqa: E402
 import acs_design_commands  # noqa: E402
 import acs_job_commands  # noqa: E402
+import acs_changes_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -249,7 +254,7 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
-    pr = group("pr", help="PR metadata the forge, not the model, decides")
+    pr = group("pr", help="PR metadata, and the commits /acs:create-pr makes (ADR-0127)")
     pr_sub = pr.add_subparsers(dest="cmd")
     metadata = pr_sub.add_parser("metadata", help="PR metadata fill")
     metadata_sub = metadata.add_subparsers(dest="subcmd")
@@ -261,6 +266,7 @@ def build_parser():
     fill.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
                       help="replay recorded gh output instead of calling gh")
     fill.set_defaults(func=cmd_pr_metadata_fill)
+    acs_changes_commands.add_pr_parsers(pr_sub)
 
     tracker = group("tracker", help="tracker sync")
     tracker_sub = tracker.add_subparsers(dest="cmd")
@@ -381,6 +387,7 @@ def build_parser():
     acs_model_commands.add_parser(group)
     acs_design_commands.add_parser(group)
     acs_job_commands.add_parser(group)
+    acs_changes_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

@@ -3,7 +3,7 @@
 Open this when `context.reconcile` is true, or when `context.handoff_summary`
 is set. A run that starts fresh and finishes in one session reads none of it.
 
-**Where the cross-references below point.** "Branch", "Three stages", "The
+**Where the cross-references below point.** "Working tree", "Three stages", "The
 controller loop" and the phases are SKILL.md's sections.
 
 ## Resume & reconcile
@@ -35,7 +35,7 @@ written from the artifacts, not from a session's memory (ADR-0114).
      `record-clarify`.
    - `publish` — the review passed and nothing is recorded as published: run
      the action's `commands`. `publish` is idempotent: re-publishing the same
-     bytes makes no second commit.
+     bytes changes nothing in the working tree.
    - `completed` / `failed` — the prior invocation reached the end but did
      not finish the step: go straight to Finish with what `next` reports.
 

@@ -77,11 +77,20 @@ PRODUCT_TICKET_TITLES = {
 }
 
 # Delivery-ticket predicate: the skills that mint their own delivery ticket and
-# ship it as a docs-only PR. Today exactly PRODUCT_SKILLS; kept as its own name
-# because its callers ask "does this skill own a delivery ticket", not "is it a
-# product skill".
-DELIVERY_TICKET_SKILLS = list(PRODUCT_SKILLS)
-DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES)
+# ship it as a docs-only PR. EMPTY since ADR-0127: only /acs:create-pr branches,
+# commits and opens a PR, so create-prd and create-architecture leave their
+# documents uncommitted and run ticketless (STANDALONE_RUN_SKILLS below); a
+# docs-only change ships through `/acs:create-pr --docs`. The name stays, empty,
+# because its callers ask "does this skill own a delivery ticket" and the answer
+# is now "none does". PRODUCT_TICKET_TITLES stays: tickets minted before 0127
+# still carry those titles, and the tracker sync still recognises them.
+DELIVERY_TICKET_SKILLS = []
+DELIVERY_TICKET_TITLES = {}
+
+# The skills that run ticketless, in a run of their own (ADR-0122/0123/0127):
+# `step start` opens (or resumes) a run over the invocation, and the post-hook
+# concludes it. The Audit skills, and the product skills since ADR-0127.
+STANDALONE_RUN_SKILLS = AUDIT_SKILLS + PRODUCT_SKILLS
 
 """The six plan headings create-impl-plan/SKILL.md requires on every run."""
 """The five spec-authoring-fold sections, in the order structure_lint's

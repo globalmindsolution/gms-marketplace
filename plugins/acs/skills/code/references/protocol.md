@@ -140,29 +140,16 @@ onto a path and implementing it.
 
 ---
 
-## Branch — FIRST, before any code
+## Working tree — no branch, no commits
 
-All work happens on the run's branch. Name the branch
-`<type>/<ticket_id>-<slug>` (e.g. `task/MAR-12-fix-thing`; ticket detection
-depends on the id being in it) with:
-
-- `<ticket_id>` — the run's ticket id when the subject is a ticket, the run id
-  otherwise;
-- `<type>` — the subject's type (`epic|story|task`), `task` when it has none;
-- `<slug>` — the slugified subject title: lowercase, every non-alphanumeric run
-  becomes `-`, trimmed, max 40 chars (`acs slug` renders exactly this).
-
-Then create or reuse it:
-
-```bash
-git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
-```
-
-On resume the branch usually already exists — reuse it, never recreate or reset
-it. Every commit message follows the repo's own style (recent `git log`,
-CLAUDE.md/CONTRIBUTING.md) and names the ticket id (default
-`<ticket_id> <summary>`). Commit work on this branch as the plan's tasks
-land; do NOT push — `/acs:create-pr` owns the push and the PR.
+All work happens in the working tree, on whatever is checked out. This step
+never creates, switches or names a branch, and never stages, commits or pushes
+(ADR-0127): every file an implementer writes stays an uncommitted change,
+listed in its report's `files_changed`, and the run records the union in the
+result's `states.files`. `/acs:create-pr` is the only skill that branches and
+commits — it reads those reports to split the change into a tests commit and a
+code commit per partition. Never commit to "save" work: the working tree is
+where the work lives until then.
 
 ---
 
@@ -174,7 +161,9 @@ continuing:
 1. Read `steps/code/state.json` (`invocations[-1]` and `states`) and the
    artifacts under `steps/code/iter-*/` to see what was recorded implemented
    and where the prior invocation stopped.
-2. Check out the recorded `states.branch` (it should exist — see Branch).
+2. See what the prior invocation left in the working tree:
+   `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --name-only`
+   — uncommitted by design (see Working tree); never stash, reset or commit it.
 3. Re-run **the tests your change touches** — once. Trust nothing that fails: a
    task whose tests fail or whose files are missing is NOT done, whatever the
    state file says. The full suite is the reviewer's gate, not yours.
@@ -262,7 +251,8 @@ honest resolution is that the plan is wrong, end the step `failed` with
 ## Context pressure
 
 If your context window is running low mid-run: do NOT burn the remainder on
-work that would be lost. Commit any uncommitted green work on the branch, flush
+work that would be lost. Leave the green work in the working tree (never
+commit it to save it), flush
 in-flight state plus soft context (user answers, decisions, partial findings,
 what is green, gotchas) to `steps/code/handoff-context.md`, then finish the
 step `interrupted` with `stop_reason: context_pressure`:
@@ -290,15 +280,19 @@ MANDATORY final step — never skipped, also on failure:
      "summary": "bulk import behind a feature flag, 3 partitions, 84 tests green",
      "iteration": 1,
      "states": {
-       "branch": "task/SHOP-123-bulk-import",
        "tasks_implemented": ["01-data-model", "02-import-endpoint"],
        "tests": {"passed": 84, "failed": 0},
-       "docs_updated": ["README.md", "docs/api/import.md"]
+       "docs_updated": ["README.md", "docs/api/import.md"],
+       "files": ["src/import/api.py", "tests/test_import_api.py", "README.md",
+                 "docs/api/import.md"]
      },
      "findings": [],
      "errors": []
    }
    ```
+
+   `files` is the union of every implementer report's `files_changed` this
+   invocation — the repo-relative paths left uncommitted for `/acs:create-pr`.
 
    On iteration 2+ it also carries `since_sha` and a `resolutions` entry for
    **every** confirmed finding of the verdict — see **On iteration 2+** in your
@@ -311,7 +305,7 @@ MANDATORY final step — never skipped, also on failure:
    yours at all**: it is derived from `/acs:review-code`'s verdict, and you
    cannot open the `/acs:create-pr` gate by writing it.
 
-   On failure keep whatever is true: the branch, the tasks that ARE implemented
+   On failure keep whatever is true: the files written, the tasks that ARE implemented
    and green, docs actually updated, open findings in `findings`, and the
    reason in `summary`.
 
@@ -334,8 +328,9 @@ MANDATORY final step — never skipped, also on failure:
    `step finish` leaves `verifier_passed` underived — which shuts
    `/acs:create-pr`'s brake permanently — and the lock held.
 
-3. Report a compact summary to the user: branch, what was implemented, the
-   targeted tests' result, docs updated, and the next step
+3. Report a compact summary to the user: what was implemented, the
+   uncommitted files it left in the working tree, the targeted tests' result,
+   docs updated, and the next step
    (`/acs:review-code` on success, `/acs:create-impl-plan` after a plan
    failure).
 
@@ -354,11 +349,11 @@ AFTER the post-hook succeeded. Same labels, same order, `none` where empty:
 
 - **Subject**: <id or title> (<kind>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: branch; what was implemented; targeted tests passed/failed; docs updated
+- **Results**: what was implemented; targeted tests passed/failed; docs updated
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <run files, repo paths, branch>
+- **Artifacts**: <uncommitted files written (repo-relative), run files>
 - **Metrics**: iteration <n>/<cap> · <wall time>
-- **Next**: `/acs:review-code` on success; on `needs_input`, answer the questions and re-run; on a plan failure, `/acs:create-impl-plan`
+- **Next**: `/acs:review-code` on success (the files stay uncommitted until `/acs:create-pr`); on `needs_input`, answer the questions and re-run; on a plan failure, `/acs:create-impl-plan`
 ```
 
 Any assumption recorded during the run surfaces on the **Findings** line

@@ -91,24 +91,14 @@ epic here; should one reach you anyway (`ticket.type == "epic"`), STOP and tell
 the user to fan the epic out with `/acs:create-ticket <id>` and run
 `/acs:create-test-docs` on a child. Do not write cases against an epic.
 
-## Branch — the test cases are a repo file
+## Working tree — the test cases are a repo file
 
 `test-cases.md` is a file in the consumer repo — the ticket's docs folder,
-`docs/tickets/<id>/` — and belongs on the ticket branch with every other change
-for this ticket. Name the branch
-`<type>/<ticket_id>-<slug>` with `<ticket_id>`, `<type>` (`ticket.type`) and
-`<slug>` (the slugified ticket title — `acs.py slug --text "<title>"`), then
-create or reuse it:
-
-```bash
-git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
-```
-
-The branch normally already exists — the earlier Build steps ran on it. Reuse
-it; never recreate or reset it. Commit the published document with
-the repo's own commit style, naming the ticket id (default
-`<ticket_id> <summary>`). Do NOT
-push — `/acs:create-pr` pushes.
+`docs/tickets/<id>/`. This skill never creates, switches or names a branch,
+and never stages, commits or pushes (ADR-0127): the published document is
+left as an uncommitted change in the working tree, on whatever is checked out,
+and its path is recorded in the result's `states.files`. `/acs:create-pr` is
+the only skill that branches and commits.
 
 When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the
 docs folder to) the document is written to the workspace partition instead and
@@ -433,9 +423,9 @@ bytes must equal the verified bytes:
 cp "<partition>/steps/create-test-docs/test-cases.md" "<cases_path>"
 ```
 
-Then commit `<cases_path>` on the ticket branch when it is inside the repo (the
-ticket docs folder); the partition draft is workspace state and is never
-committed.
+Leave `<cases_path>` as an uncommitted change when it is inside the repo (the
+ticket docs folder) and record it in `states.files`; the partition draft is
+workspace state and never enters the repo.
 
 ## User interaction
 
@@ -488,7 +478,7 @@ completion report.
 ## Context pressure
 
 If your context window is running low mid-run: do NOT burn the remainder on
-work that would be lost. Commit any published document on the branch, flush
+work that would be lost. Leave any published document in the working tree, flush
 in-flight state plus soft context (user answers, settled cases, gotchas) to
 `steps/create-test-docs/handoff-context.md`, then run:
 
@@ -513,7 +503,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
      "states": {
        "cases": 7,
        "e2e_cases": 2,
-       "untraced_acs": []
+       "untraced_acs": [],
+       "files": ["docs/tickets/SHOP-123/test-cases.md"]
      },
      "findings": [],
      "errors": []
@@ -532,6 +523,9 @@ MANDATORY final step — never skipped, also on failure or handoff:
      and `workflows/ship.yaml` has nothing to hand it.
    - `untraced_acs` (list): acceptance criteria no case covers. Empty on a
      completed run; populated on the `interrupted` / `needs_input` arm above.
+   - `files` (list): every repo-relative path this run wrote and left
+     uncommitted (the published `test-cases.md`; empty when it went to the
+     partition). `/acs:create-pr` commits them.
 
    `outcome` is required on every `completed` result document — the post-hook
    refuses one without it, because this step completes in two ways: `cases_written` when
@@ -555,8 +549,10 @@ MANDATORY final step — never skipped, also on failure or handoff:
 3. Report:
    - Direct invocation: a compact summary — how many cases at each level, every
      criterion traced (or the ones that are not), whether any e2e case exists,
-     the suites the cases target, and the next step (`/acs:code <id>`, with
-     `/acs:create-e2e-tests <id>` after it when `e2e_cases` > 0).
+     the suites the cases target, the uncommitted files left in the working
+     tree, and the next step (`/acs:code <id>`, with
+     `/acs:create-e2e-tests <id>` after it when `e2e_cases` > 0;
+     `/acs:create-pr <id>` commits everything at the end).
    - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published document, `<questions>` when `needs_input`, and
@@ -577,7 +573,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: <n> cases (<u> unit / <i> integration / <e> e2e); <k>/<k> acceptance criteria traced; suites targeted
 - **Findings**: <untraced criteria / open clarifications, or "none">
-- **Artifacts**: <test-cases.md path, partition phase artifacts, branch>
+- **Artifacts**: <uncommitted files written (the test-cases.md path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:code <ticket-id>`
+- **Next**: `/acs:code <ticket-id>` (the files stay uncommitted until `/acs:create-pr <ticket-id>`)
 ```

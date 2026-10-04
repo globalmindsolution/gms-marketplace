@@ -15,7 +15,7 @@ import os
 import shutil
 import sys
 
-from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS, GateError, WorkflowError, now_iso,
+from ._common import (STANDALONE_RUN_SKILLS, GateError, WorkflowError, now_iso,
                       read_json, write_json)
 from .repo import (GuardTimeout, archive_dir, current_branch,
                    find_ticket_partition, index_path, repo_dir, sessions_dir)
@@ -327,14 +327,11 @@ def run_post(skill):
             summary=result.get("summary") or result.get("stop_reason"),
             stop_reason=result.get("stop_reason"),
             extra={"leg": result["leg"]} if result.get("leg") else None)
-    elif skill in DELIVERY_TICKET_SKILLS:
-        # The run exists only to carry this skill's delivery ticket; it ends
-        # when the skill does, and the pointer is cleared below with it.
-        doc = run_machine.conclude_standalone_run(rdir, skill, status)
-    elif skill in AUDIT_SKILLS:
-        # The run `step start` opened over the audit's invocation ends with it;
-        # a run that also carries workflow steps is left alone (the helper
-        # refuses one).
+    elif skill in STANDALONE_RUN_SKILLS:
+        # The run `step start` opened over a ticketless skill's invocation (an
+        # audit, and since ADR-0127 the product skills) ends with it; a run
+        # that also carries workflow steps is left alone (the helper refuses
+        # one). The pointer is cleared below with it.
         doc = run_machine.conclude_standalone_run(rdir, skill, status)
 
     ticket_id = (doc.get("subject") or {}).get("ticket_id")
@@ -363,14 +360,6 @@ def run_post(skill):
         if ticket:
             if status == "completed":
                 if skill == "create-pr" and ticket.get("status") != "done":
-                    ticket["status"] = "in_review"
-                    save_ticket(tdir, ticket)
-                # A delivery-ticket skill opens its OWN PR, so a recorded
-                # `states.pr` from one moves the ticket to review just as
-                # create-pr does.
-                if (skill in DELIVERY_TICKET_SKILLS
-                        and recorded_pr
-                        and ticket.get("status") != "done"):
                     ticket["status"] = "in_review"
                     save_ticket(tdir, ticket)
                 if skill == "merge-pr":

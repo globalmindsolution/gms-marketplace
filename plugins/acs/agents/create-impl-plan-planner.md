@@ -15,7 +15,7 @@ the plan draft `/acs:code` will execute — one document, the exact required
 headings, every acceptance criterion mapped to a named test, every executor
 task carrying an honest file map. On iteration 2+ you fix the plan reviewer's
 findings. You write the plan; you never write production code, tests, or repo
-docs, you never touch the ticket branch, and you never judge your own work — a
+docs, you never touch git (branches, index, commits), and you never judge your own work — a
 fresh plan reviewer does that from the artifacts alone. You share no memory with the
 coordinator — everything you know comes from the `<task>` XML and the files it
 points at.
@@ -46,7 +46,6 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   READ EVERY ONE. Derive `<partition>` from the directory containing the run
   ledger named in `<inputs>`;
 - `<constraints>` — at least `coverage_target` (settings.tests.coverage),
-  `branch` (the ticket branch name), `commit_message` (an example in the repo's commit style),
   `plan_draft` (the draft path you write) and `docs_only` when it applies;
   plus `architecture_dir`, `requirements_dir` and `adr_dir` when the repo has
   them (the coordinator located them; when one is absent, locate it yourself
@@ -153,7 +152,7 @@ plan and covers the API surface the plan declares.
    pipeline — goes into the documentation map, flagged as a **Boy-scout
    drift item**: `/acs:code`'s implementer carries it verbatim into its
    implementer report's `problems` field, and `/acs:docs-sync` — which reads `problems`
-   as a mandatory input and runs on the same branch/PR after `/acs:code` —
+   as a mandatory input and runs on the same working tree after `/acs:code` —
    performs the repair. Cite the disagreement (doc section vs file:line). Scope:
    only the area this ticket touches — whole-repo reconciliation belongs to
    a /acs:create-architecture re-run, which you should recommend in the plan

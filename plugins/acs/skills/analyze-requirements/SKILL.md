@@ -46,7 +46,7 @@ starts (the controller enforces the order):
 |---|---|---|---|
 | **1 — Impact: survey the codebase** | The `survey` action: the analyst's requirements lane and one impact lane per code area run in parallel and record what the ticket asks and what code it touches, ending in a `## Questions for the user` section; the `synthesize` action reconciles the lanes. | analyst (`pass` = `requirements`, then `synthesis`) · impact analysts | `iter-1/authoring.md` |
 | **2 — Clarify: make the requirements clear with the user** | The `clarify` action: you ask every remaining question in ONE grouped AskUserQuestion, record each answer in the ledger, and write confirmed acceptance criteria / `needs_design` into the ticket. | you | answers in the ledger; the ticket amended |
-| **3 — Store: write, review and publish the analysis for reuse** | The `draft` action writes `analysis.md` from the notes and the answers; the `review` action judges it; the `publish` action copies it to `docs/tickets/<id>/analysis.md` and commits it. | analyst (`pass` = `draft`) → impact reviewer → the controller | the published, committed analysis |
+| **3 — Store: write, review and publish the analysis for reuse** | The `draft` action writes `analysis.md` from the notes and the answers; the `review` action judges it; the `publish` action copies it to `docs/tickets/<id>/analysis.md` and leaves it uncommitted in the working tree. | analyst (`pass` = `draft`) → impact reviewer → the controller | the published analysis, an uncommitted change |
 
 The survey never writes the draft and the draft pass never re-surveys: the
 questions have to reach the user BETWEEN the two, so the draft is written from
@@ -103,27 +103,16 @@ best-effort pre-gate on some runtime), STOP and surface the same message the
 gate would have raised: design the epic with `/acs:create-design <id>`, fan it
 out with `/acs:create-ticket <id>`, then run `/acs:analyze-requirements` on a child.
 
-## Branch — the analysis is a repo file
+## Working tree — the analysis is a repo file
 
 `analysis.md` is a file in the consumer repo — in the ticket's docs folder,
-`docs/tickets/<id>/`, a fixed location rather than a setting — and belongs on
-the ticket branch with every other change for this ticket. Name the
-branch `<type>/<ticket_id>-<slug>` with
-`<ticket_id>`, `<type>` (`ticket.type`) and `<slug>` (the slugified ticket title —
-`acs.py slug --text "<title>"`), then create or reuse it
-BEFORE the first `acs.py analysis` call:
-
-```bash
-git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
-```
-
-As the first Build step this usually CREATES the ticket branch; on resume, or
-when a Design-phase skill already made it, reuse it — never recreate or reset
-it. The controller commits the published analysis on the ticket branch you
-checked out here, and never pushes — `/acs:create-pr` pushes. `acs.py
-analysis publish` refuses on the default branch or a detached HEAD, before
-writing anything: if it does, check out this branch and run the `publish`
-action again.
+`docs/tickets/<id>/`, a fixed location rather than a setting. This skill never
+creates, switches or names a branch, and never stages, commits or pushes
+(ADR-0127): whatever is checked out stays checked out, and the published
+analysis is left as an uncommitted change in the working tree, every path
+written recorded in the result's `states.files`. `/acs:create-pr` is the only
+skill that branches and commits — it splits the ticket's working-tree changes
+into reviewable commits, the ticket docs folder first.
 
 ### Analysis artifact resolution
 
@@ -696,7 +685,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
      "states": {
        "ready_for_planning": true,
        "api_surface": true,
-       "questions_open": 0
+       "questions_open": 0,
+       "files": ["docs/tickets/SHOP-123/analysis.md"]
      },
      "findings": [],
      "errors": []
@@ -714,6 +704,10 @@ MANDATORY final step — never skipped, also on failure or handoff:
      disagrees with it is a defect, not a second opinion.
    - `questions_open` (int): clarifications still unanswered in the ledger —
      the count `clarify.py list --open --ticket <id>` prints after this run.
+   - `files` (array): every repo-relative path this run wrote and left
+     uncommitted — the paths `acs.py analysis publish` reports writing (the
+     ticket docs folder's files). `/acs:create-pr` commits them; empty when
+     nothing was published.
 
    The needs_design recommendation is applied through its own CLI
    (`acs.py ticket save`), so it belongs in
@@ -737,7 +731,9 @@ MANDATORY final step — never skipped, also on failure or handoff:
      when there was one, whether an API surface changes, the questions asked
      and answered (or "Stage 2 skipped"), the criteria and needs_design
      confirmed into the ticket, any proposal still awaiting the user, open
-     questions, and the next step (`/acs:create-impl-plan <id>`).
+     questions, the uncommitted files it left in the working tree, and the
+     next step (`/acs:create-impl-plan <id>`; `/acs:create-pr <id>` later
+     commits everything the Build steps wrote).
    - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published analysis, `<questions>` when `needs_input`, and
@@ -758,7 +754,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Status**: <status> — <summary; `stop_reason` when interrupted or failed>
 - **Results**: verdict (ready_for_planning); impact map counts; api_surface; load-bearing surfaces named in Risks; questions asked/answered (or Stage 2 skipped); criteria / needs_design confirmed into the ticket; proposals still open
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <analysis path, partition phase artifacts, branch, commit>
+- **Artifacts**: <uncommitted files written (the analysis path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:create-impl-plan <ticket-id>`
+- **Next**: `/acs:create-impl-plan <ticket-id>` (the files stay uncommitted until `/acs:create-pr <ticket-id>`)
 ```

@@ -23,6 +23,8 @@ it always did. In dependency order:
   yamlsubset     the strict YAML subset the workflow files and front matter use
   workflow       phases registry, ship.yaml resolution/validation, predicates, `workflow next`
   artifacts      the ticket documents in the repo docs tree: ticket.md, derived status, migrate
+  changes        the run's baseline, working-tree snapshots and changeset (ADR-0127)
+  commit_plan    the commits /acs:create-pr proposes from the recorded paths, and makes
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
 this facade does NOT reach a caller that already imported it. Patch the module
@@ -34,7 +36,7 @@ from . import (_common, settings, repo, hostgates, planrules, lock, tickets,  # 
                setup_helpers, forge, verdict, derive, gate_inputs, gates, lifecycle,  # noqa: F401
                advisory)  # noqa: F401
 
-from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS,
+from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS, STANDALONE_RUN_SKILLS,
     DELIVERY_TICKET_TITLES, CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
     PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
     PRODUCT_TICKET_TITLES, ReconciliationRequired, TICKET_ID_RE,
@@ -196,6 +198,7 @@ from . import notes  # noqa: F401,E402
 from .notes import merge_files as merge_notes, merge_texts, split_sections  # noqa: F401
 
 from . import artifacts  # noqa: F401,E402
+from . import changes, commit_plan  # noqa: F401,E402
 from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401
     artifact_path, derive_status, parse_ticket_md, render_ticket_md, ticket_docs_dir,
     ticket_docs_root, ticket_source)

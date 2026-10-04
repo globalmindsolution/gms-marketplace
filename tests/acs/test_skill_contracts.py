@@ -1029,63 +1029,63 @@ class TestCreatePrConventionWiring(unittest.TestCase):
 
 
 class TestProductSkillConventionWiring(unittest.TestCase):
-    """MAR-72 spec 03: pin the identical deterministic-render + pre-open
-    self-check wiring across the product skills. Structurally parallel to TestCreatePrConventionWiring
-    (spec 02) so the two read as a matched pair. Additive only. Written
-    TDD-first (RED before Spec 03's SKILL.md edits land)."""
+    """ADR-0127: the product skills no longer deliver anything themselves.
+
+    MAR-72 spec 03 pinned a deterministic PR render and pre-open self-check
+    in /acs:create-prd and /acs:create-architecture, because each minted a
+    delivery ticket, committed on its own branch and opened its own docs-only
+    PR. Only /acs:create-pr commits now: both skills run ticketless, leave
+    their documents as uncommitted changes listed in `states.files`, and point
+    at /acs:create-pr's docs-only mode. These pins hold that shape so the old
+    delivery machinery cannot creep back in through prose."""
 
     SKILLS = ("create-prd", "create-architecture")
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
 
-    def test_references_helper_by_name(self):
-        """References the Spec-01 helper by name, per skill."""
+    def test_no_delivery_machinery_remains(self):
+        """No branch, commit, push, PR or delivery-ticket step in either skill."""
         for skill in self.SKILLS:
             body = read_skill_contract(skill)
-            self.assertIn("pr-conventions.py", body,
-                          "%s: SKILL.md must reference pr-conventions.py" % skill)
+            for retired in ("gh pr create", "gh label create", "git push",
+                            "git commit", "git add", "git checkout -b",
+                            "git switch -c", "pr-conventions.py", "--allocate",
+                            "delivery-pr.md", "render-title", "settings.formats"):
+                self.assertNotIn(retired, body, "%s: %s" % (skill, retired))
 
-    def test_no_title_renderer_remains(self):
-        """The PR title is written directly; there is no render-title helper."""
-        for skill in self.SKILLS:
-            body = read_skill_contract(skill)
-            self.assertNotIn("render-title", body, skill)
-            self.assertNotIn("settings.formats", body, skill)
+    def test_delivery_reference_is_gone(self):
+        """The shared delivery-PR reference had no reader left, so it went."""
+        self.assertFalse(os.path.exists(os.path.join(
+            PLUGIN, "skills", "create-prd", "references", "delivery-pr.md")))
 
-    def test_self_checks_before_gh_pr_create(self):
-        """The check subcommand token appears BEFORE the actual gh pr create
-        invocation in file order, and a mismatch blocks/retries within a
-        bounded window."""
+    def test_ticketless_start(self):
+        """`step start` with the invocation's arguments and no ticket."""
         for skill in self.SKILLS:
             body = read_skill_contract(skill)
-            check_match = re.search(r'pr-conventions\.py"?\s+check\b', body)
-            self.assertIsNotNone(check_match,
-                                 "%s: pre-open self-check (check subcommand) must be present" % skill)
-            # The actual invocation (as opposed to prose mentioning the
-            # phrase) always appears as the LAST occurrence in the Delivery
-            # section, inside a code fence.
-            create_idx = body.rindex("gh pr create")
-            self.assertLess(check_match.start(), create_idx,
-                            "%s: check must appear before gh pr create in file order" % skill)
-            self.assertIsNotNone(
-                re.search(r"(?s)check\b.{0,600}(blocks|retries)|(blocks|retries).{0,600}check\b", body,
-                          re.IGNORECASE),
-                "%s: a check mismatch must block or retry, within a bounded window" % skill)
+            self.assertIn('acs.py" step start --step %s --args "$ARGUMENTS"' % skill,
+                          body, skill)
+            self.assertNotIn("--ticket <", body, skill)
 
     def test_no_regression_create_prd(self):
         body = read_skill_contract("create-prd")
-        self.assertIn("gh label create ACS", body)
-        self.assertIn("--label ACS", body)
-        self.assertIn("Record the PR number, URL, and branch", body)
+        self.assertIn('"files": ["docs/product/prd.md", "docs/product/roadmap.md"]', body)
+        self.assertIn("uncommitted changes", body)
+        self.assertIn("/acs:create-pr", body)
+        self.assertIn("docs-only mode", body)
+        self.assertNotIn('"pr":', body)
 
     def test_no_regression_create_architecture(self):
         body = read_skill_contract("create-architecture")
-        self.assertIn("git checkout -b", body)
-        self.assertIn("git diff --cached --name-only", body)
-        self.assertIn("gh label create ACS", body)
-        self.assertIn("{number, url, branch}", body)
-        self.assertIn("in_review", body)
+        self.assertIn('names): `architecture` and `files`', body)
+        self.assertIn("uncommitted changes", body)
+        self.assertIn("/acs:create-pr", body)
+        self.assertIn("docs-only mode", body)
+        self.assertNotIn('"pr":', body)
+        # The clean-tree requirement belonged to the branch it was cut for.
+        self.assertNotIn("git status --porcelain", body)
+        self.assertNotIn("--ticket <delivery-ticket>", body)
+
 
 #: `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/references/<file>.md` as a SKILL.md
 #: writes it — the one spelling that resolves wherever the plugin is installed.

@@ -10,16 +10,16 @@ authoring notes and the quality bar. You never see the architect's reasoning —
 notes, the artifacts, and the repo — and
 you NEVER rubber-stamp: re-run every cheap check yourself instead of trusting what the
 architect report claims. Your findings are the only thing standing between a wrong
-architecture and a merged docs PR the whole pipeline will design against.
+architecture and a docs PR the whole pipeline will design against.
 
 ## Input contract
 
 Your prompt contains an XML `<task skill="create-architecture" phase="reviewer"
-ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the
+iteration="n">` with an `<objective>`, `<inputs>` (file paths: the
 authoring notes `iter-<n>/authoring.md`, the architect report(s) `iter-<n>/architect*.json`,
 the PRD docs, the
 produced doc files), `<constraints>` (at minimum `partition` — the absolute
-ticket-partition path — plus `architecture_dir`, `prd`, `hld_types` (the enabled HLD
+run-partition path — plus `architecture_dir`, `prd`, `hld_types` (the enabled HLD
 types), each in-scope file's
 `required_sections:<file>`, and `audience_style_profile`), and on iteration > 1 a
 `<context>` listing the prior iteration's findings. You share no memory with the
@@ -59,7 +59,7 @@ name="dimensions">` (dimension numbers from the list below); echo the slice on y
    carries valid version front matter: run `Bash python3
    ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py design check <every hld file>` and turn
    each reported problem into a blocking finding; a file this run changed must show
-   this run's delivery ticket in `tickets` and a bumped `version` (ADR-0122).
+   a bumped `version` (ADR-0122) — the run is ticketless, so `tickets` gains no entry.
 2. **prd-coverage** — the design satisfies the PRD: every goal, product-level NFR, and
    constraint in `prd.md` is addressed somewhere in the doc set; nothing contradicts the
    PRD's constraints or strays into its out-of-scope list. When the task's `prd`
@@ -111,9 +111,12 @@ name="dimensions">` (dimension numbers from the list below); echo the slice on y
    blocking finding — and every codebase/PRD fact in the notes'
    inventory cites a file you can open and that says what the entry claims. Missing
    notes are a blocking finding on their own.
-8. **docs-only-changeset** — `git status --porcelain` and `git diff --stat`: every
+8. **docs-only-changeset** — `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py
+   changes diff --name-only` (this run's changeset since its baseline, untracked
+   files included, the paths already dirty when the run started excluded): every
    change sits under `architecture_dir`; no source files, configs, or stray files
-   touched. The delivery is a docs-only PR.
+   touched. The documents stay uncommitted; `/acs:create-pr`'s docs-only mode
+   delivers them.
 9. **structure** — deterministic section-conformance floor over the in-scope
     prose-structured files (`hld/overview.md`, `hld/tech-stack.md`,
     `hld/cross-cutting.md`, and `hld/project-structure.md` when enabled — the
@@ -171,9 +174,9 @@ Your FINAL message is ONLY a `<result>` element valid against
   the PRD and the codebase genuinely contradict): one `<question>` per decision.
 
 ```xml
-<result skill="create-architecture" phase="reviewer" ticket-id="SHOP-42" iteration="1" status="completed">
+<result skill="create-architecture" phase="reviewer" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-42/steps/create-architecture/iter-1/reviewer.md</file>
+    <file>/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d/steps/create-architecture/iter-1/reviewer.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="internal-consistency" file="docs/architecture/hld/integration-map.md">"PaymentGateway" consumes the orders API in the integration map, but no such container or component exists in hld/c4-container.md or hld/c4-component.md.</finding>
