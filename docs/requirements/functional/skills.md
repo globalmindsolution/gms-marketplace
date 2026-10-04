@@ -431,8 +431,10 @@ else is verified against.
 
 ## `/create-architecture` (product-level)
 
-Purpose: bootstrap and regenerate the **product architecture doc set** — the
-living system documentation the whole pipeline designs and verifies against.
+Purpose: bootstrap and regenerate the product's **high-level design (HLD)** —
+the living system view the whole pipeline designs and verifies against. The
+low-level design (`lld/<feature>/`) is written per ticket by the Design skills,
+not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-hld-only.md)).
 
 - Product-level and **ticket-independent**: not part of the per-ticket
   pipeline. Run once when starting a product (or onboarding `acs` onto an
@@ -450,31 +452,39 @@ living system documentation the whole pipeline designs and verifies against.
 - Produces the doc set in the **consumer repo** wherever the repo already
   keeps it, else at `docs/architecture/`
   ([configuration.md](configuration.md#document-and-workspace-locations)),
-  split into **high-level design (HLD)** and **low-level design (LLD)**:
+  writing only its `hld/` part: the three always-on documents plus one file
+  per HLD type the repo enabled at `/acs:setup` (`design.hld_types`,
+  [ADR-0120](../../architecture/adr/0120-design-document-catalog-and-ticket-features.md)):
   - `hld/overview.md` — system context, goals, quality attributes,
-    constraints;
+    constraints (always);
+  - `hld/tech-stack.md` — languages, frameworks, conventions (always);
+  - `hld/cross-cutting.md` — the conventions every feature's low-level
+    design follows: API, data, the event envelope, security, observability,
+    configuration (always);
   - `hld/c4-context.md`, `hld/c4-container.md`, `hld/c4-component.md` — the
     **C4 model, levels 1–3**; C4 level 4 (code) is deliberately out of
     scope — the code and its API docs serve that level;
-  - `hld/data-model.md` — entities and relationships (ER diagrams);
+  - `hld/data-model.md` — the conceptual model: entities and relationships,
+    no attributes;
+  - `hld/integration-map.md` — the API landscape: who exposes and consumes
+    which API, sync or async, versioning and auth strategy;
   - `hld/deployment.md` — runtime and infrastructure topology;
-  - `hld/tech-stack.md` — languages, frameworks, conventions;
   - `hld/project-structure.md` — the intended repo layout derived from the
     C4 container/component views, the canonical target a repo's structure
     is reviewed against;
-  - `lld/flows/<flow>.md` — **sequence diagrams** for the key runtime
-    flows, one file per flow — bootstrapped for the main flows (selected by
-    the architect's survey, confirmed with the user) and grown ticket by ticket;
-  - `lld/contracts.md` — interface/API contracts between components.
-- All diagrams are **Mermaid** (C4, ER, sequence, and state diagrams as
-  code: diffable, reviewable, rendered by GitHub, maintainable by agents).
+  - opt-in: `hld/data-flow.md` (trust boundaries, for threat modelling) and
+    `hld/capability-map.md`.
+- MUST NOT create or change anything under `lld/`; on a re-run, a file for a
+  type the repo no longer enables is left as it is.
+- All diagrams are **Mermaid** (C4, ER, flowchart and mindmap as code:
+  diffable, reviewable, rendered by GitHub, maintainable by agents).
 - Runs the Reflection cycle as author → review (ADR-0109) —
-  `create-architecture-architect`, `create-architecture-reviewer`. The
-  reviewer checks: the design **satisfies the PRD** (goals, product-level
-  NFRs, constraints); the docs match the actual codebase; they are
-  internally consistent; diagrams agree with the prose; and **HLD and LLD
-  agree with each other** (every participant in a sequence diagram exists
-  in the C4 views) — plus a deterministic `structure` floor over the
+  `create-architecture-architect`, `create-architecture-reviewer` — with ONE
+  write architect after an optionally sliced survey. The reviewer checks:
+  the design **satisfies the PRD** (goals, product-level NFRs,
+  constraints); the docs match the actual codebase; they are internally
+  consistent, one container/component vocabulary across every HLD file;
+  diagrams agree with the prose — plus a deterministic `structure` floor over the
   prose-structured files (declared `required_sections:<file>`, blocking)
   and a blocking `audience-style` check (an unwaived audience-mismatch blocks;
   a `clarify.py --source assumption` waiver makes it `severity="info"`,

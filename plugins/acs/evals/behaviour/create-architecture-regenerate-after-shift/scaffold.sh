@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Re-run after a major architectural shift. The repo carries a complete
-# architecture doc set (hld/tech-stack.md marks it) written when the product
-# had a second container -- an `export-worker` pushing a nightly CSV export
-# through a Redis queue -- and two flows, list-customers and nightly-export.
-# The latest commit removed the worker and Redis and added an orders API
-# (GET /orders?customer_id=), so the docs now describe a container that no
-# longer exists and miss an interface that does. A local bare repository
+# Re-run after a major architectural shift. The repo carries an architecture
+# doc set (hld/tech-stack.md marks it) written when the product had a second
+# container -- an `export-worker` pushing a nightly CSV export through a Redis
+# queue. Its hld/ predates hld/cross-cutting.md and hld/integration-map.md,
+# and beside it sits low-level design the skill does not own (ADR-0118):
+# lld/contracts.md and two flows, list-customers and nightly-export. The
+# latest commit removed the worker and Redis and added an orders API
+# (GET /orders?customer_id=), so the HLD now describes a container that no
+# longer exists and misses an interface that does. A local bare repository
 # stands in for GitHub.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"

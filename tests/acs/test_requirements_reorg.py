@@ -376,11 +376,15 @@ REWORDED_BY_ADR_0102 = {
             "from the ticket's `design.md` here, so decisions outlive archived "
             "ticket partitions. |",
         '| `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |':
+            # ADR-0121 reworded it again: the HLD is create-architecture's, the
+            # LLD the Design skills', per ticket.
             "| Architecture set | `docs/architecture/` (`hld/tech-stack.md` is its "
-            "sentinel file) | **HLD** (C4 levels 1–3, data model, deployment, "
-            "tech stack) and **LLD** (per-flow sequence diagrams, contracts). "
-            "Bootstrapped by `/create-architecture`, consumed by `/create-design`, "
-            "kept current by `/code`. |",
+            "sentinel file) | **HLD** (`hld/`: overview, tech stack, cross-cutting "
+            "conventions and the enabled `design.hld_types`) written by "
+            "`/create-architecture`; **LLD** (`lld/<feature>/`: API contracts, data "
+            "design, flows) written per ticket by the Design skills "
+            "([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-hld-only.md)); "
+            "consumed by `/create-design`, kept current by `/code`. |",
         '| `prd_path` | string (repo-relative path) | `"docs/product"` | No | Location of the PRD doc set (`prd.md`, `roadmap.md`) in the consumer repo — bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |':
             "| PRD | `docs/product/prd.md` + `docs/product/roadmap.md` | Bootstrapped "
             "and amended by `/create-prd`; `/create-architecture` requires and is "

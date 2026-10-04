@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Our PRD for the new logistics platform is approved. Produce the high-level and low-level architecture docs: C4 context, containers and components, plus the key sequence flows in Mermaid.
+Our PRD for the new logistics platform is approved. Produce the high-level architecture docs: C4 context, containers and components, plus the conceptual data model and the API landscape, all in Mermaid.

@@ -238,6 +238,18 @@ class SkillsUseTheFieldTest(unittest.TestCase):
         body = self.body("analyze-requirements", "SKILL.md")
         self.assertIn('{"features": ["wishlist"]}', body)
 
+    def test_analyze_requirements_agents_check_and_verify_features(self):
+        agents = os.path.join(REPO_ROOT, "plugins", "acs", "agents")
+        with open(os.path.join(agents, "analyze-requirements-analyst.md"), encoding="utf-8") as fh:
+            analyst = " ".join(fh.read().split())
+        with open(os.path.join(agents, "analyze-requirements-impact-reviewer.md"),
+                  encoding="utf-8") as fh:
+            reviewer = " ".join(fh.read().split())
+        self.assertIn("check `ticket.features`", analyst)
+        self.assertIn("`features` correction", analyst)
+        self.assertIn("a confirmed `features` correction is the ticket's `features` list",
+                      reviewer)
+
     def test_setup_asks_the_design_question(self):
         body = self.body("setup", "SKILL.md")
         self.assertIn("**Design documents**", body)

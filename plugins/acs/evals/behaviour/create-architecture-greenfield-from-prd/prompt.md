@@ -1,15 +1,17 @@
 ---
 description: >-
   /acs:create-architecture greenfield: an approved PRD in docs/product/ and
-  no code, with the containers, flows and deployment decided up front. It
-  should design the full HLD/LLD doc set under docs/architecture/ to satisfy
-  the PRD (three containers, two flows, all Mermaid), write no code, push its
+  no code, with the containers, APIs and deployment decided up front. It
+  should design the high-level design only -- the ten default hld/ files
+  (three containers, an API landscape, cross-cutting conventions, all
+  Mermaid), nothing under lld/ -- to satisfy the PRD, write no code, push its
   delivery branch to origin, and report the failed gh PR step as a finding.
 expected_outcome: >-
-  The eight hld/ files, lld/contracts.md and the book-appointment and
-  send-reminder flow files exist under docs/architecture/; c4-container.md
-  names booking-api, reminder-worker and PostgreSQL; send-reminder is a
-  Mermaid sequence diagram through the SMS gateway; no source file created; a
+  The ten default hld/ files exist under docs/architecture/hld/ and no lld/
+  file was written; c4-container.md names booking-api, reminder-worker and
+  PostgreSQL; integration-map.md is a Mermaid flowchart from booking-api and
+  reminder-worker out to the SMS gateway; cross-cutting.md carries its four
+  required sections and the GDPR / EU constraint; no source file created; a
   task/EVAL-1-* branch pushed with upstream set; result.json records the gh
   failure and no PR.
 tags: [behaviour]
@@ -29,11 +31,9 @@ it as confirmed and do not ask me anything.
   the external SMS gateway; and `postgres`, a PostgreSQL 16 database holding
   groomers, services, pet owners and appointments. The SMS gateway is an
   external system.
-- Flows for lld/flows/: exactly two, in this order: `book-appointment` (a pet
-  owner picks a free slot, booking-api checks it is still free and stores the
-  appointment in postgres) and `send-reminder` (reminder-worker reads
-  tomorrow's appointments from postgres and sends each one an SMS through the
-  SMS gateway).
+- APIs: booking-api exposes a synchronous JSON-over-HTTPS API that the
+  booking page calls; reminder-worker calls the SMS gateway's HTTPS API. There
+  is no message bus: both services talk to postgres directly.
 - Deployment: all three containers run with docker compose on one container
   host in an EU region (the PRD's GDPR constraint); postgres is backed up
   nightly to storage in the same region.

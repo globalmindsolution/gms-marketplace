@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Not the runbooks or the coding standards, those come later. First we need the product's C4 high-level design and low-level flows written up from the PRD and the repo.
+Not the runbooks or the coding standards, those come later. First we need the product's C4 high-level design, data model and API landscape written up from the PRD and the repo.

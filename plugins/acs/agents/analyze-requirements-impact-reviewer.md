@@ -36,8 +36,9 @@ cosmetic defect — it is the wrong pipeline.
    finding. Every criterion `## Refined acceptance criteria` marks
    `confirmed into the ticket` matches the ticket's `acceptance_criteria`
    as the ticket file now reads (re-read it; the coordinator amends it in
-   Stage 2 through `acs.py ticket save`), and a confirmed `needs_design` is
-   `true` in the ticket — a confirmed criterion the ticket does not carry,
+   Stage 2 through `acs.py ticket save`), a confirmed `needs_design` is
+   `true` in the ticket, and a confirmed `features` correction is the
+   ticket's `features` list — a confirmed criterion the ticket does not carry,
    or carries differently, is a finding. `## Assumptions` holds only what the
    ledger does not record as answered.
 3. `api-surface` — the front matter's `api_surface` matches what the repository

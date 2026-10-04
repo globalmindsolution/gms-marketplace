@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Leave the PRD as it is; the product vision hasn't changed. What is out of date is the system-level docs: redo the C4 views and LLD flows now that we added a GraphQL gateway.
+Leave the PRD as it is; the product vision hasn't changed. What is out of date is the system-level docs: redo the C4 views and the API landscape now that we added a GraphQL gateway.
