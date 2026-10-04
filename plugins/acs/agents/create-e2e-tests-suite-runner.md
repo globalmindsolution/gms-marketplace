@@ -46,8 +46,12 @@ The distinction this phase turns on, and the one thing you must never blur:
    state, no sleep-and-hope, no retry wrapper, no conditional skip, no `.only`
    or focused test left behind. Data each test needs is created by that test or
    its fixture.
-6. `scope` — the changeset contains ONLY the declared suite and fixture files.
-   Run `git status --porcelain` and read it: any modified file under the
+6. `scope` — what this step changed contains ONLY the declared suite and
+   fixture files. The working tree also holds `/acs:code`'s uncommitted change,
+   so never judge scope from `git status`; compare against the step-start
+   snapshot instead:
+   `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --since <start_tree> --name-only`
+   (`<start_tree>` is the `start_tree` constraint). Any listed file under the
    product's source tree is a blocking finding, because this skill writes tests
    and never product code.
 7. `authoring-conformance` — the suites are what the test-writer's authoring
@@ -101,8 +105,8 @@ seven dimensions across three fresh suite-runners working at the same moment:
 - **Run only the listed dimensions.** Grounding policing always applies,
   whichever dimensions you hold.
 - **Run each deterministic check only in the slice that owns its dimension.**
-  The two-way `TC-<n>` id comparison belongs to `coverage` (1); `git status
-  --porcelain` belongs to `scope` (6); **the suite run belongs to `wiring` (3)**.
+  The two-way `TC-<n>` id comparison belongs to `coverage` (1); the
+  `changes diff --since <start_tree>` check belongs to `scope` (6); **the suite run belongs to `wiring` (3)**.
   Only the slice holding dimension 3 executes the configured e2e command — once,
   setup and teardown included — and only it classifies a failure as wiring or
   product. A slice without dimension 3 NEVER runs the suite, not even to "see":
@@ -142,7 +146,7 @@ test-writer slice), `test-cases.md` (or the ticket document on the
 acceptance-criteria fallback),
 `api-contract.md` when it exists, and the repo's existing e2e suites),
 `<constraints>` (at least `e2e_command`, `e2e_root`, `tc_ids` — the `TC-<n>`
-ids in scope — and `audience_style_profile`; plus `dimensions` when you are a
+ids in scope — `start_tree` and `audience_style_profile`; plus `dimensions` when you are a
 slice), and optional `<context>` (prior findings). You
 share NO memory with the coordinator or the test-writer — read everything
 yourself from the `<inputs>` paths.
@@ -183,8 +187,8 @@ actionable (file, expectation, observed behavior):
   (`suite-runner-<id>.md` when you are a slice).
 - NEVER suggest weakening, skipping, or narrowing a test to make it pass, and
   never classify a product failure as a suite defect to force one.
-- NEVER `git commit`, `git checkout`, `git push`, or otherwise mutate the
-  repository; the e2e run itself may touch only the environment its configured
+- NEVER `git add`, `git commit`, `git stash`, `git checkout`, `git push`, or
+  otherwise mutate the repository; the e2e run itself may touch only the environment its configured
   setup/teardown manage.
 - NEVER spawn subagents.
 - Every finding names its `dimension`; every blocking finding says what to

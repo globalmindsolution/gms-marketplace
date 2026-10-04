@@ -514,7 +514,7 @@ MANDATORY final step — never skipped, also on failure.
      "status": "completed",
      "summary": "PRD created and reviewed; left as local changes",
      "states": {
-       "prd": {"path": "docs/product", "files": ["docs/product/prd.md", "docs/product/roadmap.md"]},
+       "prd": {"path": "docs/product"},
        "files": ["docs/product/prd.md", "docs/product/roadmap.md"]
      },
      "findings": [],

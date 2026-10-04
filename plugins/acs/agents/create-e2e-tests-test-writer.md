@@ -241,8 +241,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
   source, NEVER `test-cases.md` or any other ticket document, NEVER the ticket,
   the clarification ledger, `run.json`, another ticket's partition,
   or another phase's artifacts.
-- NEVER `git commit`, `git checkout`, `git push`, or any other command that
-  mutates the repository — the coordinator commits.
+- NEVER `git add`, `git commit`, `git stash`, `git checkout`, `git push`, or
+  any other command that mutates the repository — nothing is committed before
+  `/acs:create-pr`, which commits your suites from your report.
 - NEVER run the e2e suite, the product's build, or any long-running service
   yourself; the suite-runner performs the single run. Bash here is read-only
   inspection of the repo and its harness config.

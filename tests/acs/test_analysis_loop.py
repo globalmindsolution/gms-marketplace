@@ -421,29 +421,31 @@ class TestBlocked(AnalysisLoopCase):
 
 
 class TestPublish(AnalysisLoopCase):
+    """ADR-0127: publish writes the ticket docs folder into the working tree,
+    records the paths it wrote, and never stages, commits or pushes -- only
+    /acs:create-pr commits."""
+
     def git(self, *args):
         return subprocess.run(["git", "-C", self.repo] + list(args), capture_output=True,
                               text=True, check=True).stdout
 
-    def test_publish_refuses_the_default_branch_and_writes_nothing(self):
+    def test_publish_on_the_default_branch_writes_and_commits_nothing(self):
+        """No branch is refused any more: nothing is committed, so the branch
+        the working tree is on is /acs:create-pr's business."""
         self.to_publish()
         self.git("checkout", "-q", "master")
         head = self.git("rev-parse", "HEAD")
-        out = self.run_script("acs.py", "analysis", "publish", "--run", self.tid)
-        self.assertEqual(out.returncode, 2, out.stdout)
-        self.assertIn("default branch", out.stderr)
+        out = self.cli("publish")
         self.assertEqual(self.git("rev-parse", "HEAD"), head)
-        self.assertFalse(os.path.exists(
-            os.path.join(self.repo, "docs", "tickets", self.tid, "analysis.md")))
+        self.assertTrue(os.path.isfile(out["publication"]["path"]))
+        self.assertNotIn("committed", out["publication"])
 
-    def test_publish_refuses_a_detached_head(self):
+    def test_publish_on_a_detached_head_is_fine(self):
         self.to_publish()
         self.git("checkout", "-q", "--detach")
-        out = self.run_script("acs.py", "analysis", "publish", "--run", self.tid)
-        self.assertEqual(out.returncode, 2, out.stdout)
-        self.assertIn("detached", out.stderr)
+        self.cli("publish")
 
-    def test_publish_copies_exact_bytes_commits_docs_folder_only_never_pushes(self):
+    def test_publish_copies_exact_bytes_and_records_the_docs_folder_never_commits(self):
         bare = os.path.join(self.tmp, "origin.git")
         subprocess.run(["git", "init", "-q", "--bare", bare], check=True)
         self.git("remote", "set-url", "--push", "origin", bare)
@@ -455,20 +457,22 @@ class TestPublish(AnalysisLoopCase):
         os.makedirs(docs, exist_ok=True)
         with open(os.path.join(docs, "ticket.md"), "w") as fh:
             fh.write("# ticket\n")
+        head = self.git("rev-parse", "HEAD")
         out = self.cli("publish")
         pub = out["publication"]
         self.assertEqual(pub["path"], os.path.join(docs, "analysis.md"))
         with open(pub["path"], "rb") as a, open(L.draft_path(self.r), "rb") as b:
             self.assertEqual(a.read(), b.read())
-        files = self.git("show", "--name-only", "--format=", "HEAD").split()
-        self.assertEqual(sorted(files), ["docs/tickets/%s/analysis.md" % self.tid,
-                                         "docs/tickets/%s/ticket.md" % self.tid])
-        self.assertEqual(self.git("log", "-1", "--format=%s").strip(),
-                         "%s Add requirements analysis" % self.tid)
-        self.assertIn("other.txt", self.git("diff", "--cached", "--name-only"))
+        self.assertEqual(pub["files"], ["docs/tickets/%s/analysis.md" % self.tid,
+                                        "docs/tickets/%s/ticket.md" % self.tid])
+        self.assertEqual(self.git("rev-parse", "HEAD"), head, "publish must not commit")
+        self.assertEqual(self.git("diff", "--cached", "--name-only").split(), ["other.txt"],
+                         "publish must not stage anything")
+        self.assertIn("?? docs/", self.git("status", "--porcelain"))
         self.assertEqual(subprocess.run(["git", "-C", bare, "for-each-ref"], capture_output=True,
                                         text=True).stdout, "")
         self.assertEqual(self.cli("record-publication")["next"]["action"], "completed")
+        self.assertTrue(self.loop()["publication"]["verified"])
 
     def test_publish_refused_unless_review_passed(self):
         self.to_draft()
@@ -530,20 +534,32 @@ class TestPublish(AnalysisLoopCase):
         os.unlink(path)
         self.assertIn("is missing", self.cli("record-publication")["next"]["reason"])
 
-    def test_record_publication_requires_the_commit(self):
+    def test_record_publication_needs_no_commit(self):
+        """The working tree is the evidence: HEAD never carries the analysis
+        before /acs:create-pr commits it."""
         self.to_publish()
         self.cli("publish")
-        self.git("reset", "-q", "--soft", "HEAD~1")
-        out = self.cli("record-publication")
-        self.assertIn("HEAD does not carry", out["next"]["reason"])
+        self.assertEqual(self.git("log", "--format=%s").split("\n")[0], "init")
+        self.assertEqual(self.cli("record-publication")["next"]["action"], "completed")
 
-    def test_republish_of_identical_bytes_makes_no_new_commit(self):
+    def test_republish_of_identical_bytes_is_idempotent(self):
+        self.to_publish()
+        first = self.cli("publish")["publication"]
+        head = self.git("rev-parse", "HEAD")
+        again = self.cli("publish")["publication"]
+        self.assertEqual(again["files"], first["files"])
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+
+    def test_publish_records_its_paths_for_the_commit_plan(self):
+        """The ticket-docs group /acs:create-pr proposes is built from what
+        publish recorded (acs_lib.commit_plan reads `publication.files`)."""
         self.to_publish()
         self.cli("publish")
-        head = self.git("rev-parse", "HEAD")
-        out = self.cli("publish")
-        self.assertFalse(out["publication"]["committed"])
-        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        from acs_lib import commit_plan
+        records = commit_plan.Records(self.repo, self.tid)
+        records.read_run(self.r)
+        self.assertEqual(records.claims["docs/tickets/%s/analysis.md" % self.tid],
+                         ("ticket-docs", None))
 
 
 class TestReadOnlyAndRestart(AnalysisLoopCase):

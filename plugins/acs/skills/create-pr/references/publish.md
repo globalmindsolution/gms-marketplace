@@ -1,15 +1,18 @@
-# /acs:create-pr — publishing the PR (the Inline apply flow's charter)
+# /acs:create-pr — committing and publishing (the Inline apply flow's charter)
 
 Open this when the pre-hook has passed and you start the Inline apply flow in
-SKILL.md, and follow it yourself. /acs:create-pr spawns no subagent: pushing a
-branch and opening a PR is a fixed sequence of commands with nothing for a
-separate agent to judge, so the coordinator runs it inline. This is the ONLY
-part of the skill that touches origin and GitHub: push the ticket branch,
-render the PR body from the template, ensure the `ACS` label, create or update
-the pull request against the default branch, record the PR reference, and
-sync the tracker when configured. Where reality turns out to contradict the
-state files, do the closest faithful thing and record the deviation in the
-publish report — never improvise a different flow.
+SKILL.md, and follow it yourself. /acs:create-pr spawns no subagent: committing
+a confirmed plan, pushing a branch and opening a PR is a fixed sequence of
+commands with nothing for a separate agent to judge, so the coordinator runs it
+inline. This skill is the ONLY place in acs that creates a branch, stages,
+commits or pushes (ADR-0127): every step before it leaves its output as
+uncommitted changes in the working tree and records the paths it wrote. Here
+those changes become the commits the user confirmed, on a new branch, then the
+branch is pushed, the PR body rendered from the template, the `ACS` label
+ensured, the pull request created or updated against the default branch, the
+PR reference recorded, and the tracker synced when configured. Where reality
+turns out to contradict the state files, do the closest faithful thing and
+record the deviation in the publish report — never improvise a different flow.
 
 **Where the cross-references below point.** Step numbers are the Inline apply
 flow's in SKILL.md, which states each step in full; this file holds what binds
@@ -24,12 +27,15 @@ READ EVERY ONE of these before acting — workspace state, never conversation
 history:
 
 - `<partition>/ticket.json` (`<partition>` is its directory) — title, type,
-  `external`;
+  `external` (ticket mode);
 - `steps/code/state.json`, `specs/*.md`, and `design.md` when the ticket
   has one;
+- the commit plan `acs.py pr plan-commits` printed, and the confirmed copy you
+  write to `steps/create-pr/iter-<n>/commit-plan.json`;
 - the resolved body template file;
 - the values you settle along the way: the PR title, the
-  `base_branch`, the ticket `branch`, and `tracker_provider`.
+  `base_branch`, the `branch` the plan names, the commits made, and
+  `tracker_provider`.
 
 ## GitHub call failure policy, as it applies here
 
@@ -45,32 +51,65 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 > organization by an org admin. A local Claude Code session uses your own
 > `gh` authentication and should not see this.
 
+## Commit the confirmed plan, in this order
+
+The commit phase is local: it calls no `gh` and touches no remote.
+
+C1. **Plan.** `acs.py pr plan-commits --ticket <ticket_id>` (docs mode:
+   `--docs`). Its groups are ordered layer by layer — ticket docs
+   (`docs/tickets/<ID>/`), design docs (HLD, `lld/<feature>/`, ADRs), then
+   per plan slice or file-map partition its tests and then its code (one
+   commit when a slice has only one kind), then docs-sync's doc updates, then
+   the e2e suites; docs mode groups by doc set. A path is in a group only when
+   a step recorded it AND it changed since the run's baseline. `left_out` is
+   what changed but no step recorded; `excluded` is what was already dirty
+   when the run began. The CLI is the plan's only author: never assemble one
+   from `git status`, and never fold `left_out` or `excluded` into a group on
+   your own.
+C2. **Preview and confirm.** One grouped AskUserQuestion — confirm / edit /
+   cancel — showing the branch, every group (subject and paths, in commit
+   order), `left_out` and `excluded`. The edits are the user's and only the
+   user's: move a path between groups, drop a path from a group, add a
+   `left_out` path to a group, reword a subject (keeping the configured
+   commit-subject format). An `excluded` path is never added. After an edit,
+   show the edited plan once more; a run that cannot reach the user and holds
+   no approval of the plan in the request commits nothing (`needs_input`).
+C3. **Write** the confirmed plan to `steps/create-pr/iter-<n>/commit-plan.json`.
+C4. **Commit** with `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-plan.json`:
+   it switches to the plan's branch (creating it from the current checkout,
+   which carries the working tree along) and commits the groups in order, each
+   by pathspec, printing every commit's sha. Its refusals — a branch named
+   like the default branch, a path outside the changeset, an empty group —
+   end the run failed; they are never routed around with raw git.
+
 ## Ship the PR, in this order
 
-1. **Branch and base.** Verify the ticket branch
-   exists (`git rev-parse --verify <branch>` locally, or already on origin —
-   `git ls-remote origin <branch>`). Detect the base BEFORE anything is
+1. **Branch and base.** The branch is the one C4 committed to (or, with no
+   groups to commit, the one C1 named — it must exist locally:
+   `git rev-parse --verify <branch>`). Detect the base BEFORE anything is
    pushed — `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`.
-   The branch check, the base detect, step 3's label create and step 5's
+   The base detect, step 3's label create and step 5's
    `gh pr list` depend on nothing but the branch name: issue them as parallel
    Bash calls in ONE message (SKILL.md step 1) and reuse their answers.
-   Then push: `git push -u origin <branch>`; skip the push when it exists
-   only on origin and is current. NEVER commit new work — uncommitted
-   implementation changes are /acs:code's job: stop and ask the user (SKILL.md's
-   User interaction; a non-interactive run hands off `needs_input`).
+   Then push: `git push -u origin <branch>`; skip the push when the branch is
+   already on origin and current. A failed critical call stops the run before
+   the push; the commits stay on the local branch for the re-run.
 2. **Body.** Fill the resolved template into
    `steps/create-pr/pr-body.md`: replace every placeholder
    (`{ticket_id}`, `{type}`, `{title}`, `{summary}`, `{external_key}`;
    `{external_key_line}` renders as ` — tracker: <provider> <key>` when
    `ticket.external` is set, empty otherwise); replace the template's HTML comments
    with real content and DELETE the comments; fill every section strictly from the
-   state files. Checklist items are `[x]` ONLY when
+   state files and the commits made — the Changes section lists every commit
+   (short sha, subject, paths) in order. Checklist items are `[x]` ONLY when
    code-state substantiates them (e.g. review loop passed only when
    `review.findings_open == 0`) — an unearned tick is a lie the reviewer of the
    PR will catch. Write the title directly (concise, normally the ticket's
    title) and pass it verbatim.
 3. **Label.** Ensure the label exists, then rely on it at create/edit time:
    `gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true`
+   — docs mode ensures and applies `acs-exempt` too: a docs-only PR names no
+   ticket, and that label is the CI ticket-link check's fixed exemption.
 4. **Pre-open self-check.** `pr-conventions.py check` on the filled body, with
    its bounded re-fill retry (SKILL.md step 4) — a deterministic call, not a
    subagent. A body that still fails is never opened.
@@ -78,7 +117,8 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    (`gh pr list --head <branch> --state open --json number,url,baseRefName,isDraft`):
    - No open PR for the branch:
      `gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file steps/create-pr/pr-body.md --label ACS`
-     — no `--draft`; PRs ship ready-for-review.
+     (docs mode: plus `--label acs-exempt`) — no `--draft`; PRs ship
+     ready-for-review.
    - An open PR already exists: update it —
      `gh pr edit <number> --title "<PR title>" --body-file <body> --add-label ACS`,
      plus `gh pr edit <number> --base <default-branch>` when its base is wrong and
@@ -119,8 +159,9 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    - `github`: `gh issue comment <external.key> --body "ACS: PR #<number> opened for <ticket-id> — <url>"`
 
 On a resumed run (`references/resume.md`), redo exactly what the reconcile
-found unfinished — re-write the title, re-fill the body, re-push, re-label,
-fix the base, whatever it names — and nothing else beyond what that requires.
+found unfinished — finish the confirmed plan from its first uncommitted group,
+re-write the title, re-fill the body, re-push, re-label, fix the base,
+whatever it names — and nothing else beyond what that requires.
 
 ## The publish report
 
@@ -129,11 +170,17 @@ normally 1):
 
 ```json
 {
-  "artifacts": ["steps/create-pr/pr-body.md"],
+  "artifacts": ["steps/create-pr/iter-1/commit-plan.json", "steps/create-pr/pr-body.md"],
+  "run_mode": "ticket",
+  "commit_plan": {"path": "steps/create-pr/iter-1/commit-plan.json", "confirmed_by": "C-1", "left_out": ["notes/todo.md"], "excluded": []},
+  "commits": [{"group": "ticket-docs", "sha": "0f3c2ab9", "subject": "SHOP-123 Add the ticket docs"},
+              {"group": "slice-1-tests", "sha": "5d1e07c4", "subject": "SHOP-123 Test the bulk import"},
+              {"group": "slice-1-code", "sha": "9a8b7c6d", "subject": "SHOP-123 Bulk import"}],
   "pr": {"number": 42, "url": "https://github.com/acme/shop/pull/42", "branch": "task/SHOP-123-bulk-import", "base": "main"},
-  "pushed_sha": "0f3c2ab9",
+  "pushed_sha": "9a8b7c6d",
   "mode": "created",
-  "commands_run": [{"cmd": "git push -u origin task/SHOP-123-bulk-import", "outcome": "pushed 0f3c2ab9"}],
+  "commands_run": [{"cmd": "python3 .../acs.py pr commit --plan steps/create-pr/iter-1/commit-plan.json", "outcome": "3 commits on task/SHOP-123-bulk-import"},
+                   {"cmd": "git push -u origin task/SHOP-123-bulk-import", "outcome": "pushed 9a8b7c6d"}],
   "self_check": {"passed": true, "attempts": 1},
   "tracker_sync": {"provider": "github", "key": "acme/shop#88", "result": "comment posted"},
   "metadata_fill": {"assignee": "added @me", "type_label": "task", "project": {"added": true, "status_set": true}, "reviewers": {"requested": ["@alice", "@org/team-frontend"], "skipped_reason": null, "findings": []}, "project_fields": {"priority": "High", "story_points": 3, "parent": "#42", "findings": []}, "findings": []},
@@ -143,35 +190,49 @@ normally 1):
 
 How the run ends, and what the report then says:
 
-- **completed** — branch pushed, PR live with title/body/label, reference
-  recorded in the publish report and in `states.pr`.
-- **needs user input** — reality blocks you (uncommitted work on the branch,
-  recorded branch missing, foreign open PR with conflicting base): ask exactly
-  what you need (SKILL.md's User interaction); the report lists whatever you
-  safely produced.
-- **failed** — push or PR creation impossible (auth, protections, network):
-  the report's `problems` and the result document's `errors` say why; report
-  partial state honestly.
+- **completed** — the confirmed plan committed, branch pushed, PR live with
+  title/body/label, commits and reference recorded in the publish report and
+  in `states.commits` / `states.pr`.
+- **needs user input** — the commit plan awaits the user's confirmation in a
+  run that cannot ask, or reality blocks you (the branch carries commits the
+  plan does not account for, foreign open PR with conflicting base): ask
+  exactly what you need (SKILL.md's User interaction); nothing is committed
+  without a confirmed plan, and the report lists whatever you safely produced.
+- **cancelled** — the user cancelled at the preview: nothing committed or
+  pushed; the result is `interrupted` / `needs_input`.
+- **failed** — the plan or the commit refused, or push or PR creation
+  impossible (auth, protections, network): the report's `problems` and the
+  result document's `errors` say why; report partial state honestly —
+  commits already made are recorded, never undone.
 
 ## Hard rules
 
 - Spawn no subagent for any of this: the steps above are ordered commands the
   coordinator runs itself.
-- Mutate ONLY what this flow covers: the push of the ticket branch, the PR
-  itself (create/edit/ready/label), the `ACS` label, the tracker comment, plus
-  `pr-body.md` and the publish report under `steps/create-pr/`, then the result
-  document and the post-hook at Finish. Do not commit, do not merge, do not
-  delete branches, do not create new branches, do not edit `ticket.json`,
-  `steps/code/state.json`, `run.json`, or any other workspace state — the post-hook
-  owns what changes after the PR exists.
+- Mutate ONLY what this flow covers: the branch and commits `acs.py pr commit`
+  makes from the confirmed plan, the push of that branch, the PR itself
+  (create/edit/ready/label), the `ACS` (and in docs mode `acs-exempt`) label,
+  the tracker comment, plus `commit-plan.json`, `pr-body.md` and the publish
+  report under `steps/create-pr/`, then the result document and the post-hook
+  at Finish. Do not merge, do not delete branches, do not edit `ticket.json`,
+  `steps/code/state.json`, `run.json`, or any other workspace state — the
+  post-hook owns what changes after the PR exists.
+- Commit ONLY through `acs.py pr commit --plan` and ONLY what the user
+  confirmed: never `git add -A`, `git add .`, `git commit -a` or any raw
+  `git add` / `git commit`; never commit to the default branch; never include
+  a `left_out` path the user did not move into a group, or an `excluded` one
+  at all. Never stash, reset, restore, clean or check out over the user's
+  work — what the plan leaves out stays in the working tree exactly as it
+  was.
 - Never fabricate body content: every Summary/Changes/Test-plan claim comes from
-  `ticket.json`, `specs/`, `design.md`, or `steps/code/state.json` — a section the state
-  cannot fill stays honest and minimal.
+  `ticket.json`, `specs/`, `design.md`, `steps/code/state.json`, or the commits
+  `acs.py pr commit` printed (docs mode: the changed documents) — a section the
+  state cannot fill stays honest and minimal.
 - If `git push` or `gh pr create` fails, capture the exact stderr plus the
   canonical hint from `acs_lib.gh_failure_hint` in the report's `problems` and
   the result document's `errors` (critical, per create-pr/SKILL.md's
   classification — no fallback to any other transport); never retry
-  destructively (no force-push, ever).
+  destructively (no force-push, ever), and never undo a commit already made.
 
 ## Grounding (anti-hallucination)
 
