@@ -187,7 +187,7 @@ class PlanTicketTest(CommitPlanCase):
         self.assertEqual(plan["excluded"], [".acs/settings.json", "scratch/notes.txt"])
         self.assertEqual(plan["base"], git(self.repo, "rev-parse", "HEAD").strip())
         self.assertEqual(plan["branch"], "task/%s-bulk-import-api" % t)
-        self.assertEqual(plan["mode"], "ticket")
+        self.assertEqual(plan["mode"], "recorded")
         self.assertTrue(plan["ok"])
 
     def test_deterministic(self):
@@ -234,9 +234,11 @@ class PlanTicketTest(CommitPlanCase):
     def test_a_declared_map_without_a_code_step_claims_nothing(self):
         self.baseline()
         write(self.repo, "src/a.py")
-        self.states("create-impl-plan", {"file_map": {"1": ["src/a.py"]}})
+        write(self.repo, self.docs + "/plan.md")
+        self.states("create-impl-plan", {"file_map": {"1": ["src/a.py"]},
+                                         "files": [self.docs + "/plan.md"]})
         plan = self.plan("--ticket", self.ticket)
-        self.assertEqual(plan["groups"], [])
+        self.assertEqual([g["id"] for g in plan["groups"]], ["ticket-docs"])
         self.assertEqual(plan["left_out"], ["src/a.py"])
 
     def test_other_steps_recorded_paths_and_absolute_paths(self):
@@ -263,14 +265,14 @@ class PlanTicketTest(CommitPlanCase):
         """`--allocate` writes ticket.md before the first step's baseline."""
         write(self.repo, self.docs + "/early.md")
         self.baseline()
+        write(self.repo, self.docs + "/analysis.md")
+        self.states("analyze-requirements", {"files": [self.docs + "/analysis.md"]})
         plan = self.plan("--ticket", self.ticket)
         self.assertEqual([(g["id"], g["paths"]) for g in plan["groups"]],
-                         [("ticket-docs", [self.docs + "/early.md"])])
+                         [("ticket-docs", [self.docs + "/analysis.md", self.docs + "/early.md"])])
         self.assertNotIn(self.docs + "/early.md", plan["excluded"])
 
     def test_refusals(self):
-        self.assertIn("no baseline", self.run_script(
-            "acs.py", "pr", "plan-commits", "--ticket", self.ticket).stderr)
         self.assertEqual(self.run_script("acs.py", "pr", "plan-commits", "--ticket",
                                          "SHOP-404").returncode, 2)
         self.assertEqual(self.run_script("acs.py", "pr", "plan-commits").returncode, 2)
@@ -282,22 +284,28 @@ class PlanTicketTest(CommitPlanCase):
         self.assertEqual(plan["groups"][0]["paths"], [self.docs + "/analysis.md"])
 
 
-class PlanDocsTest(CommitPlanCase):
+class PlanUncommittedTest(CommitPlanCase):
+    """Nothing recorded (no baseline, or a run whose steps recorded no path):
+    every uncommitted change against HEAD, documents by doc set, then slices
+    other runs recorded, then tests and code -- nothing refused."""
 
-    def test_grouped_by_doc_set_in_order(self):
+    SUBJECT = {"run_id": "R-1", "ticket_id": None, "type": "task", "title": "tidy the docs"}
+
+    def test_grouped_by_doc_set_then_tests_then_code(self):
         write(self.repo, "docs/architecture/adr/0009-queue.md")
         write(self.repo, "docs/architecture/lld/checkout/flows.mmd")
         write(self.repo, "docs/architecture/lld/billing/data.md")
         write(self.repo, "docs/architecture/hld/context.md")
         write(self.repo, "docs/product/prd.md")
+        write(self.repo, "docs/requirements/f1.md")
         write(self.repo, "docs/tickets/SHOP-1/notes.md")
         write(self.repo, "README.md", "new readme\n")
-        os.remove(os.path.join(self.repo, ".acs", "settings.json"))
-        os.rmdir(os.path.join(self.repo, ".acs")) if not os.listdir(
-            os.path.join(self.repo, ".acs")) else None
-        plan = self.plan("--docs")
+        write(self.repo, "src/app.py")
+        write(self.repo, "tests/test_app.py")
+        plan = P.plan(self.repo, [], self.SUBJECT)
         self.assertEqual([(g["id"], g["subject"], g["paths"]) for g in plan["groups"]], [
             ("docs-prd", "Update PRD", ["docs/product/prd.md"]),
+            ("docs-requirements", "Update requirements", ["docs/requirements/f1.md"]),
             ("docs-hld", "Update HLD", ["docs/architecture/hld/context.md"]),
             ("docs-lld-billing", "Update LLD billing", ["docs/architecture/lld/billing/data.md"]),
             ("docs-lld-checkout", "Update LLD checkout",
@@ -305,35 +313,60 @@ class PlanDocsTest(CommitPlanCase):
             ("docs-adr", "Update ADRs", ["docs/architecture/adr/0009-queue.md"]),
             ("docs-tickets-SHOP-1", "Update ticket SHOP-1 docs", ["docs/tickets/SHOP-1/notes.md"]),
             ("docs-other", "Update docs", ["README.md"]),
+            ("tests", "Add tests", ["tests/test_app.py"]),
+            ("code", "Update code", [".acs/settings.json", "src/app.py"]),
         ])
-        self.assertEqual(plan["mode"], "docs")
+        self.assertEqual(plan["mode"], "uncommitted")
         self.assertIsNone(plan["ticket_id"])
-        self.assertEqual(plan["branch"], "docs/" + lib.slugify(
-            "update PRD HLD LLD billing LLD checkout ADRs ticket SHOP-1 docs docs"))
-        self.assertEqual(plan["left_out"], [])
+        self.assertEqual(plan["branch"], "task/R-1-tidy-the-docs")
+        self.assertEqual((plan["left_out"], plan["excluded"]), ([], []))
 
-    def test_a_non_document_is_refused_with_the_list(self):
+    def test_other_runs_records_attribute_code_to_slices(self):
+        self.baseline()  # the ticket's run: its code step is the "other" run here
+        write(self.repo, "src/api.py")
+        write(self.repo, "tests/test_api.py")
+        write(self.repo, "e2e/flow.spec.ts")
+        write(self.repo, "src/loose.py")
+        self.report("code", "implementer-1.json", {
+            "spec": "01-import.md", "files_changed": ["src/api.py", "tests/test_api.py"]})
+        self.states("create-e2e-tests", {"files": ["e2e/flow.spec.ts"]})
+        plan = P.plan(self.repo, [], self.SUBJECT, None, [self.r])
+        self.assertEqual([(g["id"], g["paths"]) for g in plan["groups"]], [
+            ("slice-1-tests", ["tests/test_api.py"]),
+            ("slice-1-code", ["src/api.py"]),
+            ("e2e", ["e2e/flow.spec.ts"]),
+            ("code", [".acs/settings.json", "src/loose.py"]),
+        ])
+
+    def test_a_ticket_with_no_baseline_is_planned_uncommitted_with_its_id(self):
         write(self.repo, "docs/product/prd.md")
-        write(self.repo, "src/app.py")
-        out = self.run_script("acs.py", "pr", "plan-commits", "--docs")
-        self.assertEqual(out.returncode, 2)
-        doc = json.loads(out.stdout)
-        self.assertFalse(doc["ok"])
-        self.assertIn("src/app.py", doc["non_docs"])
-        self.assertIn("src/app.py", out.stderr)
+        plan = self.plan("--ticket", self.ticket)
+        self.assertEqual(plan["mode"], "uncommitted")
+        self.assertEqual(plan["groups"][0]["subject"], "%s Update PRD" % self.ticket)
 
-    def test_a_named_runs_baseline_excludes_prior_dirt(self):
+    def test_a_run_that_recorded_nothing_is_planned_uncommitted(self):
         self.baseline()
-        write(self.repo, "docs/product/prd.md")
-        plan = self.plan("--docs", "--run", self.ticket)
-        self.assertEqual([g["paths"] for g in plan["groups"]], [["docs/product/prd.md"]])
-        self.assertEqual(plan["excluded"], [".acs/settings.json"])
+        write(self.repo, "src/app.py")
+        plan = self.plan("--run", self.ticket)
+        self.assertEqual(plan["mode"], "uncommitted")
+        self.assertEqual(plan["groups"][-1]["paths"], [".acs/settings.json", "src/app.py"])
+
+    def test_the_deprecated_docs_flag_is_a_no_op(self):
+        self.baseline()
+        self.assertEqual(self.plan("--docs")["run_id"], self.ticket)
 
     def test_no_changes_plans_nothing(self):
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-qm", "everything")
-        plan = lib.commit_plan.plan_docs(self.repo)
-        self.assertEqual((plan["groups"], plan["branch"]), ([], "docs/docs"))
+        plan = P.plan(self.repo, [], self.SUBJECT)
+        self.assertEqual(plan["groups"], [])
+
+    def test_subject_of(self):
+        self.assertEqual(P.subject_of({"run_id": "R", "subject": {"kind": "document",
+                                                                 "path": "spec.md"}}),
+                         {"run_id": "R", "ticket_id": None, "type": "task", "title": "spec.md"})
+        self.assertEqual(P.subject_of({"run_id": "SHOP-1"}, {"id": "SHOP-1", "type": "story",
+                                                            "title": "T"})["type"], "story")
 
 
 class ExecuteTest(CommitPlanCase):
@@ -454,10 +487,10 @@ class UnbornBranchTest(unittest.TestCase):
         git(tmp, "config", "user.email", "t@example.com")
         git(tmp, "config", "user.name", "T")
         write(tmp, "docs/product/prd.md")
-        plan = P.plan_docs(tmp)
+        plan = P.plan(tmp, [], {"run_id": "R-1", "ticket_id": None, "title": "the prd"})
         self.assertIsNone(plan["base"])
         result = P.execute(tmp, plan)
-        self.assertEqual(result["branch"], "docs/update-prd")
+        self.assertEqual(result["branch"], "task/R-1-the-prd")
         self.assertEqual(git(tmp, "log", "--format=%s").strip(), "Update PRD")
         self.assertEqual(result["remaining"], [])
 

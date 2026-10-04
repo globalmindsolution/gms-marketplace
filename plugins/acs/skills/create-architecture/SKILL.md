@@ -388,7 +388,7 @@ for the files in its `<constraint name="files">`):
     <file>docs/architecture/</file>
   </inputs>
   <constraints>
-    <constraint name="partition">/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d</constraint>
+    <constraint name="partition">/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d</constraint>
     <constraint name="prd">docs/product/prd.md</constraint>
     <constraint name="architecture_dir">docs/architecture</constraint>
     <constraint name="hld_types">c4-context, c4-container, c4-component, data-model, integration-map, deployment, project-structure</constraint>

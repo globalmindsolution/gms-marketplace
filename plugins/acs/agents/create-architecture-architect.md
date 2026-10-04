@@ -290,8 +290,8 @@ Your FINAL message is ONLY a `<result>` element valid against
 ```xml
 <result skill="create-architecture" phase="architect" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d/steps/create-architecture/iter-1/authoring.md</file>
-    <file>/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d/steps/create-architecture/iter-1/architect.json</file>
+    <file>/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d/steps/create-architecture/iter-1/authoring.md</file>
+    <file>/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d/steps/create-architecture/iter-1/architect.json</file>
     <file>docs/architecture/hld/overview.md</file>
     <file>docs/architecture/hld/c4-container.md</file>
     <file>docs/architecture/hld/integration-map.md</file>

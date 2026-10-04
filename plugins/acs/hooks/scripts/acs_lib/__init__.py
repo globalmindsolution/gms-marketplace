@@ -37,7 +37,7 @@ from . import (_common, settings, repo, hostgates, planrules, lock, tickets,  # 
                advisory)  # noqa: F401
 
 from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS, STANDALONE_RUN_SKILLS,
-    LEGACY_DELIVERY_TICKET_SKILLS, DOCS_MODE_FLAG, DOCS_MODE_SKILLS, docs_mode_run, is_docs_mode,
+    LEGACY_DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
     PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
     PRODUCT_TICKET_TITLES, ReconciliationRequired, TICKET_ID_RE,

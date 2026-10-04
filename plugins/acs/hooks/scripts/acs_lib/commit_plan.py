@@ -1,9 +1,11 @@
 """acs_lib.commit_plan — the commits /acs:create-pr proposes, and makes (ADR-0127).
 
-Only `/acs:create-pr` commits. Every step before it leaves its output in the
-working tree and records the paths it wrote; this module turns those records,
-intersected with the run's changeset (`acs_lib.changes`), into a list of small
-reviewable commits the user confirms before anything is staged:
+Only `/acs:create-pr` commits, and every skill -- create-pr included -- takes
+a ticket id, a prompt or a document as its subject. Every step before
+create-pr leaves its output in the working tree and records the paths it
+wrote; this module turns a run's records, intersected with its changeset
+(`acs_lib.changes`), into small reviewable commits the user confirms before
+anything is staged (`recorded` mode):
 
   1. ticket docs     -- `docs/tickets/<ID>/` and what the ticket-docs skills recorded
   2. design docs     -- what create-design / create-data-design / create-flows recorded
@@ -14,9 +16,13 @@ reviewable commits the user confirms before anything is staged:
 
 A changed path no step recorded is LEFT OUT and listed; a path that was
 already dirty at the run's baseline and has not changed since is EXCLUDED
-unless a step recorded it. The plan is deterministic -- the same records and
-the same tree give the same plan -- and `execute` commits a (possibly
-user-edited) plan with pathspecs only, never `git add -A`.
+unless a step recorded it. A run that recorded nothing (a fresh prompt run, or
+work done by hand) is planned in `uncommitted` mode instead: every uncommitted
+change against HEAD, documents by doc set, then slices other runs recorded,
+then tests and code by path convention. Subjects are `<ticket_id> <summary>`
+for a ticket's run and `<summary>` otherwise (`conventions.commit_subject`).
+The plan is deterministic, and `execute` commits a (possibly user-edited)
+plan with pathspecs only, never `git add -A`.
 """
 
 import os
@@ -59,15 +65,6 @@ _DOC_DIRS = {"docs", "doc"}
 _SLICE_REPORT = re.compile(r"^(?:implementer|execute)(?:-([A-Za-z0-9_][A-Za-z0-9_-]{0,39}))?\.json$")
 
 
-class DocsOnlyRefused(GateError):
-    """`--docs` found changed files that are not documents."""
-
-    def __init__(self, non_docs):
-        self.non_docs = list(non_docs)
-        super().__init__("docs mode commits documents only, and these changed files are "
-                         "not documents: %s" % ", ".join(self.non_docs))
-
-
 # ---------------------------------------------------------------------------
 # Path classification
 # ---------------------------------------------------------------------------
@@ -87,7 +84,7 @@ def is_doc_path(path):
 
 
 def doc_set(path):
-    """(key, label) of the doc set a document belongs to, for `--docs` mode."""
+    """(key, label) of the doc set a document belongs to."""
     if path.startswith(TICKETS_PATH + "/") and path.count("/") >= 3:
         ticket_id = path.split("/")[2]
         return "tickets/%s" % ticket_id, "ticket %s docs" % ticket_id
@@ -278,22 +275,28 @@ class Records:
 # Plans
 # ---------------------------------------------------------------------------
 
-def _subject(ticket_id, summary):
-    if ticket_id:
-        return conventions.COMMIT_SUBJECT.format(ticket_id=ticket_id, summary=summary)
-    return summary
+def subject_of(run_doc, ticket=None):
+    """What a plan needs of the run's subject: the ticket id (None for a
+    prompt or a document), and the type, id and title its branch is named by."""
+    subject = (run_doc or {}).get("subject") or {}
+    run_id = (run_doc or {}).get("run_id")
+    if ticket:
+        return {"run_id": run_id, "ticket_id": ticket.get("id"),
+                "type": ticket.get("type") or "task",
+                "title": ticket.get("title") or ticket.get("id")}
+    title = subject.get("text") or subject.get("path") or run_id or "change"
+    return {"run_id": run_id, "ticket_id": None, "type": "task", "title": title}
 
 
-def proposed_branch(root, ticket=None, fallback_slug="docs"):
+def proposed_branch(root, subject):
     """The branch the commits go on: the current one when it is a feature
-    branch, else `<type>/<ticket_id>-<slug>` (or `docs/<slug>` with no ticket)."""
+    branch, else `<type>/<ticket_id or run_id>-<slug>` (conventions.BRANCH_FORMAT)."""
     current = changes.current_branch(root)
     if current and current not in changes.default_branches(root):
         return current
-    if ticket:
-        return conventions.branch_name(ticket.get("type") or "task", ticket.get("id"),
-                                       slugify(ticket.get("title") or ticket.get("id")))
-    return "docs/%s" % slugify(fallback_slug)
+    return conventions.branch_name(subject.get("type") or "task",
+                                   subject.get("ticket_id") or subject.get("run_id") or "change",
+                                   slugify(subject.get("title")))
 
 
 def _group(gid, subject, layer, paths, **extra):
@@ -302,94 +305,129 @@ def _group(gid, subject, layer, paths, **extra):
     return doc
 
 
-def plan_ticket(root, rdirs, ticket, baseline):
-    """The commit plan for one ticket's runs over the changeset since its baseline."""
-    ticket_id = ticket.get("id")
-    cs = changes.changeset(root, baseline=baseline)
-    records = Records(root, ticket_id)
-    for rdir in rdirs:
-        records.read_run(rdir)
-    changed = [e["path"] for e in cs["files"]]
-    excluded_paths = [e["path"] for e in cs["excluded"]]
-    records.claim_declared(changed)
-    # The ticket's own docs folder is the ticket's by construction -- even
-    # `ticket.md`, which `--allocate` wrote before the baseline was taken.
-    for path in changed + excluded_paths:
-        if path.startswith("%s/%s/" % (TICKETS_PATH, ticket_id)):
-            records.claim(path, "ticket-docs")
-    included = [p for p in changed + excluded_paths if p in records.claims]
+def _by_layer(records, paths):
     by_layer = {}
-    for path in included:
+    for path in paths:
         layer, key = records.claims[path]
         by_layer.setdefault(layer, {}).setdefault(key, []).append(path)
+    return by_layer
+
+
+def _flat(by_key):
+    return [p for ps in by_key.values() for p in ps]
+
+
+def _slice_groups(records, slices, ticket_id):
+    """Per slice, its tests then its code (one group when it has one kind)."""
     groups = []
-    for summary, layer in (("Add ticket docs", "ticket-docs"), ("Add design docs", "design")):
-        if by_layer.get(layer):
-            groups.append(_group(layer, _subject(ticket_id, summary), layer,
-                                 [p for ps in by_layer[layer].values() for p in ps]))
-    for key in sorted(by_layer.get("slice", {}), key=_slice_order):
-        paths = by_layer["slice"][key]
+    for key in sorted(slices, key=_slice_order):
+        paths = slices[key]
         title = records.slice_titles.get(key) or (
             "the integration seams" if key == "integration"
             else "the plan" if key == "main" else "slice %s" % key)
         tests = [p for p in paths if is_test_path(p)]
         code = [p for p in paths if not is_test_path(p)]
         if tests:
-            groups.append(_group("slice-%s-tests" % key, _subject(ticket_id, "Add tests for %s"
-                                                                  % title),
-                                 "slice", tests, slice=key, kind="tests"))
+            groups.append(_group("slice-%s-tests" % key, conventions.commit_subject(
+                ticket_id, "Add tests for %s" % title), "slice", tests, slice=key, kind="tests"))
         if code:
-            groups.append(_group("slice-%s-code" % key, _subject(ticket_id, "Implement %s"
-                                                                 % title),
-                                 "slice", code, slice=key, kind="code"))
+            groups.append(_group("slice-%s-code" % key, conventions.commit_subject(
+                ticket_id, "Implement %s" % title), "slice", code, slice=key, kind="code"))
+    return groups
+
+
+def _envelope(root, subject, mode, base, tree, groups, left_out, excluded):
+    return {"mode": mode, "run_id": subject.get("run_id"),
+            "ticket_id": subject.get("ticket_id"),
+            "branch": proposed_branch(root, subject),
+            "current_branch": changes.current_branch(root),
+            "base": base, "tree": tree, "groups": groups,
+            "left_out": sorted(left_out), "excluded": sorted(excluded)}
+
+
+def plan(root, rdirs, subject, baseline=None, other_rdirs=()):
+    """The commit plan for a run (a ticket's runs) of ANY subject.
+
+    `recorded` mode -- the run's steps recorded what they wrote: those paths,
+    intersected with the changeset since the run's baseline, in layers; an
+    unrecorded change is left out. `uncommitted` mode -- nothing recorded (a
+    fresh prompt run, or work done by hand) or no baseline: every uncommitted
+    change against HEAD, grouped by path, with what OTHER runs of this
+    checkout recorded used to attribute code to slices. Nothing is refused for
+    being a non-document in either mode."""
+    records = Records(root, subject.get("ticket_id"))
+    for rdir in rdirs:
+        records.read_run(rdir)
+    if baseline and (records.claims or records.declared):
+        return _plan_recorded(root, records, subject, baseline)
+    others = Records(root, None)
+    for rdir in other_rdirs:
+        others.read_run(rdir)
+    return _plan_uncommitted(root, others, subject)
+
+
+def _plan_recorded(root, records, subject, baseline):
+    ticket_id = subject.get("ticket_id")
+    cs = changes.changeset(root, baseline=baseline)
+    changed = [e["path"] for e in cs["files"]]
+    excluded_paths = [e["path"] for e in cs["excluded"]]
+    records.claim_declared(changed)
+    # The ticket's own docs folder is the ticket's by construction -- even
+    # `ticket.md`, which `--allocate` wrote before the baseline was taken.
+    if ticket_id:
+        for path in changed + excluded_paths:
+            if path.startswith("%s/%s/" % (TICKETS_PATH, ticket_id)):
+                records.claim(path, "ticket-docs")
+    by_layer = _by_layer(records, [p for p in changed + excluded_paths if p in records.claims])
+    groups = []
+    for summary, layer in (("Add ticket docs", "ticket-docs"), ("Add design docs", "design")):
+        if by_layer.get(layer):
+            groups.append(_group(layer, conventions.commit_subject(ticket_id, summary), layer,
+                                 _flat(by_layer[layer])))
+    groups += _slice_groups(records, by_layer.get("slice", {}), ticket_id)
     for summary, layer in (("Sync docs with the change", "docs-sync"),
                            ("Add e2e suites", "e2e"),
                            ("Add other recorded changes", "other")):
         if by_layer.get(layer):
-            groups.append(_group(layer, _subject(ticket_id, summary), layer,
-                                 [p for ps in by_layer[layer].values() for p in ps]))
-    return {
-        "mode": "ticket",
-        "ticket_id": ticket_id,
-        "branch": proposed_branch(root, ticket),
-        "current_branch": changes.current_branch(root),
-        "base": baseline.get("base_sha"),
-        "tree": cs["tree"],
-        "groups": groups,
-        "left_out": sorted(p for p in changed if p not in records.claims),
-        "excluded": sorted(p for p in excluded_paths if p not in records.claims),
-    }
+            groups.append(_group(layer, conventions.commit_subject(ticket_id, summary), layer,
+                                 _flat(by_layer[layer])))
+    return _envelope(root, subject, "recorded", baseline.get("base_sha"), cs["tree"], groups,
+                     [p for p in changed if p not in records.claims],
+                     [p for p in excluded_paths if p not in records.claims])
 
 
-def plan_docs(root, baseline=None):
-    """The commit plan for a docs-only change: every uncommitted change since
-    the baseline (HEAD when there is none), grouped by doc set. Refuses when a
-    changed file is not a document."""
-    baseline = baseline or {"base_sha": changes.head_sha(root), "dirty": []}
-    cs = changes.changeset(root, baseline=baseline)
+def _plan_uncommitted(root, others, subject):
+    ticket_id = subject.get("ticket_id")
+    base = changes.head_sha(root)
+    cs = changes.changeset(root, baseline={"base_sha": base, "dirty": []})
     changed = [e["path"] for e in cs["files"]]
-    non_docs = sorted(p for p in changed if not is_doc_path(p))
-    if non_docs:
-        raise DocsOnlyRefused(non_docs)
+    docs = [p for p in changed if is_doc_path(p)]
+    rest = [p for p in changed if not is_doc_path(p)]
     sets = {}
-    for path in changed:
+    for path in docs:
         key, label = doc_set(path)
         sets.setdefault(key, (label, []))[1].append(path)
-    groups = [_group("docs-%s" % key.replace("/", "-"), "Update %s" % sets[key][0], "docs",
+    groups = [_group("docs-%s" % key.replace("/", "-"),
+                     conventions.commit_subject(ticket_id, "Update %s" % sets[key][0]), "docs",
                      sets[key][1], doc_set=key)
               for key in sorted(sets, key=_doc_order)]
-    return {
-        "mode": "docs",
-        "ticket_id": None,
-        "branch": proposed_branch(root, None, "update " + " ".join(
-            sets[k][0] for k in sorted(sets, key=_doc_order)) if sets else "docs"),
-        "current_branch": changes.current_branch(root),
-        "base": baseline.get("base_sha"),
-        "tree": cs["tree"],
-        "groups": groups,
-        "left_out": [],
-        "excluded": sorted(e["path"] for e in cs["excluded"]),
-    }
+    others.claim_declared(rest)
+    by_layer = _by_layer(others, [p for p in rest
+                                  if others.claims.get(p, ("",))[0] in ("slice", "e2e")])
+    groups += _slice_groups(others, by_layer.get("slice", {}), ticket_id)
+    if by_layer.get("e2e"):
+        groups.append(_group("e2e", conventions.commit_subject(ticket_id, "Add e2e suites"),
+                             "e2e", _flat(by_layer["e2e"])))
+    claimed = set(_flat(by_layer.get("slice", {})) + _flat(by_layer.get("e2e", {})))
+    tests = [p for p in rest if p not in claimed and is_test_path(p)]
+    code = [p for p in rest if p not in claimed and not is_test_path(p)]
+    if tests:
+        groups.append(_group("tests", conventions.commit_subject(ticket_id, "Add tests"),
+                             "tests", tests))
+    if code:
+        groups.append(_group("code", conventions.commit_subject(ticket_id, "Update code"),
+                             "code", code))
+    return _envelope(root, subject, "uncommitted", base, cs["tree"], groups, [], [])
 
 
 # ---------------------------------------------------------------------------

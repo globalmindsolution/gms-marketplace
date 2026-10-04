@@ -2,9 +2,10 @@
 description: >-
   A raw request with no ticket, shipped with one command: cap the customer
   page size at 100. ship starts a run over the request (a free-text subject)
-  and drives workflows/ship.yaml from its cursor -- the cap implemented on a
-  branch and reviewed -- until create-pr fails at its critical gh base
-  detection before any push. ship stops there, reports it, and never merges.
+  and drives workflows/ship.yaml from its cursor -- the cap implemented
+  (uncommitted until create-pr) and reviewed -- until create-pr fails at its
+  critical gh base detection before any push. ship stops there, reports it,
+  and never merges.
 expected_outcome: >-
   A run's steps/review-code/verdict.json and steps/create-pr/state.json
   exist; src/shop/__init__.py enforces a cap of 100; nothing reached the local

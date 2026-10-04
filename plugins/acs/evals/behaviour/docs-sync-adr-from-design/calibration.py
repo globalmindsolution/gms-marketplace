@@ -1,9 +1,9 @@
 """Plays for tests/evals/check_grader_calibration.py (see ../README.md).
 
 IDEAL does what /acs:docs-sync does, through its real writers: `acs.py step
-start`, the design's decision record written as the next ADR and committed
-with a pathspec commit on the ticket branch (what the `adr` area's
-doc-updater does), and `post-docs-sync.py` fed the result document on stdin.
+start`, the design's decision record written as the next ADR and left
+uncommitted (what the `adr` area's doc-updater does -- ADR-0127: no branch,
+no commit), and `post-docs-sync.py` fed the result document on stdin.
 """
 
 import json

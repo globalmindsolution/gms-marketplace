@@ -4,17 +4,19 @@
     acs.py changes diff [--since REV] [--run R]
                         [--name-only | --stat | --patch]
                                                     what changed since the run's baseline
-    acs.py pr plan-commits [--ticket ID | --docs] [--run R] [--out FILE]
-                                                    the commit groups /acs:create-pr previews
+    acs.py pr plan-commits [--ticket ID] [--run R] [--out FILE]
+                                                    the commit groups /acs:create-pr previews,
+                                                    for a run of any subject
     acs.py pr commit --plan FILE                    commit a (possibly edited) plan; never pushes
 
 Only /acs:create-pr commits; every other step leaves its output uncommitted
 and records the paths it wrote. `changes diff` replaces every
 `git diff <default>...HEAD` changeset read, because a working tree nobody has
 committed has an empty commit range. Every verb prints one JSON object; a
-refusal exits 2 (`--docs` with a non-document change also prints the list).
+refusal exits 2.
 """
 
+import argparse
 import os
 import sys
 
@@ -66,46 +68,52 @@ def cmd_changes_diff(args):
     emit(out)
 
 
-def _ticket_of(command, ctx, args):
-    if args.ticket:
-        return args.ticket.strip()
-    _run_id, rdir = _run_dir(command, ctx, args.run)
-    subject = ((lib.load_run(rdir) or {}).get("subject") or {}) if rdir else {}
-    if subject.get("kind") != "ticket":
-        die(command, "no ticket named and this checkout's run has no ticket subject -- "
-                     "pass --ticket ID, or --docs for a docs-only change")
-    return subject["ticket_id"]
-
-
 def cmd_pr_plan_commits(args):
+    """The plan for this checkout's run (or --run, or --ticket's runs), of any
+    subject: a ticket's run reads all of that ticket's runs, a prompt's or a
+    document's run reads itself, and either falls back to every uncommitted
+    change when nothing was recorded (acs_lib.commit_plan.plan)."""
     command = "pr plan-commits"
     ctx = context_or_die(command)
     root = ctx.get("checkout_root") or _root_or_die(command)
-    if args.docs:
-        _run_id, rdir = _run_dir(command, ctx, args.run) if args.run else (None, None)
-        try:
-            plan = commit_plan.plan_docs(root, changes.load_baseline(rdir))
-        except commit_plan.DocsOnlyRefused as exc:
-            emit({"ok": False, "mode": "docs", "reason": str(exc), "non_docs": exc.non_docs})
-            die(command, str(exc))
-    else:
-        ticket_id = _ticket_of(command, ctx, args)
-        repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    ticket_id, run_doc = (args.ticket or "").strip() or None, None
+    rdir = None
+    if args.run or not ticket_id:
+        _run_id, rdir = _run_dir(command, ctx, args.run)
+        if rdir is None:
+            die(command, "no current run for this checkout, and no --run or --ticket given. "
+                         "Start /acs:create-pr with a ticket id, a prompt or a document.")
+        run_doc = lib.load_run(rdir)
+        ticket_id = ticket_id or ((run_doc.get("subject") or {}).get("ticket_id"))
+    ticket = None
+    if ticket_id:
         tdir, _archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
         ticket = lib.load_ticket(tdir) if os.path.isdir(tdir) else None
         if not isinstance(ticket, dict):
             die(command, "no ticket %s in this repo's workspace" % ticket_id)
+    if rdir and args.run:
+        rdirs = [rdir]
+    elif ticket_id:
         rdirs = [d for d in lib.gates._run_dirs_for_ticket(repo, ticket_id) if os.path.isdir(d)]
-        if args.run:
-            rdirs = [_run_dir(command, ctx, args.run)[1]]
-        # The OLDEST baseline: the ticket's first step recorded it, before any
-        # step of any later re-run wrote a file.
-        baseline = next((b for b in (changes.load_baseline(d) for d in reversed(rdirs)) if b),
-                        None)
-        if baseline is None:
-            die(command, "no baseline recorded for %s -- a run records one at its first "
-                         "`acs.py step start`" % ticket_id)
-        plan = commit_plan.plan_ticket(root, rdirs, ticket, baseline)
+    else:
+        rdirs = [rdir]
+    if run_doc is None and rdirs:
+        run_doc = lib.load_run(rdirs[0])
+    # The OLDEST baseline: the subject's first step recorded it, before any
+    # step of any later re-run wrote a file.
+    baseline = next((b for b in (changes.load_baseline(d) for d in reversed(rdirs)) if b),
+                    None)
+    mine = {os.path.realpath(d) for d in rdirs}
+    others = []
+    for run_id in lib.existing_run_ids(repo):
+        other = lib.run_dir(repo, run_id)
+        if os.path.realpath(other) in mine:
+            continue
+        if (lib.load_run(other) or {}).get("status") != "abandoned":
+            others.append(other)
+    plan = commit_plan.plan(root, rdirs, commit_plan.subject_of(run_doc, ticket),
+                            baseline, others)
     if args.out:
         lib.write_json(args.out, plan)
     emit(dict(plan, ok=True, plan_file=os.path.abspath(args.out) if args.out else None))
@@ -141,12 +149,11 @@ def add_parser(group):
 def add_pr_parsers(pr_sub):
     """`pr plan-commits` and `pr commit`, beside `pr metadata` in acs.py's `pr` group."""
     plan = pr_sub.add_parser("plan-commits", help="the commit groups /acs:create-pr previews")
-    which = plan.add_mutually_exclusive_group()
-    which.add_argument("--ticket", help="the ticket (default: this checkout's run's ticket)")
-    which.add_argument("--docs", action="store_true",
-                       help="a docs-only change with no ticket: group by doc set")
-    plan.add_argument("--run", help="read this run instead of the ticket's runs")
+    plan.add_argument("--ticket", help="a ticket's runs (default: this checkout's run, "
+                                       "whatever its subject)")
+    plan.add_argument("--run", help="this run instead of the checkout's current one")
     plan.add_argument("--out", metavar="FILE", help="also write the plan to FILE")
+    plan.add_argument("--docs", action="store_true", help=argparse.SUPPRESS)  # deprecated no-op
     plan.set_defaults(func=cmd_pr_plan_commits)
 
     commit = pr_sub.add_parser("commit", help="commit a plan's groups in order; never pushes")

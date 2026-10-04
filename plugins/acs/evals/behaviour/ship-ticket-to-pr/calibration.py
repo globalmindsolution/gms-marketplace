@@ -2,9 +2,10 @@
 
 IDEAL is what /acs:ship leaves behind when it drives workflows/ship.yaml for
 EVAL-1: every step before create-pr completed through its own writers (`acs
-step start`, the step's result document, its post-hook), the change on the
-ticket branch, a passing review verdict, and create-pr failing at its critical
-gh base detection before any push -- where ship stops.
+step start`, the step's result document, its post-hook), the change left
+uncommitted on main (ADR-0127: only create-pr branches and commits), a passing
+review verdict, and create-pr failing at its critical gh base detection
+before any push -- where ship stops.
 
 The no-op steps are played as a completed result with the no-op outcome; in a
 real run their pre-hook settles the same outcome from the plan's Contract
@@ -57,6 +58,11 @@ def _start(ws, step):
     assert started.returncode == 0, (step, started.stderr)
 
 
+def _snapshot(ws):
+    """`reviewed_sha`: the working-tree snapshot the review judged (ADR-0127)."""
+    return json.loads(ws.acs("changes", "snapshot").stdout)["tree"]
+
+
 def _finish(ws, step, status="completed", outcome=None, states=None, errors=None):
     doc = {"status": status, "summary": "%s: calibration" % step,
            "states": states or {}, "findings": [], "errors": errors or []}
@@ -74,12 +80,11 @@ def _step(ws, step, **kw):
 
 def _code(ws, source):
     _start(ws, "code")
-    ws.sh("git checkout -q -b " + BRANCH)
     ws.write("src/shop/__init__.py", source)
     ws.write("tests/test_customers.py", TESTS)
-    ws.sh("git add -A src tests && git commit -qm 'EVAL-1 Cap the customer page size at 100'")
     _finish(ws, "code", outcome="implemented",
-            states={"branch": BRANCH, "tasks_implemented": ["page-size-cap"],
+            states={"files": ["src/shop/__init__.py", "tests/test_customers.py"],
+                    "tasks_implemented": ["page-size-cap"],
                     "tests": {"passed": 4, "failed": 0}, "docs_updated": []})
 
 
@@ -87,7 +92,7 @@ def _review(ws):
     """The review writes verdict.json (iteration dir and step root); the
     post-hook derives verifier_passed from it -- the create-pr brake's input."""
     _start(ws, "review-code")
-    sha = ws.sh("git rev-parse HEAD").strip()
+    sha = _snapshot(ws)
     verdict = json.dumps({"skill": "review-code", "run_id": "EVAL-1", "iteration": 1,
                           "reviewed_sha": sha, "passed": True, "findings": []})
     ws.write(RUN + "/steps/review-code/iter-1/verdict.json", verdict)
@@ -139,6 +144,7 @@ def _stopped_after_code(ws):
 def _pushed_and_faked_pr(ws):
     _through_review(ws)
     _start(ws, "create-pr")
+    ws.sh("git switch -q -c %s && git add -A src tests && git commit -qm 'EVAL-1 Cap'" % BRANCH)
     ws.sh("git push -q -u origin " + BRANCH)
     _finish(ws, "create-pr", states={"pr": {"number": 1, "branch": BRANCH, "base": "main",
                                             "url": "https://github.com/example/shop/pull/1"}})

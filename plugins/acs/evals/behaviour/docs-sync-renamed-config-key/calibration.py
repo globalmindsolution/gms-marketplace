@@ -1,8 +1,8 @@
 """Plays for tests/evals/check_grader_calibration.py (see ../README.md).
 
 IDEAL does what /acs:docs-sync does, through its real writers: `acs.py step
-start`, the two doc edits committed with a pathspec commit on the ticket
-branch (what the `general` area's doc-updater does), and `post-docs-sync.py`
+start`, the two doc edits left uncommitted (what the `general` area's
+doc-updater does -- ADR-0127: no branch, no commit), and `post-docs-sync.py`
 fed the result document on stdin.
 """
 

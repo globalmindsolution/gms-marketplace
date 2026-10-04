@@ -5,5 +5,5 @@ pattern: '^ref: refs/heads/main$'
 flags: m
 ---
 
-The checkout ends where it started, on `main`: /acs:create-test-docs never creates or switches
-a branch (ADR-0127).
+The checkout ends where it started, on `main`: /acs:create-test-docs never
+creates or switches a branch (ADR-0127).

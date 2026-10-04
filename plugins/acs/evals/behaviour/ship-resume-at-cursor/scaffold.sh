@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # A /acs:ship run over EVAL-1 that stopped part-way: every step
 # workflows/ship.yaml lists before create-pr is recorded `completed` --
-# analyze-requirements through run-e2e-tests, the cap implemented and
-# committed on the ticket branch, the review passed -- and then the session
-# ended. Each step was recorded through the plugin's own writers: `acs step
+# analyze-requirements through run-e2e-tests, the cap implemented and left
+# uncommitted on main (ADR-0127: only create-pr branches and commits), the
+# review passed -- and then the session ended. Each step was recorded through the plugin's own writers: `acs step
 # start`, the step's result document, and its post-hook (review-code's
 # derives verifier_passed from the verdict). The steps that owe nothing carry
 # their no-op outcome, as ship-ticket-to-pr's calibration plays them.
@@ -23,7 +23,6 @@ acs_local_origin
 
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 run="$ACS_PARTITION/runs/EVAL-1"
-branch=task/EVAL-1-cap-the-customer-page-size-at-100
 
 start() { acs step start --step "$1" --ticket EVAL-1 > /dev/null 2>&1; }
 finish() {  # finish STEP OUTCOME [STATES_JSON]
@@ -41,7 +40,7 @@ start create-api-contract; finish create-api-contract no_surface_owed
 start create-test-docs; finish create-test-docs no_cases_owed
 
 start code
-git checkout -q -b "$branch"
+# /acs:code leaves the change uncommitted on main (ADR-0127).
 cat > src/shop/__init__.py <<'PY'
 PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
@@ -70,12 +69,10 @@ def test_limit_above_100_is_refused():
     with pytest.raises(ValueError, match="100"):
         list_customers(limit=101)
 PY
-git add -A src tests
-git commit -qm "EVAL-1 Cap the customer page size at 100"
-finish code implemented "{\"branch\": \"$branch\", \"tasks_implemented\": [\"page-size-cap\"], \"tests\": {\"passed\": 3, \"failed\": 0}, \"docs_updated\": []}"
+finish code implemented "{\"files\": [\"src/shop/__init__.py\", \"tests/test_customers.py\"], \"tasks_implemented\": [\"page-size-cap\"], \"tests\": {\"passed\": 3, \"failed\": 0}, \"docs_updated\": []}"
 
 start review-code
-sha="$(git rev-parse HEAD)"
+sha="$(acs changes snapshot | python3 -c 'import json, sys; print(json.load(sys.stdin)["tree"])')"
 mkdir -p "$run/steps/review-code/iter-1"
 printf '{"skill": "review-code", "run_id": "EVAL-1", "iteration": 1, "reviewed_sha": "%s", "passed": true, "findings": []}\n' \
   "$sha" | tee "$run/steps/review-code/iter-1/verdict.json" > "$run/steps/review-code/verdict.json"

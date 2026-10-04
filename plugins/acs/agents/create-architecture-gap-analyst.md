@@ -90,8 +90,8 @@ Your FINAL message is ONLY a `<result>` element valid against
 ```xml
 <result skill="create-architecture" phase="gap-analyst" slice="api" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d/steps/create-architecture/iter-1/gaps-api.md</file>
-    <file>/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d/steps/create-architecture/iter-1/gap-analyst-api.json</file>
+    <file>/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d/steps/create-architecture/iter-1/gaps-api.md</file>
+    <file>/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d/steps/create-architecture/iter-1/gap-analyst-api.json</file>
   </outputs>
   <stop-reason>api/: 1 undocumented (orders routes), 1 drifted (auth: JWT in code, sessions in hld/cross-cutting.md).</stop-reason>
 </result>

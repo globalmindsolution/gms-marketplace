@@ -453,10 +453,6 @@ def cmd_step_start(args):
         except lib.GateError as exc:
             die("step start", str(exc))
     allocated = None
-    # `/acs:create-pr --docs` (ADR-0127): a ticketless docs-only change in a
-    # standalone run of its own -- no ticket resolved, no review brake, and no
-    # position in the workflow, so its post-hook concludes the run.
-    docs_mode = lib.is_docs_mode(args.step, getattr(args, "args", None))
     if getattr(args, "allocate", False):
         ticket_id, _tdir, _ticket, reused = _allocate_delivery_ticket(args, ctx)
         allocated = {"ticket_id": ticket_id, "reused": reused}
@@ -487,7 +483,7 @@ def cmd_step_start(args):
         _brake_or_die(ctx, args.step, rdir, lib.load_run(rdir) or {
             "run_id": ticket_id, "subject": {"kind": "ticket", "ticket_id": ticket_id}})
         _ensure_run_for_ticket(ctx, ticket_id)
-    elif (args.step in lib.STANDALONE_RUN_SKILLS or docs_mode) and not args.run:
+    elif args.step in lib.STANDALONE_RUN_SKILLS and not args.run:
         args.run = _standalone_run(ctx, args.step, getattr(args, "args", None))
     elif getattr(args, "args", None) and not args.run and not lib.current_run_id(ctx):
         # The invocation's own arguments name the subject and no hook opened a
@@ -497,8 +493,6 @@ def cmd_step_start(args):
         args.run = _run_from_invocation(ctx, args.step, args.args)
     rdir, doc, _ctx, wf = _resolve_run("step start", args.run)
     in_workflow = _require_step(wf, args.step, "step start")
-    docs_mode = docs_mode or lib.docs_mode_run(args.step, doc)
-    in_workflow = in_workflow and not docs_mode
     if in_workflow:
         _brake_or_die(ctx, args.step, rdir, doc, wf)
     try:
@@ -547,8 +541,6 @@ def cmd_step_start(args):
                          prior_status=previous.get("status"))
     if allocated:
         out["allocated"] = allocated
-    if args.step in lib.DOCS_MODE_SKILLS:
-        out["mode"] = "docs" if docs_mode else "ticket"
     emit(out)
 
 
@@ -614,8 +606,7 @@ def cmd_step_finish(args):
     the run's own status. One writer owns every consequence of a step ending,
     which is what keeps them consistent."""
     rdir, doc, _ctx, wf = _resolve_run("step finish", args.run)
-    in_workflow = (_require_step(wf, args.step, "step finish")
-                   and not lib.docs_mode_run(args.step, doc))
+    in_workflow = _require_step(wf, args.step, "step finish")
     outcome, summary, status, stop_reason = args.outcome, args.summary, args.status, args.stop_reason
     if args.no_op:
         status = "completed"

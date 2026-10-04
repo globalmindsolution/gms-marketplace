@@ -67,7 +67,6 @@ def _retyped_a_case(ws):
     text = text.replace("e2e_cases: 0", "e2e_cases: 1").replace("| TC-1 | AC-1 | unit |",
                                                                 "| TC-1 | AC-1 | e2e |")
     ws.write(CASES, text)
-    ws.sh("git commit -qm 'EVAL-1 type TC-1 e2e' -- %s" % CASES)
     _finish(ws, "no_e2e_owed")
     ws.reply = REPLY
 

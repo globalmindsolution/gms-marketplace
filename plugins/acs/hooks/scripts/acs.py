@@ -43,7 +43,7 @@ Usage:
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py pr metadata fill --ticket MAR-1 --pr 42
-  acs.py pr plan-commits [--ticket MAR-1 | --docs] [--out plan.json]
+  acs.py pr plan-commits [--ticket MAR-1] [--run R] [--out plan.json]
   acs.py pr commit --plan plan.json
   acs.py tracker sync --ticket MAR-1 --ticket MAR-2
   acs.py readiness --pr 42
@@ -398,8 +398,8 @@ def build_parser():
 def _bind_args_values(argv):
     """`--args VALUE` -> `--args=VALUE`. `--args` carries a skill's raw
     argument text verbatim (`--args "$ARGUMENTS"`), and argparse refuses a
-    separate value that starts with a dash -- `/acs:create-pr --docs` would
-    otherwise be a usage error instead of a docs-only start."""
+    separate value that starts with a dash, so a prompt such as
+    `--dry-run the export` would otherwise be a usage error."""
     out, i = [], 0
     while i < len(argv):
         if argv[i] == "--args" and i + 1 < len(argv):

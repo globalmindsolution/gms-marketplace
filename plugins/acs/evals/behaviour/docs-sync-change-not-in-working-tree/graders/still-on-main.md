@@ -6,5 +6,5 @@ flags: m
 ---
 
 docs-sync never creates or switches a branch (ADR-0127). The checkout ends
-where it started, on main -- not on the ticket branch a run could check out
-to "find" the change.
+where it started, on main -- not on the ticket branch a run could check out to
+"find" the change.

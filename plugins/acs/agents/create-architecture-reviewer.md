@@ -176,7 +176,7 @@ Your FINAL message is ONLY a `<result>` element valid against
 ```xml
 <result skill="create-architecture" phase="reviewer" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/runs/regenerate-the-architecture-1c2d/steps/create-architecture/iter-1/reviewer.md</file>
+    <file>/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d/steps/create-architecture/iter-1/reviewer.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="internal-consistency" file="docs/architecture/hld/integration-map.md">"PaymentGateway" consumes the orders API in the integration map, but no such container or component exists in hld/c4-container.md or hld/c4-component.md.</finding>

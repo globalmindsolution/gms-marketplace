@@ -212,7 +212,7 @@ clarification answers the ledger already records):
     <file>/abs/repo/README.md</file>
   </inputs>
   <constraints>
-    <constraint name="partition">/abs/workspace/acme-shop/runs/write-the-prd-3f9a</constraint>
+    <constraint name="partition">/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a</constraint>
     <constraint name="prd">docs/product/prd.md</constraint>
     <constraint name="roadmap">docs/product/roadmap.md</constraint>
     <constraint name="required_sections">Vision; Problem statement; Target users &amp; personas; Goals &amp; success metrics; Features (prioritized); Non-functional requirements; Constraints &amp; assumptions; Out of scope</constraint>

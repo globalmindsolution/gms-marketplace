@@ -121,7 +121,7 @@ The workspace (gitignored, the run ledger):
         │   ├── subject/                # ticket.json | prompt.md | the document
         │   ├── baseline.json           # HEAD, branch and already-dirty paths at the first step start (ADR-0127)
         │   └── steps/<skill>/state.json
-        ├── write-the-prd-3f9a/         # a ticketless product-level run (here: /acs:create-prd)
+        ├── acs-create-prd-3f9a/        # a ticketless product-level run (here: /acs:create-prd)
         │   └── steps/create-prd/state.json   # incl. states.files, the uncommitted documents
         ├── fix-the-login-timeout-3f2a/ # a run started from a PROMPT, not a ticket
         │   ├── run.json

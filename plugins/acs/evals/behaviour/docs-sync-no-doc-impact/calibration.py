@@ -1,9 +1,9 @@
 """Plays for tests/evals/check_grader_calibration.py (see ../README.md).
 
 IDEAL does what /acs:docs-sync does on a changeset with no doc impact, through
-its real writers: `acs.py step start`, no commit (every area's doc-updater
-reports no delta), and `post-docs-sync.py` fed a completed result with an empty
-docs_committed on stdin.
+its real writers: `acs.py step start`, no doc written (every area's
+doc-updater reports no delta), and `post-docs-sync.py` fed a completed result
+with an empty `files` on stdin.
 """
 
 import json

@@ -242,8 +242,8 @@ Self-check it:
 ```xml
 <result skill="create-prd" phase="surveyor" iteration="1" status="needs_input">
   <outputs>
-    <file>/abs/workspace/acme-shop/runs/write-the-prd-3f9a/steps/create-prd/iter-1/authoring.md</file>
-    <file>/abs/workspace/acme-shop/runs/write-the-prd-3f9a/steps/create-prd/iter-1/surveyor.json</file>
+    <file>/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a/steps/create-prd/iter-1/authoring.md</file>
+    <file>/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a/steps/create-prd/iter-1/surveyor.json</file>
   </outputs>
   <questions>
     <question id="Q1">Who is the primary persona — solo merchants or agencies?</question>

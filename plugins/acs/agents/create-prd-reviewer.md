@@ -177,7 +177,7 @@ Self-check it:
 ```xml
 <result skill="create-prd" phase="reviewer" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/runs/write-the-prd-3f9a/steps/create-prd/iter-1/reviewer.md</file>
+    <file>/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a/steps/create-prd/iter-1/reviewer.md</file>
   </outputs>
   <findings>
     <finding severity="blocking" dimension="measurable-metrics" file="docs/product/prd.md">Goal G2 "delight power users" has no measurable metric (no value/unit/timeframe).</finding>
