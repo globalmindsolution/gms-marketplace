@@ -71,8 +71,10 @@ class CreateDocsProbeTest(unittest.TestCase):
             self.assertNotIn(retired, probed)
 
 
-class StandardizeProjectProbeTest(unittest.TestCase):
-    """AC-9: standardize-project's routing cases (no paid model call).
+class ProbeSetTest(unittest.TestCase):
+    """The routing probe set and what the suite says about itself (no paid
+    model call). This class first pinned standardize-project's cases (AC-9);
+    ADR-0118 removed that skill, and the suite-wide checks stayed.
 
     These parsed s04_skill_triggers.py's CASES/NEGATIVE lists, then read a
     routing dataset; both are gone, and the case files under plugins/acs/evals/
@@ -92,26 +94,6 @@ class StandardizeProjectProbeTest(unittest.TestCase):
     @staticmethod
     def _skill(probe):
         return probe["skill"].split(":", 1)[1]
-
-    def test_standardize_project_case_present_and_internally_consistent(self):
-        probes = self._probes()
-        positives = [p for p in probes
-                     if p["must_route"] and self._skill(p) == "standardize-project"]
-        self.assertTrue(positives, "the suite must carry a standardize-project positive")
-        # ADR 0091 made this an internal leg, so its positive probe is the
-        # explicit command, and the description that used to be the positive is
-        # now the NEGATIVE -- the one that must NOT auto-route. The no-naming
-        # rule follows the description to where it lives.
-        self.assertEqual(
-            positives[0]["prompt"].strip(), "/acs:standardize-project",
-            "an internal leg's positive probe is the explicit command")
-        negatives = [p for p in probes
-                     if not p["must_route"] and self._skill(p) == "standardize-project"]
-        self.assertTrue(negatives, "an internal leg needs a no-auto-route negative case")
-        self.assertNotIn(
-            "standardize", negatives[0]["prompt"],
-            "the probe request must describe brownfield audit intent "
-            "without naming the skill")
 
     def test_no_create_spec_routing_case(self):
         for probe in self._probes():

@@ -260,7 +260,8 @@ longer exists. In its place each authoring skill's executor writes
 survey the deliverable was authored from (mode, inputs, evidence, open
 questions; the sections the deterministic floors parse, e.g.
 `/acs:create-prd`'s three corroboration sections and
-`/acs:standardize-project`'s frozen allowlist, live here now), iteration 2+
+`/acs:standardize-project`'s frozen allowlist until ADR-0118 removed that
+skill, live here now), iteration 2+
 the findings addressed — and the verifier's `authoring-conformance`
 dimension reads it. The `PHASE_ARTIFACT` relationship label above is
 re-narrowed accordingly. `PLAN` / `PLAN_APPROVAL` / `PLAN_SUPERSEDED` are

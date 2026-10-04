@@ -3,7 +3,7 @@
 `dispatch.py file-map` runs on `PreToolUse` for the write tools and exits 2 on
 a write the declared file map does not cover while an acs agent of the
 `write` kind runs (`code-implementer`, `create-prd-author`,
-`standardize-project-scaffolder`, … — `acs_lib.skills.ROLE_KINDS`). Since
+`docs-sync-doc-updater`, … — `acs_lib.skills.ROLE_KINDS`). Since
 MAR-578 each of those denials is also recorded: one entry appended to the
 step's own `runs[-1].guard_events`, so a denial survives the session that caused it
 and `acs.py guard events` can read the trail back. The guard is a two-half

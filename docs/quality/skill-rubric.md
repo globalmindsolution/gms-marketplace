@@ -41,8 +41,7 @@ neighbour's is worse than a plain one that wins only its own.
   the suite's performance tier already treated it as one, and a skill that
   routes 4 times in 5 fails one user in five.
 - **Reports, never blocks**: time-to-route. The median across description
-  probes is ~3.0s; `ship` at 6.5s and `create-requirements` at 5.2s are slower
-  but correct. Slow usually means the description makes the model deliberate —
+  probes is ~3.0s; `ship` at 6.5s is slower but correct. Slow usually means the description makes the model deliberate —
   worth a look, never a release blocker, and never worth an unmeasured edit.
 - **For a user-only skill** (`disable-model-invocation: true`) the dimension
   inverts: the explicit command must route AND the bare description must NOT.
@@ -70,7 +69,7 @@ coordinator's prose.
   artifacts.
 - **Blocks** when the skill claims a key it does not write, or writes one the
   post-hook is supposed to derive.
-- **Today this is the weakest dimension in the set**: 2 of 29 skills have any
+- **Today this is the weakest dimension in the set**: 2 of 25 skills have any
   artifact-level assertion (`create-ticket`, `code`). Every other
   skill is unmeasured here, which is exactly what PRD **G31** tracks.
 

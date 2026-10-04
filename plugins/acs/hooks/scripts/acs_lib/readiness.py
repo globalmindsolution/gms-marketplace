@@ -106,8 +106,8 @@ def classify_checks(rollup):
 #: What `gh pr checks --required` says when the --required filter selects
 #: nothing. Both strings are present in the shipped gh binary. A repo with no
 #: branch protection is explicitly supported (/acs:setup documents enforcement
-#: as advisory until an admin enables it, and ADR-0048 says
-#: /acs:standardize-project never wires protection itself), so treating this
+#: as advisory until an admin enables it, and acs never wires protection
+#: itself), so treating this
 #: exit as a CI FAILURE made every PR on such a repo permanently unmergeable,
 #: with a reason naming no check and carrying no gh output.
 NO_REQUIRED_CHECKS_MARKERS = ("no required checks reported on the",

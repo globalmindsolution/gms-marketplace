@@ -373,7 +373,7 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
 
     def test_index_guard_timeout_exits_1_names_what_landed_and_frees_the_lock(self):
         ticket = self.new_ticket("Audit", "task")
-        self.start("standardize-project", ticket)
+        self.start("create-architecture", ticket)
         rdir = self.rdir(ticket)
         tdir = self.tdir(ticket)
         self.assertTrue(os.path.exists(lib.lock_path(rdir)))
@@ -381,7 +381,7 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         guard = os.path.join(lib.repo_dir(self.ws, "acme-shop"), "tickets-index.json.lock")
         open(guard, "w").close()  # fresh -> never stale, held for the whole call
         out = self.run_script(
-            "post-standardize-project.py", "--run", ticket,
+            "post-create-architecture.py", "--run", ticket,
             stdin=json.dumps({"status": "completed",
                               "states": {"pr": {"number": 1, "url": "https://example.invalid/pull/1"}}}),
             env=dict(os.environ, ACS_GUARD_ATTEMPTS="1"))
@@ -391,13 +391,13 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         self.assertIn("ARE written", out.stderr)
         self.assertIn("Do NOT re-run this hook", out.stderr)
         # The half that landed really did land...
-        # `standardize-project` is not a step of `ship.yaml`, so it has step
+        # `create-architecture` is not a step of `ship.yaml`, so it has step
         # STATE and no run ledger entry -- the two machines are separate, and
         # I5 refuses an entry the workflow does not name. Its invocation is
         # what says the half that landed really landed.
-        state = lib.load_step_state(rdir, "standardize-project", ticket)
+        state = lib.load_step_state(rdir, "create-architecture", ticket)
         self.assertEqual(state["invocations"][-1]["status"], "completed")
-        self.assertEqual(lib.step_entry(lib.load_run(rdir), "standardize-project"), {})
+        self.assertEqual(lib.step_entry(lib.load_run(rdir), "create-architecture"), {})
         self.assertEqual(lib.load_ticket(tdir)["status"], "in_review")
         # ...the repo-level half did not: the index still carries the pre-call
         # status, which is the divergence the message tells the operator about.

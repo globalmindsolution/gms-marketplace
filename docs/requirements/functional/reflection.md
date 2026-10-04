@@ -21,7 +21,7 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: write → judge
 
-The twelve **authoring skills** and `create-docs` MUST apply the Reflection pattern as a
+The nine **authoring skills** and `create-docs` MUST apply the Reflection pattern as a
 **write → judge cycle** over their own roles, with a **different subagent
 for each role** (ADR-0109):
 
@@ -29,7 +29,6 @@ for each role** (ADR-0109):
 |---|---|---|---|
 | analyze-requirements | `analyze-requirements-impact-analyst` | `analyze-requirements-analyst` | `analyze-requirements-impact-reviewer` |
 | create-prd | `create-prd-surveyor` | `create-prd-author` | `create-prd-reviewer` |
-| create-requirements | `create-requirements-surveyor` | `create-requirements-author` | `create-requirements-reviewer` |
 | create-architecture | — | `create-architecture-architect` | `create-architecture-reviewer` |
 | create-design | — | `create-design-designer` | `create-design-design-reviewer` |
 | create-docs | — | `create-docs-author` (one per doc set) | `create-docs-reviewer` |
@@ -38,8 +37,6 @@ for each role** (ADR-0109):
 | create-test-docs | — | `create-test-docs-test-designer` | `create-test-docs-trace-reviewer` |
 | create-e2e-tests | — | `create-e2e-tests-test-writer` | `create-e2e-tests-suite-runner` |
 | docs-sync | — | `docs-sync-doc-updater` | `docs-sync-drift-reviewer` |
-| create-project | — | `create-project-scaffolder` | `create-project-build-checker` |
-| standardize-project | `standardize-project-auditor` | `standardize-project-scaffolder` | `standardize-project-additive-checker` |
 
 No skill has a plan phase before its writer (ADR-0092): for an authoring
 skill the deliverable IS the document, and a plan for it is a second copy of
@@ -148,17 +145,17 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 33 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 25 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
-  **Thirteen** skills run the write → judge cycle: the **twelve** authoring
+  **Ten** skills run the write → judge cycle: the **nine** authoring
   skills in the table above — which include the five Build/Test skills the
   skills-independence refactor added (`analyze-requirements`,
   `create-impl-plan`, `create-api-contract`, `create-test-docs`,
-  `create-e2e-tests`) — plus `create-docs`. Two of them (`create-prd`, `create-requirements`) add
-  a surveyor, one (`standardize-project`) an auditor, and one
-  (`analyze-requirements`) an impact analyst per code area (ADR-0114).
+  `create-e2e-tests`) — plus `create-docs`. One of them (`create-prd`) adds
+  a surveyor, and one (`analyze-requirements`) an impact analyst per code
+  area (ADR-0114).
 
   **One** prefix is write-only: `code`, whose implementers are judged by
   `/acs:review-code`, because an implementer that grades its own output gave

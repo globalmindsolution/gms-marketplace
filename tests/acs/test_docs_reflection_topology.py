@@ -149,10 +149,11 @@ def derive():
 
 D = derive()
 
+#: ADR-0118 removed standardize-project and create-requirements (and
+#: create-project) from this list along with the skills themselves.
 NEW_TRIAD_SUFFIXES = (
-    "standardize-project", "create-requirements", "analyze-requirements",
-    "create-impl-plan", "create-api-contract", "create-test-docs",
-    "create-e2e-tests",
+    "analyze-requirements", "create-impl-plan", "create-api-contract",
+    "create-test-docs", "create-e2e-tests",
 )
 
 
@@ -203,7 +204,7 @@ class TopologyDerivationTest(unittest.TestCase):
 
     def test_loops_are_the_authoring_skills_plus_create_docs(self):
         self.assertEqual(set(D["pairs"]) - set(D["authoring"]), NON_AUTHORING_LOOPS)
-        self.assertEqual(D["n_authoring"], 12)
+        self.assertEqual(D["n_authoring"], 9)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, D["authoring"])
         writers_only = [s for s, roles in D["declared_roles"].items()
@@ -242,7 +243,7 @@ class InternalsTopologyTest(unittest.TestCase):
         self.assertIn("%d files" % D["n_agents"], body)
         self.assertIn("%d reachable" % D["reachable"], body)
         self.assertIn("%s skills that run a write → judge loop"
-                      % {13: "thirteen"}[D["n_pairs"]], body)
+                      % {10: "ten"}[D["n_pairs"]], body)
         self.assertNotIn("executor + verifier pairs", body)
         self.assertIn("%d agent files named" % D["n_agents"], body)
 
@@ -269,7 +270,7 @@ class OverviewTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d agent files exist on disk" % D["n_agents"], body)
         self.assertIn("%d are reachable" % D["reachable"], body)
-        self.assertIn("%d for the twelve" % D["authoring_agents"], body)
+        self.assertIn("%d for the nine" % D["authoring_agents"], body)
 
     def test_pair_enumeration_names_new_skills(self):
         body = self._body()
@@ -334,15 +335,15 @@ class ReflectionTopologyTest(unittest.TestCase):
         loops, the write-only skill whose judge is a separate step, and the
         review, which is judge-only (ADR-0109)."""
         body = self._body()
-        self.assertIn("**Thirteen** skills run the write → judge cycle", body)
-        self.assertIn("**twelve** authoring", body)
+        self.assertIn("**Ten** skills run the write → judge cycle", body)
+        self.assertIn("**nine** authoring", body)
         self.assertIn("**One** prefix is write-only: `code`", body)
         self.assertIn("**One** prefix is judge-only: `review-code`", body)
         self.assertNotIn("triad", body)
         self.assertNotIn("executor-only", body)
         # ...and the words match the tree, not just each other.
-        self.assertEqual(D["n_pairs"], 13)
-        self.assertEqual(D["n_authoring"], 12)
+        self.assertEqual(D["n_pairs"], 10)
+        self.assertEqual(D["n_authoring"], 9)
         self.assertEqual(
             len([s for s, roles in D["declared_roles"].items() if roles == ["implementer"]]), 1)
 
@@ -372,7 +373,7 @@ class PrdTopologyTest(unittest.TestCase):
     def test_must_have_reachable_and_authoring_pairs(self):
         body = self._body()
         self.assertIn("only %d are reachable" % D["reachable"], body)
-        self.assertIn("%d agents in the twelve authoring skills" % D["authoring_agents"], body)
+        self.assertIn("%d agents in the nine authoring skills" % D["authoring_agents"], body)
 
     def test_discoverability_bullet_skill_count(self):
         body = self._body()
@@ -436,21 +437,23 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         """The count in words, level with the directories on disk. It reached
         32 by adding `/acs:review-code` and dropping the `test` alias, then 30
         when ADR-0104 removed `/acs:metrics` and `/acs:usage`, then 29 when the
-        conventions settings and `/acs:install-hooks` went; the word is
-        pinned here because prose is where a count goes stale."""
+        conventions settings and `/acs:install-hooks` went, then 25 when
+        ADR-0118 removed `/acs:project`, its two legs and
+        `/acs:create-requirements`; the word is pinned here because prose is
+        where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-nine skills", body)
-        self.assertEqual(D["n_skills"], 29)
+        self.assertIn("Twenty-five skills", body)
+        self.assertEqual(D["n_skills"], 25)
         for stale in ("Twenty-three skills", "Twenty-seven skills", "Thirty-two skills",
                       "Thirty skills"):
             self.assertNotIn(stale, body)
-        self.assertNotIn("Twenty-five skills", body)
+        self.assertNotIn("Twenty-nine skills", body)
 
-    def test_twelve_authoring_list_intact(self):
+    def test_authoring_list_intact(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
         self.assertNotIn("Nine **workflow/product skills**", body)
         self.assertNotIn("Eleven **workflow/product skills**", body)
-        self.assertIn("twelve **authoring skills**", body)
+        self.assertIn("nine **authoring skills**", body)
         self.assertNotIn("triad", body)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, body)

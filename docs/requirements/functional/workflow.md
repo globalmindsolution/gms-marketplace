@@ -341,12 +341,11 @@ Done.
 ## Inside each step: Reflection
 
 Each skill spawns only the subagents its own logic needs, each named for
-the work it does (ADR-0109). The twelve **authoring** skills and `/acs:create-docs` MUST
+the work it does (ADR-0109). The nine **authoring** skills and `/acs:create-docs` MUST
 internally run a **write → judge** cycle with a dedicated subagent per role
-(e.g. `docs-sync-doc-updater`, `docs-sync-drift-reviewer`); `create-prd` and
-`create-requirements` add a read-only `surveyor`, and `standardize-project`
-an `auditor`, that run on iteration 1 only and freeze the notes the writer
-works from. No skill has a plan phase before its writer (ADR 0092): a writer
+(e.g. `docs-sync-doc-updater`, `docs-sync-drift-reviewer`); `create-prd`
+adds a read-only `surveyor` that runs on iteration 1 only and freezes the
+notes the writer works from. No skill has a plan phase before its writer (ADR 0092): a writer
 with no survey role before it surveys first and records the survey in
 `iter-<n>/authoring.md`, which the judge judges the deliverable against.
 `/create-impl-plan`'s `planner` authors the plan on every run (ADR-0095
@@ -566,11 +565,11 @@ markdown file per feature area):
   same changeset, same induction as the architecture doc set; the
   `/acs:review-code`'s documentation lens blocks a behavioral change whose
   requirements file was not updated.
-- The set grows organically from ticket #1 — OR is bootstrapped in one run
-  via `/acs:create-requirements` (brownfield reverse-engineer, greenfield
-  elicit, or amend an existing set); either way, `/code`'s documentation step
-  continues to accrete acceptance criteria and behavior-defining
-  clarifications into the touched area file afterward. Brownfield
+- The set grows organically from ticket #1: `/code`'s documentation step
+  accretes acceptance criteria and behavior-defining clarifications into the
+  touched area file. acs does not bootstrap the set in one run
+  ([ADR-0118](../../adr/0118-discovery-design-development-phases.md)); a set a
+  repo already keeps is optional context its readers use. Brownfield
   repos MAY seed area files during `/create-prd`'s baseline analysis.
 
 ## Starting a fresh product
@@ -586,10 +585,13 @@ ticket:
    product-level NFRs, constraints; shipped as the PRD doc set.
 3. **`/create-architecture`** — design the system to satisfy the PRD;
    produce the full system design (HLD + LLD).
-4. **`/create-project`** — scaffold the repo skeleton from that
-   architecture: layout, build, **test framework + coverage tooling**,
-   linters, CI, and a minimal green vertical slice. Without this, the
-   `/code` TDD gates have no harness to run against.
+4. **`/create-ticket "Scaffold the repository per the architecture docs"`**,
+   then **`/ship`** it — the repo skeleton is ordinary ticket work
+   ([ADR-0118](../../adr/0118-discovery-design-development-phases.md)):
+   layout, build, **test framework + coverage tooling**, linters and a
+   minimal green vertical slice, planned and implemented from that
+   architecture like any other ticket. Without this, the `/code` TDD gates
+   have no harness to run against. The CI gates come from `/setup`.
 5. **`/create-ticket`** — typically an MVP **epic** derived from the PRD
    roadmap, created childless; its `/create-design` then runs; then
    `/acs:create-ticket <epic-id> --fan-out` mints the child stories/tasks
@@ -597,12 +599,13 @@ ticket:
 6. **`/ship`** each child through the pipeline; **`/merge-pr`** after your
    own review.
 
-Each product-level step (2–4) creates its own **delivery ticket** and PR
+Each product-level step (2–3) creates its own **delivery ticket** and PR,
+and the scaffold (4) is a ticket of its own with its own PR
 ([skills.md](skills.md#product-level-delivery-tickets)), so even the
 bootstrap work is tracked in project management — a fresh product's history
 starts at ticket #1.
 
 From then on the product is effectively brownfield: the pipeline maintains
 the architecture docs as changes land, the PRD is amended via `/create-prd`
-re-runs (each amendment a new ticket) when scope grows, and
-`/create-project` is never needed again.
+re-runs (each amendment a new ticket) when scope grows, and the scaffold
+ticket is never needed again.

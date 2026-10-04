@@ -92,17 +92,16 @@ _PROJECT_RESPONSES = {
 # create-api-contract, create-test-docs, create-e2e-tests); `run-e2e-tests`
 # (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
 # for one release as the alias directory.
-HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
-                 "create-docs", "create-requirements", "create-ticket",
+HOOKED_SKILLS = ["create-prd", "create-architecture",
+                 "create-docs", "create-ticket",
                  "create-design", "analyze-requirements", "create-impl-plan",
                  "create-api-contract", "create-test-docs", "code",
                  "review-code", "run-e2e-tests",
                  "docs-sync", "create-e2e-tests", "create-pr",
-                 "merge-pr", "standardize-project"]
+                 "merge-pr"]
 # The unhooked skills, mirroring acs_lib.UNHOOKED_SKILLS (a second,
 # separately maintained copy by design -- this module never imports the
-# registry for it). `project` is the design-phase fold's umbrella over the
-# two project legs: no agents, no gate, no hook scripts.
+# registry for it).
 # `code`'s four delivery-path legs (ADR-0095). They are hooked -- each is a real
 # Skill call and passes `code`'s own gate -- but they are NOT in HOOKED_SKILLS:
 # that list drives the per-skill lifecycle-script assertions, and a leg runs
@@ -112,8 +111,7 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 # skills/code/references/.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 ALL_SKILLS = (HOOKED_SKILLS + CODE_PATH_LEGS
-              + ["setup", "ship", "handoff", "update", "release",
-                 "project"])
+              + ["setup", "ship", "handoff", "update", "release"])
 #: Every role acs spawns, and its kind (survey / write / judge).
 ROLES = list(lib.AGENT_ROLES)
 ROLE_KINDS = dict(lib.ROLE_KINDS)
@@ -126,7 +124,6 @@ ROLE_KINDS = dict(lib.ROLE_KINDS)
 EXPECTED_AGENTS = {
     "analyze-requirements": ["analyst", "impact-analyst", "impact-reviewer"],
     "create-prd": ["surveyor", "author", "reviewer"],
-    "create-requirements": ["surveyor", "author", "reviewer"],
     "create-architecture": ["architect", "reviewer"],
     "create-design": ["designer", "design-reviewer"],
     "create-docs": ["author", "reviewer"],
@@ -137,8 +134,6 @@ EXPECTED_AGENTS = {
     "review-code": ["lens", "adjudicator"],
     "create-e2e-tests": ["test-writer", "suite-runner"],
     "docs-sync": ["doc-updater", "drift-reviewer"],
-    "create-project": ["scaffolder", "build-checker"],
-    "standardize-project": ["auditor", "scaffolder", "additive-checker"],
 }
 
 # Which agent roles each skill owns -- READ FROM THE TREE (ADR-0092), and
@@ -866,8 +861,8 @@ class TestApplyTierInline(unittest.TestCase):
         """AC-6: workflow/product skills must still reference the subagents
         they own -- every role EXPECTED_AGENTS names for them, by its
         namespaced agent name -- and never a generic executor/verifier."""
-        for skill in ("create-impl-plan", "create-prd", "create-requirements", "docs-sync",
-                      "create-design", "create-architecture", "create-project"):
+        for skill in ("create-impl-plan", "create-prd", "docs-sync",
+                      "create-design", "create-architecture"):
             body = read(self.skill_path(skill))
             self.assertIsNone(
                 re.search(r"acs:" + skill + r"-(?:executor|verifier)\b", body),
@@ -1031,12 +1026,11 @@ class TestCreatePrConventionWiring(unittest.TestCase):
 
 class TestProductSkillConventionWiring(unittest.TestCase):
     """MAR-72 spec 03: pin the identical deterministic-render + pre-open
-    self-check wiring across create-prd, create-architecture, and
-    create-project. Structurally parallel to TestCreatePrConventionWiring
+    self-check wiring across the product skills. Structurally parallel to TestCreatePrConventionWiring
     (spec 02) so the two read as a matched pair. Additive only. Written
     TDD-first (RED before Spec 03's SKILL.md edits land)."""
 
-    SKILLS = ("create-prd", "create-architecture", "create-project", "create-docs")
+    SKILLS = ("create-prd", "create-architecture", "create-docs")
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -1088,15 +1082,6 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         self.assertIn("gh label create ACS", body)
         self.assertIn("{number, url, branch}", body)
         self.assertIn("in_review", body)
-
-    def test_no_regression_create_project(self):
-        body = read_skill_contract("create-project")
-        self.assertIn("push -u origin", body)
-        self.assertIn("gh label create ACS", body)
-        self.assertIn("states.pr", body)
-        self.assertIn("gh pr checks", body)
-        self.assertIn("--watch", body)
-
 
 #: `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/references/<file>.md` as a SKILL.md
 #: writes it — the one spelling that resolves wherever the plugin is installed.
@@ -3279,9 +3264,9 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **30 agents**", body,
+        self.assertIn("— **22 agents**", body,
                       "c4-component.md must count the reflection-loop "
-                      "skills' agents (ADR-0109: 30 = 33 files less code's "
+                      "skills' agents (ADR-0109: 22 = 25 files less code's "
                       "implementer and review-code's two roles)")
         self.assertNotIn("8 active triads (24 agents)", body,
                          "c4-component.md must not retain the stale "
@@ -3293,10 +3278,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **30 agents**")
+        triad_idx = body.index("— **22 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("33 agent files, all reachable", window,
-                      "c4-component.md must read '33 agent files, all reachable' "
+        self.assertIn("25 agent files, all reachable", window,
+                      "c4-component.md must read '25 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3419,7 +3404,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **30 agents**", body,
+        self.assertIn("— **22 agents**", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143/MAR-160)")
@@ -3433,10 +3418,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **30 agents**")
+        triad_idx = body.index("— **22 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("33 agent files, all reachable", window,
-                      "c4-component.md must advance to '33 agent files, all reachable' "
+        self.assertIn("25 agent files, all reachable", window,
+                      "c4-component.md must advance to '25 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,

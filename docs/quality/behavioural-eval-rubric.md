@@ -3,14 +3,14 @@
 What an artifact-level eval must assert to count as evidence, and what makes
 one green.
 
-The layers below this one are cheap and already complete: structure is 28 of
-32, gating 17 of 17 hooked, routing 32 of 32 (enforced mechanically by
+The layers below this one are cheap and already complete: structure is 25 of
+25, gating 16 of 16 hooked, routing 25 of 25 (enforced mechanically by
 `tests/evals/check_cases.py`, run locally). They prove that a skill *ships*,
 that it *refuses* what it must, and that a request *reaches* it. None of them
 proves it **produced the right thing** — and that is the only layer a user
 would notice missing.
 
-Behavioural coverage is **2 of 32** (`create-ticket`, `code`), as artifact
+Behavioural coverage is **2 of 25** (`create-ticket`, `code`), as artifact
 cases under `plugins/acs/evals/artifacts/` — and neither has yet completed end
 to end (see that folder's README). `create-pr` had a third, a forge-tier
 scenario against a live GitHub remote; it went with the retired behavioural
@@ -81,9 +81,9 @@ So: if a prompt says "the code change is done", the scaffold must commit a
 change. If it says "this repo has no tooling", the workspace must be bare. A
 case whose presupposition is false measures the scaffold, not the skill.
 
-**Three routing cases break this rule today**, knowingly:
-`route-create-design`, `route-create-requirements` and `route-docs-sync` each
-presuppose context (an epic ticket, an existing codebase, a finished change)
+**Two routing cases break this rule today**, knowingly:
+`route-create-design` and `route-docs-sync` each
+presuppose context (an epic ticket, a finished change)
 and run in an empty workspace. Each case's `description` records it as a known
 confound. Seeding them is the fix; until then a miss on one of them is not
 evidence against its description.

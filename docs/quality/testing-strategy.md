@@ -18,9 +18,9 @@ deterministic at the base, most expensive and least deterministic at the top.
 | 2 | Deterministic layer | gates block/advance, state/locks/counters, helper CLIs | free, deterministic | Every module that imports the shared `acs_case` fixture (`tests/acs/acs_case.py`) — **23** modules; re-derive with `grep -lE "^(import|from) acs_case" tests/acs/*.py` (a bare `grep -l acs_case` over-counts: `test_testing_conventions_guard.py` and `test_coverage_measurement_config.py` mention the fixture in prose without importing it): [`test_acs_case_fixture.py`](../../tests/acs/test_acs_case_fixture.py), [`test_acs_lib_gates.py`](../../tests/acs/test_acs_lib_gates.py), [`test_acs_lib_hook_entrypoints.py`](../../tests/acs/test_acs_lib_hook_entrypoints.py), [`test_acs_lib_settings.py`](../../tests/acs/test_acs_lib_settings.py), [`test_acs_lib_state_locks.py`](../../tests/acs/test_acs_lib_state_locks.py), [`test_acs_plugin.py`](../../tests/acs/test_acs_plugin.py), [`test_clarify.py`](../../tests/acs/test_clarify.py), [`test_codeowners.py`](../../tests/acs/test_codeowners.py), [`test_doc_bootstrap_fanout_legs.py`](../../tests/acs/test_doc_bootstrap_fanout_legs.py), [`test_epic_fan_out_mode.py`](../../tests/acs/test_epic_fan_out_mode.py), [`test_handoff.py`](../../tests/acs/test_handoff.py), [`test_needs_design_epic_only.py`](../../tests/acs/test_needs_design_epic_only.py), [`test_new_ticket.py`](../../tests/acs/test_new_ticket.py), [`test_plan_approval.py`](../../tests/acs/test_plan_approval.py), [`test_planning_skills_registry.py`](../../tests/acs/test_planning_skills_registry.py), [`test_skill_start.py`](../../tests/acs/test_skill_start.py), [`test_ticket_id_reconciliation.py`](../../tests/acs/test_ticket_id_reconciliation.py), [`test_workspace_migrator.py`](../../tests/acs/test_workspace_migrator.py) (`test_testing_conventions_guard.py` deliberately does not import it — see its own docstring). The parallelism kernel (ADR-0110) is pinned by [`test_parallelism.py`](../../tests/acs/test_parallelism.py), which builds on `test_file_map_guard.FileMapGuardCase` instead: `acs notes merge` (heading merge, slice ids, a missing slice fails), `slice=` snapshots, parallel groups in the ledger (I1/I2, `due`), and the file-map guard with several writers live. `AcsWorkspaceCase.setUp` seeds a *reconciled* `counters.json` (MAR-402); a test that needs the reconciliation refusal calls `unreconcile()` first. | every PR |
 | 3 | Static validation | JSON / JSON-Schema / XSD parse, byte-compile, version consistency | free, deterministic | [ci.yml](../../.github/workflows/ci.yml) | every PR |
 | 4 | Eval-suite structure and grader calibration | every eval case is well-formed and every shipped skill has a routing case; every free setup and artifact grader passes an ideal run and fails a bad one; the gate's judgement is itself tested — all caught before a paid run discovers it | free, deterministic, **local only** (ADR-0108) | [`tests/evals/`](../../tests/evals/) — `check_cases.py`, `check_grader_calibration.py`, `check_gate.py`, `check_probe_expectations.py` | the `acs-eval-checks` pre-commit hook, and the release gate's first step |
-| 5 | Routing evals | the *right skill fires* first for a natural-language request, internal legs do not, and a request answered in prose fires nothing | paid (one-turn runs, about $0.075 each), non-deterministic — 10 runs a case, judged per skill (9/10) and suite (99/100) by `scripts/eval_gate.py` ([ADR-0107](../adr/0107-routing-gated-by-skill-not-by-prompt.md), [ADR-0111](../adr/0111-routing-gate-ten-phrasings-ten-runs.md), [ADR-0112](../adr/0112-routing-suite-rate-99-percent.md)) | [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) — 258 `claude plugin eval` cases, ten phrasings per described skill | pre-release gate |
+| 5 | Routing evals | the *right skill fires* first for a natural-language request, internal legs do not, and a request answered in prose fires nothing | paid (one-turn runs, about $0.075 each), non-deterministic — 10 runs a case, judged per skill (9/10) and suite (99/100) by `scripts/eval_gate.py` ([ADR-0107](../adr/0107-routing-gated-by-skill-not-by-prompt.md), [ADR-0111](../adr/0111-routing-gate-ten-phrasings-ten-runs.md), [ADR-0112](../adr/0112-routing-suite-rate-99-percent.md)) | [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) — 224 `claude plugin eval` cases, ten phrasings per described skill | pre-release gate |
 | 6 | Artifact evals | a *real run* writes the right workspace state | paid (costly), non-deterministic | [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md) — 2 cases, `--tag artifacts --scaffold` | on demand |
-| 7 | Runtime reflection judge | each individual run's output is correct (in-band, per-run) | part of normal use | the write → judge cycle inside every authoring skill (its reviewer, plan-reviewer, build-checker, …) and `/acs:review-code` for `/acs:code` | every real invocation |
+| 7 | Runtime reflection judge | each individual run's output is correct (in-band, per-run) | part of normal use | the write → judge cycle inside every authoring skill (its reviewer, plan-reviewer, suite-runner, …) and `/acs:review-code` for `/acs:code` | every real invocation |
 | 8 | Dogfooding (E3) | end-to-end quality under real use | the cost of using acs | shipping acs changes via `/acs:ship` | ongoing |
 | 9 | LLM-as-judge *(not built)* | subjective quality — is the PRD/design *sound*? | paid + noisy | future | pre-release for product skills |
 
@@ -59,31 +59,29 @@ the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
 nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
 [`acs_lib/_common.py:28-54`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
-into **19 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
+into **16 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and the subagent roles its `agents/<skill>-<role>.md`
-files name, when it owns any) and **6 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
+files name, when it owns any) and **5 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
 four delivery-path legs, which are gated as their entry point and own neither
 scripts nor agents (ADR-0095). Re-derive with `ls -1 plugins/acs/skills | wc -l`
-(→ `29`) and a Python one-liner importing `acs_lib` and printing
-`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `19 6`).
+(→ `25`) and a Python one-liner importing `acs_lib` and printing
+`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `16 5`).
 
 Each column below is a **rule**, applied mechanically — a cell is derived,
 never hand-picked:
 
 - **Structure (1)** — the skill's `SKILL.md` is asserted by
   `test_skill_contracts.py` (its `ALL_SKILLS` list at `:106`, asserted against
-  the skills directory at `:141`) → 29 of 29.
-- **Gate (2)** — the skill has a registered gate function in `acs_lib.GATES`
-  → 19 of 19 hooked, pinned by `tests/acs/test_producer_skill_gates.py:42-47`
-  (`test_all_hooked_skills_have_a_gate`, a per-hooked-skill
-  `assertIn(skill, acs_lib.GATES)` loop); the 7 unhooked have none by
-  construction, closed by `tests/acs/test_release_skill_registry.py:94`
-  (`assertEqual(len(acs_lib.GATES), 19)` — with the loop above proving
-  `GATES` ⊇ the 19 hooked skills, an equal count pins it to exactly that
-  set) and `:71-72`, which separately confirms one such skill (`release`)
-  is absent from `GATES`.
+  the skills directory at `:141`) → 25 of 25.
+- **Gate (2)** — the skill is in `acs_lib.HOOKED_SKILLS`, so `dispatch.py`
+  runs its gate → 16 of 16 hooked, the count pinned by
+  `tests/acs/test_release_skill_registry.py` (`test_hooked_skills_count`,
+  beside `test_unhooked_skills_count`); the 5 unhooked have none by
+  construction, and `test_release_is_not_gated` separately confirms one such
+  skill (`release`) is not gated. `/acs:code`'s four legs are gated as `code`
+  itself (`LEG_ENTRY_POINTS`).
 - **Trigger (5)** — the skill has a routing case under
-  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 29 of 29.
+  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 25 of 25.
   This column is no longer maintained by hand: `tests/evals/check_cases.py`'s
   `CoverageTest` fails when any shipped skill lacks a routing case, or any case
   names a skill that does not ship, so running that module IS the check. Its
@@ -103,18 +101,19 @@ never hand-picked:
   `/acs:create-docs` could not start one of its four doc legs and
   `/acs:project` could not start either of its two. The four doc legs were
   then folded into `/acs:create-docs` outright (ADR 0094), which is probed by
-  description like any other skill. The two legs that remain —
-  `create-project`, `standardize-project` — are probed by explicit command,
-  for a different reason: a user invokes a leg directly to resume an
-  interrupted delivery ticket, so that command must keep resolving. What
-  steers a plain description to the entry point instead is the leg's
-  **description** ("Internal leg of /acs:<entry>, not a user-facing
-  command"), and the `negative` routing cases measure exactly that.
+  description like any other skill, and `/acs:project` and its two legs were
+  removed by ADR-0118. The internal legs that remain — `/acs:code`'s four
+  delivery paths — are probed by explicit command, for a different reason:
+  the plan's recorded path picks the leg, so no description should ever reach
+  one, yet the command must keep resolving. What steers a plain description
+  to the entry point instead is the leg's **description** ("Dispatched by
+  /acs:code …; never chosen by hand"), and the `negative` routing cases
+  measure exactly that.
   `tests/acs/test_skill_contracts.py` now fails if any skill a `Skill(acs:…)`
   call names is made non-invocable again.
 - **Artifact (6)** — an artifact case under
   [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md)
-  asserts that skill's own workspace state → 2 of 29: `create-ticket`
+  asserts that skill's own workspace state → 2 of 25: `create-ticket`
   (`create-ticket-artifacts`) and `code` (`resume-and-verify`). Both are marked
   † below: their seeds are verified by hand, but neither case has yet completed
   end to end — in the container this suite was built in, Bash is non-functional
@@ -122,22 +121,19 @@ never hand-picked:
   live GitHub remote; it went with the behavioural harness, and the eval
   sandbox's network rules cannot reach GitHub, so it has no replacement.
 
-**Hooked (12)**
+**Hooked (9)**
 
 | Skill | Structure (1) | Gate (2) | Trigger (5) | Artifact (6) |
 |-------|:---:|:---:|:---:|:---:|
 | `create-prd` | ✅ | ✅ | ✅ | — |
 | `create-architecture` | ✅ | ✅ | ✅ | — |
-| `create-project` | ✅ | ✅ | ✅ | — |
 | `create-docs` | ✅ | ✅ | ✅ | — |
-| `create-requirements` | ✅ | ✅ | ✅ | — |
 | `create-ticket` | ✅ | ✅ | ✅ | ✅† |
 | `create-design` | ✅ | ✅ | ✅ | — |
 | `code` | ✅ | ✅ | ✅ | ✅† |
 | `docs-sync` | ✅ | ✅ | ✅ | — |
 | `create-pr` | ✅ | ✅ | ✅ | — |
 | `merge-pr` | ✅ | ✅ | ✅ | — |
-| `standardize-project` | ✅ | ✅ | ✅ | — |
 
 † the case exists and its seed is verified, but it has not yet completed end to
 end (see "Artifact (6)" above).
@@ -167,19 +163,20 @@ network rules do not reach. They were covered — `create-pr` partly, since its
 scenario skipped without an onboarded target — by a forge tier in the retired
 behavioural harness. The other `—` cells are the gap itself.
 
-**Structure is complete: 29 of 29** (`test_skill_contracts.py:141` pins the
+**Structure is complete: 25 of 25** (`test_skill_contracts.py:141` pins the
 on-disk set against the `ALL_SKILLS` literal at
 `test_skill_contracts.py:106`, not against `acs_lib` — and no test pins this
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
-**Gating is complete for what can be gated: 19 of 19 hooked skills**; the other
-11 are n/a by construction — no `pre-*.py`/`GATES` entry exists for them, and
-none should. **Routing covers 29 of 29** — 254 routing cases in all (240 by
-description, ten phrasings for each of 24 skills; 8 by explicit command; 6
-negative) plus four off-domain controls, and `tests/evals/check_cases.py`
-(local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 29 of 29 skills but run for none**
+**Gating is complete for what can be gated: 16 of 16 hooked skills**; the other
+9 are n/a by construction — no `pre-*.py` exists for them (the four `code`
+legs run `code`'s), and none should. **Routing covers 25 of 25** — 220 routing
+cases in all (211 by description, ten phrasings for each of 21 skills and an
+eleventh for `setup`; 5 by explicit command; 4 negative) plus four off-domain
+controls, and `tests/evals/check_cases.py`
+(local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 25 of 25 skills but run for none**
 ([ADR-0113](../adr/0113-behaviour-case-per-skill-with-baselines.md)): every
 skill has 2–7 behaviour cases, one per documented mode, branch and refusal
-(105 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
+(87 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
 cases), each shape-checked and calibrated for free and
 carrying its `baseline` criteria, but none has completed end to end or recorded
 its reference transcript — they need a host where Claude Code's Bash sandbox

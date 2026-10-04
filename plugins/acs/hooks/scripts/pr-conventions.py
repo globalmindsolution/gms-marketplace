@@ -2,7 +2,7 @@
 """pr-conventions.py — pre-open convention self-check for a PR body.
 
 Gives /acs:create-pr and the product-level skills (/acs:create-prd,
-/acs:create-architecture, /acs:create-project) a deterministic way to:
+/acs:create-architecture, /acs:create-docs) a deterministic way to:
 
   check         Self-check a filled PR body BEFORE the PR is opened against
                 exactly what CI will check -- that it names its ticket

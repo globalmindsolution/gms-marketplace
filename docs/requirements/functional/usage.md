@@ -51,13 +51,15 @@ Setup writes only what differs from a default, to the committed
 ### Fresh product (greenfield)
 
 Same as above, but `/create-prd` and `/create-architecture` *elicit* instead
-of reverse-engineer, and one extra step scaffolds the repo:
+of reverse-engineer, and one extra ticket scaffolds the repo — ordinary ticket
+work, no skill of its own (ADR-0118):
 
 ```text
-/create-project        # layout per the C4 containers, build config,
-                       #   test framework + coverage tooling, lint, CI,
+/create-ticket "Scaffold the repository per the architecture docs"
+                       # → SHOP-3: layout per the C4 containers, build config,
+                       #   test framework + coverage tooling, lint,
                        #   minimal green vertical slice
-                       # → delivery ticket SHOP-3, bootstrap PR (CI runs on it)
+/ship SHOP-3           # analysis → plan → code → review → PR
 /merge-pr SHOP-3
 ```
 

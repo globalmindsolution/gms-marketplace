@@ -304,7 +304,7 @@ class CoverageTest(unittest.TestCase):
 
     #: Skills added by the docs-set fold, which must expect themselves rather
     #: than the entry point that used to answer for them.
-    NEW_CASES = {"create-docs", "create-requirements", "docs-sync"}
+    NEW_CASES = {"create-docs", "docs-sync"}
 
     #: Shipped skills with no routing case, each for a stated reason. Empty,
     #: and it should stay empty.

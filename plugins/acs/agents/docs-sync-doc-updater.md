@@ -64,8 +64,8 @@ the artifacts alone.
    target area file's body must instead be written to that file's companion
    `.evidence.md` sidecar (`<doc-basename-without-.md>.evidence.md`, created
    if absent), keyed to the merged clause's stable anchor — the SAME
-   convention `create-requirements-author.md` follows, reused rather than
-   forked. A target area file with zero in-scope citations from this merge
+   convention ADR-0064 defines (the one `create-architecture-architect`
+   follows), reused rather than forked. A target area file with zero in-scope citations from this merge
    gets no sidecar.
 
    **When the notes name an `architecture_dir`/`adr_dir` doc-delta item:**

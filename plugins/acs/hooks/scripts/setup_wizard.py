@@ -633,7 +633,7 @@ def apply(cwd, answers, dry_run=False):
     return out
 
 
-from setup_wizard_commands import (PIPELINE_ORDER, SETUP_LABELS,  # noqa: E402,F401
+from setup_wizard_commands import (GREENFIELD_SCAFFOLD_STEP, PIPELINE_ORDER, SETUP_LABELS,  # noqa: E402,F401
                                    delivery_steps, render_labels,
                                    render_next_steps, render_protect)
 

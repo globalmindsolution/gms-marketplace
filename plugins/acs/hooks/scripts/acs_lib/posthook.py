@@ -302,7 +302,7 @@ def run_post(skill):
             % (skill, key, was, now, notes.get(key, "derived")))
 
     # The RUN transition, only for a step the workflow names. A skill invoked
-    # on its own -- `standardize-project`, the product skills -- has step state
+    # on its own -- the product skills -- has step state
     # but no position in a run, and I5 refuses a `steps` entry that the
     # workflow does not name. The two machines are separate, which is what
     # lets the invocation above be recorded either way.

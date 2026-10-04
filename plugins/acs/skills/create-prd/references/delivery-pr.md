@@ -2,19 +2,16 @@
 
 Open this at the **Push & PR** step of any product-level skill that ships its
 work on its own delivery ticket: `/acs:create-prd`, `/acs:create-architecture`,
-`/acs:create-docs`, `/acs:create-project`, `/acs:standardize-project`. Each of
-them reaches this same point by a different route and leaves it the same way,
-so the mechanics live here once rather than five times.
+`/acs:create-docs`. Each of them reaches this same point by a different route
+and leaves it the same way, so the mechanics live here once rather than three
+times.
 
 **What this file does NOT decide**, because it genuinely differs per skill and
 getting it wrong is how a delivery PR goes bad:
 
-- **What to stage.** Each skill scopes its own commit — one doc tree, one doc
-  set's path, the whole scaffold, or exactly the allowlist a checker
-  confirmed. `/acs:create-project` stages `git add -A` because a scaffold is
-  new files by definition; `/acs:standardize-project` explicitly forbids that
-  same command, because a broad add would sweep up source it is not allowed to
-  touch. Those two rules contradict each other on purpose. Take your own.
+- **What to stage.** Each skill scopes its own commit — one doc tree, or one
+  doc set's path. Never a broad `git add -A`: it would sweep up files the skill
+  did not write. Take your own skill's rule.
 - **The branch and its slug**, which your skill renders from
   `<type>/<ticket_id>-<slug>` rule before its first writing subagent runs.
 - **Anything your skill does after the PR is open** — watching CI, appending a

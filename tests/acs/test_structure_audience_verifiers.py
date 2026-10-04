@@ -12,7 +12,7 @@ register mismatch; a coordinator-recorded waiver via
 block). ADR 0057's advisory carve-out sentences ("except the advisory" /
 "except the sanctioned") are reversed in every producer charter.
 
-create-project stays N/A (AC-3) — locked here by a negative test.
+create-project was N/A (AC-3) until ADR-0118 removed it.
 create-design/SKILL.md is unchanged (clarification C-1): it has no advisory
 carve-out to reverse, only the `audience_style_profile` declaration, which
 stays.
@@ -42,8 +42,6 @@ DOCS = os.path.join(REPO_ROOT, "docs")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 
-CREATE_PROJECT_VERIFIER = os.path.join(AGENTS, "create-project-build-checker.md")
-CREATE_PROJECT_SKILL = os.path.join(SKILLS, "create-project", "SKILL.md")
 CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
 
 ADR_0063 = os.path.join(
@@ -83,26 +81,13 @@ VERIFIERS = {
             "consistency",
         ),
     ),
-    "create-requirements-reviewer.md": (
-        "Interactive-confirm discipline",
-        (
-            "Required-file-presence", "Mode-conformance", "Authoring-conformance",
-            "Iteration 2+ regression check",
-            "Coverage (≥90%, 0 silent omissions)", "Citation (100%)",
-            "DRAFT marker", "No-fabrication",
-            "Functional/non-functional routing spot-check",
-            "Augment-only-absent / no-overwrite",
-            "Interactive-confirm discipline", "structure", "audience-style",
-        ),
-    ),
 }
 
 # every audience-style-gated verifier: the 5 producers (create-docs judges all four doc sets).
 AUDIENCE_VERIFIERS = list(VERIFIERS)
 
 # SKILL.md name -> whether it uses per-file required_sections:<file> constraints.
-# The 7 MAR-138 prose skills whose declarations MAR-150 leaves untouched
-# (create-requirements declares its sections differently).
+# The MAR-138 prose skills whose declarations MAR-150 leaves untouched.
 SKILLS_MULTI_FILE = {
     "create-prd": False,
     "create-architecture": True,
@@ -304,34 +289,6 @@ class DesignCompletenessDiagramUntouchedTest(unittest.TestCase):
             "   or changed runtime flow named by the ticket and plan",
             block,
         )
-
-
-class CreateProjectNegativeTest(unittest.TestCase):
-    """AC-3: create-project is explicitly N/A — no structure dimension, no
-    audience-style dimension, no structure_lint.py reference, and its SKILL.md
-    declares neither required_sections nor audience_style_profile."""
-
-    def test_verifier_has_no_structure_lint_reference(self):
-        body = read(CREATE_PROJECT_VERIFIER)
-        self.assertNotIn("structure_lint.py", body)
-
-    def test_verifier_has_no_structure_or_audience_style_dimension(self):
-        body = read(CREATE_PROJECT_VERIFIER)
-        self.assertFalse(dimension_present(body, "structure"))
-        self.assertFalse(dimension_present(body, "audience-style"))
-
-    def test_all_eleven_pre_existing_dimensions_untouched(self):
-        body = read(CREATE_PROJECT_VERIFIER)
-        for label in ("build", "lint", "tests", "coverage-tooling", "vertical-slice",
-                       "layout", "tech-stack", "ci", "pre-commit", "repo-hygiene",
-                       "plan-conformance"):
-            with self.subTest(dimension=label):
-                self.assertTrue(dimension_present(body, label))
-
-    def test_skill_declares_neither_constraint(self):
-        body = read(CREATE_PROJECT_SKILL)
-        self.assertNotIn("required_sections", body)
-        self.assertNotIn("audience_style_profile", body)
 
 
 class SkillDeclarationTest(unittest.TestCase):

@@ -278,8 +278,7 @@ lists, bootstrapped from `templates/<template_dir>/` into
 each file from its template verbatim, then lightly tailors it to the consumer's
 detected stack (read from the `architecture/` set, else from the repo and the
 user-confirmed ledger answers) and, for `standards`, to
-the stated principles when available — the same bootstrap-then-tailor shape
-`/acs:create-project` uses for its scaffold templates. Living parts (a
+the stated principles when available — bootstrap, then tailor. Living parts (a
 coverage ledger, a postmortem log) are explicitly out of scope: these files
 document strategy, policy, principles and standards, not a running log.
 

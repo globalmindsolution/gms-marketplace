@@ -6,5 +6,5 @@ flags: m
 ---
 
 The Output contract at the conventional default (no set existed): all eight
-HLD files -- project-structure.md included, the target /acs:create-project
-scaffolds from -- lld/contracts.md, and one flow file per confirmed flow.
+HLD files -- project-structure.md included, the layout a scaffold ticket
+builds from -- lld/contracts.md, and one flow file per confirmed flow.

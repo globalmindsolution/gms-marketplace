@@ -62,6 +62,24 @@ matching section here, and merge to `main` — the Release workflow tags
   `enforcement.pr_description_sections` are no longer declared in the schema
   (they are still accepted and ignored).
 
+### Removed
+
+- **⚠️ BREAKING: `/acs:project`, `create-project`, `standardize-project` and
+  `/acs:create-requirements` are removed (ADR-0118).** Their skills, agents, hooks,
+  eval cases and tests are gone, with the `project_mode` detector and the
+  `auditor`, `scaffolder`, `build-checker` and `additive-checker` roles. 29 skills
+  → 25 (hooked 19 → 16, unhooked 6 → 5, legs 6 → 4), 33 agent files → 25. The
+  `models` settings for the three hooked skills go with them. This is the first
+  step of the Discovery / Design / Development regrouping ADR-0118 sets out.
+  **Migration:** merge or close any open scaffold, standardization or requirements
+  PR by hand (`gh pr merge`) before upgrading — `/acs:merge-pr` no longer reads
+  those skills' state — and drop their entries from `models` in
+  `.acs/settings.json`. Scaffold a greenfield repo with `/acs:create-ticket
+  "Scaffold the repository per the architecture docs"` and `/acs:ship`; install
+  CI gates and the e2e templates with `/acs:setup`; write principles and
+  standards with `/acs:create-docs`. An existing `requirements/` set stays
+  readable context.
+
 ## [0.5.0] - 2026-09-30
 
 > ### ⚠️ v0.5.0 IS the implementation-pipeline redesign

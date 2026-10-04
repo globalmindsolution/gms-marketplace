@@ -158,7 +158,7 @@ class ArchitectureDocsTest(unittest.TestCase):
 
     def test_c4_component_places_create_docs_outside_the_triads(self):
         body = read(os.path.join(self.HLD, "c4-component.md"))
-        self.assertIn("**twelve authoring skills** and `create-docs` run a write → judge reflection", body)
+        self.assertIn("**nine authoring skills** and `create-docs` run a write → judge reflection", body)
         self.assertNotIn("every one of the fourteen runs execute→verify", body)
         self.assertNotIn("triad-keeping", body)
         self.assertNotIn("39 reachable", body)

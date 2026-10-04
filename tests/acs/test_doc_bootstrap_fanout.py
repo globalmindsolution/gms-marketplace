@@ -509,7 +509,7 @@ class RunSchemaProductStepsTest(unittest.TestCase):
     the enum -- a run has a SUBJECT now -- so the document below is a real
     one."""
 
-    PRODUCT_STEP_NAMES = ["create-docs", "create-requirements"]
+    PRODUCT_STEP_NAMES = ["create-docs", "create-prd"]
 
     def setUp(self):
         with open(SCHEMA_PATH, encoding="utf-8") as fh:

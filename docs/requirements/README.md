@@ -27,13 +27,13 @@ On conflict: the PRD wins on intent and prioritization; this set wins on
 behavior; the decision log records how each conflict was settled.
 Implementation conventions live in `plugins/acs/docs/` (INTERNALS, AUTHORING).
 
-This is the doc set acs mandates for every consumer repo as the **living
-requirements** (found in the repo, else `docs/requirements/` — ADR-0102): the
-current behavioral contract, accumulated ticket by ticket by the pipeline
-itself — or bootstrapped via `/acs:create-requirements`
-([functional/workflow.md](functional/workflow.md#living-requirements))
-— per-ticket specs are change-deltas that get archived, and tests encode how
-behavior is verified, not what was agreed. On this repo (acs dogfooding
+This is the shape of a consumer repo's **living requirements** (found in the
+repo, else `docs/requirements/` — ADR-0102): the current behavioral contract,
+accumulated ticket by ticket by the pipeline itself
+([functional/workflow.md](functional/workflow.md#living-requirements)). When
+a repo keeps such a set, its readers use it as optional context; acs no
+longer bootstraps one (ADR-0118). Per-ticket specs are change-deltas that get
+archived, and tests encode how behavior is verified, not what was agreed. On this repo (acs dogfooding
 itself) the set is hand-authored and doubles as the contract-test anchor;
 ticket-driven requirement changes land in these files.
 
@@ -108,9 +108,10 @@ actually enforce it.
    consumer repo and kept current by the pipeline — see
    [functional/workflow.md](functional/workflow.md#product-level-architecture).
 8. **Greenfield ready**: for a fresh product, the product-level skills
-   define the product (PRD), design its architecture, and scaffold the
-   project skeleton (test harness, CI, green vertical slice) before the
-   first ticket — see
+   define the product (PRD) and design its architecture, and the first
+   ticket scaffolds the project skeleton (test harness, green vertical
+   slice) through the ordinary pipeline, with `/setup` installing the CI
+   gates — see
    [functional/workflow.md](functional/workflow.md#starting-a-fresh-product).
 
 ## Target domains
@@ -145,7 +146,7 @@ other subfolder names keeps them).
 | Doc | Topic |
 |-----|-------|
 | [functional/workflow.md](functional/workflow.md) | The end-to-end 6-step workflow and step gating |
-| [functional/skills.md](functional/skills.md) | Per-skill requirements (`/setup`, `/ship`, `/handoff`, `/create-prd`, `/create-architecture`, `/create-project`, `/create-ticket`, `/create-design`, `/analyze-requirements`, `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`, `/code`, `/create-e2e-tests`, `/docs-sync`, `/run-e2e-tests`, `/create-pr`, `/merge-pr`) |
+| [functional/skills.md](functional/skills.md) | Per-skill requirements (`/setup`, `/ship`, `/handoff`, `/create-prd`, `/create-architecture`, `/acs:create-docs`, `/create-ticket`, `/create-design`, `/analyze-requirements`, `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`, `/code`, `/create-e2e-tests`, `/docs-sync`, `/run-e2e-tests`, `/create-pr`, `/merge-pr`) |
 | [functional/reflection.md](functional/reflection.md) | Coordinator–subagents pattern, Reflection (plan–execute–verify), dynamic decomposition, XML communication |
 | [functional/hooks.md](functional/hooks.md) | Pre/post hooks per skill: gating, exit codes, state writing |
 | [functional/configuration.md](functional/configuration.md) | `/setup` skill, `settings.json` scopes and keys |
@@ -170,6 +171,7 @@ Resolved questions, newest first. Details live in the linked docs.
 
 | Date | Decision |
 |------|----------|
+| 2026-10-04 | **Removed `/acs:project`, `create-project`, `standardize-project` and `create-requirements`** (ADR 0118). Scaffolding a greenfield repo is ordinary ticket work — `/acs:create-ticket "Scaffold the repository per the architecture docs"`, then `/acs:ship`; the CI gates and the e2e workflow/runner templates come from `/acs:setup`, and the principles and standards from `/acs:create-docs`. A repo's `requirements/` set, when present, stays optional context its readers use, but acs no longer produces it. Their agents, hooks, gates and eval cases went with them: 25 skills (16 hooked, 5 unhooked, `/acs:code`'s 4 legs) and 25 agent files, all reachable. See [functional/skills.md](functional/skills.md), [functional/workflow.md](functional/workflow.md#starting-a-fresh-product), [../adr/0118-discovery-design-development-phases.md](../adr/0118-discovery-design-development-phases.md). |
 | 2026-09-30 | **`/acs:analyze-requirements` runs on a controller** (ADR 0114). `acs.py analysis next` prints one action; the coordinator performs it and reports it with `acs.py analysis record-*`, which reads the `<result>` snapshots and artifacts itself — the pass, stall detection (an identical blocking set ends the run `stalled`), the cap of 3 and publication (`acs.py analysis publish`: byte-for-byte copy, docs-folder-only commit, never a push) are code. A malformed or missing result blocks without spending an iteration. The code-impact survey moved to its own agent, `analyze-requirements-impact-analyst`, one per code area. |
 | 2026-09-28 | **Every skill has a behaviour case, graded against a recorded baseline** (ADR 0113). 27 new cases under `plugins/acs/evals/behaviour/` bring behaviour coverage to every shipped skill; each is calibrated for free and states its `baseline` criteria, and `scripts/record_baseline.py` records the reference transcript a `baseline` grader needs. None has run yet: behaviour runs need a host where Claude Code's Bash sandbox starts. |
 | 2026-09-27 | **The routing suite rate is 99/100** (ADR 0112 — amends ADR 0111). Tuned descriptions route 716/720 description runs; the misses are the model looking at the repo before routing, which a 1.0 rate over ~2,400 runs can never absorb. Three-turn grading on the first Skill call, with and without a scaffolded workspace, measured worse and was not adopted. |

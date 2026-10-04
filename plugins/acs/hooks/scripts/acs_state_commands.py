@@ -609,7 +609,7 @@ def _require_step(wf, step, command):
     argparse enum that was the closed skill list in its fourth place.
 
     Returns True when the workflow names it. A skill the workflow does not name
-    is not an error: `/acs:standardize-project` and the product skills are real
+    is not an error: the product skills are real
     skills with real state, invoked on their own (§3.11). They keep their step
     state -- the two machines are separate, which is what makes this possible
     -- and record no run transition, because they have no position in a run and

@@ -39,8 +39,7 @@ from ._common import (DELIVERY_TICKET_SKILLS,
     DOC_BOOTSTRAP_SENTINEL, DOC_SET_DEFAULT_DIR, DOC_SET_TITLES, DOC_SETS,
     CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
     PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
-    PRODUCT_TICKET_TITLES, PROJECT_MODE_LEG, PROJECT_MODE_SENTINEL,
-    PROJECT_MODE_SETTINGS_KEY, PROJECT_MODES, ReconciliationRequired, TICKET_ID_RE,
+    PRODUCT_TICKET_TITLES, ReconciliationRequired, TICKET_ID_RE,
     TICKET_STATUSES, TICKET_TYPES, UNHOOKED_SKILLS, WORKFLOW_SKILLS, _ISO_INSTANT,
     _git, deep_merge, now_iso, parse_iso, plugin_root, read_json, slugify, write_json)  # noqa: F401
 
@@ -69,7 +68,7 @@ from .hostgates import (GATE_EVIDENCE_MAX_AGE_SECONDS, HOOK_ENFORCEMENTS,
 
 from .planrules import (PLAN_FILE_MAP_HEADING, RETIRED_PLAN_SECTIONS,
     _PLAN_HEADING_RE, _coverage_target_stated,
-    _plan_headings, classify_additive_diff, plan_approval_eligible)  # noqa: F401
+    _plan_headings, plan_approval_eligible)  # noqa: F401
 
 from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
     DIMENSIONS, PASSING_CONCLUSIONS, PENDING_STATES,
@@ -89,10 +88,10 @@ from .setup_helpers import (DOC_SET_ALL, DocSetRequest,
     TOOLCHAIN, _BARE_INT_RE,
     _FANOUT_FOR_RE, _LEGACY_FOR_NOTE, _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
     _pr_labels, _short_doc_set, _unknown_doc_set_note,
-    _sentinel_present, _soft_peers, _tool_version,
+    _soft_peers, _tool_version,
     canonical_doc_set, check_toolchain,
     classify_merge_pr_arg, doc_set_spellings, fanout_batches, missing_tools,
-    parse_doc_set_arg, parse_fanout_for_arg, project_mode,
+    parse_doc_set_arg, parse_fanout_for_arg,
     tracker_cli_warning, validate_exempt_pr)  # noqa: F401
 
 from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401

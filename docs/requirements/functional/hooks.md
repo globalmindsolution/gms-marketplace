@@ -64,8 +64,8 @@ is absent (ADR-0109).
   check either: no setting says where one lives, so the skill that reads it
   finds it at Start ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md))
   — `/create-architecture` works from the subject when there is no PRD;
-  `/create-project`, `/standardize-project` and `/acs:create-docs` stop
-  without the architecture set's `hld/tech-stack.md`.
+  `/acs:create-docs` stops without the architecture set's
+  `hld/tech-stack.md`.
 
 **2. Safety brakes** — refusals that protect correctness rather than
 sequence:
@@ -172,16 +172,13 @@ file in the workspace partition:
 
 ## Hook inventory
 
-Twenty hooked skills, each with one pre-hook and one post-hook:
+Sixteen hooked skills, each with one pre-hook and one post-hook:
 
 | Skill | Pre-hook | Post-hook | Post-hook writes |
 |-------|----------|-----------|------------------|
 | `/create-prd` | `pre-create-prd.py` | `post-create-prd.py` | `create-prd-state.json` |
-| `/create-requirements` | `pre-create-requirements.py` | `post-create-requirements.py` | `create-requirements-state.json` |
 | `/create-architecture` | `pre-create-architecture.py` | `post-create-architecture.py` | `create-architecture-state.json` |
-| `/create-project` | `pre-create-project.py` | `post-create-project.py` | `create-project-state.json` |
 | `/acs:create-docs` | `pre-create-docs.py` | `post-create-docs.py` | `create-docs-state.json` (one partition per doc set's delivery ticket) |
-| `/standardize-project` | `pre-standardize-project.py` | `post-standardize-project.py` | `standardize-project-state.json` |
 | `/create-ticket` | `pre-create-ticket.py` | `post-create-ticket.py` | `create-ticket-state.json` |
 | `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |
 | `/analyze-requirements` | `pre-analyze-requirements.py` | `post-analyze-requirements.py` | `analyze-requirements-state.json` |
@@ -189,8 +186,10 @@ Twenty hooked skills, each with one pre-hook and one post-hook:
 | `/create-api-contract` | `pre-create-api-contract.py` | `post-create-api-contract.py` | `create-api-contract-state.json` |
 | `/create-test-docs` | `pre-create-test-docs.py` | `post-create-test-docs.py` | `create-test-docs-state.json` |
 | `/code` | `pre-code.py` | `post-code.py` | `code-state.json` |
+| `/review-code` | `pre-review-code.py` | `post-review-code.py` | `review-code-state.json` |
 | `/docs-sync` | `pre-docs-sync.py` | `post-docs-sync.py` | `docs-sync-state.json` |
 | `/create-e2e-tests` | `pre-create-e2e-tests.py` | `post-create-e2e-tests.py` | `create-e2e-tests-state.json` |
+| `/run-e2e-tests` | `pre-run-e2e-tests.py` | `post-run-e2e-tests.py` | `run-e2e-tests-state.json` |
 | `/create-pr` | `pre-create-pr.py` | `post-create-pr.py` | `create-pr-state.json` |
 | `/merge-pr` | `pre-merge-pr.py` | `post-merge-pr.py` | `merge-pr-state.json` |
 
@@ -209,12 +208,9 @@ for an upstream artifact.
 | Skill | Baseline | Brakes |
 |-------|--------|--------|
 | `/create-prd` | — (only the baseline checks; no settings file needed) | — |
-| `/create-requirements` | — | — |
 | `/create-ticket` | — | — |
 | `/create-architecture` | — (the skill reads the PRD at Start when there is one, else works from the subject) | — |
-| `/create-project` | — (the skill itself checks for the architecture set's `hld/tech-stack.md` at Start) | — |
 | `/acs:create-docs` | — (the skill itself checks for the architecture set at Start, once for every doc set) | — |
-| `/standardize-project` | — (the skill itself checks for the architecture set at Start) | — |
 | `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
 | `/analyze-requirements` | ticket resolves | not an epic; lock free |
 | `/create-impl-plan` | ticket resolves | not an epic; lock free |

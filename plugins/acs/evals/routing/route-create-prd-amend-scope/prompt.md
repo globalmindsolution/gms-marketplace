@@ -1,6 +1,6 @@
 ---
 description: >-
-  Borrows the vocabulary of /acs:create-requirements on purpose -- it says
+  Borrows the vocabulary of /acs:analyze-requirements on purpose -- it says
   "requirements" -- while the request still belongs to this skill. It tests
   that the description, not a keyword, decides the route. Never names the
   skill.

@@ -65,9 +65,10 @@ class ReadmeSkillCountPinTest(unittest.TestCase):
 
     The design-phase entry-point fold moved the row half of this pin with the
     fact it pins. Before the fold every skill on disk was a `/acs:<name>`
-    command, so one `| `/acs:` row per directory was the whole truth. Six
-    skills are now INTERNAL LEGS (`acs_lib.skills.SKILL_LEGS`):
-    they keep their SKILL.md, agents, hooks and gate and stay Skill-invocable,
+    command, so one `| `/acs:` row per directory was the whole truth. Four
+    skills are now INTERNAL LEGS (`acs_lib.skills.SKILL_LEGS`; six until
+    ADR-0118 removed the two project legs):
+    they keep their SKILL.md and gate and stay Skill-invocable,
     but they are not commands a user runs, so the table renders them as legs
     (`| `<leg>` | `/acs:<entry point>` | …`) and not as commands. The pin is
     therefore: command rows == the on-disk set MINUS the legs, leg rows ==
@@ -185,40 +186,6 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
             body, r"(?s)internal leg.{0,2000}entry point",
             "the Trigger bullet must say a leg is probed by explicit command "
             "because its entry point is the front door for descriptions")
-
-
-class LegResumeFormPinTest(unittest.TestCase):
-    """The fold's docs say a leg's own command survives for RESUME. Two of them
-    spelled that as a single universal template, `/acs:<leg> <ticket-id>` --
-    which is false for a leg whose own frontmatter takes no argument at all
-    (`create-project`, argument-hint `(no arguments)`, resumes by finding its
-    own unfinished scaffold ticket in `tickets-index.json`). The legs and their
-    argument-hints come from disk; only the claim is pinned here.
-    """
-
-    ADR = os.path.join(ADR_DIR, "0091-design-phase-entry-point-fold.md")
-    TEMPLATE = "`/acs:<leg> <ticket-id>`"
-
-    def _argumentless_legs(self):
-        found = set()
-        for leg in lib.skill_legs():
-            fm = _read(os.path.join(SKILLS_DIR, leg, "SKILL.md")).split("---")[1]
-            if re.search(r'(?m)^argument-hint: "\(no arguments\)"$', fm):
-                found.add(leg)
-        return found
-
-    def test_a_leg_that_takes_no_argument_exists(self):
-        """Ground truth: without one, the pin below would be vacuous."""
-        self.assertIn("create-project", self._argumentless_legs())
-
-    def test_no_doc_claims_one_universal_ticket_id_resume_form(self):
-        for path in (ACS_README, self.ADR):
-            with self.subTest(doc=os.path.basename(path)):
-                self.assertNotIn(self.TEMPLATE, _read(path),
-                                 "%s presents %s as every leg's resume form, but "
-                                 "%s take no argument"
-                                 % (os.path.basename(path), self.TEMPLATE,
-                                    ", ".join(sorted(self._argumentless_legs()))))
 
 
 class AdrIndexCompletenessTest(unittest.TestCase):

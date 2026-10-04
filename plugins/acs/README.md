@@ -85,11 +85,11 @@ architecture doc set, each delivered as a reviewable docs PR:
 ```
 
 (Greenfield is the same, except both skills *elicit* instead of
-reverse-engineer, and one extra `/acs:project` run scaffolds the repo
-skeleton — build, test harness, coverage tooling, lint, CI, a green vertical
-slice. `/acs:project` finds no packaging or build file on disk, says so, and
-dispatches to its `bootstrap` leg; run in an existing repo it picks
-`standardize` instead and audits rather than scaffolds.)
+reverse-engineer. Scaffolding the repo skeleton is then ordinary ticket work:
+`/acs:create-ticket "Scaffold the repository per the architecture docs"`,
+then `/acs:ship` on that ticket. The CI gates and the e2e workflow/runner
+templates come from `/acs:setup`, and the principles and standards from
+`/acs:create-docs`.)
 
 Then ship features. `/acs:ship` takes a **ticket id**, so a new request starts
 in the Design phase:
@@ -129,7 +129,7 @@ The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 29 skills
+## The 25 skills
 
 The tables group the skills by phase — Design, Build, Test, Ship or
 Utility. There is no registry file and no per-skill manifest: a skill is its
@@ -140,13 +140,13 @@ separately, in `workflows/ship.yaml`, which only keeps that order:
 `acs.py workflow validate` checks that each step is a shipped skill and not a
 leg, and that every loop goes back.
 
-Not every skill is a command you run. Six **legs** — the project-scaffold
-skills behind `/acs:project` and the four delivery paths behind `/acs:code`,
-listed in `acs_lib.skills.SKILL_LEGS` — keep their own SKILL.md and stay
-Skill-invocable, but their only user-facing command is the entry point they
-serve. That is an entry-point fold, not a collapse: nothing about a leg's own
-run changed. The tables below show the entry points; the legs get their own
-table under Design, and a leg's run reports under its entry point. The
+Not every skill is a command you run. Four **legs** — the delivery paths
+behind `/acs:code`, listed in `acs_lib.skills.SKILL_LEGS` — keep their own
+SKILL.md and stay Skill-invocable, but their only user-facing command is the
+entry point they serve. That is an entry-point fold, not a collapse: nothing
+about a leg's own run changed. The tables below show the entry points; the
+legs get their own table under Design, and a leg's run reports under its entry
+point. The
 four doc-set legs `/acs:create-docs` used to fan out were a different case —
 they differed only in a table row — so ADR-0094 folded them into it outright.
 
@@ -165,33 +165,20 @@ recorded the PR reference completed — an artifact, not a position.
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
 | `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; docs PR via its own delivery ticket. |
-| `/acs:create-requirements` | Settings exist | Bootstraps or amends the requirements/ doc set (functional + non-functional, one file per feature/item) — the repo's own, else `docs/requirements/` — brownfield reverse-engineers it code-cited, greenfield elicits it interactively, amend augments only absent/ungrounded areas; docs PR via its own delivery ticket. |
 | `/acs:create-architecture` | Settings exist | Works from the PRD when there is one; without one, from the run's subject (a document in its arguments, else your focus notes plus the codebase), confirming goals, NFRs and constraints through the clarification ledger. Writes HLD (C4 levels 1–3, data model, deployment, tech stack) + LLD (sequence-diagram flows, contracts) in the repo's architecture set, else `docs/architecture/`, all Mermaid; docs PR. |
 | `/acs:create-docs` | Settings exist; the skill itself stops at Start without the architecture doc set | Bootstraps or maintains the four product doc sets — `quality` (test strategy, coverage policy), `operations` (release process, runbooks, observability, incident response, test scheduling), `principles` (engineering principles + rationale), `standards` (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set. Takes `all`, a comma-separated list of sets, or a delivery-ticket id to resume one; runs the eligible sets in capped parallel (at most 2 at a time, a limit the skill sets for itself — `ship.yaml` carries no `max_parallel`), each as its own docs-only PR on its own delivery ticket. One author and one reviewer serve every set (the set rides in the task constraints); `standards` reads the `principles` set when present and never blocks on its absence. |
-| `/acs:project` | — (unhooked umbrella; each leg keeps its own gate) | The only user-facing command for repository structure and tooling. Decides its own mode from declared on-disk evidence (`acs_lib.PROJECT_MODE_SENTINEL` — ten packaging/build/tooling files): no evidence at all ⇒ `bootstrap`, any evidence ⇒ `standardize`. States the mode and the evidence it rests on, then dispatches to that leg as a real Skill-tool call. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
 
 #### Internal legs — not commands you run
 
 The legs are one table in the plugin's code, `acs_lib.skills.SKILL_LEGS`;
-nothing in a leg's own directory marks it. Each project leg keeps its
-SKILL.md, its own subagents (`create-project`: scaffolder and build-checker;
-`standardize-project`: auditor, scaffolder and additive-checker), its
-`pre-`/`post-` hook scripts,
-its registered gate and its sentinel, and its entry point invokes it as a
-genuine Skill-tool call so all of that fires exactly as it would standalone.
-What changed is only who invokes them: each says in its description that it
-is an internal leg, so use the entry point instead. A leg's own `/acs:<leg>`
-command survives for one purpose — resuming a leg that failed, was interrupted
-or was handed off, which its entry point never does on its behalf.
-`create-project` takes no argument at all (it finds its own unfinished
-scaffold ticket in `tickets-index.json`).
+nothing in a leg's own directory marks it. Each keeps its SKILL.md and its
+entry point invokes it as a genuine Skill-tool call; each says in its
+description that it is an internal leg, so use the entry point instead.
 
 | Leg | Entry point | Gate | What it does |
 |-----|-------------|----------------------|--------------|
-| `create-project` | `/acs:project` | Settings exist; the skill itself stops at Start without the architecture doc set | Greenfield-only: scaffolds layout, build, test framework + coverage tooling, lint, CI, and a minimal green vertical slice; bootstrap PR. The `bootstrap` mode's leg. |
-| `standardize-project` | `/acs:project` | Settings exist; the skill itself stops at Start without the architecture doc set | Audits an EXISTING repo against its principles and standards doc sets, `hld/project-structure.md`, and acs-readiness tooling (coverage/CI/pre-commit/e2e), then additively scaffolds only the missing docs/config/tooling — never moves, renames, deletes, or rewrites existing source; one reviewed PR. The `standardize` mode's leg. |
 | `code-trivial` | `/acs:code` | Subject resolves; not an epic | The `trivial` delivery path: one implementer, the plan's own test strategy as the test contract, no plan approval. |
 | `code-small` | `/acs:code` | Subject resolves; not an epic | The `small` delivery path: one implementer (rarely two), `test-cases.md` as the test contract, no plan approval. |
 | `code-standard` | `/acs:code` | Subject resolves; not an epic; the plan's approval matches the plan on disk | The `standard` delivery path: one implementer per disjoint file-map partition, `test-cases.md` as the test contract, plan approval enforced. |
@@ -200,8 +187,8 @@ scaffold ticket in `tickets-index.json`).
 **The four `code` legs are delivery paths (ADR-0095), not modes a user picks.**
 `/acs:create-impl-plan` judges the path ONCE, from the plan's own scope, and
 records it in the plan's `## Contract` block; `/acs:code` reads it with
-`acs.py plan path` and dispatches to the recorded leg. They differ from the
-project legs in owning no agents and no hook scripts: each starts
+`acs.py plan path` and dispatches to the recorded leg. They own no agents
+and no hook scripts: each starts
 `acs.py step start --step code`, passes `code`'s gate, spawns
 `acs:code-implementer` and finishes through `post-code.py`,
 so everything they write on disk is `code`'s. The protocol they share lives in

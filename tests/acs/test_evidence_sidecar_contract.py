@@ -23,8 +23,6 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 
-REQUIREMENTS_AUTHOR = os.path.join(AGENTS, "create-requirements-author.md")
-REQUIREMENTS_REVIEWER = os.path.join(AGENTS, "create-requirements-reviewer.md")
 ARCHITECTURE_EXECUTOR = os.path.join(AGENTS, "create-architecture-architect.md")
 ARCHITECTURE_VERIFIER = os.path.join(AGENTS, "create-architecture-reviewer.md")
 DOCS_SYNC_EXECUTOR = os.path.join(AGENTS, "docs-sync-doc-updater.md")
@@ -71,99 +69,6 @@ def window_around(body, token, span=400):
     idx = body.find(token)
     assert idx != -1, "token %r not found" % token
     return body[max(0, idx - span):idx + len(token) + span]
-
-
-class RequirementsAuthorSidecarContractTest(unittest.TestCase):
-    """AC-3: the author's step 2 ("DRAFT, code-cited write") routes the
-    code-evidence citation to a companion `.evidence.md` sidecar, keyed by the
-    clause's stable anchor, with no inline `path:line` left in the body."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.body = read(REQUIREMENTS_AUTHOR)
-
-    def test_draft_marker_still_present(self):
-        self.assertRegex(self.body, r"(?i)DRAFT\s*(—|-)\s*human-confirm-required")
-
-    def test_code_evidence_citation_phrase_still_present(self):
-        self.assertRegex(self.body, r"(?i)code-evidence citation")
-
-    def test_evidence_sidecar_token_near_citation_phrase(self):
-        m = re.search(r"(?i)code-evidence citation", self.body)
-        self.assertIsNotNone(m)
-        near = self.body[m.start():m.start() + 600]
-        self.assertRegex(
-            near, SIDECAR_TOKEN_RE,
-            "the '.evidence.md' sidecar token must appear within 600 chars "
-            "after the 'code-evidence citation' phrase",
-        )
-
-    def test_body_states_no_inline_path_line(self):
-        self.assertRegex(
-            self.body, r"(?i)no\s+inline\s*`?path:line`?",
-            "the author charter must state the body carries no inline "
-            "path:line citation",
-        )
-
-    def test_canonical_strip_form_sidecar_naming(self):
-        self.assertIn(
-            "<doc-basename-without-.md>.evidence.md", self.body,
-            "the author must encode the canonical strip-form sidecar "
-            "filename rule (C-4)",
-        )
-
-    def test_open_clause_still_no_fabricated_citation(self):
-        self.assertRegex(
-            self.body, r"(?i)\[OPEN\][\s\S]{0,200}no\s+fabricated\s+citation",
-        )
-
-
-class RequirementsReviewerGroundingContractTest(unittest.TestCase):
-    """AC-3: dimension 6 "Citation (100%)" is reframed IN PLACE to check the
-    sidecar — body-grep-to-0, sidecar existence, anchor-join, and (amend
-    mode) count-not-reduced."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.body = read(REQUIREMENTS_REVIEWER)
-        cls.block = dimension_block(cls.body, "Citation (100%)", "DRAFT marker")
-
-    def test_no_tests_path_hardcode(self):
-        self.assertNotIn("tests/", self.body)
-
-    def test_grep_spot_check_token_preserved(self):
-        self.assertRegex(self.body, r"(?i)Grep-spot-check")
-
-    def test_draft_marker_dimension_preserved_immediately_after(self):
-        self.assertRegex(self.body, r"(?i)\*\*DRAFT marker\*\*")
-
-    def test_dimension_mentions_evidence_sidecar(self):
-        self.assertRegex(self.block, SIDECAR_TOKEN_RE)
-
-    def test_dimension_asserts_body_grep_to_zero(self):
-        self.assertRegex(
-            self.block, r"(?i)\bgrep\b[\s\S]{0,200}\b0\b[\s\S]{0,60}match",
-            "Citation (100%) must assert grepping the body for the in-scope "
-            "citation regex yields 0 matches",
-        )
-
-    def test_dimension_asserts_anchor_join(self):
-        self.assertRegex(
-            self.block, r"(?i)anchor[\s\S]{0,120}(>=|at least)\s*1",
-            "Citation (100%) must assert every clause anchor joins to >= 1 "
-            "sidecar entry",
-        )
-
-    def test_dimension_asserts_count_not_reduced(self):
-        self.assertRegex(
-            self.block, r"(?i)not\s+reduced",
-            "Citation (100%) must assert the amend-mode sidecar count is "
-            "not reduced versus the prior committed version",
-        )
-
-    def test_dimension_label_and_position_unchanged(self):
-        self.assertRegex(self.body, r"(?m)^6\.\s+\*\*Citation \(100%\)\*\*")
-        self.assertRegex(self.body, r"(?m)^7\.\s+\*\*DRAFT marker\*\*")
 
 
 class ArchitectureExecutorSidecarContractTest(unittest.TestCase):
@@ -316,9 +221,14 @@ class ContractsMdSidecarNoteTest(unittest.TestCase):
             self.body,
         )
 
-    def test_producer_registration_line_present(self):
-        self.assertRegex(
-            self.body, r"(?i)/acs:create-requirements[\s\S]{0,200}producer skill")
+    def test_no_requirements_producer_is_registered(self):
+        """Was `test_producer_registration_line_present`, which pinned
+        `/acs:create-requirements` as the set's producer skill. ADR-0118
+        removed that skill: the paragraph now says acs has no producer, and
+        must not go on registering the removed one."""
+        self.assertNotRegex(
+            self.body, r"(?i)/acs:create-requirements` is the producer skill")
+        self.assertRegex(self.body, r"(?i)no longer has a producer skill")
 
 
 if __name__ == "__main__":

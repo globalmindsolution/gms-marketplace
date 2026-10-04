@@ -25,7 +25,7 @@ import claude_code_adapter as cc  # noqa: E402
 # Registry
 # ---------------------------------------------------------------------------
 
-PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create-docs", "create-requirements"]
+PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-docs"]
 # The ticket-flow skills. The five Build/Test additions (analyze-ticket,
 # create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests)
 # join here rather than in a sixth list: they are ticket-scoped like the rest,
@@ -35,7 +35,7 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-project", "create
 WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
                    "create-api-contract", "create-test-docs", "code", "review-code",
                    "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
-                   "merge-pr", "standardize-project"]
+                   "merge-pr"]
 PLANNING_SKILLS = ["create-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 # `code`'s four delivery-path legs (ADR-0095). Each is a real Skill-tool call
@@ -53,21 +53,15 @@ HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 #: {leg: the skill whose gate, hooks and state it runs under}.
 LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
-# `project` is the design-phase fold's umbrella over create-project and
-# standardize-project: it owns no agents, no gate and no hook scripts -- it
-# picks a mode (project_mode, below) and invokes that leg's own Start as a
-# Skill-tool call -- so it is UNHOOKED and must never join HOOKED_SKILLS
-# (dispatch.py would then look for a pre-project.py that does not exist, and
-# `acs step start` would offer --step project, which allocates nothing).
-# `create-docs` is NOT like it any more (ADR-0094): it absorbed its four doc
-# legs, so it is the hooked product skill that bootstraps a doc set itself,
+# `create-docs` is hooked (ADR-0094): it absorbed its four doc legs, so it is
+# the product skill that bootstraps a doc set itself,
 # one delivery ticket per set.
 # `run-e2e-tests` is HOOKED, not unhooked: it is a step of `ship.yaml` with its
 # own pre/post pair, so there is one mode (§3.11), not the "not really a
 # pipeline skill in its default mode" framing it carried while it was the
 # `test` alias. That alias went with it (§6): the directory is deleted, and a
 # name in a list with no directory behind it is a name nothing can resolve.
-UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "release", "project"]
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "release"]
 
 #: A step's states (§4.3). `skipped` never existed here; `handed_off` did, and
 #: it is gone -- it named a REASON rather than a state, and the reason is now
@@ -79,20 +73,18 @@ PRIORITIES = ["critical", "high", "medium", "low"]
 PRODUCT_TICKET_TITLES = {
     "create-prd": "Product definition (PRD)",
     "create-architecture": "Product architecture doc set",
-    "create-project": "Project scaffold",
     # /acs:create-docs mints one delivery ticket PER DOC SET, titled from
     # DOC_SETS below (`acs step start --doc-set`); this row is the fallback a
     # caller that names no set would get, and that Start refuses.
     "create-docs": "Product doc set",
-    "create-requirements": "Product requirements doc set",
 }
 
-# Delivery-ticket predicate: PRODUCT_SKILLS plus standardize-project (D5 Option B —
-# standardize-project gets allocate/in_review/pr_created semantics WITHOUT joining
-# PRODUCT_SKILLS's doc-set-producer semantics, which stays unchanged).
-DELIVERY_TICKET_SKILLS = PRODUCT_SKILLS + ["standardize-project"]
-DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES,
-                               **{"standardize-project": "Brownfield project standardization"})
+# Delivery-ticket predicate: the skills that mint their own delivery ticket and
+# ship it as a docs-only PR. Today exactly PRODUCT_SKILLS; kept as its own name
+# because its callers ask "does this skill own a delivery ticket", not "is it a
+# product skill".
+DELIVERY_TICKET_SKILLS = list(PRODUCT_SKILLS)
+DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES)
 
 # ---------------------------------------------------------------------------
 # The product doc sets /acs:create-docs bootstraps and maintains (ADR-0094)
@@ -188,75 +180,6 @@ DOC_SET_TITLES = {name: row["title"] for name, row in DOC_SETS.items()}
 """The five spec-authoring-fold sections, in the order structure_lint's
 --ordered lint checks them (code/SKILL.md's fold contract)."""
 """The two mandatory verbatim clauses the fold requires (code/SKILL.md:398-401)."""
-
-
-# ---------------------------------------------------------------------------
-# /acs:project mode detection (the design-phase entry-point fold)
-# ---------------------------------------------------------------------------
-#
-# /acs:project is an unhooked umbrella over two internal legs -- create-project
-# (greenfield scaffold) and standardize-project (brownfield audit) -- and picks
-# between them from DECLARED data plus a disk read, exactly as create-docs picks
-# its fan-out set from the DOC_BOOTSTRAP_* tables above. The mechanism is the
-# same settings-path + sentinel-file pair, read through the same presence
-# primitive (`setup_helpers._sentinel_present`): each row below names one piece
-# of evidence that this repo ALREADY has a project, its settings key resolves
-# the directory that evidence lives in (None = the checkout root itself), and
-# its sentinel is the file whose existence IS the evidence.
-#
-# Every shipped row is checkout-root-relative because a build manifest lives at
-# the repo root and acs has no source-layout settings key; the settings-key
-# column is kept because it is the shared mechanism, so evidence under a
-# configured path stays a data row rather than a code change.
-#
-# The rows are the build manifests setup_wizard.TEST_COMMAND_CANDIDATES already
-# declares as stack markers (widened to the JVM pair), plus two of
-# create-project's own scaffold outputs -- its pre-commit config and its
-# coverage config -- which are the evidence on a repo that keeps its sources
-# without a package manifest. CI workflow files are deliberately NOT rows even
-# though standardize-project audits them: /acs:setup writes acs-conventions.yml
-# / acs-tests.yml / acs-e2e.yml onto a repo with no source at all, which would
-# misread a greenfield repo as brownfield. The pre-commit row is safe from that
-# same objection -- /acs:setup never writes a .pre-commit-config.yaml.
-#
-# Adding a marker (another stack's manifest, another scaffold output) is a row
-# in both maps -- a data change, never an edit to project/SKILL.md.
-PROJECT_MODE_SETTINGS_KEY = {
-    "python-packaging": None,
-    "python-setup": None,
-    "node-packaging": None,
-    "go-modules": None,
-    "rust-packaging": None,
-    "maven-build": None,
-    "gradle-build": None,
-    "gradle-kotlin-build": None,
-    "pre-commit-config": None,
-    "coverage-config": None,
-}
-
-PROJECT_MODE_SENTINEL = {
-    "python-packaging": "pyproject.toml",
-    "python-setup": "setup.py",
-    "node-packaging": "package.json",
-    "go-modules": "go.mod",
-    "rust-packaging": "Cargo.toml",
-    "maven-build": "pom.xml",
-    "gradle-build": "build.gradle",
-    "gradle-kotlin-build": "build.gradle.kts",
-    "pre-commit-config": ".pre-commit-config.yaml",
-    "coverage-config": ".coveragerc",
-}
-
-#: The two modes /acs:project dispatches on, in escalation order: no evidence
-#: at all -> bootstrap; any evidence -> standardize.
-PROJECT_MODES = ("bootstrap", "standardize")
-
-#: Which internal leg each mode dispatches to. The umbrella invokes it as a
-#: genuine Skill-tool call, so that leg's own hooks and gate fire unchanged.
-PROJECT_MODE_LEG = {
-    "bootstrap": "create-project",
-    "standardize": "standardize-project",
-}
 
 
 TICKET_ID_RE = re.compile(r"\b([A-Z][A-Z0-9]*-\d+)\b")

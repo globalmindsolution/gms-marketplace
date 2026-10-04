@@ -8,5 +8,5 @@ match: not_contains
 
 A PRD run is docs-only: the author mutates only `<prd>` and `<roadmap>`. A
 source, build or config file created outside docs/ (and acs's own state)
-means the run started building the product -- /acs:create-project's job,
+means the run started building the product -- a scaffold ticket's job,
 after /acs:create-architecture.

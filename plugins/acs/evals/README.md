@@ -7,7 +7,7 @@ Edit a case by editing its files.
 
 ```
 evals/
-├── routing/                  # 248 cases: does a prompt reach the right skill?
+├── routing/                  # 224 cases: does a prompt reach the right skill?
 │   └── <case>/
 │       ├── prompt.md         # frontmatter: description, expected_outcome, tags, limits; body: the prompt
 │       └── graders/<name>.md # one grader per file
@@ -16,7 +16,7 @@ evals/
 ├── setup/                    # 6 cases: does /acs:setup configure exactly what was asked?
 │   ├── _fixtures/            # the repo every case starts from (not a case)
 │   └── <case>/               # prompt.md + case.yaml (scaffold.sh) + graders/
-├── behaviour/                # 101 cases: 2–7 per skill, every mode — what did it DO? (behaviour/README.md)
+├── behaviour/                # 87 cases: 2–7 per skill, every mode — what did it DO? (behaviour/README.md)
 │   ├── _fixtures/repo.sh     # the shared repo; state seeded through the plugin's own CLIs
 │   └── <case>/               # + calibration.py, baseline.criteria.md, and once recorded baseline.jsonl
 └── results/                  # written by each run; gitignored
@@ -47,21 +47,21 @@ release gate's ~2,500 runs cost about $190.
 
 | Tag | Cases | Asserts |
 |---|---|---|
-| `routing` | all 248 routing cases | a prompt reaches (or avoids) a skill |
-| `description` | 231 | a natural-language request, never naming the skill, reaches it — ten phrasings for each of 24 skills |
-| `confusable` | 68 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
-| `explicit` | 7 | a typed `/acs:<skill>` reaches it — see the limit below |
-| `negative` | 6 | a description of an internal leg's subject does NOT reach the leg |
+| `routing` | all 224 routing cases | a prompt reaches (or avoids) a skill |
+| `description` | 211 | a natural-language request, never naming the skill, reaches it — ten phrasings for each of 21 skills |
+| `confusable` | 62 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
+| `explicit` | 5 | a typed `/acs:<skill>` reaches it — see the limit below |
+| `negative` | 4 | a description of an internal leg's subject does NOT reach the leg |
 | `control` | 4 | a request answered in prose invokes no skill at all |
 | `artifacts` | 2 | the skill wrote the expected workspace state |
 | `setup` | 6 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
-| `behaviour` | 101 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–7 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
+| `behaviour` | 87 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–7 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
 
 `--tag` keeps a case if ANY of its tags match, so `--tag description --tag
 negative --tag control` runs the routing cases that are fully measurable —
 which is exactly what the release gate runs.
 
-Each of the 24 skills a user reaches by describing the work has ten
+Each of the 21 skills a user reaches by describing the work has ten
 phrasings: plain requests, indirect ones with the context stated in the
 prompt, and `confusable` ones that borrow a neighbour's words — "don't merge
 anything, just open the pull request", "not a design for one ticket: regenerate
@@ -141,7 +141,7 @@ scored 0.00 in the first full run for a reason no grader can see.
 | Kind | Rule | Why |
 |---|---|---|
 | `negative`, `control` | every run must pass | pulling a request onto an internal leg, or firing a skill on a git question, is a defect however rarely it happens |
-| `description` | each **skill**, pooling its ten phrasings (100 runs), routes at least **9/10**; the **suite** routes at least **99/100** | the floor catches a broken skill, the suite rate a broad slide; 99/100 allows about 24 misses in 2,400 runs, against the ~14 the model's occasional look-before-routing produces (ADR-0112) |
+| `description` | each **skill**, pooling its ten phrasings (100 runs), routes at least **9/10**; the **suite** routes at least **99/100** | the floor catches a broken skill, the suite rate a broad slide; 99/100 allows about 21 misses in 2,100 runs, against the ~14 the model's occasional look-before-routing produces (ADR-0112) |
 | `explicit` | not gated | not observable — see the limit below |
 
 It fails closed on anything it cannot read: a partial run (cost ceiling hit), an
@@ -153,7 +153,7 @@ run could be judged in place of this one.
 **The rates were set by the owner** (ADR-0111, ADR-0112), from a measured
 baseline: on 2026-09-27 a three-run sweep routed 716 of 720 description runs
 (99.4%), every miss a first move that looked at the repo before calling the
-right skill. A suite rate of 1.0 fails on one such look in about 2,400 runs,
+right skill. A suite rate of 1.0 fails on one such look in about 2,100 runs,
 so it can never pass; 99/100 passes that baseline almost always and fails a
 real regression of a few points. More phrasings measure a description more
 precisely; they do not improve it.
@@ -244,13 +244,14 @@ Pilot with `--runs 1 --no-publish` first.
 - **Explicit invocation is not reliably observable.** A typed `/acs:<skill>` can
   be expanded by the CLI before any model turn, in which case no `Skill` call
   happens and the grader reads 0x for a probe that routed. In the first full run
-  `update` and one since-removed skill scored 1.00 and all six internal legs scored
+  `update` and one since-removed skill scored 1.00 and all six internal legs then shipped scored
   0.00. No invocation flag in the skills' frontmatter explains the split; it is
   unexplained, not diagnosed. Hence the `explicit` tag, and why the gate does
   not run it.
 - **Three prompts were confounded** by context the empty workspace lacks:
   `route-create-design` (an epic ticket), `route-create-requirements` (an
-  existing codebase), `route-docs-sync` (a finished change). Each prompt now
+  existing codebase; that skill was since removed by ADR-0118),
+  `route-docs-sync` (a finished change). Each prompt now
   states that context itself, and a one-turn run with only the Skill tool can
   neither look for it nor find it missing. That is a hypothesis until the next
   paid run measures it; each case's `description` keeps the history.
@@ -279,7 +280,7 @@ reads these case files:
 | `check_cases.py` | every case and grader is well-formed; every shipped skill has a routing case and no case names one that does not ship; each routing regex matches its own skill and no neighbour; the routing conventions above hold |
 | `check_grader_calibration.py` | every free setup and artifact grader passes an ideal run and fails a bad one |
 | `check_gate.py` | `scripts/eval_gate.py` judges as the policy says, and the settings wire it |
-| `check_probe_expectations.py` | the per-skill probe expectations earlier tickets pinned (create-docs, standardize-project, run-e2e-tests, setup), and this README's tag counts |
+| `check_probe_expectations.py` | the per-skill probe expectations earlier tickets pinned (create-docs, run-e2e-tests, setup), and this README's tag counts |
 | `check_eval_changed.py` | `scripts/eval_changed.py` selects the right cases for a change and blocks only on what it should (against a fake `claude`) |
 
 They run in two places:

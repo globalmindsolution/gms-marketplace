@@ -1,6 +1,6 @@
 # 0091 — The design phase narrows by an entry-point fold, not a skill collapse: a registry `internal` map, two unhooked umbrellas, and an auto-detected project mode
 
-**Status**: Accepted — amended by [0094](0094-doc-set-legs-fold-into-create-docs.md) (the doc-set legs were collapsed after all; `/acs:project`'s fold stands) · **Date**: 2026-09-12
+**Status**: Superseded by [0118](0118-discovery-design-development-phases.md) (`/acs:project` and its legs are removed); earlier amended by [0094](0094-doc-set-legs-fold-into-create-docs.md) · **Date**: 2026-09-12
 
 **Amends**: [0085](0085-doc-bootstrap-parallel-fan-out.md) — 0085 built the
 first entry-point fold (`/acs:create-docs`); this ADR settles how far the fold

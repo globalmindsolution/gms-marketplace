@@ -83,8 +83,7 @@ history: read `states.pr` (`{number, url, branch, base}`) from the ticket's
 run, the way the pre-hook's brake does — `steps/create-pr/state.json` first,
 else the state of the delivery-ticket skill that opened the PR
 (`steps/<skill>/state.json` for `create-prd`, `create-architecture`,
-`create-requirements`, `create-docs`, `create-project` or
-`standardize-project`), whichever completed with a `states.pr`. The pre-hook keeps this one READINESS BRAKE
+or `create-docs`), whichever completed with a `states.pr`. The pre-hook keeps this one READINESS BRAKE
 through the skills-independence refactor — a merge cannot proceed without a PR
 reference recorded by a completed run, which is a fact about the merge, not an
 ordering rule — so it has already validated that such a run recorded this

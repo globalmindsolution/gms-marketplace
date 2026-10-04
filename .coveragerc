@@ -38,13 +38,10 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-impl-plan.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-prd.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-project.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-requirements.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-test-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-docs-sync.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-merge-pr.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-standardize-project.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-analyze-requirements.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-review-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-run-e2e-tests.py
@@ -57,9 +54,6 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-impl-plan.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-prd.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-project.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-requirements.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-test-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-docs-sync.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-standardize-project.py

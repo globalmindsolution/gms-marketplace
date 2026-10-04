@@ -166,7 +166,7 @@ carries the greenfield/brownfield call, the pipeline read from `ship.yaml` and
 the solo-maintainer caveat, so you report them rather than re-deriving them.
 
 Repeat any unmet toolchain install hint, and confirm the workflow is ready:
-Design is `/acs:create-prd` → `/acs:create-architecture` → `/acs:project` →
+Design is `/acs:create-prd` → `/acs:create-architecture` →
 `/acs:create-ticket`, then `/acs:create-design` → `/acs:code` is not one fixed
 chain: `/acs:create-design` runs only for a ticket flagged `needs_design`, and
 the Build/Test/Ship order is declared in `workflows/ship.yaml` (`acs.py
@@ -189,5 +189,5 @@ empty; replace the Ticket line with **Repo** (no ticket at init time):
 - **Findings**: <open findings, or "none">
 - **Artifacts**: <files written or staged>
 - **Metrics**: <wall time>
-- **Next**: brownfield: `/acs:create-prd` then `/acs:create-architecture`; greenfield: same plus `/acs:project`; then `/acs:ship <prompt>` or `/acs:create-ticket <prompt>`
+- **Next**: brownfield: `/acs:create-prd` then `/acs:create-architecture`; greenfield: same plus a scaffold ticket (`/acs:create-ticket "Scaffold the repository per the architecture docs"`); then `/acs:ship <prompt>` or `/acs:create-ticket <prompt>`
 ```

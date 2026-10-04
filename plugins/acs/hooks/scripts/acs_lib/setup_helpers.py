@@ -16,76 +16,10 @@ from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
 from ._common import (DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1, DOC_SET_TITLES,
-                      PROJECT_MODE_SENTINEL, PROJECT_MODE_SETTINGS_KEY, TICKET_ID_RE)
+                      TICKET_ID_RE)
 from . import conventions
 from .repo import ticket_id_from_text
 
-
-
-def _sentinel_present(checkout_root, base, sentinel):
-    """The base + sentinel-file presence primitive `project_mode` reads.
-
-    `base` is the directory the evidence lives in, relative to the checkout
-    root ("" for the root itself); `sentinel` is the file whose existence IS
-    the evidence. A `base` of None is ABSENT, never root-relative: an unset
-    base must not silently widen the check to the whole repo."""
-    if base is None:
-        return False
-    return os.path.isfile(os.path.join(checkout_root, base, sentinel))
-
-
-def project_mode(settings, checkout_root):
-    """Which /acs:project leg this repo needs, and the evidence that decided it.
-
-    The declared-data counterpart of `fanout_batches` for the design-phase
-    entry-point fold: `PROJECT_MODE_SETTINGS_KEY` / `PROJECT_MODE_SENTINEL`
-    (`_common`) declare the evidence that this repo ALREADY has a project, and
-    this reads each row off disk through `_sentinel_present`. No prose
-    inference, no git scan,
-    no heuristics: the umbrella states the mode and cites these rows, and a
-    test pins every direction.
-
-    Returns:
-      {"mode": "bootstrap" | "standardize",
-       "evidence": [{"name", "settings_key", "path", "present"}, ...]
-                   -- every declared row, in declared-name order; `path` is the
-                   checkout-root-relative file checked, or None when the row's
-                   settings key is unset so there was nothing to check,
-       "present": [names], "absent": [names],
-       "reason": one sentence naming the evidence that decided the mode}
-
-    The partial case is deterministic, and deliberate: ANY single present row
-    means the repo already has a project, so the mode is `standardize`. That
-    fails toward the additive, idempotent leg -- standardize-project only ever
-    adds, and a second run over an already-standardized repo finds nothing to
-    do -- whereas failing the other way would point create-project at a repo
-    its own greenfield scan refuses outright. Only a repo with NO declared
-    evidence at all is `bootstrap`.
-    """
-    settings = settings or {}
-    evidence = []
-    for name in sorted(PROJECT_MODE_SENTINEL):
-        key = PROJECT_MODE_SETTINGS_KEY[name]
-        sentinel = PROJECT_MODE_SENTINEL[name]
-        base = "" if key is None else (settings.get(key) or None)
-        evidence.append({
-            "name": name,
-            "settings_key": key,
-            "path": None if base is None else os.path.join(base, sentinel),
-            "present": _sentinel_present(checkout_root, base, sentinel),
-        })
-    present = [row["name"] for row in evidence if row["present"]]
-    absent = [row["name"] for row in evidence if not row["present"]]
-    if present:
-        reason = ("existing project evidence on disk: %s" % ", ".join(
-            "%s (%s)" % (row["path"], row["name"]) for row in evidence if row["present"]))
-    else:
-        reason = ("no project evidence on disk (checked %s)" % ", ".join(
-            row["path"] or "%s — %s unset" % (PROJECT_MODE_SENTINEL[row["name"]],
-                                              row["settings_key"])
-            for row in evidence))
-    return {"mode": "standardize" if present else "bootstrap", "evidence": evidence,
-            "present": present, "absent": absent, "reason": reason}
 
 
 def _soft_peers(candidate, eligible):

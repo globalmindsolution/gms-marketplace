@@ -234,7 +234,9 @@ class ScopeGuardTest(unittest.TestCase):
     files, 36->39 reachable, eleven->twelve triads; MAR-156: create-spec
     deleted, 24->23 skills, 45->42 agent files, 39->36 reachable, twelve->
     eleven triads; MAR-160: docs-sync registered, 23->24 skills, 42->45
-    agent files, 36->39 reachable, eleven->twelve triads) — these
+    agent files, 36->39 reachable, eleven->twelve triads; ADR-0118:
+    create-project, standardize-project and create-requirements removed,
+    twelve->nine authoring skills) — these
     assertions track the current epic state, not a frozen MAR-120
     snapshot."""
 
@@ -252,8 +254,8 @@ class ScopeGuardTest(unittest.TestCase):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))
         hook_flow = read(
             os.path.join(DOCS, "architecture", "lld", "flows", "hook-gated-skill-run.md"))
-        self.assertIn("twelve authoring skills", overview)
-        self.assertIn("twelve authoring skills", hook_flow)
+        self.assertIn("nine authoring skills", overview)
+        self.assertIn("nine authoring skills", hook_flow)
 
     def test_no_project_structure_doc_hand_authored(self):
         self.assertFalse(

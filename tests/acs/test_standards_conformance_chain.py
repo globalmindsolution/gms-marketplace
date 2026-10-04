@@ -52,7 +52,6 @@ SEVEN_NODE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD]
 BASELINE_FLOWS = {
     "hook-gated-skill-run.md",
     "ship-pipeline.md",
-    "standardize-project.md",
     "ticket-lifecycle.md",
 }
 # tabp-screening-state-write.md and tabp-usage-read.md were in this baseline
