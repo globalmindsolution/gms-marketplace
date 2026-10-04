@@ -94,6 +94,30 @@ class SnapshotTest(GitRepoCase):
         write(self.root, "u.txt")
         self.assertEqual(C.snapshot(self.root), C.snapshot(self.root))
 
+    def test_a_same_size_edit_racing_the_index_is_never_missed(self):
+        # Git trusts an index entry's stat data unless the entry is "racy": its
+        # mtime is not older than the index FILE's mtime. When a file was
+        # indexed in the same second as the index was written and then rewritten
+        # at the same size, only that rule makes git re-read it. A snapshot that
+        # copies the index under a newer mtime erases the rule and records the
+        # stale blob -- intermittently, whenever the clock ticked in between.
+        # Pinned here with explicit mtimes (and ctime ignored) so it never
+        # depends on timing.
+        git(self.root, "config", "core.trustctime", "false")
+        then = 1700000000
+        path = write(self.root, "cfg.ini", "a=1\n")
+        os.utime(path, (then, then))
+        git(self.root, "add", "cfg.ini")
+        git(self.root, "commit", "-qm", "cfg")
+        index = os.path.join(self.root, ".git", "index")
+        os.utime(index, (then, then))           # the entry is racy in the real index
+        write(self.root, "cfg.ini", "a=3\n")    # same size, same mtime
+        os.utime(path, (then, then))
+        for _ in range(2):
+            tree = C.snapshot(self.root)
+            self.assertEqual(git(self.root, "show", tree + ":cfg.ini"), "a=3\n")
+        self.assertEqual(os.stat(index).st_mtime, then)   # the real index is untouched
+
     def test_an_unborn_branch_snapshots_its_untracked_files(self):
         fresh = os.path.join(self.tmp, "fresh")
         os.makedirs(fresh)

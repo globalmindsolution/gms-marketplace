@@ -114,7 +114,11 @@ def snapshot(root):
         tmp_index = os.path.join(tmpdir, "index")
         env = {"GIT_INDEX_FILE": tmp_index}
         if os.path.isfile(git_index):
-            shutil.copyfile(git_index, tmp_index)
+            # copy2, not copyfile: git re-reads an entry whose mtime is not
+            # older than the index FILE's ("racy"); a copy stamped with a newer
+            # mtime would make git trust stale stat data and miss a same-size
+            # edit made in the same second the index was written.
+            shutil.copy2(git_index, tmp_index)
         elif head_sha(root):
             _run_git(root, ["read-tree", "HEAD"], env=env)
         _run_git(root, ["add", "-A", "--", "."], env=env)
