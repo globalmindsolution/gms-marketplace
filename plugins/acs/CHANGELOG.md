@@ -150,7 +150,8 @@ matching section here, and merge to `main` — the Release workflow tags
   Merge any open create-docs delivery PR by hand (`gh pr merge`) —
   `/acs:merge-pr` no longer reads that skill's state. Run
   `acs.py settings migrate --write` to drop `models.create-docs` from
-  `.acs/settings.json`.
+  `.acs/settings.json`. The ADR-0118 note below that says to write principles and
+  standards with `/acs:create-docs` no longer applies: write them by hand.
 - **⚠️ BREAKING: `/acs:project`, `create-project`, `standardize-project` and
   `/acs:create-requirements` are removed (ADR-0118).** Their skills, agents, hooks,
   eval cases and tests are gone, with the `project_mode` detector and the
@@ -164,8 +165,8 @@ matching section here, and merge to `main` — the Release workflow tags
   `.acs/settings.json`. Scaffold a greenfield repo with `/acs:create-ticket
   "Scaffold the repository per the architecture docs"` and `/acs:ship`; install
   CI gates and the e2e templates with `/acs:setup`; write principles and
-  standards by hand (`/acs:create-docs`, which used to write them, is removed
-  too — see below). An existing `requirements/` set stays readable context.
+  standards with `/acs:create-docs`. An existing `requirements/` set stays
+  readable context.
 
 ## [0.5.0] - 2026-09-30
 
