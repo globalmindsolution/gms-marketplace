@@ -39,7 +39,14 @@ DEFAULT_SETTINGS = {
     "tracker": {"provider": "local"},
     # Which HLD/LLD documents the Design skills write (ADR-0120); chosen at /acs:setup.
     "design": design_defaults(),
+    # How many subagents a skill spawns in one message (ADR-0125); more run in
+    # waves of this size.
+    "parallel": {"max_agents": 4},
 }
+
+#: The bounds of `parallel.max_agents`: one is sequential, and past sixteen a
+#: wave's join outgrows a coordinator's context.
+MAX_AGENTS_RANGE = (1, 16)
 
 #: Keys an older acs read and this one ignores (ADR-0102): no setting locates a
 #: document or the workspace. Still legal in a settings file -- unknown keys
@@ -102,6 +109,16 @@ def test_suites(settings):
     return {name: suite for name, suite in tests.items() if name != "coverage"}
 
 
+def validate_parallel(parallel):
+    if not isinstance(parallel, dict):
+        raise GateError("parallel must be an object; got %r." % (parallel,))
+    value = parallel.get("max_agents", DEFAULT_SETTINGS["parallel"]["max_agents"])
+    low, high = MAX_AGENTS_RANGE
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise GateError("parallel.max_agents must be an integer from %d to %d; got %r."
+                        % (low, high, value))
+
+
 def validate_tests(tests):
     """`tests` is {coverage?, <suite>: {command, setup?, teardown?}}."""
     if not isinstance(tests, dict):
@@ -142,6 +159,7 @@ def validate_settings(settings, cwd, require_workspace=True):
             "`python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py\" settings migrate --write` "
             "to rewrite it." % "; ".join(legacy))
     validate_tests(settings.get("tests", {}))
+    validate_parallel(settings.get("parallel", {}))
     strategy = settings.get("merge_strategy", "squash")
     if strategy not in ("squash", "merge", "rebase"):
         raise GateError("merge_strategy must be one of squash|merge|rebase; got %r." % (strategy,))

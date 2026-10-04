@@ -100,6 +100,7 @@ from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_sho
 import acs_analysis_commands  # noqa: E402
 import acs_model_commands  # noqa: E402
 import acs_design_commands  # noqa: E402
+import acs_job_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -375,6 +376,7 @@ def build_parser():
     acs_analysis_commands.add_parser(group)
     acs_model_commands.add_parser(group)
     acs_design_commands.add_parser(group)
+    acs_job_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,
