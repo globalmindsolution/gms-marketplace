@@ -65,9 +65,10 @@ class ReadmeSkillCountPinTest(unittest.TestCase):
 
     The design-phase entry-point fold moved the row half of this pin with the
     fact it pins. Before the fold every skill on disk was a `/acs:<name>`
-    command, so one `| `/acs:` row per directory was the whole truth. Six
-    skills are now INTERNAL LEGS (`acs_lib.skills.SKILL_LEGS`):
-    they keep their SKILL.md, agents, hooks and gate and stay Skill-invocable,
+    command, so one `| `/acs:` row per directory was the whole truth. Four
+    skills are now INTERNAL LEGS (`acs_lib.skills.SKILL_LEGS`; six until
+    ADR-0118 removed the two project legs):
+    they keep their SKILL.md and gate and stay Skill-invocable,
     but they are not commands a user runs, so the table renders them as legs
     (`| `<leg>` | `/acs:<entry point>` | …`) and not as commands. The pin is
     therefore: command rows == the on-disk set MINUS the legs, leg rows ==

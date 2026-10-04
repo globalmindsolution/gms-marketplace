@@ -234,7 +234,9 @@ class ScopeGuardTest(unittest.TestCase):
     files, 36->39 reachable, eleven->twelve triads; MAR-156: create-spec
     deleted, 24->23 skills, 45->42 agent files, 39->36 reachable, twelve->
     eleven triads; MAR-160: docs-sync registered, 23->24 skills, 42->45
-    agent files, 36->39 reachable, eleven->twelve triads) — these
+    agent files, 36->39 reachable, eleven->twelve triads; ADR-0118:
+    create-project, standardize-project and create-requirements removed,
+    twelve->nine authoring skills) — these
     assertions track the current epic state, not a frozen MAR-120
     snapshot."""
 

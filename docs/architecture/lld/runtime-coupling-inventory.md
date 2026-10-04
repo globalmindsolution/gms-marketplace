@@ -106,18 +106,17 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 - `new-ticket.py`
 - `clarify.py`
 - `validate_xml.py`
-- All `pre-<skill>.py` (8 files: `pre-code.py`, `pre-create-architecture.py`,
-  `pre-create-design.py`, `pre-create-prd.py`, `pre-create-project.py`,
+- All `pre-<skill>.py` (7 files: `pre-code.py`, `pre-create-architecture.py`,
+  `pre-create-design.py`, `pre-create-prd.py`,
   `pre-create-pr.py`, `pre-create-ticket.py`, `pre-merge-pr.py`)
-- All `post-<skill>.py` (8 files: `post-code.py`, `post-create-architecture.py`,
-  `post-create-design.py`, `post-create-prd.py`, `post-create-project.py`,
+- All `post-<skill>.py` (7 files: `post-code.py`, `post-create-architecture.py`,
+  `post-create-design.py`, `post-create-prd.py`,
   `post-create-pr.py`, `post-create-ticket.py`, `post-merge-pr.py`)
 
 > **NOTE (MAR-160):** the reproduced list above is a historical quote of
 > `design.md:244-245` and was never kept in lockstep with every
 > later-registered skill's pre-/post- pair (e.g. `create-docs` — since ADR
-> 0094 the one hooked skill behind the four doc sets — `create-requirements`,
-> `standardize-project` are also absent from it).
+> 0094 the one hooked skill behind the four doc sets — was absent from it).
 > `pre-docs-sync.py` / `post-docs-sync.py` belong to this same
 > runtime-agnostic bucket by the identical construction (Bash-invoked,
 > reads/writes workspace JSON) — flagged here rather than folded into the
@@ -130,15 +129,16 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 > `acs_lib/` line, for the same reason: they were deleted with `/acs:metrics`
 > and `/acs:usage` ([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 >
-> **The design-phase entry-point fold (ADR 0091) adds no gap to close.** The
-> two skills it made internal legs of `/acs:project` **kept** their
-> `pre-`/`post-` pairs, so `create-project` and `standardize-project` sit in
-> this same runtime-agnostic bucket, unchanged — the fold narrowed who may
-> invoke a leg, never how it is hooked. ADR 0094 replaced the four doc legs'
-> pairs with `pre-`/`post-create-docs.py`, in the same bucket. The two **entry points** are unhooked
-> umbrellas and own no hook scripts at all: there is no `pre-create-docs.py`
-> and no `pre-project.py`, and none should be added, so neither belongs in the
-> lists above or in the gap this note flags.
+> **The design-phase entry-point fold (ADR 0091) added no gap to close.** The
+> two skills it made internal legs of `/acs:project` kept their
+> `pre-`/`post-` pairs — the fold narrowed who may invoke a leg, never how it
+> is hooked. ADR 0094 replaced the four doc legs' pairs with
+> `pre-`/`post-create-docs.py`, in the same bucket. ADR 0118 then removed
+> `/acs:project`, both of its legs and `create-requirements` outright, with
+> their pairs, so — as with the spec-authoring pair above —
+> `pre-create-project.py` and `post-create-project.py` were removed from the
+> two lists, a correction rather than an omission. `/acs:project` was an
+> unhooked umbrella and never owned a hook script.
 
 ### Additionally confirmed agnostic, beyond the design list (assumption C-1)
 

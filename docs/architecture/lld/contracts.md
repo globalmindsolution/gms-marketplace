@@ -226,15 +226,11 @@ list as a blocking `structure` dimension via `structure_lint.py`.
 The requirements set (found in the repo, else `docs/requirements/`) has a
 **functional** and a **non-functional** subfolder (`functional/` and
 `non-functional/` by default; an existing set's own names are followed).
-`/acs:create-requirements` is the producer skill that bootstraps or amends
-the requirements set there in one of three modes — brownfield
-reverse-engineer (architecture-aware feature-area enumeration with a
-codebase-inventory fallback, DRAFT/code-cited; ADR 0061), greenfield elicit
-(elicits behavior/quality from the user, DRAFT/answer-cited; ADR 0062), and
-amend (augments only absent/ungrounded area files, preserving existing files
-byte-for-byte) — each DRAFT / human-confirm-required via interactive-confirm
-before write; `/acs:code`'s requirements-merge (above) continues to write
-into the same model afterward. Code-cited coverage stays 100% — relocated,
+acs no longer has a producer skill that bootstraps the set
+([ADR-0118](../../adr/0118-discovery-design-development-phases.md) removed
+`/acs:create-requirements`): a set a repo keeps is optional context its
+readers use, and the documentation step's requirements merge writes into the
+same model as tickets change behavior. Code-cited coverage stays 100% — relocated,
 never reduced — but a code-cited clause's citation(s) live in that doc's
 companion `.evidence.md` sidecar, not inline in the body; the body keeps the
 clause text, its stable anchor, and any C-22 `DRAFT — human-confirm-required`
@@ -242,7 +238,7 @@ marker (the sidecar convention, Decision B / ADR 0064).
 
 Conformance chain: `PRD → architecture → principles → standards → design → code`, each level verified against the one above it.
 
-Requirements (`docs/requirements/` by default, `functional/`+`non-functional/` subfolders) is a **living behavioral contract** that travels ALONGSIDE this chain — bootstrapped or amended by `/acs:create-requirements`, accreted by `/acs:code`'s documentation step, read by `/acs:create-ticket` as current behavior — but it is **not a verified conformance level**: no code review dimension checks a ticket's conformance against the requirements set the way each chain level is verified against the one above it (D1; ADR 0060/0061/0062). The chain line is unchanged; this note only clarifies where requirements sits relative to it.
+Requirements (`docs/requirements/` by default, `functional/`+`non-functional/` subfolders) is a **living behavioral contract** that travels ALONGSIDE this chain — kept by the repo when it keeps one, accreted by `/acs:code`'s documentation step, read by `/acs:create-ticket` as current behavior — but it is **not a verified conformance level**: no code review dimension checks a ticket's conformance against the requirements set the way each chain level is verified against the one above it (D1; ADR 0060/0061/0062). The chain line is unchanged; this note only clarifies where requirements sits relative to it.
 
 `/create-prd`'s output contract now additionally includes the **"Release
 versions"** mapping table in `roadmap.md` (one row per release version →
@@ -294,18 +290,3 @@ name is ever silently dropped. `parse_fanout_for_arg()` remains the legacy
 `--for <skill>[,<skill>...]` half of the same parser, accepted for one release
 and adding exactly one deprecation notice that the positional form is the
 spelling now — the `test` → `run-e2e-tests` alias precedent.
-
-`project_mode(settings, checkout_root)` (`acs_lib/setup_helpers.py`) is the
-declared-data counterpart for the other half of the design-phase fold (ADR
-0091): the pure helper `/acs:project` calls to choose between its two legs. It
-reads `PROJECT_MODE_SETTINGS_KEY` / `PROJECT_MODE_SENTINEL` (ten
-packaging/build/tooling files: `pyproject.toml`, `setup.py`, `package.json`,
-`go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`, `build.gradle.kts`,
-`.pre-commit-config.yaml`, `.coveragerc`) off disk through the
-`_sentinel_present` primitive — no git scan, no
-heuristic, no prose inference — and returns the chosen `mode`
-(`"bootstrap"` | `"standardize"`), the full `evidence` list, `present`/`absent`
-names, and a one-sentence `reason` the skill states back to the user. The
-partial case is deterministic and deliberate: **any** single present row means
-`standardize`, so only a repo with no declared evidence at all is `bootstrap`
-— failing toward the additive, idempotent leg.

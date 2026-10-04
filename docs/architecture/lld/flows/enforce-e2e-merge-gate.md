@@ -37,5 +37,6 @@ sequenceDiagram
 ```
 
 Composes with [`ticket-lifecycle.md`](ticket-lifecycle.md) for the surrounding
-PR lifecycle, and with [`standardize-project.md`](standardize-project.md) for
-the brownfield-scaffold-only sibling path (E2E-2/MAR-126, out of scope here).
+PR lifecycle. `/acs:setup` installs the e2e workflow and runner on a new or an
+existing repo alike; the brownfield-scaffold sibling path (E2E-2/MAR-126) went
+with `/acs:standardize-project` (ADR-0118).

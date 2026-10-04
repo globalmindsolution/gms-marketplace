@@ -3,23 +3,21 @@
 The core runtime flow: every hooked skill, direct invocation. (Under `/ship`
 the coordinator invokes the same flow directly — see `ship-pipeline.md`.)
 
-This flow is **also** exactly what a leg of `/acs:project` or `/acs:code`
-runs (the legs are one table, `acs_lib.skills.SKILL_LEGS`; there is no
-per-skill manifest). The entry-point fold changed only who may invoke those
-skills, never how they run: the entry point invokes each leg as a genuine
-Skill-tool call, so the `PreToolUse(Skill)` gate, `acs.py step start`, the
-reflection loop and the `post-` hook all fire for real, precisely as drawn
-below. Read every `/acs:create-project`-style name in this file as the skill,
-not as a command a user types.
+This flow is **also** exactly what a leg of `/acs:code` runs (the legs are
+one table, `acs_lib.skills.SKILL_LEGS`; there is no per-skill manifest). The
+entry-point fold changed only who may invoke those skills, never how they
+run: the entry point invokes each leg as a genuine Skill-tool call, so the
+`PreToolUse(Skill)` gate (resolved to `code`'s), `acs.py step start`, and the
+`post-` hook all fire for real, precisely as drawn below. Read every
+`/acs:code-standard`-style name in this file as the skill, not as a command a
+user types.
 
 The diagram below shows the **reflection loop** (write → judge), which is
-how the twelve authoring skills run (`create-prd`, `create-architecture`,
-`create-project`, `create-design`, `docs-sync`, `standardize-project`,
-`create-requirements`, `analyze-requirements`, `create-impl-plan`,
+how the nine authoring skills run (`create-prd`, `create-architecture`,
+`create-design`, `docs-sync`, `analyze-requirements`, `create-impl-plan`,
 `create-api-contract`, `create-test-docs`, `create-e2e-tests`), and how
 `create-docs` runs it too. Each skill spawns its own roles, named for its
 work (ADR 0109): an optional **survey** role (`create-prd-surveyor`,
-`create-requirements-surveyor`, `standardize-project-auditor`,
 `analyze-requirements-impact-analyst`) on iteration 1
 only, which records the survey in `iter-1/authoring.md` and freezes it; a
 **write** role that authors the deliverable (and, with no survey role before
@@ -217,8 +215,8 @@ is still the block. What it evaluates is now only:
 It never checks that an upstream artifact exists (ADR 0109): each skill reads
 what it finds and falls back to the run's subject. A repo document is not
 checked either: the PRD `/acs:create-architecture` reads (and works without,
-from the subject), and the architecture set `/acs:create-project`,
-`/acs:standardize-project` and `/acs:create-docs` need, are found by the
+from the subject), and the architecture set `/acs:create-docs` needs, are
+found by the
 skill itself at Start, since no setting says where either lives ([ADR-0102](../../../adr/0102-documents-are-found-not-configured.md)).
 
 No gate refuses a skill for a predecessor's POSITION: `_require_completed`

@@ -23,8 +23,6 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 
-REQUIREMENTS_AUTHOR = os.path.join(AGENTS, "create-requirements-author.md")
-REQUIREMENTS_REVIEWER = os.path.join(AGENTS, "create-requirements-reviewer.md")
 ARCHITECTURE_EXECUTOR = os.path.join(AGENTS, "create-architecture-architect.md")
 ARCHITECTURE_VERIFIER = os.path.join(AGENTS, "create-architecture-reviewer.md")
 DOCS_SYNC_EXECUTOR = os.path.join(AGENTS, "docs-sync-doc-updater.md")
@@ -223,9 +221,14 @@ class ContractsMdSidecarNoteTest(unittest.TestCase):
             self.body,
         )
 
-    def test_producer_registration_line_present(self):
-        self.assertRegex(
-            self.body, r"(?i)/acs:create-requirements[\s\S]{0,200}producer skill")
+    def test_no_requirements_producer_is_registered(self):
+        """Was `test_producer_registration_line_present`, which pinned
+        `/acs:create-requirements` as the set's producer skill. ADR-0118
+        removed that skill: the paragraph now says acs has no producer, and
+        must not go on registering the removed one."""
+        self.assertNotRegex(
+            self.body, r"(?i)/acs:create-requirements` is the producer skill")
+        self.assertRegex(self.body, r"(?i)no longer has a producer skill")
 
 
 if __name__ == "__main__":
