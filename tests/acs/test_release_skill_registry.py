@@ -99,9 +99,10 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         # MAR-160: docs-sync registered, 14 -> 15; the skills-independence
         # refactor hooks the five Build/Test skills, 15 -> 17; v0.5.0 adds
         # review-code and run-e2e-tests, 17 -> 19; ADR-0118 removes
-        # create-project, standardize-project and create-requirements, 19 -> 16)
+        # create-project, standardize-project and create-requirements, 19 -> 16;
+        # ADR-0122 adds audit-design, 16 -> 17)
         # — /acs:release itself adds none.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 16)
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 17)
 
     def test_no_pre_or_post_release_script_on_disk(self):
         self.assertFalse(

@@ -28,7 +28,7 @@ SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
 class InventoryTest(unittest.TestCase):
     def test_every_agent_splits_into_a_shipped_skill_and_a_known_role(self):
         names = models.agent_names()
-        self.assertEqual(len(names), 25)
+        self.assertEqual(len(names), 27)
         for name in names:
             skill, role = lib.split_agent_name(name)
             self.assertIsNotNone(skill, name)
@@ -129,7 +129,7 @@ class AgentSyncTest(unittest.TestCase):
 
     def test_full_scaffold_writes_one_copy_per_agent(self):
         out = agent_sync.sync({"models": models.scaffold()}, self.tmp)
-        self.assertEqual(len(out["written"]), 25)
+        self.assertEqual(len(out["written"]), 27)
         self.assertEqual(sorted(os.listdir(self.dir)),
                          sorted(n + ".md" for n in out["written"]))
 
@@ -158,7 +158,7 @@ class AgentSyncTest(unittest.TestCase):
         agent_sync.sync(s, self.tmp)
         again = agent_sync.sync(s, self.tmp)
         self.assertEqual(again["written"], [])
-        self.assertEqual(len(again["unchanged"]), 25)
+        self.assertEqual(len(again["unchanged"]), 27)
 
     def test_a_changed_value_rewrites_the_copy(self):
         agent_sync.sync({"models": {"code": {"implementer": {"effort": "low"}}}}, self.tmp)
@@ -186,7 +186,7 @@ class AgentSyncTest(unittest.TestCase):
 
     def test_dry_run_writes_nothing(self):
         out = agent_sync.sync({"models": models.scaffold()}, self.tmp, dry_run=True)
-        self.assertEqual(len(out["written"]), 25)
+        self.assertEqual(len(out["written"]), 27)
         self.assertFalse(os.path.isdir(self.dir))
 
 

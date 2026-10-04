@@ -16,7 +16,7 @@ unchanged).
     `/create-ticket`, `/create-design`, `/analyze-requirements`,
     `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
     `/code`, `/review-code`, `/create-e2e-tests`, `/docs-sync`,
-    `/run-e2e-tests`, `/create-pr`, `/merge-pr` — each a skill directory
+    `/run-e2e-tests`, `/create-pr`, `/merge-pr`, `/audit-design` — each a skill directory
     with no per-skill manifest (ADR-0109), bundled alongside the default
     `workflows/ship.yaml` the delivery order is declared in (ADR-0089 as
     superseded by ADR-0096).
@@ -27,7 +27,7 @@ unchanged).
     `analyze-requirements` (plus an impact analyst: impact-analyst, analyst,
     impact-reviewer), `create-prd` (plus a surveyor: surveyor, author,
     reviewer),
-    `create-architecture` (architect, reviewer), `create-design` (designer,
+    `create-architecture` (architect, gap-analyst, reviewer), `create-design` (designer,
     design-reviewer), `create-docs` (author, reviewer — one pair serving all
     four doc sets, ADR-0094), `create-impl-plan` (planner, plan-reviewer),
     `create-api-contract` (contract-author, contract-reviewer),
@@ -36,15 +36,16 @@ unchanged).
     drift-reviewer); `code` bundles
     one implementer, its plan phase having moved to `create-impl-plan`
     (ADR-0089) and its review to `review-code`, which bundles a lens and an
-    adjudicator; the three **apply-work skills** (`create-ticket`,
+    adjudicator; the read-only `audit-design` bundles one gap analyst
+    (ADR-0122); the three **apply-work skills** (`create-ticket`,
     `create-pr`, `merge-pr`) run inline and bundle no subagent.
-    25 agent files exist on disk and 25 are reachable (20 for the nine
+    27 agent files exist on disk and 27 are reachable (21 for the nine
     authoring skills + 2 for `create-docs` + 1 for `code` + 2 for
-    `review-code`): every file name
+    `review-code` + 1 for `audit-design`): every file name
     resolves to a shipped skill and a role in `acs_lib.skills.ROLE_KINDS`,
     so none is orphaned. See
     [../functional/reflection.md](../functional/reflection.md).
-  - **Hooks**: a pre and post hook per hooked skill (sixteen of each),
+  - **Hooks**: a pre and post hook per hooked skill (seventeen of each),
     implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).
 
 ## Distribution & versioning

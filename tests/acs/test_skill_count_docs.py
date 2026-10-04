@@ -22,6 +22,23 @@ def read(path):
         return fh.read()
 
 
+#: The skills whose agents are NOT in a write -> judge reflection loop: code's
+#: implementer, review-code's lens and adjudicator (ADR-0109), and
+#: audit-design's gap analyst, a read-only survey with no writer to judge
+#: (ADR-0122). Was `agents - 3`; a constant offset stopped describing the tree
+#: once a loop-less skill gained an agent, so the loop agents are counted by
+#: their owning skill instead.
+NON_LOOP_SKILLS = ("code", "review-code", "audit-design")
+
+
+def loop_agent_count():
+    """Agent files owned by a skill that runs a write -> judge loop."""
+    names = [n[:-len(".md")] for n in os.listdir(os.path.join(PLUGIN, "agents"))
+             if n.endswith(".md")]
+    return len([n for n in names
+                if not any(n.startswith(s + "-") for s in NON_LOOP_SKILLS)])
+
+
 class SkillsMdCountAndTriadProseTest(unittest.TestCase):
     """skills.md states the skill count in words, derived from disk."""
 
@@ -87,9 +104,10 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertNotIn("eleven triad-keeping skills", body)
         agents = len([n for n in os.listdir(
             os.path.join(REPO_ROOT, "plugins", "acs", "agents")) if n.endswith(".md")])
-        # Everything but code's implementer (1) and review-code's lens and
-        # adjudicator (2) belongs to a reflection-loop skill (ADR-0109).
-        self.assertIn("**%d agents**" % (agents - 3), body)
+        # Everything but code's implementer (1), review-code's lens and
+        # adjudicator (2) and audit-design's gap analyst (1) belongs to a
+        # reflection-loop skill (ADR-0109, ADR-0122).
+        self.assertIn("**%d agents**" % loop_agent_count(), body)
         self.assertNotIn("12 authoring pairs (24 agents", body)
         self.assertNotIn("12 active triads (36 agents", body)
         self.assertIn("%d agent files, all reachable" % agents, body)
@@ -109,7 +127,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertIn("%d files, all reachable" % agents, body)
         self.assertNotIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
-        self.assertIn("`create-docs` (%d agents" % (agents - 3), body)
+        self.assertIn("`create-docs` (%d agents" % loop_agent_count(), body)
         self.assertNotIn("twelve authoring skills (24 agents)", body)
         self.assertNotIn("twelve triad-keeping skills (36 agents)", body)
         self.assertNotIn("eleven triad-keeping skills (33 agents)", body)

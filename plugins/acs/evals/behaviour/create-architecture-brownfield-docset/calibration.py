@@ -3,7 +3,8 @@ tests/evals/check_grader_calibration.py). The ideal run: `acs step start
 --allocate` mints the delivery ticket, the architect writes the high-level
 design (hld/ only, nothing under lld/), the coordinator commits and pushes the
 delivery branch, gh fails, and the result document goes through the real
-post-hook."""
+post-hook. Every hld/ file gets its version front matter through `acs design
+init --status implemented` -- the set documents the code as built (ADR-0122)."""
 
 import json
 import os
@@ -54,13 +55,20 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _write_docs(ws, hld=None, skip=(), lld=None):
+def _write_docs(ws, hld=None, skip=(), lld=None, versioned=True):
     ws.sh("git checkout -q -b %s main" % BRANCH)
+    written = []
     for name, text in (hld or HLD).items():
         if name not in skip:
-            ws.write("%s/hld/%s" % (ARCH, name), text)
+            written.append("%s/hld/%s" % (ARCH, name))
+            ws.write(written[-1], text)
     for name, text in (lld or {}).items():
         ws.write("%s/lld/%s" % (ARCH, name), text)
+    if versioned:
+        # A new file documenting the code as built: `design init --status
+        # implemented`, recording the delivery ticket (ADR-0122).
+        done = ws.acs("design", "init", "--status", "implemented", "--ticket", "EVAL-1", *written)
+        assert done.returncode == 0, done.stderr
     ws.sh("git add %s && git commit -qm 'EVAL-1 Add product architecture doc set'" % ARCH)
 
 
@@ -129,6 +137,14 @@ def _no_integration_map(ws):
     _finish(ws, hld=[n for n in HLD if n != "integration-map.md"])
 
 
+def _unversioned(ws):
+    """Wrote the HLD with no version front matter on any file."""
+    _start(ws)
+    _write_docs(ws, versioned=False)
+    _push(ws)
+    _finish(ws)
+
+
 def _never_pushed(ws):
     _start(ws)
     _write_docs(ws)
@@ -149,6 +165,7 @@ BAD = {
     "wrote LLD contracts and flows beside the HLD": _wrote_the_lld_too,
     "left out hld/cross-cutting.md": _no_cross_cutting,
     "left out hld/integration-map.md": _no_integration_map,
+    "wrote the HLD without version front matter": _unversioned,
     "committed but never pushed the delivery branch": _never_pushed,
     "recorded a PR that cannot exist": _invented_pr,
 }

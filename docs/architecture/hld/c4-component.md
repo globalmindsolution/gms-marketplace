@@ -10,9 +10,9 @@ C4Component
 
     Container_Boundary(hooks, "Hook & helper layer") {
         Component(dispatch, "dispatch.py", "hook entry", "PreToolUse(Skill): route to pre-<skill>.py, exit-2 blocks; SessionEnd: safety net")
-        Component(cli, "acs.py / acs_cli.py / acs_commands.py", "deterministic CLI front door", "ADR 0001's single entry point for the verbs a SKILL.md names, so no coordinator improvises heredoc Python: context, gate, run (new|show|next|check|abandon), step (start|finish|show), result validate, ticket, pr, tracker, readiness, lock, filemap, guard, verdict, notes (merge), slug, fanout, doctor, workflow (show|validate) and artifacts are implemented in-process, while plan (check|path) and setup detect/apply forward argv to the scripts that already implement them and return their exit code unchanged; stdout is exactly one pretty-printed JSON object, a usage or precondition failure exits 2, and exit 0 means the command ran, not that the answer was yes; guard events is MAR-578's read side over invocations[-1].guard_events, emitting ok/run_id/skill/count/events/path; run next emits next plus due and parallel for a parallel group, and notes merge joins a fan-out's slice files by H2 heading into one document (ADR-0110)")
-        Component(pre, "pre-<skill>.py x16", "gates", "lock free, settings/formats valid, safety brakes (never whether an upstream artifact exists: a skill falls back to the run's subject); a step owing nothing per the plan's ## Contract block is completed here as an evidenced no-op; no gate refuses a skill for a predecessor's POSITION in the workflow, though /acs:merge-pr's subject brake does read whether the step that recorded the PR reference completed — an artifact, not a position (gates.SUBJECT_GATES); fail closed; acs_lib.run_pre_payload also records the gate evidence (sessions/<checkout>-gate.json: skill and time, no session or transcript field) via record_gate_evidence, wrapped in its own fail-open try/except so a write failure never blocks the gate")
-        Component(post, "post-<skill>.py x16", "persistence", "finalize the step invocation; update ledger and index; release lock; merge extras (archive, epic auto-done); no usage is recorded -- a tokens or cost figure in the result document is legacy and ignored (ADR 0104)")
+        Component(cli, "acs.py / acs_cli.py / acs_commands.py", "deterministic CLI front door", "ADR 0001's single entry point for the verbs a SKILL.md names, so no coordinator improvises heredoc Python: context, gate, run (new|show|next|check|abandon), step (start|finish|show), result validate, ticket, pr, tracker, readiness, lock, filemap, guard, verdict, notes (merge), slug, fanout, doctor, workflow (show|validate), design (check|init|bump|status — a design document's version front matter, ADR-0122) and artifacts are implemented in-process, while plan (check|path) and setup detect/apply forward argv to the scripts that already implement them and return their exit code unchanged; stdout is exactly one pretty-printed JSON object, a usage or precondition failure exits 2, and exit 0 means the command ran, not that the answer was yes; guard events is MAR-578's read side over invocations[-1].guard_events, emitting ok/run_id/skill/count/events/path; run next emits next plus due and parallel for a parallel group, and notes merge joins a fan-out's slice files by H2 heading into one document (ADR-0110)")
+        Component(pre, "pre-<skill>.py x17", "gates", "lock free, settings/formats valid, safety brakes (never whether an upstream artifact exists: a skill falls back to the run's subject); a step owing nothing per the plan's ## Contract block is completed here as an evidenced no-op; no gate refuses a skill for a predecessor's POSITION in the workflow, though /acs:merge-pr's subject brake does read whether the step that recorded the PR reference completed — an artifact, not a position (gates.SUBJECT_GATES); fail closed; acs_lib.run_pre_payload also records the gate evidence (sessions/<checkout>-gate.json: skill and time, no session or transcript field) via record_gate_evidence, wrapped in its own fail-open try/except so a write failure never blocks the gate")
+        Component(post, "post-<skill>.py x17", "persistence", "finalize the step invocation; update ledger and index; release lock; merge extras (archive, epic auto-done); no usage is recorded -- a tokens or cost figure in the result document is legacy and ignored (ADR 0104)")
         Component(start, "acs.py step start", "step registration", "resolve the run (ticket id, prompt or document); allocate ids; acquire the lock; write sessions/<checkout>/pointer.json; record the step in_progress, refused while a step of another stage is in_progress (I1: only a parallel group's members may be open together); reconcile/handoff detection; spends the gate evidence once and records the verdict as the invocation's gate_enforcement")
         Component(mint, "new-ticket.py", "ticket factory", "id allocation, partition + ticket.json, epic backlinks, mint-time create-ticket state")
         Component(clarify, "clarify.py", "Q&A ledger", "add/answer/list clarifications; assumption protocol")
@@ -58,12 +58,12 @@ the kind picks its model tier and whether the file-map guard is armed. The
 **nine authoring skills** and `create-docs` run a write → judge reflection
 loop over their own roles: `analyze-requirements` (analyst, impact-analyst, impact-reviewer), `create-prd`
 (surveyor, author, reviewer), `create-architecture`
-(architect, reviewer), `create-design` (designer, design-reviewer),
+(architect, gap-analyst, reviewer), `create-design` (designer, design-reviewer),
 `create-docs` (author, reviewer), `create-impl-plan` (planner,
 plan-reviewer), `create-api-contract` (contract-author, contract-reviewer),
 `create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
 (test-writer, suite-runner) and `docs-sync` (doc-updater, drift-reviewer)
-— **22 agents**. No skill has a plan
+— **23 agents**. No skill has a plan
 phase before its writer (ADR 0092): a surveyor runs on iteration 1
 only and freezes its notes, and where there is none the writer surveys first
 and records `iter-<n>/authoring.md`; the judge judges the deliverable against
@@ -72,8 +72,12 @@ those notes. `code` spawns `code-implementer`s (1 agent) and is judged by
 apply-work skills** (create-ticket, create-pr, merge-pr) run **inline**: the
 coordinator does the work directly from its `references/` and spawns no
 subagent in any lane; correctness is gated instead (create-ticket by schema +
-Step-2 confirmation; create-pr/merge-pr by `/acs:review-code`). That gives
-**25 agent files, all reachable**: every file name resolves to a shipped
+Step-2 confirmation; create-pr/merge-pr by `/acs:review-code`). The
+read-only `/acs:audit-design` runs no loop either: it spawns
+`audit-design-gap-analyst`s (1 agent, survey kind) and reports, the same gap
+analysis `create-architecture`'s gap analyst runs beside its survey (ADR-0122).
+That gives
+**27 agent files, all reachable**: every file name resolves to a shipped
 skill and a known role, so no agent file is orphaned. `/create-impl-plan`'s
 planner is spawned on every run: MAR-72/ADR 0074's coordinator-authored fast
 path went with the lanes (ADR 0095).
