@@ -97,7 +97,7 @@ def IDEAL(ws):
     ws.reply = ("## /acs:create-flows · EVAL-1 · completed\n\n- **Results**: cancel-order flow, "
                 "the order state machine, and components/orders.md (internals and classes: "
                 "component-detail and class are enabled) under docs/architecture/lld/orders/, "
-                "proposed v1; left uncommitted for the publish.")
+                "proposed v1; left as local uncommitted changes for you to review and commit.")
 
 
 def _skipped_components(ws):

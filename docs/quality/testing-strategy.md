@@ -166,14 +166,14 @@ on-disk set against the `ALL_SKILLS` literal at
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 **Gating is complete for what can be gated: 19 of 19 hooked skills**; the other
 9 are n/a by construction — no `pre-*.py` exists for them (the four `code`
-legs run `code`'s), and none should. **Routing covers 28 of 28** — 230 routing
-cases in all (221 by description, ten phrasings for each of 22 skills and an
+legs run `code`'s), and none should. **Routing covers 28 of 28** — 250 routing
+cases in all (241 by description, ten phrasings for each of 24 skills and an
 eleventh for `setup`; 5 by explicit command; 4 negative) plus four off-domain
 controls, and `tests/evals/check_cases.py`
 (local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 28 of 28 skills but run for none**
 ([ADR-0113](../architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)): every
 skill has 2–7 behaviour cases, one per documented mode, branch and refusal
-(85 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
+(89 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
 cases), each shape-checked and calibrated for free and
 carrying its `baseline` criteria, but none has completed end to end or recorded
 its reference transcript — they need a host where Claude Code's Bash sandbox

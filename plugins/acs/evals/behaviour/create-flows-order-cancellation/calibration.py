@@ -213,8 +213,8 @@ def IDEAL(ws):
     ws.reply = ("## /acs:create-flows · EVAL-1 · completed\n\n- **Results**: "
                 "docs/architecture/lld/orders/flows/cancel-order.md (sequence and activity) and "
                 "flows/state-order.md (placed -> cancelled and paid -> cancelled added, planned), "
-                "both proposed v1; no components (not enabled); left uncommitted for the "
-                "publish.\n- **Findings**: info -- no lld/orders/api/ or data/ documents yet.\n"
+                "both proposed v1; no components (not enabled); left as local uncommitted "
+                "changes for you to review and commit.\n- **Findings**: info -- no lld/orders/api/ or data/ documents yet.\n"
                 "- **Next**: /acs:analyze-requirements EVAL-1")
 
 

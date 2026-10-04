@@ -9,7 +9,7 @@ documents and the feature README, version front matter through `acs.py design
 init --status proposed` (nothing of the orders model is built), the three
 reviewer slices joined with `acs.py notes merge`, the $0 checks, then
 result.json with every written path in states.files and the real post-hook.
-Nothing is committed: no ticket branch is checked out.
+Nothing is committed: the documents stay local for the user to review (ADR-0126).
 """
 
 import json
@@ -227,7 +227,7 @@ REPLY = ("## /acs:create-data-design · EVAL-1 · completed\n\n- **Results**: lo
          "PRODUCT, ORDER, ORDER_LINE) and physical schema (orders, order_lines, an index on "
          "customer_id, created_at for newest-first paging, a three-step migration outline in "
          "prose) under docs/architecture/lld/orders/data/, both proposed v1; no migration code "
-         "written; left uncommitted for /acs:analyze-requirements' publish.\n"
+         "written; left as local uncommitted changes for you to review and commit.\n"
          "- **Next**: /acs:create-flows EVAL-1")
 
 
@@ -310,8 +310,8 @@ def _ddl_in_the_outline(ws):
 
 
 def _recorded_no_files(ws):
-    """Wrote both documents but left states.files empty, so the publish that
-    commits them later has nothing to commit."""
+    """Wrote both documents but left states.files empty: the record of the
+    local changes the user is handed to review and commit is lost."""
     _start(ws)
     _write_docs(ws)
     _review(ws)

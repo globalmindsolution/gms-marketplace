@@ -5,6 +5,6 @@ pattern: '^(?=[\s\S]*"status"\s*:\s*"completed")(?=[\s\S]*"files"\s*:\s*\[[^\]]*
 ---
 
 The mandatory Finish ran through `post-create-flows.py` (`completed`), and
-with no ticket branch checked out `states.files` lists every written path,
-repo-relative -- what /acs:analyze-requirements' publish commits with the
-ticket folder.
+the documents stay local -- no branch, no commit, no PR (ADR-0126) -- so
+`states.files` lists every written path, repo-relative: the record of the
+local changes the user is handed to review and commit.

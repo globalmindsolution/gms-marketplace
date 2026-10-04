@@ -15,7 +15,8 @@
 # placed -> cancelled and paid -> cancelled, never shipped -> cancelled.
 # design.lld_types is the default: sequence, activity and state on,
 # component-detail and class off, so nothing under components/ is owed.
-# No ticket branch: nothing is committed, the paths go to states.files.
+# The documents stay local (ADR-0126): nothing is committed, the paths go to
+# states.files.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"

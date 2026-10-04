@@ -5,8 +5,8 @@ pattern: '^(?=[\s\S]*"status"\s*:\s*"completed")(?=[\s\S]*"files"\s*:\s*\[[^\]]*
 ---
 
 The mandatory Finish ran through `post-create-data-design.py`, which records
-the invocation `completed` and persists the result's states. With no ticket
-branch checked out nothing is committed, so `states.files` must list every
-written path, repo-relative -- it is what /acs:analyze-requirements' publish
-commits with the ticket folder. A file written but not recorded is never
-committed.
+the invocation `completed` and persists the result's states. The documents
+stay local -- no branch, no commit, no PR (ADR-0126) -- so `states.files`
+must list every written path, repo-relative: it is the record of the local
+changes the user is handed to review and commit. A file written but not
+recorded is a change nobody was told about.

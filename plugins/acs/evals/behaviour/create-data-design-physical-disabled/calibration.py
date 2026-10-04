@@ -28,7 +28,7 @@ WRITTEN = [L + "/README.md", FEATURE_README, ERD]
 REPLY = ("## /acs:create-data-design · EVAL-1 · completed\n\n- **Results**: logical ERD for "
          "orders (CUSTOMER, PRODUCT, ORDER, ORDER_LINE) under docs/architecture/lld/orders/data/, "
          "proposed v1. No physical schema: `physical-schema` is not enabled in "
-         "design.lld_types. Documents only, left uncommitted for the publish.\n"
+         "design.lld_types. Documents only, left as local uncommitted changes for you to review and commit.\n"
          "- **Next**: /acs:create-flows EVAL-1")
 
 

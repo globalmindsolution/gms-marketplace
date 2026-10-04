@@ -5,5 +5,5 @@ pattern: '^(?=[\s\S]*"status"\s*:\s*"completed")(?=[\s\S]*"files"\s*:\s*\[[^\]]*
 ---
 
 The Finish ran through the post-hook (`completed`); `states.files` lists the
-component document beside the flow -- else the later publish never commits
-it -- and `states.types` names both opt-in types it wrote.
+component document beside the flow -- the documents stay local, and
+`states.files` is the record of the changes the user is handed -- and `states.types` names both opt-in types it wrote.

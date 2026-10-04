@@ -10,8 +10,8 @@
 # EVAL-1 is the orders story, minted through new-ticket.py with `--features
 # orders` (ADR-0120) and given its acceptance criteria through `acs.py ticket
 # save`. No branch and no docs/tickets/ folder: the data design is
-# Design-phase work, and with no ticket branch checked out it commits nothing
-# and records what it wrote in states.files. design.lld_types is the default,
+# Design-phase work whose documents stay local (ADR-0126) -- no branch, no
+# commit, no PR -- with what it wrote recorded in states.files. design.lld_types is the default,
 # so both data types -- logical-erd and physical-schema -- are enabled.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
