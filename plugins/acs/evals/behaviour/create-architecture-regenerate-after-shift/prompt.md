@@ -1,19 +1,20 @@
 ---
 description: >-
   /acs:create-architecture re-run after a major architectural shift: the
-  repo's doc set still describes an export-worker container, a Redis queue
-  and a nightly-export flow that the latest commit removed, and misses the
-  new orders API. It should regenerate the same doc set in place -- stale
-  container, datastore and flow gone, the orders API and its flow added, the
-  still-true list-customers flow kept -- push its delivery branch, and report
-  the failed gh PR step as a finding.
+  repo's HLD still describes an export-worker container and a Redis queue
+  that the latest commit removed, misses the new orders API, and predates
+  hld/cross-cutting.md and hld/integration-map.md; an lld/ folder of
+  per-ticket contracts and flows sits beside it. It should regenerate the HLD
+  in place -- stale container and datastore gone, the orders API added, the
+  two missing HLD files created -- leave every lld/ file exactly as it was,
+  push its delivery branch, and report the failed gh PR step as a finding.
 expected_outcome: >-
   hld/c4-container.md and hld/deployment.md no longer mention export-worker
-  or Redis; lld/contracts.md documents GET /orders with customer_id and no
-  export queue; a new lld/flows/list-orders.md sequence diagram; the overview
-  lists list-customers and list-orders but not nightly-export;
-  lld/flows/list-customers.md kept; a task/EVAL-1-* branch pushed; result.json
-  records the gh failure and no PR.
+  or Redis; hld/c4-component.md and the new hld/integration-map.md name the
+  orders API; hld/cross-cutting.md is created; lld/contracts.md,
+  lld/flows/list-customers.md and lld/flows/nightly-export.md are byte for
+  byte as the scaffold left them and no lld/ file is added; a task/EVAL-1-*
+  branch is pushed; result.json records the gh failure and no PR.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 3000
@@ -28,11 +29,10 @@ Treat all of it as confirmed and do not ask me anything.
 
 - Containers now: exactly one, the `shop` Python 3 service. The
   export-worker container and Redis are gone for good; nothing replaced them.
-- Flows for lld/flows/: exactly two, in this order: `list-customers`
-  (unchanged: GET /customers?offset=&limit=, 20 per page by default) and a new
-  `list-orders` (a shopper client calls GET /orders?customer_id=&offset=&limit=
-  and gets one customer's orders). The `nightly-export` flow no longer exists:
-  remove its file.
+- APIs now: `shop` exposes three synchronous HTTP endpoints -- GET /health,
+  GET /customers?offset=&limit= (unchanged, 20 per page by default) and the
+  new GET /orders?customer_id=&offset=&limit= (one customer's orders). There
+  is no queue and no async consumer any more.
 - Deployment: the service runs as a single container behind a load
   balancer; there is no cron job any more.
 - Anything else you would confirm: take what the code and the PRD say.
