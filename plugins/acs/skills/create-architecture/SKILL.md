@@ -93,7 +93,8 @@ BEFORE continuing:
   belong to their iteration.
 - A sliced phase resumes slice by slice: re-run ONLY the slices whose own
   report is missing — a survey slice without `iter-1/authoring-<id>.md` or
-  `iter-1/architect-<id>.json`, a reviewer slice without
+  `iter-1/architect-<id>.json`, a gap-analyst slice without `iter-1/gaps-<id>.md`,
+  a reviewer slice without
   `iter-<n>/reviewer-<id>.md` — in one
   message, then redo the join with `acs.py notes merge`; the joined file is
   always rebuilt from the slice files, never trusted on its own.
@@ -170,10 +171,11 @@ path-driven review-depth selection: the cap is a fixed 3 on every run.
 | Role | Kind | Agent | Spawn as |
 |------|------|-------|------------|
 | architect | write | `acs:create-architecture-architect` | `context.agents.architect` |
+| gap-analyst | survey | `acs:create-architecture-gap-analyst` | `context.agents.gap-analyst` |
 | reviewer | judge | `acs:create-architecture-reviewer` | `context.agents.reviewer` |
 
 Spawn subagents with the Agent tool: subagent_type
-`acs:create-architecture-architect` /
+`acs:create-architecture-architect` / `acs:create-architecture-gap-analyst` /
 `acs:create-architecture-reviewer` (fall back to the un-namespaced name if
 the runtime rejects the namespaced one). Spawn each role under the name in
 `context.agents.<role>` — the plugin's `acs:create-architecture-<role>`, or the
@@ -254,17 +256,44 @@ architect, which writes `iter-1/authoring.md` itself.
 
 A survey instance, sliced or not, writes no doc file. When it has open
 reverse-engineering points it returns `needs_input` with them. Collect the
-questions of ALL slices, de-duplicate them, and ask everything in ONE grouped
+questions of ALL slices — and every drifted gap from the gap analysis below —
+de-duplicate them, and ask everything in ONE grouped
 clarification-ledger interaction (User interaction); the answers, recorded as
 `C-<n>` entries, go to the write pass in `<context>`. The survey (the `prd` slice, when sliced)
 also runs the shared ADR-0012 design-time doc-consistency step; any
 findings surface through the same grouped ask.
 
+### Gap analysis — beside the survey, iteration 1 (ADR-0122)
+
+When `<architecture_dir>/hld/` already holds documents, the design and the code can
+disagree, and the HLD must not be rewritten blind to it. Spawn the gap analysts
+**in the SAME message as the survey** — one `acs:create-architecture-gap-analyst`
+per survey area (slice id = the area's id; `repo` when the survey is un-sliced),
+each `<constraint name="area">` the same directory, its `<inputs>` the existing
+`hld/` files and the PRD — counted against the same cap of 4 per wave. They run
+while the survey runs. Join their notes once all have returned:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
+  --out <partition>/steps/create-architecture/iter-1/gaps.md \
+  <partition>/steps/create-architecture/iter-1/gaps-<area>.md …
+```
+
+A greenfield repo, or one with no HLD yet, has nothing to compare: skip the gap
+analysis and say so in the report. Each gap is handled by default as:
+
+- **undocumented** (in the code, not in the HLD) → documented as built;
+- **unimplemented** (in the HLD, not in the code) → kept, and marked planned
+  (its document stays or becomes `proposed`/`approved`, the element drawn with the
+  `planned` style);
+- **drifted** (both, disagreeing) → a question in the survey's ONE grouped ask, with
+  both readings and their citations — never silently resolved either way.
+
 ### Write pass — one architect
 
 After the grouped ask, spawn ONE write architect. Its `<inputs>` are the
-joined `iter-1/authoring.md` and the PRD, its `<context>` the recorded
-answers, and its `<constraint name="hld_types">` the enabled types; it writes
+joined `iter-1/authoring.md`, `iter-1/gaps.md` when the gap analysis ran, and the
+PRD, its `<context>` the recorded answers (the drifted gaps' included), and its `<constraint name="hld_types">` the enabled types; it writes
 every file of the Output contract for those types and nothing else, in the
 container/component vocabulary the notes pinned. Create the branch (Delivery)
 before spawning it.
@@ -280,6 +309,17 @@ the iteration-1 join with it appended (`acs.py notes merge --out
 iter-1/authoring.md iter-1/authoring-prd.md iter-1/authoring-<area>.md …
 iter-1/authoring-write.md`), so iteration 1's notes carry every `## Synthesis`
 entry the reviewer checks.
+
+**Design versions (ADR-0122).** Every HLD file carries version front matter
+(`status`, `version`, `tickets`), set only through `acs.py design`: a new file
+gets `design init --ticket <delivery-ticket>` with `--status implemented` when it
+documents the code as built and `--status proposed` when it designs ahead of the
+code (greenfield, or a planned element); a changed file gets `design bump --ticket
+<delivery-ticket>`, which re-opens it as `proposed`; a file the run leaves
+unchanged keeps its block. Elements that are designed but not built are drawn with
+a dashed `planned` classDef and marked `(planned)` in prose. The team's approval of
+the docs PR is the design's approval; `/acs:docs-sync` later moves a design to
+`implemented` when its code lands.
 
 The architect writes files only and never commits: you commit once, after
 the review passes (Delivery).
@@ -369,6 +409,7 @@ Phases:
    artifacts only (never the architects' reasoning), against the dimensions
    in the reviewer agent, all blocking.
 
+   The reviewer's `<inputs>` include `iter-1/gaps.md` when the gap analysis ran.
    The reviewer task's `<constraints>` also carry `hld_types`, each in-scope
    file's `required_sections:<file>` and the `audience_style_profile`
    declared in the architect task example above — the single-diagram HLD

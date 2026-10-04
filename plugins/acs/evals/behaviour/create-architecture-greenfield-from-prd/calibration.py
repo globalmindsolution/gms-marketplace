@@ -3,7 +3,9 @@ tests/evals/check_grader_calibration.py). The ideal run: `acs step start
 --allocate` mints the delivery ticket, the architect designs the HLD from
 the PRD and the confirmed answers -- the high-level design only, nothing under
 lld/ -- the coordinator commits and pushes the delivery branch, gh fails, and
-the result document goes through the real post-hook."""
+the result document goes through the real post-hook. Every hld/ file gets its
+version front matter through `acs design init --status proposed`: nothing is
+built yet, so the whole design is ahead of the code (ADR-0122)."""
 
 import json
 import os
@@ -78,10 +80,17 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _deliver(ws, hld=None, lld=None, extra=()):
+def _deliver(ws, hld=None, lld=None, extra=(), status="proposed"):
     ws.sh("git checkout -q -b %s main" % BRANCH)
+    written = []
     for name, text in (hld or HLD).items():
-        ws.write("%s/hld/%s" % (ARCH, name), text)
+        written.append("%s/hld/%s" % (ARCH, name))
+        ws.write(written[-1], text)
+    if status:
+        # A new file designed ahead of the code: `design init --status
+        # proposed`, recording the delivery ticket (ADR-0122).
+        done = ws.acs("design", "init", "--status", status, "--ticket", "EVAL-1", *written)
+        assert done.returncode == 0, done.stderr
     for name, text in (lld or {}).items():
         ws.write("%s/lld/%s" % (ARCH, name), text)
     for rel, text in extra:
@@ -152,6 +161,20 @@ def _no_cross_cutting(ws):
     _finish(ws, hld=[k for k in HLD if k != "cross-cutting.md"])
 
 
+def _unversioned(ws):
+    """Wrote the HLD with no version front matter on any file."""
+    _start(ws)
+    _deliver(ws, status=None)
+    _finish(ws)
+
+
+def _claimed_implemented(ws):
+    """Versioned a design for code that does not exist as already built."""
+    _start(ws)
+    _deliver(ws, status="implemented")
+    _finish(ws)
+
+
 BAD = {
     "designed a single invented container": _monolith,
     "scaffolded code beside the docs": _scaffolded_too,
@@ -160,4 +183,6 @@ BAD = {
     "left out hld/integration-map.md": _no_integration_map,
     "left out hld/cross-cutting.md": _no_cross_cutting,
     "allocated the ticket and wrote nothing": _start,
+    "wrote the HLD without version front matter": _unversioned,
+    "marked a design with no code behind it implemented": _claimed_implemented,
 }

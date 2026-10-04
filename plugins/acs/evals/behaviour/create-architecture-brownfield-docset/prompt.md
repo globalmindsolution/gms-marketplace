@@ -12,7 +12,9 @@ expected_outcome: >-
   integration-map, deployment, project-structure) and no lld/ file was
   written; integration-map.md is a Mermaid flowchart naming the real
   /customers and /health APIs; cross-cutting.md carries its four required
-  sections and the code's offset/limit pagination; a task/EVAL-1-* branch is
+  sections and the code's offset/limit pagination; hld/tech-stack.md opens
+  with version front matter, status implemented, EVAL-1 in tickets
+  (ADR-0122); a task/EVAL-1-* branch is
   pushed with upstream set; result.json records the gh failure and no PR.
 tags: [behaviour]
 max_turns: 150

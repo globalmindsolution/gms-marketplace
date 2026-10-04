@@ -55,7 +55,11 @@ name="dimensions">` (dimension numbers from the list below); echo the slice on y
    `hld/integration-map.md`, `hld/deployment.md`, `hld/project-structure.md`,
    `hld/data-flow.md`, `hld/capability-map.md` — whichever are enabled). Verify with
    `ls`/Glob, never the architect report. No C4 level 4 doc — it is deliberately out
-   of scope — and no file under `lld/` created or changed by this run.
+   of scope — and no file under `lld/` created or changed by this run. Every file
+   carries valid version front matter: run `Bash python3
+   ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py design check <every hld file>` and turn
+   each reported problem into a blocking finding; a file this run changed must show
+   this run's delivery ticket in `tickets` and a bumped `version` (ADR-0122).
 2. **prd-coverage** — the design satisfies the PRD: every goal, product-level NFR, and
    constraint in `prd.md` is addressed somewhere in the doc set; nothing contradicts the
    PRD's constraints or strays into its out-of-scope list. When the task's `prd`
@@ -99,7 +103,12 @@ name="dimensions">` (dimension numbers from the list below); echo the slice on y
    (or vice versa) is a finding.
 7. **authoring-conformance** — everything `iter-<n>/authoring.md` promised exists: the
    recorded mode matches the disk, the Target doc set is implemented exactly — no
-   missing file, no unplanned extra — and every codebase/PRD fact in the notes'
+   missing file, no unplanned extra — and, when `iter-1/gaps.md` is in your
+   `<inputs>`, every gap in it is handled as the notes' `## Gaps handled` says and the
+   disk shows: an undocumented element now documented, an unimplemented one kept and
+   marked planned (dashed `planned` style, `(planned)` in prose), a drifted one
+   resolved as the recorded answer says; an unhandled or silently dropped gap is a
+   blocking finding — and every codebase/PRD fact in the notes'
    inventory cites a file you can open and that says what the entry claims. Missing
    notes are a blocking finding on their own.
 8. **docs-only-changeset** — `git status --porcelain` and `git diff --stat`: every

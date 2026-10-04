@@ -29,7 +29,7 @@ for each role** (ADR-0109):
 |---|---|---|---|
 | analyze-requirements | `analyze-requirements-impact-analyst` | `analyze-requirements-analyst` | `analyze-requirements-impact-reviewer` |
 | create-prd | `create-prd-surveyor` | `create-prd-author` | `create-prd-reviewer` |
-| create-architecture | — | `create-architecture-architect` | `create-architecture-reviewer` |
+| create-architecture | `create-architecture-gap-analyst` (beside the architect's survey, when an HLD exists — ADR-0122) | `create-architecture-architect` | `create-architecture-reviewer` |
 | create-design | — | `create-design-designer` | `create-design-design-reviewer` |
 | create-docs | — | `create-docs-author` (one per doc set) | `create-docs-reviewer` |
 | create-impl-plan | — | `create-impl-plan-planner` | `create-impl-plan-plan-reviewer` |
@@ -145,7 +145,7 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 25 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 27 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
@@ -154,8 +154,9 @@ Requirements:
   skills-independence refactor added (`analyze-requirements`,
   `create-impl-plan`, `create-api-contract`, `create-test-docs`,
   `create-e2e-tests`) — plus `create-docs`. One of them (`create-prd`) adds
-  a surveyor, and one (`analyze-requirements`) an impact analyst per code
-  area (ADR-0114).
+  a surveyor, one (`analyze-requirements`) an impact analyst per code
+  area (ADR-0114), and one (`create-architecture`) a gap analyst per code
+  area beside its survey when an HLD already exists (ADR-0122).
 
   **One** prefix is write-only: `code`, whose implementers are judged by
   `/acs:review-code`, because an implementer that grades its own output gave
@@ -167,6 +168,10 @@ Requirements:
   raise candidate findings in parallel and one fresh-context adjudicator per
   finding tries to refute it, so the two roles fan out independently of each
   other.
+
+  **One** prefix is survey-only: `audit-design`, whose gap analysts compare
+  the architecture set with the code and report; the skill is read-only and
+  writes nothing for a judge to judge (ADR-0122).
 
   The three **apply-work** skills own no agent file at all (see the
   "Apply-work skills" subsection above).

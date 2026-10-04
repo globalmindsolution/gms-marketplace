@@ -21,6 +21,18 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ### Added
 
+- **Design versions and design ↔ code gap detection** (ADR-0122). Every HLD/LLD
+  document carries version front matter (`status`: proposed → approved →
+  implemented, or deprecated; `version`; `tickets`; `feature` on LLD documents), set
+  only through the new `acs.py design check|init|bump|status`, which refuses an
+  illegal transition. `/acs:create-architecture` runs a new
+  `create-architecture-gap-analyst` beside its survey: every gap between the existing
+  HLD and the code is classified unimplemented, undocumented or drifted, cited on both
+  sides, and handled — documented as built, marked planned, or asked about — before
+  the review passes.
+- **`/acs:audit-design`** (ADR-0122): a read-only audit of the architecture set (or
+  one feature) against the code, reading each gap against the document's status, with
+  an offer to ticket what it finds.
 - **`/acs:setup` asks which design documents to write** (ADR-0120). A new
   `design` settings block — `hld_types` and `lld_types`, each a list from a fixed
   catalog (C4 views, conceptual ERD, API landscape, deployment, project structure,

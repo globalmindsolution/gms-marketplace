@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-five skills in total. There is no registry file listing them: a skill is
+Twenty-six skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
 writes, or which group it belongs to, because nothing needs to: each skill
@@ -11,7 +11,8 @@ The groups below are a reader's aid, not a structure the code knows about:
 
 - **Product & design** — `/acs:create-prd`, `/acs:create-architecture`,
   `/acs:create-docs` (the four product doc sets, one skill since ADR-0094),
-  `/acs:create-ticket`, `/acs:create-design`.
+  `/acs:create-ticket`, `/acs:create-design`, `/acs:audit-design` (read-only:
+  the design compared with the code).
 - **Implementation** — `/acs:analyze-requirements`,
   `/acs:create-impl-plan`, `/acs:create-api-contract`,
   `/acs:create-test-docs`, `/acs:code` and its four delivery-path legs,
@@ -30,8 +31,8 @@ Test and Ship steps run in for a ticket is declared in
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Sixteen of the twenty-five are **hooked** (a pre-hook and a post-hook
-each): the five Product & design skills, all seven Implementation skills,
+Seventeen of the twenty-six are **hooked** (a pre-hook and a post-hook
+each): the six Product & design skills, all seven Implementation skills,
 both Test skills, `/create-pr` and `/merge-pr`. Five (`/setup`, `/ship`,
 `/handoff`, `/update`, `/acs:release`) are unhooked and take no position in a
 run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
@@ -50,7 +51,7 @@ Every **workflow** skill MUST:
   nine **authoring skills** and `create-docs` run a write → judge Reflection cycle over
   their own roles — `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
   `create-prd` (surveyor, author, reviewer),
-  `create-architecture` (architect, reviewer), `create-design` (designer,
+  `create-architecture` (architect, gap-analyst, reviewer), `create-design` (designer,
   design-reviewer), `create-docs` (author, reviewer), `create-impl-plan`
   (planner, plan-reviewer), `create-api-contract` (contract-author,
   contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
@@ -61,6 +62,9 @@ Every **workflow** skill MUST:
   **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
   per MAR-55 invariant (b): the coordinator performs the apply-work directly
   from its `references/` and spawns no subagent, on every delivery path.
+  `/acs:audit-design` is read-only and runs no write → judge cycle: it spawns
+  gap analysts (a survey role) and reports what they found
+  ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)).
 - have its safety brakes checked by a pre-hook and its outcome persisted by a
   post-hook ([hooks.md](hooks.md)) — neither hook enforces pipeline order,
   and neither refuses because an upstream artifact is missing;
@@ -480,7 +484,8 @@ not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-
   diffable, reviewable, rendered by GitHub, maintainable by agents).
 - Runs the Reflection cycle as author → review (ADR-0109) —
   `create-architecture-architect`, `create-architecture-reviewer` — with ONE
-  write architect after an optionally sliced survey. The reviewer checks:
+  write architect after an optionally sliced survey, and a
+  `create-architecture-gap-analyst` (survey kind) beside it. The reviewer checks:
   the design **satisfies the PRD** (goals, product-level NFRs,
   constraints); the docs match the actual codebase; they are internally
   consistent, one container/component vocabulary across every HLD file;
@@ -492,6 +497,26 @@ not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-
 - The architect's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
+- **Gap analysis** ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)): when `hld/` already holds documents,
+  the skill MUST spawn one `create-architecture-gap-analyst` per survey area
+  in the same message as the survey, and join their notes into
+  `iter-1/gaps.md`. Every gap is classified and cited on both sides —
+  **undocumented** (in the code, not the HLD) is documented as built;
+  **unimplemented** (in the HLD, not the code) is kept and marked planned
+  (dashed `planned` style, "(planned)" in prose); **drifted** (both,
+  disagreeing) MUST be asked in the survey's one grouped clarification ask
+  with both readings, never resolved silently either way. The architect
+  MUST handle every gap and the reviewer MUST treat an unhandled or silently
+  dropped gap as blocking. A greenfield repo, or one with no HLD yet, skips
+  the gap analysis and says so in the report.
+- **Design versions** ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)): every HLD file it writes MUST carry
+  version front matter (`status`, `version`, `tickets`), set only through
+  `acs.py design` — `design init --ticket <delivery-ticket>` for a new file
+  (`--status implemented` when it documents the code as built, `proposed`
+  when it designs ahead of it), `design bump --ticket <delivery-ticket>` for
+  a changed one (re-opened as `proposed`); a file the run leaves unchanged
+  keeps its block. The reviewer runs `acs.py design check` on every in-scope
+  file.
 - State lives in the delivery ticket's partition
   (`create-architecture-state.json`)
   ([workspace-and-state.md](workspace-and-state.md)).
@@ -598,6 +623,45 @@ internal leg skills that differed only in a table row, and that table,
   [product-level delivery rules](#product-level-delivery-tickets) — each
   run creates its own delivery ticket per set; the TDD pipeline does not
   apply to a docs-only change.
+
+## `/acs:audit-design` (product-level, read-only)
+
+Purpose: report where the system design and the code disagree — the HLD and
+every `lld/<feature>/` document, or one feature's, compared with the
+implementation ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)).
+
+- MUST be **read-only**: it MUST NOT edit a design document, the code, or
+  anything else in the repo. The Design skills fix the design and the
+  Development skills the code; its report is what they start from.
+- MUST locate the architecture set at Start (documents are found, not
+  configured — [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md));
+  with none, it MUST say so, point at `/acs:create-architecture`, and stop.
+- Takes a scope: a feature slug (`hld/` plus `lld/<slug>/`), `hld` (the HLD
+  only), or `all` / nothing (the HLD and every `lld/<feature>/`).
+- Is **hooked** but **ticket-independent**: not a step of `ship.yaml` and
+  with no subject brake, so its pre-hook checks only that the settings
+  resolve, and it runs over its prompt rather than a ticket; it creates no
+  delivery ticket and opens no PR.
+- MUST read each in-scope document's version front matter with
+  `acs.py design check`; a document with no or invalid front matter is itself
+  a finding (`unversioned`).
+- MUST spawn the gap analysis as `audit-design-gap-analyst` (survey kind) —
+  one per disjoint top-level code area, else one over the repo — in one
+  message, at most 4 per wave, and join their slice notes with
+  `acs.py notes merge` into `iter-1/gaps.md`; it MUST NOT compare the docs to
+  the code itself.
+- Every gap MUST be classified **unimplemented** (designed, not built),
+  **undocumented** (built, not designed) or **drifted** (both, disagreeing),
+  and cited on both sides. An unimplemented element in a `proposed` or
+  `approved` document MUST be reported as **planned** — the design ahead of
+  the code, not a defect; in an `implemented` document it is a regression.
+  Undocumented and drifted gaps are gaps whatever the status.
+- Asks nothing during the audit; at the end it MUST offer ONE grouped interaction
+  of which gap groups to ticket, record the answer in the clarification
+  ledger before acting on it, and on a yes run `/acs:create-ticket` once per
+  chosen group. Unable to reach the user, it tickets nothing and says so.
+- Ends with the standard completion report; its `result.json` `states.audit`
+  carries the scope, the joined report path and the count per gap kind.
 
 ## 1. `/create-ticket`
 

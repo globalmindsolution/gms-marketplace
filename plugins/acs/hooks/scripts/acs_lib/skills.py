@@ -55,6 +55,8 @@ ROLE_KINDS = {
     # survey -- read-only on the repo, writes its notes into the workspace
     "surveyor": "survey",
     "impact-analyst": "survey",
+    # design <-> code gap detection, read-only, beside a Design skill's survey (ADR-0122)
+    "gap-analyst": "survey",
     # write -- produces the deliverable
     "analyst": "write",
     "author": "write",

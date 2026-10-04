@@ -41,7 +41,7 @@ suite's README; the short version is live-GitHub (forge) coverage for
 
 ## Coverage today (per skill)
 
-25 shipped skills exist under `plugins/acs/skills/` — one directory per skill.
+26 shipped skills exist under `plugins/acs/skills/` — one directory per skill.
 The on-disk `skills/*/SKILL.md` set is test-pinned by
 `test_skill_contracts.py`'s `test_all_skills_exist_no_strays` (`:44-47`,
 sorted `SKILL.md` glob vs sorted `ALL_SKILLS`) to equal `ALL_SKILLS` — a
@@ -59,29 +59,29 @@ the repo's Markdown (`_markdown_files`, `:34-42`) to lint Mermaid blocks. So
 nothing yet stops a new skill shipping without a row here (see Roadmap
 item 2). The registry at
 [`acs_lib/_common.py:28-54`](../../plugins/acs/hooks/scripts/acs_lib/_common.py) splits them
-into **16 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
+into **17 hooked** (`PRODUCT_SKILLS` + `WORKFLOW_SKILLS` + `PLANNING_SKILLS`, each with a
 `pre-*.py`/`post-*.py` pair and the subagent roles its `agents/<skill>-<role>.md`
 files name, when it owns any) and **5 unhooked** (`UNHOOKED_SKILLS`), plus `/acs:code`'s
 four delivery-path legs, which are gated as their entry point and own neither
 scripts nor agents (ADR-0095). Re-derive with `ls -1 plugins/acs/skills | wc -l`
-(→ `25`) and a Python one-liner importing `acs_lib` and printing
-`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `16 5`).
+(→ `26`) and a Python one-liner importing `acs_lib` and printing
+`len(HOOKED_SKILLS)`, `len(UNHOOKED_SKILLS)` (→ `17 5`).
 
 Each column below is a **rule**, applied mechanically — a cell is derived,
 never hand-picked:
 
 - **Structure (1)** — the skill's `SKILL.md` is asserted by
   `test_skill_contracts.py` (its `ALL_SKILLS` list at `:106`, asserted against
-  the skills directory at `:141`) → 25 of 25.
+  the skills directory at `:141`) → 26 of 26.
 - **Gate (2)** — the skill is in `acs_lib.HOOKED_SKILLS`, so `dispatch.py`
-  runs its gate → 16 of 16 hooked, the count pinned by
+  runs its gate → 17 of 17 hooked, the count pinned by
   `tests/acs/test_release_skill_registry.py` (`test_hooked_skills_count`,
   beside `test_unhooked_skills_count`); the 5 unhooked have none by
   construction, and `test_release_is_not_gated` separately confirms one such
   skill (`release`) is not gated. `/acs:code`'s four legs are gated as `code`
   itself (`LEG_ENTRY_POINTS`).
 - **Trigger (5)** — the skill has a routing case under
-  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 25 of 25.
+  [`plugins/acs/evals/routing/`](../../plugins/acs/evals/README.md) → 26 of 26.
   This column is no longer maintained by hand: `tests/evals/check_cases.py`'s
   `CoverageTest` fails when any shipped skill lacks a routing case, or any case
   names a skill that does not ship, so running that module IS the check. Its
@@ -113,7 +113,7 @@ never hand-picked:
   call names is made non-invocable again.
 - **Artifact (6)** — an artifact case under
   [`plugins/acs/evals/artifacts/`](../../plugins/acs/evals/artifacts/README.md)
-  asserts that skill's own workspace state → 2 of 25: `create-ticket`
+  asserts that skill's own workspace state → 2 of 26: `create-ticket`
   (`create-ticket-artifacts`) and `code` (`resume-and-verify`). Both are marked
   † below: their seeds are verified by hand, but neither case has yet completed
   end to end — in the container this suite was built in, Bash is non-functional
@@ -163,20 +163,20 @@ network rules do not reach. They were covered — `create-pr` partly, since its
 scenario skipped without an onboarded target — by a forge tier in the retired
 behavioural harness. The other `—` cells are the gap itself.
 
-**Structure is complete: 25 of 25** (`test_skill_contracts.py:141` pins the
+**Structure is complete: 26 of 26** (`test_skill_contracts.py:141` pins the
 on-disk set against the `ALL_SKILLS` literal at
 `test_skill_contracts.py:106`, not against `acs_lib` — and no test pins this
 table itself, so a new skill's row here is not enforced; see Roadmap item 2).
-**Gating is complete for what can be gated: 16 of 16 hooked skills**; the other
+**Gating is complete for what can be gated: 17 of 17 hooked skills**; the other
 9 are n/a by construction — no `pre-*.py` exists for them (the four `code`
-legs run `code`'s), and none should. **Routing covers 25 of 25** — 220 routing
-cases in all (211 by description, ten phrasings for each of 21 skills and an
+legs run `code`'s), and none should. **Routing covers 26 of 26** — 230 routing
+cases in all (221 by description, ten phrasings for each of 22 skills and an
 eleventh for `setup`; 5 by explicit command; 4 negative) plus four off-domain
 controls, and `tests/evals/check_cases.py`
-(local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 25 of 25 skills but run for none**
+(local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 26 of 26 skills but run for none**
 ([ADR-0113](../architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)): every
 skill has 2–7 behaviour cases, one per documented mode, branch and refusal
-(87 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
+(90 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
 cases), each shape-checked and calibrated for free and
 carrying its `baseline` criteria, but none has completed end to end or recorded
 its reference transcript — they need a host where Claude Code's Bash sandbox

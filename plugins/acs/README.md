@@ -82,6 +82,9 @@ architecture doc set, each delivered as a reviewable docs PR:
                            #   deployment) + LLD key flows, all Mermaid
                            # → delivery ticket ACS-2, docs PR
 /acs:merge-pr ACS-2
+
+/acs:audit-design          # any time after: where do the design docs and the
+                           #   code disagree? read-only report, cited both ways
 ```
 
 (Greenfield is the same, except both skills *elicit* instead of
@@ -129,7 +132,7 @@ The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 25 skills
+## The 26 skills
 
 The tables group the skills by phase — Design, Build, Test, Ship or
 Utility. There is no registry file and no per-skill manifest: a skill is its
@@ -165,10 +168,11 @@ recorded the PR reference completed — an artifact, not a position.
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
 | `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; docs PR via its own delivery ticket. |
-| `/acs:create-architecture` | Settings exist | Works from the PRD when there is one; without one, from the run's subject (a document in its arguments, else your focus notes plus the codebase), confirming goals, NFRs and constraints through the clarification ledger. Writes the high-level design only — `hld/` overview, tech stack and cross-cutting conventions plus the HLD types enabled at `/acs:setup` (C4 levels 1–3, conceptual data model, API landscape, deployment, project structure; opt-in data-flow and capability maps) — in the repo's architecture set, else `docs/architecture/`, all Mermaid; never `lld/`; docs PR. |
+| `/acs:create-architecture` | Settings exist | Works from the PRD when there is one; without one, from the run's subject (a document in its arguments, else your focus notes plus the codebase), confirming goals, NFRs and constraints through the clarification ledger. Writes the high-level design only — `hld/` overview, tech stack and cross-cutting conventions plus the HLD types enabled at `/acs:setup` (C4 levels 1–3, conceptual data model, API landscape, deployment, project structure; opt-in data-flow and capability maps) — in the repo's architecture set, else `docs/architecture/`, all Mermaid; never `lld/`; docs PR. When an HLD already exists, a gap analyst per code area runs beside the survey: undocumented code is documented as built, designed-but-unbuilt elements stay and are marked planned, and drifted ones are asked, never silently resolved. Every HLD file carries version front matter (`status`, `version`, `tickets`) set through `acs.py design` ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
 | `/acs:create-docs` | Settings exist; the skill itself stops at Start without the architecture doc set | Bootstraps or maintains the four product doc sets — `quality` (test strategy, coverage policy), `operations` (release process, runbooks, observability, incident response, test scheduling), `principles` (engineering principles + rationale), `standards` (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set. Takes `all`, a comma-separated list of sets, or a delivery-ticket id to resume one; runs the eligible sets in capped parallel (at most 2 at a time, a limit the skill sets for itself — `ship.yaml` carries no `max_parallel`), each as its own docs-only PR on its own delivery ticket. One author and one reviewer serve every set (the set rides in the task constraints); `standards` reads the `principles` set when present and never blocks on its absence. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
+| `/acs:audit-design` | Settings exist | Read-only: compares the architecture set — the HLD and every `lld/<feature>/`, or one feature's — with the code and reports every gap, cited on both sides: unimplemented (designed, not built; *planned* when its document is still `proposed`/`approved`), undocumented (built, not designed) or drifted (both, disagreeing), plus any document with no version front matter. Never edits a document or the code; offers to ticket the gap groups you pick ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
 
 #### Internal legs — not commands you run
 

@@ -30,7 +30,8 @@ import acs_lib as lib  # noqa: E402
 from acs_lib import workflow  # noqa: E402
 
 PINNED_SORTED_HOOKED_SKILLS = [
-    "analyze-requirements", "code", "create-api-contract", "create-architecture",
+    "analyze-requirements", "audit-design", "code", "create-api-contract",
+    "create-architecture",
     "create-design", "create-docs", "create-e2e-tests", "create-impl-plan",
     "create-pr", "create-prd",
     "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "review-code",
@@ -82,7 +83,8 @@ class RegistryShapeCase(unittest.TestCase):
         # 15 through MAR-160; the skills-independence refactor hooks the five
         # Build/Test skills (analyze-requirements, create-impl-plan,
         # create-api-contract, create-test-docs, create-e2e-tests), and
-        # v0.5.0 adds review-code and run-e2e-tests as steps of their own.
+        # v0.5.0 adds review-code and run-e2e-tests as steps of their own;
+        # ADR-0122 adds the read-only audit-design.
         self.assertEqual(len(acs_lib.HOOKED_SKILLS), HOOKED_SKILL_COUNT)
 
     def test_sorted_hooked_skills_membership_pinned(self):

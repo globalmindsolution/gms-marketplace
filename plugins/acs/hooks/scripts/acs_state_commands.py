@@ -375,6 +375,31 @@ def _run_from_invocation(ctx, step, text):
     return doc["run_id"]
 
 
+def _audit_run(ctx, step, text):
+    """The run an Audit skill records itself in (ADR-0122/0123). An audit has no
+    ticket and is not a workflow step, so no hook opens one: resume this
+    checkout's current run when it is live and carries no workflow step (an
+    interrupted audit, or one a caller opened with `acs run new`), else open a
+    run over the invocation and point the checkout at it. The post-hook
+    concludes it."""
+    repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    current = lib.current_run_id(ctx)
+    if current:
+        doc = lib.load_run(lib.run_dir(repo, current)) or {}
+        if (doc.get("status") not in lib.TERMINAL_RUN_STATUSES and not doc.get("steps")
+                and (doc.get("subject") or {}).get("kind") != "ticket"):
+            return current
+    subject = {"kind": "prompt", "text": "/acs:%s %s" % (step, (text or "").strip() or "all")}
+    try:
+        resolved = lib.resolve_workflow(ctx.get("checkout_root"))
+        wf = lib.validate_workflow_file(resolved["path"])
+        run_id, _rdir, _doc = lib.create_run(repo, subject, wf, resolved["path"])
+    except (lib.WorkflowError, lib.GateError) as exc:
+        die("step start", str(exc))
+    lib.point_checkout_at(ctx, run_id)
+    return run_id
+
+
 def cmd_step_start(args):
     """step -> in_progress, after the invariants hold. Writer for the
     PreToolUse(Skill) transition."""
@@ -434,6 +459,8 @@ def cmd_step_start(args):
         _brake_or_die(ctx, args.step, rdir, lib.load_run(rdir) or {
             "run_id": ticket_id, "subject": {"kind": "ticket", "ticket_id": ticket_id}})
         _ensure_run_for_ticket(ctx, ticket_id)
+    elif args.step in lib.AUDIT_SKILLS and not args.run:
+        args.run = _audit_run(ctx, args.step, getattr(args, "args", None))
     elif getattr(args, "args", None) and not args.run and not lib.current_run_id(ctx):
         # The invocation's own arguments name the subject and no hook opened a
         # run over it (a host that never fires PreToolUse(Skill)). Resolve it

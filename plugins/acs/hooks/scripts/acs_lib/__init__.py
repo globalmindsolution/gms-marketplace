@@ -34,7 +34,7 @@ from . import (_common, settings, repo, hostgates, planrules, lock, tickets,  # 
                setup_helpers, forge, verdict, derive, gate_inputs, gates, lifecycle,  # noqa: F401
                advisory)  # noqa: F401
 
-from ._common import (DELIVERY_TICKET_SKILLS,
+from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS,
     DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
     DOC_BOOTSTRAP_SENTINEL, DOC_SET_DEFAULT_DIR, DOC_SET_TITLES, DOC_SETS,
     CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
@@ -153,6 +153,7 @@ from . import skills as skills_registry  # noqa: F401,E402
 from . import models  # noqa: F401,E402
 from . import launch_config  # noqa: F401,E402
 from . import design_types  # noqa: F401,E402
+from . import design_docs  # noqa: F401,E402
 from . import migrate_settings  # noqa: F401,E402
 from . import conventions  # noqa: F401,E402
 from . import agent_sync  # noqa: F401,E402
