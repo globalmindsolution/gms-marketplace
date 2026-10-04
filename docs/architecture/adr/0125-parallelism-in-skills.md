@@ -44,7 +44,7 @@ answer cannot be "run the agents in the background".
    4; `acs_lib.settings`, `schemas/settings.schema.json`) is the most subagents a
    skill spawns in one message; beyond it, waves of that size. Every multi-agent
    skill's prose reads it instead of a literal. A skill's smaller structural cap
-   stays (`code-small` 2, `code-trivial` 1, `create-docs`' doc sets 2), and
+   stays (`code-small` 2, `code-trivial` 1), and
    `/acs:review-code`'s five lenses are one message whatever the setting.
 2. **Jobs: commands beside the agents.** `acs.py job start --name N [--cwd D] --
    <command>` runs a deterministic command detached under `<run>/jobs/` and returns
