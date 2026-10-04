@@ -87,13 +87,14 @@ _PROJECT_RESPONSES = {
     "gh project item-edit": (0, "", ""),
 }
 
-# The 20 hooked skills. The skills-independence refactor added the five
+# The 19 hooked skills. The skills-independence refactor added the five
 # Build/Test coordinators (analyze-requirements, create-impl-plan,
-# create-api-contract, create-test-docs, create-e2e-tests); `run-e2e-tests`
-# (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
-# for one release as the alias directory.
+# create-api-contract, create-test-docs, create-e2e-tests); ADR-0126 added the
+# two low-level Design skills (create-data-design, create-flows) beside
+# create-design.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-ticket",
-                 "create-design", "analyze-requirements", "create-impl-plan",
+                 "create-design", "create-data-design", "create-flows",
+                 "analyze-requirements", "create-impl-plan",
                  "create-api-contract", "create-test-docs", "code",
                  "review-code", "run-e2e-tests",
                  "docs-sync", "create-e2e-tests", "create-pr",
@@ -125,6 +126,8 @@ EXPECTED_AGENTS = {
     "create-prd": ["surveyor", "author", "reviewer"],
     "create-architecture": ["architect", "gap-analyst", "reviewer"],
     "create-design": ["designer", "design-reviewer"],
+    "create-data-design": ["designer", "gap-analyst", "reviewer"],
+    "create-flows": ["designer", "gap-analyst", "reviewer"],
     "create-impl-plan": ["planner", "plan-reviewer"],
     "create-api-contract": ["contract-author", "contract-reviewer"],
     "create-test-docs": ["test-designer", "trace-reviewer"],
@@ -862,7 +865,8 @@ class TestApplyTierInline(unittest.TestCase):
         they own -- every role EXPECTED_AGENTS names for them, by its
         namespaced agent name -- and never a generic executor/verifier."""
         for skill in ("create-impl-plan", "create-prd", "docs-sync",
-                      "create-design", "create-architecture"):
+                      "create-design", "create-architecture",
+                      "create-data-design", "create-flows"):
             body = read(self.skill_path(skill))
             self.assertIsNone(
                 re.search(r"acs:" + skill + r"-(?:executor|verifier)\b", body),
