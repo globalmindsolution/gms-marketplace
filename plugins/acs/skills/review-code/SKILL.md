@@ -13,12 +13,26 @@ write a verdict; `/acs:code` is what acts on it.
 
 ## What you are reviewing
 
-The changeset is `--base <ref>` (default: the repo's default branch) against
-`HEAD` **and the working tree**. Uncommitted changes are part of the
-changeset: a review that ignored them would pass a tree that does not exist.
+The changeset is everything between the merge base of `--base <ref>`
+(default: the repo's default branch) and HEAD, **plus the working tree** —
+untracked files included. Inside a pipeline nothing is committed before
+`/acs:create-pr` (ADR-0127), so the change under review is usually ALL
+uncommitted: a review that read `git diff <base>...HEAD` would judge an empty
+changeset and pass a tree that does not exist. Read it only through acs:
 
-Resolve it once, at Start, and record the base sha as `reviewed_sha` — every
-lens judges the same diff, and `/acs:code` needs that sha as its baseline.
+```bash
+base_sha="$(git merge-base <ref> HEAD)"   # <ref> = --base, else the default branch
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --since "$base_sha" --patch
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --since "$base_sha" --name-only
+```
+
+Resolve it once, at Start, and freeze what you judged: run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes snapshot` and
+record its `tree` as `reviewed_sha` — the working-tree snapshot every lens
+judges, and the baseline `/acs:code` diffs its fixes from
+(`acs.py changes diff --since <reviewed_sha>`). A commit sha would not do:
+the reviewed change is not committed. Every lens task names `base_sha`, so every lens
+reads the same changeset the same way.
 
 ## Start
 
@@ -199,7 +213,8 @@ conclude.
 Every lens receives the previous verdict's confirmed findings and
 `/acs:code`'s `result.json` resolutions as context, and reviews the **whole
 changeset** — a fix can break something the first review passed. Prioritise
-hunks changed since `since_sha`, but do not restrict to them.
+hunks changed since `since_sha` (`acs.py changes diff --since <since_sha>`
+— the snapshot the previous review judged), but do not restrict to them.
 
 - a finding whose `resolved_when` now holds → `status: resolved` in the new
   verdict, so the trail shows closure
@@ -261,5 +276,5 @@ order, `none` where empty:
 - **Findings**: <confirmed findings by id, or "none">
 - **Artifacts**: `verdict.json`, the lens reports, `adjudication.json`, `gate.json`
 - **Metrics**: iteration <n>/<cap> · <wall time>
-- **Next**: `/acs:code` on blocking findings; `/acs:docs-sync` then `/acs:create-pr` on a pass
+- **Next**: `/acs:code` on blocking findings; `/acs:docs-sync` then `/acs:create-pr` on a pass (the reviewed change stays uncommitted until `/acs:create-pr`)
 ```

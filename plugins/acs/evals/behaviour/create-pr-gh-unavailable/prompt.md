@@ -1,10 +1,11 @@
 ---
 description: >-
-  EVAL-1 is implemented on its ticket branch and its /acs:code run is
-  recorded. gh cannot reach GitHub in the run, so create-pr's base detection
-  (critical, and deliberately run before the push) fails: the skill must stop
-  there, push nothing, record the failure as a classified gh error with no PR,
-  and say so -- never fake a PR or route around gh.
+  EVAL-1 is implemented and already committed on its checked-out ticket
+  branch, and its /acs:code run is recorded, so the commit plan has nothing
+  left to commit. gh cannot reach GitHub in the run, so create-pr's base
+  detection (critical, and deliberately run before the push) fails: the skill
+  must stop there, push nothing, record the failure as a classified gh error
+  with no PR, and say so -- never fake a PR or route around gh.
 expected_outcome: >-
   steps/create-pr/state.json records a failed invocation whose errors name the
   failed gh call and carries no pr object; the ticket branch is not on the

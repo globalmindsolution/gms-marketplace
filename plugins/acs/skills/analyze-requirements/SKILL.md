@@ -611,16 +611,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis record-publication
 
 `publish` refuses unless the last review passed and the draft is still the
 exact bytes that review judged — bytes whose deterministic checks ran clean
-beside that review (above). Then it copies the draft byte-for-byte to the resolved analysis path and reads it
-back; inside the repo it runs `git add` on the ticket's docs folder ONLY and
-commits that folder ONLY, in the repo's own commit style naming the ticket id. It commits
-**the ticket's whole docs folder**, not only `analysis.md`: `ticket.md` and,
-when the ticket needed one, `design.md` were published in the Design phase
-before this branch existed, and acs never commits to the default branch, so
-this first Build commit is what carries them into the branch and into the PR
-(ADR 0090). It never pushes. `record-publication` re-derives all of it — the
-published bytes are the reviewed bytes, and HEAD carries them — and completes
-the loop.
+beside that review (above). Then it copies the draft byte-for-byte to the
+resolved analysis path and reads it back, and records **the ticket's whole
+docs folder** — `ticket.md`, `analysis.md` and, when the ticket needed one,
+`design.md` — as `publication.files` in the loop, repo-relative. It never
+stages, commits or pushes and refuses no branch (ADR-0127): the folder is left
+as uncommitted changes in the working tree, and `/acs:create-pr` reads those
+recorded paths to make the ticket-docs commit, the first of the PR.
+`record-publication` re-derives it from the working tree — the published bytes
+are still the reviewed bytes — and completes the loop. Copy
+`publication.files` into your result's `states.files`.
 
 You never copy or commit the analysis yourself, and no subagent does: the
 file-map write guard (`acs_lib/filemap.py`) denies any running `write`-kind

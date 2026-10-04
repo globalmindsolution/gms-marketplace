@@ -86,6 +86,11 @@ PRODUCT_TICKET_TITLES = {
 # still carry those titles, and the tracker sync still recognises them.
 DELIVERY_TICKET_SKILLS = []
 DELIVERY_TICKET_TITLES = {}
+# The skills whose delivery tickets, minted BEFORE ADR-0127, recorded their own
+# PR. Read-only: nothing records one any more, but a delivery ticket still in
+# review when acs was upgraded is still mergeable by its id (`gates`), and
+# still derives `in_review` (`artifacts`).
+LEGACY_DELIVERY_TICKET_SKILLS = list(PRODUCT_SKILLS)
 
 # The skills that run ticketless, in a run of their own (ADR-0122/0123/0127):
 # `step start` opens (or resumes) a run over the invocation, and the post-hook

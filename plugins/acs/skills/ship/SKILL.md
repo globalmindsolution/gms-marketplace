@@ -201,12 +201,13 @@ run here, in your context — what runs in parallel is their SUBAGENTS:
    message, across members; beyond it, waves of that size. A member that
    must wait (for its own judge's input, or for the user) simply sits out
    that batch.
-3. **A judge that reads the branch diff goes last.** A member whose judge
-   re-derives its verdict from the branch diff — `docs-sync`'s drift-reviewer
-   — must judge the diff the whole group leaves behind. Hold that judge's
-   batch while any sibling still has a writer phase to run, so it spawns
-   only after every sibling writer has committed. If a sibling commits again
-   after that judge already passed (a sibling's own iteration 2 or 3), run
+3. **A judge that reads the changeset goes last.** A member whose judge
+   re-derives its verdict from the working-tree changeset (`acs.py changes
+   diff`) — `docs-sync`'s drift-reviewer — must judge the changeset the whole
+   group leaves behind. Hold that judge's batch while any sibling still has a
+   writer phase to run, so it spawns only after every sibling writer has
+   written (not committed — nothing is committed before `/acs:create-pr`). If
+   a sibling writes again after that judge already passed (a sibling's own iteration 2 or 3), run
    that judge once more before the member finishes; its findings start the
    member's next iteration as usual, within the member's own ceiling.
 4. **Ask the user once.** When more than one member needs input, gather their
@@ -218,9 +219,10 @@ run here, in your context — what runs in parallel is their SUBAGENTS:
 6. **A failure stops the group cleanly.** If one member fails, let the
    others finish the phase already in flight (never abandon a running
    subagent), record them `interrupted` through their own Finish, then stop
-   and report per "Handling the handoff". Commits: members commit on the one
-   ticket branch; a commit that meets git's `index.lock` waits briefly and
-   retries — never delete the lock file.
+   and report per "Handling the handoff". No member stages, commits or
+   switches a branch (ADR-0127): every member writes into the one working
+   tree and records its paths in `states.files`, so there is no index to
+   contend for; `/acs:create-pr`, the last step, is the only committer.
 
 ## Handling the handoff
 
@@ -311,7 +313,7 @@ interrupted — ends your final message with the standard block (INTERNALS.md
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: per-step status from `run.json` (one line per step); the PR reference when the run reached its last step
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <run-directory files, ticket docs folder, branch, PR URL>
+- **Artifacts**: <run-directory files, ticket docs folder, the uncommitted files the steps wrote (until `/acs:create-pr`), then the branch and PR URL it created>
 - **Metrics**: <wall time>
 - **Next**: review the PR yourself, then `/acs:merge-pr <ticket-id>`; on a failed step: the resume command (`/acs:ship <ticket-id>` or `/acs:<skill> <ticket-id>`)
 ```

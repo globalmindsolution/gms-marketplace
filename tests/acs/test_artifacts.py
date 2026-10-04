@@ -306,7 +306,8 @@ class TestDeriveStatus(ArtifactsCase):
                     self.step(step_id, status)
                 self.assertEqual(artifacts.derive_status(self.tdir(TICKET)), expected)
 
-    def test_a_delivery_ticket_is_in_review_once_its_run_recorded_a_pr(self):
+    def test_a_legacy_delivery_ticket_is_in_review_once_its_run_recorded_a_pr(self):
+        """Minted before ADR-0127, when create-prd opened its own PR."""
         tdir = self.partition()
         self.step("create-prd", "completed")
         self.assertEqual(artifacts.derive_status(tdir), "in_progress")
@@ -579,17 +580,19 @@ class TestCommitOwnership(unittest.TestCase):
         raw = read_text(os.path.join(REPO_ROOT, "plugins", "acs", "skills", name, "SKILL.md"))
         return " ".join(raw.split())
 
-    def test_analyze_ticket_commits_the_whole_docs_folder(self):
-        """ADR-0114 moved the publish into `acs.py analysis publish`: the
-        controller stages and commits the docs folder (pathspec-limited), and
-        tests/acs/test_analysis_loop.py proves what the commit carries."""
+    def test_analyze_ticket_records_the_whole_docs_folder_and_commits_nothing(self):
+        """ADR-0127: `acs.py analysis publish` writes the docs folder and
+        records its paths for /acs:create-pr, which makes the ticket-docs
+        commit; the controller itself never stages or commits
+        (tests/acs/test_analysis_loop.py proves it)."""
         body = self.skill("analyze-requirements")
-        self.assertIn("It commits **the ticket's whole docs folder**", body,
-                      "analyze-requirements's publish step must stage the ticket's docs folder")
+        self.assertIn("**the ticket's whole docs folder**", body)
         self.assertIn("ticket.md", body)
+        self.assertIn("publication.files", body)
         source = read_text(os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts",
                                         "acs_lib", "analysis_publish.py"))
-        self.assertIn('_git(root, "add", "--", docs_dir)', source)
+        self.assertNotIn('"commit"', source.split('"""', 2)[2])
+        self.assertNotIn('"add"', source)
 
     def test_create_design_publishes_and_does_not_commit_on_the_default_branch(self):
         body = self.skill("create-design")

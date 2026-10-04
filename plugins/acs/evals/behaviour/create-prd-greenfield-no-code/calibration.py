@@ -1,16 +1,16 @@
 """Calibration plays for create-prd-greenfield-no-code (see
-tests/evals/check_grader_calibration.py). The ideal run: `acs step start
---allocate` mints the delivery ticket, the author writes the two documents
-from the elicited answers alone, the coordinator commits and pushes the
-delivery branch, gh fails, and the result document goes through the real
-post-hook."""
+tests/evals/check_grader_calibration.py). The ideal run: `acs step start`
+resumes the ticketless run the scaffold opened, the author writes the two
+documents from the elicited answers alone and leaves them uncommitted, and the
+result document, listing both in `states.files`, goes through the real
+post-hook. Nothing is branched, committed or pushed (ADR-0127)."""
 
 import json
 import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-prd.py")
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-prd"
+STEP = ".acs/state-machine/example-shop/runs/define-the-groomr-product-0a66/steps/create-prd"
 BRANCH = "task/EVAL-1-product-definition-prd"
 
 PRD = """# PRD — groomr
@@ -76,33 +76,32 @@ Delivers deposits at booking.
 | v0.2.0 | Deposits | Deposits |
 """
 
-GH_FINDING = {"severity": "critical", "area": "pr",
-              "message": "gh pr create failed; the docs-only PR was not opened",
-              "error": "gh: command not found", "hint": "check `gh auth status` and repo access"}
 
 
 def _start(ws):
     ws.skill("create-prd")
-    started = ws.acs("step", "start", "--step", "create-prd", "--allocate")
+    started = ws.acs("step", "start", "--step", "create-prd", "--args", '')
     assert started.returncode == 0, started.stderr
 
 
-def _deliver(ws, prd=PRD, roadmap=ROADMAP, extra=()):
-    ws.sh("git checkout -q -b %s main" % BRANCH)
+def _deliver(ws, prd=PRD, roadmap=ROADMAP, extra=(), commit=False):
     ws.write("docs/product/prd.md", prd)
     ws.write("docs/product/roadmap.md", roadmap)
     for rel, text in extra:
         ws.write(rel, text)
-    ws.sh("git add -A && git commit -qm 'EVAL-1 Add product requirements document and roadmap'")
-    ws.sh("git push -q -u origin %s" % BRANCH)
+    if commit:
+        # The pre-ADR-0127 delivery: a delivery branch, a commit and a push.
+        ws.sh("git checkout -q -b %s main" % BRANCH)
+        ws.sh("git add -A && git commit -qm 'EVAL-1 Add product requirements document and roadmap'")
+        ws.sh("git push -q -u origin %s" % BRANCH)
 
 
-def _finish(ws, findings=(GH_FINDING,)):
+def _finish(ws):
     ws.write(STEP + "/result.json", json.dumps({
-        "status": "completed", "summary": "greenfield PRD written; gh failed, no PR",
-        "states": {"prd": {"path": "docs/product",
-                           "files": ["docs/product/prd.md", "docs/product/roadmap.md"]}},
-        "findings": list(findings), "errors": []}, indent=2))
+        "status": "completed", "summary": "greenfield PRD written and reviewed; left as local changes",
+        "states": {"prd": {"path": "docs/product"},
+                   "files": ["docs/product/prd.md", "docs/product/roadmap.md"]},
+        "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
@@ -110,8 +109,9 @@ def IDEAL(ws):
     _start(ws)
     _deliver(ws)
     _finish(ws)
-    ws.reply = ("EVAL-1 (greenfield): groomr PRD and roadmap written on %s and pushed. gh pr "
-                "create failed, so no PR was opened; recorded as a finding." % BRANCH)
+    ws.reply = ("Greenfield: groomr PRD and roadmap written. Uncommitted: docs/product/prd.md, "
+                "docs/product/roadmap.md. Review them, then run /acs:create-pr to commit them "
+                "and open the PR.")
 
 
 def _vague_prd(ws):
@@ -141,10 +141,17 @@ def _no_release_table(ws):
     _finish(ws)
 
 
+def _delivered_it_itself(ws):
+    _start(ws)
+    _deliver(ws, commit=True)
+    _finish(ws)
+
+
 BAD = {
     "filled the skeleton with vague placeholders": _vague_prd,
     "shipped a PRD missing three sections": _missing_sections,
     "scaffolded code beside the PRD": _started_building,
     "wrote a roadmap with no Release versions table": _no_release_table,
-    "allocated the ticket and wrote nothing": _start,
+    "started the run and wrote nothing": _start,
+    "committed and pushed a delivery branch": _delivered_it_itself,
 }

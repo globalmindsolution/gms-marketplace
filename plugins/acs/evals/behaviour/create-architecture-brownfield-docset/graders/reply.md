@@ -3,10 +3,8 @@ type: llm
 ---
 
 PASS if the final reply says the high-level design (the hld/ doc set) was
-written and the delivery branch pushed, and says plainly that the pull
-request could NOT be opened because the gh / GitHub step failed, reporting
-that failure rather than presenting the run as fully delivered.
-FAIL if it gives a PR number or URL, claims a PR was opened, says it opened
-the PR through some other route (a GitHub API or MCP tool) as a substitute for
-gh, reports writing low-level design (contracts or sequence flows under lld/),
-or asks the user a question the request answered.
+written, lists the files as uncommitted local changes for the user to review,
+and points at /acs:create-pr to commit them and open the pull request.
+FAIL if it says it committed, pushed or opened a pull request, gives a PR
+number or URL, reports writing low-level design (contracts or sequence flows
+under lld/), or asks the user a question the request answered.

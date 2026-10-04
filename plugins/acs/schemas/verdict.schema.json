@@ -30,7 +30,7 @@
     "reviewed_sha": {
       "type": "string",
       "minLength": 1,
-      "description": "The commit the review judged. /acs:code copies it into result.json as `since_sha` and diffs from it; the next review prioritises the hunks changed since."
+      "description": "What the review judged: the git TREE id of the working-tree snapshot (`acs.py changes snapshot`) taken when the review ran -- not a commit, since nothing is committed before /acs:create-pr (ADR-0127); the name is kept so the schema did not break. /acs:code copies it into result.json as `since_sha` and asks `acs.py changes diff --since <reviewed_sha>` what changed after the review; the next review prioritises the hunks changed since."
     },
     "lens": {
       "description": "Set only on a single lens's own report; the verdict the coordinator writes carries null.",

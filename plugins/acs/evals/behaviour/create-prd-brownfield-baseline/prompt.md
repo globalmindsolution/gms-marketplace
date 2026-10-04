@@ -3,13 +3,13 @@ description: >-
   /acs:create-prd on a shipped codebase with no PRD, every product fact
   supplied up front. It should write docs/product/prd.md with the eight
   required sections and the stated facts, a roadmap mapping milestones to
-  release versions, push its delivery branch to origin, and report the
-  failed gh PR step as a finding instead of routing around it.
+  release versions, and leave both documents as uncommitted local changes
+  listed in states.files -- no ticket, branch, commit, push or PR (ADR-0127).
 expected_outcome: >-
   docs/product/prd.md and docs/product/roadmap.md written from the stated
-  facts, committed on a task/EVAL-1-* delivery branch pushed with upstream
-  set, result.json recording the gh failure and no PR, and a reply that says
-  the PR could not be opened.
+  facts and left uncommitted on main (HEAD still the scaffold's commit,
+  nothing pushed), the step finished with both files in states.files and no
+  PR, and a reply that lists the files and points at /acs:create-pr.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 2400
@@ -41,6 +41,3 @@ baseline, and do not ask me anything.
 - Out of scope: native mobile apps; third-party sellers.
 - Roadmap: milestone "Checkout" delivers card checkout in release v2.5.0;
   milestone "Order tracking" delivers order tracking in release v2.6.0.
-
-Pushing to origin works from this machine, but there is no GitHub access
-here: when a gh call fails, handle it the way the skill says to, and finish.

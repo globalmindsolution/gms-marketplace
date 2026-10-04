@@ -1,23 +1,20 @@
 """Calibration plays for create-prd-amend-scope-cut (see
 tests/evals/check_grader_calibration.py). The ideal run: Start finds the PRD
-(amend mode) and allocates with `--title "Amend PRD: ..."`, the author edits
-the two documents in place -- only the confirmed sections -- the coordinator
-commits and pushes the delivery branch, gh fails, and the result document
-goes through the real post-hook."""
+(amend mode) and `acs step start` resumes the ticketless run the scaffold
+opened, the author edits the two documents in place -- only the confirmed
+sections -- and leaves them uncommitted, and the result document, listing both
+files in `states.files`, goes through the real post-hook. Nothing is
+branched, committed or pushed (ADR-0127)."""
 
 import json
 import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-prd.py")
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-prd"
+STEP = ".acs/state-machine/example-shop/runs/amend-the-prd-after-the-scope-0d30/steps/create-prd"
 BRANCH = "task/EVAL-1-amend-prd-cut-order-tracking-from-scope"
 PRD = "docs/product/prd.md"
 ROADMAP = "docs/product/roadmap.md"
-
-GH_FINDING = {"severity": "critical", "area": "pr",
-              "message": "gh pr create failed; the docs-only PR was not opened",
-              "error": "gh: command not found", "hint": "check `gh auth status` and repo access"}
 
 
 def _read(ws, rel):
@@ -25,17 +22,13 @@ def _read(ws, rel):
         return fh.read()
 
 
-def _start(ws, title="Amend PRD: cut order tracking from scope"):
+def _start(ws):
     ws.skill("create-prd")
-    args = ["step", "start", "--step", "create-prd", "--allocate"]
-    if title:
-        args += ["--title", title]
-    started = ws.acs(*args)
+    started = ws.acs("step", "start", "--step", "create-prd", "--args", "cut order tracking from scope")
     assert started.returncode == 0, started.stderr
 
 
-def _amend(ws, prd_edit=None, roadmap_edit=None, branch=BRANCH):
-    ws.sh("git checkout -q -b %s main" % branch)
+def _amend(ws, prd_edit=None, roadmap_edit=None):
     prd = _read(ws, PRD)
     prd = prd.replace("- **Should**: order tracking (G1)\n", "- **Should**: none\n")
     prd = prd.replace("- **Won't**: a marketplace for third-party sellers\n",
@@ -52,15 +45,15 @@ def _amend(ws, prd_edit=None, roadmap_edit=None, branch=BRANCH):
         roadmap = roadmap_edit(roadmap)
     ws.write(PRD, prd)
     ws.write(ROADMAP, roadmap)
-    ws.sh("git add docs/product && git commit -qm 'EVAL-1 Amend PRD: cut order tracking'")
-    ws.sh("git push -q -u origin %s" % branch)
 
 
-def _finish(ws, findings=(GH_FINDING,)):
+def _finish(ws, files=(PRD, ROADMAP), pr=None):
+    states = {"prd": {"path": "docs/product"}, "files": list(files)}
+    if pr:
+        states["pr"] = pr
     ws.write(STEP + "/result.json", json.dumps({
-        "status": "completed", "summary": "PRD amended and branch pushed; gh failed, no PR",
-        "states": {"prd": {"path": "docs/product", "files": [PRD, ROADMAP]}},
-        "findings": list(findings), "errors": []}, indent=2))
+        "status": "completed", "summary": "PRD amended and reviewed; left as local changes",
+        "states": states, "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
@@ -68,8 +61,9 @@ def IDEAL(ws):
     _start(ws)
     _amend(ws)
     _finish(ws)
-    ws.reply = ("EVAL-1 (amend): order tracking moved to Won't and Out of scope; its v2.6.0 "
-                "milestone removed. Pushed %s; gh pr create failed, so no PR was opened." % BRANCH)
+    ws.reply = ("Amend mode: order tracking moved to Won't and Out of scope; its v2.6.0 "
+                "milestone removed. Uncommitted: docs/product/prd.md, docs/product/roadmap.md. "
+                "Review them, then run /acs:create-pr to commit them and open the PR.")
 
 
 def _regenerated(ws):
@@ -85,13 +79,10 @@ def _regenerated(ws):
 def _only_deprioritised(ws):
     """Moved it to Could and kept the milestone: not the confirmed cut."""
     _start(ws)
-    ws.sh("git checkout -q -b %s main" % BRANCH)
     prd = _read(ws, PRD).replace("- **Should**: order tracking (G1)\n", "- **Should**: none\n"
                                  ).replace("- **Could**: saved carts (G1)\n",
                                            "- **Could**: saved carts (G1), order tracking (G1)\n")
     ws.write(PRD, prd)
-    ws.sh("git add docs/product && git commit -qm 'EVAL-1 Amend PRD'")
-    ws.sh("git push -q -u origin %s" % BRANCH)
     _finish(ws)
 
 
@@ -101,15 +92,51 @@ def _dropped_the_release_table(ws):
     _finish(ws)
 
 
-def _default_title(ws):
-    _start(ws, title=None)
-    _amend(ws, branch="task/EVAL-1-product-definition-prd")
+def _committed_on_a_branch(ws):
+    """The pre-ADR-0127 delivery: a delivery branch and a commit."""
+    _start(ws)
+    ws.sh("git checkout -q -b %s main" % BRANCH)
+    _amend(ws)
+    ws.sh("git add docs/product && git commit -qm 'EVAL-1 Amend PRD: cut order tracking'")
     _finish(ws)
+
+
+def _committed_on_main(ws):
+    _start(ws)
+    _amend(ws)
+    ws.sh("git commit -qam 'Amend PRD: cut order tracking'")
+    _finish(ws)
+
+
+def _pushed(ws):
+    _start(ws)
+    ws.sh("git checkout -q -b %s main" % BRANCH)
+    _amend(ws)
+    ws.sh("git add docs/product && git commit -qm 'EVAL-1 Amend PRD: cut order tracking'")
+    ws.sh("git push -q -u origin %s" % BRANCH)
+    _finish(ws)
+
+
+def _recorded_no_files(ws):
+    _start(ws)
+    _amend(ws)
+    _finish(ws, files=())
+
+
+def _invented_pr(ws):
+    _start(ws)
+    _amend(ws)
+    _finish(ws, pr={"number": 1, "url": "https://github.com/example/shop/pull/1"})
 
 
 BAD = {
     "regenerated the PRD instead of amending it": _regenerated,
     "deprioritised order tracking instead of cutting it": _only_deprioritised,
     "dropped the Release versions table": _dropped_the_release_table,
-    "allocated without the Amend PRD title": _default_title,
+    "committed the amendment on a delivery branch": _committed_on_a_branch,
+    "committed the amendment on main": _committed_on_main,
+    "pushed a delivery branch": _pushed,
+    "recorded no files in states.files": _recorded_no_files,
+    "recorded a PR that cannot exist": _invented_pr,
+    "started the run and wrote nothing": _start,
 }

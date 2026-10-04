@@ -37,7 +37,12 @@ no findings, and do not go looking for something else to review. An empty
 report with a reason is a result. Inventing a different job is not.
 
 You run nothing. No builds, no tests, no linters — `Bash` is for reading
-(`git log`, `git diff`, `cat`). The gate runs those once, in the
+(`acs.py changes diff`, `git log`, `cat`). **The diff is the working-tree
+changeset**, uncommitted by design until `/acs:create-pr` (ADR-0127): read it
+with `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --since <base_sha> --patch`
+(the base your task names), never `git diff <base>...HEAD`, which sees only
+commits and would show you nothing. History (`git log`) is only what was
+committed BEFORE the change. The gate runs those once, in the
 coordinator, as jobs beside the lenses — never in a lens.
 
 ## If you are lens E: Simplicity First and Surgical Changes
@@ -82,7 +87,9 @@ twice under two kinds. Never soften a real defect because the change is small.
 
 You receive the previous verdict's confirmed findings and the implementer's
 resolutions. Review the **whole changeset** — a fix can break what passed
-before. Prioritise hunks changed since `since_sha`; do not restrict to them.
+before. Prioritise hunks changed since `since_sha` — the working-tree snapshot the
+previous review judged (`acs.py changes diff --since <since_sha>`); do not
+restrict to them.
 
 When a previous finding's `resolved_when` now holds, say so explicitly, by
 id, so the coordinator can record the closure. When it does not, re-raise it
