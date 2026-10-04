@@ -1036,7 +1036,8 @@ class TestProductSkillConventionWiring(unittest.TestCase):
     delivery ticket, committed on its own branch and opened its own docs-only
     PR. Only /acs:create-pr commits now: both skills run ticketless, leave
     their documents as uncommitted changes listed in `states.files`, and point
-    at /acs:create-pr's docs-only mode. These pins hold that shape so the old
+    at /acs:create-pr with a prompt -- it takes a ticket id or a prompt, and
+    has no docs-only mode. These pins hold that shape so the old
     delivery machinery cannot creep back in through prose."""
 
     SKILLS = ("create-prd", "create-architecture")
@@ -1072,7 +1073,9 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         self.assertIn('"files": ["docs/product/prd.md", "docs/product/roadmap.md"]', body)
         self.assertIn("uncommitted changes", body)
         self.assertIn("/acs:create-pr", body)
-        self.assertIn("/acs:create-pr --docs", body)
+        self.assertIn('/acs:create-pr "', body)
+        self.assertNotIn("--docs", body)
+        self.assertNotIn("docs-only mode", body)
         self.assertNotIn('"pr":', body)
 
     def test_no_regression_create_architecture(self):
@@ -1080,7 +1083,9 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         self.assertIn('names): `architecture` and `files`', body)
         self.assertIn("uncommitted changes", body)
         self.assertIn("/acs:create-pr", body)
-        self.assertIn("/acs:create-pr --docs", body)
+        self.assertIn('/acs:create-pr "', body)
+        self.assertNotIn("--docs", body)
+        self.assertNotIn("docs-only mode", body)
         self.assertNotIn('"pr":', body)
         # The clean-tree requirement belonged to the branch it was cut for.
         self.assertNotIn("git status --porcelain", body)

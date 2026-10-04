@@ -65,8 +65,8 @@ target — has a working default; change one by editing that file.
 
 Onboard an existing product (brownfield) — baseline the PRD and the
 architecture doc set. Both run without a ticket and leave their documents as
-uncommitted changes; `/acs:create-pr` delivers them as one docs-only PR when
-you are ready ([ADR-0127](../../docs/architecture/adr/0127-only-create-pr-commits.md)):
+uncommitted changes; `/acs:create-pr`, given a prompt, commits them and opens
+one PR when you are ready ([ADR-0127](../../docs/architecture/adr/0127-only-create-pr-commits.md)):
 
 ```text
 /acs:create-prd            # reverse-engineers a baseline PRD from code + docs
@@ -74,7 +74,8 @@ you are ready ([ADR-0127](../../docs/architecture/adr/0127-only-create-pr-commit
 /acs:create-architecture   # reverse-engineers the HLD (C4 1–3, data model,
                            #   API landscape, deployment), all Mermaid
                            # → docs/architecture/hld/*.md, uncommitted
-/acs:create-pr --docs      # docs-only mode: previews one commit per doc set,
+/acs:create-pr "Baseline the PRD and architecture"
+                           # no ticket: previews one commit per doc set,
                            #   commits on a branch of its own, opens the PR
 /acs:merge-pr --pr <n>     # after you review the PR yourself
 
@@ -172,8 +173,8 @@ recorded the PR reference completed — an artifact, not a position.
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
-| `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; runs without a ticket and leaves the documents uncommitted, listed in `states.files`, for `/acs:create-pr --docs` (docs-only mode). |
-| `/acs:create-architecture` | Settings exist | Works from the PRD when there is one; without one, from the run's subject (a document in its arguments, else your focus notes plus the codebase), confirming goals, NFRs and constraints through the clarification ledger. Writes the high-level design only — `hld/` overview, tech stack and cross-cutting conventions plus the HLD types enabled at `/acs:setup` (C4 levels 1–3, conceptual data model, API landscape, deployment, project structure; opt-in data-flow and capability maps) — in the repo's architecture set, else `docs/architecture/`, all Mermaid; never `lld/`; runs without a ticket and leaves the documents uncommitted for `/acs:create-pr --docs` (docs-only mode). When an HLD already exists, a gap analyst per code area runs beside the survey: undocumented code is documented as built, designed-but-unbuilt elements stay and are marked planned, and drifted ones are asked, never silently resolved. Every HLD file carries version front matter (`status`, `version`, `tickets`) set through `acs.py design` ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
+| `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; runs without a ticket and leaves the documents uncommitted, listed in `states.files`, for `/acs:create-pr "<prompt>"`. |
+| `/acs:create-architecture` | Settings exist | Works from the PRD when there is one; without one, from the run's subject (a document in its arguments, else your focus notes plus the codebase), confirming goals, NFRs and constraints through the clarification ledger. Writes the high-level design only — `hld/` overview, tech stack and cross-cutting conventions plus the HLD types enabled at `/acs:setup` (C4 levels 1–3, conceptual data model, API landscape, deployment, project structure; opt-in data-flow and capability maps) — in the repo's architecture set, else `docs/architecture/`, all Mermaid; never `lld/`; runs without a ticket and leaves the documents uncommitted for `/acs:create-pr "<prompt>"`. When an HLD already exists, a gap analyst per code area runs beside the survey: undocumented code is documented as built, designed-but-unbuilt elements stay and are marked planned, and drifted ones are asked, never silently resolved. Every HLD file carries version front matter (`status`, `version`, `tickets`) set through `acs.py design` ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
 | `/acs:create-data-design` | Settings exist | Writes the ticket's data low-level design under `lld/<feature>/data/` — the logical ERD and the physical schema with a migration *outline*, for the enabled `design.lld_types` only; documents only, never migration code; never branches, commits or opens a PR — the files stay as uncommitted changes, listed in `states.files`, for `/acs:create-pr` ([ADR-0126](../../docs/architecture/adr/0126-lld-data-design-and-flows.md)). |
@@ -227,7 +228,7 @@ different.
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
-| `/acs:create-pr` | Brake: refuses a run whose `/acs:review-code` step left `verifier_passed != true` | The only skill that branches, commits and pushes ([ADR-0127](../../docs/architecture/adr/0127-only-create-pr-commits.md)): splits the working-tree changes into small commits (ticket docs, design docs, per plan slice its tests then its code, doc updates, e2e suites), shows the split as a preview you confirm, commits on the ticket branch, pushes, and opens the PR (`ACS` label) against the default branch. Changed files no step recorded are left out and listed. A ticket with no recorded code run is allowed through; with no ticket, its docs-only mode commits documents alone, one commit per doc set. |
+| `/acs:create-pr` | Brake: refuses a run whose `/acs:review-code` step left `verifier_passed != true` | The only skill that branches, commits and pushes ([ADR-0127](../../docs/architecture/adr/0127-only-create-pr-commits.md)): splits the working-tree changes into small commits (ticket docs, design docs, per plan slice its tests then its code, doc updates, e2e suites), shows the split as a preview you confirm, commits on the ticket branch, pushes, and opens the PR (`ACS` label) against the default branch. Changed files no step recorded are left out and listed. It takes a ticket id or a prompt (none: this checkout's current run); with a prompt and no current run it groups every uncommitted change by layer — documents by doc set, then tests, then code. The review brake applies only when the run has a code step. |
 | `/acs:merge-pr` | Brake: a completed run recorded a PR reference | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 

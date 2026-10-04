@@ -368,8 +368,9 @@ themselves** ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md))
   PR. Its documents stay as **uncommitted changes** in the working tree, on
   whatever branch is checked out, and every path it wrote is recorded,
   repo-relative, in its result's `states.files`.
-- Its final message lists those files and points at `/acs:create-pr --docs`,
-  whose docs-only mode commits them — one commit per doc set — on a branch of
+- Its final message lists those files and points at `/acs:create-pr
+  "<what changed>"`: given a prompt and no current run, create-pr groups the
+  uncommitted changes by layer — each doc set its own commit — on a branch of
   their own and opens the PR (labelled `acs-exempt`, since it names no
   ticket); `/merge-pr --pr <n>` lands it after review.
 - The skill's state lives in its run's partition like any other skill
@@ -431,7 +432,7 @@ else is verified against.
   existing clarification ledger.
 - State lives in the run's partition (`steps/create-prd/`).
 - Delivery: none of its own — the documents stay uncommitted for
-  `/create-pr --docs` ([product-level delivery rules](#product-level-delivery-no-ticket)).
+  `/create-pr "<prompt>"` ([product-level delivery rules](#product-level-delivery-no-ticket)).
 - Downstream: `/create-architecture` is verified against the PRD, and
   `/create-ticket` traces tickets to PRD features and flags divergence
   ([workflow.md](workflow.md#product-level-architecture)).
@@ -528,7 +529,7 @@ not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-
 - State lives in the run's partition (`steps/create-architecture/`)
   ([workspace-and-state.md](workspace-and-state.md)).
 - Delivery: none of its own — the documents stay uncommitted for
-  `/create-pr --docs` ([product-level delivery rules](#product-level-delivery-no-ticket));
+  `/create-pr "<prompt>"` ([product-level delivery rules](#product-level-delivery-no-ticket));
   the TDD pipeline does not apply to a docs-only change.
 - Maintenance afterwards belongs to the pipeline: `/create-design` designs
   against the doc set, and `/code` updates it whenever a change alters the
@@ -1450,13 +1451,19 @@ branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create
   anything is committed, listing the changed files no step recorded (left out
   unless the user adds them) and the files already dirty when the run began
   (never included unless a step recorded them).
-- MUST commit with `acs.py pr commit --plan <file>` — the ticket branch
-  (`<type>/<ticket-id>-<slug>`) created when not already checked out, every
+- MUST commit with `acs.py pr commit --plan <file>` — the run's branch
+  (`<type>/<ticket-id>-<slug>` for a ticket) created when not already checked out, every
   group staged by pathspec, never `git add -A` — then push the branch and open
   the PR.
-- With `--docs` and no ticket: a docs-only mode for the PRD, the HLD, the LLD
-  and ADRs — every changed path must be a document, one commit per doc set,
-  the PR labelled `acs-exempt`; no code run is required.
+- MUST take a ticket id or a prompt, never require a ticket: with no
+  argument it continues this checkout's current run (ticket- or
+  prompt-subject); with a prompt and no current run it opens a prompt-subject
+  run whose changeset is every uncommitted change against HEAD, grouped by
+  layer — documents by doc set (the PRD, `hld/`, each `lld/<feature>/`, the
+  ADRs, the ticket docs), then tests, then code — placing each file by the
+  paths other runs recorded in `states.files`. The `verifier_passed` brake
+  applies only when the run has a code step; a commit subject names a ticket
+  only when there is one, and a PR with no ticket is labelled `acs-exempt`.
 - SHOULD compose the PR title/description from workspace state (ticket,
   specs, `code-state.json` summary incl. review findings) rather than
   conversation history.
@@ -1529,8 +1536,8 @@ Purpose: land the change.
   invokes `/merge-pr` itself. A failed readiness check is report-only.
 - MUST review PR readiness — **[ASSUMPTION]** at minimum: CI status, review
   approvals, merge conflicts, branch protection requirements.
-- A docs-only PR (`/create-pr --docs` — the PRD, the architecture, the LLD,
-  ADRs) names no ticket and carries `acs-exempt`, so it lands through
+- A PR opened from a prompt (`/create-pr "<prompt>"` — e.g. the PRD, the
+  architecture, ADRs) names no ticket and carries `acs-exempt`, so it lands through
   `/merge-pr --pr <n>` like any other exempt PR
   ([Product-level delivery](#product-level-delivery-no-ticket)).
 - MUST merge the PR **if possible**; if not possible, it MUST record the stop

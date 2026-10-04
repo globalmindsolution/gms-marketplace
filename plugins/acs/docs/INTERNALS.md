@@ -412,7 +412,7 @@ why the review could not be a separate skill until the loop moved here.
 | `acs notes merge --out <file> <slice files…>` | join what a parallel fan-out wrote into the one file every reader expects (see "Fan-out inside a skill") |
 | `acs changes snapshot` | a git tree id of the whole working tree, untracked files included (`{ok, tree}`) — what a review records as `reviewed_sha` (see "Commits: only /acs:create-pr") |
 | `acs changes diff [--since <tree-or-commit>] [--name-only\|--stat\|--patch] [--run R]` | what this run changed: `<since>` (default: the baseline's `base_sha`) against a fresh snapshot, minus the paths already dirty at the baseline that did not change again; `--name-only` prints `{files: [{path, status}]}` |
-| `acs pr plan-commits [--ticket ID \| --docs] [--run R] [--out FILE]` | the commit groups `/acs:create-pr` previews: `{branch, base, groups: [{id, subject, layer, paths}], left_out, excluded}` |
+| `acs pr plan-commits [--ticket ID] [--run R] [--out FILE]` | the commit groups `/acs:create-pr` previews: `{branch, base, groups: [{id, subject, layer, paths}], left_out, excluded}` |
 | `acs pr commit --plan FILE` | execute a (possibly edited) plan: switch to its branch when not on it, then one `git add -- <paths>` + `git commit` per group; never pushes |
 
 `acs run next` is **the cursor**: the first step in workflow order that is not
@@ -830,7 +830,7 @@ every other key below is persisted verbatim from the result document:
 
 | Skill | Required `states` keys on success |
 |-------|-----------------------------------|
-| create-prd | `prd` `{path}`, `files: [...]` (the PRD and roadmap, left uncommitted for `/acs:create-pr`'s docs-only mode) |
+| create-prd | `prd` `{path}`, `files: [...]` (the PRD and roadmap, left uncommitted for `/acs:create-pr`) |
 | create-architecture | `architecture` `{path, hld:[...]}`, `files: [...]` (every HLD path written, left uncommitted) |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (the published `design.md` — the docs folder, or the partition when there is no checkout), `decision` (one line) |
@@ -1048,7 +1048,7 @@ Who commits the documents (ADR 0127, amending ADR 0090): **only
 `<architecture_dir>/lld/<feature>/`, the PRD, the HLD — writes it into the working
 tree on whatever branch is checked out and lists it in its result's
 `states.files`; `/acs:create-pr` commits the ticket's docs folder as the first
-of its commits (or, in docs-only mode, each doc set as its own).
+of its commits, and each other doc set as its own.
 
 ### Commits: only `/acs:create-pr` (ADR-0127)
 
@@ -1082,9 +1082,14 @@ repo's test-path conventions (a `test`/`tests`/`__tests__`/`spec` segment, or
 `conventions.COMMIT_SUBJECT`. Changed but unrecorded paths are `left_out`,
 baseline-dirty ones `excluded`; both are listed in the preview the user
 confirms (and may edit) before `acs pr commit --plan <file>` commits each group
-by pathspec — never `git add -A`. `--docs` mode needs no ticket: every changed
-path must be a document, grouped by doc set (the PRD, `hld/`, each
-`lld/<feature>/`, the ADRs, the rest), and a non-document refuses the plan.
+by pathspec — never `git add -A`. `/acs:create-pr` takes a ticket id or a
+prompt; with no argument it continues this checkout's current run. A run whose
+steps recorded nothing — a prompt given with no current run — is planned in
+`uncommitted` mode: every uncommitted change against HEAD, grouped by layer
+(documents by doc set — the PRD, `hld/`, each `lld/<feature>/`, the ADRs, the
+ticket docs — then tests, then code), placing each file by the paths other runs
+recorded in `states.files`. The `verifier_passed` brake applies only when the
+run has a code step, and a commit subject names a ticket only when there is one.
 
 **Limitation.** Two tickets in flight in one checkout share one working tree and
 so one changeset; use a separate worktree per concurrent ticket.
@@ -1376,7 +1381,7 @@ current through an induction invariant, not a periodic chore:
   is never a finding); widespread drift triggers a
   recommended
   /create-architecture re-run (the full reconcile, left as uncommitted
-  documents for `/acs:create-pr`'s docs-only mode).
+  documents for `/acs:create-pr`).
 
 Net effect: after every merge the doc set matches the code — "update the
 architecture" is not a separate activity but a blocking dimension of every

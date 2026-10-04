@@ -1,6 +1,6 @@
 ---
 name: create-architecture
-description: Bootstrap or regenerate the product's high-level design (HLD) — the overview, tech stack and cross-cutting conventions plus the HLD views the repo enabled at /acs:setup (C4 context, container and component views, conceptual data model, API landscape, deployment, project structure, and opt-in data-flow and capability maps), all Mermaid — from the PRD and the codebase, left as local changes for /acs:create-pr to deliver as a docs-only PR. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the HLD after a major architectural shift. Not for a ticket's low-level design. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Bootstrap or regenerate the product's high-level design (HLD) — the overview, tech stack and cross-cutting conventions plus the HLD views the repo enabled at /acs:setup (C4 context, container and component views, conceptual data model, API landscape, deployment, project structure, and opt-in data-flow and capability maps), all Mermaid — from the PRD and the codebase, left as local changes for /acs:create-pr to commit and open as a PR. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the HLD after a major architectural shift. Not for a ticket's low-level design. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -9,8 +9,9 @@ You are the coordinator of /acs:create-architecture. You produce the product's
 **high-level design** — the `hld/` part of the architecture set, wherever the
 repo already keeps it, else at `docs/architecture/hld/` — judged against the
 PRD, and leave it as uncommitted changes in the working tree — no ticket, no
-branch, no commit, no PR (ADR-0127); `/acs:create-pr --docs`, its docs-only mode,
-delivers it when the user is ready. The low-level
+branch, no commit, no PR (ADR-0127); `/acs:create-pr`, given a prompt (e.g.
+`/acs:create-pr "Regenerate the HLD"`), commits it and opens the PR when the user
+is ready. The low-level
 design (`lld/<feature>/`) is not yours: the Design skills write it per ticket
 (ADR-0118). This is a product-level skill: it is
 ticket-independent and runs on its own — the PRD is its primary input, which
@@ -480,9 +481,10 @@ no branch, no commit, no push, no PR — whichever branch is checked out
 (ADR-0127). Leave every file the architects
 wrote under `<architecture_dir>/hld/` as an uncommitted change and record every
 path, repo-relative, in result `states.files`. The final message lists those files
-and points the user at `/acs:create-pr --docs` — its docs-only mode refuses a non-doc
-file, commits the doc sets on a branch of their own and opens the PR when the user
-is ready.
+and points the user at `/acs:create-pr "<what the architecture change is>"` (e.g.
+`/acs:create-pr "HLD for the orders API"`) — given a prompt, it groups the
+uncommitted changes by layer (`hld/` its own commit), commits them on a branch of
+their own and opens the PR when the user is ready.
 
 ## User interaction
 
@@ -538,7 +540,7 @@ MANDATORY final step — never skipped, also on failure:
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
    names): `architecture` and `files`. `hld` entries are paths relative to
    `<path>/hld/`; `files` lists EVERY repo path written, repo-relative — the
-   paths `/acs:create-pr --docs` commits:
+   paths `/acs:create-pr` groups into the HLD's commit:
 
 ```json
 {
@@ -571,8 +573,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --resu
 ```
 
 3. Report a compact summary to the user: mode, the uncommitted files written,
-   review iterations, and that `/acs:create-pr --docs` (after their review)
-   commits them and opens the PR — for a greenfield product, the next
+   review iterations, and that `/acs:create-pr "<what the architecture change
+   is>"` (after their review) commits them and opens the PR — for a greenfield product, the next
    step is to ticket the scaffold (`/acs:create-ticket "Scaffold the repository
    per the architecture docs"`) and ship it. If you genuinely cannot reach the user (a non-interactive run),
    return ONLY the `<handoff>` XML as your final message: status, summary under 1 KB,
@@ -594,5 +596,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: review the listed files, then `/acs:create-pr --docs` (docs-only mode) to commit them and open the PR; then `/acs:create-ticket` (greenfield: a scaffold ticket first, then `/acs:ship` it)
+- **Next**: review the listed files, then `/acs:create-pr "<what the architecture change is>"` (e.g. `/acs:create-pr "HLD for the orders API"`) to commit them and open the PR; then `/acs:create-ticket` (greenfield: a scaffold ticket first, then `/acs:ship` it)
 ```

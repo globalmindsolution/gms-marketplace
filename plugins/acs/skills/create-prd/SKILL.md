@@ -1,6 +1,6 @@
 ---
 name: create-prd
-description: Define or amend the product PRD — vision, problem, personas, goals with measurable success metrics, prioritized features, NFRs, constraints — plus a roadmap, left as local changes for /acs:create-pr to deliver as a docs-only PR. Use when starting a product, onboarding acs onto an existing codebase, or when scope changes require a PRD amendment. Use for any request to write down what a product is, its problem, users and success metrics, or to amend its scope, priorities or roadmap — including when leadership cuts or reprioritizes a feature the existing PRD still lists. Invoke it directly on such a request — it confirms scope and gathers what it needs from the user itself, so there is nothing to ask before running it.
+description: Define or amend the product PRD — vision, problem, personas, goals with measurable success metrics, prioritized features, NFRs, constraints — plus a roadmap, left as local changes for /acs:create-pr to commit and open as a PR. Use when starting a product, onboarding acs onto an existing codebase, or when scope changes require a PRD amendment. Use for any request to write down what a product is, its problem, users and success metrics, or to amend its scope, priorities or roadmap — including when leadership cuts or reprioritizes a feature the existing PRD still lists. Invoke it directly on such a request — it confirms scope and gathers what it needs from the user itself, so there is nothing to ask before running it.
 argument-hint: "[product notes | amendment request]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -9,8 +9,9 @@ You are the coordinator of /acs:create-prd. You produce or amend the PRD doc set
 (`prd.md` + `roadmap.md`) in the consumer repo — wherever the repo already keeps
 its PRD, else at `docs/product/` — as a **ticketless run**, and you leave the
 documents as uncommitted changes in the working tree: no ticket, no branch, no
-commit, no PR (ADR-0127). `/acs:create-pr --docs`, its docs-only mode, delivers them
-when the user is ready.
+commit, no PR (ADR-0127). `/acs:create-pr`, given a prompt (e.g.
+`/acs:create-pr "Amend the PRD: cut order tracking"`), commits them and opens the
+PR when the user is ready.
 You orchestrate three subagents — surveyor → author → review: a read-only
 surveyor establishes the mode, the outline and the open questions, you put the
 questions to the user, an author writes the documents from the notes and the
@@ -448,8 +449,10 @@ Only after the reviewer passes. Documents only, and they stay local: no branch,
 no commit, no push, no PR — whichever branch is checked out (ADR-0127). Leave
 `<prd>` and `<roadmap>` as uncommitted changes and record every path you wrote,
 repo-relative, in result `states.files`. The final message lists those files and
-points the user at `/acs:create-pr --docs` — its docs-only mode commits them on a
-branch of their own and opens the PR when the user is ready.
+points the user at `/acs:create-pr "<what the PRD change is>"` (e.g.
+`/acs:create-pr "PRD for the wishlist feature"`) — given a prompt, it groups the
+uncommitted changes by layer (the PRD its own commit), commits them on a branch
+of their own and opens the PR when the user is ready.
 
 ## User interaction
 
@@ -522,8 +525,8 @@ MANDATORY final step — never skipped, also on failure.
    }
    ```
 
-   `files` lists EVERY repo path written, repo-relative — `/acs:create-pr
-   --docs` commits exactly these. On failure keep whatever is true:
+   `files` lists EVERY repo path written, repo-relative — `/acs:create-pr`
+   groups exactly these into the PRD's commit. On failure keep whatever is true:
    status `failed`, remaining reviewer findings in `findings`, `states.prd` and,
    in `states.files`, the files written so far, and the reason in `summary`.
 
@@ -538,7 +541,7 @@ MANDATORY final step — never skipped, also on failure.
 
 3. Report a compact summary to the user: mode (greenfield/brownfield/amend)
    and the uncommitted files written — and tell them to review the files, then
-   run `/acs:create-pr --docs` (docs-only mode) to commit them and open the PR.
+   run `/acs:create-pr "<what the PRD change is>"` to commit them and open the PR.
    `/acs:create-architecture` can run on the local PRD straight away. Under /acs:ship,
    return ONLY the `<handoff>` XML as your final message: status, summary <=1KB,
    artifact refs, next-step.
@@ -559,5 +562,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: review the listed files, then `/acs:create-pr --docs` (docs-only mode) to commit them and open the PR; `/acs:create-architecture` next
+- **Next**: review the listed files, then `/acs:create-pr "<what the PRD change is>"` (e.g. `/acs:create-pr "PRD for the wishlist feature"`) to commit them and open the PR; `/acs:create-architecture` next
 ```

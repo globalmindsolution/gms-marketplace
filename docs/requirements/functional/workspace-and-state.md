@@ -190,7 +190,7 @@ Product-level skills have **no repo-level state** and no ticket: each run is a
 ticketless run over its invocation, and the skill's state
 (`steps/create-prd/`, `steps/create-architecture/`) lives in that run's
 partition; the skills' *outputs* (PRD, architecture doc set) live in the
-consumer repo as uncommitted changes until `/create-pr --docs` commits them
+consumer repo as uncommitted changes until `/create-pr "<prompt>"` commits them
 ([skills.md](skills.md#product-level-delivery-no-ticket)).
 
 The **ticket document** is the local source of truth for the ticket:

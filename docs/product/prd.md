@@ -3,7 +3,7 @@
 > Bootstrapped as the dogfood baseline, derived from the requirements set
 > (`docs/requirements/`) and the implemented plugin. Amendments go through
 > `/acs:create-prd` re-runs — each amendment is delivered as its own
-> docs-only PR through `/acs:create-pr --docs` (ADR-0127). This PRD covers the GMS Marketplace product and its plugin features
+> PR through `/acs:create-pr "<prompt>"` (ADR-0127). This PRD covers the GMS Marketplace product and its plugin features
 > (acs, active; tabp, retired — see the MAR-97 Reversal note in Out of scope;
 > and future plugins); each plugin is a distinct capability delivered and
 > updated through one marketplace.

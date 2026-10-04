@@ -115,8 +115,7 @@ name="dimensions">` (dimension numbers from the list below); echo the slice on y
    changes diff --name-only` (this run's changeset since its baseline, untracked
    files included, the paths already dirty when the run started excluded): every
    change sits under `architecture_dir`; no source files, configs, or stray files
-   touched. The documents stay uncommitted; `/acs:create-pr`'s docs-only mode
-   delivers them.
+   touched. The documents stay uncommitted; `/acs:create-pr` commits them later.
 9. **structure** — deterministic section-conformance floor over the in-scope
     prose-structured files (`hld/overview.md`, `hld/tech-stack.md`,
     `hld/cross-cutting.md`, and `hld/project-structure.md` when enabled — the

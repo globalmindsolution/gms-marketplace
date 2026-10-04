@@ -217,8 +217,8 @@ for an upstream artifact.
 | `/code` | ticket resolves | not an epic; on the standard and complex paths, the plan's approval matches the plan on disk; lock free |
 | `/docs-sync` | ticket resolves | lock free |
 | `/create-e2e-tests` | ticket resolves (a plan declaring no e2e impact settles the step as an evidenced no-op) | not an epic; lock free |
-| `/create-pr` | ticket resolves | a recorded `/acs:review-code` step must not have left `verifier_passed != true` (a run with **no** recorded review is allowed); lock free |
-| `/merge-pr` | ticket resolves | a PR reference is recorded: `/create-pr` completed; lock free. A docs-only PR (`/create-pr --docs`) names no ticket and lands through `/merge-pr --pr <n>` ([skills.md](skills.md#product-level-delivery-no-ticket)) |
+| `/create-pr` | a ticket id, a prompt, or this checkout's current run (no ticket required — ADR-0127) | when the run has a code step, a recorded `/acs:review-code` step must not have left `verifier_passed != true` (a run with **no** recorded review is allowed); lock free |
+| `/merge-pr` | ticket resolves | a PR reference is recorded: `/create-pr` completed; lock free. A PR opened from a prompt (`/create-pr "<prompt>"`) names no ticket and lands through `/merge-pr --pr <n>` ([skills.md](skills.md#product-level-delivery-no-ticket)) |
 
 **A skill the workflow does not name is still gated.** `/create-design` and
 `/merge-pr` are deliberately not steps of `ship.yaml` and MUST NOT become

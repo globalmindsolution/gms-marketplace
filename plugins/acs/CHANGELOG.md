@@ -119,11 +119,14 @@ matching section here, and merge to `main` — the Release workflow tags
   code, the doc updates, the e2e suites — from the new `acs.py pr plan-commits`,
   shows them as a preview you confirm (or edit), and commits them with `acs.py pr
   commit` by pathspec before it pushes; changed files no step recorded are left out
-  and listed, and files already dirty when the run began are never swept in. Its new
-  docs-only mode, `/acs:create-pr --docs`, delivers documents with no ticket and no
-  code run, one commit per doc set. `/acs:create-prd` and `/acs:create-architecture`
+  and listed, and files already dirty when the run began are never swept in. Every
+  change, docs or code, goes through it, and it takes a ticket id or a prompt: with
+  no argument it continues this checkout's current run, and with a prompt and no
+  current run it groups every uncommitted change by layer (documents by doc set,
+  then tests, then code); the review brake applies only when the run has a code
+  step. `/acs:create-prd` and `/acs:create-architecture`
   no longer mint a delivery ticket, cut a branch, commit or open a PR: they run
-  ticketless, like the audits, and leave their documents for `/acs:create-pr --docs`
+  ticketless, like the audits, and leave their documents for `/acs:create-pr "<prompt>"`
   (`--allocate` is `/acs:create-ticket`'s alone, `DELIVERY_TICKET_SKILLS` is empty,
   and the shared `create-prd/references/delivery-pr.md` is deleted). A run records
   `baseline.json` at its first `acs.py step start`; the new `acs.py changes
@@ -136,10 +139,10 @@ matching section here, and merge to `main` — the Release workflow tags
   a separate worktree each: one checkout has one working tree, so one changeset. A
   ticket in flight across the update keeps the commits its earlier steps made; its
   next step records a baseline and only later changes are grouped. Deliver a PRD or
-  architecture change with `/acs:create-pr --docs` and land it with `/acs:merge-pr
-  --pr <n>` (it is labelled `acs-exempt`); stop resuming product-level runs by a
-  delivery-ticket id — re-run the skill, which resumes this checkout's interrupted
-  run. A script that read `states.pr` from `create-prd`/`create-architecture`, or
+  architecture change with `/acs:create-pr "<what changed>"` and land it with
+  `/acs:merge-pr --pr <n>` (a PR with no ticket is labelled `acs-exempt`); stop
+  resuming product-level runs by a delivery-ticket id — re-run the skill, which
+  resumes this checkout's interrupted run. A script that read `states.pr` from `create-prd`/`create-architecture`, or
   the `commits` of `/acs:code`, reads `states.files` instead.
 
 - **Skills run more in parallel** (ADR-0125). Every multi-agent skill caps a fan-out

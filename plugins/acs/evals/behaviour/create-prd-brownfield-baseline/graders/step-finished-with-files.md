@@ -7,5 +7,5 @@ pattern: '^(?=[\s\S]*"status"\s*:\s*"completed")(?=[\s\S]*"files"\s*:\s*\[[^\]]*
 The mandatory Finish ran through the post-hook, which records the invocation
 `completed` and persists the result's states. The documents stay local -- no
 branch, no commit, no PR (ADR-0127) -- so `states.files` must list both documents,
-repo-relative: it is exactly what `/acs:create-pr`'s docs-only mode commits
+repo-relative: it is exactly what `/acs:create-pr` groups and commits
 later. A file written but not recorded is a change nobody was told about.

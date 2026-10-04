@@ -47,13 +47,19 @@ commit; the rest of the pipeline did not follow.
    (the user may add it to a group); a file that was already dirty when the run began
    is never included unless a step recorded it. Paths are always staged by name —
    never `git add -A` or `git add .`.
-3. **Docs-only changes also go through `/acs:create-pr`**, in a docs-only mode that
-   needs no ticket and no code run. `/acs:create-prd` and `/acs:create-architecture`
-   no longer mint a delivery ticket, branch, commit or open a PR: they run ticketless,
-   the way the audits do (ADR-0123), and leave their documents local as
-   `/acs:create-data-design` and `/acs:create-flows` do (ADR-0126). The docs-only mode
-   refuses a changeset holding a non-document file and groups the rest by doc set (the
-   PRD, `hld/`, each `lld/<feature>/`, the ADRs, the rest).
+3. **Every change, docs or code, goes through `/acs:create-pr`, which takes a ticket
+   id or a prompt.** There is no separate docs mode. With no argument it continues this
+   checkout's current run, whatever its subject. With a prompt and no current run it
+   opens a prompt-subject run whose changeset is every uncommitted change against
+   HEAD, grouped by layer — documents by doc set (the PRD, `hld/`, each
+   `lld/<feature>/`, the ADRs, the ticket docs), then tests, then code — using the
+   paths other runs recorded in `states.files` to place each file. The
+   `verifier_passed` brake applies only when the run has a code step, and a commit
+   subject names a ticket only when there is one. `/acs:create-prd` and
+   `/acs:create-architecture` no longer mint a delivery ticket, branch, commit or open
+   a PR: they run ticketless, the way the audits do (ADR-0123), leave their documents
+   local as `/acs:create-data-design` and `/acs:create-flows` do (ADR-0126), and point
+   at `/acs:create-pr "<what changed>"`.
 4. **`/acs:analyze-requirements`' publish writes, it does not commit.** It writes the
    ticket's docs folder into the working tree and records the paths; the verification
    reads the working-tree bytes instead of `git show HEAD:`.
@@ -74,8 +80,10 @@ commit; the rest of the pipeline did not follow.
   --patch]` diffs `<since>` (default: the baseline's HEAD) against a fresh snapshot,
   leaving out the baseline's dirty paths unless they changed again. It replaces every
   `git diff <default>...HEAD` and `git log <branch>` read of "this run's changes".
-- **Commit plan.** `acs.py pr plan-commits [--ticket ID | --docs]` builds the groups
-  deterministically from the run's recorded results intersected with the changeset —
+- **Commit plan.** `acs.py pr plan-commits [--ticket ID] [--run R]` builds the groups
+  deterministically — from the run's recorded results intersected with the changeset
+  when its steps recorded what they wrote, else from every uncommitted change grouped
+  by layer —
   `{branch, base, groups: [{id, subject, layer, paths}], left_out, excluded}` — and
   `acs.py pr commit --plan <file>` executes a plan the user may have edited: it switches
   to the branch when not already on it (carrying the working tree), then stages and
@@ -95,6 +103,8 @@ commit; the rest of the pipeline did not follow.
   change no longer leaves a delivery ticket in the index.
 - `/acs:create-pr`'s old "uncommitted changes → stop" rule inverts: uncommitted changes
   are its input.
+- A follow-up makes every skill accept a prompt or a ticket id (no skill requires a
+  ticket).
 - **Limitation: one checkout, one working tree.** Two tickets in flight in the same
   checkout share one working tree, and so one changeset; the baseline keeps a file that
   was dirty before a run out of that run's commits, but it cannot tell two concurrent

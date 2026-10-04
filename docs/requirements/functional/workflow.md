@@ -84,7 +84,7 @@ human drives after review.
 | `create-e2e-tests` | test | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, left uncommitted. Records an evidenced no-op when no e2e suite is configured or the Contract says `owes.e2e: false`. |
 | `run-e2e-tests` | test | Run this product's configured suites for the subject, scoped from `test-cases.md`. Records an evidenced no-op when there is nothing configured to run. |
 | `docs-sync` | build | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the run's changeset (`acs.py changes diff`), `/code`'s `result.json` and `/acs:review-code`'s verdict rather than from a hand-off summary; writes into the same working tree, uncommitted, never a branch or a PR of its own. |
-| `create-pr` | ship | The one step that branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)): split the working tree's uncommitted changes into small commits (ticket docs, design docs, per plan slice its tests then its code, doc updates, e2e suites), preview them for the user to confirm, commit on the ticket branch, push, and open the pull request. It is the last step in the list, so `/ship` ends there. |
+| `create-pr` | ship | The one step that branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)): split the working tree's uncommitted changes into small commits (ticket docs, design docs, per plan slice its tests then its code, doc updates, e2e suites), preview them for the user to confirm, commit on the run's branch, push, and open the pull request; takes a ticket id or a prompt. It is the last step in the list, so `/ship` ends there. |
 | — `/merge-pr` | ship | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
 **There is no predicate vocabulary.** The `when:` / `requires:` kinds, their
@@ -599,8 +599,9 @@ ticket:
    problem, personas, goals with success metrics, prioritized features,
    product-level NFRs, constraints; shipped as the PRD doc set.
 3. **`/create-architecture`** — design the system to satisfy the PRD;
-   produce the high-level design (`hld/`). Then **`/create-pr --docs`**
-   commits both doc sets, one commit each, and opens one docs-only PR.
+   produce the high-level design (`hld/`). Then **`/create-pr "Baseline the
+   PRD and architecture"`** commits both doc sets, one commit each, and opens
+   one PR.
 4. **`/create-ticket "Scaffold the repository per the architecture docs"`**,
    then **`/ship`** it — the repo skeleton is ordinary ticket work
    ([ADR-0118](../../architecture/adr/0118-discovery-design-development-phases.md)):
@@ -616,12 +617,12 @@ ticket:
    own review.
 
 The product-level steps (2–3) run without a ticket and leave their documents
-uncommitted; `/create-pr --docs` delivers them as one docs-only PR, one commit
-per doc set ([skills.md](skills.md#product-level-delivery-no-ticket)). The
+uncommitted; `/create-pr "<prompt>"` delivers them as one PR, one commit per
+doc set ([skills.md](skills.md#product-level-delivery-no-ticket)). The
 scaffold (4) is the first ticket, with its own PR, so a fresh product's
 ticket history starts at ticket #1.
 
 From then on the product is effectively brownfield: the pipeline maintains
 the architecture docs as changes land, the PRD is amended via `/create-prd`
-re-runs (each amendment delivered through `/create-pr --docs`) when scope grows, and the scaffold
+re-runs (each amendment delivered through `/create-pr "<prompt>"`) when scope grows, and the scaffold
 ticket is never needed again.

@@ -43,8 +43,9 @@ Setup writes only what differs from a default, to the committed
 /create-architecture   # reverse-engineers the HLD (C4 1–3, data model,
                        #   API landscape, deployment), all Mermaid
                        # → docs/architecture/hld/*.md, uncommitted
-/create-pr --docs      # previews one commit per doc set, commits on a
-                       #   branch of its own, opens one docs-only PR
+/create-pr "Baseline the PRD and architecture"
+                       # no ticket: previews one commit per doc set,
+                       #   commits on a branch of its own, opens one PR
 /merge-pr --pr <n>     # after you review the PR yourself
 ```
 
@@ -170,7 +171,7 @@ the tests for specs marked implemented) before continuing.
 /create-ticket Let customers share wishlists publicly
   → diverges from the PRD (sharing is out-of-scope) — amend the PRD?
 /create-prd            # confirmed amendment → PRD edited in place, uncommitted
-/create-pr --docs      # → docs-only PR for the amendment
+/create-pr "Amend the PRD: public wishlists"   # → a PR for the amendment
 ```
 
 ## Where everything lives

@@ -124,7 +124,7 @@ reject the format string (exit 2) rather than passing it through silently.
 
 Product-level skills run without a ticket and commit nothing
 ([skills.md](skills.md#product-level-delivery-no-ticket)); their documents
-reach a branch through `/create-pr --docs`, whose docs-only PR names no
+reach a branch through `/create-pr "<prompt>"`, whose PR names no
 ticket — the placeholder vocabulary has no special cases.
 
 ### Description templates
