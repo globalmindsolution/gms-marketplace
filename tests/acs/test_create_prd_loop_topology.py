@@ -5,7 +5,7 @@ verify). ADR-0092 followed that to its conclusion: a PRD is a document, so a
 plan for it is a second copy of the writing. The per-skill topology then
 split the one executor along its own seam: a read-only **surveyor** runs on
 iteration 1 only (mode, outline, open questions, the three corroboration
-sections the reviewer's deterministic floor parses) and writes the authoring
+sections the review's deterministic floor parses) and writes the authoring
 notes; the coordinator relays the open questions to the user; an **author**
 writes the set from the notes plus the answers; a **reviewer** judges it.
 Iterations 2+ are author <- reviewer findings -> reviewer; the surveyor never
@@ -195,9 +195,10 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertIn('hooks/scripts/acs.py" notes merge', self.body)
         self.assertIn("never prose-merging by you", self.norm)
 
-    def test_cap_is_four_with_waves(self):
-        self.assertIn("`max_parallel = 4`", self.body)
-        self.assertRegex(self.norm, r"(?i)beyond the cap, run the slices in waves of 4")
+    def test_cap_is_the_setting_with_waves(self):
+        self.assertIn("At most `settings.parallel.max_agents` (default 4) instances per "
+                      "message", self.norm)
+        self.assertRegex(self.norm, r"(?i)beyond the cap, run the slices in waves of that size")
 
     def test_survey_slices_partition_rule(self):
         self.assertIn("#### Survey slices — brownfield/amend over disjoint repo areas", self.body)
@@ -229,18 +230,33 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertNotIn("-<k>", read(PRD_AUTHOR))
         self.assertIn("No integration pass follows", self.norm)
 
-    def test_reviewer_slices_cover_every_dimension_exactly_once(self):
+    def test_reviewer_slices_and_the_floor_cover_every_dimension(self):
+        """Every dimension is owned exactly once, except 7, split along its
+        own seam: the script floor (the coordinator's) and the semantic ceiling
+        (the `substance` slice's)."""
         rows = slice_table(self.body, "substance")
         self.assertEqual(sorted(rows), ["delta", "floor", "substance"])
         dims = sorted(d for ds, _ in rows.values() for d in ds)
-        self.assertEqual(dims, list(range(1, 12)))
+        self.assertEqual(dims, sorted(list(range(1, 12)) + [7]))
+        self.assertIn("7 plan conformance (the semantic ceiling)", self.body)
+        self.assertIn("7 plan conformance (the deterministic floor)", self.body)
 
-    def test_the_deterministic_floor_runs_in_exactly_one_slice(self):
+    def test_the_deterministic_floor_is_the_coordinators_not_an_agent(self):
+        """ADR-0125: the floor is entirely scripts, so the coordinator runs
+        them beside the two semantic slices instead of spawning a third."""
         rows = slice_table(self.body, "substance")
         for checker in ("prd_conformance_check.py", "structure_lint.py"):
             owners = [sid for sid, (_, owns) in rows.items() if checker in owns]
             self.assertEqual(owners, ["floor"], checker)
         self.assertEqual(sorted(rows["floor"][0]), [1, 7, 10])
+        self.assertIn("run by YOU, no agent", rows["floor"][1])
+        self.assertIn("**the `floor` is yours**, run with Bash in the SAME message as "
+                      "the reviewer spawn", self.norm)
+        self.assertIn("spawn the two slices in ONE message beside the floor", self.norm)
+        self.assertIn("Write `iter-<n>/reviewer-floor.md`", self.norm)
+        reviewer = norm(read(PRD_REVIEWER))
+        self.assertIn("**Run no deterministic checker the coordinator owns**", reviewer)
+        self.assertIn("never in a slice", reviewer)
 
     def test_reviewer_slices_join_dedup_and_pass_rule(self):
         self.assertIn("--out <partition>/steps/create-prd/iter-<n>/reviewer.md", self.norm)
@@ -250,7 +266,8 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertIn("keeping the one with the higher severity", self.norm)
         self.assertIn("`## De-duplicated findings`", self.body)
         self.assertIn("the iteration passes only if EVERY slice returned "
-                      "`status=\"completed\"` with zero blocking findings", self.norm)
+                      "`status=\"completed\"` with zero blocking findings and the floor "
+                      "found nothing", self.norm)
         self.assertIn("never \"pass with a missing slice\"", self.norm)
 
     def test_resume_reruns_only_missing_slices(self):

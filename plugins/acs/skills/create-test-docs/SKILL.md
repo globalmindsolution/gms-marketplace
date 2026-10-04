@@ -354,8 +354,9 @@ fresh instances of the SAME agent, one per slice, each told its dimensions in
 | `shape` | 4 `front-matter`, 6 `structure` | `front_matter_check.py`, `structure_lint.py` and the gate's `e2e_case_count` |
 
 Spawn the three in ONE message — one Agent call per slice, all in the same
-assistant message, in the foreground (three is within `max_parallel = 4`) —
-and wait for ALL of them. Each writes `iter-<n>/trace-reviewer-<slice>.md`;
+assistant message, in the foreground (three is within the default
+`settings.parallel.max_agents` of 4; a lower setting runs them in waves of
+that size) — and wait for ALL of them. Each writes `iter-<n>/trace-reviewer-<slice>.md`;
 join them, in the table's order, into the one report every reader expects:
 
 ```bash
@@ -389,11 +390,15 @@ persist the trace-reviewer output, then AUTOMATICALLY re-run the test-designer
 with every finding in its `<context>`. After iteration 3 with findings remaining: stop with
 final status `"failed"`, findings recorded, and no published document.
 
-### Deterministic checks the coordinator runs before publishing
+### Deterministic checks the coordinator runs beside the review
 
-All three are $0, stdlib-only backstops. Run them on the DRAFT; a finding is
-remediated in the next test-designer iteration (or, at iteration 3, fails the run) —
-never patched by you.
+All three are $0, stdlib-only backstops. Run them on the DRAFT as soon as the
+test-designer has written it, in the SAME turn as the trace-reviewer spawn —
+they take seconds and need no review result, so they never wait for one. Fold
+each failure into THAT iteration's findings, as a blocking finding beside the
+slices': the iteration passes only when the slices pass and these are clean,
+and a failure is remediated in the next test-designer iteration (or, at
+iteration 3, fails the run) — never patched by you.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \

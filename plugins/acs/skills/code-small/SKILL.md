@@ -54,8 +54,8 @@ overlap. The slice id is the task number. Spawn both in ONE message (two Agent
 calls in the same message, foreground) and wait for both. Each `<task>` and
 its `<result>` carry `slice="<k>"`, so the SubagentStop snapshots do not
 collide, and each writes `iter-<n>/implementer-<k>.json`. Two is this path's
-own cap, under the fan-out's `max_parallel = 4`, so a small plan never runs in
-waves. A single implementer omits `slice` and writes
+own structural cap, kept whatever `settings.parallel.max_agents` says, so a
+small plan runs in waves only when that setting is 1. A single implementer omits `slice` and writes
 `iter-<n>/implementer.json`. The mechanics are `execute.md`'s **Parallel
 implementers**. When two ran and either report lists a `seams` entry, an
 integration implementer (`slice="integration"`) follows, alone, before the
@@ -88,8 +88,9 @@ implementation properties:
 - **the iteration ceiling** is now `ship.yaml`'s `loop.max_iterations`, the
   same cap on every path
 
-Run the tests your change touches, not the full suite: the gate runs it once,
-last, on the iteration that survives review. That discipline is safe precisely
+Run the tests your change touches, not the full suite: the gate runs it once
+per iteration, beside the review, and its result counts on the iteration that
+survives review. That discipline is safe precisely
 because the guarantee is unconditional and terminal rather than buried inside
 an iteration that may be discarded.
 

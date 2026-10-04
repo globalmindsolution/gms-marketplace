@@ -385,8 +385,17 @@ spawned in ONE message and awaited together before the next phase.
 - **Surveys** MUST be fanned out when the scope spans two or more disjoint
   top-level areas of the repo, one instance per area; the open questions of
   every slice MUST go to the user in ONE grouped clarification-ledger ask.
-- **Cap.** At most `max_parallel = 4` instances per phase, unless the skill
-  already sets its own cap; beyond the cap, instances run in waves.
+- **Cap.** At most `settings.parallel.max_agents` (default 4) instances per
+  message ([ADR-0125](../../architecture/adr/0125-parallelism-in-skills.md)),
+  unless the skill already sets its own smaller cap (`/acs:code-small` 2,
+  `/acs:code-trivial` 1); beyond the cap,
+  instances run in waves of that size. `/acs:review-code`'s five lenses are one
+  message whatever the setting.
+- **Jobs.** A long deterministic command a coordinator needs beside its
+  agents (a build, a lint, a suite) MUST run as an `acs.py job` started in the
+  same turn as the spawn and collected with one blocking `job wait`, never a
+  `sleep` loop; a $0 check on a draft MUST run beside the judge spawn, its
+  failures that iteration's findings.
 - **Identity.** Each instance's task and result MUST carry `slice="<id>"` (an
   un-sliced instance omits it). A slice id is a short name of letters,
   digits, `_` and `-`; hyphens are allowed. A sliced instance writes

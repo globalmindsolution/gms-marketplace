@@ -677,7 +677,8 @@ Corroboration is **not** a filter. On MAR-583 iteration 1 all three blocking
 findings were single-lens; counting agreement would have shipped a broken
 changeset. Per-finding re-derivation is the filter.
 
-**Stage 3 — the final gate.** Runs only when stage 2 leaves nothing blocking:
+**Stage 3 — the final gate.** Its result counts only when stage 2 leaves
+nothing blocking:
 
 - **build** succeeds
 - **lint** clean
@@ -685,7 +686,10 @@ changeset. Per-finding re-derivation is the filter.
 - **coverage ≥ 80%** (`settings.test_coverage_percent`, default 80)
 
 The gate is the only place the full suite runs in the whole pipeline. It runs
-last, exactly once per iteration that survives review, and a failure re-enters
+once per iteration — started as `acs.py job` jobs in the same turn as the lens
+spawn, since read-only lenses and adjudicators freeze the tree (ADR-0125) — and
+its result is read last, only by an iteration that survives review; a blocked
+iteration stops the jobs and records the gate as not run. A failure re-enters
 the loop as a blocking finding. This is what makes `/acs:code`'s targeted-test
 discipline safe: the guarantee is unconditional and terminal rather than buried
 inside an iteration that may be discarded.

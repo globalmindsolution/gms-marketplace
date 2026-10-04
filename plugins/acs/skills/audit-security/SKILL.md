@@ -59,7 +59,8 @@ Each task carries `<constraint name="category">`, `<constraint name="area">` (th
 paths in scope), `architecture_dir` when found, and the focus notes as `<context>`.
 
 **One message, then wait for all.** The parallel instances are the SAME agent spawned
-N times in ONE message, at most `max_parallel = 4` per wave. Spawn with the Agent tool
+N times in ONE message, at most `settings.parallel.max_agents` (default 4) per
+message; beyond it, waves of that size. Spawn with the Agent tool
 as `context.agents.auditor` (`acs:audit-security-auditor`; fall back to the
 un-namespaced name only if the runtime rejects it).
 
@@ -79,7 +80,8 @@ recording the others as `duplicate_of`; never merge findings that merely look al
 
 **Every remaining candidate gets exactly one fresh-context adjudicator**
 (`context.agents.adjudicator`, `acs:audit-security-adjudicator`), `slice` = the
-finding id, in waves of `max_parallel = 4`. Each receives the one finding and read
+finding id, at most `settings.parallel.max_agents` (default 4) per message and
+waves of that size beyond it. Each receives the one finding and read
 access to the repository — **neither the other findings nor which auditor raised
 it**: a finding must survive on its own evidence. It is prompted to refute, and
 defaults to refuted when uncertain.

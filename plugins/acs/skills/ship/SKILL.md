@@ -196,7 +196,9 @@ run here, in your context — what runs in parallel is their SUBAGENTS:
    member: its current phase and what it is waiting for. Whenever two or more
    members each have subagents ready to spawn — the writers of one, the
    writers or the judge of another — spawn ALL of them in ONE message, in the
-   foreground, and wait for every result before the next batch. A member that
+   foreground, and wait for every result before the next batch. The cap counts
+   the whole batch: at most `settings.parallel.max_agents` (default 4) per
+   message, across members; beyond it, waves of that size. A member that
    must wait (for its own judge's input, or for the user) simply sits out
    that batch.
 3. **A judge that reads the branch diff goes last.** A member whose judge

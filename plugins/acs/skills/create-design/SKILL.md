@@ -226,9 +226,9 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 - **One message, then wait for all.** The parallel instances of a phase are
   the SAME agent spawned N times in ONE message — one Agent call per slice,
   each `run_in_background: false` — and you wait for every one of them
-  before the join. Cap: at most `max_parallel = 4` instances per phase;
-  more slices than that run in waves of 4, and the next phase starts only
-  after the last wave is joined.
+  before the join. Cap: at most `settings.parallel.max_agents` (default 4)
+  instances per message; more slices than that run in waves of that size, and
+  the next phase starts only after the last wave is joined.
 - **Slice ids.** Each instance's task and result carry `slice="<id>"`
   (`<task skill="create-design" phase="designer" slice="d1" …>`), so the
   SubagentStop snapshot lands at `iter-<n>/<role>-<id>-message.xml` and
@@ -269,7 +269,7 @@ interaction). Iteration 1 runs that objective as three passes and a join:
    the ADR-0012 doc-consistency step.
 2. **Option-research pass — parallel, when the scope notes list two or more
    major decisions.** One designer per major decision, `slice="<decision
-   id>"`, all spawned in ONE message (cap 4 per wave), each task carrying
+   id>"`, all spawned in ONE message (at most `settings.parallel.max_agents` per wave), each task carrying
    `<constraint name="decision">` with that decision's id and one-line
    statement and the scope notes in `<inputs>`. The partition is by
    decision: a research slice researches ONLY its own decision — its

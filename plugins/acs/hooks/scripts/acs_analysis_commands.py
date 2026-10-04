@@ -114,10 +114,7 @@ def cmd_analysis_publish(args):
         ticket = lib.load_ticket(tdir) or {"id": loop and loop.get("ticket_id")}
         return analysis_publish.publish(rdir, loop, ctx, tdir, ticket,
                                         summary=args.summary)[1]
-    out = _record("analysis publish", args, publish)
-    if not out.get("published"):
-        sys.stderr.write("acs analysis publish: refused: %s\n" % out.get("reason"))
-        sys.exit(2)
+    _record("analysis publish", args, publish)
 
 
 def add_parser(group):

@@ -48,7 +48,8 @@ and a merge to save nothing. Give that implementer the whole file map.
 It is the un-sliced case of the fan-out in `execute.md`: spawned alone, its
 task and result carry no `slice` attribute, and it writes
 `iter-<n>/implementer.json`, never `implementer-<k>.json`. The one-message
-spawn and the `max_parallel = 4` cap never come into play on this path.
+spawn and the `settings.parallel.max_agents` cap never come into play on this
+path: its own cap is 1.
 
 ### Inputs
 
@@ -76,8 +77,9 @@ implementation properties:
 - **the iteration ceiling** is now `ship.yaml`'s `loop.max_iterations`, the
   same cap on every path
 
-Run the tests your change touches, not the full suite: the gate runs it once,
-last, on the iteration that survives review. That discipline is safe precisely
+Run the tests your change touches, not the full suite: the gate runs it once
+per iteration, beside the review, and its result counts on the iteration that
+survives review. That discipline is safe precisely
 because the guarantee is unconditional and terminal rather than buried inside
 an iteration that may be discarded.
 

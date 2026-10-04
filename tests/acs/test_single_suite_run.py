@@ -16,12 +16,14 @@ question, so `/acs:code` reads it rather than re-deriving it. The gate's single
 independent run then establishes that the assembled changeset is green and,
 from the same output, what the coverage is.
 
-That run goes LAST, after stage 2 leaves nothing blocking: an iteration already
-going back to `/acs:code` does not need a suite run to say so, and the tree is
-about to change anyway. The half that makes the deferral safe is pinned beside
-it — the gate is unconditional and terminal, so a verdict that passes has a
-green run behind it — because keeping the saving while losing that clause would
-turn this into a way to pass without ever running the suite.
+That run STARTS beside the lenses, as `acs.py job` jobs in the same turn as
+the stage-1 spawn (ADR-0125) — the tree is frozen while read-only lenses and
+adjudicators work — and its RESULT is read last, only when stage 2 leaves
+nothing blocking: an iteration already going back to `/acs:code` stops the
+jobs and records the gate as not run. The half that makes this safe is pinned
+beside it — the gate is unconditional and terminal, so a verdict that passes
+has a green run behind it — because keeping the saving while losing that clause
+would turn this into a way to pass without ever running the suite.
 
 **What moving the run out of `/acs:code` bought, beyond the saving.** The run
 used to sit inside an iteration that might be discarded, and `states.tests` was
@@ -94,7 +96,8 @@ class OnlyTheGateRunsTheFullUnitSuiteTest(unittest.TestCase):
         over. They read; the coordinator's gate runs."""
         body = norm(REVIEW_LENS)
         self.assertIn("You run nothing", body)
-        self.assertIn("The gate runs those once, later, in the coordinator", body)
+        self.assertIn("The gate runs those once, in the coordinator, as jobs "
+                      "beside the lenses — never in a lens", body)
 
     def test_the_legs_point_at_the_gate_rather_than_running_it(self):
         for leg in ("code-trivial", "code-small", "code-standard", "code-complex"):
@@ -118,22 +121,51 @@ class TheTargetedSetComesFromThePlanTest(unittest.TestCase):
                       "plan", body)
 
 
-class TheGateRunsLastAndOnlyOnACleanReadTest(unittest.TestCase):
-    """Order, not skipping. An iteration already going back to /acs:code does
-    not need a suite run to say so; the tree is about to change anyway.
+class TheGateRunsBesideTheReviewAndCountsOnlyOnACleanReadTest(unittest.TestCase):
+    """The gate's commands start beside the lenses (ADR-0125), but its RESULT
+    is used only by an iteration that survives review, and the suite still runs
+    once per iteration.
 
-    The deferral is only safe because of its other half, so both are pinned
-    together: removing the second while keeping the first would turn a saving
-    into a way to pass without ever running the suite.
+    The early start is only safe because of its other half, so both are pinned
+    together: a gate whose result counted on a blocked iteration, or that ran
+    twice, would undo the single-run saving; one that was never collected would
+    be a way to pass without ever running the suite.
     """
 
-    def test_the_gate_runs_only_on_a_clean_adjudication(self):
+    def test_the_gate_result_counts_only_on_a_clean_adjudication(self):
         body = norm(REVIEW_SKILL)
-        self.assertIn("Runs **only** when stage 2 leaves nothing blocking", body)
+        self.assertIn("Its result counts **only** when stage 2 leaves nothing "
+                      "blocking", body)
 
-    def test_it_runs_exactly_once_per_surviving_iteration(self):
-        self.assertIn("It runs last, exactly once per iteration that survives "
+    def test_it_runs_exactly_once_per_iteration(self):
+        self.assertIn("It runs once per iteration, beside the review, and its "
+                      "result is read last, only by an iteration that survives "
                       "review", norm(REVIEW_SKILL))
+
+    def test_the_gate_starts_as_jobs_in_the_lens_turn(self):
+        body = norm(REVIEW_SKILL)
+        self.assertIn("**The gate starts in the same turn.**", body)
+        for name in ("gate-build", "gate-lint", "gate-suite"):
+            with self.subTest(job=name):
+                self.assertIn("job start --name %s" % name, body)
+        self.assertIn("Build and lint are separate jobs so they run concurrently",
+                      body)
+        self.assertIn("the tree is frozen for the whole review", body)
+
+    def test_a_clean_review_waits_and_a_blocked_one_stops(self):
+        body = norm(REVIEW_SKILL)
+        self.assertIn("job wait --name gate-build --name gate-lint --name "
+                      "gate-suite", body)
+        self.assertIn("stop the jobs (`acs.py job stop --name <each>`) and record "
+                      "the gate as not run for this iteration", body)
+        self.assertRegex(body, r"never `sleep`")
+
+    def test_five_lenses_are_one_message_and_adjudicators_take_the_cap(self):
+        body = norm(REVIEW_SKILL)
+        self.assertIn("The five lenses are ONE message whatever "
+                      "`settings.parallel.max_agents` says", body)
+        self.assertIn("at most `settings.parallel.max_agents` (default 4) per "
+                      "message", body)
 
     def test_a_gate_failure_re_enters_the_loop_as_a_finding(self):
         """The alternative — a separate failure channel — is how a gate result

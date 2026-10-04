@@ -89,14 +89,33 @@ class CreateArchitectureFanOutTest(JudgeSlicingMixin, unittest.TestCase):
         cls.architect = read(os.path.join(AGENTS, "create-architecture-architect.md"))
         cls.reviewer = read(os.path.join(AGENTS, "create-architecture-reviewer.md"))
 
-    def test_one_write_architect_writes_the_hld(self):
-        """ADR-0121: the HLD is one small, cross-referenced set, so it has one
-        writer -- no write slices, no file partition, no seams to reconcile."""
-        self.assertIn("spawn ONE write architect", self.flat)
-        self.assertIn("no seams to reconcile", self.flat)
-        for gone in ("parallel by default, from iteration 1", '<constraint name="owns">',
-                     "min(3, number of flows) contiguous groups"):
+    def test_write_slices_one_per_hld_file_group(self):
+        """ADR-0125 (amending ADR-0121's single writer): the write pass fans out
+        by HLD file group, every slice writing from the notes that pinned the
+        shared vocabulary; only the groups with a file to write run."""
+        self.assertIn("one architect per **HLD file group**", self.flat)
+        rows = {}
+        for line in self.skill.splitlines():
+            m = re.match(r"^\| `(write-[a-z]+)` \| (.+) \|$", line)
+            if m:
+                rows[m.group(1)] = re.findall(r"`hld/([a-z0-9-]+)\.md`", m.group(2))
+        self.assertEqual(rows, {
+            "write-context": ["overview", "c4-context", "capability-map"],
+            "write-structure": ["c4-container", "c4-component", "deployment",
+                                "project-structure"],
+            "write-data": ["data-model", "integration-map", "data-flow"],
+            "write-conventions": ["tech-stack", "cross-cutting"]})
+        files = [f for group in rows.values() for f in group]
+        self.assertEqual(len(files), len(set(files)), "a file in two groups")
+        self.assertIn("the notes pinned", self.flat)
+        self.assertIn('<constraint name="files">', self.skill)
+        for gone in ("spawn ONE write architect", "no seams to reconcile",
+                     '<constraint name="owns">', "min(3, number of flows) contiguous groups"):
             self.assertNotIn(gone, self.flat)
+
+    def test_the_cap_is_the_setting(self):
+        self.assertIn("at most `settings.parallel.max_agents` (default 4), waves of that "
+                      "size beyond it", self.flat)
 
     def test_writes_only_the_enabled_hld_types(self):
         contract = flat(self.skill.split("## Output contract", 1)[1].split("\n## ", 1)[0])
@@ -114,8 +133,9 @@ class CreateArchitectureFanOutTest(JudgeSlicingMixin, unittest.TestCase):
 
     def test_one_message_spawn_and_cap(self):
         self.assertIn("the SAME agent spawned N times in ONE message", self.flat)
-        self.assertIn("max_parallel = 4", self.flat)
-        self.assertIn("waves of 4", self.flat)
+        self.assertIn("at most `settings.parallel.max_agents` (default 4) instances per "
+                      "message", self.flat)
+        self.assertIn("waves of that size", self.flat)
 
     def test_notes_merge_join(self):
         self.assertIn('acs.py" notes merge', self.skill)
@@ -143,12 +163,20 @@ class CreateArchitectureFanOutTest(JudgeSlicingMixin, unittest.TestCase):
     def test_resume_reruns_only_missing_slices(self):
         self.assertIn("re-run ONLY the slices whose own report is missing", self.flat)
 
-    def test_no_integration_pass(self):
-        """With one writer there are no seams between writers to reconcile."""
-        for body in (self.skill, self.architect):
-            self.assertNotIn("### Integration pass", body)
-            self.assertNotIn("architect-integration.json", body)
-            self.assertNotIn('slice="integration"', body)
+    def test_integration_pass_runs_alone_only_on_a_reported_seam(self):
+        """The code-standard pattern: ONE integration architect after the last
+        wave, and only when a write slice reports a seam -- a name it needed
+        that another group owns."""
+        self.assertIn("no slice reported a seam → skip the integration pass", self.flat)
+        self.assertIn("any seam → spawn ONE more architect, alone, with "
+                      '`slice="integration"`', self.flat)
+        self.assertIn("iter-<n>/architect-integration.json", self.flat)
+        self.assertIn("The reviewer's `coherence` slice still judges cross-file naming",
+                      self.flat)
+        body = flat(self.architect)
+        self.assertIn("## When you are the integration pass", self.architect)
+        self.assertIn("record a **seam** in your report", body)
+        self.assertIn("iter-<n>/architect-integration.json", body)
 
     def test_survey_consumers_synthesize(self):
         self.assertIn("MUST reconcile them for the facts its files use", self.flat)
@@ -208,8 +236,9 @@ class CreateDesignFanOutTest(JudgeSlicingMixin, unittest.TestCase):
 
     def test_one_message_spawn_and_cap(self):
         self.assertIn("the SAME agent spawned N times in ONE message", self.flat)
-        self.assertIn("max_parallel = 4", self.flat)
-        self.assertIn("waves of 4", self.flat)
+        self.assertIn("at most `settings.parallel.max_agents` (default 4) instances per "
+                      "message", self.flat)
+        self.assertIn("waves of that size", self.flat)
 
     def test_notes_merge_join(self):
         self.assertIn('acs.py" notes merge', self.skill)

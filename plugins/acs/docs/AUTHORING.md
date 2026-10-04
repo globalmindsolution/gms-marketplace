@@ -99,9 +99,18 @@ skill"; what a SKILL.md must say is:
    `acs notes merge` takes the slice id as what follows the prefix its inputs
    share. `integration` is reserved for the integration pass.
 3. **One message, the cap, waves.** Spawn every instance of a phase in ONE
-   message, in the foreground, and wait for all of them. At most
-   `max_parallel = 4` per phase unless the skill has its own cap; beyond it,
-   run in waves.
+   message, in the foreground, and wait for all of them. The cap is the
+   setting `settings.parallel.max_agents` (default 4, defined once in
+   INTERNALS.md "Fan-out inside a skill"): write "at most
+   `settings.parallel.max_agents` (default 4) per message; beyond it, waves of
+   that size" — never a literal number. A skill keeps its own SMALLER
+   structural cap where it has one (`/acs:code-small` 2, `/acs:code-trivial`
+   1).
+   A long deterministic command that runs beside the agents (a build, a
+   suite) is an `acs.py job`, started in the same turn and collected with
+   `job wait` (INTERNALS.md "Jobs: commands beside the agents"); a $0 check
+   on a draft runs beside the judge spawn, and its failures are that
+   iteration's findings.
 4. **The task carries the slice.** `<task skill="S" phase="<role>"
    slice="<id>" …>`; a sliced judge's task also carries `<constraint
    name="dimensions">`, and a survey slice names its area. The result echoes

@@ -740,7 +740,8 @@ class ParallelismTest(unittest.TestCase):
 
     def test_fan_out_is_one_message_and_capped(self):
         self.assertIn("in ONE message (all foreground, in the same message)", self.skill)
-        self.assertIn("`max_parallel = 4`", self.skill)
+        self.assertIn("At most `settings.parallel.max_agents` (default 4) instances "
+                      "run per message", self.skill)
 
     def test_slice_table_covers_all_ten_dimensions_once(self):
         owned = []
@@ -755,7 +756,19 @@ class ParallelismTest(unittest.TestCase):
 
     def test_the_single_suite_run_stays_in_one_slice(self):
         self.assertIn("the ONE run of the repo's existing suite command", self.skill)
-        self.assertIn("belongs to `tests` and runs nowhere else", self.reviewer)
+        self.assertIn("is the coordinator's `suite` job, read by `tests` alone with "
+                      "`acs.py job wait --name suite` and run by no slice", self.reviewer)
+
+    def test_the_suite_job_starts_beside_the_planner_once_per_run(self):
+        """ADR-0125: the existing suite command does not depend on the plan, so
+        it runs as a job beside iteration 1's planner, once per run, and every
+        iteration's `tests` slice reads that one result."""
+        self.assertIn('acs.py" job start --name suite -- <the repo\'s existing suite '
+                      'command>', self.skill)
+        self.assertIn("in the same message as iteration 1's planner spawn", self.skill)
+        self.assertIn("Start it once per run, not per iteration", self.skill)
+        self.assertIn("never runs the suite itself", self.skill)
+        self.assertIn("You do not run the suite yourself.", self.reviewer)
 
     def test_slices_are_joined_by_notes_merge(self):
         self.assertIn('/hooks/scripts/acs.py" notes merge --out '

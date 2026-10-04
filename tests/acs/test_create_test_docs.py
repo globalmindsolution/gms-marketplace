@@ -592,7 +592,7 @@ class TestParallelFanOut(unittest.TestCase):
 
     def test_the_slices_are_spawned_in_one_message_under_the_cap(self):
         self.assertIn("Spawn the three in ONE message", self.body)
-        self.assertIn("within `max_parallel = 4`", self.body)
+        self.assertRegex(self.body, r"three is within the default\s+`settings.parallel.max_agents` of 4")
 
     def test_the_sliced_pass_rule(self):
         self.assertIn("passes only if EVERY\nslice returned `status=\"completed\"` with zero blocking findings",

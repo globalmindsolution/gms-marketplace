@@ -789,6 +789,19 @@
       },
       "additionalProperties": false
     },
+    "parallel": {
+      "type": "object",
+      "description": "How many subagents a skill spawns in one message; more run in waves of this size (ADR-0125).",
+      "properties": {
+        "max_agents": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 4
+        }
+      },
+      "additionalProperties": false
+    },
     "release": {
       "description": "Settings-driven release-cut configuration for /acs:release (Decision 5, ADR 0054). Non-secret: file paths, JSON pointers, and format strings only \u2014 auth stays via gh, mirrors the tracker NFR. Absent = /acs:release cannot run for this repo (fails fast, no marketplace-hardcoded fallback); explicit null also disables it.",
       "oneOf": [

@@ -51,6 +51,9 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    exists (`git rev-parse --verify <branch>` locally, or already on origin —
    `git ls-remote origin <branch>`). Detect the base BEFORE anything is
    pushed — `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`.
+   The branch check, the base detect, step 3's label create and step 5's
+   `gh pr list` depend on nothing but the branch name: issue them as parallel
+   Bash calls in ONE message (SKILL.md step 1) and reuse their answers.
    Then push: `git push -u origin <branch>`; skip the push when it exists
    only on origin and is current. NEVER commit new work — uncommitted
    implementation changes are /acs:code's job: stop and ask the user (SKILL.md's

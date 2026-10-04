@@ -21,6 +21,14 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ### Added
 
+- **`acs.py job start|wait|status|stop`** (ADR-0125): a deterministic command
+  (a build, a lint, a test suite) runs detached under the run's `jobs/` directory,
+  started in the same turn as the subagents it runs beside; `job wait` is one
+  blocking call that returns when every named job has ended (exit 0 all passed, 1
+  one failed or stopped, 3 timed out still running — call it again, never `sleep`).
+- **`parallel.max_agents`** (ADR-0125): the most subagents a skill spawns in one
+  message, default 4, an integer from 1 to 16; beyond it, waves of that size.
+
 - **Design versions and design ↔ code gap detection** (ADR-0122). Every HLD/LLD
   document carries version front matter (`status`: proposed → approved →
   implemented, or deprecated; `version`; `tickets`; `feature` on LLD documents), set
@@ -77,6 +85,24 @@ matching section here, and merge to `main` — the Release workflow tags
   and refuses to rewrite a file that has comments.
 
 ### Changed
+
+- **Skills run more in parallel** (ADR-0125). Every multi-agent skill caps a fan-out
+  at `settings.parallel.max_agents` instead of a literal four (`code-small` keeps 2,
+  `code-trivial` 1; `/acs:review-code`'s five lenses are one message).
+  `/acs:review-code` starts its gate — build and lint as separate jobs, the unit suite
+  with coverage as one — beside the lenses, waits for it only when adjudication leaves
+  nothing blocking, and stops it otherwise; the suite still runs once per iteration.
+  `/acs:create-impl-plan` runs the repo's existing suite once per run as a job beside
+  the planner, read by the `tests` plan-review slice. The $0 draft checks of
+  `/acs:create-test-docs`, `/acs:create-api-contract` and `/acs:analyze-requirements`
+  (now in `analysis record-draft`, folded into `record-review`; `analysis publish` no
+  longer runs them) and `/acs:create-e2e-tests`' TC-id coverage grep run beside the
+  judge, failing that iteration. `/acs:create-prd`'s review is two reviewer slices
+  plus a deterministic floor the coordinator runs itself. `/acs:create-architecture`
+  writes the HLD in up to four file-group slices with an integration pass only on a
+  reported seam (amends ADR-0121). `/acs:create-api-contract` skips iteration 2+'s
+  integration pass when no seam moved. `/acs:audit-design` runs `design check` beside
+  its gap analysts, and `/acs:create-pr` batches its independent `git`/`gh` calls.
 
 - **One `tests` block** (ADR-0117): `tests.coverage` replaces `test_coverage_percent`,
   `tests.unit` the CI-gate `tests.command`/`setup`, and `tests.e2e` / `tests.<name>`

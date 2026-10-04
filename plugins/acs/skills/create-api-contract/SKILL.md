@@ -389,9 +389,10 @@ spawn:
   group's contract files.
 - **One message.** Spawn every slice of a wave in ONE message — one Agent call
   per slice, all in the same assistant message, in the foreground — then wait
-  for ALL of them before anything else happens. At most `max_parallel = 4`
-  slices per message; more groups run in waves of at most four, the next wave
-  spawned only once every slice of the previous one returned.
+  for ALL of them before anything else happens. At most
+  `settings.parallel.max_agents` (default 4) slices per message; more groups
+  run in waves of that size, the next wave spawned only once every slice of
+  the previous one returned.
 - **One branch, one working tree.** Each slice stages and commits ONLY its own
   group's files, by name (`git commit -m "<msg>" -- <its files>`) — never
   `git add -A` or `git commit -a`, which would sweep up a sibling's work in
@@ -436,8 +437,8 @@ spawn:
   `iter-<n>/contract-author-integration.json` listing each seam it changed
   (file, what, why, which slices), and commits any contract file it touched
   by name, retrying on `index.lock` contention like every slice. The pass is
-  skipped only when the contract-author ran un-sliced — one writer has no
-  seams.
+  skipped when the contract-author ran un-sliced — one writer has no seams —
+  and, on iteration 2+, when there is nothing at a seam to reconcile (below).
 - **The join — deterministic, never by hand.** Once the integration pass
   completed:
   1. Join the notes — each slice's LATEST notes (this iteration's when it ran,
@@ -482,8 +483,11 @@ spawn:
   between fragments — goes to the next iteration's integration pass, not to
   the slices. A slice not re-run keeps its fragment, notes and report as they
   are. The integration pass then runs again, with every finding in its
-  `<context>` (alone, when only seam findings were open), and the join
-  follows.
+  `<context>` (alone, when only seam findings were open) — but only when a
+  seam finding is open or a re-run slice's report lists a `seams` entry (its
+  fix changed something another group names). With neither, nothing at a
+  seam has moved since the last integration pass, so skip it: the join uses
+  that pass's latest notes, like any slice not re-run. Then the join follows.
 - **No surface.** Every slice reporting `items: 0` completes the run with
   `outcome: no_surface_owed`, exactly as un-sliced. A slice with `items: 0`
   writes no fragment and is left out of the draft join; its notes still join.
@@ -518,8 +522,9 @@ dimensions in `<constraint name="dimensions">`:
 | `files` | 5 `contract-files`, 6 `front-matter` and `structure` | `front_matter_check.py`, `structure_lint.py`, `git log` / `git show` of the contract files |
 
 Spawn the three in ONE message — one Agent call per slice, all in the same
-assistant message, in the foreground (three is within `max_parallel = 4`) —
-and wait for ALL of them. Each writes
+assistant message, in the foreground (three is within the default
+`settings.parallel.max_agents` of 4; a lower setting runs them in waves of
+that size) — and wait for ALL of them. Each writes
 `iter-<n>/contract-reviewer-<slice>.md`; join them, in the table's order, into
 the one report every reader expects:
 
@@ -556,7 +561,11 @@ stop with final status `"failed"`, findings recorded, and no published
 contract — `/acs:code` then implements against the plan alone, which is exactly
 the ambiguity this step exists to remove, so say so in `summary`.
 
-### Deterministic checks the coordinator runs before publishing
+### Deterministic checks the coordinator runs beside the review
+
+Run both on the DRAFT as soon as the join has written it, in the SAME turn as
+the contract-reviewer spawn — they are $0 and need no review result, so they
+never wait for one:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
@@ -568,7 +577,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --ordered "steps/create-api-contract/api-contract.md"
 ```
 
-A finding from either is remediated in the next contract-author iteration
+Fold a failure from either into THAT iteration's findings, as a blocking
+finding beside the slices': the iteration passes only when the slices pass and
+both checks are clean. It is remediated in the next contract-author iteration
 (or, at iteration 3, fails the run) — never patched by you.
 
 ### Publish — the coordinator is the only writer of `api-contract.md`

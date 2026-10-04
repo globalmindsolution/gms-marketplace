@@ -492,8 +492,13 @@ not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-
 - All diagrams are **Mermaid** (C4, ER, flowchart and mindmap as code:
   diffable, reviewable, rendered by GitHub, maintainable by agents).
 - Runs the Reflection cycle as author → review (ADR-0109) —
-  `create-architecture-architect`, `create-architecture-reviewer` — with ONE
-  write architect after an optionally sliced survey, and a
+  `create-architecture-architect`, `create-architecture-reviewer` — with
+  parallel write architects, one per HLD file group (`write-context`,
+  `write-structure`, `write-data`, `write-conventions`, only the groups with
+  a file to write), all writing from the survey's notes that pin the shared
+  vocabulary, and ONE integration architect that runs alone only when a write
+  slice reports a seam ([ADR-0125](../../architecture/adr/0125-parallelism-in-skills.md)),
+  after an optionally sliced survey, and a
   `create-architecture-gap-analyst` (survey kind) beside it. The reviewer checks:
   the design **satisfies the PRD** (goals, product-level NFRs,
   constraints); the docs match the actual codebase; they are internally
@@ -560,7 +565,7 @@ implementation ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-d
   a finding (`unversioned`).
 - MUST spawn the gap analysis as `audit-design-gap-analyst` (survey kind) —
   one per disjoint top-level code area, else one over the repo — in one
-  message, at most 4 per wave, and join their slice notes with
+  message, at most `settings.parallel.max_agents` per wave, and join their slice notes with
   `acs.py notes merge` into `iter-1/gaps.md`; it MUST NOT compare the docs to
   the code itself.
 - Every gap MUST be classified **unimplemented** (designed, not built),
@@ -606,7 +611,7 @@ judges the repository.
 - Takes a scope — a path, or `all` / nothing for the repository — and
   optionally a comma list narrowing the categories.
 - MUST audit four categories, each by its own `audit-security-auditor`
-  (survey kind) spawned in parallel, at most 4 per wave: `code` (OWASP Top 10
+  (survey kind) spawned in parallel, at most `settings.parallel.max_agents` per wave: `code` (OWASP Top 10
   weakness classes, each finding with its CWE — one auditor per disjoint
   top-level code area, else one), `secrets-config` (hard-coded credentials and
   insecure configuration, CI included), `dependencies` (when a manifest or
@@ -1115,8 +1120,8 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   `tests.coverage` (default 90) from `settings.json` — measured once,
   at the review's gate, never inside an iteration that may be discarded.
 - MUST run the tests its change touches, not the full suite: the full suite is
-  the review's final gate, run once, last, on the iteration that survives
-  review. That discipline is safe precisely because the gate is unconditional
+  the review's final gate, run once per iteration beside the review and
+  counted on the iteration that survives review. That discipline is safe precisely because the gate is unconditional
   and terminal rather than buried inside an iteration that may be discarded.
 - MUST update the consumer repo's **documentation affected by the change**
   as part of the implementation: README, API/usage docs, code comments, the
@@ -1266,10 +1271,11 @@ full unit suite runs.
        carries a `resolved_when`; `refuted` is dropped with its reason
        recorded; `needs-context` downgrades to advisory and is carried.
        Corroboration is NOT a filter — per-finding re-derivation is.
-    3. **A final gate**, only when stage 2 leaves nothing blocking: build,
-       lint, the full unit suite, and coverage against
-       `tests.coverage`. This is the only place the full suite
-       runs in the pipeline. A gate failure is a blocking finding of
+    3. **A final gate**, counted only when stage 2 leaves nothing blocking:
+       build, lint, the full unit suite, and coverage against
+       `tests.coverage`, started as `acs.py job` jobs beside the lenses
+       (ADR-0125) and stopped, unread, when findings block. This is the only
+       place the full suite runs in the pipeline. A gate failure is a blocking finding of
        `kind: gate` with the failing command as its evidence.
 - `/acs:review-code` MUST review the changeset — **business logic**,
   **features** (does it satisfy the ticket and the plan), **quality**,

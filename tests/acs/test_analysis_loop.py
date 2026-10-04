@@ -474,22 +474,42 @@ class TestPublish(AnalysisLoopCase):
         self.to_draft()
         self.cli("publish", code=2)
 
-    def test_publish_refuses_on_failed_checks_and_moves_to_next_draft(self):
+    def test_draft_checks_run_beside_the_review_and_fail_its_iteration(self):
+        """ADR-0125: the deterministic checks run when the draft is recorded,
+        not after a passing review, and their findings fail THAT iteration even
+        when every judge slice passed -- so nothing reaches publish unchecked."""
         self.to_draft()
         self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Risks\n", ""))
-        self.cli("record-draft")
+        review = self.cli("record-draft")["next"]
+        self.assertEqual(review["action"], "review")
+        self.assertEqual([f["dimension"] for f in review["draft_checks"]], ["structure"])
         self.do_review(1)
-        self.assertTrue(self.cli("record-review")["passed"])
-        out = self.run_script("acs.py", "analysis", "publish", "--run", self.tid)
-        self.assertEqual(out.returncode, 2, out.stderr)
-        report = json.loads(out.stdout)
-        self.assertFalse(report["published"])
-        self.assertEqual(report["findings"][0]["dimension"], "structure")
+        out = self.cli("record-review")
+        self.assertFalse(out["passed"])
+        self.assertEqual(out["blocking"][0]["slice"], "draft-checks")
+        self.cli("publish", code=2)
         self.assertFalse(os.path.exists(os.path.join(self.repo, "docs", "tickets", self.tid,
                                                      "analysis.md")))
         nxt = self.next()
         self.assertEqual((nxt["action"], nxt["iteration"]), ("draft", 2))
         self.assertEqual(nxt["findings"][0]["dimension"], "structure")
+
+    def test_a_clean_draft_records_no_check_findings(self):
+        self.to_draft()
+        self.do_draft(1)
+        self.assertEqual(self.cli("record-draft")["next"]["draft_checks"], [])
+
+    def test_a_loop_recorded_before_the_checks_moved_still_gets_them(self):
+        """A draft recorded by an older acs carries no `checks`; the review
+        runs them over the same bytes rather than passing unchecked."""
+        self.to_draft()
+        self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Risks\n", ""))
+        self.cli("record-draft")
+        loop = self.loop()
+        del loop["draft"]["checks"]
+        L.save_loop(self.r, loop)
+        self.do_review(1)
+        self.assertFalse(self.cli("record-review")["passed"])
 
     def test_publish_refuses_a_draft_changed_after_review(self):
         self.to_publish()

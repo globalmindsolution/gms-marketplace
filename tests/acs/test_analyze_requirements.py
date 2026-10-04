@@ -585,8 +585,8 @@ class TestParallelism(unittest.TestCase):
     def test_every_fan_out_is_one_message_and_capped(self):
         self.assertIn("in ONE message (all foreground, in the same message)",
                       self.skill)
-        self.assertIn("`max_parallel = 4`", self.skill)
-        self.assertIn("waves of four", self.skill)
+        self.assertIn("`settings.parallel.max_agents` (default 4)", self.skill)
+        self.assertIn("waves of that size", self.skill)
 
     def test_survey_partition_rule(self):
         self.assertIn("**two or more disjoint top-level areas**", self.skill)

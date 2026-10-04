@@ -385,10 +385,13 @@ the review now, and the loop is **automatic**:
   Corroboration-by-count is not used: two lenses agreeing is not evidence
   when both read the same diff.
 - **A final gate runs the build, the lint, the full unit suite and
-  coverage — once, last.** This is the ONLY place in the pipeline the full
-  suite runs. It runs after the reading dimensions have had their say,
-  because an iteration already blocked by a finding does not need a suite run
-  to say so and the tree it would measure is about to change.
+  coverage — once per iteration, read last.** This is the ONLY place in the
+  pipeline the full suite runs. Its commands start as `acs.py job` jobs beside
+  the lenses (the tree is frozen while read-only agents review it,
+  [ADR-0125](../../architecture/adr/0125-parallelism-in-skills.md)), and its
+  result is read only after the reading dimensions have had their say: an
+  iteration already blocked by a finding stops the jobs and records the gate
+  as not run, since the tree it measured is about to change.
 - When the review records blocking findings, the workflow's single `loops:`
   entry returns the cursor to `code`, which passes every confirmed finding to
   the next iteration's implementer(s) in its context **with no intervening plan

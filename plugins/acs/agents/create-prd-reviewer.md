@@ -122,19 +122,23 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 ## When you are one slice
 
-The coordinator runs the review as three parallel slices over disjoint
-dimensions. You are a slice when your `<task>` carries `slice="<id>"` and
-`<constraint name="dimensions">` (e.g. `1, 7, 10`). Then:
+The coordinator runs the review as two parallel slices over disjoint
+dimensions — `substance` (2, 3, 4, 5, 7, 11) and `delta` (6, 8, 9) — and runs
+the deterministic floor itself beside them: dimension 1's heading check,
+dimension 7's `prd_conformance_check.py` and dimension 10's `structure_lint.py`
+are scripts, so no agent is spawned for them. You are a slice when your
+`<task>` carries `slice="<id>"` and `<constraint name="dimensions">` (e.g.
+`6, 8, 9`). Then:
 
 - **Run ONLY the listed dimensions** — "run ALL of them" above means all of
   yours. Grounding policing (below) applies in every slice regardless.
-- **Run each deterministic checker only in the slice that owns its
-  dimension**: `prd_conformance_check.py` (the whole three-family floor,
-  including its code-evidence citation re-check) only when you own dimension 7,
-  `structure_lint.py` only when you own dimension 10 — exactly once per
-  iteration across the slices. Dimension 7's
-  `--added-heading` values come from your own `git diff` even when dimension 8
-  is another slice's.
+- **Run no deterministic checker the coordinator owns**:
+  `prd_conformance_check.py` and `structure_lint.py` run once per iteration,
+  in the coordinator's floor, never in a slice. When you own dimension 7 as a
+  slice, judge ONLY its semantic ceiling — the last bullet of dimension 7 —
+  re-opening every entry of the notes' `## Code evidence`, `## Answer
+  fidelity` and `## Roadmap milestones` sections yourself rather than the
+  script's manifest.
 - **Write `steps/create-prd/iter-<n>/reviewer-<id>.md`** (not `reviewer.md`):
   one `## ` section per dimension you own, then `## Findings`. The coordinator
   joins the slices into `iter-<n>/reviewer.md` with `acs.py notes merge`.

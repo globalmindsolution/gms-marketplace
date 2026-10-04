@@ -57,8 +57,9 @@ slices never overlap.
 - Each `<task>` and its `<result>` carry `slice="<k>"`, so the SubagentStop
   snapshots of parallel slices do not collide, and each slice writes
   `iter-<n>/implementer-<k>.json`.
-- The cap is `max_parallel = 4` per message: more partitions run in waves of
-  at most four, each wave one message, the next only after the last returned.
+- The cap is `settings.parallel.max_agents` (default 4) per message: more
+  partitions run in waves of that size, each wave one message, the next only
+  after the last returned.
 
 The shared mechanics — commits on one branch, the `index.lock` retry, a failed
 slice re-run alone — are `execute.md`'s **Parallel implementers**.
@@ -124,8 +125,9 @@ implementation properties:
 - **the iteration ceiling** is now `ship.yaml`'s `loop.max_iterations`, the
   same cap on every path
 
-Run the tests your change touches, not the full suite: the gate runs it once,
-last, on the iteration that survives review. That discipline is safe precisely
+Run the tests your change touches, not the full suite: the gate runs it once
+per iteration, beside the review, and its result counts on the iteration that
+survives review. That discipline is safe precisely
 because the guarantee is unconditional and terminal rather than buried inside
 an iteration that may be discarded.
 

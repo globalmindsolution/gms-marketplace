@@ -37,8 +37,8 @@ no findings, and do not go looking for something else to review. An empty
 report with a reason is a result. Inventing a different job is not.
 
 You run nothing. No builds, no tests, no linters — `Bash` is for reading
-(`git log`, `git diff`, `cat`). The gate runs those once, later, in the
-coordinator.
+(`git log`, `git diff`, `cat`). The gate runs those once, in the
+coordinator, as jobs beside the lenses — never in a lens.
 
 ## If you are lens E: Simplicity First and Surgical Changes
 

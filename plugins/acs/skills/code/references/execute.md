@@ -65,8 +65,10 @@ than one.
   single un-sliced implementer writes `iter-<n>/implementer.json`. The
   post-hook reads every `implementer*.json` of the iteration, so the per-slice
   reports are the join — nothing merges them by hand.
-- **The cap.** At most `max_parallel = 4` implementers per message. More
-  partitions than that run in waves of at most four, each wave one message,
+- **The cap.** At most `settings.parallel.max_agents` (default 4)
+  implementers per message — the leg's own smaller cap wins (`code-small` 2,
+  `code-trivial` 1). More partitions than that run in waves of that size, each
+  wave one message,
   the next wave spawned only once every slice of the previous one returned.
 - **One branch, one working tree.** Every slice commits on the run's branch.
   An implementer stages and commits ONLY its own file map's paths, by name —

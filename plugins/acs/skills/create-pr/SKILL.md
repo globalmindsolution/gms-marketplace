@@ -119,6 +119,16 @@ is no `<task>`/`<result>` exchange and no subagent model to configure.
    after it; step 2 reuses the `<base>` it yields rather than detecting it
    again.
 
+   **One message for the independent calls.** None of these depends on
+   another or on the push, so issue them as parallel Bash calls in ONE
+   message: the branch check (`git rev-parse --verify <branch>`, or
+   `git ls-remote origin <branch>`), the base detect above, step 3's label
+   create, and step 5's open-PR detect (`gh pr list --head <branch> --state
+   open --json number,url,baseRefName,isDraft` — a PR can only exist for a
+   branch already on origin, so the answer is the same before the push).
+   Steps 3 and 5 reuse those results rather than running the calls again. A
+   failed critical call among them stops the run before the push, as above.
+
    Then push: `git push -u origin <branch>`. If the branch only exists on
    origin and is already current, skip the push. Never commit new work — if
    uncommitted implementation changes exist, that is /acs:code's job: surface it
@@ -160,7 +170,7 @@ is no `<task>`/`<result>` exchange and no subagent model to configure.
    to today (AC-4, no regression for `local`/unsynced tickets).
 
 3. **Label.** `gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true`
-   — this label plus the `Closes #{external_key}` linking line together make
+   (already issued in step 1's batch) — this label plus the `Closes #{external_key}` linking line together make
    the PR independently identifiable and traceable without depending on the
    local acs ticket id being unique across contributors (AC-7).
 
@@ -204,9 +214,9 @@ is no `<task>`/`<result>` exchange and no subagent model to configure.
      path below — one `check` call before whichever `gh pr` command ends up
      running.
 
-5. **Create or update PR.** Detect existing open PR:
-   `gh pr list --head <branch> --state open --json number,url,baseRefName,isDraft`.
-   If no open PR exists for the branch:
+5. **Create or update PR.** Detect existing open PR — step 1's batch already
+   ran `gh pr list --head <branch> --state open --json number,url,baseRefName,isDraft`;
+   use its answer. If no open PR exists for the branch:
 
    ```bash
    gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file steps/create-pr/pr-body.md --label ACS

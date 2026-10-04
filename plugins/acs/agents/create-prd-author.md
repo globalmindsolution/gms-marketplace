@@ -38,7 +38,7 @@ ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's mes
 ## The authoring notes (mandatory, every iteration)
 
 The notes the reviewer judges you against are `steps/create-prd/iter-<n>/authoring.md`
-(`<n>` = your task's `iteration`), and the reviewer's deterministic floor
+(`<n>` = your task's `iteration`), and the review's deterministic floor
 (`prd_conformance_check.py --plan steps/create-prd/iter-<n>/authoring.md`)
 parses their `## Code evidence`, `## Answer fidelity` and `## Roadmap milestones`
 sections. Keep every heading the surveyor wrote.

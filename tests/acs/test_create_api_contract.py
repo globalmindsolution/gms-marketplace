@@ -569,8 +569,8 @@ class TestParallelFanOut(unittest.TestCase):
 
     def test_writers_are_spawned_in_one_message_under_the_cap(self):
         self.assertRegex(self.body, r"Spawn every slice of a wave in ONE message")
-        self.assertIn("At most `max_parallel = 4`", self.body)
-        self.assertRegex(self.body, r"run in waves of at most four")
+        self.assertRegex(self.body, r"At most\s+`settings.parallel.max_agents` \(default 4\) slices per message")
+        self.assertRegex(self.body, r"run in waves of that size")
 
     def test_writers_commit_only_their_own_files_and_retry_on_lock(self):
         for text in (self.body, self.author):
@@ -653,7 +653,14 @@ class TestSynthesisAfterFanOut(unittest.TestCase):
         self.assertIn("Once the integration pass\n  completed", self.body)
 
     def test_it_is_skipped_for_a_single_writer(self):
-        self.assertRegex(self.body, r"skipped only when the contract-author ran un-sliced — one writer has no\s+seams")
+        self.assertRegex(self.body, r"skipped when the contract-author ran un-sliced — one writer has no\s+seams")
+
+    def test_iteration_two_skips_it_when_no_seam_moved(self):
+        """ADR-0125: on iteration 2+ the integration pass runs only when a seam
+        finding is open or a re-run slice reports a seam."""
+        self.assertRegex(self.body, r"but only when a\s+seam finding is open or a re-run slice's report lists a `seams` entry")
+        self.assertRegex(self.body, r"With neither, nothing at a\s+seam has moved since the last integration pass, so skip it")
+        self.assertIn("Your report carries `seams`", self.author)
 
     def test_the_seams_are_named(self):
         for seam in ("error codes", "shared definitions", "cross-references",

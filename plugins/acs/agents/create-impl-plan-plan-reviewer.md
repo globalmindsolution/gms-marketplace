@@ -76,9 +76,15 @@ findings:
    This map is what the PreToolUse write guard will enforce on `/acs:code`'s
    implementers, so an understated map is a defect, not a detail.
 5. **Test strategy executability** — the named test and coverage commands are
-   the repo's real ones: RUN the existing suite's command once yourself (or,
-   when it is long, its `--collect-only`/`--help` equivalent) and record the
-   exact command and output. A command that does not exist, or a coverage
+   the repo's real ones. The ONE run of the existing suite's command (or,
+   when it is long, its `--collect-only`/`--help` equivalent) is the `suite`
+   job the coordinator started beside the planner: read it with `Bash python3
+   ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py job wait --name suite` (exit 3
+   means still running — call it again; never `sleep`) and record the exact
+   command, exit code and output it reports. You do not run the suite
+   yourself. A command the plan names that differs from the job's is checked
+   only for existence (its `--help`/`--collect-only`), never run in full; with
+   no `suite` job (the coordinator says the repo has none), say so. A command that does not exist, or a coverage
    target that contradicts `coverage_target`, is a finding. Tests-first
    ordering must be explicit: the plan says which failing test is written
    before which implementation.
@@ -126,8 +132,9 @@ the dimension numbers you own (`tests`: 1, 5 · `map`: 4, 6, 7 · `document`:
   policing always applies: an uncited or false claim you meet while checking
   your own dimensions is a finding whatever slice you are.
 - Run each deterministic check only in the slice that owns its dimension:
-  the ONE run of the repo's existing suite command (dimension 5) belongs to
-  `tests` and runs nowhere else; `structure_lint.py` (dimension 3) belongs to
+  the ONE run of the repo's existing suite command (dimension 5) is the
+  coordinator's `suite` job, read by `tests` alone with `acs.py job wait
+  --name suite` and run by no slice; `structure_lint.py` (dimension 3) belongs to
   `document`; the `git ls-files` / `ls` check of the mapped paths (dimension
   4) belongs to `map`.
 - On iteration 2+, re-check only the prior findings whose `dimension` you own.

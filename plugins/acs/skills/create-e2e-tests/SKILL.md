@@ -275,8 +275,9 @@ many slices each phase ran.
 Decomposition is YOURS alone — subagents never spawn subagents. Every fan-out
 below is yours: N instances of the SAME agent spawned in ONE message (one Agent
 call per slice, all in the same assistant message, foreground), all waited on,
-then joined before the next phase. At most `max_parallel = 4` instances per
-message; beyond that, waves of four, each wave one message.
+then joined before the next phase. At most `settings.parallel.max_agents`
+(default 4) instances per message; beyond that, waves of that size, each wave
+one message.
 
 Messaging rules (`the SubagentStop hook's message check`):
 
@@ -356,7 +357,7 @@ Group the e2e cases by the suite file they land in; each group is one slice:
   test-writer runs.
 
 Several groups → spawn one test-writer per slice in ONE message (at most
-`max_parallel = 4`, waves beyond that), each task carrying `slice="<k>"`, and
+`settings.parallel.max_agents`, waves of that size beyond it), each task carrying `slice="<k>"`, and
 wait for all of them. Each sliced test-writer surveys its own group and writes
 `iter-<n>/authoring-<k>.md` and `iter-<n>/test-writer-<k>.json`. The
 test-writers never commit — you do, once, below — so there is no shared-branch
@@ -541,17 +542,21 @@ with every finding in its `<context>`. After iteration 3 with findings remaining
 final status `"failed"`, findings recorded, and the suites left as they are on
 the branch (uncommitted work is not discarded silently — say where it is).
 
-### Coverage check the coordinator runs before committing
+### Coverage check the coordinator runs beside the suite-runner
 
 Every e2e `TC-<n>` in `test-cases.md` must appear in a written suite. This is
-$0 and deterministic — do it yourself:
+$0 and deterministic — do it yourself, as soon as the test-writers have
+written the suites, in the SAME turn as the suite-runner spawn: it reads only
+the suite files, so it never waits for the suite run.
 
 ```bash
 grep -o 'TC-[0-9]\+' <e2e root>/<suite files> | sort -u
 ```
 
 Compare that set with the e2e rows' ids. A missing id is a case with no test:
-that is a blocking finding for the next iteration, never a note in the report.
+that is a blocking finding of THAT iteration, folded in beside the slices'
+(the iteration passes only when the slices pass and this check is clean) and
+remediated by the next test-writer — never a note in the report.
 An extra id (a test for a case that is not typed e2e) is a finding too — the
 case set decides the level, not this skill. On the acceptance-criteria
 fallback (no `test-cases.md`), run the same check with `AC-[0-9]\+` against the
