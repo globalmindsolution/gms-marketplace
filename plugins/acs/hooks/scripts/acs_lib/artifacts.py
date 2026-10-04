@@ -78,7 +78,7 @@ LEGACY_ARTIFACT_PATHS = {"plan.md": (os.path.join("phases", "code", "plan.md"),)
 #: (partition-relative source, docs-folder name) copied by migrate.
 MIGRATED_ARTIFACTS = (("design.md", "design.md"), (os.path.join("phases", "code", "plan.md"), "plan.md"))
 
-_FRONT_MATTER_ORDER = ("id", "title", "type", "priority", "parent", "children", "external",
+_FRONT_MATTER_ORDER = ("id", "title", "type", "priority", "parent", "children", "features", "external",
                        "assignee", "story_points", "needs_design", "docs_only",
                        "due_date", "created_at", "updated_at")
 _BODY_FIELDS = ("description", "acceptance_criteria")

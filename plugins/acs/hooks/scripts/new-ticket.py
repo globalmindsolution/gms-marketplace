@@ -45,6 +45,8 @@ def main():
     parser.add_argument("--story-points", dest="story_points", type=int)
     parser.add_argument("--due-date", dest="due_date",
                         help="Optional delivery target date, ISO-8601 YYYY-MM-DD.")
+    parser.add_argument("--features",
+                        help="PRD features it traces to, as comma-separated slugs (ADR-0120).")
     parser.add_argument("--seed-next", dest="seed_next", type=int,
                         help="Confirm or repair the ticket-id reconciliation floor: "
                              "mint <PREFIX>-<n> and record it as the confirmed floor.")
@@ -56,6 +58,12 @@ def main():
                 "acs new-ticket: --due-date must be YYYY-MM-DD, got: %r\n" % args.due_date
             )
             sys.exit(2)
+
+    try:
+        features = lib.parse_features(args.features)
+    except lib.GateError as exc:
+        sys.stderr.write("acs new-ticket: --%s\n" % exc)
+        sys.exit(2)
 
     if args.seed_next is not None and args.seed_next < 1:
         sys.stderr.write(
@@ -126,6 +134,7 @@ def main():
         needs_design=needs_design,
         docs_only=args.docs_only == "true",
         due_date=args.due_date,
+        features=features,
     )
     lib.save_ticket(tdir, ticket)
     # Where the ticket actually landed. With the docs tree active this is a

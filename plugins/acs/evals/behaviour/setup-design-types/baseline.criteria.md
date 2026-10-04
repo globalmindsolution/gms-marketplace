@@ -1,0 +1,2 @@
+PASS if, like the reference, the run reads the design catalog from `setup detect`, applies one `setup apply` whose settings carry `design.hld_types` (the defaults plus `data-flow`) and `design.lld_types` (the defaults without `physical-schema`), keeps the ticket prefix, installs no CI gate, and tells the user which documents it added and dropped.
+FAIL if the run hand-writes .acs/settings.json instead of applying, drops default types the user kept, adds types the user did not ask for, installs a CI gate, or asks the user a question.

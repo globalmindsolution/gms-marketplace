@@ -127,6 +127,10 @@ validated against `settings.schema.json`.
 - MUST show the three conventions — `formats.branch_name`,
   `formats.commit_message`, `formats.pr_title` — with their built-in
   defaults, and ask whether to keep or customize them.
+- MUST ask which design documents the Design skills write: one multi-select
+  per kind (`design.hld_types`, `design.lld_types`) from the catalog `setup
+  detect` reports, defaults preselected, writing only a non-default choice
+  ([ADR-0120](../../architecture/adr/0120-design-document-catalog-and-ticket-features.md)).
 - MUST offer each CI gate explicitly, never installing one silently: the
   convention check (the PR description names its ticket,
   [ADR-0106](../../architecture/adr/0106-ci-checks-the-ticket-link-only.md)), the tests +
@@ -598,7 +602,10 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   (deliberate behavior change vs. mistake). When a requested
   capability goes beyond the PRD, `/create-ticket` MUST flag the divergence
   and propose a PRD amendment (a `/create-prd` re-run, user-confirmed)
-  before proceeding.
+  before proceeding. MUST propose the ticket's `features` — the slugs of the
+  PRD features it traces to (`acs.py slug --text "<feature name>"`), which
+  name its `lld/<feature>/` design folders — and record the confirmed list
+  ([ADR-0120](../../architecture/adr/0120-design-document-catalog-and-ticket-features.md)).
 - MUST interact with the user to resolve ambiguities before finalizing
   (clarifying questions).
 - **AC/DoD substantiveness gate (standing behavior, MAR-157):** Step 1 flags
@@ -796,7 +803,7 @@ with the user, and say plainly whether it is ready to plan.
      (a) open questions the code and docs cannot answer, (b) conventional
      defaults phrased "Assumed: <default> — confirm or correct",
      (c) proposed refined acceptance criteria, (d) a needs_design
-     recommendation. Researchable facts are never questions. A survey sliced
+     recommendation and any `features` correction (ADR-0120). Researchable facts are never questions. A survey sliced
      by repo area MUST be reconciled, after `acs.py notes merge` and before
      any question is asked, by one SYNTHESIS pass (`slice="synthesis"`) that
      records `## Synthesis`, turns an unsettled contradiction into a

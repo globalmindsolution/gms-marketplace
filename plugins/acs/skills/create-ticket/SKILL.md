@@ -183,6 +183,9 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
   proposal presented to the user in Step 2
 - `prd_trace`: the PRD feature/goal this ticket traces to (epics to a roadmap
   milestone), or a divergence flag when the request goes beyond the PRD
+- `features`: the slugs of the PRD features it traces to — `acs.py slug --text
+  "<PRD feature name>"` for each (ADR-0120); `[]` when it traces to none. They
+  name the `docs/architecture/lld/<feature>/` folders its design is written in
 - a PR-size reading in prose — is this one reviewable PR, or should it be an
   epic with children? — judged against the sizing rubric just above. It is a
   recommendation about SHAPE, not a stored axis: a ticket carries no `size` or
@@ -215,7 +218,8 @@ and blocks until the user confirms or overrides:
 2. **PRD divergence**: if the proposal goes beyond the PRD, present the divergence,
    propose a follow-up `/acs:create-prd` re-run, and obtain explicit user
    confirmation to proceed (or stop at the user's choice). Record the confirmed
-   divergence one-liner.
+   divergence one-liner. Show the proposed `features` in the proposal; the
+   user's correction wins.
 3. **AC/DoD substantiveness**: present every flagged `acceptance_criteria` entry
    (root proposal, and — in a `--fan-out` or split/restructure run only — any
    flagged child-breakdown AC/DoD text for an epic) to the
@@ -265,8 +269,8 @@ setting all fields required by `schemas/ticket.schema.json`:
   `external` (the
   import mapping, the sync result from step 5, or null), `assignee` (or null),
   `story_points` (or null), `needs_design`, `docs_only` (confirmed value, default
-  false), `due_date` (ISO-8601 date string or null); refresh `updated_at`
-  (ISO-8601 UTC).
+  false), `due_date` (ISO-8601 date string or null), `features` (the confirmed
+  slugs; omit when none); refresh `updated_at` (ISO-8601 UTC).
 
 Set the title: an epic's title is prefixed `[EPIC] `; a story's and a task's is
 the title as given. Build the description from the type's fixed built-in

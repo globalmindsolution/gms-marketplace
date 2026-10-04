@@ -82,7 +82,7 @@ from .lock import (LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,  # noqa: F401
 
 from . import tickets as tickets_module  # noqa: F401
 from .tickets import (allocate_ticket_id, load_ticket, new_ticket_doc,  # noqa: F401
-    save_ticket, update_index)
+    parse_features, save_ticket, update_index)
 
 from .setup_helpers import (DOC_SET_ALL, DocSetRequest,
     TOOLCHAIN, _BARE_INT_RE,
@@ -152,6 +152,7 @@ from .workflow import (OVERRIDE_WORKFLOW_RELPATH,  # noqa: F401
 from . import skills as skills_registry  # noqa: F401,E402
 from . import models  # noqa: F401,E402
 from . import launch_config  # noqa: F401,E402
+from . import design_types  # noqa: F401,E402
 from . import migrate_settings  # noqa: F401,E402
 from . import conventions  # noqa: F401,E402
 from . import agent_sync  # noqa: F401,E402

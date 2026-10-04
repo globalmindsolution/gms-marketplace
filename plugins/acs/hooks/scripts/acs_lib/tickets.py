@@ -32,6 +32,21 @@ def save_ticket(tdir, ticket):
     artifacts.save_ticket(tdir, ticket)
 
 
+#: A PRD feature's slug, as `acs.py slug --text "<feature name>"` makes it.
+FEATURE_SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+
+def parse_features(text):
+    """'wishlist, checkout' -> ['wishlist', 'checkout'] (deduplicated, in order).
+    Raises GateError naming any entry that is not a feature slug."""
+    names = list(dict.fromkeys(n.strip() for n in (text or "").split(",") if n.strip()))
+    bad = [n for n in names if not FEATURE_SLUG_RE.match(n)]
+    if bad:
+        raise GateError("features must be PRD feature slugs (lowercase words joined by "
+                        "'-', as `acs.py slug` makes them); got: %s" % ", ".join(bad))
+    return names
+
+
 def new_ticket_doc(ticket_id, title, ttype, **kw):
     doc = {
         "id": ticket_id,
@@ -56,6 +71,9 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
         # A /acs:create-docs delivery ticket names the set it delivers, so a
         # resume knows what it is resuming without parsing the title.
         doc["doc_set"] = kw["doc_set"]
+    if kw.get("features"):
+        # The PRD features it traces to (ADR-0120); absent rather than [] when none.
+        doc["features"] = list(kw["features"])
     return doc
 
 
@@ -127,6 +145,8 @@ def update_index(workspace, repo_id, ticket, archived=None):
         })
         if ticket.get("doc_set"):
             entry["doc_set"] = ticket["doc_set"]
+        if "features" in ticket:
+            entry["features"] = list(ticket.get("features") or [])
         if archived is not None:
             entry["archived"] = archived
         write_json(path, data)
