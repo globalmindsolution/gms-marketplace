@@ -34,13 +34,14 @@ SECURITY = os.path.join(REPO_ROOT, "docs", "requirements", "non-functional", "se
 ADR_0088 = os.path.join(
     REPO_ROOT,
     "docs",
+    "architecture",
     "adr",
     "0088-gh-only-github-transport-and-criticality-classification.md",
 )
 ADR_0087 = os.path.join(
-    REPO_ROOT, "docs", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
+    REPO_ROOT, "docs", "architecture", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
 )
-ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
+ADR_README = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
 CHANGELOG = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
 
 
@@ -294,7 +295,7 @@ class Adr0088Test(unittest.TestCase):
         body = read(ADR_README)
         self.assertIsNotNone(
             re.search(r"\[0088\]\(0088-[a-z0-9-]+\.md\)", body),
-            "docs/adr/README.md must index ADR-0088",
+            "docs/architecture/adr/README.md must index ADR-0088",
         )
         self.assertTrue(os.path.isfile(ADR_0088))
 

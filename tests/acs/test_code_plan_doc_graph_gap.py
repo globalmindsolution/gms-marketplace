@@ -33,7 +33,7 @@ AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
-ADR_0012 = os.path.join(REPO_ROOT, "docs", "adr", "0012-design-time-doc-consistency.md")
+ADR_0012 = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0012-design-time-doc-consistency.md")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 CONSISTENCY_FINDINGS = os.path.join(PLUGIN, "hooks", "scripts", "consistency_findings.py")
 DOC_CONSISTENCY_STEP_TEST = os.path.join(
@@ -209,7 +209,7 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
 
     def test_the_four_guarded_amendments_lead_in_order(self):
         # Pins the four amendments this ticket guards, and their order, rather
-        # than a total count: ADRs are append-only (docs/adr/README.md), so a
+        # than a total count: ADRs are append-only (docs/architecture/adr/README.md), so a
         # frozen count would forbid the next amendment instead of guarding
         # these four against drift.
         self.assertEqual(

@@ -7,7 +7,7 @@
 acs maintains a graph of doc sets — `product → architecture →
 {design → spec → code → requirements}`, plus `quality` and `operations`
 ([ADR 0011](0011-sdlc-doc-sets-quality-and-operations.md), conformance direction
-in [docs/README](../README.md)). Each set is produced by a skill. A change to any
+in [docs/README](../../README.md)). Each set is produced by a skill. A change to any
 doc can **stale** its dependents or leave **coverage gaps**, and the more sets
 there are, the wider that drift surface.
 

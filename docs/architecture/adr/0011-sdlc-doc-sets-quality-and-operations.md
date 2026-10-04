@@ -22,7 +22,7 @@ define → specify → design → decide → verify → release & operate.
 
 But those two new sets have **no producing skill**: today they exist only as
 acs's *own* hand-written docs (the testing strategy, the release runbook). Every
-other doc-set path in [`settings.schema.json`](../../plugins/acs/schemas/settings.schema.json)
+other doc-set path in [`settings.schema.json`](../../../plugins/acs/schemas/settings.schema.json)
 corresponds to a skill that writes it; adding `quality_path`/`operations_path`
 without deciding **who produces them** would be half a feature. This ADR settles
 that.
@@ -113,7 +113,7 @@ that.
   regression, invokes the create-ticket flow (like `/ship` orchestrates other
   skills); its results feed `acs:metrics`. The scheduling recipe is documented
   in `operations/`.
-- A release ships only after the [quality](../operations/release-runbook.md)
+- A release ships only after the [quality](../../operations/release-runbook.md)
   gate passes; `operations/` is the home for the release/observability runbooks.
 - acs's *own* `quality/` and `operations/` docs become the reference instance of
   these templates — dogfooding the feature it ships.

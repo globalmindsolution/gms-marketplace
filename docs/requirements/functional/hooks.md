@@ -62,7 +62,7 @@ is absent (ADR-0109).
   lacks (an e2e suite command, say) it asks for itself.
 - A repo **document** (the PRD, the architecture set) is not a pre-hook
   check either: no setting says where one lives, so the skill that reads it
-  finds it at Start ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md))
+  finds it at Start ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md))
   — `/create-architecture` works from the subject when there is no PRD;
   `/acs:create-docs` stops without the architecture set's
   `hld/tech-stack.md`.
@@ -85,7 +85,7 @@ brake reads a predecessor's recorded state, and only for the artifact inside
 it: `/merge-pr` accepts a PR reference only from a step recorded `completed`,
 because a reference written by a step that never finished is not evidence that
 a PR exists. That brake names an artifact, never a position, and refuses
-nothing for being early ([ADR 0101](../../adr/0101-gating-skills-that-are-not-workflow-steps.md)).
+nothing for being early ([ADR 0101](../../architecture/adr/0101-gating-skills-that-are-not-workflow-steps.md)).
 
 **3. Order advisory (never a refusal)** — when the skill IS a step of the
 resolved `ship.yaml` and is not one of the steps due now for this run (the
@@ -111,7 +111,7 @@ step spends that evidence once (rejecting a foreign `checkout_id` or one
 older than 15 minutes) to tell a gated run from one on a host that never
 fired acs's hooks ([workspace-and-state.md](workspace-and-state.md)). It
 records no session or transcript field: acs measures no usage
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+([ADR 0104](../../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 **Exit code contract:**
 
@@ -133,7 +133,7 @@ including the safety brakes and the order advisory —
 **and MUST NOT write anything doing it**: no run created, no lock taken, no
 step opened, no no-op settled. When the checkout has no run yet, the gate
 judges the run the subject *would* open, projected in memory and never
-persisted ([ADR 0101](../../adr/0101-gating-skills-that-are-not-workflow-steps.md)).
+persisted ([ADR 0101](../../architecture/adr/0101-gating-skills-that-are-not-workflow-steps.md)).
 
 ### Post-hooks — state persistence
 
@@ -228,7 +228,7 @@ steps; their brakes are therefore consulted from a subject-ticket table
 **before** the resolved workflow is read, not from the step gate behind it. A
 safety brake is not switchable off by editing a workflow file, and adding
 either skill to a workflow would add the run machinery to it rather than
-remove the brake ([ADR 0101](../../adr/0101-gating-skills-that-are-not-workflow-steps.md)).
+remove the brake ([ADR 0101](../../architecture/adr/0101-gating-skills-that-are-not-workflow-steps.md)).
 
 Three rows changed meaning with the skills-independence refactor and are
 worth stating explicitly, because each used to be an order gate:

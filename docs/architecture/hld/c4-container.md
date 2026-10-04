@@ -45,5 +45,5 @@ what a consumer received — but nothing at runtime reads them.
 **No transcript store (ADR 0104).** The Claude Code transcript store that
 token measurement read is no longer a container here: acs records no usage
 and reads no transcript
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)). The
+([ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)). The
 hook layer's only input from Claude Code is the hook envelope.

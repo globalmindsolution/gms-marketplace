@@ -185,6 +185,6 @@ pipeline.
 
 acs reports no usage: it records no tokens, spend or time totals and ships
 no dashboard for them
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+([ADR 0104](../../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)).
 Tokens, spend and time per ticket are Claude Code's to report — its own
 `/cost`, the console, or its usage exports.

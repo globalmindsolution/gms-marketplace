@@ -62,6 +62,11 @@ matching section here, and merge to `main` — the Release workflow tags
   `enforcement.pr_description_sections` are no longer declared in the schema
   (they are still accepted and ignored).
 
+- **ADRs live under `docs/architecture/adr/`** (ADR-0119). When a repo has no ADR
+  folder, `/acs:create-design` and `/acs:docs-sync` create it there instead of
+  `docs/adr/`; an existing ADR folder is still found where it is, so nothing in a
+  consumer repo moves.
+
 ### Removed
 
 - **⚠️ BREAKING: `/acs:project`, `create-project`, `standardize-project` and
@@ -2384,7 +2389,7 @@ layout). This is the first release cut by the new `/acs:release` skill itself.
   by whoever invokes. Because invocation source (agent vs user) is not reliably
   detectable, an **approving review is now required for every merge** (mitigation
   m6, the require-APPROVED-for-all fallback; see
-  [ADR 0028](../../docs/adr/0028-merge-pr-agent-invocable.md)) — including on
+  [ADR 0028](../../docs/architecture/adr/0028-merge-pr-agent-invocable.md)) — including on
   repos that require no review. `/acs:ship` still stops at create-pr. Authorised
   by the PRD Vision amendment in MAR-45.
 

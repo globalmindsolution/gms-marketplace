@@ -11,9 +11,9 @@ import re
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ADR_PATH = os.path.join(REPO_ROOT, "docs", "adr",
+ADR_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "adr",
                         "0048-standardize-project-scaffolds-e2e-no-branch-protection.md")
-ADR_README_PATH = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
+ADR_README_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
 
 
 def read(path):
@@ -59,12 +59,12 @@ class TestAdr0048(unittest.TestCase):
 
 
 class TestAdrReadmeIndex(unittest.TestCase):
-    """ADR 0048 is indexed in docs/adr/README.md."""
+    """ADR 0048 is indexed in docs/architecture/adr/README.md."""
 
     def test_0048_row_present(self):
         body = read(ADR_README_PATH)
         m = re.search(r"(?m)^\| \[0048\].*$", body)
-        self.assertIsNotNone(m, "docs/adr/README.md must have a row for ADR 0048")
+        self.assertIsNotNone(m, "docs/architecture/adr/README.md must have a row for ADR 0048")
         row = m.group(0)
         self.assertIn("0048-standardize-project-scaffolds-e2e-no-branch-protection.md", row)
         self.assertIn("Superseded by [0118]", row)

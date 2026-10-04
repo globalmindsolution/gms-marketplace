@@ -335,7 +335,7 @@ over the built-in defaults. The most-used keys:
 
 No key locates a document: acs finds the repo's documents through `CLAUDE.md`
 and the repo itself, creates a missing one at the `docs/` conventions
-(`docs/product/`, `docs/architecture/`, `docs/adr/`, …), and keeps ticket
+(`docs/product/`, `docs/architecture/`, `docs/architecture/adr/`, …), and keeps ticket
 documents at the fixed `docs/tickets/<ID>/` (ADR-0102). No key locates the
 workspace either: it is always `.acs/state-machine` in the main checkout.
 

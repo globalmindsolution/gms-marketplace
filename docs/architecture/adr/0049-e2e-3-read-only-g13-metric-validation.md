@@ -33,7 +33,7 @@ G1/G9/G11 by an observed live run rather than a standing dashboard number.
 ## Consequences
 
 - Not a standing dashboard number — someone re-runs the read-only procedure
-  each release (see [testing-strategy.md](../quality/testing-strategy.md)'s
+  each release (see [testing-strategy.md](../../quality/testing-strategy.md)'s
   "G13 e2e-integrity validation" section).
 - Sub-metric (a)'s first recorded result carries an honest caveat: the gate
   is configured but **not yet wired** as a required check on this dogfood

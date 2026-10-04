@@ -155,11 +155,11 @@ at [`plugins/acs/evals/`](plugins/acs/evals/README.md), in the layout the
 check runs first on purpose: a malformed case fails it for $0 instead of being
 discovered by a paid run. The CLI only measures (`--threshold 0`); the third
 command judges the result
-([ADR-0107](docs/adr/0107-routing-gated-by-skill-not-by-prompt.md)): negatives
+([ADR-0107](docs/architecture/adr/0107-routing-gated-by-skill-not-by-prompt.md)): negatives
 and controls must pass every run, each skill must route at least 9/10 of its
 runs and the suite at least 99/100
-([ADR-0111](docs/adr/0111-routing-gate-ten-phrasings-ten-runs.md),
-[ADR-0112](docs/adr/0112-routing-suite-rate-99-percent.md)).
+([ADR-0111](docs/architecture/adr/0111-routing-gate-ten-phrasings-ten-runs.md),
+[ADR-0112](docs/architecture/adr/0112-routing-suite-rate-99-percent.md)).
 
 Run the suite against the **installed** build too —
 `claude plugin eval acs@gms-marketplace --tag routing --ablation none` grades
@@ -244,7 +244,7 @@ history that built the dataset stays in that repository.
 
 | Where | What |
 |-------|------|
-| [docs/](docs/README.md) | Product docs: [product/](docs/product/) (PRD, roadmap), [requirements/](docs/requirements/) (behavioral contract), [architecture/](docs/architecture/) (HLD/LLD), [adr/](docs/adr/) |
+| [docs/](docs/README.md) | Product docs: [product/](docs/product/) (PRD, roadmap), [requirements/](docs/requirements/) (behavioral contract), [architecture/](docs/architecture/) (HLD/LLD), [adr/](docs/architecture/adr/) |
 | [plugins/acs/README.md](plugins/acs/README.md) | acs plugin usage: install, quick start, skill reference, configuration, troubleshooting |
 | [plugins/acs/docs/INTERNALS.md](plugins/acs/docs/INTERNALS.md) | acs implementation contract for contributors (lifecycle, helper CLIs, state shapes, XML rules) |
 | [plugins/acs/evals/README.md](plugins/acs/evals/README.md) | The eval suite: how to run it, its tags, how routing is graded, and its known limits |

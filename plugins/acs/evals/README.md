@@ -55,7 +55,7 @@ release gate's ~2,500 runs cost about $190.
 | `control` | 4 | a request answered in prose invokes no skill at all |
 | `artifacts` | 2 | the skill wrote the expected workspace state |
 | `setup` | 6 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
-| `behaviour` | 87 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–7 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
+| `behaviour` | 87 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–7 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
 
 `--tag` keeps a case if ANY of its tags match, so `--tag description --tag
 negative --tag control` runs the routing cases that are fully measurable —
@@ -68,7 +68,7 @@ anything, just open the pull request", "not a design for one ticket: regenerate
 the product-wide C4 views". Each confusable case's `description` names the
 neighbour. One prompt per skill measured one sentence; ten, run ten times each,
 measure the description on 100 runs
-([ADR-0111](../../../docs/adr/0111-routing-gate-ten-phrasings-ten-runs.md)).
+([ADR-0111](../../../docs/architecture/adr/0111-routing-gate-ten-phrasings-ten-runs.md)).
 
 ## How routing is graded
 
@@ -115,7 +115,7 @@ routing case here has exactly one.
 ## What the release gate passes
 
 `release.pre_release_gate` in `.acs/settings.json` runs three commands, and the
-first non-zero exit stops the cut ([ADR-0107](../../../docs/adr/0107-routing-gated-by-skill-not-by-prompt.md)):
+first non-zero exit stops the cut ([ADR-0107](../../../docs/architecture/adr/0107-routing-gated-by-skill-not-by-prompt.md)):
 
 1. `python3 -m unittest discover -s tests/evals -p check_*.py` — free: a
    malformed case, or a grader that cannot fail, stops the cut before anything

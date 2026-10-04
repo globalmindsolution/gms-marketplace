@@ -1275,18 +1275,18 @@ class TestGeneralizedFold(unittest.TestCase):
             "a decision, never blocks (MAR-156 C-5)")
 class TestAdr0042D3Section(unittest.TestCase):
     """MAR-108 (AC-6): pin the additive D3 section appended to
-    docs/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
+    docs/architecture/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
     defers D3 (:21-23); this class asserts the deferred section now exists."""
 
     def _adr_path(self):
-        return os.path.join(REPO_ROOT, "docs", "adr",
+        return os.path.join(REPO_ROOT, "docs", "architecture", "adr",
                             "0042-dynamic-mid-flight-lane-correctness.md")
 
     def _adr_body(self):
         return read(self._adr_path())
 
     def test_adr_0042_has_d3_heading_naming_writer_and_decision(self):
-        """AC-6: docs/adr/0042 must contain a '### D3' heading naming
+        """AC-6: docs/architecture/adr/0042 must contain a '### D3' heading naming
         confirm_deescalation and the boundary-only/user-confirmed decision."""
         body = self._adr_body()
         self.assertIsNotNone(
@@ -1295,7 +1295,7 @@ class TestAdr0042D3Section(unittest.TestCase):
                       r"### D3.{0,400}(boundary.only|user.confirmed).{0,300}"
                       r"confirm_deescalation",
                       body, re.DOTALL),
-            "docs/adr/0042 must contain a '### D3' heading naming "
+            "docs/architecture/adr/0042 must contain a '### D3' heading naming "
             "confirm_deescalation and the boundary-only/user-confirmed "
             "decision (MAR-108 AC-6)")
 
@@ -1311,7 +1311,7 @@ class TestAdr0042D3Section(unittest.TestCase):
                       r"clarify_ref|"
                       r"clarify_ref.{0,120}unreachable",
                       d3_section, re.DOTALL),
-            "docs/adr/0042 D3 section must state confirm_deescalation is "
+            "docs/architecture/adr/0042 D3 section must state confirm_deescalation is "
             "unreachable without a resolved clarify_ref (MAR-108 AC-6)")
 
 
@@ -1488,25 +1488,25 @@ class TestDeliveryPathContract(unittest.TestCase):
 
 class TestAdr0042D4Section(unittest.TestCase):
     """MAR-107 (AC-5): pin the additive D4 section appended to
-    docs/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
+    docs/architecture/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
     defers D4 (:22-23); this class asserts the deferred section now exists."""
 
     def _adr_path(self):
-        return os.path.join(REPO_ROOT, "docs", "adr",
+        return os.path.join(REPO_ROOT, "docs", "architecture", "adr",
                             "0042-dynamic-mid-flight-lane-correctness.md")
 
     def _adr_body(self):
         return read(self._adr_path())
 
     def test_adr_0042_has_d4_heading_naming_reselection_and_stage_reentry(self):
-        """AC-5: docs/adr/0042 must contain a '### D4' heading naming
+        """AC-5: docs/architecture/adr/0042 must contain a '### D4' heading naming
         verify_depth re-selection and stage re-entry."""
         body = self._adr_body()
         self.assertIsNotNone(
             re.search(r"(?i)### D4.{0,120}(verify_depth|re.selection).{0,120}"
                       r"(stage.re.entry|re.introduc)",
                       body, re.DOTALL),
-            "docs/adr/0042 must contain a '### D4' heading naming "
+            "docs/architecture/adr/0042 must contain a '### D4' heading naming "
             "verify_depth re-selection and stage re-entry (MAR-107 AC-5)")
 
     def test_adr_0042_d4_records_option_a_chosen(self):
@@ -1520,7 +1520,7 @@ class TestAdr0042D4Section(unittest.TestCase):
             re.search(r"(?i)option a.{0,300}(unchanged|formaliz)|"
                       r"(unchanged|formaliz).{0,300}option a",
                       d4_section, re.DOTALL),
-            "docs/adr/0042 D4 section must record Option A chosen "
+            "docs/architecture/adr/0042 D4 section must record Option A chosen "
             "(formalize the shipped detection point unchanged) (MAR-107 AC-5)")
 
 
@@ -1943,10 +1943,10 @@ class TestAdr0007Amendment(unittest.TestCase):
     induction loop to factual prd/roadmap content. Additive assertions only."""
 
     def _adr_path(self):
-        return os.path.join(REPO_ROOT, "docs", "adr", "0007-living-docs-by-induction.md")
+        return os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0007-living-docs-by-induction.md")
 
     def _adr_index_path(self):
-        return os.path.join(REPO_ROOT, "docs", "adr", "README.md")
+        return os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
 
     def _adr_body(self):
         return read(self._adr_path())
@@ -1957,17 +1957,17 @@ class TestAdr0007Amendment(unittest.TestCase):
     # --- AC-5: ADR-0007 names factual prd/roadmap content ---
 
     def test_adr_names_prd_md(self):
-        """AC-5: docs/adr/0007 must contain 'prd.md'."""
+        """AC-5: docs/architecture/adr/0007 must contain 'prd.md'."""
         body = self._adr_body()
         self.assertIn("prd.md", body,
-                      "docs/adr/0007-living-docs-by-induction.md must contain 'prd.md' "
+                      "docs/architecture/adr/0007-living-docs-by-induction.md must contain 'prd.md' "
                       "(MAR-65 AC-5 — extended scope)")
 
     def test_adr_names_roadmap_md(self):
-        """AC-5: docs/adr/0007 must contain 'roadmap.md'."""
+        """AC-5: docs/architecture/adr/0007 must contain 'roadmap.md'."""
         body = self._adr_body()
         self.assertIn("roadmap.md", body,
-                      "docs/adr/0007-living-docs-by-induction.md must contain 'roadmap.md' "
+                      "docs/architecture/adr/0007-living-docs-by-induction.md must contain 'roadmap.md' "
                       "(MAR-65 AC-5 — extended scope)")
 
     def test_adr_factual_prd_co_occurrence(self):
@@ -1975,7 +1975,7 @@ class TestAdr0007Amendment(unittest.TestCase):
         body = self._adr_body()
         self.assertIsNotNone(
             re.search(r"(?i)factual.{0,500}prd|prd.{0,500}factual", body, re.DOTALL),
-            "docs/adr/0007 must co-locate 'factual' and 'prd' within 500 chars "
+            "docs/architecture/adr/0007 must co-locate 'factual' and 'prd' within 500 chars "
             "(MAR-65 AC-5 — factual scope extension recorded)")
 
     def test_adr_intent_flag_co_occurrence(self):
@@ -1984,31 +1984,31 @@ class TestAdr0007Amendment(unittest.TestCase):
         self.assertIsNotNone(
             re.search(r"(?i)intent.{0,500}(flag|FLAGS)|(flag|FLAGS).{0,500}intent",
                       body, re.DOTALL),
-            "docs/adr/0007 must co-locate 'intent' and 'flag'/'FLAGS' within 500 chars "
+            "docs/architecture/adr/0007 must co-locate 'intent' and 'flag'/'FLAGS' within 500 chars "
             "(MAR-65 AC-5 — intent-flag rule recorded)")
 
     def test_adr_status_still_accepted(self):
         """AC-5: ADR-0007 status must remain 'Accepted'."""
         body = self._adr_body()
         self.assertIn("Accepted", body,
-                      "docs/adr/0007 status must remain 'Accepted' (MAR-65 AC-5)")
+                      "docs/architecture/adr/0007 status must remain 'Accepted' (MAR-65 AC-5)")
 
     # --- AC-5: ADR index consistent ---
 
     def test_adr_index_has_0007_entry(self):
-        """AC-5: docs/adr/README.md must contain '0007'."""
+        """AC-5: docs/architecture/adr/README.md must contain '0007'."""
         body = self._index_body()
         self.assertIn("0007", body,
-                      "docs/adr/README.md must contain '0007' entry (MAR-65 AC-5)")
+                      "docs/architecture/adr/README.md must contain '0007' entry (MAR-65 AC-5)")
 
     def test_adr_index_0007_mentions_product_or_prd(self):
         """AC-5: 'prd' or 'product' must appear within 200 chars of '0007' in
-        docs/adr/README.md."""
+        docs/architecture/adr/README.md."""
         body = self._index_body()
         self.assertIsNotNone(
             re.search(r"(?i)0007.{0,200}(prd|product)|(prd|product).{0,200}0007",
                       body, re.DOTALL),
-            "docs/adr/README.md must mention 'prd'/'product' within 200 chars of '0007' "
+            "docs/architecture/adr/README.md must mention 'prd'/'product' within 200 chars of '0007' "
             "(MAR-65 AC-5 — index summary updated)")
 
 

@@ -28,9 +28,9 @@ WORKSPACE_AND_STATE = os.path.join(
     REPO_ROOT, "docs", "requirements", "functional", "workspace-and-state.md"
 )
 ADR_0087 = os.path.join(
-    REPO_ROOT, "docs", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
+    REPO_ROOT, "docs", "architecture", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
 )
-ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
+ADR_README = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
 
 
 def read(path):
@@ -252,14 +252,14 @@ class Adr0087Test(unittest.TestCase):
 
 
 class Adr0087IndexTest(unittest.TestCase):
-    """AC-8 / K8: docs/adr/README.md indexes ADR-0087 (belt-and-braces over
+    """AC-8 / K8: docs/architecture/adr/README.md indexes ADR-0087 (belt-and-braces over
     test_doc_fact_pins.py's test_every_disk_file_has_a_row)."""
 
     def test_adr_0087_is_indexed(self):
         body = read(ADR_README)
         self.assertIsNotNone(
             re.search(r"\[0087\]\(0087-[a-z0-9-]+\.md\)", body),
-            "docs/adr/README.md must index ADR-0087",
+            "docs/architecture/adr/README.md must index ADR-0087",
         )
         self.assertTrue(os.path.isfile(ADR_0087))
 

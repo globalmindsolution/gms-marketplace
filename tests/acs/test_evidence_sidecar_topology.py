@@ -31,7 +31,7 @@ import evidence_sidecar  # noqa: E402
 
 DOCS_ARCHITECTURE = os.path.join(REPO_ROOT, "docs", "architecture")
 DOCS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements")
-ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "adr")
 CHANGELOG_PATH = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
 
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".claude"}
@@ -183,17 +183,17 @@ class C22MarkersIntactTest(unittest.TestCase):
 
 
 class Adr0064ExistsAndOnTopicTest(unittest.TestCase):
-    """AC-6: docs/adr/0064-*.md exists (glob, not a hardcoded slug) and
+    """AC-6: docs/architecture/adr/0064-*.md exists (glob, not a hardcoded slug) and
     names Decision B / the sidecar convention / the intentional migration
     framing."""
 
     def test_adr_0064_file_exists_exactly_once(self):
         matches = glob.glob(os.path.join(ADR_DIR, "0064-*.md"))
-        self.assertEqual(len(matches), 1, "expected exactly one docs/adr/0064-*.md file")
+        self.assertEqual(len(matches), 1, "expected exactly one docs/architecture/adr/0064-*.md file")
 
     def test_adr_0064_names_decision_b_and_not_byte_identical(self):
         matches = glob.glob(os.path.join(ADR_DIR, "0064-*.md"))
-        self.assertTrue(matches, "docs/adr/0064-*.md must exist")
+        self.assertTrue(matches, "docs/architecture/adr/0064-*.md must exist")
         body = read(matches[0])
         self.assertRegex(body, r"(?i)\.evidence\.md")
         self.assertRegex(body, r"(?i)not byte-identical|non-byte-identical")

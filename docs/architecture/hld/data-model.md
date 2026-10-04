@@ -299,7 +299,7 @@ un-sliced run writes exactly what it wrote before.
 under is now `<main-checkout>/.acs/state-machine/<repo-id>/` —
 gitignored, anchored to the repo's main checkout (`git rev-parse
 --git-common-dir`) so every linked worktree resolves to the same on-disk
-tree, with no override ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)). No
+tree, with no override ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)). No
 entity, field, or relationship change (D6): only what `workspace` (the
 string) resolves to is different.
 
@@ -318,7 +318,7 @@ carry.
 **Amendment (ADR 0103) — supersedes the cost half of the MAR-1, MAR-3 and
 MAR-6 amendments above.** acs no longer ships a status line, and the
 statusLine-sourced cost and API-duration apportionment went with it
-([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
+([ADR 0103](../adr/0103-no-status-line-no-cost-metering.md)).
 `COST_SAMPLE` and `COST_CURSOR` are gone, and so are `RUN_ENTRY`'s
 `cost_usd`/`cost_basis`/`cost_scope`/`excluded_cost_usd`/`excluded_token_share`
 and `api_duration_ms`/`api_duration_basis`/`api_duration_scope`, the cost and
@@ -333,7 +333,7 @@ keeps its cost fields, and nothing reads them.
 
 **Amendment (ADR 0104) — supersedes the MAR-1 and MAR-3 amendments above,
 and the tokens the ADR 0103 amendment kept.** acs records no usage
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)), so
+([ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)), so
 the diagram no longer draws `METRICS` (`metrics.json`), `SESSION_MARKER`
 (`sessions/<checkout_id>/session.json`), `ROLE_USAGE` or `MODEL_USAGE`, nor
 `RUN_ENTRY`'s `session_id`/`transcript_path`/`checkout_id`/`tokens` or

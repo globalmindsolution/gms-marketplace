@@ -18,9 +18,9 @@ PRD_PATH = os.path.join(REPO_ROOT, "docs", "product", "prd.md")
 ROADMAP_PATH = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
 TESTING_STRATEGY_PATH = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
 WORKFLOW_PATH = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "workflow.md")
-ADR_PATH = os.path.join(REPO_ROOT, "docs", "adr",
+ADR_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "adr",
                         "0049-e2e-3-read-only-g13-metric-validation.md")
-ADR_README_PATH = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
+ADR_README_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
 SETTINGS_SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 SKILLS_DIR = os.path.join(PLUGIN, "skills")
 ARCHITECTURE_DIR = os.path.join(REPO_ROOT, "docs", "architecture")
@@ -129,7 +129,7 @@ class TestNoNewMechanism(unittest.TestCase):
         # the diff, so the guard is inert rather than a false failure.
         #
         # --diff-filter=A is load-bearing: ADRs are append-only and get
-        # AMENDED for years after they land (docs/adr/README.md). Testing
+        # AMENDED for years after they land (docs/architecture/adr/README.md). Testing
         # mere presence in the diff woke this guard on every later branch
         # that amends 0049, and then policed that branch against MAR-127's
         # scope, which was never its subject.
@@ -204,12 +204,12 @@ class TestAdr0049(unittest.TestCase):
 
 
 class TestAdrReadmeIndex(unittest.TestCase):
-    """ADR 0049 is indexed in docs/adr/README.md."""
+    """ADR 0049 is indexed in docs/architecture/adr/README.md."""
 
     def test_0049_row_present(self):
         body = read(ADR_README_PATH)
         m = re.search(r"(?m)^\| \[0049\].*$", body)
-        self.assertIsNotNone(m, "docs/adr/README.md must have a row for ADR 0049")
+        self.assertIsNotNone(m, "docs/architecture/adr/README.md must have a row for ADR 0049")
         row = m.group(0)
         self.assertIn("0049-e2e-3-read-only-g13-metric-validation.md", row)
         self.assertIn("Accepted", row)

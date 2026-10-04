@@ -175,7 +175,7 @@ every team.
 - **Gates and dashboards:** hook gating, forge checks, coverage/e2e
   hard-fails; failure-mode observability dashboards. acs itself ships no
   delivery-metrics or usage dashboard
-  ([ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)): AI
+  ([ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)): AI
   spend is read where Claude Code reports it.
 
 ## 8. Cross-cutting responsibilities (RACI)
@@ -228,7 +228,7 @@ Head-of split. Titles stay modest until scale demands headroom.
 always the skill doing the work: `code` dispatches to one of four **internal
 legs**, its delivery paths (ADR-0095), which the role never invokes directly.
 A phase with no skill of its own runs as ordinary ticket work — since
-[ADR-0118](../adr/0118-discovery-design-development-phases.md), bootstrapping
+[ADR-0118](../architecture/adr/0118-discovery-design-development-phases.md), bootstrapping
 a greenfield repo is a ticket shipped through the pipeline.
 
 | Phase | Skill | Accountable |

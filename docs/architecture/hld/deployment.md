@@ -55,7 +55,7 @@ Key facts:
   gitignored, anchored to the repo's main checkout (`git rev-parse
   --git-common-dir`) so every linked worktree resolves to the same physical
   partition, with partitions keyed by repo identity derived from the git
-  remote. No setting overrides it ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)); acs must be
+  remote. No setting overrides it ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)); acs must be
   run from a regular git checkout.
 - **No server-side anything**: the plugins are files; all execution happens in
   the user's Claude Code session and shell. Tracker/PR access goes

@@ -45,7 +45,7 @@ HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
 
 ADR_0063 = os.path.join(
-    DOCS, "adr",
+    DOCS, "architecture", "adr",
     "0063-audience-style-verifier-dimension-advisory-to-blocking-create-spec.md")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 

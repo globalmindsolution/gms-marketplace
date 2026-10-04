@@ -52,9 +52,9 @@ EVALS_README_PATH = os.path.join(REPO_ROOT, "evals", "behavioural", "README.md")
 TESTING_STRATEGY_PATH = os.path.join(REPO_ROOT, "docs", "quality", "testing-strategy.md")
 RUNBOOK_PATH = os.path.join(REPO_ROOT, "docs", "operations", "release-runbook.md")
 ADR_PATH = os.path.join(
-    REPO_ROOT, "docs", "adr", "0022-behavioral-evals-local-only-ci-runs-no-llm-calls.md")
+    REPO_ROOT, "docs", "architecture", "adr", "0022-behavioral-evals-local-only-ci-runs-no-llm-calls.md")
 
-ADR_RELPATH = "docs/adr/0022-behavioral-evals-local-only-ci-runs-no-llm-calls.md"
+ADR_RELPATH = "docs/architecture/adr/0022-behavioral-evals-local-only-ci-runs-no-llm-calls.md"
 AMENDMENT_HEADING = "## Amendment — MAR-579"
 
 

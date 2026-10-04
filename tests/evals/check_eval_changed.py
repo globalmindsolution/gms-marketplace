@@ -125,7 +125,7 @@ class SelectionTest(unittest.TestCase):
                                       "plugins/acs/hooks/scripts/acs.py"], set()), [])
 
     def test_an_unrelated_change_selects_nothing(self):
-        self.assertEqual(hook.select(["README.md", "docs/adr/README.md"], set()), [])
+        self.assertEqual(hook.select(["README.md", "docs/architecture/adr/README.md"], set()), [])
 
 
 FAKE_CLAUDE = r"""#!/usr/bin/env python3

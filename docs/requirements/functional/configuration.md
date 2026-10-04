@@ -3,7 +3,7 @@
 The `acs` plugin must work on **different consumer repos**. Configuration is
 stored as `settings.json` under an `.acs` folder, and is optional: every key
 has a working default, so a repo with no settings file at all runs every skill
-([ADR-0105](../../adr/0105-acs-runs-without-setup.md)). The optional `/setup`
+([ADR-0105](../../architecture/adr/0105-acs-runs-without-setup.md)). The optional `/setup`
 skill sets the ticket prefix and the settings of the CI gates it
 installs; every other key, `ticket_prefix` included, is edited by hand,
 validated against `settings.schema.json`.
@@ -38,7 +38,7 @@ validated against `settings.schema.json`.
 | `ticket_prefix` | string | `"ACS"` | No | Prefix for generated ticket ids (`<prefix>-<sequence>`): `ACS-1`, `ACS-2`, … by default. A repo that wants its own — e.g. `SHOP` for a shop product — sets it by hand in `.acs/settings.json`; `/setup` does not ask. Two repos that keep the default both mint `ACS-1`; ids are per-repo state and never cross repos, so a repo that shares a tracker with others sets its own. Changing it later strands the older ids' branches. The per-repo sequence counter lives in the workspace (`counters.json`). |
 | `tests` | object | unset | No | Everything about running tests: `{ "coverage"?, "unit"?, "e2e"?, "<name>"? }`. `coverage` is a number in `(0, 100]`, default `90` — the `/code` TDD coverage target (missing it is a hard fail) and the floor of the CI tests gate, exported to the gate as `ACS_COVERAGE`. `unit` (`{ "command", "setup"? }`) is the suite of the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 3, opt-in): `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`). It is installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install); a merge gate once made a required status check (`Tests & coverage`) on a protected default branch. Every key of `tests` except `coverage` is a **named suite** `{ "command", "setup"?, "teardown"? }`; `/acs:run-e2e-tests` runs all of them, or a `--suite`-selected subset, capturing pass/fail results to an auditable workspace artifact. `e2e` is the end-to-end suite: unset = no e2e suite; when configured, spec test plans state the e2e impact, `/code` authors the declared e2e tests in the same changeset, and `/acs:review-code`'s final gate runs the full suite (`setup` → `command` → `teardown` always) — a green run is required for a passing verdict. `/acs:setup` installs the e2e workflow and runner templates that read this block. `tests.e2e` is also the **single opt-in signal** for the CI required merge gate — no dedicated `tests.e2e.ci` enable key exists, or is ever introduced (see the e2e merge gate note below). |
 | `test_coverage_percent`, `suites`, top-level `e2e`, `per_iteration` | — | — | — | **Removed.** Replaced by `tests.coverage`, `tests.<name>` and `tests.e2e` (`per_iteration` was accepted and inert, and is gone). Until a settings file is migrated every acs skill refuses to start, naming the keys; `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" settings migrate [--write]` rewrites an old-shape file (dry-run by default). The old CI-gate keys `tests.command` / `tests.setup` are now `tests.unit.command` / `tests.unit.setup`. |
-| `enforcement` | — | — | — | **Removed.** There is no enforcement block. The CI convention check scaffolded by `/acs:setup` (`.github/workflows/acs-conventions.yml` + `.acs/ci/check-conventions.py`) enforces one rule — the PR description names its ticket (the acs id, a `#<n>` issue reference or an issue link, [ADR-0106](../../adr/0106-ci-checks-the-ticket-link-only.md)) — with fixed exemptions: the `acs-exempt` label and `release/*`, `dependabot/*`, `renovate/*` branches. The `ACS` label `/create-pr` applies and `/merge-pr --pr` reads is fixed too (`acs_lib.conventions`). The local `commit-msg`/`pre-push` hooks and `/acs:install-hooks` are gone. A block a repo still carries is accepted and ignored. |
+| `enforcement` | — | — | — | **Removed.** There is no enforcement block. The CI convention check scaffolded by `/acs:setup` (`.github/workflows/acs-conventions.yml` + `.acs/ci/check-conventions.py`) enforces one rule — the PR description names its ticket (the acs id, a `#<n>` issue reference or an issue link, [ADR-0106](../../architecture/adr/0106-ci-checks-the-ticket-link-only.md)) — with fixed exemptions: the `acs-exempt` label and `release/*`, `dependabot/*`, `renovate/*` branches. The `ACS` label `/create-pr` applies and `/merge-pr --pr` reads is fixed too (`acs_lib.conventions`). The local `commit-msg`/`pre-push` hooks and `/acs:install-hooks` are gone. A block a repo still carries is accepted and ignored. |
 
 **e2e required merge gate (`/acs:setup`, opt-in).** When `tests.e2e` is already configured — by hand; `/acs:setup` does not configure
 a suite — `/acs:setup` offers the gate at Step 2 and Step 3 scaffolds
@@ -69,7 +69,7 @@ unknown keys for forward compatibility.
 ### Document and workspace locations
 
 No key locates a document or the workspace
-([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)). A skill
+([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)). A skill
 finds a repo document the way any Claude Code session does: `CLAUDE.md`
 (project instructions, loaded in every session) and whatever docs index it or
 the repo points at (e.g. `docs/README.md`), then a Glob/Grep search by file
@@ -81,7 +81,7 @@ document at the conventional default:
 | PRD | `docs/product/prd.md` + `docs/product/roadmap.md` | Bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |
 | Architecture set | `docs/architecture/` (`hld/tech-stack.md` is its sentinel file) | **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |
 | Living requirements | `docs/requirements/` with `functional/` and `non-functional/` subfolders (an existing set's own subfolder names are followed) | The standing behavioral contract, one file per feature area: `/code` merges each ticket's acceptance criteria and behavior-defining clarifications into the touched area's file; `/create-ticket` reads it as the area's current behavior and flags contradictions. |
-| ADRs | `docs/adr/` | `/code` commits the accepted decision records from the ticket's `design.md` here, so decisions outlive archived ticket partitions. |
+| ADRs | `docs/architecture/adr/` | `/code` commits the accepted decision records from the ticket's `design.md` here, so decisions outlive archived ticket partitions. |
 | Quality / operations / principles / standards sets | `docs/quality/`, `docs/operations/`, `docs/principles/`, `docs/standards/` | Bootstrapped and maintained by `/acs:create-docs <set>`; `standards` also reads the principles set, when the repo has one, as an upstream grounding input. |
 | Machine-readable API contract files | `docs/api/` | Written by `create-api-contract` when the plan adds or changes an interface. |
 
@@ -190,7 +190,7 @@ configured under `models`:
 - Model choice is team-shareable (committed `settings.json`) and can be
   overridden per scope like any other key. acs records no token usage, so its
   effect on spend is read where Claude Code reports it
-  ([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+  ([ADR 0104](../../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 ## Validation rules
 

@@ -3,7 +3,7 @@
 Decision records for the **GMS Marketplace** (including acs and its plugins, dogfooding `adr_path`). On
 consumer repos this folder is maintained by `/acs:code`, which commits each
 ticket design's accepted decisions; these first ten are retrofitted from the
-[decision log](../README.md#decision-log) — the log remains the complete,
+[decision log](../../README.md#decision-log) — the log remains the complete,
 dated history, while ADRs carry the load-bearing architecture choices with
 context and consequences.
 
@@ -125,6 +125,7 @@ context and consequences.
 | [0116](0116-no-formats-or-enforcement-settings.md) | Branch, commit and PR-title style are the model's to follow, not settings: `formats` and `enforcement` are removed, what a script must parse is fixed in `acs_lib.conventions` (branch `<type>/<ticket_id>-<slug>`, the CI exemptions, the `ACS` label, template names), the CI ticket-link check stays, and the local hooks, `/acs:install-hooks`, `stacked-base.py` and `render-title` go. Keeps 0106's ticket-link-only CI | Accepted |
 | [0117](0117-tests-settings-merged-jira-dropped-settings-migrate.md) | One `tests` block (`coverage`, `unit`, `e2e`, other suites) replaces `test_coverage_percent`, `suites`, `e2e` and the CI-gate `tests`; Jira is dropped; `acs.py settings migrate [--write]` rewrites an old settings file and an old-shape file is refused, not ignored | Accepted |
 | [0118](0118-discovery-design-development-phases.md) | Discovery, Design, Development: the skills group into three phases, design documents are filed by level (`hld/` for the product views, `lld/{api,data,flows,components}/` for the detailed ones, types chosen at `/acs:setup`), and `/acs:project`, `create-project`, `standardize-project` and `create-requirements` are removed — a greenfield scaffold is a ticket like any other (supersedes 0048, 0061, 0062, 0091; amends 0109) | Accepted |
+| [0119](0119-adrs-live-under-architecture.md) | ADRs live under `docs/architecture/adr/`: this repo's records move there, a repo's first ADR folder is created there, and an existing folder is still found where it is (amends 0118) | Accepted |
 
 Format: status, date, context, decision, consequences (MADR-flavored, kept
 short). New ADRs are appended by the pipeline with the next sequence number.

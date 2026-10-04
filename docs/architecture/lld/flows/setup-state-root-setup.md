@@ -2,7 +2,7 @@
 
 `/acs:setup` sets up the acs workspace root on every fresh run and every
 re-run. The state root is always the in-repo default — there is no override
-to choose ([ADR-0102](../../../adr/0102-documents-are-found-not-configured.md)) — so the skill retrofits
+to choose ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)) — so the skill retrofits
 the in-repo state root's gitignore coverage through two independent layers,
 verifies the combined result, guards against a broad ignore rule swallowing
 committed CI-readable files, creates the resolved state root and checks it is writable,
@@ -12,7 +12,7 @@ both in `setup_wizard.py`. See the companion `setup-state-root-setup.evidence.md
 sidecar for the code anchors this doc would otherwise cite inline.
 
 Setup is optional, and nothing depends on this flow having run
-([ADR-0105](../../../adr/0105-acs-runs-without-setup.md)): the state root
+([ADR-0105](../../adr/0105-acs-runs-without-setup.md)): the state root
 ignores itself, because the first state write under it creates
 `.acs/state-machine/.gitignore` containing `*`. The two layers below are
 kept for a repo that runs setup, not needed by one that never does.

@@ -28,4 +28,4 @@ acs reads no Claude Code transcript: nothing in the plugin opens a session
 is persisted into the workspace store. The only Claude Code input a hook
 reads is its own hook envelope on stdin. The token measurement that once
 read a run's transcript was removed with usage recording
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+([ADR 0104](../../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)).

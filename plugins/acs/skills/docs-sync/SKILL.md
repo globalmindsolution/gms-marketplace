@@ -170,7 +170,7 @@ document: CLAUDE.md and whatever docs index it or the repo points at (e.g.
 repo-relative location. Not found → the conventional default, where a doc
 update would create it: `docs/requirements/` with `functional/` and
 `non-functional/` subfolders (an existing set's own subfolder names are
-followed), `docs/architecture/`, `docs/adr/`.
+followed), `docs/architecture/`, `docs/architecture/adr/`.
 
 ### No doc impact — finish without the loop
 
