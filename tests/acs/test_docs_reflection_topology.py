@@ -38,9 +38,10 @@ WRITER_ONLY = {"code"}
 #: Skills that own no subagent at all and run inline (ADR-0109): each is a
 #: sequence of commands with nothing for a separate agent to judge.
 INLINE = {"create-ticket", "create-pr", "merge-pr"}
-#: Reflection-loop skills the docs count SEPARATELY from the authoring ones:
-#: `/acs:create-docs` was the first class-D skill (ADR-0094).
-NON_AUTHORING_LOOPS = {"create-docs"}
+#: Reflection-loop skills the docs count SEPARATELY from the authoring ones.
+#: `/acs:create-docs` was the first and only one (ADR-0094) until ADR-0124
+#: removed it; every reflection loop left is an authoring skill.
+NON_AUTHORING_LOOPS = set()
 #: The review's own roles. It is not a loop: five lenses raise candidates and
 #: one adjudicator per finding tries to refute them (§3.6).
 REVIEW_ROLES = {"review-code": ["adjudicator", "lens"]}
@@ -202,8 +203,9 @@ class TopologyDerivationTest(unittest.TestCase):
         """
         self.assertEqual(D["orphaned"], 0)
 
-    def test_loops_are_the_authoring_skills_plus_create_docs(self):
+    def test_loops_are_the_authoring_skills(self):
         self.assertEqual(set(D["pairs"]) - set(D["authoring"]), NON_AUTHORING_LOOPS)
+        self.assertEqual(set(D["pairs"]), set(D["authoring"]))
         self.assertEqual(D["n_authoring"], 9)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, D["authoring"])
@@ -243,7 +245,7 @@ class InternalsTopologyTest(unittest.TestCase):
         self.assertIn("%d files" % D["n_agents"], body)
         self.assertIn("%d reachable" % D["reachable"], body)
         self.assertIn("%s skills that run a write → judge loop"
-                      % {10: "ten"}[D["n_pairs"]], body)
+                      % {9: "nine"}[D["n_pairs"]], body)
         self.assertNotIn("executor + verifier pairs", body)
         self.assertIn("%d agent files named" % D["n_agents"], body)
 
@@ -349,14 +351,14 @@ class ReflectionTopologyTest(unittest.TestCase):
         loops, the write-only skill whose judge is a separate step, and the
         review, which is judge-only (ADR-0109)."""
         body = self._body()
-        self.assertIn("**Ten** skills run the write → judge cycle", body)
-        self.assertIn("**nine** authoring", body)
+        self.assertIn("**Nine** skills run the write → judge cycle", body)
+        self.assertIn("all **nine** authoring", body)
         self.assertIn("**One** prefix is write-only: `code`", body)
         self.assertIn("**One** prefix is judge-only: `review-code`", body)
         self.assertNotIn("triad", body)
         self.assertNotIn("executor-only", body)
         # ...and the words match the tree, not just each other.
-        self.assertEqual(D["n_pairs"], 10)
+        self.assertEqual(D["n_pairs"], 9)
         self.assertEqual(D["n_authoring"], 9)
         self.assertEqual(
             len([s for s, roles in D["declared_roles"].items() if roles == ["implementer"]]), 1)
@@ -455,12 +457,13 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         ADR-0118 removed `/acs:project`, its two legs and
         `/acs:create-requirements`, then 26 when ADR-0122 added the read-only
         `/acs:audit-design`, then 27 when ADR-0123 added the read-only
-        `/acs:audit-security`; the word is pinned here because prose is
+        `/acs:audit-security`, then 26 again when ADR-0124 removed
+        `/acs:create-docs`; the word is pinned here because prose is
         where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-seven skills", body)
-        self.assertEqual(D["n_skills"], 27)
-        for stale in ("Twenty-three skills", "Twenty-five skills", "Twenty-six skills",
+        self.assertIn("Twenty-six skills", body)
+        self.assertEqual(D["n_skills"], 26)
+        for stale in ("Twenty-three skills", "Twenty-five skills", "Twenty-seven skills",
                       "Thirty-two skills", "Thirty skills"):
             self.assertNotIn(stale, body)
         self.assertNotIn("Twenty-nine skills", body)

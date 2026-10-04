@@ -33,7 +33,7 @@ PINNED_SORTED_HOOKED_SKILLS = [
     "analyze-requirements", "audit-design", "audit-security", "code",
     "create-api-contract",
     "create-architecture",
-    "create-design", "create-docs", "create-e2e-tests", "create-impl-plan",
+    "create-design", "create-e2e-tests", "create-impl-plan",
     "create-pr", "create-prd",
     "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "review-code",
     "run-e2e-tests",

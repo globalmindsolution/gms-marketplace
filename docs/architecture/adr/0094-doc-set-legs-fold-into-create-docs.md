@@ -1,6 +1,6 @@
 # 0094 — The four doc-set legs fold into `/acs:create-docs`: one skill, a declared table of sets, an executor and a verifier, no planner
 
-**Status**: Accepted · **Date**: 2026-09-14
+**Status**: Superseded by [0124](0124-remove-create-docs.md) (`/acs:create-docs` is removed) · **Date**: 2026-09-14
 
 **Amends**: [0085](0085-doc-bootstrap-parallel-fan-out.md) (the fan-out
 mechanics stand; the per-leg skills they fanned out to are gone),

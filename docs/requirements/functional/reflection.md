@@ -21,7 +21,7 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: write → judge
 
-The nine **authoring skills** and `create-docs` MUST apply the Reflection pattern as a
+The nine **authoring skills** MUST apply the Reflection pattern as a
 **write → judge cycle** over their own roles, with a **different subagent
 for each role** (ADR-0109):
 
@@ -31,7 +31,6 @@ for each role** (ADR-0109):
 | create-prd | `create-prd-surveyor` | `create-prd-author` | `create-prd-reviewer` |
 | create-architecture | `create-architecture-gap-analyst` (beside the architect's survey, when an HLD exists — ADR-0122) | `create-architecture-architect` | `create-architecture-reviewer` |
 | create-design | — | `create-design-designer` | `create-design-design-reviewer` |
-| create-docs | — | `create-docs-author` (one per doc set) | `create-docs-reviewer` |
 | create-impl-plan | — | `create-impl-plan-planner` | `create-impl-plan-plan-reviewer` |
 | create-api-contract | — | `create-api-contract-contract-author` | `create-api-contract-contract-reviewer` |
 | create-test-docs | — | `create-test-docs-test-designer` | `create-test-docs-trace-reviewer` |
@@ -94,7 +93,7 @@ Requirements:
   `/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for
   `/acs:create-project`; MAR-302 for `/acs:standardize-project`; MAR-305 for
   `/acs:create-prd` and the four doc-set legs since folded into
-  `/acs:create-docs` (ADR-0094); then `/acs:create-architecture`,
+  `/acs:create-docs` (ADR-0094, itself removed by ADR-0124); then `/acs:create-architecture`,
   `/acs:create-design`, and `/acs:create-requirements`); ADR-0092 then
   retired the plan phase itself. On iteration 2+ the writer's authoring
   notes carry a **Findings addressed** section mapping each finding to what
@@ -145,15 +144,15 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 29 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 27 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
-  **Ten** skills run the write → judge cycle: the **nine** authoring
+  **Nine** skills run the write → judge cycle: all **nine** authoring
   skills in the table above — which include the five Build/Test skills the
   skills-independence refactor added (`analyze-requirements`,
   `create-impl-plan`, `create-api-contract`, `create-test-docs`,
-  `create-e2e-tests`) — plus `create-docs`. One of them (`create-prd`) adds
+  `create-e2e-tests`). One of them (`create-prd`) adds
   a surveyor, one (`analyze-requirements`) an impact analyst per code
   area (ADR-0114), and one (`create-architecture`) a gap analyst per code
   area beside its survey when an HLD already exists (ADR-0122).
@@ -358,8 +357,8 @@ Illustrative shape:
   spawn its own sub-subagents. This keeps the state files and the message
   flow predictable.
 - The coordinator MAY run **multiple writers in parallel** within one
-  skill (e.g. one implementer per file-map partition in `/code`, one author
-  per doc set in `/create-docs`), provided their outputs do not conflict; the
+  skill (e.g. one implementer per file-map partition in `/code`, one
+  architect per HLD file in `/create-architecture`), provided their outputs do not conflict; the
   judge runs after all parallel writers complete and judges the combined
   result. Since ADR-0110 this is the default rather than an option — see
   below.
@@ -387,8 +386,7 @@ spawned in ONE message and awaited together before the next phase.
   top-level areas of the repo, one instance per area; the open questions of
   every slice MUST go to the user in ONE grouped clarification-ledger ask.
 - **Cap.** At most `max_parallel = 4` instances per phase, unless the skill
-  already sets its own cap (`/acs:create-docs` keeps 2 for doc sets); beyond
-  the cap, instances run in waves.
+  already sets its own cap; beyond the cap, instances run in waves.
 - **Identity.** Each instance's task and result MUST carry `slice="<id>"` (an
   un-sliced instance omits it). A slice id is a short name of letters,
   digits, `_` and `-`; hyphens are allowed. A sliced instance writes

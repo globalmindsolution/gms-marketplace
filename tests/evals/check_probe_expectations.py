@@ -2,7 +2,7 @@
 
 Each class here asserts something about the eval CASE FILES: that a probe for a
 given skill exists, names what it must, and no probe asserts a retired or
-renamed skill. They lived inside per-ticket doc tests (the create-docs fold,
+renamed skill. They lived inside per-ticket doc tests (the doc-set fold,
 standardize-project, the suite runner, the setup rename) until evals left CI
 (ADR-0108); the doc assertions stayed in tests/acs/, the eval ones moved here.
 Their docstrings keep the history of the tickets that introduced them.
@@ -22,9 +22,10 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, HERE)
 import eval_cases  # noqa: E402  (the case files are the probe set)
 
-#: The doc sets /acs:create-docs folded in, and the legs that retired with it.
-SETS = ("quality", "operations", "principles", "standards")
-RETIRED = tuple("create-%s" % s for s in SETS)
+#: /acs:create-docs, removed by ADR-0124, and the four doc-set legs it had
+#: folded in (ADR-0094) before it.
+RETIRED = ("create-docs",) + tuple(
+    "create-%s" % s for s in ("quality", "operations", "principles", "standards"))
 
 
 def read(path):
@@ -32,43 +33,19 @@ def read(path):
         return fh.read()
 
 
-class CreateDocsProbeTest(unittest.TestCase):
-    """One routing probe for the fold, read from the curated dataset (no paid
-    call): a description-shaped probe that names two sets and routes to
-    create-docs; no probe survives for a retired leg.
+class RetiredDocSkillsProbeTest(unittest.TestCase):
+    """No probe survives for /acs:create-docs or the legs it folded in.
 
-    The probe set used to live in s04_skill_triggers.py's CASES list, parsed
-    out of its AST. Routing consolidated onto the `claude plugin eval` tree, so
-    the probe set is the case files under plugins/acs/evals/, read through
-    tests/evals/eval_cases.py."""
+    This class used to pin the fold's own probe -- a description-shaped
+    prompt naming two sets that routed to create-docs. ADR-0124 removed the
+    skill and its cases; a case left expecting it would read as a routing
+    failure forever, so what is pinned now is that none is left."""
 
-    @staticmethod
-    def _probes(positive=None):
-        probes = eval_cases.probe_dicts()
-        if positive is not None:
-            probes = [p for p in probes if p["must_route"] is positive]
-        return probes
-
-    @staticmethod
-    def _skill(probe):
-        return probe["skill"].split(":", 1)[1]
-
-    def test_create_docs_case_present_and_internally_consistent(self):
-        matches = [p for p in self._probes(positive=True)
-                   if self._skill(p) == "create-docs"]
-        self.assertTrue(matches, "no create-docs probe")
-        for probe in matches:
-            self.assertNotIn("create-docs", probe["prompt"],
-                             "the probe describes intent without naming the skill")
-        self.assertTrue(
-            any(len([x for x in SETS if x in p["prompt"]]) >= 2 for p in matches),
-            "a probe should name more than one set, so routing must reach the "
-            "umbrella and not a leg")
-
-    def test_no_case_survives_for_a_retired_leg(self):
-        probed = {self._skill(p) for p in self._probes()}
+    def test_no_case_survives_for_a_retired_doc_skill(self):
+        probed = {p["skill"].split(":", 1)[1] for p in eval_cases.probe_dicts()}
         for retired in RETIRED:
-            self.assertNotIn(retired, probed)
+            with self.subTest(skill=retired):
+                self.assertNotIn(retired, probed)
 
 
 class ProbeSetTest(unittest.TestCase):

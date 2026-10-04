@@ -1,51 +1,26 @@
-"""Prose-contract tests for the citation-corroboration mechanism of the doc-set
-author and verifier charters. Written for MAR-303 against four planner/verifier
-pairs; since ADR-0094 the four doc sets are one skill, /acs:create-docs, whose
-executor authors every set (there is no planner) and whose verifier judges it,
-so the mechanism lives in exactly one author file and one verifier file.
+"""Prose-contract tests for the citation-corroboration mechanism's surviving
+surface. Written for MAR-303 against four planner/verifier pairs; ADR-0094
+folded those into /acs:create-docs, and ADR-0124 removed that skill, its
+author and its reviewer -- the charters whose `Upstream inventory` grammar and
+`authoring-conformance` corroboration most of this module pinned.
 
-Covers both halves: the author half (the executor's `Upstream inventory`
-section must mandate a verbatim quoted excerpt per citation, state the
-citation grammar, mark the line/range advisory-only, and keep the
-`principles/ N/A: <why>` note for the standards set, explicitly exempted from
-the grammar) and the verifier half (the `authoring-conformance` dimension
-invokes the shared `citation_check.py` floor, maps every finding and exit 2 to
-a blocking finding, and additionally requires a substantiation judgment over
-the script's resolved-citations manifest — the hybrid shape). Also pins the
-negative/regression space: `create-prd-reviewer.md` untouched, and dimension
-4's name/number/position/"eight" count unchanged.
-
-Mirrors the reading/extraction helper shapes from
-`test_structure_audience_verifiers.py` and `test_diagram_lint_verifiers.py`
-(`read`, `_label_pattern`, `dimension_block`, `dimension_present`,
-`verify_phase_region`).
+What is left is what other skills still rely on: exactly one
+`citation_check.py` (which `prd_conformance_check.py` imports unchanged),
+`create-prd-reviewer.md` untouched by it with its nine dimensions, and
+create-prd's loop surveying once rather than re-planning every iteration.
 
 Stdlib-only (re, os, unittest). Run:
   python3 -m unittest tests.acs.test_citation_corroboration_verifiers -v
 """
 
-import contextlib
-import io
 import os
 import re
-import sys
-import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
-
-sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))
-import citation_check  # noqa: E402
-
-HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/citation_check.py"
-
-# The doc-set author: one author for every set (ADR-0094), no planner.
-PLANNERS = ("create-docs-author.md",)
-
-VERIFIERS = ("create-docs-reviewer.md",)
 
 PRD_VERIFIER = "create-prd-reviewer.md"  # create-prd's judge
 
@@ -58,11 +33,6 @@ PRD_VERIFIER_DIMENSIONS = (
     "Constraint consistency", "Roadmap coverage", "Plan conformance",
     "Amend-mode diff discipline", "Iteration 2+ regression check",
 )
-
-# The bootstrap-doc skills whose loop topology must not regress to a
-# per-iteration re-plan (AC-5): create-prd surveys once; create-docs
-# never plans at all.
-BOOTSTRAP_DOC_SKILLS = ("create-docs", "create-prd")
 
 
 def read(path):
@@ -78,362 +48,16 @@ def _label_pattern(label):
     return r"(?:\*\*`%s`\*\*|\*\*%s\*\*|`%s`)" % (esc, esc, esc)
 
 
-def dimension_block(body, label, next_label=None):
-    """Extract a numbered check-dimension list item: from the line matching
-    `^\\d+. **label**` / `^\\d+. `label`` / `^\\d+. **`label`**` up to (not
-    including) the next numbered item (or, when `next_label` is given, up to
-    that specific item)."""
-    start_m = re.search(r"(?m)^\d+\.\s+%s" % _label_pattern(label), body)
-    assert start_m is not None, "dimension %r not found" % label
-    rest = body[start_m.end():]
-    if next_label:
-        end_m = re.search(r"(?m)^\d+\.\s+%s" % _label_pattern(next_label), rest)
-    else:
-        end_m = re.search(r"(?m)^(?:\d+\.\s+(?:\*\*|`)|Also verify|#{2,3} )", rest)
-    end = start_m.end() + end_m.start() if end_m else len(body)
-    return body[start_m.start():end]
-
-
 def dimension_present(body, label):
     """True if `label` is a numbered check-dimension entry (bold, backtick, or
     bold+backtick-wrapped)."""
     return re.search(r"(?m)^\d+\.\s+%s" % _label_pattern(label), body) is not None
 
 
-def verify_phase_region(skill_md_body, skill_name):
-    """Bounded window over the SKILL.md text that describes what gets
-    spawned/passed to the verifier: from the first line naming the Verify
-    (create-docs: Review) phase to the next top-level (`##`) heading."""
-    m = re.search(r"(?m)^(?:#{2,3}\s+(?:Verify|Review|Phase: verify).*|3\.\s+\*\*Verify\*\*.*)$",
-                  skill_md_body)
-    assert m is not None, "no Verify-phase heading/list-item found in %s/SKILL.md" % skill_name
-    rest = skill_md_body[m.end():]
-    end_m = re.search(r"(?m)^## ", rest)
-    end = m.end() + end_m.start() if end_m else len(skill_md_body)
-    return skill_md_body[m.start():end]
-
-
-def upstream_inventory_bullet(body, planner_name):
-    """The `Upstream inventory` top-level bullet: from its
-    `- **Upstream inventory**` line up to (not including) the next top-level
-    `- **` bullet (or end of file)."""
-    m = re.search(r"(?m)^-\s+\*\*Upstream inventory\*\*.*$", body)
-    assert m is not None, "%s: Upstream inventory bullet not found" % planner_name
-    rest = body[m.end():]
-    end_m = re.search(r"(?m)^-\s+\*\*", rest)
-    end = m.end() + end_m.start() if end_m else len(body)
-    return body[m.start():end]
-
-
-def citation_excerpt_clause(bullet_text):
-    """The shared mandatory-verbatim-excerpt sentence pair, whitespace-
-    normalized for cross-planner identity comparison (AC-4)."""
-    m = re.search(
-        r"Each citation is one line of the shape.*?never a paraphrase\.",
-        bullet_text, re.DOTALL)
-    assert m is not None, "citation excerpt clause not found in Upstream inventory bullet"
-    return re.sub(r"\s+", " ", m.group(0)).strip()
-
-
-def corroboration_clause(block):
-    """The shared citation-corroboration prose inside dimension 4's
-    authoring-conformance block, whitespace-normalized for cross-verifier
-    identity comparison (AC-4)."""
-    m = re.search(
-        r"Independently re-open and check every upstream-fact citation.*?"
-        r"with no lesser severity ever emitted\.",
-        block, re.DOTALL)
-    assert m is not None, "corroboration clause not found in authoring-conformance dimension"
-    return re.sub(r"\s+", " ", m.group(0)).strip()
-
-
-class PlannerExcerptClauseTest(unittest.TestCase):
-    """AC-2/AC-4: each of the 4 planners' `Upstream inventory` bullet
-    mandates a verbatim quoted excerpt per citation, states the citation
-    grammar, marks the line/range advisory-only, and — for the standards set
-    only — still carries its `principles/ N/A: <why>` note, explicitly
-    exempted from the new grammar."""
-
-    def test_all_four_planners_have_upstream_inventory_bullet(self):
-        for fname in PLANNERS:
-            with self.subTest(planner=fname):
-                body = read(os.path.join(AGENTS, fname))
-                bullet = upstream_inventory_bullet(body, fname)
-                self.assertTrue(bullet)
-
-    def test_all_four_mandate_verbatim_quoted_excerpt(self):
-        for fname in PLANNERS:
-            with self.subTest(planner=fname):
-                body = read(os.path.join(AGENTS, fname))
-                bullet = upstream_inventory_bullet(body, fname)
-                lowered = bullet.lower()
-                self.assertIn(
-                    "verbatim", lowered,
-                    "%s Upstream inventory bullet must mandate a verbatim excerpt" % fname)
-                self.assertIn(
-                    "excerpt", lowered,
-                    "%s Upstream inventory bullet must name the excerpt" % fname)
-                self.assertIn(
-                    "paraphrase", lowered,
-                    "%s Upstream inventory bullet must forbid a paraphrase" % fname)
-
-    def test_all_four_state_citation_grammar(self):
-        for fname in PLANNERS:
-            with self.subTest(planner=fname):
-                body = read(os.path.join(AGENTS, fname))
-                bullet = upstream_inventory_bullet(body, fname)
-                self.assertIn("<claim text>", bullet)
-                self.assertIn("<relative-path>", bullet)
-                self.assertIn("<verbatim excerpt>", bullet)
-
-    def test_all_four_mark_line_range_advisory_only(self):
-        for fname in PLANNERS:
-            with self.subTest(planner=fname):
-                body = read(os.path.join(AGENTS, fname))
-                bullet = upstream_inventory_bullet(body, fname)
-                self.assertIn("advisory only", bullet.lower())
-
-    def test_clause_identical_across_four_planners(self):
-        clauses = {}
-        for fname in PLANNERS:
-            body = read(os.path.join(AGENTS, fname))
-            bullet = upstream_inventory_bullet(body, fname)
-            clauses[fname] = citation_excerpt_clause(bullet)
-        unique = set(clauses.values())
-        self.assertEqual(
-            len(unique), 1,
-            "excerpt clause drifted across planners (not identical): %r" % clauses)
-
-    def test_standards_principles_na_note_preserved(self):
-        body = read(os.path.join(AGENTS, "create-docs-author.md"))
-        bullet = upstream_inventory_bullet(body, "create-docs-author.md")
-        self.assertIn("principles/ N/A:", bullet)
-        self.assertIn("<why>", bullet)
-
-    def test_standards_principles_na_note_exempted_from_grammar(self):
-        body = read(os.path.join(AGENTS, "create-docs-author.md"))
-        bullet = upstream_inventory_bullet(body, "create-docs-author.md")
-        self.assertIn("exempt", bullet.lower())
-
-
-
-GRAMMAR_LINE = re.compile(r'^.*<claim text>.*<verbatim excerpt>.*$', re.M)
-
-
-def charter_grammar_citation(body, claim, relpath, excerpt):
-    """The charter's OWN printed grammar line, placeholders replaced by real
-    values, ready to feed through citation_check.extract_citations."""
-    m = GRAMMAR_LINE.search(body)
-    assert m is not None, "grammar line not found"
-    line = m.group(0).strip().rstrip(';').strip().strip('`').strip()
-    line = line.replace('<claim text>', claim)
-    line = re.sub(r'<relative-path>\[[^\]]*\]', relpath, line)
-    return line.replace('<verbatim excerpt>', excerpt)
-
-
-def _run_citation_check(argv):
-    out = io.StringIO()
-    err = io.StringIO()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        code = citation_check.main(["citation_check.py"] + argv)
-    return code, out.getvalue(), err.getvalue()
-
-
-class CitationGrammarRoundTripTest(unittest.TestCase):
-    """F1 (AC-2/AC-4): each planner's OWN printed grammar line, not a
-    hand-written stand-in, must round-trip through citation_check's real
-    extractor and CLI — i.e. the path must actually be backtick-quoted as
-    printed, matching design.md:559."""
-
-    def test_charter_grammar_line_yields_exactly_one_citation(self):
-        for fname in PLANNERS:
-            with self.subTest(planner=fname):
-                body = read(os.path.join(AGENTS, fname))
-                line = charter_grammar_citation(
-                    body, "The repo uses Python", "hld/tech-stack.md", "Tech stack")
-                text = "## Upstream inventory\n" + line + "\n"
-                citations = citation_check.extract_citations(text)
-                self.assertEqual(
-                    len(citations), 1,
-                    "%s: charter grammar line did not yield exactly 1 citation "
-                    "(got %r) — path is likely missing backticks" % (fname, citations))
-                self.assertEqual(citations[0].claim, "The repo uses Python")
-                self.assertEqual(citations[0].path, "hld/tech-stack.md")
-                self.assertEqual(citations[0].excerpt, "Tech stack")
-
-    def test_charter_grammar_survives_a_real_cli_run(self):
-        for fname in PLANNERS:
-            with self.subTest(planner=fname):
-                body = read(os.path.join(AGENTS, fname))
-                line = charter_grammar_citation(
-                    body, "The repo uses Python", "hld/tech-stack.md", "Tech stack")
-                root = tempfile.mkdtemp(prefix="citation_grammar_root_")
-                stack_path = os.path.join(root, "hld", "tech-stack.md")
-                os.makedirs(os.path.dirname(stack_path), exist_ok=True)
-                with open(stack_path, "w", encoding="utf-8") as fh:
-                    fh.write("Tech stack\n")
-                plan_fd, plan_path = tempfile.mkstemp(suffix=".md", prefix="plan_")
-                with os.fdopen(plan_fd, "w", encoding="utf-8") as fh:
-                    fh.write("## Upstream inventory\n" + line + "\n")
-                code, out, err = _run_citation_check(
-                    ["--plan", plan_path, "--root", "architecture=" + root])
-                self.assertEqual(code, 0, "%s: expected exit 0, stderr=%r" % (fname, err))
-                self.assertEqual(err, "", "%s: expected empty stderr, got %r" % (fname, err))
-                lines = [l for l in out.splitlines() if l.strip()]
-                self.assertEqual(
-                    len(lines), 1,
-                    "%s: expected exactly one manifest line, got %r" % (fname, lines))
-
-    def test_grammar_line_backtick_quotes_the_path(self):
-        for fname in PLANNERS:
-            with self.subTest(planner=fname):
-                body = read(os.path.join(AGENTS, fname))
-                m = GRAMMAR_LINE.search(body)
-                self.assertIsNotNone(m, "%s: grammar line not found" % fname)
-                self.assertRegex(
-                    m.group(0), r'`<relative-path>\[[^\]]*\]`',
-                    "%s: grammar line's path is not backtick-quoted" % fname)
-
-    def test_grammar_line_identical_across_four_planners(self):
-        lines = {}
-        for fname in PLANNERS:
-            body = read(os.path.join(AGENTS, fname))
-            m = GRAMMAR_LINE.search(body)
-            self.assertIsNotNone(m, "%s: grammar line not found" % fname)
-            lines[fname] = re.sub(r"\s+", " ", m.group(0).strip().strip('`')).strip()
-        unique = set(lines.values())
-        self.assertEqual(
-            len(unique), 1,
-            "grammar line drifted across planners (not identical): %r" % lines)
-
-
-class DimensionFourInvocationTest(unittest.TestCase):
-    """AC-2: all 4 verifiers' `authoring-conformance` dimension invokes the shared
-    citation_check.py script with --plan/--root against the current
-    iteration's authoring notes; the standards set additionally names a
-    principles root."""
-
-    def test_all_four_invoke_helper_with_plan_and_root(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                block = dimension_block(body, "authoring-conformance")
-                self.assertIn(HELPER_PATH, block,
-                              "%s authoring-conformance dimension must invoke %s" % (fname, HELPER_PATH))
-                self.assertIn("--plan", block)
-                self.assertIn("--root", block)
-                self.assertIn("iter-<n>/authoring.md", block)
-
-    def test_standards_names_principles_root(self):
-        body = read(os.path.join(AGENTS, "create-docs-reviewer.md"))
-        block = dimension_block(body, "authoring-conformance")
-        self.assertIn("principles", block.lower())
-
-
-def input_contract(body):
-    """The verifier's `## Input contract` section, whitespace-normalized."""
-    m = re.search(r"(?ms)^## Input contract\b.*?(?=^## )", body)
-    assert m is not None, "## Input contract section not found"
-    return re.sub(r"\s+", " ", m.group(0))
-
-
-class PrdRootDeclaredTest(unittest.TestCase):
-    """AC-2/C-7: all 4 verifiers' input-contract `<constraints>` enumeration
-    names the PRD constraint the `--root prd=` argument is built from. Since
-    ADR-0102 that constraint is `prd` -- the located PRD file, resolved by the
-    coordinator -- and the `prd_path` settings key it replaced is gone."""
-
-    def test_all_four_declare_prd_constraint(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                self.assertIn(
-                    "`prd`", input_contract(body),
-                    "%s must declare prd as a verify-task constraint" % fname)
-                self.assertNotIn("prd_path", body)
-                block = re.sub(r"\s+", " ", dimension_block(body, "authoring-conformance"))
-                self.assertIn('--root prd="$(dirname <prd>)"', block,
-                              "%s: the prd root must be derived from the prd constraint" % fname)
-
-
-class BlockingFindingMappingTest(unittest.TestCase):
-    """AC-3/D3-a: each dim-4 block maps every stderr finding, and exit 2
-    itself, to severity="blocking" dimension="authoring-conformance"; no
-    severity="info" path exists anywhere in the block."""
-
-    def test_maps_findings_and_exit_two_to_blocking(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                block = dimension_block(body, "authoring-conformance")
-                self.assertIn('severity="blocking"', block)
-                self.assertIn('dimension="authoring-conformance"', block)
-                self.assertIn("exit 2", block)
-
-    def test_no_info_severity_in_block(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                block = dimension_block(body, "authoring-conformance")
-                self.assertNotIn('severity="info"', block)
-
-
-class SemanticCeilingTest(unittest.TestCase):
-    """AC-1/AC-3 (design R3, honest prose-only pin): each dim-4 block
-    requires the verifier to re-open every resolved citation from the
-    script's manifest and judge substantiation."""
-
-    def test_requires_reopening_and_judging_substantiation(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                block = dimension_block(body, "authoring-conformance")
-                lowered = block.lower()
-                self.assertIn("resolved", lowered)
-                self.assertIn("substantiat", lowered)
-                self.assertIn("manifest", lowered)
-
-    def test_locates_the_passage_by_excerpt_not_by_the_manifest_line(self):
-        """F4: the manifest's `line` is the citation's line in the PLAN file
-        (`citation_check.py:113` takes it from `_section_body_lines`; the
-        cited file's own advisory `:line` suffix is stripped at `:68-71` and
-        stored nowhere), so it can never locate a passage inside the cited
-        file. The prose must send the verifier to the entry's verbatim
-        `excerpt`, and must not claim a cited-file locus."""
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                block = dimension_block(read(os.path.join(AGENTS, fname)),
-                                        "authoring-conformance")
-                clause = corroboration_clause(block)
-                self.assertNotIn("cited locus", clause.lower())
-                self.assertIn(
-                    "searching the file for the manifest entry's own "
-                    "verbatim `excerpt` text", clause)
-                self.assertIn("the citation's line in the notes file only",
-                              clause)
-
-
-class HybridMechanismTest(unittest.TestCase):
-    """AC-1 (D1-C): both halves co-exist in every dim-4 block — the
-    deterministic script invocation AND the substantiation judgment; neither
-    half alone is present."""
-
-    def test_both_deterministic_and_semantic_present(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                block = dimension_block(body, "authoring-conformance")
-                self.assertIn(HELPER_PATH, block,
-                              "%s missing the deterministic invocation half" % fname)
-                self.assertGreater(
-                    block.lower().count("substantiat"), 0,
-                    "%s missing the semantic substantiation-judgment half" % fname)
-
 
 class SharedIdenticallyTest(unittest.TestCase):
-    """AC-4: exactly one citation_check.py exists under
-    plugins/acs/hooks/scripts/, and the corroboration clause normalizes
-    identically across the 4 verifiers."""
+    """AC-4: exactly one citation_check.py exists, under
+    plugins/acs/hooks/scripts/."""
 
     def test_exactly_one_citation_check_script(self):
         found = []
@@ -444,72 +68,6 @@ class SharedIdenticallyTest(unittest.TestCase):
         self.assertEqual(
             found, [os.path.join(PLUGIN, "hooks", "scripts", "citation_check.py")],
             "expected exactly one citation_check.py, under hooks/scripts/: %r" % found)
-
-    def test_verifier_clause_identical_across_four(self):
-        clauses = {}
-        for fname in VERIFIERS:
-            body = read(os.path.join(AGENTS, fname))
-            block = dimension_block(body, "authoring-conformance")
-            clauses[fname] = corroboration_clause(block)
-        unique = set(clauses.values())
-        self.assertEqual(
-            len(unique), 1,
-            "corroboration clause drifted across verifiers (not identical): %r" % clauses)
-
-
-class PrinciplesRootConditionalTest(unittest.TestCase):
-    """F2 (AC-2/AC-4): the `--root principles=<principles_dir>` clause in
-    all 4 verifiers' authoring-conformance dimension must be conditional on
-    the `principles_dir` constraint being present and the `principles/` set
-    existing on disk — an absent set is documented optional at
-    create-docs/SKILL.md (Inputs & mode) and must never manufacture a finding.
-    (ADR-0102 renamed the constraint from the removed `principles_path`
-    setting, and with it the old `null` case.)"""
-
-    def test_principles_root_is_conditional_in_all_four(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                block = dimension_block(body, "authoring-conformance")
-                clause = corroboration_clause(block)
-                self.assertIn("--root principles=<principles_dir>", clause)
-                self.assertIn("principles_dir", clause)
-                self.assertNotIn("principles_path", clause)
-                self.assertIn("only when", clause.lower())
-                self.assertIn("omit", clause.lower())
-
-    def test_absent_principles_set_is_never_a_block(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                block = dimension_block(body, "authoring-conformance")
-                clause = corroboration_clause(block)
-                lowered = clause.lower()
-                self.assertTrue(
-                    "never a block" in lowered
-                    or "must not manufacture a finding" in lowered,
-                    "%s: guarded clause must state the absent-principles case "
-                    "is never a block: %r" % (fname, clause))
-
-    def test_guard_identical_across_four_verifiers(self):
-        clauses = {}
-        for fname in VERIFIERS:
-            body = read(os.path.join(AGENTS, fname))
-            block = dimension_block(body, "authoring-conformance")
-            clauses[fname] = corroboration_clause(block)
-        unique = set(clauses.values())
-        self.assertEqual(
-            len(unique), 1,
-            "guarded corroboration clause drifted across verifiers (not "
-            "identical): %r" % clauses)
-
-    def test_skill_md_principles_optional_contract_unchanged(self):
-        body = read(os.path.join(SKILLS, "create-docs", "SKILL.md"))
-        self.assertIn(
-            '<constraint name="principles-optional">the principles/ set may be '
-            "absent — treat as grounding N/A for this iteration, never a "
-            "block.</constraint>",
-            body)
 
 
 class CreatePrdUntouchedTest(unittest.TestCase):
@@ -530,121 +88,21 @@ class CreatePrdUntouchedTest(unittest.TestCase):
 
 
 class LoopTopologyMigratedTest(unittest.TestCase):
-    """AC-5 (MAR-305, then ADR-0094): no bootstrap-doc SKILL.md carries the
-    per-iteration planner re-spawn sentence (plan -> execute -> verify).
-    create-prd surveys exactly once per run (its surveyor, iteration 1
-    only); create-docs has no planner at all
-    -- its executor authors each set and the verifier judges it."""
+    """AC-5 (MAR-305): create-prd's SKILL.md carries no per-iteration planner
+    re-spawn sentence (plan -> execute -> verify); it surveys exactly once
+    per run (its surveyor, iteration 1 only), then authors and reviews."""
 
     def test_loop_topology_migrated_by_mar305(self):
-        for skill in BOOTSTRAP_DOC_SKILLS:
-            with self.subTest(skill=skill):
-                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
-                self.assertNotRegex(
-                    body.lower(), r"plan -> execute -> verify",
-                    "%s/SKILL.md must no longer carry the per-iteration "
-                    "re-spawn sentence (MAR-305 drops it)" % skill)
-        norm = re.sub(r"\s+", " ", read(os.path.join(SKILLS, "create-prd", "SKILL.md")))
+        body = read(os.path.join(SKILLS, "create-prd", "SKILL.md"))
+        self.assertNotRegex(
+            body.lower(), r"plan -> execute -> verify",
+            "create-prd/SKILL.md must no longer carry the per-iteration "
+            "re-spawn sentence (MAR-305 drops it)")
+        norm = re.sub(r"\s+", " ", body)
         for stale in ("planner", "executor", "verifier"):
             self.assertNotIn("acs:create-prd-%s" % stale, norm)
-        # create-prd surveys once (iteration 1 only), then author -> review.
         self.assertRegex(norm, r"(?i)Iteration 1 runs the surveyor once")
         self.assertRegex(norm, r"(?i)the surveyor never runs again")
-        docs = read(os.path.join(SKILLS, "create-docs", "SKILL.md"))
-        self.assertNotIn("acs:create-docs-planner", docs)
-        self.assertRegex(re.sub(r"\s+", " ", docs), r"(?i)Nothing plans the set ahead of the author")
-
-CORROBORATION_SKILLS = ("create-docs",)
-
-
-def verify_constraints_sentence(region, skill_name):
-    """The 'The verify task's `<constraints>` also carry ...' paragraph
-    (create-docs: 'The reviewer task's') inside a SKILL.md's verify-phase
-    region, up to the next blank line."""
-    m = re.search(
-        r"The (?:verify|reviewer) task's `<constraints>` also carry.*?(?=\n\n)",
-        region, re.DOTALL)
-    assert m is not None, (
-        "%s/SKILL.md: verify-task <constraints> sentence not found" % skill_name)
-    return m.group(0)
-
-
-class SkillMirrorTest(unittest.TestCase):
-    """AC-2: the SKILL.md's verify-phase statement that the authoring notes
-    were followed names citation corroboration in the same breath -- the
-    coordinator's checklist and the verifier's dimension 4 say one thing."""
-
-    def test_followed_clause_names_citation_corroboration(self):
-        for skill in CORROBORATION_SKILLS:
-            with self.subTest(skill=skill):
-                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
-                region = verify_phase_region(body, skill)
-                m = re.search(r"(?s)the authoring notes were followed.*?;", region)
-                self.assertIsNotNone(
-                    m, "%s/SKILL.md: 'the authoring notes were followed' clause not found" % skill)
-                self.assertIn("citation", m.group(0).lower())
-
-class SkillVerifyConstraintPrdPathTest(unittest.TestCase):
-    """C-7: each of the 4 SKILL.md verify-task `<constraints>` sentences
-    names the PRD constraint, so the coordinator actually renders the root the
-    verifier's authoring-conformance check needs. Since ADR-0102 that is
-    `prd` (the located file, not the removed `prd_path` setting), and every
-    location constraint the sentence names is one the verifier declares --
-    skill and agent agree on the names."""
-
-    def test_verify_constraints_sentence_names_prd(self):
-        verifier = input_contract(read(os.path.join(AGENTS, "create-docs-reviewer.md")))
-        for skill in CORROBORATION_SKILLS:
-            with self.subTest(skill=skill):
-                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
-                region = verify_phase_region(body, skill)
-                sentence = verify_constraints_sentence(region, skill)
-                self.assertIn(
-                    "`prd`", sentence,
-                    "%s/SKILL.md: verify-task <constraints> sentence must name "
-                    "prd" % skill)
-                self.assertNotIn("prd_path", sentence)
-                for name in ("prd", "architecture_dir", "principles_dir"):
-                    self.assertIn("`%s`" % name, sentence)
-                    self.assertIn("`%s`" % name, verifier,
-                                  "the verifier must declare the %s constraint the "
-                                  "skill sends" % name)
-
-
-class DimensionFourStillNumberedFourTest(unittest.TestCase):
-    """D4-fold/R5: authoring-conformance remains the 4th numbered dimension in
-    all 4 verifiers, between required-sections and docs-only-changeset, and
-    "eight" (never "nine") still names the dimension count."""
-
-    def test_plan_conformance_is_dimension_four(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                self.assertIsNotNone(
-                    re.search(r"(?m)^4\.\s+\*\*authoring-conformance\*\*", body),
-                    "%s: authoring-conformance must stay numbered 4." % fname)
-
-    def test_between_required_sections_and_docs_only_changeset(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                req = re.search(r"(?m)^3\.\s+\*\*required-sections\*\*", body)
-                pc = re.search(r"(?m)^4\.\s+\*\*authoring-conformance\*\*", body)
-                docs = re.search(r"(?m)^5\.\s+\*\*docs-only-changeset\*\*", body)
-                self.assertIsNotNone(req)
-                self.assertIsNotNone(pc)
-                self.assertIsNotNone(docs)
-                self.assertLess(req.start(), pc.start())
-                self.assertLess(pc.start(), docs.start())
-
-    def test_eight_unchanged_no_ninth_dimension(self):
-        for fname in VERIFIERS:
-            with self.subTest(verifier=fname):
-                body = read(os.path.join(AGENTS, fname))
-                self.assertIn("eight", body)
-                self.assertIsNone(
-                    re.search(r"(?m)^9\.\s+(?:\*\*|`)", body),
-                    "%s must not gain a 9th numbered dimension" % fname)
 
 
 if __name__ == "__main__":

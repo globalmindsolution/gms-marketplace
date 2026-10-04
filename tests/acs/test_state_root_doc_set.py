@@ -72,16 +72,14 @@ MAR1_TOKEN_RE = re.compile(r"\bMAR-1\b")
 #: metering citations went with it: C4_CONTAINER 3 -> 0, DATA_MODEL 13 -> 5
 #: (the amendments that record the history), CONTRACTS 4 -> 1,
 #: WORKSPACE_AND_STATE 4 -> 0, HOOKS 2 -> 0, USAGE 1 -> 0, PORTABILITY 1 -> 0.
+#: ADR-0124 removed /acs:create-docs and the doc-bootstrap fan-out contract
+#: paragraph that held CONTRACTS' last MAR-1 citation: CONTRACTS 1 -> 0.
 MAR1_BASELINE = {
     # DATA_MODEL: was 27 until the tabp plugin was removed. The 27th token was
     # the deleted "## tabp plugin data model" section's own source line
     # (`MAR-1/design.md:652-722`) -- a citation that went with the section it
     # cited, not a count this repo's edits shifted underneath live content.
     DATA_MODEL: 5,
-    # CONTRACTS: 1 from a separately-numbered MAR-1 (doc-bootstrap parallel
-    # fan-out, merged to main after this ticket branched) -- a pre-existing,
-    # unrelated MAR-1 token this ticket's own edits must not shift.
-    CONTRACTS: 1,
     # REQUIREMENTS_README: 1 legitimate citation from a separately-numbered
     # MAR-1 (the acs:initialize -> acs:setup bootstrap-skill rename,
     # merged to main after this ticket branched) -- its own dated ledger

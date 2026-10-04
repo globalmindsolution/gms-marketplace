@@ -1,6 +1,6 @@
 # 0092 — Skill machinery is declared per skill, not assumed: four work classes, and the planner/executor/verifier trio stops being the default
 
-**Status**: Accepted · **Date**: 2026-09-13
+**Status**: Accepted — amended by [0124](0124-remove-create-docs.md) (`create-docs`, class D's first skill, is removed) · **Date**: 2026-09-13
 
 **Supersedes**: [0077](0077-docs-sync-remediation-loop-execute-verify-only.md),
 [0078](0078-create-project-remediation-loop-execute-verify-only.md),

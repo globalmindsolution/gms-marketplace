@@ -133,7 +133,8 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 > two skills it made internal legs of `/acs:project` kept their
 > `pre-`/`post-` pairs — the fold narrowed who may invoke a leg, never how it
 > is hooked. ADR 0094 replaced the four doc legs' pairs with
-> `pre-`/`post-create-docs.py`, in the same bucket. ADR 0118 then removed
+> `pre-`/`post-create-docs.py`, in the same bucket; ADR 0124 removed that
+> skill and its pair. ADR 0118 then removed
 > `/acs:project`, both of its legs and `create-requirements` outright, with
 > their pairs, so — as with the spec-authoring pair above —
 > `pre-create-project.py` and `post-create-project.py` were removed from the

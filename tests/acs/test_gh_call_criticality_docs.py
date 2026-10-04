@@ -4,7 +4,7 @@ call-criticality classification and gh-only transport decision (AC-6).
 Prose-contract tests over the architecture doc set T3 amends/adds, mirroring
 the whitespace-normalized substring/regex discipline used elsewhere in this
 repo (tests/acs/test_ticket_id_reconciliation_docs.py,
-tests/acs/test_create_docs_skill.py): every assertion checks that a claim
+tests/acs/test_create_docs_skill.py, since removed by ADR-0124): every assertion checks that a claim
 from the design/plan is actually present in the shipped doc, never a
 line-number match (prose is revised; line numbers drift). Kept in its own
 module so T3's file map stays disjoint from T1's library-level tests

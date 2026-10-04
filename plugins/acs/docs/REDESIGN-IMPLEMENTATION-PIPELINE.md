@@ -14,7 +14,7 @@
 This document specifies a from-scratch redesign of acs's **implementation**
 half — the skills `/acs:ship` orchestrates between a settled requirement and an
 open PR. The **design** skills (`create-prd`, `create-requirements`,
-`create-architecture`, `create-docs`, `project`, `create-ticket`,
+`create-architecture`, `create-docs` (since removed, ADR-0124), `project`, `create-ticket`,
 `create-design`) are out of scope and keep their current shape.
 
 It is a **breaking redesign with no backward-compatibility layer**. State

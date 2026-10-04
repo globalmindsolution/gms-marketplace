@@ -277,14 +277,9 @@ def _allocate_delivery_ticket(args, ctx):
     the one thing `acs step start` does beyond the two state machines.
     """
     workspace, repo_id = ctx["workspace"], ctx["repo_id"]
-    if args.doc_set and args.step != "create-docs":
-        die("step start", "--doc-set is only valid with --step create-docs")
     if args.step not in lib.DELIVERY_TICKET_SKILLS and args.step != "create-ticket":
         die("step start", "--allocate is only valid for /acs:create-ticket and the "
                           "product-level skills")
-    if args.step == "create-docs" and not args.doc_set:
-        die("step start", "--step create-docs --allocate needs --doc-set <%s>: each "
-                          "run delivers exactly one doc set" % "|".join(sorted(lib.DOC_SETS)))
 
     existing_id = _resume_id_for_allocate(args, ctx)
     if existing_id:
@@ -316,12 +311,9 @@ def _allocate_delivery_ticket(args, ctx):
                           "re-run once the other writer finishes." % exc)
     tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
     os.makedirs(tdir, exist_ok=True)
-    title = args.title or (lib.DOC_SET_TITLES[args.doc_set] if args.doc_set
-                           else lib.DELIVERY_TICKET_TITLES.get(args.step,
-                                                               "(ticket under analysis)"))
+    title = args.title or lib.DELIVERY_TICKET_TITLES.get(args.step, "(ticket under analysis)")
     ttype = "task" if args.step in lib.DELIVERY_TICKET_SKILLS else args.ttype
-    ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress",
-                                doc_set=args.doc_set)
+    ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress")
     lib.save_ticket(tdir, ticket)
     try:
         lib.update_index(workspace, repo_id, ticket, archived=False)

@@ -33,18 +33,15 @@ ADR_0012 = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0012-design-t
 ADR_0011 = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0011-sdlc-doc-sets-quality-and-operations.md")
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 
-# The agents that author a doc set's first draft carry the canonical block:
-# the remaining planners, and create-docs-author -- since ADR-0094 the four
-# doc-set legs are one skill with no planner, so its author runs the step.
-# create-prd runs it in its read-only surveyor.
+# The agents that author a doc set's first draft carry the canonical block.
+# create-prd runs it in its read-only surveyor. create-docs-author carried it
+# too until ADR-0124 removed /acs:create-docs, and with it the doc-set
+# reviewer whose `consistency` dimension the C-1 case pinned.
 PLANNERS = [
     "create-prd-surveyor.md",
     "create-architecture-architect.md",
     "create-design-designer.md",
-    "create-docs-author.md",
 ]
-
-NEW_VERIFIERS = ["create-docs-reviewer.md"]
 
 CANONICAL_HEADING = "### Design-time doc-consistency step (ADR 0012)"
 
@@ -78,10 +75,6 @@ def section(body, heading):
 
 
 def planner_path(name):
-    return os.path.join(AGENTS, name)
-
-
-def verifier_path(name):
     return os.path.join(AGENTS, name)
 
 
@@ -198,47 +191,6 @@ class Mar115CanonicalBlockCase(unittest.TestCase):
                     )
 
 
-class Mar115StandingBehaviorReplaceCase(unittest.TestCase):
-    """R4: the doc-set author must carry the canonical block, not the old
-    upstream-only item-4 hint alongside it."""
-
-    def test_doc_set_author_old_upstream_only_hint_removed(self):
-        body = read(planner_path("create-docs-author.md"))
-        self.assertNotRegex(
-            body,
-            r"Read the upstream doc-graph slice.*for gaps or\s*\n?\s*staleness",
-            "create-docs-author.md still carries the old upstream-only hint alongside the new block",
-        )
-
-
-class Mar115ConsistencyVerifierDimensionCase(unittest.TestCase):
-    """C-1: the doc-set verifier carries a numbered `consistency` check
-    dimension (it was the sixth of the former per-leg verifiers)."""
-
-    def test_new_verifiers_have_consistency_dimension(self):
-        for name in NEW_VERIFIERS:
-            with self.subTest(verifier=name):
-                body = read(verifier_path(name))
-                m = re.search(r"(?m)^\d+\.\s+\*\*consistency\*\*", body)
-                self.assertIsNotNone(
-                    m, "%s missing a numbered `consistency` check dimension" % name
-                )
-
-    def _bounded_window(self, body, marker, window=1200):
-        idx = body.find(marker)
-        if idx == -1:
-            raise AssertionError("marker %r not found" % marker)
-        # bound the window at the next top-level ## heading (or end of file)
-        nxt = re.search(r"(?m)^## \S", body[idx:])
-        end = idx + nxt.start() if nxt else min(len(body), idx + window)
-        return body[idx:end]
-
-    def test_create_docs_skillmd_review_list_names_consistency(self):
-        body = read(os.path.join(SKILLS, "create-docs", "SKILL.md"))
-        review_section = self._bounded_window(body, "### Review")
-        self.assertIn("consistency", review_section)
-
-
 class Mar115SkillMdPointerCase(unittest.TestCase):
     """AC step 3: each of the six SKILL.md files gains a one-line plan-phase
     pointer sentence referencing the shared ADR-0012 step."""
@@ -247,7 +199,6 @@ class Mar115SkillMdPointerCase(unittest.TestCase):
         "create-prd",
         "create-architecture",
         "create-design",
-        "create-docs",
     ]
 
     def test_each_skillmd_mentions_adr_0012_step(self):
@@ -311,7 +262,6 @@ class Mar115DocTailCase(unittest.TestCase):
         headings = [
             "## `/create-prd` (product-level)",
             "## `/create-architecture` (product-level)",
-            "## `/acs:create-docs` (product-level)",
             "## 2. `/create-design` *(conditional)*",
         ]
         for heading in headings:

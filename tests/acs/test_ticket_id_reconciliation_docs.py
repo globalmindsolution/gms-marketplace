@@ -3,7 +3,8 @@ allocation fail-closed reconciliation gate.
 
 Prose-contract tests over the doc set T3 amends/adds, mirroring the
 whitespace-normalized substring/regex discipline used elsewhere in this repo
-(tests/acs/test_create_docs_skill.py, tests/acs/test_create_requirements_skill.py):
+(tests/acs/test_create_docs_skill.py, tests/acs/test_create_requirements_skill.py,
+both since removed with their skills by ADR-0124 and ADR-0118):
 every assertion checks that a claim from the design/plan is actually present
 in the shipped doc, never a line-number match (prose is revised; line numbers
 drift). Kept in its own module so T3's file map stays disjoint from T1's

@@ -15,8 +15,7 @@ user types.
 The diagram below shows the **reflection loop** (write → judge), which is
 how the nine authoring skills run (`create-prd`, `create-architecture`,
 `create-design`, `docs-sync`, `analyze-requirements`, `create-impl-plan`,
-`create-api-contract`, `create-test-docs`, `create-e2e-tests`), and how
-`create-docs` runs it too. Each skill spawns its own roles, named for its
+`create-api-contract`, `create-test-docs`, `create-e2e-tests`). Each skill spawns its own roles, named for its
 work (ADR 0109): an optional **survey** role (`create-prd-surveyor`,
 `analyze-requirements-impact-analyst`) on iteration 1
 only, which records the survey in `iter-1/authoring.md` and freezes it; a
@@ -215,9 +214,8 @@ is still the block. What it evaluates is now only:
 It never checks that an upstream artifact exists (ADR 0109): each skill reads
 what it finds and falls back to the run's subject. A repo document is not
 checked either: the PRD `/acs:create-architecture` reads (and works without,
-from the subject), and the architecture set `/acs:create-docs` needs, are
-found by the
-skill itself at Start, since no setting says where either lives ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+from the subject) is found by the skill itself at Start, since no setting
+says where it lives ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
 
 No gate refuses a skill for a predecessor's POSITION: `_require_completed`
 is deleted. The one gate that reads another step's status is

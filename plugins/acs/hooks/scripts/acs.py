@@ -13,7 +13,7 @@ Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
     context, gate, run, step, result, ticket, pr, tracker, readiness, lock,
-    filemap, guard, verdict, slug, fanout, doctor, workflow, artifacts.
+    filemap, guard, verdict, slug, doctor, workflow, artifacts.
   * Delegated — the verbs an existing script already implements: `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
     when called directly; acs.py forwards argv to them and returns their exit
@@ -57,7 +57,6 @@ Usage:
   acs.py setup detect
   acs.py setup apply --answers answers.json
   acs.py slug --text "Introduce the acs CLI"
-  acs.py fanout ...
   acs.py doctor
   acs.py agents sync [--dry-run]
   acs.py settings scaffold [--write]
@@ -90,7 +89,7 @@ from acs_cli import (context_or_die, die, emit, load_ticket_or_die,  # noqa: E40
     partition_or_die, read_json_arg)
 from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_show,  # noqa: E402,F401
     cmd_context,
-    cmd_doctor, cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show,
+    cmd_doctor, cmd_filemap_set, cmd_filemap_show,
     cmd_gate, cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status,
     cmd_notes_merge,
     cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
@@ -197,9 +196,6 @@ def build_parser():
                         help="mint the delivery ticket a product-level skill works "
                              "under, unless --ticket (or an --args value that IS an "
                              "id) names a live partition to resume")
-    sstart.add_argument("--doc-set", dest="doc_set", choices=sorted(lib.DOC_SETS),
-                        help="the doc set a /acs:create-docs run delivers (required "
-                             "with --step create-docs --allocate)")
     sstart.add_argument("--title", help="the minted ticket's title")
     sstart.add_argument("--type", dest="ttype", default="task",
                         help="the minted ticket's type (create-ticket only)")
@@ -347,13 +343,6 @@ def build_parser():
     slug.add_argument("--text", required=True)
     slug.add_argument("--max-len", dest="max_len", type=int, default=40)
     slug.set_defaults(func=cmd_slug)
-
-    fanout = group("fanout", help="epic fan-out helpers")
-    fanout_sub = fanout.add_subparsers(dest="cmd")
-    batches = fanout_sub.add_parser("batches", help="fanout_batches")
-    batches.add_argument("--present", default="",
-                         help="comma-separated doc sets the repo already has")
-    batches.set_defaults(func=cmd_fanout_batches)
 
     doctor = group("doctor", help="check_toolchain / missing_tools")
     doctor.set_defaults(func=cmd_doctor)

@@ -45,14 +45,14 @@ CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
 SETUP_SKILL = os.path.join(SKILLS_DIR, "setup", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
-CREATE_DOCS_SKILL = os.path.join(SKILLS_DIR, "create-docs", "SKILL.md")
 CREATE_DESIGN_DESIGNER = os.path.join(AGENTS_DIR, "create-design-designer.md")
 # create-ticket spawns no subagent: its former executor charter is the
 # materialization reference the coordinator follows inline.
 CREATE_TICKET_MATERIALIZE = os.path.join(SKILLS_DIR, "create-ticket", "references",
                                          "materialize.md")
 
-RULE2_IDENTICAL_FILES = [CREATE_ARCHITECTURE_SKILL, CREATE_DOCS_SKILL]
+# create-docs/SKILL.md was the second identical file until ADR-0124 removed it.
+RULE2_IDENTICAL_FILES = [CREATE_ARCHITECTURE_SKILL]
 # Every file a Rule-2 rewrite touches (the 5 identical ones, plus init and
 # handoff whose Rule-2 rewrites are each shaped differently).
 RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES

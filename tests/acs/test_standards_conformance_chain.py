@@ -76,9 +76,9 @@ BASELINE_FLOWS = {
 # design.md Flow 2 covers the bootstrap skill's gitignore retrofit + optional
 # migration, a distinct runtime flow from Flow 1 above that no existing flow
 # doc covered.
-# A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) legitimately added
-# doc-bootstrap-fanout.md — its own design.md requires a new standing flow file
-# for /acs:create-docs's cross-skill fan-out, which no existing flow doc covered.
+# A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) added
+# doc-bootstrap-fanout.md for /acs:create-docs's cross-skill fan-out; ADR-0124
+# removed the skill and the flow file with it.
 # MAR-402 (inheriting design.md from parent epic MAR-401, Option J/D5) legitimately
 # added ticket-id-reconciliation.md — the fail-closed first-allocate reconciliation
 # gate's own sequence (refusal, evidence scan, confirm, steady state) is a distinct
@@ -96,7 +96,7 @@ BASELINE_FLOWS = {
 # covered.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
                           "acs-cost-metering.md", "state-root-resolution.md",
-                          "setup-state-root-setup.md", "doc-bootstrap-fanout.md",
+                          "setup-state-root-setup.md",
                           "ticket-id-reconciliation.md", "github-call-failure-policy.md",
                           "file-map-guard-deny.md"}
 

@@ -122,6 +122,19 @@ class MigrateMappingsTest(unittest.TestCase):
         self.assertEqual(len(notes), 3, notes)
         self.assertTrue(all("ADR-0118" in n for n in notes), notes)
 
+    def test_removed_create_docs_leaves_models(self):
+        """ADR-0124: a scaffolded block names create-docs, which validate_models
+        now refuses as unknown; migrate drops it, citing its own ADR."""
+        kept = {"code": {"implementer": {"model": "sonnet"}}}
+        old = {"models": dict(kept, **{
+            "create-docs": {"author": {"model": "sonnet"}, "reviewer": {"model": "opus"}}})}
+        new, notes = migrate(old)
+        self.assertEqual(new, {"models": kept})
+        lib.validate_models(new["models"])
+        self.assertEqual(notes, ["removed models.create-docs (the skill was removed; ADR-0124)"])
+        with self.assertRaises(lib.GateError):
+            lib.validate_models(old["models"])
+
     def test_jira_provider_becomes_local_and_jira_subkeys_go(self):
         new, notes = migrate({"tracker": {"provider": "jira", "jira": {"project": "X"},
                                           "milestone": "v1"}})
@@ -208,6 +221,7 @@ class LegacyProblemsTest(unittest.TestCase):
             ({"models": {"create-project": {}}}, "models.create-project"),
             ({"models": {"standardize-project": {}}}, "models.standardize-project"),
             ({"models": {"create-requirements": {}}}, "models.create-requirements"),
+            ({"models": {"create-docs": {}}}, "models.create-docs"),
         ]
         for settings, needle in cases:
             with self.subTest(settings=settings):

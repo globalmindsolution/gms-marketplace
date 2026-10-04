@@ -1,6 +1,6 @@
 # 0118 — Discovery, Design, Development: three phases, and the project and requirements skills go
 
-**Status**: Accepted · **Date**: 2026-10-04
+**Status**: Accepted — amended by [0124](0124-remove-create-docs.md) (`/acs:create-docs` leaves the Design phase; the principles and standards are hand-written) · **Date**: 2026-10-04
 
 **Supersedes**: [0091](0091-design-phase-entry-point-fold.md) (the `/acs:project`
 fold and its auto-detected mode), [0048](0048-standardize-project-scaffolds-e2e-no-branch-protection.md)

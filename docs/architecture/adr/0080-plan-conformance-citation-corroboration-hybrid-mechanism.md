@@ -1,6 +1,6 @@
 # 0080 — Plan-conformance verifier dimension gains independent citation corroboration; ADR-0004 amended
 
-**Status**: Accepted · **Date**: 2026-08-25
+**Status**: Accepted — amended by [0124](0124-remove-create-docs.md) (the doc-set author and reviewer it applied to are removed; `citation_check.py` stays, imported by `prd_conformance_check.py`) · **Date**: 2026-08-25
 
 ## Context
 

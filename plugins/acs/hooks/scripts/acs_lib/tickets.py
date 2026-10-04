@@ -67,10 +67,6 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
-    if kw.get("doc_set"):
-        # A /acs:create-docs delivery ticket names the set it delivers, so a
-        # resume knows what it is resuming without parsing the title.
-        doc["doc_set"] = kw["doc_set"]
     if kw.get("features"):
         # The PRD features it traces to (ADR-0120); absent rather than [] when none.
         doc["features"] = list(kw["features"])
@@ -143,8 +139,6 @@ def update_index(workspace, repo_id, ticket, archived=None):
             "due_date": ticket.get("due_date"),
             "updated_at": now_iso(),
         })
-        if ticket.get("doc_set"):
-            entry["doc_set"] = ticket["doc_set"]
         if "features" in ticket:
             entry["features"] = list(ticket.get("features") or [])
         if archived is not None:

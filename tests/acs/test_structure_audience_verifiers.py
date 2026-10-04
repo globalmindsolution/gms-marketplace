@@ -73,17 +73,10 @@ VERIFIERS = {
         "completeness",
         ("alternatives", "consistency", "feasibility", "nfr", "completeness"),
     ),
-    "create-docs-reviewer.md": (
-        "consistency",
-        (
-            "doc-set-completeness", "architecture-conformance",
-            "required-sections", "authoring-conformance", "docs-only-changeset",
-            "consistency",
-        ),
-    ),
 }
 
-# every audience-style-gated verifier: the 5 producers (create-docs judges all four doc sets).
+# every audience-style-gated verifier: the producers above (ADR-0124 removed
+# create-docs, whose reviewer judged the four product doc sets).
 AUDIENCE_VERIFIERS = list(VERIFIERS)
 
 # SKILL.md name -> whether it uses per-file required_sections:<file> constraints.
@@ -92,7 +85,6 @@ SKILLS_MULTI_FILE = {
     "create-prd": False,
     "create-architecture": True,
     "create-design": False,
-    "create-docs": True,
 }
 
 

@@ -349,9 +349,10 @@ out of a transcript without opening the artifact.
 `/acs:run-e2e-tests` carries no notion of "I am scheduled" versus "I was
 invoked by a person" — it is a pure function of "which suites, right now,"
 and the caller (cron, a CI scheduled workflow, or a Claude Code routine)
-decides when to invoke it. See `operations/test-scheduling.md` for the
-concrete cron/CI/routine recipe; this skill itself has no built-in scheduler
-(ADR 0011 G8).
+decides when to invoke it. See
+`${CLAUDE_PLUGIN_ROOT}/skills/run-e2e-tests/references/test-scheduling.md` for
+the concrete cron/CI/routine recipe; this skill itself has no built-in
+scheduler (ADR 0011 G8).
 
 ## Finish
 

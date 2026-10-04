@@ -121,7 +121,7 @@ def read_lines_arg(command, path):
 
 
 # ---------------------------------------------------------------------------
-# ticket / phase / slug / fanout / doctor
+# ticket / phase / slug / doctor
 # ---------------------------------------------------------------------------
 
 def cmd_ticket_show(args):
@@ -138,8 +138,8 @@ def cmd_ticket_save(args):
     the stored ticket. A caller that hand-builds a document — the model-driven
     caller this CLI exists to serve — would otherwise wipe every field it did
     not think to include, taking title, type, status, parent and children with
-    it and blanking the index row, which `gate_code`, `_epic_auto_done` and
-    `fanout_batches` all read.
+    it and blanking the index row, which `gate_code` and `_epic_auto_done`
+    both read.
 
     Refuses to write a delivery path: it is judged once, by
     `/acs:create-impl-plan`, and recorded in the plan's own `## Contract`
@@ -429,13 +429,6 @@ def cmd_verdict_show(args):
 
 def cmd_slug(args):
     emit({"text": args.text, "slug": lib.slugify(args.text, args.max_len)})
-
-
-def cmd_fanout_batches(args):
-    ctx = context_or_die("fanout batches")
-    index = lib.read_json(lib.index_path(ctx["workspace"], ctx["repo_id"])) or {}
-    present = [name.strip() for name in (args.present or "").split(",") if name.strip()]
-    emit({"batches": lib.fanout_batches(index, present=present)})
 
 
 def cmd_doctor(args):

@@ -404,52 +404,6 @@
           },
           "additionalProperties": false
         },
-        "create-docs": {
-          "type": "object",
-          "properties": {
-            "author": {
-              "type": "object",
-              "properties": {
-                "model": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "effort": {
-                  "enum": [
-                    "low",
-                    "medium",
-                    "high",
-                    "xhigh",
-                    "max",
-                    "inherit"
-                  ]
-                }
-              },
-              "additionalProperties": false
-            },
-            "reviewer": {
-              "type": "object",
-              "properties": {
-                "model": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "effort": {
-                  "enum": [
-                    "low",
-                    "medium",
-                    "high",
-                    "xhigh",
-                    "max",
-                    "inherit"
-                  ]
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
-        },
         "create-e2e-tests": {
           "type": "object",
           "properties": {

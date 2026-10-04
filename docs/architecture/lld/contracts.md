@@ -250,43 +250,11 @@ The `standards` chain level has a documentary counterpart in this repo at
 standards are enforced by guard tests and pipeline guidance rather than as a
 runtime-verified conformance level.
 
-`DOC_BOOTSTRAP_DEPENDENCIES` (`acs_lib`, declared in `acs_lib/_common.py`)
-declares, per doc set, which upstream doc sets it depends on — a derived view
-of `acs_lib.DOC_SETS`, the one table that says what a set is (the directory
-a new set is created in, delivery-ticket title, template directory, output files with their required
-sections, audience, upstream inputs, dependency edges; ADR-0094). Its sibling
-views `DOC_SET_DEFAULT_DIR` and `DOC_BOOTSTRAP_SENTINEL` are keyed by
-set name too, and `fanout_batches()` (`acs_lib/setup_helpers.py`) is the pure
-helper `/acs:create-docs` calls, passing the sets it found already present in
-the repo, to compute its eligible batches (MAR-1; the presence finding is the
-coordinator's, not a disk probe — ADR-0102). The default eligible set is `DOC_BOOTSTRAP_FANOUT_V1` — every
-declared set, `quality`, `operations`, `principles`, `standards` — so the
-N-way case is the default path and the `candidates` argument carries a
-*narrowing* request (the skill's `<set|all>` argument). Adding a fifth set is
-one `DOC_SETS` row plus its templates, never a code or prose change.
-
-Each declared dependency is either **hard** (an existing gate already enforces
-it) or **soft** (prose-only, ungated) — the principles→standards edge above is
-the soft case: the `standards` set degrades gracefully when `principles/` is
-absent and the one precondition every set shares (checked by the skill at
-Start) requires only the architecture set,
-so the conformance chain's "each level verified against the one above it"
-holds as a hard property everywhere except this one declared-soft edge. With
-four sets, that edge is load-bearing on the default path: it is what splits
-the default batches into `[[quality, operations, principles], [standards]]`
-instead of one flat batch. The distinction is documented once on `DOC_SETS`
-and cross-referenced from here so a reader of either doc finds the other.
-
-`parse_doc_set_arg()` is the companion pure parser and the skill's whole
-argument contract: a comma-separated list of doc sets in either spelling
-(`quality` or the former leg name `create-quality`), `all` on its own (`all`
-beside a set name is refused, never guessed at), or exactly one delivery-ticket
-id, which resumes that set's run. It returns `candidates` (set names, or
-`None` for "no argument", handed straight to `fanout_batches`), `rejected`,
-`resume`, and
-`notices` — the exact stderr lines, in order. A token naming no doc set refuses
-the WHOLE run rather than fanning out the recognized remainder, so no requested
-name is ever silently dropped. `parse_fanout_for_arg()` remains the legacy
-`--for <skill>[,<skill>...]` half of the same parser, accepted for one release
-and adding exactly one deprecation notice that the positional form is the
-spelling now — the `test` → `run-e2e-tests` alias precedent.
+The principles and standards levels, and the quality and operations sets
+beside the chain, are written by hand. No skill bootstraps them since
+[ADR-0124](../adr/0124-remove-create-docs.md) removed `/acs:create-docs`,
+and with it the `DOC_SETS` table, its fan-out helpers and its argument parser.
+The skills that read a set find it where the repo keeps it (ADR-0102); a
+standards reader treats an absent principles set as not applicable, never as
+a block, so the chain's "each level verified against the one above it" holds
+wherever both levels exist.

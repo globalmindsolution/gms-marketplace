@@ -134,6 +134,23 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ### Removed
 
+- **⚠️ BREAKING: `/acs:create-docs` is removed (ADR-0124).** The quality,
+  operations, principles and standards doc sets are no longer bootstrapped by
+  acs. Its `create-docs-author` and `create-docs-reviewer` agents, the
+  `pre-`/`post-create-docs.py` hooks, `templates/{quality,operations,principles,standards}/`,
+  the `DOC_SETS` table and its fan-out helpers, the `acs.py fanout batches`
+  command, `acs.py step start --doc-set` and the `doc_set` ticket field are
+  gone, with its ten routing and seven behaviour eval cases and its tests.
+  26 skills (hooked 18 → 17), 27 agent files. `citation_check.py` and
+  `structure_lint.py` stay; the scheduling recipe `/acs:run-e2e-tests` points
+  at moved to its own `references/test-scheduling.md`.
+  **Migration:** write and maintain the principles, standards, quality and
+  operations docs by hand — `/acs:create-design`, `/acs:create-impl-plan`,
+  `/acs:review-code` and `/acs:docs-sync` find them where they are, as before.
+  Merge any open create-docs delivery PR by hand (`gh pr merge`) —
+  `/acs:merge-pr` no longer reads that skill's state. Run
+  `acs.py settings migrate --write` to drop `models.create-docs` from
+  `.acs/settings.json`.
 - **⚠️ BREAKING: `/acs:project`, `create-project`, `standardize-project` and
   `/acs:create-requirements` are removed (ADR-0118).** Their skills, agents, hooks,
   eval cases and tests are gone, with the `project_mode` detector and the
@@ -147,8 +164,8 @@ matching section here, and merge to `main` — the Release workflow tags
   `.acs/settings.json`. Scaffold a greenfield repo with `/acs:create-ticket
   "Scaffold the repository per the architecture docs"` and `/acs:ship`; install
   CI gates and the e2e templates with `/acs:setup`; write principles and
-  standards with `/acs:create-docs`. An existing `requirements/` set stays
-  readable context.
+  standards by hand (`/acs:create-docs`, which used to write them, is removed
+  too — see below). An existing `requirements/` set stays readable context.
 
 ## [0.5.0] - 2026-09-30
 
