@@ -12,14 +12,14 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 26 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 27 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 17 pre + 17 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 17 pre + 17 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 27 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 29 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 18 pre + 18 post |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 18 pre + 18 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
-| Templates | `plugins/acs/templates/*.md` | 5 (4 description templates — `pr-default`, `epic/story/task-default` — plus `design-default`) |
+| Templates | `plugins/acs/templates/*.md` | 7 (4 description templates — `pr-default`, `epic/story/task-default` — plus `design-default` and the two audit-report templates, `audit-design-report` and `audit-security-report`, whose sections the audits' post-hook checks; ADR-0123) |
 
 Skills are invoked namespaced: `/acs:setup`, `/acs:ship`, `/acs:create-ticket`, …
 (The requirements docs write `/setup`, `/ship`, … — same skills, plugin-namespaced
@@ -33,7 +33,7 @@ onto the plugin hooks API like this:
 1. **Pre-hooks — deterministic, enforced.** `hooks.json` registers a
    `PreToolUse` hook matching the `Skill` tool. `dispatch.py pre` extracts the
    skill name from the tool input (handling the `acs:` namespace), no-ops
-   (exit 0) for anything that is not one of the sixteen hooked skills, and
+   (exit 0) for anything that is not one of the eighteen hooked skills, and
    otherwise runs that skill's gate from `acs_lib.gates` **in-process** (the
    `pre-<skill>.py` wrappers exist for tests and `acs.py gate`, not for the
    hook path).
@@ -690,8 +690,10 @@ pipeline end.
 **The `iterations` element.** A skill that runs no reflection loop omits it
 entirely rather than reporting a fraction of a loop it never ran. That is a
 property, not a list: it covers the inline apply-work skills (`create-ticket`,
-`create-pr`, `merge-pr`), the read-only `audit-design`, whose gap analysts
-survey and nothing is written for a judge to judge, the unhooked utilities
+`create-pr`, `merge-pr`), the read-only audits — `audit-design`, whose gap
+analysts survey and nothing is written for a judge to judge, and
+`audit-security`, whose adjudicators rule once on each auditor's candidate
+findings with no writer between them — the unhooked utilities
 (`setup`, `update`, `test`, `release`), and the orchestrators that drive other skills'
 loops without running one of their own (`ship`, `handoff`). The
 ten skills that run a write → judge loop over their own subagents
@@ -780,7 +782,8 @@ every other key below is persisted verbatim from the result document:
 | create-e2e-tests | `suites_written: [...]`, `cases_covered: [...]` |
 | create-pr | `pr` `{number, url, branch, base}` (the /merge-pr brake) |
 | merge-pr | `merged: true/false`, `merge_strategy`, `readiness` `{ci, approvals, conflicts, protections}` |
-| audit-design | `audit` `{scope, report, unimplemented, planned, undocumented, drifted, unversioned, tickets:[...]}` — the counts per gap kind and the tickets minted from them |
+| audit-design | `audit` `{scope, report, unimplemented, planned, undocumented, drifted, unversioned, tickets:[...]}` — the counts per gap kind and the tickets minted from them; the post-hook re-counts the gap kinds from `report.md` |
+| audit-security | `audit` `{scope, report, critical, high, medium, low, advisory, refuted, scanners:[...], skipped:[...]}` — the confirmed findings per adjudicated severity, the `needs-context` ones (`advisory`) and the refuted ones, the scanners the dependency auditors ran and the slices not run; the post-hook re-counts every count from `report.md` (ADR-0123) |
 
 On failure, keep whatever is true (e.g. a `/acs:review-code` coverage
 hard-fail records `verifier_passed: false`, achieved coverage, and the reason
@@ -847,7 +850,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-27 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 27 reachable —
+29 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 29 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -880,12 +883,16 @@ setting.
 | `create-e2e-tests` | `test-writer` (write) · `suite-runner` (judge) |
 | `docs-sync` | `doc-updater` (write) · `drift-reviewer` (judge) |
 | `audit-design` | `gap-analyst` (survey — one per top-level code area); read-only, no writer and no judge (ADR-0122) |
+| `audit-security` | `auditor` (survey — one per category: `code` per code area, `secrets-config`, `dependencies`, `threat-model`) · `adjudicator` (judge — one per candidate finding, prompted to refute it); read-only, no writer (ADR-0123) |
 | `create-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from `skills/<skill>/references/` (`materialize.md`, `publish.md`, `merge.md`) |
 
 The surveyor runs on iteration 1 only and freezes its notes; the author
 writes from them. The lifecycle hooks do not track `review-code`'s lenses and
 adjudicators (`acs_lib.lifecycle.UNTRACKED_ROLES`): they fan out one per lens
 and one per finding, and the coordinator persists what they return itself.
+`UNTRACKED_ROLES` is keyed by role name, so `audit-security`'s adjudicators —
+one per candidate finding — are untracked the same way, and each writes its own
+`iter-<n>/adjudication-<id>.json`; its auditors are tracked.
 
 Conventions:
 
@@ -1313,6 +1320,20 @@ analysts (`create-architecture-gap-analyst` beside that skill's survey, and
 `/acs:audit-design`'s over the whole set) read the status: an element designed
 but not built is *planned* in a `proposed` or `approved` document and a
 regression in an `implemented` one.
+
+**Audit reports follow a template** (ADR-0123). Both Audit-phase skills —
+`/acs:audit-design` and `/acs:audit-security` — run without a ticket (`acs step
+start` opens or resumes a run over the invocation for a skill in
+`acs_lib.AUDIT_SKILLS`, and the post-hook concludes it) and write
+`steps/<skill>/iter-1/report.md` from `templates/<skill>-report.md`, or the
+repo's `.acs/templates/<skill>-report.md` when it has one. The template is the
+contract: its `## ` sections must appear in the report in the template's order,
+and a section marked `<!-- acs:count <key> -->` is counted — one `### ` entry per
+gap or finding. `run_post` checks a completed audit's report with
+`acs_lib.audit_report` before writing anything, refuses one that breaks the
+template (exit 1, the breaches on stderr), and writes the counts into
+`states.audit` over whatever the result document claimed, recording any
+disagreement — derived, never asserted.
 
 ## Size control: tickets, specs, PRs
 

@@ -85,6 +85,8 @@ architecture doc set, each delivered as a reviewable docs PR:
 
 /acs:audit-design          # any time after: where do the design docs and the
                            #   code disagree? read-only report, cited both ways
+/acs:audit-security        # any time: secrets, insecure config, vulnerable
+                           #   deps, OWASP weaknesses — adjudicated report only
 ```
 
 (Greenfield is the same, except both skills *elicit* instead of
@@ -132,9 +134,9 @@ The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 26 skills
+## The 27 skills
 
-The tables group the skills by phase — Design, Build, Test, Ship or
+The tables group the skills by phase — Design, Build, Test, Ship, Audit or
 Utility. There is no registry file and no per-skill manifest: a skill is its
 directory, and the surfaces that used to derive from a list (this table, the
 set of nameable steps) read the skill directories instead, so adding a skill
@@ -172,7 +174,6 @@ recorded the PR reference completed — an artifact, not a position.
 | `/acs:create-docs` | Settings exist; the skill itself stops at Start without the architecture doc set | Bootstraps or maintains the four product doc sets — `quality` (test strategy, coverage policy), `operations` (release process, runbooks, observability, incident response, test scheduling), `principles` (engineering principles + rationale), `standards` (coding standards, conventions, review checklist) — from the plugin's templates, tailored to the PRD and the architecture set. Takes `all`, a comma-separated list of sets, or a delivery-ticket id to resume one; runs the eligible sets in capped parallel (at most 2 at a time, a limit the skill sets for itself — `ship.yaml` carries no `max_parallel`), each as its own docs-only PR on its own delivery ticket. One author and one reviewer serve every set (the set rides in the task constraints); `standards` reads the `principles` set when present and never blocks on its absence. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
-| `/acs:audit-design` | Settings exist | Read-only: compares the architecture set — the HLD and every `lld/<feature>/`, or one feature's — with the code and reports every gap, cited on both sides: unimplemented (designed, not built; *planned* when its document is still `proposed`/`approved`), undocumented (built, not designed) or drifted (both, disagreeing), plus any document with no version front matter. Never edits a document or the code; offers to ticket the gap groups you pick ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
 
 #### Internal legs — not commands you run
 
@@ -225,6 +226,22 @@ different.
 | `/acs:create-pr` | Brake: refuses a run whose `/acs:review-code` step left `verifier_passed != true` | Pushes the ticket branch and opens the PR (configured title/description formats, `ACS` label) against the default branch. A ticket with no recorded code run is allowed through. |
 | `/acs:merge-pr` | Brake: a completed run recorded a PR reference | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
+
+### Audit — measure the repo against a standard, and report
+
+An audit is **read-only** and runs **without a ticket**, at any point in a
+product's life: it reads the repository against a standard — the design, or
+security practice — and writes a report to the workspace; what to do about it
+is yours to decide through the Design and Build skills
+([ADR-0123](../../docs/architecture/adr/0123-audit-phase-and-audit-security.md)).
+Each report is written from a template (`templates/<skill>-report.md`, or your
+`.acs/templates/` copy), and the post-hook refuses a completed audit whose
+report breaks it and derives the counts it records from the report itself.
+
+| Skill | Gate | What it does |
+|-------|----------------------|--------------|
+| `/acs:audit-design` | Settings exist; no ticket — `acs step start` opens the audit's own run | Read-only: compares the architecture set — the HLD and every `lld/<feature>/`, or one feature's — with the code and reports every gap, cited on both sides: unimplemented (designed, not built; *planned* when its document is still `proposed`/`approved`), undocumented (built, not designed) or drifted (both, disagreeing), plus any document with no version front matter. Writes `report.md` from `templates/audit-design-report.md`. Never edits a document or the code; offers to ticket the gap groups you pick ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
+| `/acs:audit-security` | Settings exist; no ticket — `acs step start` opens the audit's own run | Read-only, report-only security audit: one auditor per category in parallel — `code` (OWASP Top 10 weakness classes with their CWE, one per code area), `secrets-config` (hard-coded credentials, insecure configuration, CI), `dependencies` (only through the scanners the repo already has installed; never installs one, never names a CVE from memory) and `threat-model` (the code against `hld/data-flow.md` and `hld/cross-cutting.md`, when the architecture set has them) — then one fresh-context adjudicator per candidate, prompted to refute it. Writes a severity-ranked `report.md` from `templates/audit-security-report.md`: each confirmed finding with CWE, `file:line`, evidence, exploit scenario, fix guidance and `resolved_when`. A category it could not examine is reported as uncovered, never clean; a secret's value never appears. Files no ticket and emits no SARIF. |
 
 ### Utility — setup and orchestration
 

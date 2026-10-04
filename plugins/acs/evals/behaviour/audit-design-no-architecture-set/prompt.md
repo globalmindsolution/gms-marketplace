@@ -7,7 +7,7 @@ description: >-
   baselining the design itself or auditing the code against the PRD instead.
 expected_outcome: >-
   No file created under docs/, src/ or tests/; no steps/audit-design/iter-*
-  gap report in the workspace; the reply says no architecture set was found
+  gap notes or report.md in the workspace; the reply says no architecture set was found
   and names /acs:create-architecture.
 tags: [behaviour]
 max_turns: 40

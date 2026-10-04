@@ -145,7 +145,7 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 27 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 29 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
@@ -172,6 +172,12 @@ Requirements:
   **One** prefix is survey-only: `audit-design`, whose gap analysts compare
   the architecture set with the code and report; the skill is read-only and
   writes nothing for a judge to judge (ADR-0122).
+
+  **One** prefix pairs a survey with a judge and no writer: `audit-security`,
+  whose auditors raise candidate security findings and one fresh-context
+  adjudicator per candidate tries to refute it, as `review-code`'s
+  adjudicators do — a filter on findings, not a loop over a deliverable
+  (ADR-0123).
 
   The three **apply-work** skills own no agent file at all (see the
   "Apply-work skills" subsection above).

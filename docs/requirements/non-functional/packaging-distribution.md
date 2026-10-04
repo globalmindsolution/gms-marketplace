@@ -37,15 +37,16 @@ unchanged).
     one implementer, its plan phase having moved to `create-impl-plan`
     (ADR-0089) and its review to `review-code`, which bundles a lens and an
     adjudicator; the read-only `audit-design` bundles one gap analyst
-    (ADR-0122); the three **apply-work skills** (`create-ticket`,
+    (ADR-0122) and the read-only `audit-security` an auditor and an
+    adjudicator (ADR-0123); the three **apply-work skills** (`create-ticket`,
     `create-pr`, `merge-pr`) run inline and bundle no subagent.
-    27 agent files exist on disk and 27 are reachable (21 for the nine
+    29 agent files exist on disk and 29 are reachable (21 for the nine
     authoring skills + 2 for `create-docs` + 1 for `code` + 2 for
-    `review-code` + 1 for `audit-design`): every file name
+    `review-code` + 1 for `audit-design` + 2 for `audit-security`): every file name
     resolves to a shipped skill and a role in `acs_lib.skills.ROLE_KINDS`,
     so none is orphaned. See
     [../functional/reflection.md](../functional/reflection.md).
-  - **Hooks**: a pre and post hook per hooked skill (seventeen of each),
+  - **Hooks**: a pre and post hook per hooked skill (eighteen of each),
     implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).
 
 ## Distribution & versioning

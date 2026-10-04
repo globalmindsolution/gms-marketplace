@@ -183,6 +183,16 @@
         "model": "claude-sonnet-5-5",
         "effort": "high"
       }
+    },
+    "audit-security": {
+      "adjudicator": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "auditor": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
     }
   }
 }

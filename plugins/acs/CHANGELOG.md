@@ -33,6 +33,30 @@ matching section here, and merge to `main` — the Release workflow tags
 - **`/acs:audit-design`** (ADR-0122): a read-only audit of the architecture set (or
   one feature) against the code, reading each gap against the document's status, with
   an offer to ticket what it finds.
+- **An Audit phase, and `/acs:audit-security`** (ADR-0123). Read-only skills that
+  run without a ticket, at any time, and write a report now form their own phase,
+  Audit, beside Design, Build, Test and Ship: `/acs:audit-design` moves there, and
+  the new `/acs:audit-security` joins it. It audits four categories, one
+  `audit-security-auditor` each in parallel — `code` (OWASP Top 10 weakness classes
+  with their CWE, one auditor per code area), `secrets-config` (hard-coded
+  credentials, insecure configuration, CI that exposes secrets), `dependencies`
+  (only through the scanners the repo already has installed — acs installs none and
+  never names a CVE from memory) and `threat-model` (the code against
+  `hld/data-flow.md` and `hld/cross-cutting.md`, when the architecture set has
+  them) — then hands every candidate to one fresh-context
+  `audit-security-adjudicator` that tries to refute it and defaults to refuted. The
+  report ranks the confirmed findings `critical` → `low`, each with CWE,
+  `file:line`, evidence, exploit scenario, fix guidance and `resolved_when`; an
+  unexamined category is reported as uncovered, never clean, and a secret's value
+  appears nowhere. It files no ticket and emits no SARIF. New role `auditor`
+  (survey); 27 skills (18 hooked), 29 agent files. Set its models under
+  `models.audit-security.auditor` / `.adjudicator`.
+- **Audit reports follow a template** (ADR-0123): `templates/audit-design-report.md`
+  and `templates/audit-security-report.md`, replaceable per repo with a copy in
+  `.acs/templates/`. The template is the contract — its `## ` sections, in order,
+  and the sections marked `acs:count <key>`, whose `### ` entries are counted. The
+  post-hook refuses a completed audit whose report breaks it, and `states.audit`'s
+  counts are derived from the report, overwriting what the result document claimed.
 - **`/acs:setup` asks which design documents to write** (ADR-0120). A new
   `design` settings block — `hld_types` and `lld_types`, each a list from a fixed
   catalog (C4 views, conceptual ERD, API landscape, deployment, project structure,
@@ -100,6 +124,13 @@ matching section here, and merge to `main` — the Release workflow tags
   `lld/contracts.md` stay where they are and `/acs:docs-sync` keeps them current;
   the next re-run adds `cross-cutting.md` and `integration-map.md`. Turn types off
   in `design.hld_types` (`/acs:setup`).
+- **`/acs:audit-design` runs without a ticket and writes its report from a
+  template** (ADR-0123). It is not a workflow step, so no pre-hook opened a run for
+  it and a first audit in a fresh checkout stopped at "no current run"; `acs step
+  start` now opens a run over the invocation (or resumes this checkout's interrupted
+  audit) and the post-hook concludes it. Its `report.md` follows
+  `templates/audit-design-report.md`, and the gap counts in `states.audit` are
+  counted from the report.
 
 ### Removed
 

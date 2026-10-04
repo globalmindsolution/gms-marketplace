@@ -30,7 +30,8 @@ import acs_lib as lib  # noqa: E402
 from acs_lib import workflow  # noqa: E402
 
 PINNED_SORTED_HOOKED_SKILLS = [
-    "analyze-requirements", "audit-design", "code", "create-api-contract",
+    "analyze-requirements", "audit-design", "audit-security", "code",
+    "create-api-contract",
     "create-architecture",
     "create-design", "create-docs", "create-e2e-tests", "create-impl-plan",
     "create-pr", "create-prd",
@@ -84,7 +85,8 @@ class RegistryShapeCase(unittest.TestCase):
         # Build/Test skills (analyze-requirements, create-impl-plan,
         # create-api-contract, create-test-docs, create-e2e-tests), and
         # v0.5.0 adds review-code and run-e2e-tests as steps of their own;
-        # ADR-0122 adds the read-only audit-design.
+        # ADR-0122 adds the read-only audit-design; ADR-0123 the read-only
+        # audit-security.
         self.assertEqual(len(acs_lib.HOOKED_SKILLS), HOOKED_SKILL_COUNT)
 
     def test_sorted_hooked_skills_membership_pinned(self):

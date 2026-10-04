@@ -33,6 +33,9 @@ PIPELINE_LABEL = "ACS"
 #: name replaces the built-in one (acs_lib.settings.resolve_template).
 PR_TEMPLATE = "pr-default"
 DESIGN_TEMPLATE = "design-default"
+#: The report each Audit skill writes (ADR-0123); acs_lib.audit_report checks it.
+AUDIT_TEMPLATES = {"audit-design": "audit-design-report",
+                   "audit-security": "audit-security-report"}
 TICKET_TEMPLATES = {"epic": "epic-default", "story": "story-default", "task": "task-default"}
 
 #: An epic's title is tagged; a story's and a task's is the title as given.

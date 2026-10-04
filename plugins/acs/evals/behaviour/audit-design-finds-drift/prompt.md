@@ -7,13 +7,17 @@ description: >-
   new orders API, and the customer-listing LLD says the page size defaults
   to 50 where the code says 20. It should report one gap of each kind --
   unimplemented (a regression, since the documents are implemented),
-  undocumented and drifted -- each cited on both sides, and edit nothing.
+  undocumented and drifted -- each cited on both sides, in a report written
+  from the template, and edit nothing.
 expected_outcome: >-
   steps/audit-design/iter-1/gaps.md lists the notifier under Unimplemented,
   the orders API under Undocumented and the 50-vs-20 page size under Drifted;
-  result.json's states.audit counts at least one of each with planned 0 and
-  unversioned 0; every file under docs/architecture is byte for byte as the
-  scaffold left it; no doc, code or ticket is created.
+  steps/audit-design/iter-1/report.md has every section of the built-in
+  template in order with the same three gaps as `### ` entries under those
+  kinds; the post-hook accepted the result and counted states.audit from the
+  report -- at least one of each with planned 0 and unversioned 0; every file
+  under docs/architecture is byte for byte as the scaffold left it; no doc,
+  code or ticket is created.
 tags: [behaviour]
 max_turns: 120
 timeout_seconds: 2400

@@ -2,15 +2,21 @@
 tests/evals/check_grader_calibration.py). The ideal run: `acs step start`
 on the run the scaffold opened, `acs design check` over every in-scope
 document, one gap analyst (slice `repo`) writing its gap notes, the join
-through `acs notes merge`, and the result document through the real
-post-hook -- no document, code file or ticket touched."""
+through `acs notes merge`, report.md written from the built-in template, and
+the result document through the real post-hook, which checks the report
+against the template and derives the counts from it -- no document, code file
+or ticket touched."""
 
 import json
 import os
+import re
+import subprocess
+import sys
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-audit-design.py")
 NEW_TICKET = os.path.join(PLUGIN, "hooks", "scripts", "new-ticket.py")
+TEMPLATE = os.path.join(PLUGIN, "templates", "audit-design-report.md")
 STEP = (".acs/state-machine/example-shop/runs/audit-the-design-against-the-code-9784"
         "/steps/audit-design")
 A = "docs/architecture"
@@ -29,6 +35,67 @@ DRIFTED = ("- **customer page size** -- lld/customer-listing/api/customers.md `#
            "/customers` (status implemented): `limit` defaults to 50; code: "
            "src/shop/__init__.py:1 `PAGE_SIZE = 20` (README says 20 too).\n")
 NONE = "_None._\n"
+
+#: The report's entries: one `### ` heading per gap, the fields the template asks for.
+R_NOTIFIER = """### notifier container and POST /notifications
+- **Design**: `hld/c4-container.md` § C4 container and `hld/integration-map.md` § Integration
+  map, status implemented v1
+- **Code**: absent -- src/notifier was deleted by the latest commit; Grep
+  `notify|notifications` in src/ finds nothing. A regression: the documents say it is built.
+- **Handling**: the design (/acs:create-architecture) if the removal was intended, else the code
+"""
+R_ORDERS = """### orders API -- GET /orders?customer_id=
+- **Design**: absent from `hld/c4-container.md` and `hld/integration-map.md` (implemented v1)
+- **Code**: `src/shop/orders.py:4` `list_orders`
+- **Handling**: the design (/acs:create-architecture)
+"""
+R_PAGE_SIZE = """### customer page size
+- **Design**: `lld/customer-listing/api/customers.md` § GET /customers, status implemented
+  v1: `limit` defaults to 50
+- **Code**: `src/shop/__init__.py:1` `PAGE_SIZE = 20` (the README says 20 too)
+- **Handling**: a person decides which reading is right; then the design or the code
+"""
+R_SCOPE = """Documents (from `acs.py design check`): hld/tech-stack.md, hld/c4-container.md,
+hld/integration-map.md and lld/customer-listing/api/customers.md -- each status implemented,
+version 1. Code area: the repository, one gap-analyst slice (`repo`).
+"""
+R_SUMMARY = """| Kind | Count |
+|---|---|
+| Unimplemented | 1 |
+| Planned | 0 |
+| Undocumented | 1 |
+| Drifted | 1 |
+| Unversioned | 0 |
+
+The notifier is a regression: documents marked implemented describe a container the code no
+longer has.
+"""
+
+
+def report(bodies, scope="all", drop=()):
+    """The built-in template, filled: its authoring comments out, its count
+    markers kept, each section's body from `bodies` (`_None._` when empty)."""
+    with open(TEMPLATE, encoding="utf-8") as fh:
+        text = re.sub(r"<!--(?!\s*acs:count)[\s\S]*?-->\n?", "", fh.read())
+    head, *sections = re.split(r"(?m)^(?=## )", text)
+    out = [head.strip().replace("<scope>", scope) + "\n"]
+    for section in sections:
+        lines = section.strip().splitlines()
+        title = lines[0][3:].strip()
+        if title in drop:
+            continue
+        marker = [line for line in lines[1:] if "acs:count" in line]
+        out.append("\n".join([lines[0]] + marker) + "\n\n"
+                   + (bodies.get(title) or "_None._").strip() + "\n")
+    return "\n".join(out)
+
+
+def _bodies(**kinds):
+    """The report's sections; a kind passed as None is empty."""
+    bodies = {"Scope": R_SCOPE, "Summary": R_SUMMARY, "Unimplemented": R_NOTIFIER,
+              "Undocumented": R_ORDERS, "Drifted": R_PAGE_SIZE, "Tickets": "none"}
+    bodies.update(kinds)
+    return bodies
 
 
 def _notes(unimplemented=UNIMPLEMENTED, undocumented=UNDOCUMENTED, drifted=DRIFTED):
@@ -54,22 +121,29 @@ def _analyse(ws, notes=None):
     assert merged.returncode == 0, merged.stderr
 
 
-def _finish(ws, unimplemented=1, planned=0, undocumented=1, drifted=1, tickets=()):
+def _finish(ws, unimplemented=1, planned=0, undocumented=1, drifted=1, tickets=(),
+            bodies=None, drop=()):
+    """report.md, then the result document through the post-hook -- which may
+    refuse (exit 1): a bad play's refusal is part of what it did."""
+    ws.write(STEP + "/iter-1/report.md", report(_bodies() if bodies is None else bodies,
+                                                drop=drop))
     ws.write(STEP + "/result.json", json.dumps({
         "status": "completed",
         "summary": "audited hld + 1 feature against the code: 3 gaps, 1 a regression",
-        "states": {"audit": {"scope": "all", "report": "steps/audit-design/iter-1/gaps.md",
+        "states": {"audit": {"scope": "all", "report": "steps/audit-design/iter-1/report.md",
                              "unimplemented": unimplemented, "planned": planned,
                              "undocumented": undocumented, "drifted": drifted,
                              "unversioned": 0, "tickets": list(tickets)}},
         "findings": [], "errors": []}, indent=2))
-    ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
+    return subprocess.run([sys.executable, POST, "--result-file", STEP + "/result.json"],
+                          cwd=ws.path, env=ws.env, capture_output=True, text=True)
 
 
 def IDEAL(ws):
     _start(ws)
     _analyse(ws)
-    _finish(ws)
+    posted = _finish(ws)
+    assert posted.returncode == 0, posted.stderr
     ws.reply = ("## /acs:audit-design · all · completed\n\n- Unimplemented (regression): the "
                 "notifier container and POST /notifications -- hld/c4-container.md, "
                 "hld/integration-map.md (implemented); code: absent.\n- Undocumented: the "
@@ -113,7 +187,8 @@ def _called_the_regression_planned(ws):
     document marked implemented."""
     _start(ws)
     _analyse(ws)
-    _finish(ws, unimplemented=0, planned=1)
+    _finish(ws, unimplemented=0, planned=1,
+            bodies=_bodies(Unimplemented=None, Planned=R_NOTIFIER))
 
 
 def _drift_as_unimplemented(ws):
@@ -121,13 +196,32 @@ def _drift_as_unimplemented(ws):
     drift."""
     _start(ws)
     _analyse(ws, notes=_notes(unimplemented=UNIMPLEMENTED + DRIFTED, drifted=NONE))
-    _finish(ws, unimplemented=2, drifted=0)
+    _finish(ws, unimplemented=2, drifted=0,
+            bodies=_bodies(Unimplemented=R_NOTIFIER + "\n" + R_PAGE_SIZE, Drifted=None))
 
 
 def _missed_the_orders_api(ws):
     _start(ws)
     _analyse(ws, notes=_notes(undocumented=NONE))
-    _finish(ws, undocumented=0)
+    _finish(ws, undocumented=0, bodies=_bodies(Undocumented=None))
+
+
+def _report_short_of_the_result(ws):
+    """The gap notes have the orders API, the result claims it -- and the
+    report left it out. The post-hook counts the report, so the claim does not
+    survive."""
+    _start(ws)
+    _analyse(ws)
+    _finish(ws, bodies=_bodies(Undocumented=None))
+
+
+def _report_missing_a_section(ws):
+    """Wrote the report without the sections it had nothing for: the
+    post-hook refuses it."""
+    _start(ws)
+    _analyse(ws)
+    posted = _finish(ws, drop=("Planned", "Unversioned"))
+    assert posted.returncode == 1, posted.stderr
 
 
 def _ticketed_the_gaps(ws):
@@ -154,4 +248,6 @@ BAD = {
     "missed the undocumented orders API": _missed_the_orders_api,
     "ticketed the gaps the user declined": _ticketed_the_gaps,
     "never wrote the result document": _never_finished,
+    "result claims counts the report does not contain": _report_short_of_the_result,
+    "report missing sections (the post-hook refuses it)": _report_missing_a_section,
 }

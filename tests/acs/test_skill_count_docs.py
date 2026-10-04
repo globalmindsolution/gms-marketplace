@@ -25,10 +25,11 @@ def read(path):
 #: The skills whose agents are NOT in a write -> judge reflection loop: code's
 #: implementer, review-code's lens and adjudicator (ADR-0109), and
 #: audit-design's gap analyst, a read-only survey with no writer to judge
-#: (ADR-0122). Was `agents - 3`; a constant offset stopped describing the tree
-#: once a loop-less skill gained an agent, so the loop agents are counted by
-#: their owning skill instead.
-NON_LOOP_SKILLS = ("code", "review-code", "audit-design")
+#: (ADR-0122), and audit-security's auditor and adjudicator, which raise and
+#: refute findings with no writer between them (ADR-0123). Was `agents - 3`; a
+#: constant offset stopped describing the tree once a loop-less skill gained an
+#: agent, so the loop agents are counted by their owning skill instead.
+NON_LOOP_SKILLS = ("code", "review-code", "audit-design", "audit-security")
 
 
 def loop_agent_count():

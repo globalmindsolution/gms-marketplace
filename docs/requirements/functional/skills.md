@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-six skills in total. There is no registry file listing them: a skill is
+Twenty-seven skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
 writes, or which group it belongs to, because nothing needs to: each skill
@@ -11,14 +11,17 @@ The groups below are a reader's aid, not a structure the code knows about:
 
 - **Product & design** — `/acs:create-prd`, `/acs:create-architecture`,
   `/acs:create-docs` (the four product doc sets, one skill since ADR-0094),
-  `/acs:create-ticket`, `/acs:create-design`, `/acs:audit-design` (read-only:
-  the design compared with the code).
+  `/acs:create-ticket`, `/acs:create-design`.
 - **Implementation** — `/acs:analyze-requirements`,
   `/acs:create-impl-plan`, `/acs:create-api-contract`,
   `/acs:create-test-docs`, `/acs:code` and its four delivery-path legs,
   `/acs:review-code`, `/acs:docs-sync`.
 - **Test** — `/acs:create-e2e-tests`, `/acs:run-e2e-tests`.
 - **Ship** — `/acs:create-pr`, `/acs:merge-pr`, `/acs:release`.
+- **Audit** — `/acs:audit-design` (the design compared with the code),
+  `/acs:audit-security` (the repository's security): read-only, ticketless,
+  runnable at any time, each writing a report
+  ([ADR-0123](../../architecture/adr/0123-audit-phase-and-audit-security.md)).
 - **Utility** — `/acs:setup`, `/acs:update`, `/acs:handoff`, `/acs:ship`.
 
 The ORDER of the implementation skills is `workflows/ship.yaml`'s list, and
@@ -31,9 +34,9 @@ Test and Ship steps run in for a ticket is declared in
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Seventeen of the twenty-six are **hooked** (a pre-hook and a post-hook
-each): the six Product & design skills, all seven Implementation skills,
-both Test skills, `/create-pr` and `/merge-pr`. Five (`/setup`, `/ship`,
+Eighteen of the twenty-seven are **hooked** (a pre-hook and a post-hook
+each): the five Product & design skills, all seven Implementation skills,
+both Test skills, `/create-pr`, `/merge-pr` and both Audit skills. Five (`/setup`, `/ship`,
 `/handoff`, `/update`, `/acs:release`) are unhooked and take no position in a
 run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
 itself. `/run-e2e-tests` is a hooked step like any other; the `/acs:test`
@@ -65,6 +68,10 @@ Every **workflow** skill MUST:
   `/acs:audit-design` is read-only and runs no write → judge cycle: it spawns
   gap analysts (a survey role) and reports what they found
   ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)).
+  `/acs:audit-security` is read-only too and has no writer: its auditors (a
+  survey role) raise candidate findings and one adjudicator (a judge role) per
+  candidate tries to refute it
+  ([ADR-0123](../../architecture/adr/0123-audit-phase-and-audit-security.md)).
 - have its safety brakes checked by a pre-hook and its outcome persisted by a
   post-hook ([hooks.md](hooks.md)) — neither hook enforces pipeline order,
   and neither refuses because an upstream artifact is missing;
@@ -660,8 +667,78 @@ implementation ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-d
   of which gap groups to ticket, record the answer in the clarification
   ledger before acting on it, and on a yes run `/acs:create-ticket` once per
   chosen group. Unable to reach the user, it tickets nothing and says so.
+- MUST write its report, `steps/audit-design/iter-1/report.md`, from the
+  report template — the repo's `.acs/templates/audit-design-report.md` when
+  present, else the built-in `templates/audit-design-report.md` — keeping
+  every `## ` section in the template's order, one `### ` entry per gap
+  ([ADR-0123](../../architecture/adr/0123-audit-phase-and-audit-security.md)).
+  The post-hook MUST refuse a completed audit whose report breaks the template.
+- Is an **Audit** skill (ADR-0123): it runs without a ticket — `acs step
+  start` opens (or resumes) a run over the invocation and the post-hook
+  concludes it.
 - Ends with the standard completion report; its `result.json` `states.audit`
-  carries the scope, the joined report path and the count per gap kind.
+  carries the scope, the report path and the count per gap kind — counts the
+  post-hook derives from the report's sections, overwriting what the result
+  document claimed.
+
+## `/acs:audit-security` (read-only, report-only)
+
+Purpose: find the repository's security weaknesses and report them, ranked by
+severity, each surviving an attempt to refute it
+([ADR-0123](../../architecture/adr/0123-audit-phase-and-audit-security.md)).
+`/acs:review-code`'s security lens judges one changeset's hunks; this audit
+judges the repository.
+
+- MUST be **read-only and report-only**: it MUST NOT edit code, a document or
+  configuration, MUST NOT file a ticket, MUST NOT emit SARIF, and MUST NOT run
+  an exploit, a network scan or any request against a deployed system. The
+  Development skills fix what it finds.
+- Is an **Audit** skill: **hooked** but **ticket-independent** — not a step of
+  `ship.yaml` and with no subject brake; `acs step start` opens (or resumes) a
+  run over the invocation and the post-hook concludes it. It asks nothing and
+  offers nothing.
+- Takes a scope — a path, or `all` / nothing for the repository — and
+  optionally a comma list narrowing the categories.
+- MUST audit four categories, each by its own `audit-security-auditor`
+  (survey kind) spawned in parallel, at most 4 per wave: `code` (OWASP Top 10
+  weakness classes, each finding with its CWE — one auditor per disjoint
+  top-level code area, else one), `secrets-config` (hard-coded credentials and
+  insecure configuration, CI included), `dependencies` (when a manifest or
+  lockfile exists) and `threat-model` (the code against `hld/data-flow.md` and
+  `hld/cross-cutting.md`, when the architecture set has either). A category
+  whose condition fails MUST be recorded as skipped, with the reason.
+- MUST examine dependencies **only through the scanners the repo already has
+  installed**: it MUST NOT install a scanner or a dependency, MUST NOT change a
+  lockfile, and MUST NOT name a CVE from memory — a known-vulnerable version is
+  a finding only with the scanner output that names it.
+- MUST give **every** candidate finding, after de-duplicating exact repeats
+  only (the same CWE at the same `file:line`), exactly **one** fresh-context
+  `audit-security-adjudicator` (judge kind) that sees only that finding — not
+  the other findings, not which auditor raised it — is prompted to refute it,
+  and defaults to **refuted** when uncertain. Its verdict is `confirmed` (with
+  the adjudicated severity and a `resolved_when`), `needs-context` (carried as
+  advisory, never dropped) or `refuted` (counted, its reason kept). Two
+  auditors raising one weakness MUST NOT confirm it; the adjudication is the
+  only filter.
+- MUST write its report, `steps/audit-security/iter-1/report.md`, from the
+  report template — the repo's `.acs/templates/audit-security-report.md` when
+  present, else the built-in `templates/audit-security-report.md` — from the
+  auditor reports and the adjudication files only, keeping every `## ` section
+  in the template's order: scope and coverage, a summary, the confirmed
+  findings by severity (`critical` → `low`, each with CWE, `file:line`,
+  evidence, exploit scenario, fix guidance and `resolved_when`), advisory, and
+  refuted. The post-hook MUST refuse a completed audit whose report breaks the
+  template.
+- MUST report a category it could not examine as **uncovered**, never as
+  clean.
+- MUST NOT write a secret's value in the report, the result, an agent's
+  record or any message: only its location, its kind and a redacted form (the
+  first 4 characters and the length).
+- Ends with the standard completion report; its `result.json` `states.audit`
+  carries the scope, the report path, the confirmed counts per severity,
+  `advisory`, `refuted`, the scanners run and the slices skipped — the counts
+  derived by the post-hook from the report's sections, overwriting what the
+  result document claimed.
 
 ## 1. `/create-ticket`
 
