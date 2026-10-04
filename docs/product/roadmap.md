@@ -58,10 +58,10 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics *(removed by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md))*, helper CLIs.
-- 26 skills + 27 agent files on disk (verified `ls plugins/acs/skills` = 26,
-  `ls plugins/acs/agents` = 27; ADR-0095 added `/acs:code`'s four delivery-path
+- 28 skills + 33 agent files on disk (verified `ls plugins/acs/skills` = 28,
+  `ls plugins/acs/agents` = 33; ADR-0095 added `/acs:code`'s four delivery-path
   legs, which own no agents of their own and spawn `code`'s implementer); the
-  reflection (write → judge) protocol is active on the nine authoring skills,
+  reflection (write → judge) protocol is active on the eleven authoring skills,
   each over subagents named for its own work
   (ADR-0109: e.g. `create-prd`'s surveyor, author and reviewer,
   `create-impl-plan`'s planner and plan-reviewer); no skill has a planning
@@ -121,12 +121,12 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 26 green across 38 probes (matches
-  `s04_skill_triggers.py`'s 26-skill routing coverage, up from the original 12,
-  which is every one of the 26 shipped skill directories: the `test` alias, once
+  routes to the right skill — target all 28 green across 38 probes (matches
+  `s04_skill_triggers.py`'s 28-skill routing coverage, up from the original 12,
+  which is every one of the 28 shipped skill directories: the `test` alias, once
   the one unprobed directory, is gone, and `/acs:metrics` and `/acs:usage` left
   with their probes by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md), and `/acs:project`, its two legs and
-  `/acs:create-requirements` with theirs by [ADR 0118](../architecture/adr/0118-discovery-design-development-phases.md), while `/acs:audit-design` arrived with its own by [ADR-0122](../architecture/adr/0122-design-versions-and-gap-detection.md) and `/acs:audit-security` with its own by [ADR-0123](../architecture/adr/0123-audit-phase-and-audit-security.md), and `/acs:create-docs` left with its own by [ADR-0124](../architecture/adr/0124-remove-create-docs.md)). The four internal
+  `/acs:create-requirements` with theirs by [ADR 0118](../architecture/adr/0118-discovery-design-development-phases.md), while `/acs:audit-design` arrived with its own by [ADR-0122](../architecture/adr/0122-design-versions-and-gap-detection.md) and `/acs:audit-security` with its own by [ADR-0123](../architecture/adr/0123-audit-phase-and-audit-security.md), and `/acs:create-docs` left with its own by [ADR-0124](../architecture/adr/0124-remove-create-docs.md), while `/acs:create-data-design` and `/acs:create-flows` arrived with theirs by [ADR-0126](../architecture/adr/0126-lld-data-design-and-flows.md)). The four internal
   legs — `/acs:code`'s delivery-path legs (ADR-0095) — are probed by explicit invocation plus a negative saying a
   description of the leg's subject must reach its entry point; the four doc-set
   legs were folded into `/acs:create-docs` by ADR 0094, which ADR 0124 then
@@ -681,7 +681,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 27 vs 27 reachable). **(ii) is
+  disk equals reachable-agent count (today 33 vs 33 reachable). **(ii) is
   DONE** — ADR-0092 deleted those six and made each skill declare the roles
   it owns. Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic

@@ -21,6 +21,28 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ### Added
 
+- **`/acs:create-data-design`** (ADR-0126): a ticket-scoped Design skill that writes
+  a ticket's data low-level design under `lld/<feature>/data/` — the logical ERD
+  (entities, attributes, keys, cardinalities, database-agnostic) and the physical
+  schema (tables or collections, types, indexes, constraints and a migration
+  *outline*), both Mermaid `erDiagram`, for the enabled `design.lld_types` only.
+  Documents only, never migration code; one designer writes both documents, a gap
+  analyst per survey area runs beside the survey when `data/` already holds
+  documents, and a reviewer judges in three slices beside the $0 checks. Owns
+  `create-data-design-designer`, `-gap-analyst` and `-reviewer`.
+- **`/acs:create-flows`** (ADR-0126): a ticket-scoped Design skill that writes a
+  ticket's behaviour low-level design under `lld/<feature>/flows/` — one file per
+  flow (sequence, and activity where it branches on business rules) and one per
+  entity state machine — and, when enabled, `components/`. The writers run in
+  parallel, one per flow group plus `write-states` and `write-components`, with an
+  integration pass only when a slice reports a seam. Documents only; owns
+  `create-flows-designer`, `-gap-analyst` and `-reviewer`. Both skills sit in
+  `PLANNING_SKILLS` beside `/acs:create-design`, version every file through
+  `acs.py design … --feature`, and take no run position. Neither branches,
+  commits or opens a PR: the documents stay as local uncommitted changes, every
+  path listed in the result's `states.files` for you to review and commit. 28
+  skills (19 hooked), 33 agent files, eleven write → judge loops.
+
 - **`acs.py job start|wait|status|stop`** (ADR-0125): a deterministic command
   (a build, a lint, a test suite) runs detached under the run's `jobs/` directory,
   started in the same turn as the subagents it runs beside; `job wait` is one

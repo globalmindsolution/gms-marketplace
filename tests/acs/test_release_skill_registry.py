@@ -101,9 +101,10 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         # review-code and run-e2e-tests, 17 -> 19; ADR-0118 removes
         # create-project, standardize-project and create-requirements, 19 -> 16;
         # ADR-0122 adds audit-design, 16 -> 17; ADR-0123 adds audit-security,
-        # 17 -> 18; ADR-0124 removes create-docs, 18 -> 17)
+        # 17 -> 18; ADR-0124 removes create-docs, 18 -> 17; ADR-0126 adds
+        # create-data-design and create-flows, 17 -> 19)
         # — /acs:release itself adds none.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 17)
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 19)
 
     def test_no_pre_or_post_release_script_on_disk(self):
         self.assertFalse(

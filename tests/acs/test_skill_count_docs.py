@@ -128,7 +128,9 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertIn("%d files, all reachable" % agents, body)
         self.assertNotIn("43 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
-        self.assertIn("the nine authoring skills (%d agents" % loop_agent_count(), body)
+        # Nine through ADR-0125; ADR-0126's two Design skills make eleven.
+        self.assertIn("the eleven authoring skills (%d agents" % loop_agent_count(), body)
+        self.assertNotIn("the nine authoring skills", body)
         self.assertNotIn("twelve authoring skills (24 agents)", body)
         self.assertNotIn("twelve triad-keeping skills (36 agents)", body)
         self.assertNotIn("eleven triad-keeping skills (33 agents)", body)
