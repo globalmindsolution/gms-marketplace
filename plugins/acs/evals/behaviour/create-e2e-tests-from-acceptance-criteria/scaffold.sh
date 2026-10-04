@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # /acs:create-e2e-tests with NO test-cases.md: the shop's WSGI front gained
-# GET /customers on EVAL-1's branch, the repo has an e2e harness (tests/e2e/, a
+# GET /customers for EVAL-1 (uncommitted on main, ADR-0127), the repo has an e2e harness (tests/e2e/, a
 # stdlib unittest suite that drives the WSGI app in process) configured as the
 # `e2e` suite, and the ticket carries two acceptance criteria describing
 # end-to-end flows -- but /acs:create-test-docs never ran, so there is no case
@@ -8,7 +8,7 @@
 # specification, each derived case carries its `AC-<n>`, and the report says no
 # case document existed. The criteria are written onto the ticket through the
 # plugin's own `acs.py ticket save`. What the run must produce: a suite under
-# tests/e2e/ covering AC-1 and AC-2, committed on the SAME ticket branch, the
+# tests/e2e/ covering AC-1 and AC-2, left uncommitted (no branch, no commit), the
 # step's cases_covered naming them, and no case document or product code.
 #
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
@@ -108,7 +108,7 @@ subprocess.run(acs + ["ticket", "save", "--ticket", "EVAL-1", "--from", "-"], ch
                input=json.dumps(ticket), capture_output=True, text=True)
 PY
 
-# The ticket branch: /acs:code's change. No test-cases.md anywhere.
+# /acs:code's change, uncommitted. No test-cases.md anywhere.
 python3 - <<'PY'
 path = "src/shop/web.py"
 src = open(path).read()

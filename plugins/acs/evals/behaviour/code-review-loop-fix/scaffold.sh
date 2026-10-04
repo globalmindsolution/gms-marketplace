@@ -2,16 +2,18 @@
 # /acs:code on iteration 2 of the review loop: /acs:review-code already ran on
 # EVAL-1's first implementation and left a verdict with one confirmed blocking
 # finding (page_bounds computes 0-based bounds for 1-based pages). /acs:code
-# must read that verdict, fix the finding test-first on the SAME branch, and
-# answer it by id in its result.json.
+# must read that verdict, fix the finding test-first in the working tree --
+# everything here is uncommitted on main, as the pipeline leaves it (ADR-0127)
+# -- and answer it by id in its result.json, committing nothing.
 #
 # Every step is played through the plugin's own writers:
 #   create-impl-plan  acs.py step start, the planner's draft (no CLI writer
 #                     exists for its bytes), acs.py filemap set, the published
-#                     copy committed on the ticket branch, post-create-impl-plan.py
-#   code, iter 1      acs.py step start --step code, the implementer's commit and
-#                     report, result.json, post-code.py
-#   review-code       acs.py step start --step review-code, the verdict at the
+#                     copy (uncommitted), post-create-impl-plan.py
+#   code, iter 1      acs.py step start --step code, the implementer's files
+#                     (uncommitted) and report, result.json, post-code.py
+#   review-code       acs.py step start --step review-code, the verdict (its
+#                     reviewed_sha the `acs.py changes snapshot` tree) at the
 #                     step root and in iter-1/, result.json, post-review-code.py
 #                     -- which derives the block and sends the loop back to code
 # The plan records `small`, so no approval is involved.
@@ -26,11 +28,9 @@ acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers_page(customers, page=1) returns the first per_page customers", "list_customers_page(customers, page=2) returns the next per_page customers"]}' \
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 run="$ACS_PARTITION/runs/EVAL-1"
-branch="task/EVAL-1-add-1-based-page-numbers-to-the-customer"
 
 # --- create-impl-plan ------------------------------------------------------
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "$branch"
 draft="$run/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Add 1-based page numbers to the customer listing
@@ -64,8 +64,6 @@ acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_pagination.py > /dev/null
 mkdir -p docs/tickets/EVAL-1
 cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
 cat > "$run/steps/create-impl-plan/result.json" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",
  "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
@@ -99,19 +97,18 @@ def test_a_page_holds_per_page_customers():
     customers = list(range(50))
     assert len(list_customers_page(customers, page=2, per_page=10)) == 10
 PY
-git add src/shop/__init__.py tests/test_pagination.py
-git commit -qm "EVAL-1 Page bounds for 1-based pages"
 mkdir -p "$run/steps/code/iter-1"
 cat > "$run/steps/code/iter-1/implementer.json" <<'JSON'
 {"files_changed": ["src/shop/__init__.py", "tests/test_pagination.py"],
  "tests": {"commands": ["python3 -m pytest -q tests/test_pagination.py"], "passed": 1, "failed": 0},
  "coverage": {"percent": null, "target": "measured in review"},
- "commits": ["EVAL-1 Page bounds for 1-based pages"], "problems": [], "seams": []}
+ "problems": [], "seams": []}
 JSON
 cat > "$run/steps/code/result.json" <<JSON
 {"status": "completed", "outcome": "implemented", "iteration": 1,
  "summary": "page_bounds and list_customers_page; 1 targeted test green",
- "states": {"branch": "$branch", "tasks_implemented": ["1"],
+ "states": {"tasks_implemented": ["1"],
+            "files": ["src/shop/__init__.py", "tests/test_pagination.py"],
             "tests": {"passed": 1, "failed": 0}, "docs_updated": []},
  "findings": [], "errors": []}
 JSON
@@ -121,7 +118,7 @@ python3 "$ACS_SCRIPTS/post-code.py" --result-file "$run/steps/code/result.json" 
 acs step start --step review-code --ticket EVAL-1 > /dev/null 2>&1
 review="$run/steps/review-code"
 mkdir -p "$review/iter-1"
-base="$(git rev-parse main)"
+base="$(acs changes snapshot | python3 -c 'import json, sys; print(json.load(sys.stdin)["tree"])')"
 cat > "$review/iter-1/verdict.json" <<JSON
 {
   "skill": "review-code", "run_id": "EVAL-1", "iteration": 1,

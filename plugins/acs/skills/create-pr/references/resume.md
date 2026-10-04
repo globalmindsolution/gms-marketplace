@@ -4,7 +4,7 @@ Open this when `context.reconcile` is true, or when `context.handoff_summary`
 is set. A run that commits and opens the PR in one session reads none of it.
 Two things may already exist from the prior run: commits of a confirmed plan,
 and a PR for the branch. The reality check comes before anything is committed
-or created, because a commit made twice and a second PR for one ticket are the
+or created, because a commit made twice and a second PR for one run are the
 mistakes this step cannot quietly undo.
 
 **Where the cross-references below point.** The numbered steps are the Inline

@@ -26,8 +26,8 @@ ticket-link check is
 READ EVERY ONE of these before acting — workspace state, never conversation
 history:
 
-- `<partition>/ticket.json` (`<partition>` is its directory) — title, type,
-  `external` (ticket mode);
+- the ticket's `ticket.json`, when the run has a ticket — title, type,
+  `external`; otherwise the run's prompt (`subject`);
 - `steps/code/state.json`, `specs/*.md`, and `design.md` when the ticket
   has one;
 - the commit plan `acs.py pr plan-commits` printed, and the confirmed copy you
@@ -55,15 +55,19 @@ calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
 The commit phase is local: it calls no `gh` and touches no remote.
 
-C1. **Plan.** `acs.py pr plan-commits --ticket <ticket_id>` (docs mode:
-   `--docs`). Its groups are ordered layer by layer — ticket docs
-   (`docs/tickets/<ID>/`), design docs (HLD, `lld/<feature>/`, ADRs), then
-   per plan slice or file-map partition its tests and then its code (one
-   commit when a slice has only one kind), then docs-sync's doc updates, then
-   the e2e suites; docs mode groups by doc set. A path is in a group only when
-   a step recorded it AND it changed since the run's baseline. `left_out` is
-   what changed but no step recorded; `excluded` is what was already dirty
-   when the run began. The CLI is the plan's only author: never assemble one
+C1. **Plan.** `acs.py pr plan-commits --out …` plans for the run, whatever its
+   subject — a ticket, a prompt, or (a prompt with no current run) a new
+   prompt-subject run whose changeset is every uncommitted change against
+   HEAD. Its groups are ordered layer by layer — documents first, one group
+   per doc set (ticket docs `docs/tickets/<ID>/`, PRD, `hld/`, each
+   `lld/<feature>/`, ADRs), then per plan slice or file-map partition its
+   tests and then its code (one commit when a slice has only one kind; a run
+   with no plan: tests, then code), then docs-sync's doc updates, then the e2e
+   suites. In a run whose steps recorded their files, a path is in a group
+   only when a step recorded it AND it changed since the run's baseline;
+   other runs' recorded `states.files` refine the grouping where they name a
+   changed path. `left_out` is what changed but no step recorded; `excluded`
+   is what was already dirty when the run began. The CLI is the plan's only author: never assemble one
    from `git status`, and never fold `left_out` or `excluded` into a group on
    your own.
 C2. **Preview and confirm.** One grouped AskUserQuestion — confirm / edit /
@@ -71,7 +75,8 @@ C2. **Preview and confirm.** One grouped AskUserQuestion — confirm / edit /
    order), `left_out` and `excluded`. The edits are the user's and only the
    user's: move a path between groups, drop a path from a group, add a
    `left_out` path to a group, reword a subject (keeping the configured
-   commit-subject format). An `excluded` path is never added. After an edit,
+   commit-subject format — the ticket id leads it only when there is a
+   ticket). An `excluded` path is never added. After an edit,
    show the edited plan once more; a run that cannot reach the user and holds
    no approval of the plan in the request commits nothing (`needs_input`).
 C3. **Keep** the confirmed plan in `steps/create-pr/iter-<n>/commit-plan.json`
@@ -111,8 +116,9 @@ C4. **Commit** with `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-pla
    title) and pass it verbatim.
 3. **Label.** Ensure the label exists, then rely on it at create/edit time:
    `gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true`
-   — docs mode ensures and applies `acs-exempt` too: a docs-only PR names no
-   ticket, and that label is the CI ticket-link check's fixed exemption.
+   — a run with no ticket ensures and applies `acs-exempt` too: its PR names no
+   ticket, and the installed CI check (`templates/ci/acs-conventions.yml`)
+   fails any PR that names none unless that label exempts it.
 4. **Pre-open self-check.** `pr-conventions.py check` on the filled body, with
    its bounded re-fill retry (SKILL.md step 4) — a deterministic call, not a
    subagent. A body that still fails is never opened.
@@ -120,7 +126,7 @@ C4. **Commit** with `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-pla
    (`gh pr list --head <branch> --state open --json number,url,baseRefName,isDraft`):
    - No open PR for the branch:
      `gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file steps/create-pr/pr-body.md --label ACS`
-     (docs mode: plus `--label acs-exempt`) — no `--draft`; PRs ship
+     (no ticket: plus `--label acs-exempt`) — no `--draft`; PRs ship
      ready-for-review.
    - An open PR already exists: update it —
      `gh pr edit <number> --title "<PR title>" --body-file <body> --add-label ACS`,
@@ -214,7 +220,7 @@ How the run ends, and what the report then says:
   coordinator runs itself.
 - Mutate ONLY what this flow covers: the branch and commits `acs.py pr commit`
   makes from the confirmed plan, the push of that branch, the PR itself
-  (create/edit/ready/label), the `ACS` (and in docs mode `acs-exempt`) label,
+  (create/edit/ready/label), the `ACS` (and, with no ticket, `acs-exempt`) label,
   the tracker comment, plus `commit-plan.json`, `pr-body.md` and the publish
   report under `steps/create-pr/`, then the result document and the post-hook
   at Finish. Do not merge, do not delete branches, do not edit `ticket.json`,
@@ -229,7 +235,8 @@ How the run ends, and what the report then says:
   was.
 - Never fabricate body content: every Summary/Changes/Test-plan claim comes from
   `ticket.json`, `specs/`, `design.md`, `steps/code/state.json`, or the commits
-  `acs.py pr commit` printed (docs mode: the changed documents) — a section the
+  `acs.py pr commit` printed (with no ticket: the run's prompt and the changed
+  files) — a section the
   state cannot fill stays honest and minimal.
 - If `git push` or `gh pr create` fails, capture the exact stderr plus the
   canonical hint from `acs_lib.gh_failure_hint` in the report's `problems` and

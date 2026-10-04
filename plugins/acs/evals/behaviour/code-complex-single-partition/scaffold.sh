@@ -13,7 +13,7 @@
 #   the draft at runs/EVAL-1/steps/create-impl-plan/plan.md (the planner's
 #     Write; no CLI writer exists for its bytes)
 #   acs.py filemap set --skill code --iteration 1 (the map the guard enforces)
-#   the published copy in docs/tickets/EVAL-1/, committed on the ticket branch
+#   the published copy in docs/tickets/EVAL-1/, left uncommitted on main
 #   post-create-impl-plan.py (finishes the step, releases the lock)
 # and then APPROVED through the sole writer of plan-approval.json, `acs.py plan
 # check`, which the complex path's pre-hook requires.

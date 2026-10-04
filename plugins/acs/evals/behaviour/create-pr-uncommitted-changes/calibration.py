@@ -26,10 +26,10 @@ def _start(ws):
 
 def _plan(ws):
     """C1: the real CLI, which also writes the plan where C3 keeps it."""
-    ws.called("Bash", command='python3 "%s/acs.py" pr plan-commits --ticket EVAL-1 --out %s'
+    ws.called("Bash", command='python3 "%s/acs.py" pr plan-commits --out %s'
               % (SCRIPTS, PLAN))
     os.makedirs(os.path.join(ws.path, os.path.dirname(PLAN)), exist_ok=True)
-    out = ws.acs("pr", "plan-commits", "--ticket", "EVAL-1", "--out", PLAN)
+    out = ws.acs("pr", "plan-commits", "--out", PLAN)
     assert out.returncode == 0, out.stderr
     plan = json.loads(out.stdout)
     assert plan["groups"], plan

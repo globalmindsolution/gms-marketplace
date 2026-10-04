@@ -7,9 +7,9 @@
 #
 # Seeded through the plugin's own writers wherever one exists:
 #   create-impl-plan   acs.py step start, the planner's draft, acs.py filemap
-#                      set, the published copy committed, post-create-impl-plan.py
+#                      set, the published copy (uncommitted), post-create-impl-plan.py
 #   create-test-docs   acs.py step start, the test designer's test-cases.md in
-#                      the step directory and its published copy committed,
+#                      the step directory and its published copy (uncommitted),
 #                      result.json, post-create-test-docs.py
 # `small` needs no approval.
 set -euo pipefail

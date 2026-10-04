@@ -15,8 +15,8 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
 Run the /acs:code skill for ticket EVAL-1. Its implementation plan is already
-written, published and approved; implement it on the ticket branch that is
-checked out now. Use the plan exactly as it is on disk: do not edit, restore
-or re-approve it, and do not start or finish any acs step by hand. If acs
-refuses to run, stop there and tell me exactly why. Don't push, don't run the
-review or open a PR, and don't ask me anything.
+written, published and approved; implement it in the working tree as it is
+checked out now, committing nothing. Use the plan exactly as it is on disk: do
+not edit, restore or re-approve it, and do not start or finish any acs step by
+hand. If acs refuses to run, stop there and tell me exactly why. Don't push,
+don't run the review or open a PR, and don't ask me anything.

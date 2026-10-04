@@ -72,12 +72,34 @@ class TheRetiredRuleIsGone(unittest.TestCase):
 
 class TheCommitPhase(unittest.TestCase):
 
-    def test_both_modes_plan_through_the_cli(self):
+    def test_a_ticket_a_prompt_or_the_current_run_plan_through_the_cli(self):
+        """No skill needs a ticket: a ticket id, a prompt, or nothing (the
+        current run) all plan through the same CLI call, and no `--docs` mode
+        survives."""
+        body = skill()
+        self.assertRegex(body, r'(?m)^argument-hint: "\[ticket-id \| prompt\]"$')
+        text = flat(body)
+        self.assertIn("acs.py\" pr plan-commits \\ --out", text)
+        for invocation in ("`/acs:create-pr <ticket-id>`", "`/acs:create-pr` (no argument)",
+                           "`/acs:create-pr \"<prompt>\"` with no current run"):
+            self.assertIn(invocation, text)
+        self.assertIn("every uncommitted change against HEAD", text)
+        for name, other in (("SKILL.md", body), ("publish.md", publish()),
+                            ("resume.md", resume())):
+            with self.subTest(file=name):
+                self.assertNotIn("--docs", other)
+                self.assertNotRegex(other, r"(?i)docs mode")
+
+    def test_the_brake_applies_only_to_a_run_with_a_code_step(self):
+        self.assertIn("it applies only when the run has a code step", flat(skill()))
+
+    def test_ticket_references_only_when_there_is_a_ticket(self):
         text = flat(skill())
-        self.assertIn("acs.py\" pr plan-commits --ticket <ticket_id>", text)
-        self.assertIn("pr plan-commits --docs", text)
-        self.assertRegex(text, r"\*\*ticket\*\*.{0,200}verifier_passed")
-        self.assertRegex(text, r"\*\*docs\*\*.{0,300}PRD, architecture \(HLD/LLD\), ADRs")
+        self.assertIn("with a ticket it keeps the configured commit-subject format, "
+                      "`{ticket_id} {summary}`; without one the subject is the summary alone",
+                      text)
+        self.assertIn("with no ticket id and no `Closes #` line", text)
+        self.assertIn("never without a ticket", text)
 
     def test_the_plan_is_previewed_in_one_grouped_question(self):
         text = flat(skill())
@@ -135,10 +157,16 @@ class TheSafetyRules(unittest.TestCase):
     def test_skill_never_force_pushes_nor_pushes_the_default_branch(self):
         self.assertIn("Never force-push, never push the default branch", flat(skill()))
 
-    def test_docs_mode_is_exempt_by_label_not_by_skipping_the_check(self):
+    def test_a_ticketless_pr_is_exempt_by_label_because_ci_still_wants_a_ticket(self):
+        """The installed CI check still fails a PR naming no ticket unless it
+        carries `acs-exempt`; a ticketless run applies that label, and only
+        that run does."""
+        ci = os.path.join(PLUGIN, "templates", "ci", "check-conventions.py")
+        with open(ci, encoding="utf-8") as fh:
+            self.assertIn('EXEMPT_LABEL = "acs-exempt"', fh.read())
         text = flat(skill())
-        self.assertIn("`acs-exempt`", text)
-        self.assertRegex(text, r"In docs mode a `ticket_link` error is expected")
+        self.assertIn("(with no ticket, add `--label acs-exempt`)", text)
+        self.assertRegex(text, r"With no ticket a `ticket_link` error is expected")
         self.assertIn("/acs:merge-pr --pr <number>", text)
 
 

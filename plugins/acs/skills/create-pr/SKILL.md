@@ -1,7 +1,7 @@
 ---
 name: create-pr
-description: Commit, push and open (or update) the pull request — the one acs skill that branches, commits and pushes. It splits the working tree's uncommitted changes into small reviewable commits (ticket docs, design docs, each slice's tests then code, doc updates, e2e suites), previews that plan for the user to confirm, commits it on a new branch, pushes, and opens the PR against the default branch with the ACS label, title and body composed from workspace state. Use when a ticket's work is ready for human review, or with --docs to ship PRD, architecture, LLD or ADR changes that have no ticket; the gate is a safety brake, not an order check — it refuses only a ticket whose recorded review left the verifier failing. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell or run git yourself: it locates all of them itself.
-argument-hint: "[ticket-id] | --docs"
+description: Commit, push and open (or update) the pull request — the one acs skill that branches, commits and pushes. It splits the working tree's uncommitted changes into small reviewable commits (documents by doc set, then each slice's tests then code, doc updates, e2e suites), previews that plan for the user to confirm, commits it on a new branch, pushes, and opens the PR against the default branch with the ACS label, title and body composed from workspace state. Takes a ticket id, a prompt, or nothing (this checkout's current run); no ticket is needed — a PRD, architecture, LLD or ADR change or a prompt-driven fix ships the same way. Use whenever work in the working tree is ready for human review; the gate is a safety brake, not an order check — it refuses only a run whose recorded review left the verifier failing. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell or run git yourself: it locates all of them itself.
+argument-hint: "[ticket-id | prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -22,14 +22,20 @@ changes split into commits, is the user's. You persist every phase artifact to
 the run's `steps/create-pr/`, and finish by writing the result document and
 running the post-hook — always, even on failure.
 
-## Modes
+## What it ships: a ticket, a prompt, or the current run
 
-| Mode | When | Commit plan | Brake |
-|---|---|---|---|
-| **ticket** | a ticket id is given or resolves (the usual case, after a code run) | `acs.py pr plan-commits --ticket <ticket_id>` | `verifier_passed` (below) |
-| **docs** | `--docs`: documents with no ticket and no code run — PRD, architecture (HLD/LLD), ADRs | `acs.py pr plan-commits --docs` | none: there is no code run |
+No acs skill needs a ticket: each takes a ticket id or a prompt, and so does
+this one.
 
-The flow is the same in both; where docs mode differs, the step says so.
+| Invocation | Run | Changeset the plan splits |
+|---|---|---|
+| `/acs:create-pr <ticket-id>` | that ticket's run | what changed since the ticket's first step recorded its baseline |
+| `/acs:create-pr` (no argument) | this checkout's current run — ticket- or prompt-subject (e.g. after `/acs:code "fix the login timeout"`) | what changed since that run's baseline |
+| `/acs:create-pr "<prompt>"` with no current run | a new prompt-subject run | every uncommitted change against HEAD |
+
+The flow is the same for all three. Where the run has no ticket, the steps say
+what changes: no ticket id in commit subjects, no ticket reference or tracker
+sync in the PR, and `/acs:merge-pr --pr <number>` to land it.
 
 ## Start
 
@@ -42,26 +48,28 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-pr
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
 improvise a workaround.
 
-The pre-hook is a SAFETY BRAKE, not an order check. In ticket mode it refuses
-when the ticket HAS a review whose verifier did not pass
-(`states.verifier_passed != true`) — a failed review loop must never reach a
-reviewer. It does NOT require that `/acs:code` or `/acs:docs-sync` completed:
-order lives in `workflows/ship.yaml`, so a ticket with no code run at all
-passes the gate (running out of that declared order just earns ONE advisory
-line on stderr). So do not assume a code run exists: read
-`steps/code/state.json` and treat a missing file as "no recorded
-implementation" — see "State inputs" below. Docs mode opens a ticketless run
-and has no brake.
+The pre-hook is a SAFETY BRAKE, not an order check, and it applies only when
+the run has a code step: it refuses when that run HAS a review whose verifier
+did not pass (`states.verifier_passed != true`) — a failed review loop must
+never reach a reviewer. It does NOT require that `/acs:code` or
+`/acs:docs-sync` completed: order lives in `workflows/ship.yaml`, so a run
+with no code step at all — documents only, say — passes the gate (running out
+of that declared order just earns ONE advisory line on stderr). So do not
+assume a code run exists: read `steps/code/state.json` and treat a missing
+file as "no recorded implementation" — see "State inputs" below.
 
 Parse the printed context JSON. Fields you will use:
 
-- `mode` — `docs` when the run is docs-only; otherwise ticket mode.
+- `run_id`, `subject` — the run and what it is about (`kind` `ticket` or
+  `prompt`; a prompt subject carries its text).
 - `ticket_id`, `ticket` — id, title, type, and `external` (the
-  `{provider, key}` remote-tracker mapping, when synced). Absent in docs mode.
-- `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/` (ticket
-  mode). Phase artifacts go in the run's `steps/create-pr/`.
-- The PR title is free text you write (concise, normally the ticket's title);
-  no script renders it, and the body's Ticket section names the ticket. The
+  `{provider, key}` remote-tracker mapping, when synced). Absent when the run
+  has no ticket.
+- `partition` — absolute path of the run's directory; phase artifacts go in
+  its `steps/create-pr/`.
+- The PR title is free text you write (concise, normally the ticket's title,
+  else a summary of the prompt); no script renders it, and the body's Ticket
+  section names the ticket when there is one. The
   body template is the built-in `pr-default` (a repo's
   `.acs/templates/pr-default.md` replaces it).
 - `settings.tracker` — `provider` is `local` (no sync) or `github`.
@@ -78,8 +86,8 @@ Parse the printed context JSON. Fields you will use:
 
 State inputs (read these; conversation history is NOT an input):
 
-- `<partition>/ticket.json` — title, type, description, acceptance criteria,
-  `external` mapping.
+- the ticket's `ticket.json`, when there is a ticket — title, type,
+  description, acceptance criteria, `external` mapping.
 - `steps/code/state.json` — `invocations[-1].states`: `specs_implemented`,
   `tests` `{passed, failed, coverage_percent, coverage_target}`,
   `docs_updated`, `files`, `review` `{iterations, findings_open}` (plus
@@ -91,8 +99,9 @@ State inputs (read these; conversation history is NOT an input):
 - `<design_doc>` — the decision, when `design.required`.
 - The commit plan `acs.py pr plan-commits` prints (step C1) — built from what
   every step recorded (`states.files`, the analysis publish record, the
-  implementers' reports, docs-sync's and create-e2e-tests' files) intersected
-  with the working-tree changeset since the run's baseline.
+  implementers' reports, docs-sync's and create-e2e-tests' files — other
+  runs' recorded files too, where they name a changed path) intersected with
+  the run's working-tree changeset.
 
 ## The references, and when to open each
 
@@ -109,8 +118,8 @@ each row below is read by exactly one kind of run:
 
 No planner-executor-verifier triad. No planner or verifier subagents are
 spawned for this skill. This inline flow holds on every delivery path —
-`trivial`, `small`, `standard`, `complex`, a ticket with none recorded, and
-docs mode — because create-pr runs after the work is written and the path it
+`trivial`, `small`, `standard`, `complex`, a run with none recorded, and a
+run with no ticket — because create-pr runs after the work is written and the path it
 took is not an input here. No path re-introduces a planner or verifier for
 create-pr.
 
@@ -139,28 +148,26 @@ The working tree's changes become commits before anything touches origin. This
 phase needs no `gh`: a forge that cannot be reached never costs the user their
 confirmed commits, and a re-run resumes at the push.
 
-C1. **Plan.** Ticket mode:
+C1. **Plan.**
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" pr plan-commits --ticket <ticket_id> \
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" pr plan-commits \
      --out <partition>/steps/create-pr/iter-<n>/commit-plan.json
    ```
 
-   Docs mode: `acs.py pr plan-commits --docs --out …` the same way
-   (`<partition>` and `<n>`, the `iteration`, come from the context JSON). It
-   prints `{"branch", "base", "groups": [{"id", "subject", "layer", "paths"}],
+   It plans for this run, whatever its subject (`<partition>` and `<n>`, the
+   `iteration`, come from the context JSON). It prints `{"branch", "base", "groups": [{"id", "subject", "layer", "paths"}],
    "left_out", "excluded"}` and writes the same plan to `--out`: the proposed
    branch (the current one when it already is a feature branch), the baseline
-   commit, the ordered groups — ticket docs, then design docs (HLD, LLD, ADRs), then per
-   plan slice its tests then its code, then the doc updates, then the e2e
-   suites (docs mode: one group per doc set) — the paths changed since the
-   baseline that no step recorded (`left_out`), and the paths already dirty
-   before the run began (`excluded`). It is deterministic; never hand-build a
-   plan or run `git status` to make one.
+   commit, the ordered groups — documents first, one group per doc set (ticket
+   docs, PRD, `hld/`, each `lld/<feature>/`, ADRs), then per plan slice its
+   tests then its code (a run with no plan: its tests, then its code), then
+   the doc updates, then the e2e suites — the paths changed that no step
+   recorded (`left_out`), and the paths already dirty before the run began
+   (`excluded`). It is deterministic; never hand-build a plan or run
+   `git status` to make one.
 
-   - A non-zero exit is the answer: surface its message. In docs mode it
-     refuses when a changed path is not a document and names those paths —
-     code ships through a ticket (`/acs:create-pr <ticket-id>`); stop failed.
+   - A non-zero exit is the answer: surface its message and stop failed.
    - **No groups** (nothing left to commit — the work was committed by an
      earlier invocation or by hand): skip C2–C4 and publish the branch the
      plan names, which must exist locally (`git rev-parse --verify
@@ -177,8 +184,9 @@ C2. **Preview and confirm — ONE grouped question.** Show the user the whole
    - **confirm** — commit the plan as shown.
    - **edit** — the user moves a path between groups, drops a path from a
      group (it stays uncommitted), adds a `left_out` path to a group, or
-     rewords a subject (in ticket mode it keeps the configured commit-subject
-     format, `{ticket_id} {summary}`). Apply exactly those edits to the plan and show
+     rewords a subject (with a ticket it keeps the configured commit-subject
+     format, `{ticket_id} {summary}`; without one the subject is the summary
+     alone). Apply exactly those edits to the plan and show
      the edited plan once more for confirmation; never add a path the user did
      not name, and never an `excluded` one.
    - **cancel** — commit nothing, push nothing; finish `interrupted` /
@@ -252,8 +260,8 @@ C4. **Commit.**
    step 1 already detected; reuse that value rather than running the detect a
    second time.
    Write the PR title directly — concise, normally the ticket's title
-   (`ticket.json` `title`; docs mode: the doc sets changed); no script renders
-   it. This is the exact value passed **verbatim** to `gh pr create --title` /
+   (`ticket.json` `title`; with no ticket, a summary of the prompt or of the
+   doc sets changed); no script renders it. This is the exact value passed **verbatim** to `gh pr create --title` /
    `gh pr edit --title` in step 5 — no further transformation. The ticket is
    named by the body's Ticket section, not the title.
    Body: Summary (from specs scope + design decision), Ticket (id, title,
@@ -264,11 +272,13 @@ C4. **Commit.**
    plans), Checklist (tick exactly what code-state evidences — e.g. `[x]`
    only when `review.findings_open == 0`).
 
-   **Docs mode.** There is no ticket: the Ticket section says "Docs-only
-   change — no ticket", Summary comes from the changed documents' headings,
-   Test plan says no code changed, and every Checklist item stays unticked
-   except what the documents evidence. The PR carries the `acs-exempt` label
-   (step 3), which the CI ticket-link check exempts by fixed rule.
+   **No ticket.** The Ticket section says "No ticket — <the run's prompt>",
+   with no ticket id and no `Closes #` line; Summary comes from the prompt and
+   the changed files (a documents-only change: their headings); Test plan and
+   Checklist tick only what the run's own state evidences. The PR carries the
+   `acs-exempt` label (step 3): the installed CI check
+   (`templates/ci/acs-conventions.yml`) still fails any PR whose description
+   names no ticket, and that label is its fixed exemption.
 
    **GitHub-native issue link (AC-2, AC-7).** When
    `ticket.external.provider == "github"` AND `ticket.external.key` is set,
@@ -283,8 +293,9 @@ C4. **Commit.**
 3. **Label.** `gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true`
    (already issued in step 1's batch) — this label plus the `Closes #{external_key}` linking line together make
    the PR independently identifiable and traceable without depending on the
-   local acs ticket id being unique across contributors (AC-7). Docs mode
-   also ensures `acs-exempt` the same way and applies both labels at step 5.
+   local acs ticket id being unique across contributors (AC-7). A run with no
+   ticket also ensures `acs-exempt` the same way and applies both labels at
+   step 5.
 
 4. **Pre-open self-check.** Before either branch of step 5 runs `gh pr
    create`/`gh pr edit`, self-check the filled body against exactly what CI
@@ -303,7 +314,7 @@ C4. **Commit.**
    keeps the self-check and CI enforcement from drifting, and adds two
    hygiene scans: an unrendered `{placeholder}` and a leftover `<!-- -->`
    comment. The title and the `ACS` label are how acs writes the PR, not
-   rules CI checks, so neither is self-checked. In docs mode a `ticket_link`
+   rules CI checks, so neither is self-checked. With no ticket a `ticket_link`
    error is expected — the `acs-exempt` label is what CI honours — and only
    the two hygiene scans must pass.
 
@@ -336,7 +347,7 @@ C4. **Commit.**
    gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file steps/create-pr/pr-body.md --label ACS
    ```
 
-   (docs mode adds `--label acs-exempt`). No `--draft` — PRs are created
+   (with no ticket, add `--label acs-exempt`). No `--draft` — PRs are created
    ready-for-review. If an open PR already exists for the branch: update it
    instead — `gh pr edit <number> --title "<PR title>" --body-file <body>
    --add-label ACS`, plus `gh pr edit <number> --base <default-branch>` when
@@ -353,7 +364,7 @@ C4. **Commit.**
 
 6a. **Tracker-metadata fill (github-tracker only).** When
    `settings.tracker.provider == "github"` AND `ticket.external.key` is set
-   (the same guard step 7 below uses; never in docs mode), one command
+   (the same guard step 7 below uses; never without a ticket), one command
    performs every metadata write, now that the PR number is known from step 6:
 
    ```bash
@@ -390,7 +401,7 @@ C4. **Commit.**
    AND `ticket.external.key` is set, comment on the remote issue with the PR
    URL:
    - `github`: `gh issue comment <external.key> --body "ACS: PR #<number> opened for <ticket-id> — <url>"`
-   Skip for `local` and in docs mode; report an info finding when the provider
+   Skip for `local` and when the run has no ticket; report an info finding when the provider
    is configured but the ticket was never synced.
 
    This comment plus the `Closes #<key>` body line together are what make the
@@ -451,7 +462,7 @@ See `references/ci-convention-check.md` for that last read's one extra rule
 
 **Clarification ledger first.** Before asking the user anything, run
 `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
-(no `--ticket` in docs mode) and reuse any recorded answer — re-asking an
+(no `--ticket` when the run has none) and reuse any recorded answer — re-asking an
 answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction (e.g. a single AskUserQuestion containing all open questions as a
@@ -504,7 +515,7 @@ push/PR/sync progress, decisions, gotchas) to
 `steps/create-pr/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --run <run_id> --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop. A plan already
@@ -557,14 +568,14 @@ MANDATORY final step — never skipped, also on failure:
    ```
 
    If it exits non-zero, surface its stderr verbatim — the pipeline gate stays
-   closed until it succeeds. On success it finalizes the run and, in ticket
-   mode, moves the ticket to `in_review`.
+   closed until it succeeds. On success it finalizes the run and, when the run
+   has a ticket, moves the ticket to `in_review`.
 
 3. Report a compact summary to the user: the commits made (subject and short
    sha, in order), what was left uncommitted, PR number + URL, branch -> base,
    labels confirmed, tracker sync result (or n/a), created vs updated,
    iterations used, and the next step — review the PR yourself, then run
-   `/acs:merge-pr <ticket-id>` (docs mode: `/acs:merge-pr --pr <number>`; a
+   `/acs:merge-pr <ticket-id>` (no ticket: `/acs:merge-pr --pr <number>`; a
    user action; the pipeline never triggers it). Under /acs:ship, instead
    return ONLY the `<handoff>` XML as your final message — status, summary
    (<=1KB) naming the commits and the PR number/URL, `<artifacts>`
@@ -579,13 +590,13 @@ interrupted, or handed off — ends your final message with the standard block
 succeeded. Same labels, same order, `none` where empty; under /acs:ship your final message is the `<handoff>` XML instead — this report is for direct invocations:
 
 ```markdown
-## /acs:create-pr · <ticket-id | docs> · <status>
+## /acs:create-pr · <ticket-id | run-id> · <status>
 
-- **Ticket**: <id> — <title> (<type>), or "none — docs-only change"
+- **Ticket**: <id> — <title> (<type>), or "none — <the run's prompt>"
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: commits made (short sha + subject, in order) and the paths left uncommitted; PR number and URL; base branch; head branch; `ACS` label applied
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files incl. `steps/create-pr/iter-<n>/commit-plan.json`, repo paths, branch, PR URL>
 - **Metrics**: <wall time>
-- **Next**: review the PR, then `/acs:merge-pr <ticket-id>` (docs mode: `/acs:merge-pr --pr <number>`) — a separate, reviewed step
+- **Next**: review the PR, then `/acs:merge-pr <ticket-id>` (no ticket: `/acs:merge-pr --pr <number>`) — a separate, reviewed step
 ```

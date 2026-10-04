@@ -9,7 +9,7 @@
 #     plan-approval.py and /acs:code read; the planner subagent writes it with
 #     the Write tool, so there is no CLI writer for its bytes
 #   acs.py filemap set --skill code --iteration 1 (the map the guard enforces)
-#   the published copy in docs/tickets/EVAL-1/, committed on the ticket branch
+#   the published copy in docs/tickets/EVAL-1/, left uncommitted on main
 #   post-create-impl-plan.py (finishes the step, releases the lock)
 # `small` needs no approval: plan-approval.py records nothing on this path.
 set -euo pipefail

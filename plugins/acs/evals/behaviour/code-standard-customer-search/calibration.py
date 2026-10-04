@@ -1,10 +1,12 @@
-"""Plays for code-standard-customer-search (see tests/evals/check_grader_calibration.py).
+"""Plays for code-standard-customer-search (see
+tests/evals/check_grader_calibration.py).
 
 IDEAL is what the code-standard leg does on this plan, through its real
 writers: `acs.py step start --step code` (which passes the approval brake the
 scaffold's `acs.py plan check` satisfied), one implementer per plan task --
-slices 1 and 2, each committing only its own paths and writing
-`iter-1/implementer-<k>.json` -- the leg's result.json, and `post-code.py`.
+slices 1 and 2, each writing only its own paths (nothing committed --
+ADR-0127) and writing `iter-1/implementer-<k>.json` -- the leg's result.json,
+and `post-code.py`.
 """
 
 import json
@@ -13,7 +15,6 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST_CODE = os.path.join(PLUGIN, "hooks", "scripts", "post-code.py")
 CODE = ".acs/state-machine/example-shop/runs/EVAL-1/steps/code"
-BRANCH = "story/EVAL-1-search-customers-by-name"
 
 SEARCH = '''def search_customers(customers, query):
     """Customers whose name contains query, case-insensitively, in input order."""
@@ -41,33 +42,38 @@ def test_a_blank_query_is_refused(query):
 '''
 
 
+def _written(ws):
+    """`states.files`: every repo path the run left uncommitted for /acs:create-pr
+    (ADR-0127) -- the scaffold's own uncommitted ticket docs aside."""
+    out = ws.sh("git status --porcelain --untracked-files=all")
+    return sorted(line[3:] for line in out.splitlines()
+                  if not line[3:].startswith((".acs/", "docs/tickets/")))
+
+
 def _report(ws, name, files):
     ws.write(CODE + "/iter-1/" + name, json.dumps({
         "files_changed": files,
         "tests": {"commands": ["python3 -m pytest -q tests/test_search.py"],
                   "passed": 3, "failed": 0},
         "coverage": {"percent": None, "target": "measured in review"},
-        "commits": ["EVAL-1 " + name], "problems": [], "seams": []}))
+        "problems": [], "seams": []}))
 
 
 def _task1(ws):
     ws.write("src/shop/search.py", SEARCH)
     ws.write("tests/test_search.py", TEST)
-    ws.sh("git add src/shop/search.py tests/test_search.py"
-          " && git commit -qm 'EVAL-1 Search customers by name'")
 
 
 def _task2(ws):
     ws.sh("printf -- '- `GET /customers/search?q=` finds customers by name.\\n' >> README.md")
     ws.sh("sed -i 's/^## \\[2.4.0\\]/## [Unreleased]\\n\\n- Customer search by name.\\n\\n&/' CHANGELOG.md")
-    ws.sh("git add README.md CHANGELOG.md && git commit -qm 'EVAL-1 Document customer search'")
 
 
 def _finish(ws):
     ws.write(CODE + "/result.json", json.dumps({
         "status": "completed", "outcome": "implemented", "iteration": 1,
         "summary": "search_customers and its docs; 2 slices; 3 targeted tests green",
-        "states": {"branch": BRANCH, "tasks_implemented": ["1", "2"],
+        "states": {"files": _written(ws), "tasks_implemented": ["1", "2"],
                    "tests": {"passed": 3, "failed": 0},
                    "docs_updated": ["README.md", "CHANGELOG.md"]},
         "findings": [], "errors": []}))

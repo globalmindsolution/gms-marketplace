@@ -1,10 +1,11 @@
-"""Plays for code-small-test-cases-contract (see tests/evals/check_grader_calibration.py).
+"""Plays for code-small-test-cases-contract (see
+tests/evals/check_grader_calibration.py).
 
 IDEAL is what the code-small leg does on this plan, through its real writers:
 `acs.py step start --step code`, one implementer that writes a test per TC-n
-row of test-cases.md (its TC id in the docstring) and then the guard, commits
-on the ticket branch and reports at steps/code/iter-1/implementer.json, the
-leg's result.json, and `post-code.py`.
+row of test-cases.md (its TC id in the docstring) and then the guard, leaves
+them uncommitted and reports at steps/code/iter-1/implementer.json, the leg's
+result.json, and `post-code.py`.
 """
 
 import json
@@ -13,7 +14,6 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST_CODE = os.path.join(PLUGIN, "hooks", "scripts", "post-code.py")
 CODE = ".acs/state-machine/example-shop/runs/EVAL-1/steps/code"
-BRANCH = "task/EVAL-1-reject-a-non-positive-page-limit"
 
 GUARDED = '''PAGE_SIZE = 20
 
@@ -57,6 +57,14 @@ UNTRACED = TEST.replace('"""TC-1"""', '"""AC-1"""').replace(
     '"""TC-2"""', '"""AC-1"""').replace('"""TC-3"""', '"""AC-2"""')
 
 
+def _written(ws):
+    """`states.files`: every repo path the run left uncommitted for /acs:create-pr
+    (ADR-0127) -- the scaffold's own uncommitted ticket docs aside."""
+    out = ws.sh("git status --porcelain --untracked-files=all")
+    return sorted(line[3:] for line in out.splitlines()
+                  if not line[3:].startswith((".acs/", "docs/tickets/")))
+
+
 def _code(ws, source=GUARDED, test=TEST, test_path="tests/test_list_customers.py"):
     ws.skill("code")
     ws.skill("code-small")
@@ -66,17 +74,15 @@ def _code(ws, source=GUARDED, test=TEST, test_path="tests/test_list_customers.py
         return
     ws.write("src/shop/__init__.py", source)
     ws.write(test_path, test)
-    ws.sh("git add src/shop/__init__.py %s && git commit -qm 'EVAL-1 Reject a non-positive page limit'"
-          % test_path)
     ws.write(CODE + "/iter-1/implementer.json", json.dumps({
         "files_changed": ["src/shop/__init__.py", test_path],
         "tests": {"commands": ["python3 -m pytest -q " + test_path], "passed": 3, "failed": 0},
         "coverage": {"percent": None, "target": "measured in review"},
-        "commits": ["EVAL-1 Reject a non-positive page limit"], "problems": [], "seams": []}))
+        "problems": [], "seams": []}))
     ws.write(CODE + "/result.json", json.dumps({
         "status": "completed", "outcome": "implemented", "iteration": 1,
         "summary": "limit below 1 refused; TC-1..TC-3 green",
-        "states": {"branch": BRANCH, "tasks_implemented": ["1"],
+        "states": {"files": _written(ws), "tasks_implemented": ["1"],
                    "tests": {"passed": 3, "failed": 0}, "docs_updated": []},
         "findings": [], "errors": []}))
     ws.sh("python3 '%s' --result-file '%s/result.json'" % (POST_CODE, CODE))

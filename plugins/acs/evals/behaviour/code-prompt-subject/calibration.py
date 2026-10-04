@@ -4,7 +4,8 @@ IDEAL is /acs:code's no-plan branch on a prompt subject, through the real
 writers: the Skill call's PreToolUse gate (`dispatch.py pre`) resolves the
 prompt to a run of its own and `acs.py step start --step code` reads it back; the implicit plan is recorded at that run's steps/code/plan.md
 (a coordinator Write -- there is no CLI writer for it); the small leg's one
-implementer works test-first on a branch named for the run; result.json; and
+implementer works test-first in the working tree on main and commits nothing
+(ADR-0127: no branch, no commit); result.json with `files`; and
 `post-code.py`.
 """
 
@@ -72,7 +73,7 @@ def _gate(ws):
           % DISPATCH)
 
 
-def _code(ws, plan=True, source=CAPPED, branch=True, ticket=False):
+def _code(ws, plan=True, source=CAPPED, branch=False, ticket=False, commit=False):
     _gate(ws)
     if ticket:
         ws.skill("create-ticket")
@@ -91,18 +92,20 @@ def _code(ws, plan=True, source=CAPPED, branch=True, ticket=False):
         ws.sh("git checkout -q -b task/%s" % ctx["run_id"])
     ws.write("src/shop/__init__.py", source)
     ws.write("tests/test_page_size_cap.py", TEST)
-    ws.sh("git add src/shop/__init__.py tests/test_page_size_cap.py"
-          " && git commit -qm 'Cap the customer page size at 100'")
+    if commit:
+        ws.sh("git add src/shop/__init__.py tests/test_page_size_cap.py"
+              " && git commit -qm 'Cap the customer page size at 100'")
     ws.write(code + "/iter-1/implementer.json", json.dumps({
         "files_changed": ["src/shop/__init__.py", "tests/test_page_size_cap.py"],
         "tests": {"commands": ["python3 -m pytest -q tests/test_page_size_cap.py"],
                   "passed": 1, "failed": 0},
         "coverage": {"percent": None, "target": "measured in review"},
-        "commits": ["Cap the customer page size at 100"], "problems": [], "seams": []}))
+        "problems": [], "seams": []}))
     ws.write(code + "/result.json", json.dumps({
         "status": "completed", "outcome": "implemented", "iteration": 1,
         "summary": "limit clamped to 100; 1 targeted test green",
-        "states": {"branch": "task/%s" % ctx["run_id"], "tasks_implemented": ["1"],
+        "states": {"tasks_implemented": ["1"],
+                   "files": ["src/shop/__init__.py", "tests/test_page_size_cap.py"],
                    "tests": {"passed": 1, "failed": 0}, "docs_updated": []},
         "findings": [], "errors": []}))
     ws.sh("python3 '%s' --run '%s' --result-file '%s/result.json'"
@@ -116,6 +119,7 @@ def IDEAL(ws):
 BAD = {
     "fired and implemented nothing": lambda ws: _code(ws, plan=False, source=None),
     "implemented without recording the implicit plan": lambda ws: _code(ws, plan=False),
-    "committed the change on main": lambda ws: _code(ws, branch=False),
+    "committed the change on main": lambda ws: _code(ws, commit=True),
+    "committed it on a branch of its own": lambda ws: _code(ws, branch=True, commit=True),
     "minted a ticket for the prompt": lambda ws: _code(ws, ticket=True),
 }

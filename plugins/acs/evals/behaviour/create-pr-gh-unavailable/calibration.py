@@ -26,8 +26,8 @@ def _start(ws):
     ws.skill("create-pr")
     started = ws.acs("step", "start", "--step", "create-pr")
     assert started.returncode == 0, started.stderr
-    ws.called("Bash", command='python3 "%s/acs.py" pr plan-commits --ticket EVAL-1' % SCRIPTS)
-    planned = ws.acs("pr", "plan-commits", "--ticket", "EVAL-1")
+    ws.called("Bash", command='python3 "%s/acs.py" pr plan-commits' % SCRIPTS)
+    planned = ws.acs("pr", "plan-commits")
     assert planned.returncode == 0, planned.stderr
     assert not json.loads(planned.stdout)["groups"], planned.stdout
     ws.sh("git rev-parse --verify " + BRANCH)
