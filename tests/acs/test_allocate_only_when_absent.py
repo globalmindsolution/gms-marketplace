@@ -62,7 +62,7 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
 
     def test_a_product_skill_can_no_longer_allocate(self):
         """ADR-0127: create-prd and create-architecture mint no delivery
-        ticket -- they run ticketless and ship through /acs:create-pr --docs."""
+        ticket -- they run ticketless, and /acs:create-pr commits their documents."""
         for step in ("create-prd", "create-architecture"):
             with self.subTest(step=step):
                 out = self.run_script("acs.py", "step", "start", "--step", step, "--allocate")

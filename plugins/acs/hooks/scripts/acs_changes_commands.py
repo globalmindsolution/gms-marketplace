@@ -16,7 +16,6 @@ committed has an empty commit range. Every verb prints one JSON object; a
 refusal exits 2.
 """
 
-import argparse
 import os
 import sys
 
@@ -153,7 +152,6 @@ def add_pr_parsers(pr_sub):
                                        "whatever its subject)")
     plan.add_argument("--run", help="this run instead of the checkout's current one")
     plan.add_argument("--out", metavar="FILE", help="also write the plan to FILE")
-    plan.add_argument("--docs", action="store_true", help=argparse.SUPPRESS)  # deprecated no-op
     plan.set_defaults(func=cmd_pr_plan_commits)
 
     commit = pr_sub.add_parser("commit", help="commit a plan's groups in order; never pushes")

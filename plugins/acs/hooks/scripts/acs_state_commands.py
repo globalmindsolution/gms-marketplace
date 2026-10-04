@@ -281,7 +281,7 @@ def _allocate_delivery_ticket(args, ctx):
         die("step start", "--allocate is only valid for /acs:create-ticket. Since "
                           "ADR-0127 the product-level skills mint no delivery ticket: "
                           "they run ticketless (`acs.py step start --step %s`) and "
-                          "their documents ship through /acs:create-pr --docs"
+                          "/acs:create-pr commits their documents, given a prompt"
             % args.step)
 
     existing_id = _resume_id_for_allocate(args, ctx)

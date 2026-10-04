@@ -351,9 +351,9 @@ class PlanUncommittedTest(CommitPlanCase):
         self.assertEqual(plan["mode"], "uncommitted")
         self.assertEqual(plan["groups"][-1]["paths"], [".acs/settings.json", "src/app.py"])
 
-    def test_the_deprecated_docs_flag_is_a_no_op(self):
+    def test_the_checkouts_current_run_is_the_default(self):
         self.baseline()
-        self.assertEqual(self.plan("--docs")["run_id"], self.ticket)
+        self.assertEqual(self.plan()["run_id"], self.ticket)
 
     def test_no_changes_plans_nothing(self):
         git(self.repo, "add", "-A")

@@ -71,6 +71,9 @@ TICKET_TYPES = ["epic", "story", "task"]
 TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]
 PRIORITIES = ["critical", "high", "medium", "low"]
 
+#: The titles of the delivery tickets the product skills minted BEFORE
+#: ADR-0127. Nothing mints one now; only those older tickets carry them, and
+#: the tracker sync and record-external still recognise them by title.
 PRODUCT_TICKET_TITLES = {
     "create-prd": "Product definition (PRD)",
     "create-architecture": "Product architecture doc set",
@@ -79,11 +82,10 @@ PRODUCT_TICKET_TITLES = {
 # Delivery-ticket predicate: the skills that mint their own delivery ticket and
 # ship it as a docs-only PR. EMPTY since ADR-0127: only /acs:create-pr branches,
 # commits and opens a PR, so create-prd and create-architecture leave their
-# documents uncommitted and run ticketless (STANDALONE_RUN_SKILLS below); a
-# docs-only change ships through `/acs:create-pr --docs`. The name stays, empty,
-# because its callers ask "does this skill own a delivery ticket" and the answer
-# is now "none does". PRODUCT_TICKET_TITLES stays: tickets minted before 0127
-# still carry those titles, and the tracker sync still recognises them.
+# documents uncommitted and run ticketless (STANDALONE_RUN_SKILLS below);
+# /acs:create-pr commits them, given a prompt or a ticket id like every skill.
+# The name stays, empty, because its callers ask "does this skill own a
+# delivery ticket" and the answer is now "none does".
 DELIVERY_TICKET_SKILLS = []
 DELIVERY_TICKET_TITLES = {}
 # The skills whose delivery tickets, minted BEFORE ADR-0127, recorded their own
