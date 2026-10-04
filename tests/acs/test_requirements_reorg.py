@@ -484,8 +484,26 @@ RETIRED_BY_ADR_0127 = {
     ),
 }
 
+#: ADR-0128: skills take requirements from any container and no skill
+#: requires a ticket. The obligations are unchanged -- a skill resolves what
+#: it works on before doing anything and stops and asks when nothing
+#: resolves; /create-design analyses what it was asked, the codebase and the
+#: docs -- only the actor "the ticket" became the run's requirements.
+REWORDED_BY_ADR_0128 = {
+    'skills.md': {
+        '- MUST analyze the ticket, the codebase, and existing docs; MUST evaluate':
+            "- MUST analyze the requirements, the feature's living analysis, the",
+    },
+    'workflow.md': {
+        'If no ticket id can be resolved, the skill MUST stop and ask the user.':
+            "If neither a run nor any source resolves, the skill MUST stop and ask the user.",
+        'and therefore MUST resolve a `<ticket-id>` before doing anything. Resolution':
+            "Every workflow skill MUST resolve what it works on before doing anything:",
+    },
+}
+
 REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103,
-                    REWORDED_BY_ADR_0109)
+                    REWORDED_BY_ADR_0109, REWORDED_BY_ADR_0128)
 
 
 def _retired():

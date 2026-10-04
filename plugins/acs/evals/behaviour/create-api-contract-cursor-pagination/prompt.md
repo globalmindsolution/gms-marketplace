@@ -7,7 +7,7 @@ description: >-
   invalid_cursor error -- invent no docs/api/ tree, and close its step with
   outcome contract_written, without asking anything.
 expected_outcome: >-
-  docs/tickets/EVAL-1/api-contract.md exists with items >= 1, the seven
+  docs/architecture/lld/customer-listing/EVAL-1/api-contract.md exists with items >= 1, the seven
   headings in order, a Surface item for GET /customers carrying next_cursor
   and invalid_cursor in the Error model; no docs/api/ or OpenAPI file was
   created; the run's run.json records the step completed with outcome

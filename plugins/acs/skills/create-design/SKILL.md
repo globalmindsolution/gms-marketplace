@@ -606,10 +606,11 @@ MANDATORY final step — never skipped, including on failure or handoff:
 3. Report:
    - Direct invocation: a compact summary — decision (one line), options
      considered, conformance vs. required architecture changes, iterations used,
-     the uncommitted files left in the working tree, and the next step: for a non-epic ticket or a ticketless run, `/acs:code <id>` (`/acs:create-impl-plan` first when no plan exists); for an epic,
+     the uncommitted files left in the working tree, and the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,
      break it down into child tickets with `/acs:create-ticket <id>` (epic
      fan-out), then run `/acs:code` on a child, each of which inherits this
-     design.
+     design; for a ticketless run, `/acs:create-impl-plan` then `/acs:code`
+     on the same run (or `/acs:create-ticket` to cut its tickets).
    - Under /acs:ship: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` <=1KB, `<artifacts>` referencing
      `<design_path>`, and exactly one `<next-step>`: `/acs:code <id>`

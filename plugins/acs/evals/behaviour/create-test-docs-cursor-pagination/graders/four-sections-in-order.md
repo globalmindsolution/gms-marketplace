@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/test-cases.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/test-cases.md }
 pattern: '^# Test cases[^\n]*EVAL-1[\s\S]*^## Scope[ \t]*$[\s\S]*^## Cases[ \t]*$[\s\S]*^## Traceability[ \t]*$[\s\S]*^## Gaps and assumptions[ \t]*$'
 flags: m
 ---

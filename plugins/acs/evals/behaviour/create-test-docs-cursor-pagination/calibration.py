@@ -2,7 +2,7 @@
 
 IDEAL does what /acs:create-test-docs' coordinator does, through the plugin's
 own writers where they exist: `acs step start`, the test-designer's draft in
-the step directory, the Publish copy into docs/tickets/EVAL-1/ left uncommitted
+the step directory, the Publish copy into docs/development/customer-listing/EVAL-1/ left uncommitted
 on main (ADR-0127: no branch, no commit), then result.json with outcome
 cases_written and the post-hook.
 """
@@ -13,7 +13,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
-PUBLISHED = "docs/tickets/EVAL-1/test-cases.md"
+PUBLISHED = "docs/development/customer-listing/EVAL-1/test-cases.md"
 
 CASES = r"""---
 ticket: EVAL-1
@@ -26,8 +26,8 @@ e2e_cases: 0
 ## Scope
 
 The three acceptance criteria and the one contract item (GET /customers) in
-docs/tickets/EVAL-1/api-contract.md, at unit level in tests/ with pytest, as
-docs/tickets/EVAL-1/plan.md plans. The plan owes no e2e.
+docs/architecture/lld/customer-listing/EVAL-1/api-contract.md, at unit level in tests/ with pytest, as
+docs/development/customer-listing/EVAL-1/plan.md plans. The plan owes no e2e.
 
 ## Cases
 

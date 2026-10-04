@@ -83,6 +83,11 @@ def _start(ws):
     ws.skill("analyze-requirements")
     started = ws.acs("step", "start", "--step", "analyze-requirements", "--ticket", "EVAL-1")
     assert started.returncode == 0, started.stderr
+    # The graders' path is the one the plugin itself resolves for this run.
+    shown = ws.acs("artifacts", "show")
+    assert shown.returncode == 0, shown.stderr
+    target = json.loads(shown.stdout)["paths"]["analysis.md"]
+    assert target.replace(os.sep, "/").endswith(PUBLISHED), target
 
 
 def _finish(ws, status="completed", api_surface=True):
@@ -143,3 +148,16 @@ def _committed_on_a_ticket_branch(ws):
 
 
 BAD["committed the analysis on a new ticket branch"] = _committed_on_a_ticket_branch
+
+
+def _published_to_the_legacy_folder(ws):
+    """The pre-ADR-0128 target: everything right, but published to the
+    retired ticket docs tree."""
+    _start(ws)
+    ws.write(STEP + "/analysis.md", ANALYSIS)
+    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md'
+          % STEP)
+    _finish(ws)
+
+
+BAD["published to the legacy docs/tickets folder"] = _published_to_the_legacy_folder

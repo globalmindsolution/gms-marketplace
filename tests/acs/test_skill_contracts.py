@@ -1231,7 +1231,7 @@ class TestGeneralizedFold(unittest.TestCase):
         obligations, and the coverage half is checked mechanically."""
         body = re.sub(r"\s+", " ", self._code_body())
         self.assertIn(
-            "every `ticket.acceptance_criteria` entry maps to at least one "
+            "every `requirements.acceptance_criteria` entry maps to at least one "
             "test the plan will write", body)
         self.assertIn("`settings.tests.coverage` is stated explicitly", body)
         self.assertNotIn(

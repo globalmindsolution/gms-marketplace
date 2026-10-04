@@ -77,7 +77,7 @@ def IDEAL(ws):
 
 def _wrote_the_case_document(ws):
     _start(ws)
-    ws.write("docs/tickets/EVAL-1/test-cases.md",
+    ws.write("docs/development/customer-listing/EVAL-1/test-cases.md",
              "| ID | AC | Type |\n| --- | --- | --- |\n| TC-1 | AC-1 | e2e |\n| TC-2 | AC-2 | e2e |\n")
     ws.write(SUITE, GOOD_SUITE.replace("AC-1", "TC-1").replace("AC-2", "TC-2"))
     _finish(ws, [SUITE], ["TC-1", "TC-2"])

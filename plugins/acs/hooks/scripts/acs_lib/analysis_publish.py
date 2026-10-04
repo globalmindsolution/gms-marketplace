@@ -11,9 +11,15 @@ published bytes were the reviewed bytes. This is that step as code:
      review is a clean check;
   2. copy the draft byte-for-byte to the resolved analysis path, and read it
      back to prove the copy;
-  3. record the ticket docs folder's files as the paths this step wrote. It
+  3. record the run's docs folder's files as the paths this step wrote. It
      NEVER stages or commits (ADR-0127): only /acs:create-pr commits, and it
      reads these paths to group the ticket docs into their own commit.
+
+The target is resolved by RUN (ADR-0128, `acs_lib.run_docs`), with or without
+a ticket: a Development run's analysis goes to
+`<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`, a Discovery
+run's to the feature's living `<prd_dir>/features/<feature>/analysis.md`. A run
+with no feature yet is refused, naming how to record one.
 
 `record_publication` then re-derives it from the working tree before the loop
 is `completed`.
@@ -24,7 +30,7 @@ import os
 
 from ._common import GateError, now_iso
 from .analysis_loop import _advance, _block, _expect, draft_path
-from .artifacts import artifact_path, ticket_docs_dir
+from . import run_docs
 
 
 def _sha(data):
@@ -38,11 +44,22 @@ def _inside(path, folder):
     return path == folder or path.startswith(folder + os.sep)
 
 
-def resolve_target(ctx, tdir, ticket_id):
-    """(analysis_path, docs_dir): the existing resolution -- the first existing
-    copy, else the docs folder, else the partition fallback."""
-    root = ctx.get("checkout_root")
-    return artifact_path(root, tdir, ticket_id, "analysis.md"), ticket_docs_dir(root, ticket_id)
+def resolve_target(ctx, rdir):
+    """(analysis_path, docs_dir) for the run's analysis. `docs_dir` is the
+    run's own Development folder, whose files the step records; a Discovery
+    analysis is the feature root's living document and records only itself.
+    Refused (GateError) when the run has no feature to file it under."""
+    layout = run_docs.run_layout(ctx, rdir)
+    target = layout["paths"].get("analysis.md")
+    if not target:
+        raise GateError(
+            "refusing to publish: run %s has no PRD feature to file its analysis under. "
+            "Ask the user which feature it belongs to (propose PRD feature slugs with "
+            "`acs.py slug`, or a new slug when none fits) and record it with `acs.py "
+            "requirements refine` ({\"feature\": \"<slug>\"}), then publish again."
+            % (layout.get("run_id") or os.path.basename(rdir)))
+    docs_dir = layout["docs_dir"] if layout["phase"] == "development" else None
+    return target, docs_dir
 
 
 def _reviewed_sha(loop):
@@ -64,7 +81,7 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
     if _sha(data) != reviewed:
         raise GateError("refusing to publish: the draft is not the bytes the review passed "
                         "(reviewed %s, now %s)" % ((reviewed or "-")[:12], _sha(data)[:12]))
-    path, docs_dir = resolve_target(ctx, tdir, loop["ticket_id"])
+    path, docs_dir = resolve_target(ctx, rdir)
     root = ctx.get("checkout_root")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".acs-tmp"
@@ -74,7 +91,13 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
     with open(path, "rb") as handle:
         if handle.read() != data:  # pragma: no cover -- a filesystem that lies
             raise GateError("published bytes at %s differ from the draft" % path)
-    files = _docs_files(root, docs_dir) if root and _inside(path, docs_dir) else []
+    if root and docs_dir and _inside(path, docs_dir):
+        files = _docs_files(root, docs_dir)
+    elif root and _inside(path, root):
+        files = [os.path.relpath(os.path.realpath(path),
+                                 os.path.realpath(root)).replace(os.sep, "/")]
+    else:
+        files = []
     loop["publication"] = {"path": path, "sha256": _sha(data), "bytes": len(data),
                            "docs_dir": docs_dir, "files": files,
                            "verified": False, "at": now_iso()}
@@ -83,7 +106,7 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
 
 
 def _docs_files(root, docs_dir):
-    """Every file in the ticket's docs folder, repo-relative and sorted: the
+    """Every file in the run's docs folder, repo-relative and sorted: the
     paths this step leaves uncommitted for /acs:create-pr (ADR-0127)."""
     out = []
     real_root = os.path.realpath(root)

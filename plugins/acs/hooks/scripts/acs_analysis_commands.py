@@ -26,13 +26,17 @@ from acs_lib import analysis_publish  # noqa: E402
 
 
 def _resolve(command, explicit):
+    """(run_id, rdir, ctx, ticket_id, tdir) for ANY run: a ticket, documents or
+    a prompt are only where the requirements came from (ADR-0128). Without a
+    ticket, `ticket_id` and `tdir` are None and the clarification ledger is the
+    run's own."""
     run_id, rdir, ctx = run_or_die(command, explicit)
     subject = (lib.load_run(rdir) or {}).get("subject") or {}
     ticket_id = subject.get("ticket_id")
-    if not ticket_id:
-        die(command, "run %s has no ticket subject; /acs:analyze-requirements analyzes "
-                     "one ticket" % run_id)
-    tdir, _archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+    tdir = None
+    if ticket_id:
+        tdir, _archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"],
+                                                   ticket_id)
     return run_id, rdir, ctx, ticket_id, tdir
 
 
@@ -51,10 +55,16 @@ def cmd_analysis_plan(args):
     run_id, rdir, _ctx, ticket_id, _tdir = _resolve("analysis plan", args.run)
     areas = [a for a in (args.areas or "").split(",") if a.strip()]
     try:
+        if getattr(args, "mode", None):
+            # Discovery or Development, decided once at plan time and recorded
+            # with the requirements: publish files the analysis by it.
+            lib.requirements.refine(rdir, _ctx, {"phase": args.mode})
         loop = loop_lib.plan(rdir, run_id, ticket_id, areas)
     except lib.GateError as exc:
         die("analysis plan", str(exc))
-    emit({"ok": True, "run_id": run_id, "lanes": loop["lanes"], "next": _next(rdir, loop, _ctx)})
+    emit({"ok": True, "run_id": run_id, "lanes": loop["lanes"],
+          "phase": lib.requirements.run_phase(lib.load_run(rdir), rdir=rdir),
+          "next": _next(rdir, loop, _ctx)})
 
 
 def _record(command, args, fn):
@@ -111,7 +121,8 @@ def cmd_analysis_record_publication(args):
 
 def cmd_analysis_publish(args):
     def publish(rdir, loop, ctx, tdir):
-        ticket = lib.load_ticket(tdir) or {"id": loop and loop.get("ticket_id")}
+        ticket = (lib.load_ticket(tdir) if tdir else None) or {
+            "id": loop and loop.get("ticket_id")}
         return analysis_publish.publish(rdir, loop, ctx, tdir, ticket,
                                         summary=args.summary)[1]
     _record("analysis publish", args, publish)
@@ -133,6 +144,10 @@ def add_parser(group):
     plan.add_argument("--areas", default="",
                       help="comma-separated code areas, one impact lane each "
                            "(empty: one impact lane over the whole repository)")
+    plan.add_argument("--mode", choices=["discovery", "development"],
+                      help="file the analysis as the feature's living Discovery "
+                           "analysis or as this run's Development one (default: "
+                           "development for a ticket's or a shipped run, else discovery)")
     verb("record-survey", cmd_analysis_record_survey,
          "read every lane's snapshot and notes; join the notes")
     verb("record-synthesis", cmd_analysis_record_synthesis,
@@ -145,7 +160,7 @@ def add_parser(group):
     verb("record-review", cmd_analysis_record_review,
          "derive the iteration's verdict from the judge slices' snapshots")
     publish = verb("publish", cmd_analysis_publish,
-                   "checks, byte-for-byte copy into the docs folder; never commits "
+                   "checks, byte-for-byte copy into the run's phase folder; never commits "
                    "(ADR-0127) -- prints the written paths")
     publish.add_argument("--summary", help="ignored since ADR-0127: publish commits nothing")
     verb("record-publication", cmd_analysis_record_publication,

@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/test-cases.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/test-cases.md }
 pattern: '^\|[ \t]*TC-\d+[ \t]*\|[^|\n]*\bAC-4\b'
 flags: m
 match: not_contains

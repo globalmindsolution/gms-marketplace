@@ -11,12 +11,11 @@ Usage:
                 [--external github:123] [--assignee jane] [--story-points 3]
 
 Prints {"ticket_id": ..., "partition": ..., "ticket_document": ...} on
-success. `ticket_document` is the file the ticket was written to: the
-TRACKED `docs/tickets/<ID>/ticket.md` in the consumer repo when the docs
-tree is active, else `<partition>/ticket.json`. This command mints a ticket
-before any ticket branch exists, so it never commits or stages that file --
-/acs:analyze-ticket's first commit on the ticket branch carries the ticket's
-docs folder into the branch (ADR 0090).
+success. `ticket_document` is the file the ticket was written to:
+`<partition>/ticket.json` in the workspace. Since ADR-0128 a ticket lives only
+in the workspace and the tracker -- nothing is written into the consumer
+repo's docs tree (no `docs/tickets/<ID>/ticket.md`), so minting a ticket
+leaves the working tree untouched.
 """
 
 import argparse
@@ -137,12 +136,8 @@ def main():
         features=features,
     )
     lib.save_ticket(tdir, ticket)
-    # Where the ticket actually landed. With the docs tree active this is a
-    # TRACKED file in the consumer repo (docs/tickets/<ID>/ticket.md), and
-    # this command runs before any ticket branch exists -- acs never commits
-    # to the default branch -- so it is deliberately left uncommitted for the
-    # first Build step's commit (see ADR 0090). Reporting the path is what
-    # keeps that write visible to the caller instead of silent.
+    # Where the ticket landed: its partition's ticket.json, never the repo's
+    # docs tree (ADR-0128). Reported so the caller sees the write.
     _kind, document = lib.ticket_source(tdir)
     document = document or os.path.join(tdir, lib.artifacts.TICKET_JSON_FILENAME)
     try:

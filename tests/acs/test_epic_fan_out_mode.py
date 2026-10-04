@@ -574,7 +574,10 @@ class ChildAcceptanceCriteriaWriteInstructedInBothFilesCase(unittest.TestCase):
                           r"--ticket <child-id>", section_norm),
                 "%s must state acceptance_criteria is written into the "
                 "child's ticket via acs.py ticket save after minting" % name)
-            self.assertIn("docs/tickets/<child-id>/ticket.md", section_norm)
+            # ADR-0128: the ticket lives in the workspace and the tracker
+            # only -- no ticket.md is written into the repo any more.
+            self.assertNotIn("docs/tickets/<child-id>/ticket.md", section_norm)
+            self.assertRegex(section_norm, r"(?i)never in the repo")
             self.assertNotRegex(section_norm, r"(?i)into the child's own `?ticket\.json")
             self.assertIn("--acceptance-criteria", section_norm)
 

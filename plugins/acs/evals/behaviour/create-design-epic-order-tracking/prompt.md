@@ -8,7 +8,7 @@ description: >-
   and the reply naming the epic's next step, /acs:create-ticket EVAL-1 (fan-
   out), not /acs:code.
 expected_outcome: >-
-  docs/tickets/EVAL-1/design.md exists with the six headings in order, two or
+  docs/architecture/lld/order-tracking/EVAL-1/design.md exists with the six headings in order, two or
   more ### options, and a Rollout/migration section naming the child slices;
   no EVAL-2 exists; the step's state.json records completed; the final reply
   names /acs:create-ticket EVAL-1.

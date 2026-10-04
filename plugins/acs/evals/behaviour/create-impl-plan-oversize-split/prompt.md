@@ -25,6 +25,6 @@ uncommitted, on main.
 I can't answer questions during this run, so here is my answer in advance —
 don't ask me anything: if the plan comes out too large for one reviewable
 pull request, I choose to SPLIT the ticket. Do not plan it as one large PR.
-Every other open point is settled in docs/tickets/EVAL-1/analysis.md; the
+Every other open point is settled in docs/development/order-management/EVAL-1/analysis.md; the
 tests are pytest under tests/ and the coverage target is the repo's 90%.
 Take the skill as far as that answer allows, and finish the step properly.

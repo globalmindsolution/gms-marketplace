@@ -96,7 +96,9 @@ here. Start from the previously published analysis when `<inputs>` names one
    has no feature at all (no ticket `features`, no `feature` in the
    requirements), propose the PRD feature slugs it most likely belongs to,
    best first, each with the PRD section that supports it — or a new slug,
-   derived the same way, when none fits.
+   derived the same way, when none fits — and read each candidate's living
+   analysis (`<prd_dir>/features/<slug>/analysis.md`) when it exists: what it
+   already settled is not a question.
 3. **Acceptance criteria that need refining.** Quote each criterion (by its
    `AC-n` in `requirements.md`; a prompt or a document that states behaviour
    only as prose has its criteria proposed as `missing`) and mark it:

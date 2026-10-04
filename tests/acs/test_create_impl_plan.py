@@ -115,7 +115,7 @@ class SkillSurfaceTest(unittest.TestCase):
     def test_skill_frontmatter(self):
         fm = frontmatter(read(IMPL_PLAN_SKILL))
         self.assertRegex(fm, r"(?m)^name: create-impl-plan$")
-        self.assertRegex(fm, r"(?m)^argument-hint: \"\[ticket-id\]\"$")
+        self.assertRegex(fm, r"(?m)^argument-hint: \"\[ticket-id\] \[documents…\] \[prompt\]\"$")
         self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
         self.assertRegex(fm, r"(?m)^description: .+")
 
@@ -210,7 +210,7 @@ class PlanContractTest(unittest.TestCase):
         self.assertRegex(self.norm, r"(?i)\*\*The plan IS the spec content\.\*\*")
         self.assertRegex(
             self.norm,
-            r"(?i)every `ticket\.acceptance_criteria` entry maps to at least "
+            r"(?i)every `requirements\.acceptance_criteria` entry maps to at least "
             r"one test")
         self.assertRegex(
             self.norm, r"(?i)`settings\.tests\.coverage` is stated")
@@ -263,13 +263,16 @@ class PublishTest(unittest.TestCase):
         cls.norm = norm(cls.body)
 
     def test_artifact_path_is_resolved_through_the_cli(self):
-        self.assertIn("artifacts show --ticket", self.body)
-        self.assertRegex(
-            self.norm,
-            r"(?i)docs_dir.{0,120}plan\.md|plan\.md.{0,120}docs_dir")
+        # ADR-0128: resolved by the RUN (the checkout's pointer), so a
+        # ticketless run resolves the same way; the write goes to the
+        # Development folder the CLI names, never a guessed docs/tickets path.
+        self.assertIn('acs.py" artifacts show\n', self.body)
+        self.assertNotIn("artifacts show --ticket <id>\n", self.body)
+        self.assertIn('`paths["plan.md"]` non-null → the plan is published there', self.body)
+        self.assertIn("`<development_dir>/<feature>/<id>/`", self.body)
         self.assertIn("<partition>/plan.md", self.body,
-                      "the fallback write target (no docs_dir to anchor the "
-                      "ticket docs folder to) must be named")
+                      "the fallback write target (no path to anchor the "
+                      "Development folder to) must be named")
 
     def test_coordinator_is_the_only_writer_of_the_published_plan(self):
         section = slice_between(self.body, "### Publish", "### Plan approval")
@@ -708,7 +711,9 @@ class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
 
     def test_the_two_skills_state_the_same_contract(self):
         self.assertRegex(self.analyze, r"(?i)`/acs:create-impl-plan` plans against the ticket as written")
-        self.assertRegex(self.norm, r"(?i)plans? against the ticket(?:'s acceptance criteria)? as written")
+        # The plan skill states the same contract over the run's requirements
+        # (ADR-0128): a ticket is only one container of them.
+        self.assertRegex(self.norm, r"(?i)plans? against the requirements(?:' acceptance criteria)? as written")
 
 
 #: The plan reviewer's judge slices and the dimension numbers each owns.

@@ -22,6 +22,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
+ACS_FEATURES=customer-listing
 acs_ticket "Add 1-based page numbers to the customer listing" task false \
   "Merchants page through customers by page number, starting at page 1."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
@@ -62,11 +63,11 @@ owes:
 MD
 acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_pagination.py > /dev/null
-mkdir -p docs/tickets/EVAL-1
-cp "$draft" docs/tickets/EVAL-1/plan.md
+mkdir -p docs/development/customer-listing/EVAL-1
+cp "$draft" docs/development/customer-listing/EVAL-1/plan.md
 cat > "$run/steps/create-impl-plan/result.json" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",
- "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
+ "states": {"plan_path": "docs/development/customer-listing/EVAL-1/plan.md", "plan_approved": false,
             "file_map": {"1": ["src/shop/__init__.py", "tests/test_pagination.py"]}},
  "findings": [], "errors": []}
 JSON

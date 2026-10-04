@@ -8,7 +8,7 @@ description: >-
   map carries the new module, declare that map, and close the step as a
   second, completed invocation.
 expected_outcome: >-
-  docs/tickets/EVAL-1/plan.md exists and its Executor tasks & file map names
+  docs/development/customer-listing/EVAL-1/plan.md exists and its Executor tasks & file map names
   src/shop/cursor.py; the code step's iteration-1 filemap.json names
   src/shop/cursor.py; the ledger holds exactly one cursor-codec question; the
   step's state.json records the interrupted invocation followed by a completed

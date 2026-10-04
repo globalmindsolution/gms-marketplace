@@ -15,6 +15,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
+ACS_FEATURES=order-management
 acs_ticket "Storefront order management" story false \
   "Everything a merchant and a shopper need around orders, in one go: card checkout, order history, refunds, a merchant order dashboard, a CSV export for accounting, and email notifications."
 printf '%s' '{"acceptance_criteria": [
@@ -30,8 +31,8 @@ printf '%s' '{"acceptance_criteria": [
   "Orders, line items and refunds are stored in three new tables created by a migration"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/development/order-management/EVAL-1
+cat > docs/development/order-management/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true

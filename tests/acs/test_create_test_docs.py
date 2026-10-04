@@ -135,7 +135,7 @@ class TestSkillFrontmatter(unittest.TestCase):
         self.assertRegex(self.fm, r"(?m)^name: create-test-docs$")
 
     def test_it_is_a_ticket_scoped_coordinator(self):
-        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\]"$')
+        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         self.assertRegex(self.fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
 
     def test_description_routes_on_what_it_produces(self):
@@ -434,7 +434,9 @@ class TestPublishing(unittest.TestCase):
         cls.body = read(SKILL_PATH)
 
     def test_the_artifact_path_is_resolved_by_the_cli_not_guessed(self):
-        self.assertIn("artifacts show --ticket <id>", self.body)
+        self.assertIn('acs.py" artifacts show\n', self.body)
+        self.assertNotIn("artifacts show --ticket <id>\n", self.body)
+        self.assertIn('`paths["%s"]` non-null → publish there' % "test-cases.md", self.body)
         self.assertIn("acs_lib.artifacts.artifact_path", self.body)
 
     def test_publishing_copies_the_verified_bytes(self):

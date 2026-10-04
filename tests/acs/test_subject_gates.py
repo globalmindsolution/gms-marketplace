@@ -173,14 +173,45 @@ class CreateDesignGateTest(acs_case.AcsWorkspaceCase):
             "design-significant tickets; go straight to /acs:code %s."
             % (ticket, ticket), out.stderr)
 
-    def test_create_design_is_refused_with_no_subject_at_all(self):
+    def test_create_design_is_refused_with_no_requirements_at_all(self):
         out = self.pre("create-design")
         self.assertEqual(out.returncode, 2, out.stderr)
         self.assertIn("acs pre-create-design: blocked", out.stderr)
         self.assertIn(
-            "could not resolve a ticket id for /create-design (no argument, no session "
-            "pointer, no ticket in the branch name). Pass it explicitly, e.g. "
-            "/acs:create-design SHOP-123.", out.stderr)
+            "no requirements for /create-design: no ticket, document or prompt in the "
+            "invocation, and no current run. Give it a ticket id, documents or a "
+            "prompt, e.g. /acs:create-design SHOP-123.", out.stderr)
+
+    def test_a_prompt_is_the_ask_with_no_ticket(self):
+        """ADR-0128: invoking /acs:create-design with requirements -- here a
+        prompt -- IS the request for a design; no ticket flag is needed."""
+        out = self.pre("create-design", "split the order service into two")
+        self.assertEqual(out.returncode, 0, out.stderr)
+
+    def test_a_ticket_whose_refined_requirements_need_a_design_opens(self):
+        ticket = self.new_ticket("Add user login", "task")
+        rdir = self.ensure_run(ticket)
+        ctx = lib.build_context(self.repo)
+        lib.requirements.refine(rdir, ctx, {"needs_design": True})
+        self.assertTrue(lib.load_ticket(self.tdir(ticket))["needs_design"],
+                        "refine patches the ticket too")
+        lib.save_ticket(self.tdir(ticket), dict(lib.load_ticket(self.tdir(ticket)),
+                                                needs_design=False))
+        out = self.pre("create-design", ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
+
+    def test_a_ticketless_run_that_recorded_no_design_is_refused(self):
+        out = self.run_script("acs.py", "run", "new", "--prompt", "tweak a label")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        run_id = json.loads(out.stdout)["run_id"]
+        rdir = lib.run_dir(lib.repo_dir(self.ws, "acme-shop"), run_id)
+        lib.requirements.refine(rdir, lib.build_context(self.repo), {"needs_design": False})
+        out = self.pre("create-design")
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("record needs_design false", out.stderr)
+        self.assertIn("requirements refine", out.stderr)
+        lib.requirements.refine(rdir, lib.build_context(self.repo), {"needs_design": True})
+        self.assertEqual(self.pre("create-design").returncode, 0)
 
     def test_create_design_opens_for_a_needs_design_ticket(self):
         ticket = self.new_ticket("Checkout revamp", "epic")

@@ -7,7 +7,8 @@ wrote; this module turns a run's records, intersected with its changeset
 (`acs_lib.changes`), into small reviewable commits the user confirms before
 anything is staged (`recorded` mode):
 
-  1. ticket docs     -- `docs/tickets/<ID>/` and what the ticket-docs skills recorded
+  1. ticket docs     -- what the ticket-docs skills recorded (their phase folders,
+                        ADR-0128) and a legacy `docs/tickets/<ID>/`
   2. design docs     -- what create-design / create-data-design / create-flows recorded
   3. per plan slice  -- its tests, then its code (one group when it has one kind)
   4. docs-sync       -- the doc updates docs-sync recorded
@@ -96,6 +97,12 @@ def doc_set(path):
         return ("lld/%s" % feature, "LLD %s" % feature) if feature else ("lld", "LLD")
     if "hld" in dirs:
         return "hld", "HLD"
+    if "development" in dirs:
+        # A run's Development folder (ADR-0128): <development_dir>/<feature>/<id>/.
+        rest = parts[dirs.index("development") + 1:-1]
+        feature = rest[0] if rest else None
+        return (("development/%s" % feature, "development %s docs" % feature) if feature
+                else ("development", "development docs"))
     if {"adr", "adrs", "decisions"}.intersection(dirs):
         return "adr", "ADRs"
     if "product" in dirs or "prd" in name or "roadmap" in name:
@@ -106,7 +113,7 @@ def doc_set(path):
 
 
 def _doc_order(key):
-    order = ["prd", "requirements", "hld", "lld", "adr", "tickets", "other"]
+    order = ["prd", "requirements", "hld", "lld", "development", "adr", "tickets", "other"]
     head = key.split("/", 1)[0]
     return (order.index(head) if head in order else len(order), key)
 

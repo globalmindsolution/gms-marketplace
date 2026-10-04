@@ -13,7 +13,7 @@
 #   the draft at runs/EVAL-1/steps/create-impl-plan/plan.md (the planner's
 #     Write; no CLI writer exists for its bytes)
 #   acs.py filemap set --skill code --iteration 1 (the map the guard enforces)
-#   the published copy in docs/tickets/EVAL-1/, left uncommitted on main
+#   the published copy in docs/development/<feature>/EVAL-1/, left uncommitted on main
 #   post-create-impl-plan.py (finishes the step, releases the lock)
 # and then APPROVED through the sole writer of plan-approval.json, `acs.py plan
 # check`, which the complex path's pre-hook requires.
@@ -22,6 +22,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
+ACS_FEATURES=merchant-api-keys
 acs_ticket "Store merchant API keys hashed" story false \
   "Merchant API keys are about to be persisted; a leaked table must not leak usable keys."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
@@ -79,12 +80,12 @@ owes:
 MD
 acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/auth.py --file tests/test_auth.py > /dev/null
-mkdir -p docs/tickets/EVAL-1
-cp "$draft" docs/tickets/EVAL-1/plan.md
+mkdir -p docs/development/merchant-api-keys/EVAL-1
+cp "$draft" docs/development/merchant-api-keys/EVAL-1/plan.md
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task on a security boundary",
- "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
+ "states": {"plan_path": "docs/development/merchant-api-keys/EVAL-1/plan.md", "plan_approved": false,
             "file_map": {"1": ["src/shop/auth.py", "tests/test_auth.py"]}},
  "findings": [], "errors": []}
 JSON

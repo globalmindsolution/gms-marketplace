@@ -376,7 +376,7 @@ def _guard_control_input(target, tdir, ctx):
     and any iteration's file map (which says what it may touch): either one
     lets an executor answer the guard's own question, so neither is writable
     while the guard is armed. And the ticket docs tree,
-    docs/tickets/<ID>/ (ticket.md, design.md, plan.md, test-cases.md ...),
+    docs/tickets/<ID>/ (the legacy ticket documents, ADR-0128 keeps it read-only),
     which the coordinator and the ticket skills own: an executor rewriting the
     plan it is being checked against is the same move as rewriting the map."""
     own = "the file-map guard's own control input"
@@ -395,6 +395,30 @@ def _guard_control_input(target, tdir, ctx):
         if _under(target, docs_root) or normalized == rel or normalized.startswith(rel + "/"):
             return ("the ticket docs tree (%s/), a control input only the coordinator "
                     "and the ticket skills write" % rel)
+    return _run_docs_control_input(target, normalized, tdir, ctx)
+
+
+def _run_docs_control_input(target, normalized, rdir, ctx):
+    """The run's own phase folders (ADR-0128) -- its Development folder (the
+    plan and test cases an executor is checked against) and its Design folder
+    -- are what docs/tickets/<ID>/ was: written by the coordinator and the
+    document skills, never by an executor."""
+    root = (ctx or {}).get("checkout_root")
+    if not (root and rdir):
+        return None
+    try:
+        from .run_docs import run_layout
+        layout = run_layout(ctx, rdir)
+    except Exception:  # noqa: BLE001 -- an unresolvable layout guards nothing extra
+        return None
+    for key in ("docs_dir", "design_dir"):
+        folder = layout.get(key)
+        if not folder:
+            continue
+        rel = normalize_repo_path(os.path.relpath(folder, root))
+        if _under(target, folder) or normalized == rel or normalized.startswith(rel + "/"):
+            return ("this run's documents (%s/), a control input only the coordinator "
+                    "and the document skills write" % rel)
     return None
 
 

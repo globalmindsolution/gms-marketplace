@@ -3,7 +3,7 @@
 # acceptance criteria through the plugin's own CLIs, and the working tree
 # (main, nothing committed -- ADR-0127) carrying the PUBLISHED analysis
 # /acs:analyze-requirements would have left there:
-# docs/tickets/EVAL-1/analysis.md, uncommitted.
+# docs/development/customer-listing/EVAL-1/analysis.md, uncommitted.
 #
 # acs has no writer command for an analysis -- the analyze-requirements
 # coordinator copies its verified draft into the docs folder with cp and
@@ -20,6 +20,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
+ACS_FEATURES=customer-listing
 acs_ticket "Cursor pagination for GET /customers" story false \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
 printf '%s' '{"acceptance_criteria": [
@@ -28,8 +29,8 @@ printf '%s' '{"acceptance_criteria": [
   "A malformed cursor is rejected with HTTP 400 and error code invalid_cursor"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true

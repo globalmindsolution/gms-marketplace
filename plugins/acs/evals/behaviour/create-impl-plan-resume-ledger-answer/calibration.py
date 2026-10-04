@@ -13,10 +13,10 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan"
-PUBLISHED = "docs/tickets/EVAL-1/plan.md"
+PUBLISHED = "docs/development/customer-listing/EVAL-1/plan.md"
 FILES = ["src/shop/cursor.py", "src/shop/__init__.py", "tests/test_cursor.py",
          "tests/test_customers.py", "README.md"]
-PLAN = '# Plan — EVAL-1: Cursor pagination for GET /customers\n\nPlanned from docs/tickets/EVAL-1/analysis.md and C-5.\n\n## Approach\n\nPer C-5 the cursor codec lives in a new module, `src/shop/cursor.py`\n(`encode(last_id)`, `decode(cursor)` raising `InvalidCursor`);\n`list_customers` in `src/shop/__init__.py` imports it, accepts `cursor` and\nreturns `next_cursor`. `offset` keeps working; `limit` defaults to 20, max 100.\n\n## Tests\n\n| AC | Test |\n|---|---|\n| AC-1 | tests/test_customers.py: a cursor returns the following page |\n| AC-2 | tests/test_customers.py: `next_cursor` null on the last page |\n| AC-3 | tests/test_cursor.py: a malformed cursor raises `InvalidCursor` -> 400 `invalid_cursor` |\n\nRun `python3 -m pytest -q --cov=src --cov-fail-under=90`; coverage target 90%.\n\n## Contract\ndelivery_path: small\nowes:\n  api_contract: true\n  test_cases: true\n  e2e: false\n  reason: "GET /customers gains a query parameter, a response field and an error code"\n\n### Executor tasks & file map\n- task 1: src/shop/cursor.py, src/shop/__init__.py, tests/test_cursor.py, tests/test_customers.py, README.md\n'
+PLAN = '# Plan — EVAL-1: Cursor pagination for GET /customers\n\nPlanned from docs/development/customer-listing/EVAL-1/analysis.md and C-5.\n\n## Approach\n\nPer C-5 the cursor codec lives in a new module, `src/shop/cursor.py`\n(`encode(last_id)`, `decode(cursor)` raising `InvalidCursor`);\n`list_customers` in `src/shop/__init__.py` imports it, accepts `cursor` and\nreturns `next_cursor`. `offset` keeps working; `limit` defaults to 20, max 100.\n\n## Tests\n\n| AC | Test |\n|---|---|\n| AC-1 | tests/test_customers.py: a cursor returns the following page |\n| AC-2 | tests/test_customers.py: `next_cursor` null on the last page |\n| AC-3 | tests/test_cursor.py: a malformed cursor raises `InvalidCursor` -> 400 `invalid_cursor` |\n\nRun `python3 -m pytest -q --cov=src --cov-fail-under=90`; coverage target 90%.\n\n## Contract\ndelivery_path: small\nowes:\n  api_contract: true\n  test_cases: true\n  e2e: false\n  reason: "GET /customers gains a query parameter, a response field and an error code"\n\n### Executor tasks & file map\n- task 1: src/shop/cursor.py, src/shop/__init__.py, tests/test_cursor.py, tests/test_customers.py, README.md\n'
 
 
 def _written(ws):
@@ -34,7 +34,7 @@ def _start(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/plan.md", text)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/plan.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/plan.md" "%s"' % (STEP, PUBLISHED))
 
 
 def _declare(ws, files):

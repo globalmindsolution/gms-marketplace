@@ -388,7 +388,8 @@ def build_parser():
     ashow.set_defaults(func=cmd_artifacts_show)
 
     amigrate = artifacts_sub.add_parser(
-        "migrate", help="move live partitions' ticket documents into the repo docs tree")
+        "migrate", help="retired (ADR-0128): tickets are no longer stored in the docs "
+                    "tree; reports and writes nothing")
     amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
                           help="list the moves without making them")
     amigrate.set_defaults(func=cmd_artifacts_migrate)

@@ -3,7 +3,7 @@
 IDEAL does what /acs:create-design's coordinator does, through the plugin's
 own writers where they exist: `acs step start`, `clarify.py add` for the
 answers the prompt relayed, the designer's draft in the step directory, the
-Publish copy into docs/tickets/EVAL-1/ (left uncommitted: no ticket branch
+Publish copy into docs/architecture/lld/checkout-with-card-payments/EVAL-1/ (left uncommitted: no ticket branch
 exists yet, and the skill never commits to the default branch), then
 result.json and the post-hook.
 """
@@ -14,7 +14,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-design"
-PUBLISHED = "docs/tickets/EVAL-1/design.md"
+PUBLISHED = "docs/architecture/lld/checkout-with-card-payments/EVAL-1/design.md"
 
 DESIGN = r"""# Design — EVAL-1: Checkout with card payments
 
@@ -113,7 +113,7 @@ def _finish(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/design.md", text)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/design.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p docs/architecture/lld/checkout-with-card-payments/EVAL-1 && cp "%s/design.md" "%s"' % (STEP, PUBLISHED))
 
 
 def IDEAL(ws):

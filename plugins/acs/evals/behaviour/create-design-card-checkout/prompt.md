@@ -7,7 +7,7 @@ description: >-
   an architecture-conformance call, write no code, and close its step --
   without asking anything.
 expected_outcome: >-
-  docs/tickets/EVAL-1/design.md exists with the six headings in order, two or
+  docs/architecture/lld/checkout-with-card-payments/EVAL-1/design.md exists with the six headings in order, two or
   more ### options under Options considered, a mermaid block and an
   Architecture conformance subsection under Architecture; nothing under src/
   or tests/ was created; the step's state.json records the run completed.

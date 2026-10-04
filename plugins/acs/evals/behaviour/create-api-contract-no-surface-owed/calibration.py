@@ -12,7 +12,7 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-api-contract"
-PUBLISHED = "docs/tickets/EVAL-1/api-contract.md"
+PUBLISHED = "docs/architecture/lld/customer-listing/EVAL-1/api-contract.md"
 
 
 def _written(ws):

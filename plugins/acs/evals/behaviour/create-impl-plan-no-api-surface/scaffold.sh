@@ -15,6 +15,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
+ACS_FEATURES=customer-listing
 acs_ticket "Log slow customer listings" story false \
   "Operators cannot tell when customer listing pages are slow. When list_customers takes longer than 200 ms, log a warning through the standard logging module so slow pages show up in the service log."
 printf '%s' '{"acceptance_criteria": [
@@ -23,8 +24,8 @@ printf '%s' '{"acceptance_criteria": [
   "A call that takes 200 ms or less logs nothing"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true

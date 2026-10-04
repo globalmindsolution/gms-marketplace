@@ -69,6 +69,7 @@ contract is a JSON Schema in `schemas/events/<event>.json`:
 MD
 git add -A
 git commit -qm "Event bus with order.created and its schema"
+ACS_FEATURES=order-tracking
 acs_ticket "Publish order.shipped when an order ships" story false \
   "Other services (the warehouse, email, analytics) need to know when an order ships. Publish an order.shipped event on the shop event bus, alongside the existing order.created."
 printf '%s' '{"acceptance_criteria": [
@@ -77,8 +78,8 @@ printf '%s' '{"acceptance_criteria": [
   "Publishing is at-least-once; consumers deduplicate by event_id"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/development/order-tracking/EVAL-1
+cat > docs/development/order-tracking/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
@@ -124,7 +125,7 @@ The three criteria on the ticket are confirmed as written.
 
 Ready for planning; api_surface true (a new event, no HTTP change); no design needed.
 MD
-cat > docs/tickets/EVAL-1/plan.md <<'MD'
+cat > docs/development/order-tracking/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Publish order.shipped when an order ships
 
 ## Approach

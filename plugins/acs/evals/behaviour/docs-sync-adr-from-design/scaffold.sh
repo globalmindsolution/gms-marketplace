@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # /acs:docs-sync on an ADR-worthy change: EVAL-1 (needs_design true) moves the
 # customer listing from a hard-coded empty list onto a SQLite store through
-# the stdlib sqlite3 module. Its approved design (docs/tickets/EVAL-1/design.md,
+# the stdlib sqlite3 module. Its approved design (docs/architecture/lld/customer-listing/EVAL-1/design.md,
 # published uncommitted the way /acs:create-design leaves it) records
 # one accepted decision under `### Decision records`, and the repo keeps ADRs
 # in docs/adr/ (0001, 0002, NNNN-slug.md). /acs:code's step is recorded
@@ -66,12 +66,13 @@ MD
 git add -A
 git commit -qm "ADRs 0001 and 0002"
 
+ACS_FEATURES=customer-listing
 acs_ticket "Store customers in SQLite" task true \
   "Back list_customers with a SQLite store instead of a hard-coded empty list."
 
 # /acs:create-design's published design, uncommitted.
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/design.md <<'MD'
+mkdir -p docs/architecture/lld/customer-listing/EVAL-1
+cat > docs/architecture/lld/customer-listing/EVAL-1/design.md <<'MD'
 # Design — EVAL-1: Store customers in SQLite
 
 Status: approved

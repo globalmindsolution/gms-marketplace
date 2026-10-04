@@ -75,6 +75,7 @@ JSON
 printf '__pycache__/\n' >> .gitignore
 git add -A
 git commit -qm "HTTP front with /health and its e2e harness"
+ACS_FEATURES=customer-listing
 acs_ticket "Serve the customer listing over HTTP" task false \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit, so the storefront can page through customers."
 printf '%s' '{"acceptance_criteria": [
@@ -83,8 +84,8 @@ printf '%s' '{"acceptance_criteria": [
   "list_customers rejects a negative offset with ValueError"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/plan.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Serve the customer listing over HTTP
 
 Planned from the ticket's criteria and the codebase (no analysis published).

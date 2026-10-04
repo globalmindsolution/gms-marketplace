@@ -503,9 +503,9 @@ def cmd_workflow_validate(args):
 
 
 def cmd_artifacts_migrate(args):
-    """Move every live partition's ticket.json (plus design.md and the legacy
-    plan) into docs/tickets/<ID>/ once -- idempotent, archive untouched, a
-    ticket.json.moved pointer left behind. --dry-run lists the moves only."""
+    """RETIRED by ADR-0128: a ticket is no longer stored in docs/tickets/, so
+    this reports `retired: true` and writes nothing (it used to move every
+    live partition's ticket.json there as ticket.md)."""
     ctx = context_or_die("artifacts migrate")
     try:
         report = lib.migrate_artifacts(ctx["workspace"], ctx["repo_id"], ctx["checkout_root"],

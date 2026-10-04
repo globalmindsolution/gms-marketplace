@@ -3,7 +3,7 @@
 IDEAL does what /acs:create-impl-plan's coordinator does, through the
 plugin's own writers where they exist: `acs step start`, the planner's draft
 in the step directory, `acs.py filemap set` for the one executor task, the
-Publish copy into docs/tickets/EVAL-1/ left uncommitted on main (ADR-0127: no
+Publish copy into docs/development/customer-listing/EVAL-1/ left uncommitted on main (ADR-0127: no
 branch, no commit), then result.json and the post-hook. The planner's and
 plan reviewer's own phase files are workspace detail no grader reads.
 """
@@ -14,12 +14,12 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan"
-PUBLISHED = "docs/tickets/EVAL-1/plan.md"
+PUBLISHED = "docs/development/customer-listing/EVAL-1/plan.md"
 FILES = ["src/shop/__init__.py", "tests/test_customers.py", "README.md"]
 
 PLAN = """# Plan — EVAL-1: Cursor pagination for GET /customers
 
-Planned from docs/tickets/EVAL-1/analysis.md (api_surface true, ready for
+Planned from docs/development/customer-listing/EVAL-1/analysis.md (api_surface true, ready for
 planning) and the ticket's three acceptance criteria.
 
 ## Approach

@@ -132,10 +132,17 @@ class SkillProseTest(unittest.TestCase):
                        "\"state_machines\"", "\"flows\""):
             self.assertIn(phrase, self.body)
 
-    def test_features_come_from_the_ticket(self):
-        for phrase in ("`context.ticket.features`", "acs.py\" slug --text",
-                       "ticket save --ticket <id> --from -"):
+    def test_features_come_from_the_argument_the_requirements_or_the_ticket(self):
+        """ADR-0128: no ticket is required -- the feature comes from the
+        argument, the requirements, or the ticket, in that order, and is
+        recorded on the run (never `ticket save` on a ticketless run)."""
+        for phrase in ("**the argument**", "`requirements.feature`, else `requirements.features`",
+                       "`context.ticket.features`", "acs.py\" slug --text",
+                       "requirements refine --from -",
+                       "never call `ticket save` on a run with no ticket"):
             self.assertIn(phrase, self.body)
+        self.assertNotIn("No ticket id → ask the user", self.body)
+        self.assertNotIn("--ticket <ticket-id>", self.body)
 
 
 class AgentProseTest(unittest.TestCase):

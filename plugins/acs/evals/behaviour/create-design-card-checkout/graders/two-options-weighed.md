@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/design.md }
+target: { source: file, path: docs/architecture/lld/checkout-with-card-payments/EVAL-1/design.md }
 pattern: '^## Options considered[ \t]*$(?:(?!^## )[\s\S])*^### [^\n]+\n(?:(?!^## )[\s\S])*^### [^\n]+'
 flags: m
 ---

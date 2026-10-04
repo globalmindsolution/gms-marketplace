@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: docs/tickets/EVAL-1/api-contract.md
+path: docs/architecture/lld/customer-listing/EVAL-1/api-contract.md
 exists: false
 ---
 

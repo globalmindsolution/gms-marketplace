@@ -32,6 +32,11 @@ def flat(*parts):
         return " ".join(fh.read().split())
 
 
+def read_hint():
+    with open(os.path.join(PLUGIN, "skills", SKILL, "SKILL.md"), encoding="utf-8") as fh:
+        return next(line for line in fh if line.startswith("argument-hint:")).strip()
+
+
 class RegistryTest(unittest.TestCase):
 
     def test_create_data_design_is_hooked_and_owns_three_roles(self):
@@ -110,6 +115,24 @@ class ProseContractTest(unittest.TestCase):
         self.assertIn("design bump --ticket <id>", body)
         self.assertIn("`%% planned` comment", body)
         self.assertIn("--feature <feature>", flat("agents", "%s-designer.md" % SKILL))
+        # A ticketless run versions its documents without a ticket (ADR-0128).
+        self.assertIn("On a run with no ticket drop `--ticket <id>`", body)
+
+    def test_no_ticket_is_required_and_the_feature_has_three_sources(self):
+        """ADR-0128: a feature slug, a prompt or a document is enough; the
+        feature comes from the argument, the requirements, or the ticket."""
+        body = flat("skills", SKILL, "SKILL.md")
+        self.assertIn('step start --step create-data-design --args "$ARGUMENTS"', body)
+        self.assertIn("No ticket is required", body)
+        for phrase in ("**the argument**",
+                       "`requirements.feature`, else `requirements.features`",
+                       "`context.ticket.features`", "requirements refine --from -",
+                       "never call `ticket save` on a run with no ticket",
+                       "**Requirements: `context.requirements` / `acs.py requirements show`"):
+            self.assertIn(phrase, body)
+        self.assertNotIn("No ticket id → ask the user", body)
+        self.assertNotIn("--ticket <ticket-id>", body)
+        self.assertRegex(read_hint(), r'^argument-hint: "\[ticket-id\] \[feature-slug\] ')
 
     def test_gap_analysts_run_in_the_same_message_as_the_survey(self):
         body = flat("skills", SKILL, "SKILL.md")

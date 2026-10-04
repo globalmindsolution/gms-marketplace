@@ -78,7 +78,7 @@ class TestSkillFrontmatter(unittest.TestCase):
         self.assertRegex(self.fm, r"(?m)^name: create-e2e-tests$")
 
     def test_it_is_a_ticket_scoped_coordinator(self):
-        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\]"$')
+        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         self.assertRegex(self.fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
 
     def test_description_routes_on_what_it_produces(self):

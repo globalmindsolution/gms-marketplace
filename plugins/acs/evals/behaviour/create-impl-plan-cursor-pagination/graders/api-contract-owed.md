@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/plan.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/plan.md }
 pattern: '^## Contract[ \t]*$(?:(?!^## )[\s\S])*^[ \t]+api_contract:[ \t]*true[ \t]*$'
 flags: m
 ---

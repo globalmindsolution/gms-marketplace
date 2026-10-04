@@ -519,13 +519,38 @@ def ticket_source(tdir, view=None):
     return None, None
 
 
+#: The ticket statuses in the order a ticket moves through them.
+_STATUS_RANK = ("open", "in_progress", "in_review", "done")
+
+
+def _with_derived_status(tdir, ticket):
+    """A ticket.json's stored status, raised to the one its ledger derives.
+
+    Until ADR-0128 a ticket in the docs tree had its status DERIVED (ticket.md
+    stores none); every ticket is a ticket.json now, which stores one -- but
+    only `--allocate`, create-pr and merge-pr ever wrote it, so a ticket whose
+    run had started still read `open`. The later of the two is the answer: a
+    status a hook recorded is never lowered, and a started run is never
+    reported as not started."""
+    if not isinstance(ticket, dict):
+        return ticket
+    stored = ticket.get("status")
+    try:
+        derived = derive_status(tdir, ticket)
+    except Exception:  # noqa: BLE001 -- a status read never fails a load
+        return ticket
+    if stored not in _STATUS_RANK or _STATUS_RANK.index(derived) > _STATUS_RANK.index(stored):
+        ticket = dict(ticket, status=derived)
+    return ticket
+
+
 def load_ticket(tdir):
-    """The ticket dict, status included -- from ticket.md when the docs folder
-    holds one, else ticket.json, else the moved pointer's target; None when
-    there is nothing readable (reported, never raised)."""
+    """The ticket dict, status included -- from the partition's ticket.json,
+    else the legacy ticket.md in the docs folder, else the moved pointer's
+    target; None when there is nothing readable (reported, never raised)."""
     kind, path = ticket_source(tdir)
     if kind == "ticket.json":
-        return read_json(path)
+        return _with_derived_status(tdir, read_json(path))
     if kind in ("ticket.md", "pointer"):
         return _read_ticket_md(path, tdir)
     return read_json(os.path.join(tdir, TICKET_JSON_FILENAME))

@@ -1109,6 +1109,15 @@ class TestTheFeature(unittest.TestCase):
         self.assertIn("`acs.py analysis publish` refuses a run that has no feature "
                       "recorded", self.skill)
 
+    def test_a_feature_the_invocation_names_is_recorded_before_the_survey(self):
+        """Without a feature nothing resolves a previous analysis, so a feature
+        the user already named is recorded first -- the survey then starts
+        from its living analysis."""
+        self.assertIn("resolve again, BEFORE the survey, so it starts from the "
+                      "feature's living analysis", self.skill)
+        self.assertIn("the requirements lane reads the living analysis of each "
+                      "candidate feature it proposes", self.skill)
+
     def test_an_unreachable_user_gets_an_inferred_feature(self):
         section = norm(self.raw[_pos(self.raw, "### When the user is not reachable"):
                                 _pos(self.raw, "## Stage 3")])

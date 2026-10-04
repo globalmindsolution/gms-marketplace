@@ -91,6 +91,7 @@ printf '__pycache__/\n' >> .gitignore
 git add -A
 git commit -qm "HTTP front with /health and its e2e harness"
 
+ACS_FEATURES=customer-listing
 acs_ticket "Serve the customer listing over HTTP" task false \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."
 slug="$(python3 "$ACS_SCRIPTS/acs.py" slug --text "Serve the customer listing over HTTP" \
@@ -126,9 +127,10 @@ class ListCustomers(unittest.TestCase):
         self.assertEqual(list_customers(), {"items": [], "offset": 0, "limit": PAGE_SIZE})
 PY
 
-# ... and the ticket's case document, where acs resolves it (docs/tickets/<ID>/).
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/test-cases.md <<'MD'
+# ... and the ticket's case document, where acs resolves it (the Development
+# folder, docs/development/<feature>/<ID>/ — ADR-0128).
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/test-cases.md <<'MD'
 ---
 ticket: EVAL-1
 cases: 3

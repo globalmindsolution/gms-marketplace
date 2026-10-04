@@ -5,6 +5,14 @@ run from that prompt (`acs run new --prompt`), then every step of
 workflows/ship.yaml through its own writers (`acs step start`, the result
 document, the post-hook) on the current run, until create-pr fails at its
 critical gh base detection before any push.
+
+analyze-requirements is played the way its coordinator runs it on a ticketless
+Development run (ADR-0128) -- no longer skipped for want of a ticket: the
+decided feature recorded through `acs.py requirements refine`, the assumption
+in the run's own ledger (`clarify.py add`, no `--ticket`), the analysis
+published where `acs.py artifacts show` resolves it for this run
+(`docs/development/customer-listing/<run-id>/analysis.md`) and recorded in
+`states.files`.
 """
 import json
 import os
@@ -60,6 +68,74 @@ class _Run(object):
         self.finish(step, **kw)
 
 
+FEATURE = "customer-listing"
+
+ANALYSIS = """---
+ready_for_planning: true
+api_surface: false
+needs_design_recommendation: false
+feature: customer-listing
+---
+
+# Analysis — Cap the customer page size at 100
+
+## Problem restated
+
+`list_customers` serves any `limit`; a caller can ask for an unbounded page.
+Cap it at 100: a larger limit raises ValueError naming the maximum, exactly
+100 is served, and the default page size stays 20.
+
+## Impact map
+
+| Path | Component | Change | Evidence |
+|---|---|---|---|
+| src/shop/__init__.py | shop | `list_customers` refuses `limit > 100` | src/shop/__init__.py:8 |
+
+## Questions
+
+- C-1 feature — assumed: customer-listing (PRD F1 Customer listing).
+
+## Assumptions
+
+- The cap applies to `list_customers` only; no HTTP surface changes.
+
+## Risks
+
+_None._
+
+## Refined acceptance criteria
+
+The request's three criteria, as written.
+
+## Verdict
+
+Ready for planning; api_surface false; no design needed.
+"""
+
+
+def _analyze(run):
+    """analyze-requirements on the prompt run, the way its coordinator runs it."""
+    ws = run.ws
+    run.start("analyze-requirements")
+    ws.sh('python3 "%s/clarify.py" add --skill analyze-requirements --question "Which PRD '
+          'feature does this belong to?" --answer "%s" --source assumption --rationale '
+          '"the request changes the customer listing (PRD F1)" > /dev/null' % (SCRIPTS, FEATURE))
+    refined = ws.acs("requirements", "refine", "--from", "-",
+                     stdin=json.dumps({"feature": FEATURE, "features": [FEATURE],
+                                       "needs_design": False}))
+    assert refined.returncode == 0, refined.stderr
+    shown = ws.acs("artifacts", "show")
+    assert shown.returncode == 0, shown.stderr
+    target = os.path.relpath(json.loads(shown.stdout)["paths"]["analysis.md"], ws.path)
+    expected = "docs/development/%s/%s/analysis.md" % (FEATURE, run.run_id)
+    assert target.replace(os.sep, "/") == expected, (target, expected)
+    step = "%s/steps/analyze-requirements" % run.dir
+    ws.write(step + "/analysis.md", ANALYSIS)
+    ws.sh('mkdir -p "%s" && cp "%s/analysis.md" "%s"' % (os.path.dirname(target), step, target))
+    run.finish("analyze-requirements", states={"ready_for_planning": True, "api_surface": False,
+                                               "questions_open": 0, "files": [expected]})
+
+
 def _snapshot(ws):
     """`reviewed_sha`: the working-tree snapshot the review judged (ADR-0127)."""
     return json.loads(ws.acs("changes", "snapshot").stdout)["tree"]
@@ -67,7 +143,7 @@ def _snapshot(ws):
 
 def _through_review(ws, source=CAPPED, review=True):
     run = _Run(ws)
-    run.step("analyze-requirements")
+    _analyze(run)
     run.step("create-impl-plan")
     run.step("create-api-contract", outcome="no_surface_owed")
     run.step("create-test-docs", outcome="no_cases_owed")

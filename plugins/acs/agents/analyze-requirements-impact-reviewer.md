@@ -101,9 +101,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket SHOP-123
 ```
 
 On a run with no ticket, the spec names `feature: str` in place of
-`ticket: str` (a Discovery draft also requires the version keys `status`,
-`version` and `tickets`), with no `--ticket`, and `clarify.py list` takes no
-`--ticket` — it reads the run's own ledger.
+`ticket: str`, with no `--ticket`, and `clarify.py list` takes no `--ticket` —
+it reads the run's own ledger. A Discovery draft (the feature's living
+analysis) also opens with the version keys: add
+`status: proposed|approved|implemented|deprecated; version: int; tickets: list`
+to the spec you run, and check that `version` is the living analysis's
+`version` + 1 (or `1` for the feature's first analysis).
 
 Quote each command and its relevant output in your report. Then read every
 impact-map path and grep the area yourself; Bash is read-only inspection

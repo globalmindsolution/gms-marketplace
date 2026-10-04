@@ -18,6 +18,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
+ACS_FEATURES=customer-listing
 acs_ticket "Log slow customer listings" story false \
   "Operators cannot tell when customer listing pages are slow. When list_customers takes longer than 200 ms, log a warning through the standard logging module so slow pages show up in the service log."
 printf '%s' '{"acceptance_criteria": [
@@ -26,8 +27,8 @@ printf '%s' '{"acceptance_criteria": [
   "A call that takes 200 ms or less logs nothing"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
@@ -72,10 +73,10 @@ Ready for planning; no API surface changes (the return value, parameters and
 errors of GET /customers are untouched; the log line is operator output); no
 design needed.
 MD
-cat > docs/tickets/EVAL-1/plan.md <<'MD'
+cat > docs/development/customer-listing/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Log slow customer listings
 
-Planned from docs/tickets/EVAL-1/analysis.md (api_surface false).
+Planned from docs/development/customer-listing/EVAL-1/analysis.md (api_surface false).
 
 ## Approach
 
@@ -111,14 +112,14 @@ owes:
 MD
 step="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan"
 python3 "$ACS_SCRIPTS/acs.py" step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-cp docs/tickets/EVAL-1/plan.md "$step/plan.md"
+cp docs/development/customer-listing/EVAL-1/plan.md "$step/plan.md"
 python3 "$ACS_SCRIPTS/acs.py" filemap set --skill code --iteration 1 --task 1 --file src/shop/__init__.py --file tests/test_slow_listing_log.py > "$step/filemap.out"
 python3 - "$step" <<'PY'
 import json, sys
 step = sys.argv[1]
 file_map = json.load(open(step + "/filemap.out"))["tasks"]
 json.dump({"status": "completed", "summary": "plan reviewer passed on iteration 1; plan published",
-           "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": False,
+           "states": {"plan_path": "docs/development/customer-listing/EVAL-1/plan.md", "plan_approved": False,
                       "file_map": file_map},
            "findings": [], "errors": []}, open(step + "/result.json", "w"))
 PY

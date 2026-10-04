@@ -37,6 +37,7 @@ printf '__pycache__/\n' >> .gitignore
 git add -A
 git commit -qm "HTTP front with /health"
 
+ACS_FEATURES=customer-listing
 acs_ticket "Serve the customer listing over HTTP" task false \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."
 
@@ -59,8 +60,8 @@ src = src.replace(
 open(path, "w").write(src)
 PY
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/test-cases.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/test-cases.md <<'MD'
 ---
 ticket: EVAL-1
 cases: 2

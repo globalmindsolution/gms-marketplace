@@ -17,6 +17,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
+ACS_FEATURES=customer-listing
 acs_ticket "Reject a non-positive page limit" task false \
   "list_customers(limit=0) returns an empty page forever; a limit below 1 is a caller bug."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
@@ -59,11 +60,11 @@ owes:
 MD
 acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_list_customers.py > /dev/null
-mkdir -p docs/tickets/EVAL-1
-cp "$draft" docs/tickets/EVAL-1/plan.md
+mkdir -p docs/development/customer-listing/EVAL-1
+cp "$draft" docs/development/customer-listing/EVAL-1/plan.md
 cat > "$run/steps/create-impl-plan/result.json" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",
- "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
+ "states": {"plan_path": "docs/development/customer-listing/EVAL-1/plan.md", "plan_approved": false,
             "file_map": {"1": ["src/shop/__init__.py", "tests/test_list_customers.py"]}},
  "findings": [], "errors": []}
 JSON
@@ -83,7 +84,7 @@ e2e_cases: 0
 ## Scope
 
 The two acceptance criteria, at unit level in tests/ with pytest, as
-docs/tickets/EVAL-1/plan.md plans. The plan owes no e2e.
+docs/development/customer-listing/EVAL-1/plan.md plans. The plan owes no e2e.
 
 ## Cases
 
@@ -104,7 +105,7 @@ docs/tickets/EVAL-1/plan.md plans. The plan owes no e2e.
 
 _None._
 MD
-cp "$run/steps/create-test-docs/test-cases.md" docs/tickets/EVAL-1/test-cases.md
+cp "$run/steps/create-test-docs/test-cases.md" docs/development/customer-listing/EVAL-1/test-cases.md
 cat > "$run/steps/create-test-docs/result.json" <<'JSON'
 {"status": "completed", "outcome": "cases_written", "summary": "3 cases, every AC traced",
  "states": {"cases": 3, "e2e_cases": 0, "untraced_acs": []}, "findings": [], "errors": []}

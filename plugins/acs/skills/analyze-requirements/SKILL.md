@@ -65,10 +65,10 @@ docs the repo already has, defaulting to `docs/product` and
 chosen by you (`context.requirements.phase`); only when the user explicitly
 asks for the feature's living analysis on a run that would be Development
 (e.g. "analyze the wishlist feature as a whole", naming a ticket for context)
-record `{"phase": "discovery"}` with `acs.py requirements refine` (Stage 2). Both modes need a
-**feature**: a ticket's first `features` slug, the feature the requirements
-name, or — when neither does — the one the user picks in Stage 2's grouped ask
-(Stage 2, "The feature").
+record `{"phase": "discovery"}` with `acs.py requirements refine` (Stage 2).
+Both modes need a **feature**: a ticket's first `features` slug, the feature
+the requirements name, or — when neither does — the one the user picks in
+Stage 2's grouped ask (Stage 2, "The feature").
 
 ## Three stages
 
@@ -114,8 +114,9 @@ only when they exist, whether `/acs:ship` invoked it or a user did).
 Parse the printed context JSON. Fields you will use:
 
 - `requirements` — `{path, sources, acceptance_criteria, features, feature,
-  needs_design, phase, feature_analysis}`: the run's requirements, normalised once per run from every
-  container the invocation named (`acs_lib.requirements`). `path` is the run's
+  needs_design, phase, feature_analysis}`: the run's requirements, normalised
+  once per run from every container the invocation named
+  (`acs_lib.requirements`). `path` is the run's
   `requirements.md` — the ticket's title, description and acceptance criteria
   numbered `AC-1…`, the prompt verbatim, each document inlined (markdown,
   text) or cited by its run copy under `<run>/subject/` (a PDF or an image:
@@ -125,8 +126,8 @@ Parse the printed context JSON. Fields you will use:
   known (refined, else the ticket's first `features` slug); `phase` is the
   mode — `development` when the run has a ticket or `/acs:ship` drives it,
   else `discovery` (Two modes, above); `feature_analysis` is the feature's
-  living analysis when one exists. **Requirements: `context.requirements` / `acs.py requirements
-  show` — a ticket id, documents and a prompt are only where they came from;
+  living analysis when one exists. **Requirements: `context.requirements` /
+  `acs.py requirements show` — a ticket id, documents and a prompt are only where they came from;
   never read ticket.json for acceptance criteria.** A later invocation that
   names new containers adds them (`acs.py requirements add --args "…"`), and
   `requirements.md` is regenerated, never edited by hand.
@@ -190,20 +191,30 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
   living analysis itself). Stage 1's survey starts from it (reuse — see Stage 1),
   and this run REVISES it in place (a re-analysis after new information,
   never a second file). Call it `<previous_analysis>`.
-- On a Development run, the feature's living analysis
-  (`<prd_dir>/features/<feature>/analysis.md`, which `artifacts show` reports
-  as `feature_analysis`) is a second reuse input when it exists. Call it
-  `<feature_analysis>`.
-- else `paths["analysis.md"]` non-null → the analysis is published there —
-  the mode's path (the feature root on a Discovery run, `docs_dir` — the
-  Development folder — otherwise).
-- else (no checkout to anchor the docs folder to) → the analysis is
-  published to the run partition's `analysis.md` — the partition fallback,
-  for the no-checkout case only.
+- `paths["analysis.md"]` non-null → where this run publishes: the mode's path
+  (the feature root on a Discovery run, `docs_dir` — the Development folder
+  — otherwise). It is null until the run has a feature.
+- no checkout to anchor the docs folder to → the analysis is published to the
+  run partition's `analysis.md` — the partition fallback, for the no-checkout
+  case only.
+
+On a Development run, `feature_analysis` names the feature's living analysis
+(`<prd_dir>/features/<feature>/analysis.md`) when it exists: a second reuse
+input, read and never written. Call it `<feature_analysis>`.
+
+A run with no feature yet cannot resolve a previous analysis. When the
+invocation itself names the feature — the prompt says which ("the order
+tracking feature"), or a PRD feature document is among the sources — that is
+the user's answer already: record it in the ledger and with `acs.py
+requirements refine` (`{"feature": "<slug>"}`, Stage 2's "The feature"), then
+resolve again, BEFORE the survey, so it starts from the feature's living
+analysis. Otherwise the requirements lane reads the living analysis of each
+candidate feature it proposes (`<prd_dir>/features/<slug>/analysis.md`, when
+present).
 
 A legacy `docs/tickets/<id>/analysis.md` from before ADR-0128 is still READ
 (it is the previous analysis when the new folder has none); nothing writes
-there any more. This is exactly what `acs_lib.artifacts.artifact_path`
+there any more — the revision is published to `paths["analysis.md"]`. This is exactly what `acs_lib.artifacts.artifact_path`
 resolves, what `acs.py analysis publish` writes to, and what the
 `/acs:create-api-contract` gate looks for, so the path this run publishes is
 the path that opens the next gate. A run with no feature yet has no folder to
@@ -534,7 +545,8 @@ merge two questions into one entry, or auto-answer outside the existing
 `--source assumption --rationale "..."` rule. Record every Q&A — obtained
 interactively or relayed in a `/acs:ship` brief — with
 `clarify.py add --skill analyze-requirements --question "..." --answer "..."`
-(plus `--ticket <id>` on a ticket run), and pass the relevant `C-n` entries to subagents in `<context>`. A user who
+(plus `--ticket <id>` on a ticket run), and pass the relevant `C-n` entries
+to subagents in `<context>`. A user who
 answers "you decide" gets the default recorded as an assumption, with that as
 its rationale.
 
@@ -576,8 +588,8 @@ printf '{"acceptance_criteria": ["...", "..."]}' \
 (`needs_design`, `features`, the run's `feature` and — only on the user's
 explicit ask — its `phase` are recorded the same way, as
 `{"needs_design": true}`, `{"features": ["wishlist"]}`,
-`{"feature": "wishlist"}` or `{"phase": "discovery"}`.) `refine` writes the run's `## Refined` section of
-`requirements.md` (never edit it by hand) and, on a ticket run, applies the
+`{"feature": "wishlist"}` or `{"phase": "discovery"}`.) `refine` writes the
+run's `## Refined` section of `requirements.md` (never edit it by hand) and, on a ticket run, applies the
 same document to the ticket as a PATCH merged over it, so send the WHOLE
 confirmed criteria list — the requirements' criteria (`AC-1…`) with each
 confirmed rewrite applied and each confirmed missing criterion added. A
@@ -616,7 +628,8 @@ PRD feature slug, or a new slug from the requirements' subject when none
 fits, recorded as an assumption (`--source assumption --rationale "..."`) and
 then with `requirements refine` `{"feature": "<slug>"}`. A group-(a) question
 with a fallback is recorded as an assumption on that fallback; one where every
-default could build the wrong thing makes the work not plannable — `record-clarify --blocking-open`, and
+default could build the wrong thing makes the work not plannable —
+`record-clarify --blocking-open`, and
 `references/not-ready-for-planning.md` carries what to do about it.
 
 This skill is where the requirements' ambiguities are SUPPOSED to surface, so the
@@ -632,8 +645,9 @@ next skill can see what is still open.
 The `draft` action. Spawn ONE un-sliced analyst (`phase="analyst"`, no
 `slice`, `<constraint name="pass">draft</constraint>`) with the action's
 `notes` in `<inputs>` and every relevant `C-n` answer in `<context>`, plus
-the mode and the feature as `<constraint name="mode">discovery|development</constraint>`
-and `<constraint name="feature"><slug></constraint>`. It
+the mode and the feature as
+`<constraint name="mode">discovery|development</constraint>` and
+`<constraint name="feature"><slug></constraint>`. It
 settles the whole-subject verdicts (API surface, design significance) once,
 from the reconciled notes plus the recorded answers — it does not re-survey —
 and writes the analysis draft to `steps/analyze-requirements/analysis.md` — one
@@ -732,9 +746,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
 ```
 
 (On a run with no ticket the spec names `feature: str` in place of
-`ticket: str` and takes no `--ticket`; a Discovery draft's spec also requires
-the version keys. `record-draft` picks the spec from the run — you never
-choose it.)
+`ticket: str` and takes no `--ticket`; `record-draft` picks the spec from the
+run — you never choose it. A Discovery draft's version keys are part of the
+reviewed bytes, and the `form` slice checks them.)
 
 `record-review` folds them into that iteration's blocking findings: a check
 finding fails the iteration like a judge's blocking finding (it goes to the

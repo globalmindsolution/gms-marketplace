@@ -19,16 +19,14 @@ from . import artifacts
 
 def load_ticket(tdir):
     """The ticket dict, status included. Routed through acs_lib.artifacts:
-    ticket.md from the docs tree when the ticket lives there (status derived
-    from the ledger), else ticket.json -- so every partition built with a
-    ticket.json keeps reading exactly as before."""
+    the partition's ticket.json, else (legacy, ADR-0090) a ticket.md in the
+    docs tree with its status derived from the ledger."""
     return artifacts.load_ticket(tdir)
 
 
 def save_ticket(tdir, ticket):
-    """Stamp updated_at and write the ticket where it lives: ticket.md when
-    the docs tree is active for this checkout and the ticket is (or is new to)
-    the tree, else ticket.json as before. acs_lib.artifacts decides which."""
+    """Stamp updated_at and write the partition's ticket.json -- a ticket's one
+    home since ADR-0128 (never the repo's docs tree)."""
     artifacts.save_ticket(tdir, ticket)
 
 
