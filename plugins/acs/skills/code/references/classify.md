@@ -26,8 +26,8 @@ it. A reviewer can check that sentence against the diff, and the review's
 
 ## What to read
 
-Read `plan.md` — and only `plan.md`, plus the ticket document you already
-have. Not the diff (there isn't one), not the specs, not the repo. Four of its
+Read `plan.md` — and only `plan.md`, plus the requirements (`requirements.md`)
+you already have. Not the diff (there isn't one), not the specs, not the repo. Four of its
 sections carry the signal:
 
 - **Executor tasks & file map** — how many files, and are they one coherent

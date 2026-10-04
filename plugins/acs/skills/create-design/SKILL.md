@@ -1,13 +1,14 @@
 ---
 name: create-design
-description: Settle the system design for a design-significant ticket before implementation is specified — analyze the ticket, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md in the ticket's docs folder. Use when a ticket carries needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id]"
+description: Settle the system design for a design-significant change before implementation is specified — analyze its requirements (a ticket, a prompt, documents or a mix), the feature analysis, codebase, and architecture docs, weigh multiple options with trade-offs, and produce an approved design.md as the change's design record under the architecture LLD. Use when a ticket or the analyzed requirements carry needs_design true (always for epics) and no approved design exists yet; tickets without the flag skip straight to /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:create-design. Your job: turn a design-significant
-ticket (`needs_design: true`) into an approved `design.md` in the ticket's docs
-folder — context, at least two genuinely-weighed options, a decision with
+change (`needs_design: true` on its requirements or its ticket) into an approved
+`design.md` — its design record in `<architecture_dir>/lld/<feature>/<id>/`
+(ADR-0128) — context, at least two genuinely-weighed options, a decision with
 rationale, the architecture of the change, risks, and rollout — judged by a fresh
 design reviewer before it gates `/acs:code`. You orchestrate two subagents over
 XML — the **designer**, which surveys the decisions and options and writes the
@@ -16,10 +17,13 @@ you never write the design content yourself.
 
 The pre-hook (`pre-create-design.py`) checks this skill's SUBJECT, never its
 place in any order and never whether an upstream artifact exists: settings
-exist, the ticket resolves to a live, unlocked partition, and the ticket
-carries `needs_design: true`. It does NOT check that a `/acs:create-ticket`
-run is recorded completed — the partition existing IS the ticket having been
-created — nor that an analysis or architecture doc set exists: the skill
+exist, the run resolves to a live, unlocked partition, and its requirements
+carry `needs_design: true` (the refined value `/acs:analyze-requirements`
+recorded, else the ticket's flag). No ticket is required: a run on a prompt or
+documents with no recorded `needs_design` opens when the user invoked this
+skill explicitly with those requirements — the invocation IS the ask. It does
+NOT check that a `/acs:create-ticket` run is recorded completed, nor that an
+analysis or architecture doc set exists: the skill
 works from what it finds (Inputs below). Pipeline order lives in
 `workflows/ship.yaml`, not in the gate. Epic children inherit the EPIC's design —
 this skill runs on the epic (or a design-flagged story/task), never on a child;
@@ -30,14 +34,18 @@ a child carries `needs_design: false`, so the flag check blocks it automatically
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-design
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-design --args "$ARGUMENTS"
 ```
 
 - If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
   improvise a workaround.
-- Parse the printed context JSON. Fields you will use: `partition` (the ticket
-  directory — all state lives here), `ticket` (full ticket doc: type, description,
-  acceptance criteria, parent, children), `ticket_id`, `settings` (notably
+- Parse the printed context JSON. Fields you will use: `partition` (the run
+  directory — all state lives here), `requirements` (`{path, sources,
+  acceptance_criteria, features, feature, needs_design}` — **Requirements:
+  `context.requirements` / `acs.py requirements show` — a ticket id, documents
+  and a prompt are only where they came from; never read ticket.json for
+  acceptance criteria**), `ticket` and `ticket_id` (present only when a ticket
+  is one of the sources: its type, parent and children), `settings` (notably
   `models`),
   `agents` (the agent name to spawn per role; each role's model and effort come
   from `settings.models.create-design.<role>`, inheriting when unset), `reconcile`,
@@ -54,24 +62,35 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-de
   by path in `<inputs>`; they never look a location up in settings.
 
 Throughout this file `<partition>` means the `partition` path from the context JSON
-and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a ticket, else
+`run_id` — the name of the folder its documents live in.
 
 ### Design artifact resolution
 
-`design.md` is the ticket's design — ONE file per ticket, one name, on every
-run. It is a human-facing document: it lives in the ticket's docs folder in
-the consumer repo, beside the ticket, the analysis and the plan (ADR 0090).
+`design.md` is the change's design record — ONE file per ticket (or per
+ticketless run), one name, on every run. It is a human-facing document: it
+lives in the Design phase's folder in the consumer repo,
+`<architecture_dir>/lld/<feature>/<id>/`, beside `api-contract.md` and next to
+the feature's living LLD (ADR-0128, superseding ADR-0090's ticket docs tree).
 Resolve where it lives before anything else:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 ```
 
+It resolves by the run the checkout points at (`--run <run-id>` names
+another): design records in `<architecture_dir>/lld/<feature>/<id>/`,
+Development documents in `<development_dir>/<feature>/<id>/`, the feature's
+living analysis in `<prd_dir>/features/<feature>/analysis.md`
+(`feature_analysis`), and a legacy `docs/tickets/<ID>/` file only when the new
+folder has none — read only, nothing writes there.
+
 - `artifacts["design.md"]` non-null → that existing file is the design; this
-  run REVISES it in place (a re-design after new information, never a second
-  file).
-- else `docs_dir` non-null → the design is published to `<docs_dir>/design.md`.
-- else (no checkout to anchor the docs folder to) → the design is
+  run REVISES it (a re-design after new information, never a second
+  file) — a legacy `docs/tickets/<ID>/design.md` is revised by publishing to
+  `paths["design.md"]`.
+- else `paths["design.md"]` non-null → the design is published there.
+- else (no checkout, or no feature recorded for the run yet) → the design is
   published to `<partition>/design.md` and nothing enters the repo.
 
 This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
@@ -81,7 +100,7 @@ chooses is the path that opens the next gate. Call it `<design_path>` below.
 The working draft lives at `steps/create-design/design.md`; the
 published file is a copy of those exact bytes (see Publish). The draft is
 workspace state — the designer writes it and the design reviewer judges it,
-and the file-map guard denies any subagent a write under the ticket docs tree.
+and the file-map guard denies any subagent a write to the published design.
 
 ## Resume & reconcile
 
@@ -117,9 +136,13 @@ and the file-map guard denies any subagent a write under the ticket docs tree.
 
 Read (you and your designer; reference by path in XML, do not inline file bodies):
 
-1. The ticket document (`ticket.md` in the docs folder, or `ticket.json` in the
-   partition — whichever `acs.py artifacts show` reports as `source_path`):
-   title, description, acceptance criteria, type, priority, children.
+1. The requirements document (`requirements.path`, the run's
+   `requirements.md`): title, description, acceptance criteria, whatever
+   container they came from — plus a ticket's type, priority and children when
+   the run has one. `analysis.md` (the run's) and the feature's living
+   analysis (`feature_analysis`, `<prd_dir>/features/<feature>/analysis.md`)
+   when `acs.py artifacts show` reports them — the impact map, risks and
+   `needs_design` reasoning the design starts from.
 2. **The product architecture doc set — PRIMARY input when it exists**:
    `<checkout_root>/<architecture_dir>/` (conventionally `docs/architecture/`):
    `hld/overview.md`, `hld/c4-context.md`, `hld/c4-container.md`,
@@ -130,11 +153,11 @@ Read (you and your designer; reference by path in XML, do not inline file bodies
    absent, note that in design.md and design against the codebase directly.
 3. The PRD at `<checkout_root>/<prd>` when present —
    product-level NFRs and constraints bound the design.
-4. The consumer repo's code and docs relevant to the ticket (the designer's
+4. The consumer repo's code and docs relevant to the change (the designer's
    survey identifies the exact files).
 
-Any of 2-4 may be absent; the ticket itself is always there, and the design
-is then grounded in the ticket and the codebase as it is.
+Any of 2-4 may be absent; the requirements are always there, and the design
+is then grounded in them and the codebase as it is.
 
 ## Reflection loop — designer → design review
 
@@ -169,7 +192,8 @@ For every phase:
    <task skill="create-design" phase="designer" slice="scope" ticket-id="SHOP-123" iteration="1">
      <objective>Scope pass: survey the ticket, architecture doc set, and codebase; record the major design decisions (ids d1, d2, …), candidate options (>=2 per decision) and the genuinely-open points needing user input in iter-1/authoring-scope.md. Write no draft.</objective>
      <inputs>
-       <file>/abs/repo/docs/tickets/SHOP-123/ticket.md</file>
+       <file>/abs/workspace/acme-shop/runs/SHOP-123/requirements.md</file>
+       <file>/abs/repo/docs/product/features/bulk-import/analysis.md</file>
        <file>/abs/repo/docs/architecture/hld/c4-container.md</file>
        <file>/abs/repo/docs/architecture/lld/contracts.md</file>
      </inputs>
@@ -320,12 +344,12 @@ answers in `<context>`.
 
 The draft: write it at `steps/create-design/design.md`
 (the designer mutates ONLY the workspace partition — never the consumer repo, and
-never the ticket docs tree, which the file-map guard denies it; the coordinator
+never the published design, which the file-map guard denies it; the coordinator
 publishes the verified draft to `<design_path>` in Publish below). Required
 sections, exactly these headings:
 
 ```markdown
-# Design — <id>: <ticket title>
+# Design — <id>: <title>
 
 ## Context & constraints
    Problem, scope, assumptions; binding constraints from PRD/architecture/codebase;
@@ -467,7 +491,7 @@ final status `failed`, findings recorded in result.json.
 Once the design reviewer passes with zero findings, publish the draft. **The
 coordinator performs this step itself, never a subagent:** the file-map write
 guard (`acs_lib/filemap.py`) denies any running `write` agent (the designer)
-a write under the ticket docs tree, because these documents are precisely
+a write to the published design, because these documents are precisely
 the control inputs a writing agent is checked against. Copy, never re-author — the published bytes must
 equal the verified bytes:
 
@@ -481,14 +505,13 @@ not on a ticket branch that happens to be checked out for a re-design
 mid-ticket. Leave the published file as an uncommitted change in the working
 tree and record its repo-relative path in the result's `states.files`;
 `/acs:create-pr` is the only skill that branches and commits, and it carries
-the ticket's docs folder — this design included — into the PR as its first
-commit. A design published to the workspace partition (no docs folder, above)
-never enters the repo.
+the change's docs — this design included — into the PR. A design published to
+the workspace partition (no folder, above) never enters the repo.
 
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction (e.g. a single AskUserQuestion containing all open questions as a
@@ -498,7 +521,7 @@ per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
-`clarify.py add --skill create-design --question "..." --answer "..." --ticket <ticket-id>`
+`clarify.py add --skill create-design --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`. If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
@@ -535,7 +558,7 @@ If your context is running low mid-run: flush in-flight work and soft context
 `steps/create-design/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop. Do not burn the
@@ -553,9 +576,9 @@ MANDATORY final step — never skipped, including on failure or handoff:
      "status": "completed",
      "summary": "design reviewer passed with zero findings on iteration 2",
      "states": {
-       "design_path": "docs/tickets/SHOP-123/design.md",
+       "design_path": "docs/architecture/lld/bulk-import/SHOP-123/design.md",
        "decision": "Queue-backed export worker behind the existing API gateway (Option B)",
-       "files": ["docs/tickets/SHOP-123/design.md"]
+       "files": ["docs/architecture/lld/bulk-import/SHOP-123/design.md"]
      },
      "findings": [],
      "errors": []
@@ -583,7 +606,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
 3. Report:
    - Direct invocation: a compact summary — decision (one line), options
      considered, conformance vs. required architecture changes, iterations used,
-     the uncommitted files left in the working tree, and the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,
+     the uncommitted files left in the working tree, and the next step: for a non-epic ticket or a ticketless run, `/acs:code <id>` (`/acs:create-impl-plan` first when no plan exists); for an epic,
      break it down into child tickets with `/acs:create-ticket <id>` (epic
      fan-out), then run `/acs:code` on a child, each of which inherits this
      design.

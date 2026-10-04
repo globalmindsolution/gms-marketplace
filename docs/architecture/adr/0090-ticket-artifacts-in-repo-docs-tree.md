@@ -1,6 +1,6 @@
 # 0090 — Ticket and design artifacts live in the repo docs tree; the workspace keeps the run ledger
 
-**Status**: Accepted — amended by [0127](0127-only-create-pr-commits.md) (only `/acs:create-pr` commits; every other skill, the analysis publish included, leaves its documents uncommitted) · **Date**: 2026-09-12
+**Status**: Accepted — amended by [0127](0127-only-create-pr-commits.md) (only `/acs:create-pr` commits; every other skill, the analysis publish included, leaves its documents uncommitted); in-repo ticket docs tree superseded by [0128](0128-requirements-from-any-container.md) (no `docs/tickets/<ID>/` or `ticket.md` is written; a run's documents live one folder per phase, and existing ticket folders are still read) · **Date**: 2026-09-12
 
 ## Context
 

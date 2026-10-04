@@ -89,7 +89,7 @@ write `iter-<n>/drift-reviewer.md`.
 
 ## Re-run cheap checks yourself
 
-- Read the changeset (`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --patch`), the ticket (`acs.py artifacts show --ticket <id>`),
+- Read the changeset (`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --patch`), the requirements (`requirements.md` in the run directory),
   `steps/code/result.json`, the code implementer report(s)
   (`steps/code/iter-<n>/implementer*.json`), the final review verdict
   (`steps/review-code/verdict.json`, when a review has run), the
@@ -105,7 +105,7 @@ write `iter-<n>/drift-reviewer.md`.
 Write the full review report to
 `steps/docs-sync/iter-<n>/drift-reviewer.md` (`iter-<n>/drift-reviewer-<slice>.md`
 when you are one slice; `<partition>` is the
-directory containing `ticket.json` from `<inputs>`, `<n>` the task's
+directory containing `requirements.md` from `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`
 entries summarize this file. Write it with the Write tool — the only write
@@ -116,7 +116,7 @@ you ever perform.
 Your prompt contains an XML `<task skill="docs-sync" phase="drift-reviewer"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the doc-updater's authoring notes (`iter-<n>/authoring.md`), its
-report (`iter-<n>/doc-updater.json`), `ticket.json`, `steps/code/result.json`,
+report (`iter-<n>/doc-updater.json`), `requirements.md`, `steps/code/result.json`,
 the code implementer report(s), and the final review verdict when one
 exists), `<constraints>`, and
 optional `<context>` (prior findings). You share NO memory with the

@@ -516,14 +516,7 @@ def cmd_artifacts_migrate(args):
 
 
 def cmd_artifacts_show(args):
-    """Where one ticket's documents live (docs folder, partition or legacy
-    location), whether the tree is active, and the derived status. Read-only,
-    so an archived ticket is answered too."""
-    ctx = context_or_die("artifacts show")
-    try:
-        ticket_id, tdir, _archived = lib.resolve_active_partition(
-            os.getcwd(), ctx, explicit=args.ticket, allow_archived=True)
-        out = lib.artifacts.describe(ctx, ticket_id, tdir)
-    except lib.GateError as exc:
-        die("artifacts show", str(exc))
-    emit(dict(out, ok=True))
+    """`acs.py artifacts show`: one RUN's documents (ADR-0128) -- see
+    acs_requirements_commands.cmd_artifacts_show."""
+    import acs_requirements_commands
+    return acs_requirements_commands.cmd_artifacts_show(args)

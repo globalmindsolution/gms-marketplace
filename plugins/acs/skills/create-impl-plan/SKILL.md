@@ -1,19 +1,18 @@
 ---
 name: create-impl-plan
-description: Turn an analyzed ticket into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its implementers run, and the spec fold. Writes plan.md to the ticket's docs folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-requirements and before /acs:code, which requires the plan. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id]"
+description: Turn an analyzed ticket — or requirements given as a prompt or documents — into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its implementers run, and the spec fold. Writes plan.md to the change's Development folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-requirements and before /acs:code, which requires the plan. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-impl-plan. Your job: turn ONE ticket
-into the implementation plan `/acs:code` executes — the spec analysis, the
+You are the coordinator of /acs:create-impl-plan. Your job: turn ONE change's
+requirements into the implementation plan `/acs:code` executes — the spec analysis, the
 executor decomposition with its file map, the test strategy, the
 documentation map, the risks, and the verifier checklist — published as
-`plan.md` for the ticket, published to its docs folder and mirrored for an
-approved plan. You orchestrate two subagents — a **planner** that decides the
+`plan.md` for the change, published to its Development folder. You orchestrate two subagents — a **planner** that decides the
 slices, the file map and the test strategy and writes the plan draft, and a
 **plan reviewer** that judges it fresh (planner → plan review, see the loop
-below) — persist every phase artifact to the ticket partition, and finish by
+below) — persist every phase artifact to the run partition, and finish by
 writing the result document and running the post-hook — always, even on
 failure.
 
@@ -25,35 +24,48 @@ other than the plan artifact itself: `/acs:code` builds what this plan says.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-impl-plan
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-impl-plan --args "$ARGUMENTS"
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
 improvise a workaround (`pre-create-impl-plan.py` checks only the safety
-brakes: the ticket resolves to a live, unlocked partition and is not an epic —
-an epic is designed and fanned out, never planned as one ticket. Nothing
+brakes: the run resolves to a live, unlocked partition and, when its subject
+is a ticket, that ticket is not an epic — an epic is designed and fanned out,
+never planned as one ticket. No ticket is required: a prompt, documents, or a
+mix of them with a ticket id are all requirements. Nothing
 upstream is required: `analysis.md` and `design.md` are read WHEN PRESENT, and
 no predecessor-completed check exists — the pipeline order lives in
 `workflows/ship.yaml`, not in this gate. With no analysis the plan is made
-from the ticket's acceptance criteria and the codebase, whether `/acs:ship`
+from the requirements' acceptance criteria and the codebase, whether `/acs:ship`
 invoked this skill or a user did).
 
 Parse the printed context JSON. Fields you will use:
 
-- `ticket_id`, `ticket` — the resolved ticket (title, type, description,
-  `acceptance_criteria`, `size`, `stakes`, `docs_only`, `external`). The plan
-  must satisfy it.
-- `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `steps/create-impl-plan/`; the run ledger stays
-  here too.
+- `requirements` — `{path, sources, acceptance_criteria, features, feature,
+  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+  show` — a ticket id, documents and a prompt are only where they came from;
+  never read ticket.json for acceptance criteria.** `requirements.path` is the
+  run's `requirements.md` (a ticket's criteria numbered `AC-1…`, the prompt
+  verbatim, the documents inlined or cited, and the `## Refined` section
+  `/acs:analyze-requirements` wrote). The plan must satisfy every criterion in
+  it.
+- `ticket_id`, `ticket` — present only when a ticket is one of the sources:
+  the tracker container (`type`, `size`, `stakes`, `docs_only`, `external`).
+  Both are null on a prompt or document run.
+- `partition` — absolute path of the run directory
+  (`<workspace>/<repo-id>/runs/<run-id>/`). Phase artifacts go in
+  `steps/create-impl-plan/`; the run ledger stays here too.
 - `design` — `{required, dir, source}`. `design.dir` is the PARTITION of the
   ticket whose design applies (`source` is `"own"` or `"parent"` — child
   tickets plan against the parent epic's design); its basename is that
   ticket's id. When `design.required` is true, resolve the design document
   with `acs.py artifacts show --ticket <that id>` and read
-  `artifacts["design.md"]` — the design ticket's docs folder
-  (`docs/tickets/<that id>/`), or `<design.dir>/design.md` when an older design
-  still lives in the partition. Call it `<design_doc>`; the plan is judged
+  `artifacts["design.md"]` — the design record in
+  `<architecture_dir>/lld/<feature>/<that id>/` (or a legacy
+  `docs/tickets/<that id>/design.md`, read only), or `<design.dir>/design.md`
+  when an older design still lives in the partition. A ticketless run has no
+  `design` field: read `artifacts["design.md"]` from `acs.py artifacts show`
+  when it reports one. Call it `<design_doc>`; the plan is judged
   against it.
 - `settings` — you need `tests.coverage` (the coverage target the plan
   states) and `tests.e2e` when set.
@@ -64,7 +76,8 @@ Parse the printed context JSON. Fields you will use:
   `references/not-a-first-run.md`.
 
 Throughout this file `<partition>` means the `partition` path from the context
-JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a ticket,
+else `run_id`.
 
 Locate the repo's documents once, here, the way any session finds them:
 CLAUDE.md and whatever docs index it or the repo points at (e.g.
@@ -76,7 +89,8 @@ planner takes `architecture_dir`, `requirements_dir` and `adr_dir`, the
 plan reviewer `architecture_dir` and `standards_dir`. One the repo does not have is
 simply absent: this skill creates none of them.
 
-**Epics are refused by the gate.** Every ticket that reaches this step has
+**Epics are refused by the gate** (a ticket-only check: a prompt or document
+run has no type to refuse). Every ticket that reaches this step has
 `ticket.type != "epic"`. If an epic reaches it anyway (a bypassed or
 best-effort pre-gate on some runtime), STOP and surface the same message the
 gate would have raised: design the epic with `/acs:create-design <id>`, fan it
@@ -85,29 +99,40 @@ child.
 
 ## Working tree — the plan is a repo file
 
-`plan.md` is a file in the consumer repo — the ticket's docs folder,
-`docs/tickets/<id>/`. This skill never creates, switches or names a branch,
+`plan.md` is a file in the consumer repo — the change's Development folder,
+`<development_dir>/<feature>/<id>/` (ADR-0128). This skill never creates, switches or names a branch,
 and never stages, commits or pushes (ADR-0127): the published plan is left as
 an uncommitted change in the working tree, on whatever is checked out, and its
 path is recorded in the result's `states.files`. `/acs:create-pr` is the only
 skill that branches and commits.
 
-When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the
-docs folder to) the plan is written to the workspace partition instead, and
-nothing enters the repo.
+When `acs.py artifacts show` reports no path for `plan.md` (no checkout to
+anchor the folder to, or no feature recorded for the run yet) the plan is
+written to the workspace partition instead, and nothing enters the repo.
 
 ### Plan artifact resolution
 
-`plan.md` is the ticket's implementation plan — ONE file per ticket, one name,
-on every run. Resolve where it lives before anything else:
+`plan.md` is the change's implementation plan — ONE file per ticket (or per
+ticketless run), one name, on every run. Resolve where it lives before
+anything else:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 ```
 
+It resolves by the run the checkout points at (`--run <run-id>` names
+another; `--ticket <id>` still works). Development documents live in
+`<development_dir>/<feature>/<id>/`, design records in
+`<architecture_dir>/lld/<feature>/<id>/`, the feature's living analysis in
+`<prd_dir>/features/<feature>/analysis.md` (`feature_analysis`); a legacy
+`docs/tickets/<ID>/` file is reported only when the new folder has none, and
+nothing writes there.
+
 - `artifacts["plan.md"]` non-null → that existing file is the plan; this run
-  REVISES it (see `references/not-a-first-run.md`).
-- else `docs_dir` non-null → the plan is published to `<docs_dir>/plan.md`.
+  REVISES it (see `references/not-a-first-run.md`). A legacy
+  `docs/tickets/<ID>/plan.md` is revised by publishing the revision to
+  `paths["plan.md"]`, never back into the legacy folder.
+- else `paths["plan.md"]` non-null → the plan is published there.
 - else → the plan is published to `<partition>/plan.md`.
 
 This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
@@ -141,11 +166,14 @@ been superseded. It lives in a reference so a first run never reads it:
 Read these yourself and name them by path in the planner's `<inputs>` (never
 inline a file body):
 
-1. The ticket — `ticket` from the context JSON (its file is whatever
-   `acs.py artifacts show` reports as `source_path`).
+1. The requirements — `requirements.path` from the context JSON (the run's
+   `requirements.md`; the ticket, prompt and documents it was built from are
+   only its containers).
 2. `analysis.md` when `acs.py artifacts show` reports it — `/acs:analyze-requirements`'s
-   impact map, assumptions, risks and refined acceptance criteria. Absent is
-   not an error: plan from the ticket and the codebase instead, and say so in
+   impact map, assumptions, risks and refined acceptance criteria — and the
+   feature's living analysis (`feature_analysis`, the Discovery analysis of the
+   feature in `<prd_dir>/features/<feature>/analysis.md`) when it exists. Absent is
+   not an error: plan from the requirements and the codebase instead, and say so in
    the plan.
 3. `<design_doc>` when `design.required` — the decided architecture
    the plan must realize.
@@ -314,8 +342,8 @@ with no suite command starts no job, and you tell the `tests` slice so in its
 ### Planner (per iteration) — survey, then author the plan
 
 Iteration 1's planner surveys and decides before it writes the deliverable.
-Task it with `<inputs>` of the ticket file, `analysis.md` and `design.md` when
-they exist, `requirements.md` when the run has one, and the consumer-repo
+Task it with `<inputs>` of `requirements.md`, `analysis.md`, the feature's
+living analysis and `design.md` when they exist, and the consumer-repo
 source/docs the subject touches. Its authoring notes are
 `steps/create-impl-plan/iter-<n>/authoring.md`, and they cover, in the order
 `create-impl-plan-planner.md`'s survey defines:
@@ -410,7 +438,7 @@ separate spec-authoring step: what a standalone create-spec planner would once
 have written — the scope, the approach at contract level, the API and data
 changes, the test plan, what is out of scope — is simply part of what the plan
 says, in whatever shape this change needs. Two things that content must carry
-wherever it lands: every `ticket.acceptance_criteria` entry maps to at least
+wherever it lands: every `requirements.acceptance_criteria` entry maps to at least
 one test the plan will write, and `settings.tests.coverage` is stated
 explicitly. The approval predicate checks the second mechanically; the
 plan reviewer checks the first.
@@ -454,7 +482,7 @@ its own remediation iterations. Record the returned `tasks` object as
 
 Spawn the three `acs:create-impl-plan-plan-reviewer` slices (Judge slices
 above) in ONE message AFTER the draft is written, each with
-`<inputs>` of the draft, the ticket file, `analysis.md` and `design.md` when
+`<inputs>` of the draft, `requirements.md`, `analysis.md` and `design.md` when
 they exist, every `<partition>/specs/*.md`, and the repo paths the file map
 names; the `tests` slice's `<constraints>` also name the `suite` job (The
 suite job, above) whose result it reads. The plan reviewer judges fresh — never forward the planner's reasoning —
@@ -480,7 +508,7 @@ the plan it already had rather than gaining an unverified one.
 Once the plan reviewer passes, publish the draft. **The coordinator performs
 this step itself, never a subagent:** the file-map write guard
 (`acs_lib/filemap.py`) denies any running `write`-kind agent — the planner
-included — a write under the ticket docs tree, because the plan is precisely
+included — a write to a published plan, because the plan is precisely
 the control input an implementer is checked against. Copy, never re-author —
 the published bytes must equal the verified bytes:
 
@@ -490,7 +518,7 @@ mkdir -p "$(dirname "<plan_path>")" && cp "$draft" "<plan_path>"
 ```
 
 Leave `<plan_path>` as an uncommitted change when it is inside the repo (the
-ticket docs folder) and record it in `states.files`; the run's own copy is
+Development folder) and record it in `states.files`; the run's own copy is
 workspace state and never enters the repo.
 
 ### Plan approval happens later, not here
@@ -509,7 +537,7 @@ disk. An edited plan is an unapproved plan.
 What this skill owes approval is therefore one thing: **publish the plan and
 leave it alone.**
 
-### Docs-only tickets (`ticket.docs_only: true`)
+### Docs-only tickets (`ticket.docs_only: true`, ticket runs only)
 
 When the ticket carries the user-confirmed `docs_only` flag the plan changes
 shape, not rigor: plan NO new tests and no coverage measurement — plan the
@@ -522,7 +550,9 @@ rather than planning around it.
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list` (the run's
+ledger — the ticket's when the run has one; `--ticket <id>` or `--run <run-id>`
+names another)
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 of your own clarifications are open, present them in ONE grouped
 interaction (a single AskUserQuestion containing all open questions as a
@@ -531,7 +561,7 @@ numbered list), not serial round-trips. Record each answer as its own `clarify.p
 questions into one entry, or auto-answer outside the existing
 `--source assumption --rationale "..."` rule. Record every Q&A — obtained
 interactively or relayed in a `/acs:ship` brief — with
-`clarify.py add --skill create-impl-plan --question "..." --answer "..." --ticket <id>`
+`clarify.py add --skill create-impl-plan --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`.
 
@@ -541,18 +571,18 @@ BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 the ledger entries it recorded and left `open` alongside that verdict —
 refined-criteria rewrites, missing-criterion suggestions, a design
 recommendation — are for the user to take or leave, and that skill's own
-contract is that with no answer this skill plans against the ticket as
+contract is that with no answer this skill plans against the requirements as
 written. So never re-ask them and never return `needs_input` for them: plan
-against the ticket's acceptance criteria as written, name each such entry in
+against the requirements' acceptance criteria as written, name each such entry in
 the plan's Risks section as `C-<n> open — planned as written`, and pass them
-to the plan reviewer in `<context>` so the plan is judged against the ticket, not
+to the plan reviewer in `<context>` so the plan is judged against the requirements, not
 the proposal. The 2026-09-14 measurement lost a run to the alternative: a
 completed analysis with two open proposals, a plan run that asked instead of
 planning, and no one to answer. What you ask about is what your own survey
 finds genuinely ambiguous (next paragraph), the oversize question, and
 nothing else.
 
-When the ticket or a spec is genuinely ambiguous — it contradicts another
+When the requirements or a spec are genuinely ambiguous — it contradicts another
 spec or the design, leaves behavior undefined, or admits several plausible
 implementations with different user-visible outcomes — ask the user before
 publishing. Do not guess on decisions that change behavior.
@@ -593,7 +623,7 @@ settled, gotchas) to
 `steps/create-impl-plan/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop.
@@ -610,11 +640,11 @@ MANDATORY final step — never skipped, also on failure:
      "status": "completed",
      "summary": "plan published and approved; 3 executor tasks, disjoint file maps",
      "states": {
-       "plan_path": "docs/tickets/SHOP-123/plan.md",
+       "plan_path": "docs/development/bulk-import/SHOP-123/plan.md",
        "plan_approved": false,
        "file_map": {"1": ["src/import/api.py", "tests/test_import_api.py"],
                     "2": ["docs/api/import.md"]},
-       "files": ["docs/tickets/SHOP-123/plan.md"]
+       "files": ["docs/development/bulk-import/SHOP-123/plan.md"]
      },
      "findings": [],
      "errors": []
@@ -623,8 +653,8 @@ MANDATORY final step — never skipped, also on failure:
 
    Canonical `states` keys — EXACT names; `acs step finish` documents
    them and the next steps read them:
-   - `plan_path`: where `plan.md` was published (the ticket docs folder, or
-     the partition when there is no checkout to anchor the docs folder to).
+   - `plan_path`: where `plan.md` was published (the Development folder, or
+     the partition when there is no checkout or feature to anchor it to).
      `/acs:code`'s gate resolves the file itself; this records which path
      this run chose.
    - `plan_approved`: always `false` here. Approval is judged per delivery

@@ -1,14 +1,14 @@
 ---
 name: create-test-docs
-description: Derive the ticket's test cases from its acceptance criteria, plan and API contract — each case with an id, the AC it traces, its type (unit/integration/e2e), preconditions, steps, expected result and target suite. Writes test-cases.md with every acceptance criterion traced by at least one case. Use after /acs:create-impl-plan and before /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id]"
+description: Derive a change's test cases from its acceptance criteria — a ticket's, or requirements given as a prompt or documents — its plan and API contract — each case with an id, the AC it traces, its type (unit/integration/e2e), preconditions, steps, expected result and target suite. Writes test-cases.md with every acceptance criterion traced by at least one case. Use after /acs:create-impl-plan and before /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-test-docs. Your job: turn ONE ticket's
-acceptance criteria — read through its implementation plan and, when the ticket
+You are the coordinator of /acs:create-test-docs. Your job: turn ONE change's
+acceptance criteria — read through its implementation plan and, when the change
 has one, its API contract — into `test-cases.md`: the enumerated cases that
-decide whether this ticket is done, each traced to the criterion it proves. You
+decide whether this change is done, each traced to the criterion it proves. You
 orchestrate two subagents over XML — the **test-designer** decides the case set
 and writes the draft, the **trace-reviewer** re-derives traceability from the
 ticket and judges the draft fresh (test-designer → trace-reviewer); you never
@@ -27,8 +27,8 @@ implementers write the unit and integration tests from this document,
 This skill is independent: it runs the same whether `/acs:ship` invoked it or a
 user did, and it never refuses because an earlier skill has not run. It works
 from what it finds — the plan, the API contract, the analysis, the design — and
-falls back to the run's subject (the ticket's acceptance criteria, the prompt or
-the document) when an upstream artifact is absent.
+falls back to the run's requirements (the acceptance criteria a ticket, a
+prompt, documents or a mix of them carried) when an upstream artifact is absent.
 
 `test-cases.md` is read by machines as well as people. Its e2e-typed rows are
 what `/acs:create-e2e-tests`'s gate counts (`acs_lib.gate_inputs.e2e_case_count`)
@@ -41,24 +41,30 @@ the deliverable, not decoration.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-test-docs
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-test-docs --args "$ARGUMENTS"
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
 improvise a workaround. `pre-create-test-docs.py` refuses only what would do
-damage re-running cannot undo: a ticket that does not resolve to a live,
-unlocked partition, and an epic. It never refuses because an upstream artifact
+damage re-running cannot undo: a run that does not resolve to a live,
+unlocked partition, and — on a ticket run only — an epic. No ticket is
+required. It never refuses because an upstream artifact
 is missing.
 The plan and the API contract are read WHEN PRESENT — neither is required, and
 there is no predecessor-completed check, because the order lives in
-`workflows/ship.yaml`, not in this gate. A ticket with no plan yet still has acceptance criteria, and
+`workflows/ship.yaml`, not in this gate. A change with no plan yet still has acceptance criteria, and
 cases derived from criteria alone are a legitimate (thinner) deliverable.
 
 Parse the printed context JSON. Fields you will use:
 
-- `ticket_id`, `ticket` — the resolved ticket. Its `acceptance_criteria` are the
-  spine of this document: every one of them must end up traced.
-- `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
+- `requirements` — `{path, sources, acceptance_criteria, features, feature,
+  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+  show` — a ticket id, documents and a prompt are only where they came from;
+  never read ticket.json for acceptance criteria.** Its `acceptance_criteria`
+  are the spine of this document: every one of them must end up traced.
+- `ticket_id`, `ticket` — present only when a ticket is one of the sources
+  (its `type`, for the epic check); null on a prompt or document run.
+- `partition` — absolute path of the run directory (`<workspace>/<repo-id>/runs/<run-id>/`). Phase
   artifacts go in `steps/create-test-docs/`; the run ledger stays
   here too.
 - `checkout_root` — the consumer repo root; every suite and module a case names
@@ -78,7 +84,8 @@ Parse the printed context JSON. Fields you will use:
 - `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
-JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a ticket,
+else `run_id` — the name of the folder its documents live in.
 
 Locate the repo's quality doc set (its test strategy and coverage policy) once,
 here, the way any session finds a document: CLAUDE.md and whatever docs index
@@ -86,46 +93,54 @@ it or the repo points at (e.g. `docs/README.md`), then a Glob/Grep by file name
 or content. Found → its repo-relative directory is `<quality_dir>`. Not found →
 the repo has none; this skill does not create one.
 
-**Epics.** An epic's criteria belong to its children, and the gate refuses an
+**Epics** (ticket runs only). An epic's criteria belong to its children, and the gate refuses an
 epic here; should one reach you anyway (`ticket.type == "epic"`), STOP and tell
 the user to fan the epic out with `/acs:create-ticket <id>` and run
 `/acs:create-test-docs` on a child. Do not write cases against an epic.
 
 ## Working tree — the test cases are a repo file
 
-`test-cases.md` is a file in the consumer repo — the ticket's docs folder,
-`docs/tickets/<id>/`. This skill never creates, switches or names a branch,
+`test-cases.md` is a file in the consumer repo — the change's Development
+folder, `<development_dir>/<feature>/<id>/` (ADR-0128). This skill never creates, switches or names a branch,
 and never stages, commits or pushes (ADR-0127): the published document is
 left as an uncommitted change in the working tree, on whatever is checked out,
 and its path is recorded in the result's `states.files`. `/acs:create-pr` is
 the only skill that branches and commits.
 
-When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the
-docs folder to) the document is written to the workspace partition instead and
-nothing enters the repo.
+When `acs.py artifacts show` reports no path for `test-cases.md` (no checkout
+to anchor the folder to, or no feature recorded for the run yet) the document
+is written to the workspace partition instead and nothing enters the repo.
 
 ### Test-case artifact resolution
 
-`test-cases.md` is the ticket's test-case document — ONE file per ticket, one
-name, on every run. Resolve where it lives before anything else:
+`test-cases.md` is the change's test-case document — ONE file per ticket (or per
+ticketless run), one name, on every run. Resolve where it lives before anything else:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 ```
 
 - `artifacts["test-cases.md"]` non-null → that existing file is the document;
   this run REVISES it in place (new criteria, a superseded plan, a contract that
   landed after the first pass), never a second file.
-- else `docs_dir` non-null → publish to `<docs_dir>/test-cases.md`.
+  A legacy `docs/tickets/<ID>/test-cases.md` is revised by publishing to
+  `paths["test-cases.md"]`; nothing writes into the legacy folder.
+- else `paths["test-cases.md"]` non-null → publish there.
 - else → publish to `<partition>/test-cases.md`.
 
 This is exactly what `acs_lib.artifacts.artifact_path` resolves and what the
 `/acs:create-e2e-tests` gate looks for, so the path this run chooses is the path
 that opens the next gate. Call it `<cases_path>` below.
 
+`acs.py artifacts show` resolves by the run the checkout points at
+(`--run <run-id>` names another): Development documents in
+`<development_dir>/<feature>/<id>/`, design records in
+`<architecture_dir>/lld/<feature>/<id>/`, the feature's living analysis in
+`<prd_dir>/features/<feature>/analysis.md` (`feature_analysis`), and a legacy
+`docs/tickets/<ID>/` file only when the new folder has none.
 The same call reports `artifacts["plan.md"]`, `artifacts["api-contract.md"]`,
-`artifacts["analysis.md"]` and `artifacts["design.md"]` — the exact paths the
-other Build steps published. Pass THOSE paths to every subagent `<inputs>`; do
+`artifacts["analysis.md"]`, `artifacts["design.md"]` and `feature_analysis` — the exact paths the
+other steps published. Pass THOSE paths to every subagent `<inputs>`; do
 not re-derive them. A `null` entry means the artifact does not exist: work from
 what does, and say so in `## Gaps and assumptions`.
 
@@ -145,7 +160,7 @@ which), verify recorded progress against reality BEFORE continuing:
 2. Re-resolve the artifact (above) and read it if it exists. Trust nothing you
    cannot see in a file: a document recorded published that is not on disk is
    not published.
-3. Re-read the ticket's criteria and the plan — both may have moved since the
+3. Re-read the requirements' criteria and the plan — both may have moved since the
    prior run, and a case set that traced an older criterion list is stale.
 4. Continue from the first unfinished phase — a test-designer report
    (`iter-<n>/test-designer.json`) with no trace-reviewer report → review it;
@@ -170,9 +185,10 @@ light reconcile, and continue from where it points.
 Read these yourself and name them by path in the test-designer's `<inputs>`
 (never inline a file body):
 
-1. The ticket — `ticket` from the context JSON: title, description, and EVERY
-   acceptance criterion, in order. The criteria are numbered `AC-1..AC-n` by
-   their position in `acceptance_criteria`; that numbering is the trace key the
+1. The requirements — `requirements.path` (the run's `requirements.md`):
+   description and EVERY acceptance criterion, in order, whatever container it
+   came from. The criteria are numbered `AC-1..AC-n` by their position in
+   `requirements.acceptance_criteria`; that numbering is the trace key the
    whole pipeline uses.
 2. `plan.md` when it exists — the implementation plan names the units it builds,
    the files it touches and the suites it expects to run. Cases follow the
@@ -183,7 +199,9 @@ Read these yourself and name them by path in the test-designer's `<inputs>`
    its error and edge shapes. The contract is the surface a consumer relies on.
 4. `analysis.md` when it exists — its impact map names the tests that already
    cover the area, and its refined-criteria section flags criteria that are
-   ambiguous or untestable as written.
+   ambiguous or untestable as written — and the feature's living analysis
+   (`feature_analysis`) when one exists, for the feature-level behaviour the
+   cases must not contradict.
 5. `<design_doc>` when `design.required`.
 6. The repo's test strategy and coverage policy under
    `<checkout_root>/<quality_dir>/` when the repo has one — it decides what
@@ -280,13 +298,15 @@ cases: 7
 e2e_cases: 2
 ---
 
-# Test cases — SHOP-123: <ticket title>
+# Test cases — SHOP-123: <title>
 
 ## Scope
 ## Cases
 ## Traceability
 ## Gaps and assumptions
 ```
+
+`ticket:` carries `<id>` — the ticket id, or the run id on a ticketless run.
 
 What each section carries is defined in `create-test-docs-test-designer.md`. Three
 contracts matter here, because machines read them:
@@ -325,10 +345,10 @@ slices there is no merged survey for it to synthesize.
 
 Spawn `acs:create-test-docs-trace-reviewer` AFTER the draft is written, with
 `<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`), the
-test-designer report (`iter-<n>/test-designer.json`), the ticket document, the
+test-designer report (`iter-<n>/test-designer.json`), `requirements.md`, the
 plan and contract when they exist, and the repo's test directories. It judges
 fresh — never forward the test-designer's reasoning — re-derives the
-traceability from the ticket's criteria itself, and writes
+traceability from the requirements' criteria itself, and writes
 `steps/create-test-docs/iter-<n>/trace-reviewer.md`.
 
 #### Reviewer slices — the eight dimensions in three parallel judges
@@ -415,7 +435,7 @@ edit into agreement yourself.
 Once the trace-reviewer passes and the deterministic checks are clean, publish
 the draft. **The coordinator performs this step itself, never a subagent:** the
 file-map write guard (`acs_lib/filemap.py`) denies any running `write`-kind
-agent a write under the ticket docs tree, because these documents are precisely
+agent a write to a published document, because these documents are precisely
 the control inputs an implementer is checked against. Copy, never re-author — the published
 bytes must equal the verified bytes:
 
@@ -424,19 +444,19 @@ cp "<partition>/steps/create-test-docs/test-cases.md" "<cases_path>"
 ```
 
 Leave `<cases_path>` as an uncommitted change when it is inside the repo (the
-ticket docs folder) and record it in `states.files`; the partition draft is
+Development folder) and record it in `states.files`; the partition draft is
 workspace state and never enters the repo.
 
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them in ONE grouped interaction (a
 single AskUserQuestion containing all open questions as a numbered list), not
 serial round-trips. Record each answer as its own `clarify.py add` entry (one
 `C-<n>` per question, `--source` preserved), with
-`clarify.py add --skill create-test-docs --question "..." --answer "..." --ticket <id>`
+`clarify.py add --skill create-test-docs --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`. When the user is unreachable, record the entry with
 `--source assumption --rationale "..."` and state the same assumption in
@@ -465,7 +485,7 @@ drop it and do NOT invent a case that only appears to cover it:
    status: the post-hook refuses any status but
    `completed | failed | interrupted`.)
 
-A ticket with ZERO acceptance criteria is the vacuous case: `untraced_acs` is
+Requirements with ZERO acceptance criteria are the vacuous case: `untraced_acs` is
 `[]` because there is nothing to trace, which is not the same as coverage. Say
 so plainly in `## Scope` and `## Gaps and assumptions`, record a clarification
 recommending criteria (`/acs:analyze-requirements`'s refined criteria may already
@@ -483,7 +503,7 @@ in-flight state plus soft context (user answers, settled cases, gotchas) to
 `steps/create-test-docs/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop.
@@ -504,7 +524,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
        "cases": 7,
        "e2e_cases": 2,
        "untraced_acs": [],
-       "files": ["docs/tickets/SHOP-123/test-cases.md"]
+       "files": ["docs/development/bulk-import/SHOP-123/test-cases.md"]
      },
      "findings": [],
      "errors": []

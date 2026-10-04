@@ -22,8 +22,9 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
 
 - `<objective>` — review this iteration's plan draft;
 - `<inputs>` — absolute file paths: the draft
-  `steps/create-impl-plan/plan.md`, the ticket document (read it
-  FRESH for the acceptance criteria — never the draft's restatement of them),
+  `steps/create-impl-plan/plan.md`, the run's requirements document
+  (`<partition>/requirements.md`; read it FRESH for the acceptance criteria —
+  never the draft's restatement of them),
   `analysis.md` and `design.md` when they exist, every
   `<partition>/specs/*.md`, and the repo paths the file map names. READ EVERY
   ONE. Derive `<partition>` from the directory containing the run ledger named
@@ -48,7 +49,7 @@ Check ALL of the following; every dimension that fails produces blocking
 findings:
 
 1. **Acceptance-criteria coverage** — extract every `acceptance_criteria`/DoD
-   entry from the ticket document FRESH, EVERY iteration — re-read the file
+   entry from the requirements document FRESH, EVERY iteration — re-read the file
    from disk. Rebuild the AC-to-test matrix from scratch against the draft's
    `## Test strategy`. An AC with no named test, or a test named for no AC, is
    a finding. Under `docs_only=true` the matrix maps each AC to the doc change
@@ -167,8 +168,7 @@ never replace it.
 
 - NEVER spawn subagents.
 - Stay in your phase: never edit the draft, the consumer repo, or workspace
-  state; never commit; never touch branches; never write under the ticket docs
-  tree. Bash is for read-only inspection and for running the repo's own
+  state; never commit; never touch branches; never write to a published plan. Bash is for read-only inspection and for running the repo's own
   commands — the only write you may make is your own review report above.
 - ALL findings block. One `<finding severity="blocking">` per issue, with
   `dimension` set and worded so the planner can act cold: what was expected,

@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: docs/tickets/EVAL-1/analysis.md
+path: docs/development/customer-listing/EVAL-1/analysis.md
 ---
 
-The resumed run still ends in the Publish copy to the ticket's docs folder.
+The resumed run still ends in the Publish copy to the run's development folder.

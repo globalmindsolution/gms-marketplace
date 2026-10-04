@@ -15,8 +15,14 @@ markdown and would otherwise drift away from the deterministic layer:
     post-analyze-requirements.py's docstring;
   * independence: the skill points at workflows/ship.yaml for order and claims
     no predecessor-completed check, because there no longer is one;
-  * the one recommendation (refined ACs / needs_design) going through its CLI
-    — `acs.py ticket save` — and never through a hand-written ticket field;
+  * the one recommendation (refined ACs / needs_design / features / the
+    feature) going through its CLI — `acs.py requirements refine`, which also
+    patches the ticket when there is one — and never through a hand-written
+    ticket field (ADR-0128);
+  * requirements from any container: the run's `requirements.md` /
+    `context.requirements`, never ticket.json; no ticket required; the two
+    modes (Discovery -> the feature's living analysis, Development -> the
+    development folder) and the feature named or inferred in the one ask;
   * that the skill classifies NOTHING: ADR-0095 retired the `stakes` axis, and
     the delivery path is judged once from the plan by /acs:ship. What this step
     owes that judgement is evidence — load-bearing surfaces named in `## Risks`
@@ -120,13 +126,23 @@ class TestSkillFrontmatter(unittest.TestCase):
     def test_name_matches_the_directory(self):
         self.assertRegex(self.fm, r"(?m)^name: analyze-requirements$")
 
-    def test_it_is_a_ticket_scoped_coordinator(self):
-        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\]"$')
+    def test_it_takes_requirements_from_any_container(self):
+        """ADR-0128: a ticket id, documents and a prompt, in any mix -- no
+        skill requires a ticket."""
+        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         self.assertRegex(self.fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
 
     def test_description_routes_on_what_it_produces(self):
         self.assertRegex(self.fm, r"(?m)^description: \S")
         self.assertIn("analysis.md", self.fm)
+
+    def test_description_routes_a_prompt_a_prd_feature_and_an_attached_spec(self):
+        description = re.search(r"(?m)^description: (.*)$", self.fm).group(1)
+        for phrase in ("a prompt", "a PRD feature", "an attached spec",
+                       "with or without a ticket", "before /acs:create-impl-plan",
+                       "Call it as your first action"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, description)
 
 
 class TestLifecycleWiring(unittest.TestCase):
@@ -351,7 +367,8 @@ class TestResultDocument(unittest.TestCase):
         self.assertRegex(self.body, r"MUST equal the published front matter")
 
     def test_questions_open_is_counted_from_the_ledger(self):
-        self.assertIn("clarify.py list --open --ticket <id>", self.body)
+        self.assertIn("clarify.py list --open` (`--ticket <id>` on a ticket run)",
+                      self.body)
 
     def test_the_recommendations_are_not_states(self):
         """needs_design is applied through its own CLI, so a `states` key for it
@@ -397,22 +414,32 @@ class TestItClassifiesNothingTest(unittest.TestCase):
 
 
 class TestTicketAmendments(unittest.TestCase):
-    """Refined ACs and needs_design are proposals; the ticket changes only on a
-    user answer, and only through the CLI that re-indexes it."""
+    """Refined ACs and needs_design are proposals; the requirements (and the
+    ticket, when there is one) change only on a user answer, and only through
+    the CLI that records them -- `acs.py requirements refine`, which patches
+    and re-indexes the ticket too (ADR-0128)."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
+        cls.norm = norm(cls.body)
 
-    def test_amendments_go_through_the_ticket_save_cli(self):
-        self.assertIn("acs.py\" ticket save --ticket <id> --from -", self.body)
+    def test_amendments_go_through_the_requirements_refine_cli(self):
+        self.assertIn('acs.py" requirements refine --from -', self.body)
+        self.assertNotIn("ticket save", self.body)
+
+    def test_refine_patches_the_ticket_when_there_is_one(self):
+        self.assertIn("when the run has a ticket, patches and re-indexes the ticket "
+                      "too", self.norm)
+        self.assertIn("`refine` writes the run's `## Refined` section of "
+                      "`requirements.md` (never edit it by hand)", self.norm)
 
     def test_they_are_recorded_in_the_ledger_before_acting(self):
         self.assertIn("clarify.py add --skill analyze-requirements", self.body)
         self.assertRegex(self.body, r"ONLY on an explicit user answer")
 
-    def test_without_an_answer_the_ticket_is_left_alone(self):
-        self.assertRegex(self.body, r"leave the ticket untouched")
+    def test_without_an_answer_the_requirements_are_left_alone(self):
+        self.assertIn("leave the requirements and the ticket as they are", self.norm)
 
 
 class TestNotReadyArm(unittest.TestCase):
@@ -466,8 +493,12 @@ class TestPublishing(unittest.TestCase):
         cls.body = read(SKILL_PATH)
 
     def test_the_artifact_path_is_resolved_by_the_cli_not_guessed(self):
-        self.assertIn("artifacts show --ticket <id>", self.body)
+        self.assertIn('acs.py" artifacts show\n```', self.body)
         self.assertIn("acs_lib.artifacts.artifact_path", self.body)
+        self.assertNotIn("docs/tickets/<id>/analysis.md` is", self.body)
+        # The legacy folder is READ, never written (ADR-0128).
+        self.assertIn("A legacy `docs/tickets/<id>/analysis.md` from before ADR-0128 "
+                      "is still READ", norm(self.body))
 
     def test_publishing_is_the_controller_s_script(self):
         """ADR-0114 §5: no prose `cp`/`git add` -- the controller copies the
@@ -836,17 +867,20 @@ class TestThreeStages(unittest.TestCase):
                          "`ready_for_planning: true`. The 2026-09-15",
                          self.skill[:self.skill.find("### When the user is not reachable")])
 
-    def test_confirmed_requirements_are_written_into_the_ticket(self):
-        self.assertIn("### Confirmed requirements go into the ticket", self.raw)
-        self.assertIn("so the ticket itself carries the clarified requirements "
-                      "every later skill plans from", self.skill)
+    def test_confirmed_requirements_are_refined_and_reach_the_ticket(self):
+        heading = ("### Confirmed requirements are refined — and go into the ticket "
+                   "when there is one")
+        self.assertIn(heading, self.raw)
+        self.assertIn("so the requirements every later skill plans from carry the "
+                      "clarified version", self.skill)
         self.assertIn("send the WHOLE confirmed criteria list", self.skill)
         self.assertIn("A rejected proposal is recorded (its answer says so) and "
                       "NOT applied.", self.skill)
-        section = self.raw[_pos(self.raw, "### Confirmed requirements go into the ticket"):
+        section = self.raw[_pos(self.raw, heading):
                            _pos(self.raw, "### When the user is not reachable")]
-        self.assertIn('acs.py" ticket save --ticket <id> --from -', section)
+        self.assertIn('acs.py" requirements refine --from -', section)
         self.assertIn('{"needs_design": true}', section)
+        self.assertIn('{"feature": "wishlist"}', section)
 
     def test_at_most_one_follow_up_round(self):
         self.assertIn("**One follow-up round, at most.**", self.skill)
@@ -866,10 +900,10 @@ class TestThreeStages(unittest.TestCase):
         self.assertIn("`## Questions` lists every `C-n` with its answer or status",
                       self.skill)
         self.assertIn("`## Refined acceptance criteria` states which criteria "
-                      "were confirmed into the ticket", self.skill)
+                      "were confirmed into the requirements", self.skill)
         self.assertIn("`## Assumptions` holds only what the user did not answer",
                       self.skill)
-        self.assertIn("`confirmed into the ticket (C-n)`", self.analyst)
+        self.assertIn("`confirmed (C-n)`", self.analyst)
         self.assertIn("Never present an unconfirmed rewrite as applied.",
                       self.analyst)
 
@@ -916,11 +950,14 @@ class TestReviewerQuestionCoverage(unittest.TestCase):
                       "`## Questions` as an open or assumed `C-n` entry",
                       self.reviewer)
 
-    def test_confirmed_criteria_match_the_ticket(self):
-        self.assertIn("matches the ticket's `acceptance_criteria` as the ticket "
-                      "file now reads", self.reviewer)
-        self.assertIn("a confirmed criterion the ticket does not carry, or "
-                      "carries differently, is a finding", self.reviewer)
+    def test_confirmed_criteria_match_the_refined_requirements_and_the_ticket(self):
+        self.assertIn("matches the refined requirements as `requirements.md`'s "
+                      "`## Refined` now reads", self.reviewer)
+        self.assertIn("on a ticket run, the ticket's `acceptance_criteria` as the "
+                      "ticket file now reads", self.reviewer)
+        self.assertIn("a confirmed criterion the refined requirements (or the "
+                      "ticket) do not carry, or carry differently, is a finding",
+                      self.reviewer)
 
     def test_the_check_sits_in_the_completeness_dimension_of_the_surface_slice(self):
         dim2 = agent("impact-reviewer").split("2. `completeness`", 1)[1].split(
@@ -928,6 +965,182 @@ class TestReviewerQuestionCoverage(unittest.TestCase):
         self.assertIn("Questions and ticket coverage", dim2)
         self.assertIn("the questions/ticket coverage check", self.skill)
         self.assertIn("the clarification ledger", self.reviewer)
+
+
+class TestRequirementsFromAnyContainer(unittest.TestCase):
+    """ADR-0128: the requirements come from the user; a ticket id, documents
+    (attached ones too) and a prompt are only containers, may be mixed, and
+    none is required. Every reader goes through the run's requirements."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = read(SKILL_PATH)
+        cls.skill = norm(cls.raw)
+        cls.contract = norm(skill_contract())
+        cls.analyst = norm(agent("analyst"))
+        cls.impact = norm(agent("impact-analyst"))
+        cls.reviewer = norm(agent("impact-reviewer"))
+
+    def test_no_ticket_is_required_and_containers_mix(self):
+        self.assertIn("**No ticket is required** (ADR-0128)", self.skill)
+        self.assertIn('`/acs:analyze-requirements SHOP-12 ~/Downloads/spec.pdf '
+                      '"also bulk export"`', self.skill)
+
+    def test_requirements_are_read_from_the_run_never_ticket_json(self):
+        self.assertIn("**Requirements: `context.requirements` / `acs.py requirements "
+                      "show` — a ticket id, documents and a prompt are only where "
+                      "they came from; never read ticket.json for acceptance "
+                      "criteria.**", self.skill)
+        self.assertIn("`{path, sources, acceptance_criteria, features, feature, "
+                      "needs_design, phase, feature_analysis}`", self.skill)
+        self.assertIn("The mode is derived, never chosen by you "
+                      "(`context.requirements.phase`)", self.skill)
+        self.assertIn('acs.py requirements add --args "…"', self.skill)
+
+    def test_documents_are_read_from_their_run_copy(self):
+        self.assertIn("cited by its run copy under `<run>/subject/` (a PDF or an "
+                      "image: Read that copy)", self.skill)
+        self.assertIn("Read a PDF or an image yourself", self.analyst)
+        self.assertIn("the run's `requirements.md` and the document copies it cites",
+                      self.impact)
+
+    def test_the_ticket_is_optional_everywhere_it_used_to_be_assumed(self):
+        # The gate brakes on a ticket only when one is named.
+        self.assertIn("a ticket, when the invocation names one, resolves to a live, "
+                      "unlocked partition and is not an epic", self.skill)
+        self.assertIn("Every `--ticket <id>` below is passed only when the run has "
+                      "a ticket", self.skill)
+        self.assertIn("`ticket-id` only when the run has a ticket", self.skill)
+        for body in (self.analyst, self.impact, self.reviewer):
+            self.assertIn("`ticket-id` only when the run has a ticket", body)
+        # The ticketless ledger is the run's own (clarify.py without --ticket).
+        self.assertIn("without a ticket the ledger is the run's own, "
+                      "`runs/<run-id>/clarifications.json`", self.skill)
+        # handoff.py has no --ticket flag; it resolves the run from the pointer.
+        self.assertNotIn("handoff.py\" --ticket", self.raw)
+        self.assertIn('handoff.py" --summary', self.raw)
+
+    def test_the_handoff_command_matches_the_cli(self):
+        import subprocess
+        out = subprocess.run([sys.executable, os.path.join(HOOKS, "handoff.py"), "-h"],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("--summary", out.stdout)
+        self.assertNotIn("--ticket", out.stdout)
+
+
+class TestTwoModes(unittest.TestCase):
+    """ADR-0129: Discovery publishes the feature's living analysis under the
+    PRD; Development publishes the run's analysis in the development folder
+    and starts from the living one. One folder per phase."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = read(SKILL_PATH)
+        cls.skill = norm(cls.raw)
+        cls.analyst = norm(agent("analyst"))
+
+    def test_the_modes_table_names_both_paths(self):
+        self.assertIn("## Two modes — Discovery and Development", self.raw)
+        self.assertLess(_pos(self.raw, "## Two modes"), _pos(self.raw, "## Start"))
+        self.assertIn("`<prd_dir>/features/<feature>/analysis.md` — the feature's "
+                      "**living analysis**", self.skill)
+        self.assertIn("`<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`",
+                      self.skill)
+        self.assertIn("`acs_lib.requirements.prd_dir` / `development_dir`", self.skill)
+
+    def test_a_development_run_starts_from_the_feature_analysis(self):
+        self.assertIn("A Development run **starts from the feature's living "
+                      "analysis** when one exists", self.skill)
+        self.assertIn("it is never copied and never edited by this run", self.skill)
+        self.assertIn("`<feature_analysis>`", self.skill)
+        self.assertIn("The feature's living analysis (a Development run's second "
+                      "reuse input) is the whole feature", self.analyst)
+
+    def test_the_living_analysis_is_versioned(self):
+        self.assertIn("versioned (ADR-0122 front matter: `status`, `version`, "
+                      "`tickets`, plus `feature`)", self.skill)
+        self.assertIn("`version` (the living analysis's `version` + 1, or `1` when "
+                      "there is none)", self.analyst)
+
+    def test_nothing_is_published_to_the_legacy_ticket_folder(self):
+        self.assertNotRegex(self.raw, r"published to `docs/tickets")
+        self.assertNotIn("copies it to `docs/tickets", self.raw)
+        self.assertIn("nothing writes there any more", self.skill)
+
+    def test_the_readers_of_each_analysis_are_named(self):
+        tail = self.skill[_pos(self.skill, "**The published file is the reusable record.**"):]
+        for reader in ("/acs:create-architecture", "/acs:create-data-design",
+                       "/acs:create-flows", "/acs:create-design"):
+            self.assertIn(reader, tail)
+
+    def test_the_result_records_the_new_paths(self):
+        block = re.search(r'(?s)"states": \{(.*?)\}', self.raw).group(1)
+        self.assertIn("docs/development/wishlist/SHOP-123/analysis.md", block)
+        self.assertNotIn("docs/tickets", block)
+
+
+class TestTheFeature(unittest.TestCase):
+    """A ticketless run must name or infer its feature, in the ONE grouped
+    ask, from PRD feature slugs (`acs.py slug`), and records it through
+    `requirements refine` -- publish refuses without one."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = read(SKILL_PATH)
+        cls.skill = norm(cls.raw)
+        cls.analyst = norm(agent("analyst"))
+
+    def test_the_feature_is_asked_in_the_same_grouped_ask(self):
+        self.assertIn("### The feature — named or inferred, in the same ask", self.raw)
+        self.assertIn("the feature is a group-(d) question in the SAME grouped ask, "
+                      "never a separate round-trip", self.skill)
+        self.assertIn('`acs.py slug --text "<PRD feature name>"`', self.skill)
+        self.assertIn("a new slug derived the same way when none fits", self.skill)
+
+    def test_the_survey_proposes_the_slugs(self):
+        self.assertIn("propose the PRD feature slugs it most likely belongs to, "
+                      "best first", self.analyst)
+        self.assertIn("the PRD feature slugs it most likely belongs to, best first, "
+                      "or a new slug when none fits", self.skill)
+
+    def test_it_is_recorded_through_refine_and_gates_publish(self):
+        self.assertIn('`{"feature": "<slug>"}`', self.skill)
+        self.assertIn("`acs.py analysis publish` refuses a run that has no feature "
+                      "recorded", self.skill)
+
+    def test_an_unreachable_user_gets_an_inferred_feature(self):
+        section = norm(self.raw[_pos(self.raw, "### When the user is not reachable"):
+                                _pos(self.raw, "## Stage 3")])
+        self.assertIn("except a run's missing feature, which is inferred, because "
+                      "nothing can be published without one", section)
+
+
+class TestTicketlessFrontMatter(unittest.TestCase):
+    """A run with no ticket writes `feature:` in place of `ticket:`; a
+    Discovery draft opens with the ADR-0122 version keys. Both are checkable
+    by the same checker the documented spec uses, with `feature` swapped in."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = read(SKILL_PATH)
+        cls.spec = flag_values(cls.raw, "--require")[0]
+
+    def test_the_discovery_example_passes_the_feature_spec(self):
+        example = re.search(r"(?ms)^```yaml\n(---\nstatus:.*?\n---\n)", self.raw).group(1)
+        spec = ("status: proposed|approved|implemented|deprecated; version: int; "
+                "tickets: list; feature: str; "
+                + self.spec.replace("ticket: str; ", ""))
+        self.assertEqual(fmc.check_front_matter(example, fmc.parse_spec(spec)), [])
+        keys = [line.split(":", 1)[0] for line in example.strip("-\n").splitlines()]
+        self.assertEqual(keys[:4], ["status", "version", "tickets", "feature"])
+        self.assertEqual(keys[4:], FRONT_MATTER_KEYS[1:])
+
+    def test_the_skill_and_the_reviewer_say_feature_replaces_ticket(self):
+        self.assertIn("On a run with no ticket the first key is `feature: <slug>` in "
+                      "place of `ticket:`", norm(self.raw))
+        self.assertIn("On a run with no ticket, the spec names `feature: str` in "
+                      "place of `ticket: str`", norm(agent("impact-reviewer")))
 
 
 if __name__ == "__main__":

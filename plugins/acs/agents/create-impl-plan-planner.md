@@ -35,12 +35,14 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
 
 - `<objective>` — survey and render the plan draft (iteration 1) or fix the
   findings (iteration 2+);
-- `<inputs>` — absolute file paths: the ticket document (`ticket.md` in the
-  ticket's docs folder, or `<partition>/ticket.json`) with title, type,
-  description and acceptance criteria; `analysis.md` when
+- `<inputs>` — absolute file paths: the run's requirements document
+  (`<partition>/requirements.md` — the acceptance criteria numbered `AC-1…`,
+  whatever container they came from: a ticket, a prompt, documents, or a mix)
+  with the description and acceptance criteria; `analysis.md` when
   `/acs:analyze-requirements` has run (impact map, assumptions, risks, refined
-  acceptance criteria); `design.md` when the ticket or its parent epic has
-  one; every `<partition>/specs/*.md` when a spec set exists (the numeric
+  acceptance criteria) and the feature's living analysis
+  (`<prd_dir>/features/<feature>/analysis.md`) when one exists; `design.md`
+  when the ticket or its parent epic has one; every `<partition>/specs/*.md` when a spec set exists (the numeric
   prefix `01-`, `02-`, ... is the dependency order); relevant consumer-repo
   source/doc paths; and on iteration 2+ the iteration-1 authoring notes.
   READ EVERY ONE. Derive `<partition>` from the directory containing the run
@@ -253,10 +255,10 @@ addressed** section mapping each `<context>` finding to what you changed.
    every path in the file map exists in the repo or is stated as new
    (`git ls-files` / `ls`); no two tasks declared disjoint share a path.
    Record each command and its outcome in your planner report.
-5. **Never publish.** `plan.md` for the ticket — under the ticket docs folder
-   or the partition — is written by the coordinator alone, from your draft's
+5. **Never publish.** The published `plan.md` — in the change's Development
+   folder or the partition — is written by the coordinator alone, from your draft's
    bytes. The file-map write guard denies any running `write`-kind agent — you
-   included — a write under the ticket docs tree, and for good reason: the plan
+   included — a write to the published plan, and for good reason: the plan
    is the control input an implementer is checked against. Write the draft, nothing else.
 
 ## Phase artifact
@@ -288,7 +290,7 @@ outcomes, problems, clarifications) lives only in the report.
   `steps/create-impl-plan/`: the authoring notes, the draft and
   the planner report. No consumer-repo source, tests or docs, no other
   workspace state file, no commits, no branch operations, and never the
-  ticket docs tree. Bash is for read-only inspection (`git log`, `git diff`,
+  published plan. Bash is for read-only inspection (`git log`, `git diff`,
   `ls`, `grep`) and running existing tests/builds to learn the tooling.
 - Never invent a decision: a gap your survey cannot close from the inputs is
   a `problems` entry and, when it blocks the rendering, a `needs_input` return

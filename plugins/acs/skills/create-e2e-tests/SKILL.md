@@ -1,7 +1,7 @@
 ---
 name: create-e2e-tests
 description: Write the end-to-end suites for a ticket's e2e-typed test cases (or, with no test-cases.md, the end-to-end flows its acceptance criteria describe), under the repo's configured e2e location and left uncommitted in the working tree for /acs:create-pr. Needs a configured e2e suite to run them with. Use after /acs:code, before the e2e suites are run with /acs:run-e2e-tests. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id]"
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -57,8 +57,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-e2
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
 improvise a workaround. `pre-create-e2e-tests.py` refuses only what running
-now would damage — a ticket that does not resolve to a live, unlocked
-partition, or an epic. It never refuses because an upstream artifact is
+now would damage — a run that does not resolve to a live, unlocked
+partition, or (on a ticket run only) an epic. No ticket is required. It never refuses because an upstream artifact is
 missing: this skill is independent, and decides for itself what it can do with
 what it finds. Before the loop, check three things yourself:
 
@@ -74,15 +74,15 @@ what it finds. Before the loop, check three things yourself:
   harness is a repo-structure decision, not this skill's.
 - **`test-cases.md`** — when `/acs:create-test-docs` wrote one, its e2e rows
   are the specification. When there is none (it has not run, or you were
-  invoked on your own), fall back to the ticket itself: its acceptance
-  criteria are the specification, the test-writer derives the end-to-end flows
+  invoked on your own), fall back to the requirements themselves
+  (`requirements.path`): their acceptance criteria are the specification, the test-writer derives the end-to-end flows
   they describe in its authoring notes, and each derived case carries the
   acceptance criterion it proves (`AC-<n>`) wherever this file says `TC-<n>`.
   Say in the report that no case document existed.
 - **`test-cases.md` lists at least one e2e case.** Zero → nothing to write:
   finish `completed` with `outcome: "no_e2e_owed"` and a summary saying the
   case document types no case e2e; the pointer is to re-run
-  `/acs:create-test-docs <id>` if the ticket needs end-to-end coverage.
+  `/acs:create-test-docs <id>` if the change needs end-to-end coverage.
   Do NOT work around this by editing `test-cases.md` yourself — the case set is
   `/acs:create-test-docs`'s artifact, and the count you use
   (`acs_lib.gate_inputs.e2e_case_count`) is the same one the case document's
@@ -96,8 +96,13 @@ so in the report.
 
 Parse the printed context JSON. Fields you will use:
 
-- `ticket_id`, `ticket` — the resolved ticket; its title names the suites.
-- `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
+- `requirements` — `{path, sources, acceptance_criteria, features, feature,
+  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+  show` — a ticket id, documents and a prompt are only where they came from;
+  never read ticket.json for acceptance criteria.**
+- `ticket_id`, `ticket` — present only when a ticket is one of the sources;
+  its title names the suites (on a ticketless run, the requirements' title does).
+- `partition` — absolute path of the run directory (`<workspace>/<repo-id>/runs/<run-id>/`). Phase
   artifacts go in `steps/create-e2e-tests/`.
 - `checkout_root` — the consumer repo root; every suite path is repo-relative
   to it.
@@ -109,7 +114,8 @@ Parse the printed context JSON. Fields you will use:
 - `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
-JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a ticket,
+else `run_id`.
 
 Locate the repo's quality doc set and architecture doc set (its
 `hld/tech-stack.md`) once, here, the way any session finds a document:
@@ -126,8 +132,9 @@ the suites stay uncommitted in the working tree, on whatever is checked out,
 every path recorded in the result's `states.files`; `/acs:create-pr` commits
 them as the ticket's e2e group.
 
-Unlike the ticket's documents, which live in its docs folder
-(`docs/tickets/<id>/`), the suites are code: they are written where the repo
+Unlike the change's documents, which live in its phase folders
+(`<development_dir>/<feature>/<id>/` for the plan and test cases), the suites
+are code: they are written where the repo
 keeps its e2e suites (resolved below).
 
 **Snapshot the working tree first.** Before the first subagent is spawned,
@@ -147,9 +154,14 @@ uncommitted before it — and every task's `<constraints>` carry it as
 ### The e2e cases — resolve them before anything else
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 ```
 
+It resolves by the run the checkout points at (`--run <run-id>` names
+another): `<development_dir>/<feature>/<id>/` for `plan.md` and
+`test-cases.md`, `<architecture_dir>/lld/<feature>/<id>/` for
+`api-contract.md` and `design.md`, and a legacy `docs/tickets/<ID>/` file
+only when the new folder has none.
 `artifacts["test-cases.md"]` is the exact path acs resolved — pass THAT
 path to every subagent, and read it yourself now (absent → the acceptance
 criteria fallback above). The e2e cases are the rows of
@@ -196,7 +208,8 @@ declared layout — do NOT invent a convention: that is a repo-structure decisio
 Ask the user (User interaction) and record the answer in the clarification
 ledger before any file is written.
 
-**Naming.** Each suite file is named after the ticket, in the repo's existing
+**Naming.** Each suite file is named after the ticket (on a ticketless run,
+after the change's title), in the repo's existing
 style — e.g. `<e2e root>/shop-123-csv-import.spec.ts`,
 `<e2e root>/test_shop_123_csv_import.py`. One suite file per ticket is the
 default; split into more only when the harness requires it (different fixtures,
@@ -249,8 +262,8 @@ Read these yourself and name them by path in the test-writer's `<inputs>`
 
 1. `test-cases.md` — the e2e rows are the specification: preconditions, steps,
    expected result, and the criterion each proves. With no `test-cases.md`,
-   the ticket document instead: its acceptance criteria are the
-   specification.
+   the requirements document (`requirements.md`) instead: its acceptance
+   criteria are the specification.
 2. The existing e2e suites, fixtures, helpers and harness config — the style
    this run writes in.
 3. `plan.md` and `api-contract.md` when they exist — what was built, and the
@@ -474,7 +487,7 @@ merge from where they are (`iter-<m>/authoring-<k>.md`), so
 Spawn `acs:create-e2e-tests-suite-runner` AFTER the suites are written, with
 `<inputs>` of the suite files, the authoring notes (`iter-<n>/authoring.md`,
 joined when the test-writers ran sliced), the test-writer report(s)
-(`iter-<n>/test-writer*.json`), `test-cases.md` (or the ticket, on the fallback), the
+(`iter-<n>/test-writer*.json`), `test-cases.md` (or `requirements.md`, on the fallback), the
 API contract when it exists, and the existing suites it must match. It judges
 fresh — never forward the test-writer's reasoning — and writes
 `steps/create-e2e-tests/iter-<n>/suite-runner.md`.
@@ -587,13 +600,13 @@ not hide it. Never stage or commit: `/acs:create-pr` commits the suites.
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them in ONE grouped interaction (a
 single AskUserQuestion containing all open questions as a numbered list), not
 serial round-trips. Record each answer as its own `clarify.py add` entry (one
 `C-<n>` per question, `--source` preserved), with
-`clarify.py add --skill create-e2e-tests --question "..." --answer "..." --ticket <id>`
+`clarify.py add --skill create-e2e-tests --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`. When the user is unreachable, record the entry with
 `--source assumption --rationale "..."` and state the same assumption in the
@@ -615,7 +628,7 @@ in-flight state plus soft context (user answers, harness gotchas, fixtures
 added) to `steps/create-e2e-tests/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop.

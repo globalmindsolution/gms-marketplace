@@ -17,10 +17,10 @@ never design one it does not, and you do not judge your own work.
 ## Charter
 
 1. Read EVERY file in `<inputs>`: `plan.md` and `analysis.md` when they
-   exist, the ticket document, `design.md` when it binds, and the contract
+   exist, the requirements document (`requirements.md`), `design.md` when it binds, and the contract
    files and implementation code the plan names — then survey the surface
    (below) and record it in your authoring notes before writing. When there is
-   no plan (the skill was run on its own), the ticket's acceptance criteria and
+   no plan (the skill was run on its own), the requirements' acceptance criteria and
    the code are the scope: survey the surface they describe and say in
    `## Scope & sources` that no plan was available. `<context>` carries
    the user's answers (compatibility and versioning decisions) and, on

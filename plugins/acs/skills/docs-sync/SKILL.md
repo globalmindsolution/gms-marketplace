@@ -2,7 +2,7 @@
 name: docs-sync
 description: Re-verify and complete the doc updates a ticket's changeset requires — independently re-derived from the working-tree changeset (acs.py changes diff), /code's result.json, and the final changeset review verdict, never from a hand-off summary alone. Leaves the doc changes uncommitted beside the code (no branch, no commit, no PR — /acs:create-pr commits them). Use whenever a change is done and the docs (README, API reference, configuration guide, runbook) must be brought in line with it — even a single stale value or sentence: a doc fix that follows from a ticket's change goes through this skill, not a direct edit. Call it as your first action on such a request — do not Glob, Grep, Read, ToolSearch or look for a shell or git first: it runs git itself and finds the changeset and docs.
 when_to_use: Use when a ticket has a changeset in the working tree whose documentation still needs reconciling; workflows/ship.yaml places it after code and before create-pr, but it is runnable on its own whenever the docs have drifted from the diff.
-argument-hint: "[ticket-id]"
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -25,7 +25,8 @@ diff-grounded and best run once code (and the post-code test step) settle.
 
 **What the pre-hook checks (and what it does not).**
 `pre-docs-sync.py` checks only what re-running could not undo: settings
-resolve, the ticket resolves to a live, unlocked partition. It never refuses
+resolve, the run resolves to a live, unlocked partition. No ticket is required:
+a run over a prompt or documents is synced the same way. It never refuses
 — or warns — because an upstream artifact is missing, and it never refuses
 because `/acs:code`, `/acs:review-code` or the post-code test steps have not
 recorded a completed run: pipeline order lives in `workflows/ship.yaml`, not in
@@ -36,24 +37,30 @@ follows <predecessor> in ship.yaml; the cursor for <id> is <cursor>`) and lets
 the skill run. The real precondition is a CHANGESET: with nothing changed since
 the run's baseline there is nothing to re-derive — input 1 of "Inputs" below is
 where you find that out, and "No doc impact" below is how you stop. Every other input below is read when present and
-worked around when absent — the diff and the ticket are the fallback.
+worked around when absent — the diff and the requirements are the fallback.
 
 ## Start
 
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step docs-sync
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step docs-sync --args "$ARGUMENTS"
 ```
 
 - If it exits non-zero: STOP and surface its stderr verbatim to the user. Do
   not improvise a workaround.
-- Parse the printed context JSON. Fields you will use: `partition`, `ticket`,
-  `ticket_id`, `settings`, `models`, `reconcile`, `handoff_summary`,
-  `pipeline`, `post_hook`, `checkout_root`.
+- Parse the printed context JSON. Fields you will use: `partition`,
+  `requirements` (`{path, sources, acceptance_criteria, features, feature,
+  needs_design}` — **Requirements: `context.requirements` / `acs.py
+  requirements show` — a ticket id, documents and a prompt are only where they
+  came from; never read ticket.json for acceptance criteria**), `ticket` and
+  `ticket_id` (present only when a ticket is one of the sources), `settings`,
+  `models`, `reconcile`, `handoff_summary`, `pipeline`, `post_hook`,
+  `checkout_root`.
 
 Throughout this file `<partition>` means the `partition` path from the
-context JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+context JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a
+ticket, else `run_id`.
 
 **No branch precondition.** docs-sync works in `<checkout_root>` on whatever
 branch is checked out — it reads no recorded branch and refuses on none.
@@ -95,7 +102,7 @@ which `/acs:create-pr` opens.
 The doc-updater's `<task>` `<inputs>` MUST literally enumerate, and the
 doc-updater MUST read, exactly these artifacts — never a bare hand-off
 summary. Inputs 3-6 are read when present; an absent one is named as absent
-in the task and never stops the run (the diff and the ticket are the
+in the task and never stops the run (the diff and the requirements are the
 subject docs-sync falls back to):
 
 1. The ground-truth changeset, run from `<checkout_root>`:
@@ -104,11 +111,11 @@ subject docs-sync falls back to):
    included. NEVER `git diff <default_branch>...HEAD`: it sees commits only,
    and the change is uncommitted until `/acs:create-pr`, so it is silently
    empty.
-2. The ticket (title, description, acceptance criteria) — `context.ticket`.
-   On disk it is `docs/tickets/<id>/ticket.md` once the docs tree exists, or
-   `ticket.json` in the ticket's workspace partition for one not yet migrated
-   (`acs.py artifacts show --ticket <id>` prints `source_path`); either way it
-   is not under `<partition>`, which is the run directory.
+2. The requirements (title, description, acceptance criteria) —
+   `requirements.path`, the run's `requirements.md` under `<partition>`,
+   whatever container they came from (a ticket, a prompt, documents or a mix).
+   With the run's `analysis.md` and the feature's living analysis
+   (`feature_analysis`) when `acs.py artifacts show` reports them.
 3. `steps/code/result.json`, specifically `states.docs_updated`
    (repo-relative paths of every doc file `/code` already changed).
 4. The ticket's `steps/code/iter-<n>/implementer*.json` implementer
@@ -123,13 +130,16 @@ subject docs-sync falls back to):
    under `<partition>` (that is the run directory, whose
    `steps/create-design/design.md` is only create-design's unverified working
    draft). Resolve the published file with
-   `acs.py artifacts show --ticket <id>` — or `--ticket <parent-id>` when the
+   `acs.py artifacts show` — or `--ticket <parent-id>` when the
    source is `parent` — and read `artifacts["design.md"]`: that is
    `acs_lib.artifacts.artifact_path`, which returns the first existing copy of
-   `docs/tickets/<that-id>/design.md` in the checkout (where
-   `/acs:create-design` publishes it), then `design.md` in that ticket's
-   workspace partition (`context.design.dir`, used only when there was no
-   checkout to publish into). `null` there means no design was published —
+   the design record in `<architecture_dir>/lld/<feature>/<that-id>/design.md`
+   (where `/acs:create-design` publishes it), then a legacy
+   `docs/tickets/<that-id>/design.md` (read only), then `design.md` in that
+   ticket's workspace partition (`context.design.dir`, used only when there was
+   no checkout to publish into). A ticketless run has no `design` field: read
+   `artifacts["design.md"]` from the run's own `artifacts show` when it reports
+   one. `null` there means no design was published —
    name it absent.
 
 `docs_updated`/`problems` may legitimately be near-empty for doc categories
@@ -473,7 +483,7 @@ doc-updater.
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction, not serial round-trips. Record each answer as its own
@@ -481,7 +491,7 @@ interaction, not serial round-trips. Record each answer as its own
 Never skip a question, merge two questions into one entry, or auto-answer a
 question outside the existing `--source assumption --rationale "..."` rule.
 Record every Q&A with
-`clarify.py add --skill docs-sync --question "..." --answer "..." --ticket <ticket-id>`
+`clarify.py add --skill docs-sync --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`. If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."`. Before a needs_input
@@ -499,7 +509,7 @@ If your context is running low mid-run: flush in-flight work and soft
 context to `steps/docs-sync/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop.

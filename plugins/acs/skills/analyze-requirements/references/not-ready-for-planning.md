@@ -1,4 +1,4 @@
-# /acs:analyze-requirements — when the ticket is not plannable
+# /acs:analyze-requirements — when the work is not plannable
 
 Open this only once a question genuinely blocks. There are two ways to get
 here, both decided in SKILL.md's Stage 2:
@@ -16,18 +16,18 @@ an assumption — an analysis that publishes with `ready_for_planning: true` and
 a stated assumption is worth more than one that stops for an answer nobody is
 there to give. An unanswered refined-criterion or needs_design proposal never
 gets here either: it stays an open ledger entry and `/acs:create-impl-plan`
-plans against the ticket as written.
+plans against the ticket (or the requirements) as written.
 
 **Where the cross-references below point.** "Stage 2", "Stage 3", "Finish" and
 the front matter are SKILL.md's.
 
 ### Not ready for planning → `interrupted` / `needs_input`
 
-When the analysis cannot honestly say the ticket is plannable — a question
+When the analysis cannot honestly say the work is plannable — a question
 where every default could build the wrong thing is still open (a
 contradiction with the code, a design document or an ADR; a behaviour the
 acceptance criteria depend on that nothing defines; a fork in scope), the
-ticket contradicts the design or the requirements, or the problem itself is
+requirements contradict the design or the product docs, or the problem itself is
 undefined — set front-matter `ready_for_planning: false`, say exactly what is
 missing in `## Verdict`, and finish `interrupted` with
 `stop_reason: needs_input`:

@@ -15,7 +15,7 @@ acs_prd
 acs_architecture
 acs_ticket "Live order tracking from carrier updates" story false \
   "Shoppers see where their order is. Our two shipping carriers push shipment status changes to us; we keep every change per order and show the latest on the order, and we email the shopper when it changes."
-printf '%s' '{"acceptance_criteria": [
+printf '%s' '{"features": ["order-tracking"], "acceptance_criteria": [
   "Carrier status updates are accepted and stored per order",
   "GET /orders/{id} returns the latest shipment status of the order",
   "The shopper is emailed when the shipment status of their order changes"

@@ -19,7 +19,7 @@ A shape that is wrong here is built wrong and tested wrong.
 ## Check dimensions
 
 1. `completeness` — re-derive the surface from `plan.md` (or, when no plan
-   exists, from the ticket's acceptance criteria) and the code yourself:
+   exists, from the requirements' acceptance criteria) and the code yourself:
    every endpoint/command/message/schema/signature the plan adds or changes has
    an item, and every item's request, response and errors are fully specified
    (no "TBD", no "as today" without stating what today is).
@@ -129,7 +129,7 @@ ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the contract draft, the contract-author's authoring notes
 (`iter-<n>/authoring.md`), the contract-author report
 (`iter-<n>/contract-author.json`), `plan.md` and `analysis.md` when they exist,
-the ticket document, `design.md` when it binds, and every contract file the
+the requirements document (`requirements.md`), `design.md` when it binds, and every contract file the
 contract-author touched), `<constraints>` (at least `required_sections`,
 `audience_style_profile`, `contracts_mode`; `dimensions` when the task
 carries a `slice="<id>"` attribute), and optional `<context>` (prior

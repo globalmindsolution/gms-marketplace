@@ -20,12 +20,16 @@ schema REJECTS `when`, `paths`, `requires`, `needs`, `max_parallel`,
 (ADR-0096). Three requirements follow, and together they are what "pipeline"
 now means:
 
-- **Every skill MUST be runnable on its own**, from a ticket id, a prompt or
-  a document. A skill's pre-hook MUST NOT refuse it for running before or
+- **Every skill MUST be runnable on its own**, from requirements in any
+  container — a ticket id, documents (in the repo or attached from outside
+  it), a prompt, or a mix of them
+  ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)).
+  No skill requires a ticket. A skill's pre-hook MUST NOT refuse it for running before or
   after another skill, or because an upstream artifact is missing; it checks
   only a small set of safety brakes ([hooks.md](hooks.md)). A skill whose
-  upstream artifact is absent falls back to the run's subject — the ticket's
-  acceptance criteria, the prompt or the document.
+  upstream artifact is absent falls back to the run's requirements
+  (`requirements.md`: the ticket's acceptance criteria, the prompt, the
+  documents).
 - **No workflow construct may decide whether a skill applies.** A predicate in
   the workflow makes a skill untrustworthy standalone: invoked by hand it
   never evaluates the condition the workflow was evaluating for it. Each skill
@@ -84,7 +88,7 @@ human drives after review.
 | `create-e2e-tests` | test | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, left uncommitted. Records an evidenced no-op when no e2e suite is configured or the Contract says `owes.e2e: false`. |
 | `run-e2e-tests` | test | Run this product's configured suites for the subject, scoped from `test-cases.md`. Records an evidenced no-op when there is nothing configured to run. |
 | `docs-sync` | build | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the run's changeset (`acs.py changes diff`), `/code`'s `result.json` and `/acs:review-code`'s verdict rather than from a hand-off summary; writes into the same working tree, uncommitted, never a branch or a PR of its own. |
-| `create-pr` | ship | The one step that branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)): split the working tree's uncommitted changes into small commits (ticket docs, design docs, per plan slice its tests then its code, doc updates, e2e suites), preview them for the user to confirm, commit on the run's branch, push, and open the pull request; takes a ticket id or a prompt. It is the last step in the list, so `/ship` ends there. |
+| `create-pr` | ship | The one step that branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)): split the working tree's uncommitted changes into small commits (the run's documents, design docs, per plan slice its tests then its code, doc updates, e2e suites), preview them for the user to confirm, commit on the run's branch, push, and open the pull request; takes a ticket id or a prompt. It is the last step in the list, so `/ship` ends there. |
 | — `/merge-pr` | ship | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
 **There is no predicate vocabulary.** The `when:` / `requires:` kinds, their
@@ -137,22 +141,27 @@ changes and lists every path it wrote in its result's `states.files`, for
 The workflow reads and writes two distinct stores, and a requirement in this
 document belongs to exactly one of them:
 
-- **The repo docs tree** — `<repo>/docs/tickets/<ID>/`, a fixed location
-  with no setting and no opt-out
-  ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)), holds the
-  **human-facing ticket documents**: `ticket.md`, `design.md`,
-  `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`. The skills
-  that write them leave them uncommitted; `/create-pr` commits the folder as
-  the first commit of the ticket's PR, where they are reviewed like any other
-  doc ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)).
-  The ticket's low-level design documents live in the architecture set
-  instead, under `lld/<feature>/` (ADR-0126), and go into the PR's
-  design-documents commit.
+- **The repo's phase folders** hold the **human-facing documents**, one
+  folder per phase keyed by the run's feature
+  ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)):
+  Discovery `<prd_dir>/features/<feature>/analysis.md` (the feature's living
+  analysis); Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`
+  (`design.md`, `api-contract.md`, beside the living LLD the Design skills edit
+  in place, ADR-0126); Development
+  `<development_dir>/<feature>/<ticket-id or run-id>/` (`analysis.md`,
+  `plan.md`, `test-cases.md`). The skills that write them leave them
+  uncommitted; `/create-pr` commits them in the PR's documents commits,
+  where they are reviewed like any other doc
+  ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)). A ticket
+  is not among them: it lives in the workspace and the tracker, and nothing
+  writes `docs/tickets/<ID>/` — an existing folder there is still read when a
+  phase folder has no such document.
 - **The workspace run** — `<workspace>/<repo>/runs/<run-id>/` holds the **run
   ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
   machine), each step's `result.json` and its `iter-<n>/` audit trail,
-  `subject/`, `requirements.md`, verdicts, `lock.json`,
-  `clarifications.json`, and the repo-level index files
+  `subject/` (`sources.json` and copied documents), `requirements.md`,
+  verdicts, `lock.json`, a ticketless run's `clarifications.json` (a ticket
+  run's ledger stays in the ticket partition), and the repo-level index files
   ([workspace-and-state.md](workspace-and-state.md)). The run is keyed by the
   **run id**, which is derived from the subject — a ticket id when there is
   one, otherwise a slug of the prompt or document (ADR-0097).
@@ -285,7 +294,7 @@ every skill's transcript in one context:
 - The `/ship` coordinator **invokes each step skill directly in its own
   context** (it holds the Agent tool the step needs to spawn its own
   subagents). Between steps it reads only `run.json`, the subject's
-  own document (`ticket.md` in the docs tree), the output of
+  requirements (`acs.py requirements show`), the output of
   `acs.py run next`, and
   the step's handoff / `result.json` — never the step's transcript — so its
   own context stays small.
@@ -303,8 +312,12 @@ every skill's transcript in one context:
 
 ## Ticket context
 
-Every workflow skill except `/create-ticket` operates on an existing ticket
-and therefore MUST resolve a `<ticket-id>` before doing anything. Resolution
+Every workflow skill MUST resolve what it works on before doing anything:
+this checkout's current run, else the sources in its arguments — ticket ids,
+documents and a prompt, parsed into the run's `subject.sources` and
+normalised into its `requirements.md`
+([workspace-and-state.md](workspace-and-state.md#requirements-of-a-run)). No
+skill requires a ticket; a ticket id, where one is used, resolves in this
 order:
 
 1. **Explicit argument** — the user passes a ticket id when invoking the
@@ -316,7 +329,7 @@ order:
    name, which embeds it by convention (see formats in
    [configuration.md](configuration.md)).
 
-If no ticket id can be resolved, the skill MUST stop and ask the user.
+If neither a run nor any source resolves, the skill MUST stop and ask the user.
 
 Note: pre/post **hooks** are deterministic scripts and cannot interpret
 conversation history — they resolve the ticket id from the **per-checkout
@@ -615,6 +628,12 @@ ticket:
    ([Epic fan-out](#epic-fan-out)).
 6. **`/ship`** each child through the pipeline; **`/merge-pr`** after your
    own review.
+
+A PRD feature can be analysed before any ticket is cut:
+`/analyze-requirements` run on its own with the feature, a prompt or a
+specification (Discovery, [ADR-0129](../../architecture/adr/0129-discovery-design-development-regroup.md))
+writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis.md`,
+and every later run on that feature starts from it.
 
 The product-level steps (2–3) run without a ticket and leave their documents
 uncommitted; `/create-pr "<prompt>"` delivers them as one PR, one commit per

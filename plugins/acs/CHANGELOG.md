@@ -105,6 +105,28 @@ matching section here, and merge to `main` — the Release workflow tags
   validates it against the documented schema, merges by configuration name
   (an existing entry is never replaced), warns about secret-looking `env` names,
   and refuses to rewrite a file that has comments.
+- **Skills take requirements from any container** (ADR-0128). A ticket id,
+  documents — in the repo, or attached from outside it (PDFs, images, markdown) —
+  and a prompt are only containers of requirements, and one invocation may mix
+  them: `/acs:analyze-requirements SHOP-12 ~/Downloads/spec.pdf "also bulk export"`
+  keeps all three (it used to keep only the ticket). Every run now writes
+  `subject/sources.json` (kind, ref, sha256, run copy), copies documents from
+  outside the repo into the run (`<run>/subject/`, hashed; nothing is added to the
+  repo) and generates `<run>/requirements.md` — the ticket's title, description and
+  acceptance criteria numbered `AC-1…`, the prompt verbatim, the documents, and a
+  `## Refined` section. New `acs.py requirements show|add|refine`; the step-start
+  context carries a `requirements` block for every run; `run.json`'s subject gains
+  an optional `sources` list. **No skill requires a ticket**: a ticketless run keeps
+  its clarification ledger at `runs/<run-id>/clarifications.json`, the analysis loop
+  is keyed by run, `/acs:create-design` reads `needs_design` from the requirements,
+  `/acs:create-data-design` and `/acs:create-flows` take a feature slug, a prompt
+  or documents, and `/acs:ship "<prompt>"` runs from its first step.
+- **`/acs:analyze-requirements` works in Discovery** (ADR-0128, ADR-0129). Run on
+  its own with no ticket — a PRD feature, a prompt, an attached specification — it
+  writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis.md`
+  (versioned front matter plus `feature`), choosing the feature from the PRD's slugs
+  in its one grouped ask. A later run on that feature — a ticket, or `/acs:ship` —
+  starts from it, and the Design skills read it.
 
 ### Changed
 
@@ -216,6 +238,32 @@ matching section here, and merge to `main` — the Release workflow tags
   audit) and the post-hook concludes it. Its `report.md` follows
   `templates/audit-design-report.md`, and the gap counts in `states.audit` are
   counted from the report.
+- **⚠️ BREAKING: ticket documents are no longer written to `docs/tickets/`; a
+  run's documents live one folder per phase** (ADR-0128, superseding ADR-0090's
+  in-repo ticket docs tree). A ticket now lives only in the workspace and your
+  tracker — no `docs/tickets/<ID>/ticket.md` is rendered — and a run's documents
+  are filed under its PRD feature: Discovery `<prd_dir>/features/<feature>/analysis.md`
+  (the feature's living analysis); Design `<architecture_dir>/lld/<feature>/<id>/`
+  (`design.md`, `api-contract.md`); Development `docs/development/<feature>/<id>/`
+  (a Development run's `analysis.md`, `plan.md`, `test-cases.md`), where `<id>` is
+  the ticket id, else the run id. `acs.py artifacts show` resolves by run
+  (`--run`, or `--ticket` as before) and reports the phase folders.
+  **Migration:** nothing to run — existing `docs/tickets/<ID>/` folders stay
+  readable: every reader falls back to them when a phase folder has no such file,
+  so tickets in flight keep their documents. Look for new tickets' documents in
+  the phase folders, and for a ticket's fields in `acs.py ticket show` or the
+  tracker rather than a `ticket.md`. To consolidate, `git mv` an old folder's
+  `plan.md`, `test-cases.md` and `analysis.md` to
+  `docs/development/<feature>/<ID>/` and its `design.md` and `api-contract.md` to
+  `lld/<feature>/<ID>/`; its `ticket.md` can then be deleted.
+- **The skills regroup into Discovery, Design, Development, Audit and Utility**
+  (ADR-0129, amending ADR-0118). Discovery is `/acs:create-prd` and
+  `/acs:analyze-requirements`; Design is `/acs:create-architecture`,
+  `/acs:create-api-contract`, `/acs:create-data-design`, `/acs:create-flows` and
+  `/acs:create-design`; Development is `/acs:ship` and its steps plus
+  `/acs:merge-pr`; Utility is `/acs:setup`, `/acs:update`, `/acs:release`,
+  `/acs:handoff` and `/acs:create-ticket` — a ticket is cut when the work needs one,
+  not as a phase. The README's skill tables follow; no skill, gate or step changes.
 
 ### Removed
 

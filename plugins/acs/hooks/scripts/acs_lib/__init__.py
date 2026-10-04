@@ -25,6 +25,9 @@ it always did. In dependency order:
   artifacts      the ticket documents in the repo docs tree: ticket.md, derived status, migrate
   changes        the run's baseline, working-tree snapshots and changeset (ADR-0127)
   commit_plan    the commits /acs:create-pr proposes from the recorded paths, and makes
+  requirements   a run's requirements from any container: sources, requirements.md, refine
+  doc_layout     the phase folders a run's documents live in (prd/lld/development dirs)
+  run_docs       one run's documents: where each is read from and written to
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
 this facade does NOT reach a caller that already imported it. Patch the module
@@ -197,6 +200,9 @@ from .step import state_path, state_path as step_state_path  # noqa: F401
 
 from . import notes  # noqa: F401,E402
 from .notes import merge_files as merge_notes, merge_texts, split_sections  # noqa: F401
+
+from . import doc_layout, requirements, run_docs  # noqa: F401,E402
+from .gates import record_requirements  # noqa: F401,E402
 
 from . import artifacts  # noqa: F401,E402
 from . import changes, commit_plan  # noqa: F401,E402

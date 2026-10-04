@@ -63,9 +63,16 @@ def cmd_run_next(args):
     `due` -- every unfinished step of the stage it is in, which is more than
     one only for a parallel group. With no `needs:` graph there is nothing to
     traverse and nothing to record as skipped."""
-    if args.run is None and (args.ticket or args.prompt or args.document):
+    subject_given = bool(args.ticket or args.prompt or args.document
+                         or getattr(args, "args", None))
+    if args.run is None and subject_given:
         args.run = _run_for_subject(args)
     _rdir, doc, _ctx, wf = _resolve_run("run next", args.run)
+    if subject_given:
+        # /acs:ship's entry call names the subject: the run is now being
+        # DELIVERED (its analysis files on the Development side, ADR-0128),
+        # and the invocation's sources are recorded for its first step.
+        doc = _ship_drives(_rdir, doc, _ctx, getattr(args, "args", None))
     cursor = lib.cursor(doc, wf)
     # `due` is every step `/acs:ship` starts now: one for a plain stage, each
     # unfinished member for a parallel group. `next` stays the first of them.
@@ -73,7 +80,25 @@ def cmd_run_next(args):
     emit({"ok": True, "run_id": doc["run_id"], "next": cursor,
           "due": due, "parallel": len(due) > 1,
           "status": doc.get("status"),
-          "done": cursor is None})
+          "done": cursor is None,
+          "args": getattr(args, "args", None) or _subject_args(doc)})
+
+
+def _subject_args(doc):
+    """The argument text /acs:ship passes a step: the run's ticket id, or its
+    prompt or document (every subject kind -- the step re-reads the run's
+    requirements either way, and a repeated source is a no-op)."""
+    subject = doc.get("subject") or {}
+    return subject.get("ticket_id") or subject.get("path") or subject.get("text") or ""
+
+
+def _ship_drives(rdir, doc, ctx, text):
+    """Mark the run `driver: ship` (once) and record the invocation's sources."""
+    if doc.get("driver") != "ship":
+        doc["driver"] = "ship"
+        lib.save_run(rdir, doc)
+    lib.record_requirements(ctx, rdir, text or "", "ship")
+    return doc
 
 
 def _run_for_subject(args):
@@ -99,11 +124,6 @@ def _run_for_subject(args):
         if row:
             lib.point_checkout_at(ctx, row["run_id"])
             return row["run_id"]
-        tdir, _archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"],
-                                                   subject["ticket_id"])
-        if not os.path.isdir(tdir):
-            die("run next", "no ticket %s in this repo's workspace — run "
-                            "/acs:create-ticket to make one." % subject["ticket_id"])
     try:
         resolved = lib.resolve_workflow(ctx.get("checkout_root"))
         wf = lib.validate_workflow_file(resolved["path"])
@@ -157,24 +177,38 @@ def cmd_run_new(args):
     except (lib.WorkflowError, lib.GateError) as exc:
         die("run new", str(exc))
     lib.point_checkout_at(ctx, run_id)
+    lib.record_requirements(ctx, rdir, "")
     emit({"ok": True, "run_id": run_id, "path": rdir, "subject": subject,
           "cursor": doc.get("cursor")})
 
 
 def _subject_from_args(args, command="run new"):
-    if args.ticket:
-        return {"kind": "ticket", "ticket_id": args.ticket}
-    if args.document:
-        import hashlib
-        try:
-            with open(args.document, "rb") as fh:
-                digest = hashlib.sha256(fh.read()).hexdigest()
-        except OSError as exc:
-            die(command, "cannot read %s: %s" % (args.document, exc))
-        return {"kind": "document", "path": args.document, "sha256": digest}
-    if args.prompt:
-        return {"kind": "prompt", "text": args.prompt}
-    die(command, "give a subject: --ticket, --prompt or --document.")
+    """The run's subject from the subject flags, through the same
+    `requirements` parsing the pre-hook uses (ADR-0128): `--args` takes a raw
+    invocation -- ticket ids, documents and a prompt, mixed -- and the single
+    flags build the one source they name."""
+    ctx = context_or_die(command)
+    reqs = lib.requirements
+    if getattr(args, "args", None):
+        subject = reqs.subject_from_text(args.args, ctx)
+    elif args.ticket:
+        subject = reqs.primary_subject([{"kind": "ticket", "ticket_id": args.ticket}])
+    elif args.document:
+        source = reqs._document(args.document, ctx)
+        if source is None:
+            die(command, "cannot read %s: no such file" % args.document)
+        subject = reqs.primary_subject([source])
+    elif args.prompt:
+        subject = reqs.primary_subject([{"kind": "prompt", "text": args.prompt}])
+    else:
+        subject = None
+    if subject is None:
+        die(command, "give a subject: --ticket, --prompt, --document or --args.")
+    try:
+        reqs.check_tickets(ctx, reqs.sources_of(subject), command.split()[-1])
+    except lib.GateError as exc:
+        die(command, str(exc))
+    return subject
 
 
 # ---------------------------------------------------------------------------
@@ -355,13 +389,18 @@ def _brake_or_die(ctx, step, rdir, doc, wf=None):
 
 
 def _run_from_invocation(ctx, step, text):
-    """The run id the pre-hook would have opened for `/acs:<step> <text>`;
-    None for a skill that is not a step (it needs no run from its args)."""
+    """The run id the pre-hook would have opened for `/acs:<step> <text>`.
+    A skill that is not a step (create-design, create-data-design,
+    create-flows) gets one too, over the same subject: its requirements need
+    a run to be recorded in (ADR-0128)."""
     payload = {"tool_input": {"args": text}, "cwd": os.getcwd()}
     try:
         wf = lib.workflow_for(ctx)
+        reqs = lib.requirements
+        reqs.check_tickets(ctx, reqs.parse_sources(text, ctx), step)
         if not lib.workflow.has_step(wf, step):
-            return None
+            _rdir, doc, _wf = lib.resolve_run_for(ctx, step, payload, mutate=True)
+            return doc["run_id"]
         rdir, doc, wf = lib.resolve_run_for(ctx, step, payload, mutate=False)
         _brake_or_die(ctx, step, rdir, doc, wf)
         _rdir, doc, _wf = lib.resolve_run_for(ctx, step, payload, mutate=True)
@@ -496,6 +535,12 @@ def cmd_step_start(args):
     if in_workflow:
         _brake_or_die(ctx, args.step, rdir, doc, wf)
     try:
+        # A ticket the arguments name must exist before anything is written.
+        lib.requirements.check_tickets(
+            ctx, lib.requirements.parse_sources(getattr(args, "args", None), ctx), args.step)
+    except lib.GateError as exc:
+        die("step start", str(exc))
+    try:
         # The lock, before the transition. This is the WRITER for `in_progress`
         # (§4.3), and a transition written without the lock is exactly the
         # two-sessions-one-ledger interleaving the lock exists to prevent. The
@@ -527,6 +572,9 @@ def cmd_step_start(args):
         # degraded rather than pretending either way.
         lib.append_invocation(rdir, args.step, doc["run_id"], gate=verdict)
         _record_baseline(rdir, _ctx, args.step)
+        # The run's requirements, on hookless hosts too: sources.json, the
+        # copies of outside documents, requirements.md (ADR-0128).
+        lib.record_requirements(ctx, rdir, getattr(args, "args", None) or "", args.step)
         if evidence is not None:
             lib.consume_gate_evidence(ctx, evidence)
         lib.point_checkout_at(ctx, doc["run_id"], args.step)
@@ -590,14 +638,20 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
         "prior_status": prior_status,
         "gate_enforcement": gate,
     }
+    out["requirements"] = lib.requirements.summary(rdir, ctx, doc)
     if ticket_id:
         tdir, _archived = lib.find_ticket_partition(
             ctx["workspace"], ctx["repo_id"], ticket_id)
         ticket = lib.load_ticket(tdir)
         if isinstance(ticket, dict):
             out["ticket"] = ticket
-            required, design_dir, source = lib.design_requirement(ctx, tdir, ticket)
+            required, design_dir, source = lib.design_requirement(ctx, tdir, ticket, rdir)
             out["design"] = {"required": required, "dir": design_dir, "source": source}
+    elif out["requirements"]["needs_design"] is not None:
+        # A ticketless run's design requirement is its REFINED needs_design.
+        required = bool(out["requirements"]["needs_design"])
+        out["design"] = {"required": required, "dir": None,
+                         "source": "requirements" if required else None}
     return out
 
 

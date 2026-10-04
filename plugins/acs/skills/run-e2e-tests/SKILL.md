@@ -1,7 +1,7 @@
 ---
 name: run-e2e-tests
 description: Run this product's configured test suites (all of them, a --suite-selected subset, or the suites one run's test cases name), capture pass/fail results to an auditable run artifact, and on a failure triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke. Use for any request to run, execute or kick off the repo's test suites — all of them or named ones (smoke, api, integration, e2e, nightly) — including after a rebase or when CI is down; it reads the configured suites from acs settings itself, so do not look for package.json, CI files or a test runner. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id | prompt | document] [--suite <name>]"
+argument-hint: "[ticket-id] [documents…] [prompt] [--suite <name>]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -46,6 +46,11 @@ with no plan, or a plan that is silent on `e2e` (silence is not permission to
 skip). Those reach you, and Step 1 and "Which suites this run runs" decide
 them — `no_harness` or `nothing_to_run` — so do not assume, once you are
 running, that there is something to run.
+
+**Requirements: `context.requirements` / `acs.py requirements show` — a ticket
+id, documents and a prompt are only where they came from; never read
+ticket.json for acceptance criteria.** No ticket is required: a run started on
+a prompt or documents runs its suites the same way.
 
 `${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md` carries resume-and-reconcile,
 context pressure and the completion report — the parts every acs skill shares.

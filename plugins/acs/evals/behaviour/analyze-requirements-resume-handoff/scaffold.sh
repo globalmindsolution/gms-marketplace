@@ -7,7 +7,7 @@
 # the run off -- finalizing the invocation `interrupted` (stop_reason
 # context_pressure), releasing the lock and writing the handoff summary the
 # next `acs step start` returns with `reconcile: true`. No survey notes, draft,
-# branch or docs folder exist: the resumed run re-surveys, skips Stage 2
+# branch or development folder exist: the resumed run re-surveys, skips Stage 2
 # (everything is answered) and publishes.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -19,7 +19,7 @@ acs_prd
 acs_architecture
 acs_ticket "Cursor pagination for GET /customers" story false \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
-printf '%s' '{"acceptance_criteria": [
+printf '%s' '{"features": ["customer-listing"], "acceptance_criteria": [
   "GET /customers accepts an optional cursor query parameter and returns the page of customers that follows it",
   "Every GET /customers response carries next_cursor, which is null on the last page",
   "A malformed cursor is rejected with HTTP 400 and error code invalid_cursor"

@@ -88,10 +88,18 @@ def parent_epic_dir(ctx, ticket):
     return parent, (pdir if os.path.isdir(pdir) else None)
 
 
-def design_requirement(ctx, tdir, ticket):
+def design_requirement(ctx, tdir, ticket, rdir=None):
     """Returns (required, design_dir, source) — the partition whose design.md applies:
-    the ticket's own when it needs design, else the parent epic's when that needs design."""
-    if ticket.get("needs_design"):
+    the ticket's own when it needs design, else the parent epic's when that needs design.
+
+    needs_design is read from the run's REQUIREMENTS first (ADR-0128): the value
+    analyze-requirements refined (`acs.py requirements refine`) when the run
+    recorded one -- source `requirements` -- else the ticket's own flag."""
+    from . import requirements
+    recorded = requirements.recorded_needs_design(rdir) if rdir else None
+    if recorded is True:
+        return True, tdir, "requirements"
+    if recorded is None and ticket.get("needs_design"):
         return True, tdir, "own"
     parent, pdir = parent_epic_dir(ctx, ticket)
     if parent and pdir:
@@ -194,15 +202,65 @@ def _resolve_ticket_for_gate(ctx, payload, skill):
     return ticket_id, tdir, ticket
 
 
-def gate_create_design(ctx, payload):
-    """Brake: a design is only written for a design-significant ticket."""
-    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-design")
-    if not ticket.get("needs_design"):
+def _live_current_run(ctx):
+    """(rdir, doc) for this checkout's live run, else (None, None)."""
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    run_id = sessions.current_run_id(repo, ctx["checkout_id"])
+    if not run_id:
+        return None, None
+    rdir = run_machine.run_dir(repo, run_id)
+    doc = run_machine.load_run(rdir)
+    if doc is None or doc.get("status") in run_machine.TERMINAL_RUN_STATUSES:
+        return None, None
+    return rdir, doc
+
+
+def _refuse_recorded_no_design(rdir, doc):
+    from . import requirements
+    if rdir and requirements.recorded_needs_design(rdir) is False:
         raise GateError(
-            "ticket %s is not flagged needs_design — /create-design only runs for "
-            "design-significant tickets; go straight to /acs:code %s."
-            % (ticket_id, ticket_id))
-    return ticket_id
+            "the requirements of run %s record needs_design false — /create-design only "
+            "runs for design-significant requirements. Record the change with `acs.py "
+            "requirements refine` ({\"needs_design\": true}) if a design is owed."
+            % doc.get("run_id"))
+
+
+def gate_create_design(ctx, payload):
+    """Brake: a design is only written for design-significant requirements.
+
+    A TICKET (named, or the one the pointer or branch resolves) needs its
+    needs_design flag, or a run of it whose refined requirements say so. With
+    no ticket, invoking /acs:create-design WITH requirements -- a prompt or
+    documents -- is the ask itself (ADR-0128), and so is invoking it on a
+    ticketless run: only a run whose requirements RECORDED needs_design false
+    is refused. The epic refusal stays ticket-only (the step brakes)."""
+    from . import requirements
+    text = _merge_pr_arg_text(payload).strip()
+    sources = requirements.parse_sources(text, ctx)
+    rdir, doc = _live_current_run(ctx)
+    if not requirements.ticket_ids(sources):
+        current_ticket = ((doc or {}).get("subject") or {}).get("ticket_id")
+        if sources or (rdir and not current_ticket):
+            _refuse_recorded_no_design(rdir, doc)
+            return None
+        if not rdir and not resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"],
+                                              ctx["repo_id"], args_text=text)[0]:
+            raise GateError(
+                "no requirements for /create-design: no ticket, document or prompt in the "
+                "invocation, and no current run. Give it a ticket id, documents or a "
+                "prompt, e.g. /acs:create-design %s-123."
+                % ctx["settings"].get("ticket_prefix", "SHOP"))
+    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-design")
+    if ticket.get("needs_design"):
+        return ticket_id
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    for run in _run_dirs_for_ticket(repo, ticket_id):
+        if requirements.recorded_needs_design(run) is True:
+            return ticket_id
+    raise GateError(
+        "ticket %s is not flagged needs_design — /create-design only runs for "
+        "design-significant tickets; go straight to /acs:code %s."
+        % (ticket_id, ticket_id))
 
 
 def _pr_recorded_for(repo, ticket_id):
@@ -306,6 +364,11 @@ def gate_outcome(ctx, skill, payload, standalone=True, mutate=True):
         raise GateError("the workflow does not validate: %s" % exc)
     if not workflow.has_step(wf, skill):
         return GateOutcome(None, None)
+    # Every ticket the invocation names must exist, before anything is judged
+    # or written -- the primary one and any other the requirements carry.
+    from . import requirements
+    requirements.check_tickets(
+        ctx, requirements.parse_sources(_merge_pr_arg_text(payload), ctx), skill)
 
     # JUDGE FIRST, on the run the subject would open, and write only once
     # every check has passed. Resolving with `mutate` up front created the
@@ -398,13 +461,8 @@ def resolve_run_for(ctx, skill, payload, mutate=True):
         # Refuse here, where the message can still name the skill that makes
         # one. (A token that is not a ticket id is a prompt, so this never
         # catches `/acs:code "fix the login timeout"`.)
-        tdir, _archived = find_ticket_partition(
-            ctx["workspace"], ctx["repo_id"], subject["ticket_id"])
-        if not os.path.isdir(tdir):
-            raise GateError(
-                "no ticket %s in this repo's workspace — run /acs:create-ticket "
-                "to make one, or give /acs:%s a prompt or a document instead."
-                % (subject["ticket_id"], skill))
+    from . import requirements
+    requirements.check_tickets(ctx, requirements.sources_of(subject), skill)
 
     if not mutate:
         # Asked, not told: judge the run this subject WOULD open, projected in
@@ -421,29 +479,18 @@ def resolve_run_for(ctx, skill, payload, mutate=True):
 
 
 def subject_from_payload(ctx, payload):
-    """A ticket id, a prompt or a document, from the skill's own arguments.
+    """The run's subject, from the skill's own arguments -- delegated to
+    `requirements.subject_from_text` (ADR-0128).
 
-    The three are told apart by shape rather than by a flag: a bare token that
-    looks like <PREFIX>-<n> is a ticket, an existing path is a document, and
-    anything else is a prompt. A developer typing
-    `/acs:code "fix the login timeout"` should not have to learn a flag.
+    Every token is told apart by shape rather than by a flag: `<PREFIX>-<n>`
+    is a ticket, an existing file (repo-relative, absolute or `~`) a document,
+    and the rest ONE prompt, so `/acs:code SHOP-12 spec.pdf "also X"` keeps
+    all three. The subject is the primary one (ticket > document > prompt);
+    a mixed invocation also carries the full list as `subject.sources`.
     """
-    tool_input = payload.get("tool_input") or {}
-    text = ""
-    for key in ("args", "arguments", "argument"):
-        if isinstance(tool_input.get(key), str):
-            text = tool_input[key].strip()
-            break
-    if not text:
-        return None
-    prefix = (ctx.get("settings") or {}).get("ticket_prefix") or "[A-Z]+"
-    token = text.split()[0]
-    if re.match(r"^%s-\d+$" % prefix, token):
-        return {"kind": "ticket", "ticket_id": token}
-    candidate = os.path.join(ctx.get("checkout_root") or ctx["cwd"], token)
-    if os.path.isfile(candidate):
-        return {"kind": "document", "path": token, "sha256": _sha256_file(candidate)}
-    return {"kind": "prompt", "text": text}
+    from . import requirements
+    text = _merge_pr_arg_text(payload).strip()
+    return requirements.subject_from_text(text, ctx) if text else None
 
 
 def run_pre(skill):
@@ -535,7 +582,7 @@ def _gate_payload(skill, payload, record_marker, mutate, fired):
             if advisory:
                 sys.stderr.write(advisory + "\n")
             if mutate:
-                _mark_step_started(ctx, skill, outcome.run_id)
+                _mark_step_started(ctx, skill, outcome.run_id, payload)
     except GateError as exc:
         sys.stderr.write("acs pre-%s: blocked — %s\n" % (skill, exc))
         return 2
@@ -554,9 +601,10 @@ def _gate_payload(skill, payload, record_marker, mutate, fired):
     return 0
 
 
-def _mark_step_started(ctx, skill, run_id):
+def _mark_step_started(ctx, skill, run_id, payload=None):
     """step -> in_progress, and the pointer follows it. The pre-hook is the
-    one writer of this transition (§4.3)."""
+    one writer of this transition (§4.3). The run's requirements are then
+    recorded: the invocation's sources added, requirements.md regenerated."""
     repo = repo_dir(ctx["workspace"], ctx["repo_id"])
     rdir = run_machine.run_dir(repo, run_id)
     try:
@@ -567,6 +615,26 @@ def _mark_step_started(ctx, skill, run_id):
                               checkout_path=ctx.get("checkout_root"))
     except (GateError, WorkflowError) as exc:
         raise GateError(str(exc))
+    record_requirements(ctx, rdir, _merge_pr_arg_text(payload or {}), skill)
+
+
+def record_requirements(ctx, rdir, text, skill=None):
+    """materialise / add_sources for a step that just started. Fail-soft: the
+    requirements are a record the skill reads, and a write that failed is a
+    warning, never a refused step (`acs.py requirements add` retries it)."""
+    from . import requirements
+    try:
+        if (text or "").strip():
+            return requirements.add_sources(rdir, ctx, text, skill)
+        return requirements.materialise(rdir, ctx)
+    except Exception as exc:  # noqa: BLE001
+        try:
+            os.write(2, ("acs: warning: the run's requirements were not recorded "
+                         "(%s) — `acs.py requirements add` retries\n" % (exc,)
+                         ).encode("utf-8", "replace"))
+        except Exception:  # noqa: BLE001
+            pass
+        return None
 
 
 # ---------------------------------------------------------------------------

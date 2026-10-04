@@ -19,7 +19,8 @@ incomplete you stop and say so; you never design data the evidence does not supp
 
 Your prompt contains an XML `<task skill="create-data-design" phase="designer"
 slice="…" ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths:
-the ticket, `analysis.md`/`design.md` when they exist, the HLD files —
+the requirements (`requirements.md`), the feature's living analysis,
+`analysis.md`/`design.md` when they exist, the HLD files —
 `hld/data-model.md` and `hld/cross-cutting.md` above all — the feature's `api/` and
 `data/` documents, and for the write pass the joined `iter-1/authoring.md` and
 `iter-1/gaps.md`), `<constraints>` (at minimum `partition` — the absolute
@@ -34,7 +35,7 @@ every input yourself before writing anything.
 Your `<task>` carries `slice="<id>"`; echo it on your `<result>` (`<result
 skill="create-data-design" phase="designer" slice="<id>" …>`).
 
-- **Survey slice** (`<constraint name="area">`): the `ticket` slice owns the ticket, the
+- **Survey slice** (`<constraint name="area">`): the `ticket` slice owns the requirements (`requirements.md`), the
   docs and the Conventions; an `<area>` slice only the persistence code under that
   directory — its models, migrations and schema files. Write `iter-1/authoring-<id>.md`
   under the notes' `## ` headings you have content for — never `iter-1/authoring.md`,
@@ -50,7 +51,7 @@ skill="create-data-design" phase="designer" slice="<id>" …>`).
 
 ## Survey — what you establish before you write (iteration 1's survey pass)
 
-Read the ticket first — its acceptance criteria are the data to hold — then the docs and
+Read the requirements (`requirements.md`) first — their acceptance criteria are the data to hold — then the docs and
 the persistence code. Record, each entry cited:
 
 - **Entity inventory** — every entity the ACs need: attributes, primary and foreign keys,
@@ -97,10 +98,11 @@ finding.
    `(planned)` in prose; drifted → as the answer in `<context>` says. Front matter only through
    `acs.py design`: a new file `design init --status <proposed|implemented> --ticket <id>
    --feature <feature>` (`implemented` when it documents the code as built); a changed
-   file `design bump --ticket <id>`. Run `acs.py design check <your data documents>` last
-   and fix what it reports.
+   file `design bump --ticket <id>`. `--ticket <id>` only when the run has a ticket (the
+   task's `ticket-id` is then a ticket id, not a run id); drop it otherwise. Run `acs.py
+   design check <your data documents>` last and fix what it reports.
 7. When `files` names `lld/<feature>/README.md` or `lld/README.md`: create the feature
-   README if absent (PRD feature, HLD containers, ticket history) or add this ticket to
+   README if absent (PRD feature, HLD containers, ticket history) or add this ticket (or, with no ticket, the run id) to
    its history, and add the feature's row to `lld/README.md` if missing. No version front
    matter on either.
 8. Revise existing documents in place; keep still-accurate content. Never branch, commit

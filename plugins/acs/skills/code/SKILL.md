@@ -1,7 +1,7 @@
 ---
 name: code
-description: Implement an approved implementation plan in the consumer repo using TDD, targeted tests only. Dispatches to the delivery-path leg the plan recorded — code-trivial, code-small, code-standard or code-complex. The changeset review is a separate step, /acs:review-code. Takes a ticket id, a prompt or a document. Use whenever a ticket's plan is approved and the user says to build, implement, execute or start writing it. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id | prompt | document]"
+description: Implement an approved implementation plan in the consumer repo using TDD, targeted tests only. Dispatches to the delivery-path leg the plan recorded — code-trivial, code-small, code-standard or code-complex. The changeset review is a separate step, /acs:review-code. Takes requirements from a ticket id, documents, a prompt or a mix of them. Use whenever a ticket's plan is approved and the user says to build, implement, execute or start writing it. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -77,8 +77,9 @@ instructions of your own, no interpretation of the plan.
 **No plan at all** → you were invoked standalone, on a subject rather than
 after `/acs:create-impl-plan` (§3.11). That is a supported way to run, not an
 error: nothing gates `/acs:code` on an upstream step. Derive an **implicit
-plan** from your own read-only survey of the repo and the subject (the
-ticket's acceptance criteria, the prompt, or the document), record it at
+plan** from your own read-only survey of the repo and the requirements
+(`context.requirements` / `acs.py requirements show` — a ticket id, documents
+and a prompt are only where they came from), record it at
 `steps/code/plan.md`, then judge its path with
 `${CLAUDE_PLUGIN_ROOT}/skills/code/references/classify.md`.
 

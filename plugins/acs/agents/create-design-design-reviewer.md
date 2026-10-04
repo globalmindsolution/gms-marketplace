@@ -151,7 +151,7 @@ yourself — an unfixed prior finding is reported again as a new finding.
 
 ## Re-run cheap checks yourself
 
-- Read `design.md`, the authoring notes, the ticket document, and the architecture docs
+- Read `design.md`, the authoring notes, the requirements document (`requirements.md`), and the architecture docs
   in full; never trust `iter-<n>/designer.json` — use it only to know what was
   claimed, then check the claim.
 - Grep the consumer repo for every component, interface, and file path the
@@ -177,7 +177,7 @@ you ever perform.
 Your prompt contains an XML `<task skill="create-design" phase="design-reviewer"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the design draft, the iteration's authoring notes
-(`iter-<n>/authoring.md`), the ticket document, and the architecture docs),
+(`iter-<n>/authoring.md`), the requirements document (`requirements.md`), and the architecture docs),
 `<constraints>` (always including `required_sections` and
 `audience_style_profile` and `adr_dir`, plus `standards_dir` when the
 coordinator found a standards set — see dimensions 2/4/5 above), and

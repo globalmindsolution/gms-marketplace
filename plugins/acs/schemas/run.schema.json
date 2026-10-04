@@ -38,7 +38,8 @@
     "started_at": {"type": "string"},
     "ended_at": {"type": "string"},
     "abandoned_reason": {"type": "string"},
-    "concluded_by": {"description": "The standalone skill -- a delivery-ticket skill, never a workflow step -- whose end concluded this run. Set only on a run that recorded no workflow step.", "type": "string"}
+    "concluded_by": {"description": "The standalone skill -- a delivery-ticket skill, never a workflow step -- whose end concluded this run. Set only on a run that recorded no workflow step.", "type": "string"},
+    "driver": {"description": "Set to `ship` once /acs:ship drives the run (`acs.py run next` with a subject): a run being delivered files its analysis on the Development side (ADR-0128).", "enum": ["ship"]}
   },
   "additionalProperties": false,
   "$defs": {
@@ -52,7 +53,26 @@
         "text": {"type": ["string", "null"]},
         "path": {"type": ["string", "null"]},
         "sha256": {"type": ["string", "null"]},
-        "branch": {"type": ["string", "null"]}
+        "branch": {"type": ["string", "null"]},
+        "sources": {
+          "description": "Every container the invocation's requirements came in, in order, when there is more than one (ADR-0128): a ticket id, documents (in the repo or copied into the run from outside it) and one prompt. `kind`/`ticket_id`/`path`/`text` above stay the ONE primary subject (ticket > document > prompt) run ids and resume-by-ticket key on.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/source"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["ticket", "document", "prompt"]},
+        "ticket_id": {"type": "string"},
+        "text": {"type": "string"},
+        "path": {"type": "string"},
+        "abs": {"type": "string"},
+        "sha256": {"type": ["string", "null"]},
+        "inside_repo": {"type": "boolean"}
       },
       "additionalProperties": false
     },

@@ -1,7 +1,7 @@
 ---
 name: code-small
 description: Implement a subject's plan on the SMALL delivery path — one implementer (rarely two), test-cases.md as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path small; never chosen by hand.
-argument-hint: "[ticket-id | prompt | document]"
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 

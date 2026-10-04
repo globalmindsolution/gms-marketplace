@@ -1,13 +1,14 @@
 ---
 name: create-ticket
-description: Turn a raw request — or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, an epic-only needs_design flag, and child fan-out for epics; also runs in --fan-out mode to mint an already-designed epic's children. Use when the user asks to create or import a ticket, describes new work that has no ticket yet, or wants to fan out an existing epic's children after its design is approved. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "<request or remote-key> | <epic-id> --fan-out"
+description: Turn requirements — a raw request, documents (specs, PDFs, images; in the repo or attached), a feature's analysis, a mix of them, or a remote tracker key to import — into a well-formed acs ticket (epic, story, or task) with PRD tracing, an epic-only needs_design flag, and child fan-out for epics; also runs in --fan-out mode to mint an already-designed epic's children. Use when the user asks to create or import a ticket, describes new work that has no ticket yet, or wants to fan out an existing epic's children after its design is approved. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[documents…] [request] | <remote-key> | <epic-id> --fan-out"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 # /acs:create-ticket
 
-You are the coordinator of /acs:create-ticket. Turn `$ARGUMENTS` (a raw request, or a
+You are the coordinator of /acs:create-ticket. Turn `$ARGUMENTS` (requirements — a raw
+request, documents in the repo or attached from outside it, or a mix of them — or a
 remote tracker key) into a schema-complete ticket in the workspace partition: typed,
 clarified, traced to the PRD, with an epic-only `needs_design` flag (stated, never
 confirmed, for epics; never offered for story/task), and optional tracker sync. An
@@ -47,8 +48,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ti
   Relay that stderr verbatim, obtain the confirmed start number from the user
   — never invent it — and re-run `acs step start` with `--seed-next <n>` added.
 - Parse the printed context JSON. Bind: `partition`, `ticket_id`, `ticket`,
-  `settings`, `models`, `reconcile`, `prior_status`, `handoff_summary`,
-  `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
+  `requirements`, `settings`, `models`, `reconcile`, `prior_status`,
+  `handoff_summary`, `pipeline`, `post_hook`, `checkout_root`, `plugin_root`.
+- **Requirements: `context.requirements` / `acs.py requirements show` — the
+  request text, documents and an imported issue are only where they came
+  from.** `step start` records every source `$ARGUMENTS` named — the prompt
+  verbatim, each document (a repo path, or a file attached from outside the
+  repo, copied into the run and hashed; PDFs and images are cited for you to
+  Read) — in the run's `requirements.md` (`requirements.path`). Step 1 reads
+  THAT, never a paraphrase of the arguments.
+- **The ticket lives in the workspace and the tracker only.** Nothing this
+  skill does writes a ticket file into the repo — no `docs/tickets/<ID>/`
+  folder, no `ticket.md` (ADR-0128). The change's documents go to their phase
+  folders later (`<prd_dir>/features/<feature>/`,
+  `<architecture_dir>/lld/<feature>/<ID>/`, `<development_dir>/<feature>/<ID>/`),
+  written by the skills that own them.
 
 ## Remote import
 
@@ -57,7 +71,8 @@ Decide BEFORE planning whether `$ARGUMENTS` is a remote key for
 
 - provider `github` and `$ARGUMENTS` is `#123`, a bare integer, or a GitHub issue
   URL: pull with `gh issue view 123 --json number,title,body,labels,assignees,url`.
-- provider `local`, or no match: not an import — treat `$ARGUMENTS` as the request.
+- provider `local`, or no match: not an import — the requirements
+  (`requirements.path`) are the request.
 
 On import: if the pull fails — **critical**, a gate input this run cannot
 proceed without — stop and surface the CLI error verbatim plus the canonical
@@ -171,8 +186,12 @@ tedious.
 
 ### Step 1 — Analyze and recommend fields
 
-The coordinator reads the raw request (or imported
-remote issue), the codebase, the PRD, and the roadmap. Produce a complete proposal:
+The coordinator reads the requirements (`requirements.path` — the raw request,
+the documents, or the imported remote issue), the codebase, the PRD, the roadmap
+and — when the request names or traces to a PRD feature that has one — the
+feature's living analysis (`<prd_dir>/features/<feature>/analysis.md`, written by
+`/acs:analyze-requirements` in Discovery): its refined acceptance criteria, impact
+map and `needs_design` reasoning seed the proposal. Produce a complete proposal:
 
 - `type` (epic / story / task), `title`, `description` outline, `acceptance_criteria`
   (array of testable strings), `priority`, `story_points`
@@ -185,7 +204,11 @@ remote issue), the codebase, the PRD, and the roadmap. Produce a complete propos
   milestone), or a divergence flag when the request goes beyond the PRD
 - `features`: the slugs of the PRD features it traces to — `acs.py slug --text
   "<PRD feature name>"` for each (ADR-0120); `[]` when it traces to none. They
-  name the `docs/architecture/lld/<feature>/` folders its design is written in
+  name the folders its documents are written in: the feature
+  (`<prd_dir>/features/<feature>/`), its design records
+  (`<architecture_dir>/lld/<feature>/<ID>/`) and its Development documents
+  (`<development_dir>/<feature>/<ID>/`) — the ticket's first feature is where
+  they go
 - a PR-size reading in prose — is this one reviewable PR, or should it be an
   epic with children? — judged against the sizing rubric just above. It is a
   recommendation about SHAPE, not a stored axis: a ticket carries no `size` or
@@ -329,7 +352,7 @@ sync without aborting the batch.
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction (e.g. a single AskUserQuestion containing all open questions as a
@@ -339,7 +362,7 @@ per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
-`clarify.py add --skill create-ticket --question "..." --answer "..." --ticket <ticket-id>`
+`clarify.py add --skill create-ticket --question "..." --answer "..."`
 BEFORE acting on it, and apply the relevant `C-n` entries yourself when you
 materialize the ticket (no subagent receives them). If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
@@ -369,7 +392,7 @@ If your context is running low mid-run: flush in-flight work and soft context
 `steps/create-ticket/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the exact `continue_with` command it prints, then stop.

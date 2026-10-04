@@ -1,13 +1,13 @@
 ---
 name: create-api-contract
-description: Specify the API surface an approved plan adds or changes — every endpoint, command or message, its request/response shapes, error codes, compatibility notes and examples, each traced to an acceptance criterion and a plan item. Writes api-contract.md plus any machine-readable contract files the repo keeps. Use after /acs:create-impl-plan when the ticket's analysis found an API surface change. Use whenever a request asks to write down, spec out or document the shapes, flags, exit or error codes, or payloads of an interface a ticket's plan adds — REST, gRPC, CLI, webhook or event. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id]"
+description: Specify the API surface an approved plan adds or changes — every endpoint, command or message, its request/response shapes, error codes, compatibility notes and examples, each traced to an acceptance criterion and a plan item. Writes api-contract.md plus any machine-readable contract files the repo keeps. Use after /acs:create-impl-plan when the analysis found an API surface change — on a ticket, or on requirements given as a prompt or documents. Use whenever a request asks to write down, spec out or document the shapes, flags, exit or error codes, or payloads of an interface a ticket's or a change's plan adds — REST, gRPC, CLI, webhook or event. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:create-api-contract. Your job: turn the API
-surface the ticket's implementation plan declares into a specification others
-can build and test against — `api-contract.md` for the ticket, plus the repo's
+surface the change's implementation plan declares into a specification others
+can build and test against — `api-contract.md` for the change, plus the repo's
 machine-readable contract files when it keeps any. Every item traces back to an
 acceptance criterion AND to the plan item that introduces it. You orchestrate
 two subagents over XML — the **contract-author** enumerates the surface and
@@ -28,8 +28,8 @@ it, and `/acs:review-code` checks the changeset against it.
 This skill is independent: it runs the same whether `/acs:ship` invoked it or a
 user did, and it never refuses because an earlier skill has not run. It works
 from what it finds — the plan, the analysis, the design — and falls back to the
-run's subject (the ticket's acceptance criteria, the prompt or the document)
-when an upstream artifact is absent.
+run's requirements (the acceptance criteria a ticket, a prompt, documents or a
+mix of them carried) when an upstream artifact is absent.
 
 ## When nothing is owed
 
@@ -51,14 +51,14 @@ plan and the subject whether a surface is owed.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-api-contract
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-api-contract --args "$ARGUMENTS"
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
 improvise a workaround. `pre-create-api-contract.py` refuses only what would do
-damage re-running cannot undo: a ticket that does not resolve to a live,
-unlocked partition, and an epic (an epic is designed and fanned out, never
-given one contract). It never refuses because an upstream artifact is missing,
+damage re-running cannot undo: a run that does not resolve to a live,
+unlocked partition, and — on a ticket run only — an epic (an epic is designed
+and fanned out, never given one contract). No ticket is required. It never refuses because an upstream artifact is missing,
 and there is no predecessor-completed check: order lives in
 `workflows/ship.yaml`, not in this gate.
 
@@ -66,8 +66,8 @@ What you find decides how you scope the run, never whether it runs:
 
 - `plan.md` present — **the primary input**; the contract covers exactly the
   surface this plan adds or changes.
-- `plan.md` absent — work from the subject: the ticket's acceptance criteria
-  (or the prompt / document) and the code are the scope. Say so in
+- `plan.md` absent — work from the requirements: their acceptance criteria
+  (whether a ticket, a prompt or documents carried them) and the code are the scope. Say so in
   `## Scope & sources` and in the completion report, where the pointer is
   "run /acs:create-impl-plan <id> first" for a contract scoped by a plan.
 - `analysis.md` present — its API-surface assessment (`api_surface`) and its
@@ -82,17 +82,25 @@ What you find decides how you scope the run, never whether it runs:
 
 Parse the printed context JSON. Fields you will use:
 
-- `ticket_id`, `ticket` — the resolved ticket; its `acceptance_criteria` are
-  what every contract item traces to.
-- `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
+- `requirements` — `{path, sources, acceptance_criteria, features, feature,
+  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+  show` — a ticket id, documents and a prompt are only where they came from;
+  never read ticket.json for acceptance criteria.** Its `acceptance_criteria`
+  (`AC-1…` in `requirements.path`) are what every contract item traces to.
+- `ticket_id`, `ticket` — present only when a ticket is one of the sources
+  (its `type`, for the epic check); null on a prompt or document run.
+- `partition` — absolute path of the run directory (`<workspace>/<repo-id>/runs/<run-id>/`). Phase
   artifacts go in `steps/create-api-contract/`.
 - `checkout_root` — the consumer repo root.
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
   ticket whose design applies and its basename is that ticket's id. When
   `design.required`, resolve the design document with `acs.py artifacts show
-  --ticket <that id>` (`artifacts["design.md"]` — its docs folder, or
-  `<design.dir>/design.md` when an older design still lives in the partition)
-  and read it for the interface decisions it already settled. Call it
+  --ticket <that id>` (`artifacts["design.md"]` — its design record in
+  `<architecture_dir>/lld/<feature>/<that id>/`, a legacy
+  `docs/tickets/<that id>/design.md`, or `<design.dir>/design.md` when an older
+  design still lives in the partition; on a ticketless run, whatever
+  `artifacts["design.md"]` the run's own `artifacts show` reports) and read it
+  for the interface decisions it already settled. Call it
   `<design_doc>`.
 - `agents` — the agent name to spawn per role; the contract-author's and the
   contract-reviewer's model and effort come from
@@ -100,7 +108,8 @@ Parse the printed context JSON. Fields you will use:
 - `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 Throughout this file `<partition>` means the `partition` path from the context
-JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`).
+JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a ticket,
+else `run_id` — the name of the folder its documents live in.
 
 Locate the repo's architecture doc set (its `hld/tech-stack.md`; its
 `lld/contracts.md` is the existing contract narrative) once, here, the way any
@@ -111,7 +120,8 @@ simply has none; this skill does not create it.
 
 ## Working tree — the contract is a repo file
 
-`api-contract.md` (in the ticket's docs folder, `docs/tickets/<id>/`) and
+`api-contract.md` (a design record, in `<architecture_dir>/lld/<feature>/<id>/`
+— ADR-0128) and
 every machine-readable contract file are repo files that travel with the rest
 of the change. This skill never creates, switches or names a branch, and
 never stages, commits or pushes (ADR-0127): it leaves every file it wrote as
@@ -122,13 +132,21 @@ records each repo-relative path in the result's `states.files`.
 ### Contract artifact resolution
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show --ticket <id>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 ```
 
+It resolves by the run the checkout points at (`--run <run-id>` names
+another): design records in `<architecture_dir>/lld/<feature>/<id>/`,
+Development documents (`plan.md`, `test-cases.md`, the run's `analysis.md`) in
+`<development_dir>/<feature>/<id>/`, the feature's living analysis in
+`<prd_dir>/features/<feature>/analysis.md` (`feature_analysis`), and a legacy
+`docs/tickets/<ID>/` file only when the new folder has none.
+
 - `artifacts["api-contract.md"]` non-null → that existing file is the contract;
-  this run REVISES it in place (a superseded plan, a review finding, a second
-  surface). One contract per ticket, one name.
-- else `docs_dir` non-null → publish to `<docs_dir>/api-contract.md`.
+  this run REVISES it (a superseded plan, a review finding, a second
+  surface) — a legacy `docs/tickets/<ID>/api-contract.md` is revised by
+  publishing to `paths["api-contract.md"]`. One contract per change, one name.
+- else `paths["api-contract.md"]` non-null → publish there.
 - else → publish to `<partition>/api-contract.md`.
 
 Call it `<contract_path>`; record it as `states.contract_path`. The same call
@@ -211,12 +229,13 @@ body); an input that does not exist is named as absent, never invented:
    primary input**. The contract covers the surface THIS plan adds or changes:
    its executor tasks, file map and API/data-changes content are the scope
    boundary. A surface the plan does not touch is out of scope, however
-   tempting. With no plan, the ticket's acceptance criteria are the boundary.
+   tempting. With no plan, the requirements' acceptance criteria are the boundary.
 2. `analysis.md`, when it exists — the API-surface assessment and its
    evidence, the impact map, the assumptions and the refined acceptance
-   criteria.
-3. The ticket document (`source_path` from `artifacts show`) — the acceptance
-   criteria every item traces to.
+   criteria — and the feature's living analysis (`feature_analysis`) when one
+   exists.
+3. The requirements document (`requirements.path`, the run's
+   `requirements.md`) — the acceptance criteria every item traces to.
 4. `<design_doc>` when `design.required` — interface decisions the
    design already settled are binding; the contract renders them, never
    re-opens them.
@@ -491,7 +510,7 @@ spawn:
 Spawn `acs:create-api-contract-contract-reviewer` AFTER the draft is written,
 with `<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`),
 the contract-author report (`iter-<n>/contract-author.json`), `plan.md` and
-`analysis.md` when they exist, the ticket document, `design.md` when it binds,
+`analysis.md` when they exist, `requirements.md`, `design.md` when it binds,
 and every contract file the contract-author touched. It judges fresh — never
 forward the contract-author's reasoning — re-derives the surface from the plan
 (or the subject) and the code itself, and writes
@@ -581,7 +600,7 @@ both checks are clean. It is remediated in the next contract-author iteration
 Once the contract-reviewer passes and both checks are clean, publish the
 draft. **The coordinator performs this step itself, never a subagent:** the
 file-map write guard (`acs_lib/filemap.py`) denies any running `write`-kind
-agent a write under the ticket docs tree, because the contract is a control
+agent a write to a published contract, because the contract is a control
 input the implementers of `/acs:code` are later checked against. Copy, never re-author:
 
 ```bash
@@ -591,13 +610,13 @@ cp "<partition>/steps/create-api-contract/api-contract.md" "<contract_path>"
 Leave `<contract_path>` as an uncommitted change when it is inside the repo,
 beside the machine-readable contract files the run changed, and record every
 one of those paths in `states.files` — `/acs:create-pr` commits them together
-as the ticket's docs. The partition draft is workspace state and never enters
+as the change's docs. The partition draft is workspace state and never enters
 the repo.
 
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them in ONE grouped interaction (a
 single AskUserQuestion containing all open questions as a numbered list), not
@@ -606,7 +625,7 @@ serial round-trips. Record each answer as its own `clarify.py add` entry (one
 questions into one entry, or auto-answer outside the existing
 `--source assumption --rationale "..."` rule. Record every Q&A — obtained
 interactively or relayed in a `/acs:ship` brief — with
-`clarify.py add --skill create-api-contract --question "..." --answer "..." --ticket <id>`
+`clarify.py add --skill create-api-contract --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`.
 
@@ -634,7 +653,7 @@ gotchas) to `steps/create-api-contract/handoff-context.md`, then
 run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop.
@@ -652,10 +671,10 @@ MANDATORY final step — never skipped, also on failure or handoff:
      "outcome": "contract_written",
      "summary": "contract-reviewer passed with zero findings on iteration 2; contract published, left uncommitted",
      "states": {
-       "contract_path": "docs/tickets/SHOP-123/api-contract.md",
+       "contract_path": "docs/architecture/lld/bulk-import/SHOP-123/api-contract.md",
        "items": 3,
        "traced_acs": ["AC-1", "AC-2", "AC-4"],
-       "files": ["docs/tickets/SHOP-123/api-contract.md", "docs/api/openapi.yaml"]
+       "files": ["docs/architecture/lld/bulk-import/SHOP-123/api-contract.md", "docs/api/openapi.yaml"]
      },
      "findings": [],
      "errors": []
@@ -664,9 +683,9 @@ MANDATORY final step — never skipped, also on failure or handoff:
 
    Canonical `states` keys — EXACT names; `acs step finish`
    documents them and the next steps read them:
-   - `contract_path`: where `api-contract.md` was published (the ticket docs
-     folder, or the partition when there is no checkout to anchor the docs
-     folder to).
+   - `contract_path`: where `api-contract.md` was published (the design
+     record folder, or the partition when there is no checkout or feature to
+     anchor it to).
    - `items` (int): how many endpoints/commands/messages the contract
      declares — the same number as the front matter's `items` and as the
      `### ` subsections under `## Surface`.

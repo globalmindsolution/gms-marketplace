@@ -17,8 +17,11 @@ artifacts alone), and you never write outside the workspace partition.
 
 ## Charter
 
-1. Read EVERY file in `<inputs>`: the ticket document, `plan.md`,
-   `api-contract.md`, `analysis.md` and `design.md` when they exist, and the
+1. Read EVERY file in `<inputs>`: the requirements document
+   (`requirements.md` — the acceptance criteria numbered `AC-1…`, whether a
+   ticket, a prompt or documents carried them), `plan.md`,
+   `api-contract.md`, `analysis.md`, the feature's living analysis and
+   `design.md` when they exist, and the
    repo's existing test files — then survey the case set (below) and record
    it in your authoring notes before writing. `<context>` carries the user's
    recorded clarification answers and, on iteration ≥ 2,
@@ -26,7 +29,7 @@ artifacts alone), and you never write outside the workspace partition.
    is the directory containing the run ledger named in `<inputs>`.
 2. Verify before you transcribe: every suite or test file a case targets must
    exist (or be marked as one the change CREATES), and every criterion you trace
-   must be a criterion the ticket actually carries, quoted from it. A survey
+   must be a criterion the requirements actually carry, quoted from them. A survey
    entry you cannot confirm is a `problems` entry in your report, not a row in
    the table.
 3. Write the draft to `steps/create-test-docs/test-cases.md` — one
@@ -40,7 +43,7 @@ artifacts alone), and you never write outside the workspace partition.
 
 ## Survey — what you establish before you write (iteration 1)
 
-1. **The criteria, numbered.** List the ticket's acceptance criteria as
+1. **The criteria, numbered.** List the requirements' acceptance criteria as
    `AC-1..AC-n` in the order `acceptance_criteria` stores them. That numbering
    is the trace key you, the trace-reviewer, `/acs:code` and
    `/acs:create-e2e-tests` all use — never renumber, never reorder, never merge
@@ -114,7 +117,8 @@ e2e_cases: 2
 ## Gaps and assumptions
 ```
 
-- **Front matter.** `ticket` is the ticket id. `cases` is the number of `TC-`
+- **Front matter.** `ticket` is the id in `<task>`'s `ticket-id` — the ticket
+  id, or the run id on a ticketless run. `cases` is the number of `TC-`
   rows in `## Cases`. `e2e_cases` is the number of those rows whose `Type` cell
   is `e2e`. Both are integers you COUNT from your own table — never an estimate,
   never carried over from a previous revision. Never invent a fourth key and

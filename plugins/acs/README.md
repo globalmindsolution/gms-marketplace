@@ -12,9 +12,12 @@ slices —
 the pipeline's order is declared in `workflows/ship.yaml` (each skill's own
 hooks check only the safety brakes listed under *How gating works*, never a
 predecessor's position or a missing upstream artifact, so a skill is runnable
-on its own and works from the ticket, prompt or document it was given), the
-human-facing ticket documents live in your repo under `docs/tickets/<id>/`,
-and all durable run state lives in a
+on its own and works from the requirements it was given — a ticket id,
+documents, a prompt, or a mix; no skill requires a ticket), the human-facing
+documents live in your repo one folder per phase — a feature's analysis
+beside the PRD, design records under `lld/<feature>/`, plans and test cases
+under `docs/development/<feature>/` — and all durable run state (the ticket
+included) lives in a
 gitignored `.acs/state-machine` folder inside your repo — so runs
 are resumable, tickets can ship in parallel across git worktrees, and the
 coordinator never depends on conversation history between steps.
@@ -93,8 +96,24 @@ templates come from `/acs:setup`. Principles, standards, quality and
 operations docs are yours to write; the skills that read them find them where
 they are.)
 
-Then ship features. `/acs:ship` takes a **ticket id**, so a new request starts
-in the Design phase:
+Then ship features. Every skill takes **requirements from any container** — a
+ticket id, documents in the repo or attached from outside it (copied into the
+run, never into the repo), a prompt, or a mix — and no skill requires a
+ticket ([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)).
+Analyse a PRD feature before cutting any ticket (Discovery), or ship straight
+from a prompt:
+
+```text
+/acs:analyze-requirements bulk-export ~/Downloads/spec.pdf "also CSV"
+                           # Discovery, no ticket: writes the feature's living
+                           #   analysis, docs/product/features/bulk-export/analysis.md
+/acs:ship "Export orders as CSV" ~/Downloads/spec.pdf
+                           # a prompt + a document: the run's requirements.md
+                           #   holds both; its plan and test cases land in
+                           #   docs/development/<feature>/<run-id>/
+```
+
+Or cut a ticket first, when the work needs one to track or sync:
 
 ```text
 /acs:create-ticket Add wishlist support so customers can save products for later
@@ -105,9 +124,9 @@ in the Design phase:
                            #   correct it with --seed-next <n> (see
                            #   Troubleshooting below), then re-run
 /acs:create-design ACS-5   # only when the ticket carries needs_design: true
-/acs:ship ACS-5            # drives the Build/Test/Ship steps to the PR: every
+/acs:ship ACS-5            # drives the Development steps to the PR: every
                            #   step leaves its work uncommitted; /acs:create-pr
-                           #   previews the commits (ticket docs, design docs,
+                           #   previews the commits (run docs, design docs,
                            #   per slice tests then code, doc updates, e2e
                            #   suites), commits once you confirm, and pushes
 ```
@@ -142,8 +161,8 @@ name.
 
 ## The 28 skills
 
-The tables group the skills by phase — Design, Build, Test, Ship, Audit or
-Utility. There is no registry file and no per-skill manifest: a skill is its
+The tables group the skills by phase — Discovery, Design, Development, Audit
+or Utility ([ADR-0129](../../docs/architecture/adr/0129-discovery-design-development-regroup.md)). There is no registry file and no per-skill manifest: a skill is its
 directory, and the surfaces that used to derive from a list (this table, the
 set of nameable steps) read the skill directories instead, so adding a skill
 is adding a directory. The order steps actually RUN in is declared
@@ -156,8 +175,8 @@ behind `/acs:code`, listed in `acs_lib.skills.SKILL_LEGS` — keep their own
 SKILL.md and stay Skill-invocable, but their only user-facing command is the
 entry point they serve. That is an entry-point fold, not a collapse: nothing
 about a leg's own run changed. The tables below show the entry points; the
-legs get their own table under Design, and a leg's run reports under its entry
-point.
+legs get their own table under Development, and a leg's run reports under its
+entry point.
 
 **Gate** says what each skill's pre-hook checks before letting it start: the
 subject resolves, and the *safety brakes* — the lock; the epic refusal;
@@ -169,16 +188,51 @@ in the workflow — run a step out of the declared order and the pre-hook prints
 a one-line advisory on stderr and the skill runs anyway. `/acs:merge-pr`'s brake does read whether the step that
 recorded the PR reference completed — an artifact, not a position.
 
-### Design — define the product and the ticket
+### Discovery — what to build
+
+The PRD, and a feature's analysis before any ticket is cut. A ticket is not a
+phase: it is one container of requirements, made with `/acs:create-ticket`
+(Utility) when the work needs one
+([ADR-0129](../../docs/architecture/adr/0129-discovery-design-development-regroup.md)).
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
 | `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; runs without a ticket and leaves the documents uncommitted, listed in `states.files`, for `/acs:create-pr "<prompt>"`. |
+| `/acs:analyze-requirements` | Subject resolves (a ticket, documents, a prompt or a mix); not an epic ticket | Reads the run's requirements, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria (recorded with `acs.py requirements refine`), and the `api_surface` verdict the pipeline branches on. Run on its own with no ticket — a PRD feature, a prompt, an attached spec — it writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis.md` (proposing the PRD's feature slugs when the feature is not named); as `/acs:ship`'s first step, or on a ticket, it writes `docs/development/<feature>/<id>/analysis.md`, starting from the feature's analysis ([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)). |
+
+### Design — how to build it
+
+The high-level design, the living low-level design per feature, and each
+change's design records (`lld/<feature>/<ticket-id or run-id>/`).
+`/acs:create-api-contract` is listed here and still runs as a `ship.yaml` step.
+
+| Skill | Gate | What it does |
+|-------|----------------------|--------------|
 | `/acs:create-architecture` | Settings exist | Works from the PRD when there is one; without one, from the run's subject (a document in its arguments, else your focus notes plus the codebase), confirming goals, NFRs and constraints through the clarification ledger. Writes the high-level design only — `hld/` overview, tech stack and cross-cutting conventions plus the HLD types enabled at `/acs:setup` (C4 levels 1–3, conceptual data model, API landscape, deployment, project structure; opt-in data-flow and capability maps) — in the repo's architecture set, else `docs/architecture/`, all Mermaid; never `lld/`; runs without a ticket and leaves the documents uncommitted for `/acs:create-pr "<prompt>"`. When an HLD already exists, a gap analyst per code area runs beside the survey: undocumented code is documented as built, designed-but-unbuilt elements stay and are marked planned, and drifted ones are asked, never silently resolved. Every HLD file carries version front matter (`status`, `version`, `tickets`) set through `acs.py design` ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
-| `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
-| `/acs:create-design` | Ticket resolves; ticket has `needs_design: true` | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) for the ticket; an epic's children inherit it. |
-| `/acs:create-data-design` | Settings exist | Writes the ticket's data low-level design under `lld/<feature>/data/` — the logical ERD and the physical schema with a migration *outline*, for the enabled `design.lld_types` only; documents only, never migration code; never branches, commits or opens a PR — the files stay as uncommitted changes, listed in `states.files`, for `/acs:create-pr` ([ADR-0126](../../docs/architecture/adr/0126-lld-data-design-and-flows.md)). |
-| `/acs:create-flows` | Settings exist | Writes the ticket's behaviour low-level design under `lld/<feature>/flows/` — one file per flow (sequence, and activity where it branches) and one per entity state machine — plus `components/` when enabled; parallel writers per flow group, an integration pass only on a reported seam; documents only, left as local uncommitted changes listed in `states.files` ([ADR-0126](../../docs/architecture/adr/0126-lld-data-design-and-flows.md)). |
+| `/acs:create-api-contract` | Subject resolves; not an epic; nothing owed (an evidenced no-op) when the plan declares no API surface | Writes `api-contract.md` to `lld/<feature>/<id>/` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples — each traced to an AC and a plan item, plus the machine-readable contract files where the repo keeps them, else under `docs/api/`. |
+| `/acs:create-data-design` | Settings exist | Takes a ticket, a feature slug, a prompt or documents — no ticket needed — and writes the feature's data low-level design under `lld/<feature>/data/` — the logical ERD and the physical schema with a migration *outline*, for the enabled `design.lld_types` only; documents only, never migration code; never branches, commits or opens a PR — the files stay as uncommitted changes, listed in `states.files`, for `/acs:create-pr` ([ADR-0126](../../docs/architecture/adr/0126-lld-data-design-and-flows.md)). |
+| `/acs:create-flows` | Settings exist | Takes a ticket, a feature slug, a prompt or documents and writes the feature's behaviour low-level design under `lld/<feature>/flows/` — one file per flow (sequence, and activity where it branches) and one per entity state machine — plus `components/` when enabled; parallel writers per flow group, an integration pass only on a reported seam; documents only, left as local uncommitted changes listed in `states.files` ([ADR-0126](../../docs/architecture/adr/0126-lld-data-design-and-flows.md)). |
+| `/acs:create-design` | Subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag), or invoked by hand with requirements | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) to `lld/<feature>/<id>/`; an epic's children inherit it. |
+
+### Development — build, review and land one change
+
+What `/acs:ship` drives — `/acs:analyze-requirements` first (listed under
+Discovery), then plan, test cases, code, review, e2e suites and docs, ending
+at the PR — plus `/acs:merge-pr`. The plan and test cases (and a Development
+run's analysis) go to `docs/development/<feature>/<ticket-id or run-id>/`.
+
+| Skill | Gate | What it does |
+|-------|----------------------|--------------|
+| `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id, documents, a prompt or a mix** — the arguments go to the first step whatever the subject. Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step (every member at once when the cursor sits in a parallel group), then asks again, until the list is done. Never merges. |
+| `/acs:create-impl-plan` | Subject resolves; not an epic | The plan phase carved out of `/acs:code`: a planner surveys and drafts (the former planner charter), the spec fold, the executor file map, and plan approval, and a plan reviewer judges the draft, ending in an approved `plan.md` in `docs/development/<feature>/<id>/`. Reads `analysis.md` and `design.md` when present, else works from the run's requirements. |
+| `/acs:create-test-docs` | Subject resolves | Writes `test-cases.md` to `docs/development/<feature>/<id>/` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
+| `/acs:code` | Subject resolves; not an epic | Dispatches to the delivery-path leg the plan recorded (ADR-0095). TDD implementation in the working tree, left uncommitted, writing tests from `test-cases.md` when present. **Targeted tests only** — it has no verifier and never runs the full suite. |
+| `/acs:review-code` | Subject resolves; a changeset exists | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. Writes `verdict.json`; on blocking findings `/acs:code` reads it and fixes them. |
+| `/acs:docs-sync` | Subject resolves (run + free lock) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and `/acs:review-code`'s verdict; leaves the doc updates uncommitted beside the run's other changes — `/acs:create-pr` commits them as their own commit in the run's PR, not a separate PR. |
+| `/acs:create-e2e-tests` | Subject resolves; not an epic (the skill itself asks for a suite when none is configured, and owes nothing when there is no e2e case) | Writes the run's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, left uncommitted for `/acs:create-pr`. |
+| `/acs:run-e2e-tests` | Nothing owed (an evidenced no-op) when the plan declares no e2e impact | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable run artifact, and on failure triages/drives a closed regression-ticket loop. It is a step of `ship.yaml` and a standing command, on one protocol. |
+| `/acs:create-pr` | Brake: refuses a run whose `/acs:review-code` step left `verifier_passed != true` | The only skill that branches, commits and pushes ([ADR-0127](../../docs/architecture/adr/0127-only-create-pr-commits.md)): splits the working-tree changes into small commits (run docs, design docs, per plan slice its tests then its code, doc updates, e2e suites), shows the split as a preview you confirm, commits on the ticket branch, pushes, and opens the PR (`ACS` label) against the default branch. Changed files no step recorded are left out and listed. It takes a ticket id or a prompt (none: this checkout's current run); with a prompt and no current run it groups every uncommitted change by layer — documents by doc set, then tests, then code. The review brake applies only when the run has a code step. |
+| `/acs:merge-pr` | Brake: a completed run recorded a PR reference | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
 
 #### Internal legs — not commands you run
 
@@ -205,39 +259,12 @@ so everything they write on disk is `code`'s. The protocol they share lives in
 `skills/code/references/`; each leg's SKILL.md carries only what makes its path
 different.
 
-### Build — analyze, plan, specify, implement
-
-| Skill | Gate | What it does |
-|-------|----------------------|--------------|
-| `/acs:analyze-requirements` | Ticket resolves; not an epic | Reads the ticket, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict the pipeline branches on. |
-| `/acs:create-api-contract` | Ticket resolves; not an epic; nothing owed (an evidenced no-op) when the plan declares no API surface | Writes `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples — each traced to an AC and a plan item, plus the machine-readable contract files where the repo keeps them, else under `docs/api/`. |
-| `/acs:create-impl-plan` | Ticket resolves; not an epic | The plan phase carved out of `/acs:code`: a planner surveys and drafts (the former planner charter), the spec fold, the executor file map, and plan approval, and a plan reviewer judges the draft, ending in an approved `plan.md`. Reads `analysis.md` and `design.md` when present, else works from the ticket. |
-| `/acs:create-test-docs` | Ticket resolves | Writes `test-cases.md` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
-| `/acs:code` | Subject resolves; not an epic | Dispatches to the delivery-path leg the plan recorded (ADR-0095). TDD implementation in the working tree, left uncommitted, writing tests from `test-cases.md` when present. **Targeted tests only** — it has no verifier and never runs the full suite. |
-| `/acs:review-code` | Subject resolves; a changeset exists | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. Writes `verdict.json`; on blocking findings `/acs:code` reads it and fixes them. |
-| `/acs:docs-sync` | Ticket resolves (partition + free lock) | Independently re-derives doc impact from the diff, `/code`'s `result.json`, and `/acs:review-code`'s verdict; leaves the doc updates uncommitted beside the ticket's other changes — `/acs:create-pr` commits them as their own commit in the ticket's PR, not a separate PR. |
-
-### Test — end-to-end coverage
-
-| Skill | Gate | What it does |
-|-------|----------------------|--------------|
-| `/acs:create-e2e-tests` | Ticket resolves; not an epic (the skill itself asks for a suite when none is configured, and owes nothing when there is no e2e case) | Writes the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, left uncommitted for `/acs:create-pr`. |
-| `/acs:run-e2e-tests` | Nothing owed (an evidenced no-op) when the plan declares no e2e impact | Runs this product's configured test suites (all, or a `--suite`-selected subset), captures pass/fail results to an auditable run artifact, and on failure triages/drives a closed regression-ticket loop. It is a step of `ship.yaml` and a standing command, on one protocol. |
-
-### Ship — review and land
-
-| Skill | Gate | What it does |
-|-------|----------------------|--------------|
-| `/acs:create-pr` | Brake: refuses a run whose `/acs:review-code` step left `verifier_passed != true` | The only skill that branches, commits and pushes ([ADR-0127](../../docs/architecture/adr/0127-only-create-pr-commits.md)): splits the working-tree changes into small commits (ticket docs, design docs, per plan slice its tests then its code, doc updates, e2e suites), shows the split as a preview you confirm, commits on the ticket branch, pushes, and opens the PR (`ACS` label) against the default branch. Changed files no step recorded are left out and listed. It takes a ticket id or a prompt (none: this checkout's current run); with a prompt and no current run it groups every uncommitted change by layer — documents by doc set, then tests, then code. The review brake applies only when the run has a code step. |
-| `/acs:merge-pr` | Brake: a completed run recorded a PR reference | Readiness check (CI, approvals, conflicts, protections), merge per `merge_strategy`, delete branch, mark ticket done, archive the partition. Also `/acs:merge-pr --pr <n>` (or `#n` / PR URL) to land a legitimate non-ticket **`acs-exempt`** PR — same readiness + cleanup, no ticket/partition/tracker. |
-| `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
-
 ### Audit — measure the repo against a standard, and report
 
 An audit is **read-only** and runs **without a ticket**, at any point in a
 product's life: it reads the repository against a standard — the design, or
 security practice — and writes a report to the workspace; what to do about it
-is yours to decide through the Design and Build skills
+is yours to decide through the Design and Development skills
 ([ADR-0123](../../docs/architecture/adr/0123-audit-phase-and-audit-security.md)).
 Each report is written from a template (`templates/<skill>-report.md`, or your
 `.acs/templates/` copy), and the post-hook refuses a completed audit whose
@@ -248,14 +275,15 @@ report breaks it and derives the counts it records from the report itself.
 | `/acs:audit-design` | Settings exist; no ticket — `acs step start` opens the audit's own run | Read-only: compares the architecture set — the HLD and every `lld/<feature>/`, or one feature's — with the code and reports every gap, cited on both sides: unimplemented (designed, not built; *planned* when its document is still `proposed`/`approved`), undocumented (built, not designed) or drifted (both, disagreeing), plus any document with no version front matter. Writes `report.md` from `templates/audit-design-report.md`. Never edits a document or the code; offers to ticket the gap groups you pick ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
 | `/acs:audit-security` | Settings exist; no ticket — `acs step start` opens the audit's own run | Read-only, report-only security audit: one auditor per category in parallel — `code` (OWASP Top 10 weakness classes with their CWE, one per code area), `secrets-config` (hard-coded credentials, insecure configuration, CI), `dependencies` (only through the scanners the repo already has installed; never installs one, never names a CVE from memory) and `threat-model` (the code against `hld/data-flow.md` and `hld/cross-cutting.md`, when the architecture set has them) — then one fresh-context adjudicator per candidate, prompted to refute it. Writes a severity-ranked `report.md` from `templates/audit-security-report.md`: each confirmed finding with CWE, `file:line`, evidence, exploit scenario, fix guidance and `resolved_when`. A category it could not examine is reported as uncovered, never clean; a secret's value never appears. Files no ticket and emits no SARIF. |
 
-### Utility — setup and orchestration
+### Utility — setup, releases, handoff and tickets
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
 | `/acs:setup` | — (optional; no skill needs it first) | Sets the ticket prefix and installs the CI gates: the optional ticket-link check (every PR names its ticket), tests and e2e; can scaffold the `models` block and write `.claude/launch.json`, the Desktop app's preview-server config. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
+| `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
-| `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id.** Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step (every member at once when the cursor sits in a parallel group), then asks again, until the list is done. Never merges. |
+| `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 
 ## How gating works
 
@@ -297,23 +325,28 @@ report breaks it and derives the counts it records from the report itself.
 ## Where things live
 
 Durable state is split in two: the **documents a human reads or reviews** are
-committed in your repo, and the **run ledger** stays in the gitignored
-workspace.
+committed in your repo, one folder per phase, and the **run ledger** — and the
+ticket itself — stays in the gitignored workspace (and your tracker)
+([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)).
 
 ```text
-<repo>/docs/tickets/<ticket-id>/        # fixed location, not a setting
-  ticket.md      # front matter = the ticket fields; body = description, ACs, clarifications
-  design.md  analysis.md  api-contract.md  plan.md  test-cases.md
+<repo>/docs/product/features/<feature>/analysis.md        # Discovery: the feature's living analysis
+<repo>/docs/architecture/lld/<feature>/<id>/              # Design: design.md  api-contract.md
+<repo>/docs/development/<feature>/<id>/                   # Development: analysis.md  plan.md  test-cases.md
+                                                          #   <id> = the ticket id, else the run id
+<repo>/docs/tickets/<ticket-id>/                          # LEGACY: still read, never written
 
 <workspace>/<repo-id>/                  # repo-id from git remote: owner-name
   tickets-index.json  runs-index.json  counters.json
   sessions/<checkout-id>/               # one directory per worktree
     pointer.json                        # the run and step this checkout is on
+  <ticket-id>/                          # the ticket: ticket.json, clarifications.json
   archive/<run-id>/                     # moved here by post-merge-pr
   runs/<run-id>/                        # the run id is derived from the subject
-    run.json                            # THE RUN MACHINE
-    subject/                            # ticket.json | prompt.md | the document
-    requirements.md  clarifications.json
+    run.json                            # THE RUN MACHINE (subject + subject.sources)
+    subject/sources.json                # every source; attached documents copied beside it
+    requirements.md                     # generated from the sources: what every step reads
+    clarifications.json                 # a ticketless run's ledger (a ticket's is in its partition)
     lock.json  lock-events.jsonl  agents/  handoff-context.md
     steps/<skill>/
       state.json                        # THE STEP MACHINE
@@ -322,22 +355,22 @@ workspace.
       iter-<n>/                         # the audit trail: one dir per iteration
 ```
 
+The phase folders sit where your repo keeps its PRD and architecture set
+(`docs/product/` and `docs/architecture/` by default), and the Development
+folder in an existing `docs/development/`, else that default.
+
 Two machines, not one. `run.json` records the run — its workflow, its subject,
 its position in the loop; `steps/<skill>/state.json` records that step's own
 invocations. Keeping them apart is what lets a skill the workflow never names
 (`/acs:create-design`, say) hold step state without taking a position in any
 run.
 
-`ticket.md` carries no `status` field — status is DERIVED from the ledger
-(`open` → `in_progress` → `in_review` → `done`), so the committed document and
-the run state can never disagree. An existing repo moves its artifacts across
-once with `acs.py artifacts migrate` (add `--dry-run` to preview; it is
-idempotent and leaves a `ticket.json.moved` pointer behind).
-`acs.py artifacts show --ticket <id>` prints where each of a ticket's
-artifacts actually resolved.
-
-Subagents may not write inside the ticket docs tree — it is a control input the
-file-map guard denies, like the guard's own records.
+A ticket's status is DERIVED from the ledger (`open` → `in_progress` →
+`in_review` → `done`), never stored. `acs.py requirements show` prints a run's
+requirements — its sources, acceptance criteria, features and feature — and
+`acs.py artifacts show [--run R | --ticket ID]` where each of its documents
+resolved: its phase folder, or an older ticket's `docs/tickets/<ID>/`, which
+is still read when a phase folder has no such file.
 
 Inspect progress anytime: `tickets-index.json` for status across tickets,
 `runs-index.json` for every run, `acs.py run show` for where a run stands,
@@ -361,8 +394,8 @@ over the built-in defaults. The most-used keys:
 
 No key locates a document: acs finds the repo's documents through `CLAUDE.md`
 and the repo itself, creates a missing one at the `docs/` conventions
-(`docs/product/`, `docs/architecture/`, `docs/architecture/adr/`, …), and keeps ticket
-documents at the fixed `docs/tickets/<ID>/` (ADR-0102). No key locates the
+(`docs/product/`, `docs/architecture/`, `docs/architecture/adr/`, …), and files a
+run's documents one folder per phase (ADR-0128). No key locates the
 workspace either: it is always `.acs/state-machine` in the main checkout.
 
 Full reference: [docs/requirements/functional/configuration.md](../../docs/requirements/functional/configuration.md)

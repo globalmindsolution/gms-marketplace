@@ -81,19 +81,27 @@ document at the conventional default:
 | Document | Default location | Produced / consumed by |
 |----------|------------------|------------------------|
 | PRD | `docs/product/prd.md` + `docs/product/roadmap.md` | Bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |
-| Architecture set | `docs/architecture/` (`hld/tech-stack.md` is its sentinel file) | **HLD** (`hld/`: overview, tech stack, cross-cutting conventions and the enabled `design.hld_types`) written by `/create-architecture`; **LLD** (`lld/<feature>/`: API contracts, data design, flows) written per ticket by the Design skills ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-hld-only.md)); consumed by `/create-design`, kept current by `/code`. |
+| Feature analyses | `<prd dir>/features/<feature>/analysis.md` | A PRD feature's living analysis, written by `/analyze-requirements` run on its own (Discovery, no ticket needed); a later run on the feature starts from it ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)). |
+| Architecture set | `docs/architecture/` (`hld/tech-stack.md` is its sentinel file) | **HLD** (`hld/`: overview, tech stack, cross-cutting conventions and the enabled `design.hld_types`) written by `/create-architecture`; **LLD** (`lld/<feature>/`: API contracts, data design, flows) written per ticket by the Design skills ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-hld-only.md)), and each change's design records (`lld/<feature>/<ticket-id or run-id>/`: `design.md`, `api-contract.md`, ADR-0128); consumed by `/create-design`, kept current by `/code`. |
 | Living requirements | `docs/requirements/` with `functional/` and `non-functional/` subfolders (an existing set's own subfolder names are followed) | The standing behavioral contract, one file per feature area: `/code` merges each ticket's acceptance criteria and behavior-defining clarifications into the touched area's file; `/create-ticket` reads it as the area's current behavior and flags contradictions. |
 | ADRs | `docs/architecture/adr/` | `/code` writes the accepted decision records from the ticket's `design.md` here (and `/create-pr` commits them), so decisions outlive archived ticket partitions. |
 | Quality / operations / principles / standards sets | `docs/quality/`, `docs/operations/`, `docs/principles/`, `docs/standards/` | Written and maintained by hand: no skill bootstraps them ([ADR-0124](../../architecture/adr/0124-remove-create-docs.md)). Read where the repo keeps them — the standards set by `/create-design`, `/create-impl-plan` and `/review-code`'s craft lens — and kept in line with a change by `/docs-sync`. |
+| Development documents | `docs/development/<feature>/<ticket-id or run-id>/` | A Development run's `analysis.md` (`/analyze-requirements` as a ship step), `plan.md` (`/create-impl-plan`) and `test-cases.md` (`/create-test-docs`); read by the later steps ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)). |
 | Machine-readable API contract files | `docs/api/` | Written by `create-api-contract` when the plan adds or changes an interface. |
 
-Two locations are **fixed, never discovered**: a ticket's own documents live
-at `docs/tickets/<ID>/`, and the workspace — the folder where all skills and
+A run's own documents live one folder per phase
+([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)):
+Discovery under the PRD set's `features/<feature>/`, Design under the
+architecture set's `lld/<feature>/<ticket-id or run-id>/`, and Development
+under `docs/development/<feature>/<ticket-id or run-id>/` (an existing
+`docs/development/` is used where it is). Nothing writes the old
+`docs/tickets/<ID>/` any more; an existing folder there is still read. One
+location is **fixed, never discovered**: the workspace — the folder where all skills and
 hooks read/write ticket state — is always `<main-checkout>/.acs/state-machine`,
 a gitignored folder anchored to the repo's main checkout
 (`git rev-parse --git-common-dir`), so every worktree resolves to the same
 physical location without state being duplicated/dirtied per worktree
-(ADR-0086). Neither has an override. The workspace ignores itself: the first
+(ADR-0086). It has no override. The workspace ignores itself: the first
 state write under it creates `.acs/state-machine/.gitignore` containing `*`,
 so it stays out of `git status` whether or not `/setup` ever added a root
 `.gitignore` entry (ADR-0105).

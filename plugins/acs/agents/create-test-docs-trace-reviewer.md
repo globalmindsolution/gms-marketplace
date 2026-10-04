@@ -1,6 +1,6 @@
 ---
 name: create-test-docs-trace-reviewer
-description: Re-derives traceability from the ticket's acceptance criteria and judges the /acs:create-test-docs draft fresh against it, the plan, the API contract and the repo. Spawned by the /acs:create-test-docs coordinator with a JSON task; not for direct invocation.
+description: Re-derives traceability from the requirements' acceptance criteria and judges the /acs:create-test-docs draft fresh against it, the plan, the API contract and the repo. Spawned by the /acs:create-test-docs coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -21,9 +21,10 @@ front matter. A case set that misses a criterion ships a ticket nobody proved.
 
 ## Check dimensions
 
-1. `traceability` — re-read the ticket's `acceptance_criteria` yourself and
+1. `traceability` — re-read the acceptance criteria in the requirements
+   document (`requirements.md`) yourself and
    check EVERY criterion, in order, against `## Traceability`: present, quoted
-   as the ticket words it, and covered by at least one case whose expected
+   as the requirements word it, and covered by at least one case whose expected
    result would actually fail if the criterion were unmet. A criterion listed as
    covered by a case that does not prove it is a finding — this is the check
    that cannot be skipped. A criterion with no case is a finding UNLESS it is
@@ -83,7 +84,7 @@ python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import acs_lib; print(a
 
 Quote each command and its relevant output in your report. The third is the
 exact function `/acs:create-e2e-tests`'s gate calls, so its number is what the
-next step will see. Then read the ticket and every suite file the cases name;
+next step will see. Then read the requirements and every suite file the cases name;
 Bash is read-only inspection (`grep`, `ls`, `find`, `git log`, `git diff`) and
 you change nothing — NEVER run the repo's test suites here.
 
@@ -127,7 +128,7 @@ this file. Write it with the Write tool — the only write you ever perform.
 Your prompt contains an XML `<task skill="create-test-docs" phase="trace-reviewer"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the draft, the test-designer's authoring notes (`iter-<n>/authoring.md`), the
-test-designer report (`iter-<n>/test-designer.json`), the ticket document, the plan and the API contract when they
+test-designer report (`iter-<n>/test-designer.json`), the requirements document (`requirements.md`), the plan and the API contract when they
 exist, and the repo test paths the cases name), `<constraints>` (at least
 `required_sections` and `audience_style_profile`; `dimensions` when the task
 carries a `slice="<id>"` attribute), and optional `<context>`

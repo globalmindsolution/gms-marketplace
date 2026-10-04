@@ -1,13 +1,13 @@
 ---
 name: create-data-design
-description: Write a ticket's low-level data design — the logical ERD (entities, attributes, keys, cardinalities, database-agnostic) and the physical schema (tables or collections, column types, indexes, constraints and a migration outline), both Mermaid erDiagram, under lld/<feature>/data/ — each versioned, checked against the code's real schema for design gaps, and reviewed against the HLD's conceptual data model and the data conventions. Use on a ticket in the Design phase, before implementation, when it adds or changes persisted data, or when asked to design or document a feature's entities, tables, indexes or migration plan; it writes documents only, never migration code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "<ticket-id> [feature-slug] [focus notes]"
+description: Write a feature's low-level data design — the logical ERD (entities, attributes, keys, cardinalities, database-agnostic) and the physical schema (tables or collections, column types, indexes, constraints and a migration outline), both Mermaid erDiagram, under lld/<feature>/data/ — each versioned, checked against the code's real schema for design gaps, and reviewed against the HLD's conceptual data model and the data conventions. Takes a ticket, a PRD feature slug, a prompt or documents — or a mix. Use in the Design phase, before implementation, when a ticket or a feature adds or changes persisted data, or when asked to design or document a feature's entities, tables, indexes or migration plan; it writes documents only, never migration code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[ticket-id] [feature-slug] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-data-design. You produce one ticket's
+You are the coordinator of /acs:create-data-design. You produce one change's
 **data low-level design** — the logical ERD and the physical schema of the PRD
-features the ticket traces to — under `<architecture_dir>/lld/<feature>/data/`,
+features its requirements trace to — under `<architecture_dir>/lld/<feature>/data/`,
 before implementation (ADR-0118, ADR-0120). This is Design-phase work run by the
 SA / Tech Lead. **Documents only**: you and your subagents never write source code,
 migration code or machine-readable contracts (DDL scripts, ORM models, schema
@@ -18,23 +18,31 @@ never write the documents yourself.
 
 ## Start
 
-MANDATORY first action. The ticket id is the first token of `$ARGUMENTS` shaped
-like `<PREFIX>-<n>` (e.g. `SHOP-12`); a second token that is a slug is
-`feature-slug`, the rest are focus notes. No ticket id → ask the user once for it
-(or point them at /acs:create-ticket when the work has no ticket yet) and stop
-until you have one. Then run exactly:
+MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-data-design --ticket <ticket-id>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-data-design --args "$ARGUMENTS"
 ```
+
+`$ARGUMENTS` carries the requirements and where to put them, in any mix and
+order: a ticket id (`<PREFIX>-<n>`, e.g. `SHOP-12`), a PRD feature slug,
+documents (repo paths, or files attached from outside the repo — copied into
+the run), and a prompt (focus notes are part of it). No ticket is required:
+a feature slug, a prompt or a document is enough. `step start` turns them into
+the run's requirements.
 
 If it exits non-zero: stop immediately and surface its stderr to the user
 verbatim. Otherwise parse the context JSON; the fields you need: `partition`,
-`run_id`, `ticket`, `ticket_id`, `settings` (`design.lld_types`,
+`run_id`, `requirements` (`{path, sources, acceptance_criteria, features,
+feature, needs_design}` — **Requirements: `context.requirements` / `acs.py
+requirements show` — a ticket id, documents and a prompt are only where they
+came from; never read ticket.json for acceptance criteria**), `ticket` and
+`ticket_id` (present only when a ticket is one of the sources), `settings` (`design.lld_types`,
 `parallel.max_agents`, `models`), `agents` (the agent name to spawn per role; each
 role's model and effort come from `settings.models.create-data-design.<role>`,
 inheriting when unset), `reconcile`, `handoff_summary`, `checkout_root`.
-`<partition>` below is `partition`, `<id>` is `ticket_id`.
+`<partition>` below is `partition`, `<id>` is `ticket_id` when the run has a
+ticket, else `run_id`.
 
 Then, in order:
 
@@ -46,12 +54,23 @@ Then, in order:
 2. **Architecture set.** Read CLAUDE.md and the docs index it points at, then Glob
    for `hld/tech-stack.md`: its directory is `<architecture_dir>`; none →
    `docs/architecture`.
-3. **Features.** `context.ticket.features` are the PRD feature slugs (ADR-0120);
-   `feature-slug` narrows the run to one of them (one the ticket does not carry →
-   stop and say so). Empty → propose slugs, each made with `python3
+3. **Features** — the PRD feature slugs (ADR-0120) this run designs, taken from
+   the first of these that names any:
+   1. **the argument** — a token of `$ARGUMENTS` that is a feature slug (lowercase
+      kebab-case naming a `<prd_dir>/features/<slug>/` folder, an
+      `<architecture_dir>/lld/<slug>/` folder or a PRD feature; it is otherwise
+      prompt text in `requirements.md`). On a ticket run the slug must be one of
+      the ticket's features (one it does not carry → stop and say so);
+   2. **the requirements** — `requirements.feature`, else `requirements.features`;
+   3. **the ticket** — `context.ticket.features`, when the run has a ticket.
+
+   None → propose slugs, each made with `python3
    "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" slug --text "<PRD feature name>"`,
-   as a question in the ONE grouped ask below, and once confirmed patch the ticket:
-   `printf '{"features": [...]}' | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket save --ticket <id> --from -`.
+   as a question in the ONE grouped ask below, and once confirmed record them on
+   the run: `printf '{"features": [...]}' | python3
+   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" requirements refine --from -`
+   (on a ticket run it patches the ticket as `ticket save` does — never call
+   `ticket save` on a run with no ticket).
 4. **Baseline.** `git -C <checkout_root> status --porcelain >
    <partition>/steps/create-data-design/baseline-status.txt`, so the review can
    tell this run's changes from what was already in the tree.
@@ -76,16 +95,18 @@ artifacts, and continue from where it points.
 
 ## Inputs
 
-Reference by path in every task; never inline file bodies. The ticket (`acs.py
-artifacts show --ticket <id>` gives `ticket.md` or `ticket.json`) — always there;
-its acceptance criteria are the data the design must hold. When they exist:
-`analysis.md` and `design.md` in the ticket's docs folder; the HLD
+Reference by path in every task; never inline file bodies. The requirements
+(`requirements.path`, the run's `requirements.md`) — always there; its
+acceptance criteria are the data the design must hold. When they exist (`acs.py
+artifacts show` reports them): the feature's living analysis
+(`feature_analysis`, `<prd_dir>/features/<feature>/analysis.md`), the run's
+`analysis.md` and its `design.md` (`<architecture_dir>/lld/<feature>/<id>/`); the HLD
 (`hld/data-model.md` — the conceptual ERD whose entities this design details —
 `hld/cross-cutting.md` — the data conventions: naming, keys, audit columns,
 migration policy — `hld/tech-stack.md`, `hld/c4-container.md`); the feature's
 `lld/<feature>/api/` documents (the shapes the data must serve); and the feature's
 existing `data/` documents, which this run revises in place. Any of these may be
-absent; the design is then grounded in the ticket and the code's real schema
+absent; the design is then grounded in the requirements and the code's real schema
 (models, migrations, schema files) as it is.
 
 ## Output contract
@@ -105,8 +126,8 @@ constraint (a join table is named as the relationship it implements). The
 backfilled, in what order, and how it rolls back — **never migration code**: no
 DDL script, no migration-framework file, no ORM model. The first skill to touch a
 feature also creates `lld/<feature>/README.md` (the PRD feature it designs, the
-HLD containers it spans, a ticket history table) if absent, adds this ticket to its
-history, and adds the feature's row to `lld/README.md` if missing. Nothing else in
+HLD containers it spans, a ticket history table) if absent, adds this ticket (or,
+with no ticket, this run's id) to its history, and adds the feature's row to `lld/README.md` if missing. Nothing else in
 the repo is written — never `api/` or `flows/`, never `hld/`. All diagrams are
 Mermaid.
 
@@ -157,7 +178,7 @@ yourself.
 ### 1. Survey and gap analysis — iteration 1, one message
 
 The survey designer reads the inputs and the code's persistence layer, and records
-in its notes: the **Entity inventory** (each entity the ticket's acceptance
+in its notes: the **Entity inventory** (each entity the requirements' acceptance
 criteria need, its attributes, keys and relationships, whether it exists in the
 code today — with `path:line` — and the HLD conceptual entity it details), the
 **Schema inventory** (tables or collections, column types, indexes and constraints
@@ -166,7 +187,7 @@ key strategy, audit columns, migration tooling and policy, from
 `hld/cross-cutting.md` and the code), the per-file outline of the enabled types,
 and the open decisions. It writes no document. When the persistence code spans two
 or more disjoint top-level areas (services or packages with their own models or
-migrations), slice it: a `ticket` slice (the ticket, the docs, the conventions)
+migrations), slice it: a `ticket` slice (the requirements, the docs, the conventions)
 plus one slice per area (`<constraint name="area">`, that directory) — otherwise
 ONE un-sliced survey designer writes `iter-1/authoring.md` itself.
 
@@ -183,7 +204,7 @@ the grouped ask, both readings cited.
 ### 2. The grouped ask
 
 Collect every survey slice's questions, every drifted gap, the feature slugs when
-the ticket had none, and the open design decisions (a key strategy, a
+no argument, requirement or ticket named one, and the open design decisions (a key strategy, a
 normalisation trade-off, a store the conventions do not settle); de-duplicate them
 and ask in ONE grouped interaction (User interaction). The recorded `C-<n>`
 answers go to the write designer in `<context>`.
@@ -207,7 +228,8 @@ redo the iteration-1 join with that file appended. It reports
 set only through `acs.py design`: a new file `design init --status
 <proposed|implemented> --ticket <id> --feature <slug>` (`implemented` when it
 documents the code as built, `proposed` when it designs ahead of it); a changed
-file `design bump --ticket <id>`. Elements designed but not built carry a `%% planned`
+file `design bump --ticket <id>`. On a run with no ticket drop `--ticket <id>`
+(`design init --status <…> --feature <slug>`, `design bump`). Elements designed but not built carry a `%% planned`
 comment on their line in the `erDiagram` (which has no styling every renderer
 shows) and are marked `(planned)` in prose. The README files are indexes, not designs: no version front
 matter.
@@ -262,7 +284,7 @@ open a PR for) themselves.
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction (e.g. a single AskUserQuestion containing all open questions as a
@@ -272,14 +294,14 @@ per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A with
-`clarify.py add --skill create-data-design --question "..." --answer "..." --ticket <ticket-id>`
+`clarify.py add --skill create-data-design --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`. If the user is unavailable or says "you decide": record the decision
 with `--source assumption --rationale "..."` — assumptions surface in the
 completion report's Findings. Before a needs_input handoff, record the outgoing
 questions as `open` (`clarify.py add` without `--answer`).
 
-Do not ask about what the ticket, the docs or the code already answer. If you
+Do not ask about what the requirements, the docs or the code already answer. If you
 genuinely cannot reach the user (a non-interactive run), do not guess: run Finish
 with `status: "interrupted"` and `stop_reason: "needs_input"`, then return a
 `<handoff skill="create-data-design" ticket-id="<id>" status="needs_input">` with
@@ -292,7 +314,7 @@ If your context is running low mid-run: flush in-flight work and soft context
 `steps/create-data-design/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop.
@@ -350,5 +372,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications / assumptions, or "none">
 - **Artifacts**: <partition files, repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:create-flows <ticket-id>` when the ticket's flows need designing; then `/acs:analyze-requirements <ticket-id>`; review and commit the listed files yourself
+- **Next**: `/acs:create-flows <ticket-id or feature-slug>` when the feature's flows need designing; then `/acs:analyze-requirements <ticket-id>` (or `/acs:create-ticket` to cut the implementation ticket); review and commit the listed files yourself
 ```

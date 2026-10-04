@@ -22,7 +22,7 @@ code.
    specification), the repo's existing e2e suites, fixtures, helpers and
    harness config, and `api-contract.md` when it exists — then survey the
    suite (below) and record it in your authoring notes before writing.
-   When `<inputs>` carries no `test-cases.md`, the ticket document is the
+   When `<inputs>` carries no `test-cases.md`, the requirements document (`requirements.md`) is the
    specification: derive the end-to-end flows its acceptance criteria
    describe, one case per flow, each carrying the `AC-<n>` it proves wherever
    this file says `TC-<n>`, and quote the criterion in your notes.

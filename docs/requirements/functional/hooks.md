@@ -29,8 +29,10 @@ one advisory stderr line, never a refusal.
   repo-level files (`tickets-index.json`, `runs-index.json`,
   `sessions/`), and `acs step start` MAY read the parent epic's run to
   resolve its design state ([workspace-and-state.md](workspace-and-state.md)).
-- A pre-hook MAY additionally **read** (never write) the ticket's documents
-  in the repo docs tree (`docs/tickets/<ID>/`) where a brake or a no-op
+- A pre-hook MAY additionally **read** (never write) the run's documents in
+  its phase folders (the Development folder
+  `docs/development/<feature>/<id>/`, else a legacy `docs/tickets/<ID>/`)
+  and the run's `requirements.md` where a brake or a no-op
   needs them — `plan.md` for `/code`'s plan-approval brake, and the plan's
   `## Contract` block, from which a step that owes nothing records its
   evidenced no-op ([workflow.md](workflow.md#where-a-tickets-artifacts-live)).
@@ -209,14 +211,14 @@ for an upstream artifact.
 | `/create-prd` | — (only the baseline checks; no settings file needed) | — |
 | `/create-ticket` | — | — |
 | `/create-architecture` | — (the skill reads the PRD at Start when there is one, else works from the subject) | — |
-| `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
-| `/analyze-requirements` | ticket resolves | not an epic; lock free |
-| `/create-impl-plan` | ticket resolves | not an epic; lock free |
-| `/create-api-contract` | ticket resolves (a plan declaring no API surface settles the step as an evidenced no-op) | lock free |
-| `/create-test-docs` | ticket resolves | lock free |
-| `/code` | ticket resolves | not an epic; on the standard and complex paths, the plan's approval matches the plan on disk; lock free |
-| `/docs-sync` | ticket resolves | lock free |
-| `/create-e2e-tests` | ticket resolves (a plan declaring no e2e impact settles the step as an evidenced no-op) | not an epic; lock free |
+| `/create-design` | subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag) — a ticketless run with none recorded is allowed when the user invoked the skill with requirements (ADR-0128) | lock free |
+| `/analyze-requirements` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; lock free |
+| `/create-impl-plan` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; lock free |
+| `/create-api-contract` | subject resolves (a ticket, documents or a prompt — ADR-0128) (a plan declaring no API surface settles the step as an evidenced no-op) | lock free |
+| `/create-test-docs` | subject resolves (a ticket, documents or a prompt — ADR-0128) | lock free |
+| `/code` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; on the standard and complex paths, the plan's approval matches the plan on disk; lock free |
+| `/docs-sync` | subject resolves (a ticket, documents or a prompt — ADR-0128) | lock free |
+| `/create-e2e-tests` | subject resolves (a ticket, documents or a prompt — ADR-0128) (a plan declaring no e2e impact settles the step as an evidenced no-op) | not an epic; lock free |
 | `/create-pr` | a ticket id, a prompt, or this checkout's current run (no ticket required — ADR-0127) | when the run has a code step, a recorded `/acs:review-code` step must not have left `verifier_passed != true` (a run with **no** recorded review is allowed); lock free |
 | `/merge-pr` | ticket resolves | a PR reference is recorded: `/create-pr` completed; lock free. A PR opened from a prompt (`/create-pr "<prompt>"`) names no ticket and lands through `/merge-pr --pr <n>` ([skills.md](skills.md#product-level-delivery-no-ticket)) |
 

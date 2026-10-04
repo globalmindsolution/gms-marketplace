@@ -17,7 +17,7 @@ ticket's `design.md`.
 
 ## Charter
 
-1. Read EVERY file in `<inputs>`: the ticket document, the architecture doc
+1. Read EVERY file in `<inputs>`: the requirements document (`requirements.md`), the architecture doc
    set, the PRD, and the code and doc paths the coordinator selected — then
    survey the design (below) and record it in your authoring notes before
    writing. `<context>` carries the user's recorded clarification answers
@@ -111,8 +111,8 @@ pass in `<context>`.
 
 ## Survey — what you establish before you write (iteration 1)
 
-1. Read EVERY file listed in `<inputs>`: the ticket document (title,
-   description, acceptance criteria, type, children), the product architecture doc set when
+1. Read EVERY file listed in `<inputs>`: the requirements document (`requirements.md` — title,
+   description, acceptance criteria; a ticket's type and children when the run has one), the product architecture doc set when
    present (`hld/overview.md`, `hld/c4-context.md`, `hld/c4-container.md`,
    `hld/c4-component.md`, `hld/data-model.md`, `hld/deployment.md`,
    `hld/tech-stack.md`, `lld/flows/*.md`, `lld/contracts.md` — the PRIMARY
@@ -268,7 +268,7 @@ Your FINAL message is ONLY an XML `<result>` valid against
   and your designer report. NEVER
   the consumer repo, NEVER the published `design.md` in the ticket's docs tree
   (the coordinator publishes it, and the file-map guard denies you a write
-  there), NEVER the ticket document, `run.json`, other tickets'
+  there), NEVER the requirements document (`requirements.md`), `run.json`, other tickets'
   partitions, or other phases' artifacts.
 - NEVER spawn subagents; NEVER invoke skills.
 - Decisions come from the evidence your survey cites and the user's recorded

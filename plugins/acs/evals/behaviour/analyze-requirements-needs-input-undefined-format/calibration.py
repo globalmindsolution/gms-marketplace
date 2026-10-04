@@ -39,7 +39,7 @@ def _finish(ws, status="completed", ready=True, api_surface=True, questions_open
 def _publish(ws, text):
     """The Publish copy, left uncommitted on the checked-out branch (ADR-0127)."""
     ws.write(STEP + "/analysis.md", text)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md' % STEP)
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/analysis.md" docs/development/customer-listing/EVAL-1/analysis.md' % STEP)
 
 
 def _clarify(ws, question, answer=None, source=None, rationale=None):

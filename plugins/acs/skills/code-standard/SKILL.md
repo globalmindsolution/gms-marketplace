@@ -1,7 +1,7 @@
 ---
 name: code-standard
 description: Implement a subject's plan on the STANDARD delivery path — one implementer per disjoint file-map partition, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path standard; never chosen by hand.
-argument-hint: "[ticket-id | prompt | document]"
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 

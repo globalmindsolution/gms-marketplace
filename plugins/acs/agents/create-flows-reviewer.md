@@ -17,7 +17,7 @@ the same turn as you; you judge what a script cannot.
 Your prompt contains an XML `<task skill="create-flows" phase="reviewer" slice="<id>"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (the joined
 `iter-<n>/authoring.md`, `iter-1/gaps.md` when the gap analysis ran, the designer
-reports `iter-<n>/designer*.json`, `steps/create-flows/baseline-status.txt`, the ticket,
+reports `iter-<n>/designer*.json`, `steps/create-flows/baseline-status.txt`, the requirements (`requirements.md`),
 the feature's `api/` and `data/` documents when they exist, the HLD files and every
 document written), `<constraints>` (at minimum `partition`, `architecture_dir`,
 `feature`, `lld_types`, `dimensions`) and, on iteration > 1, a `<context>` listing the

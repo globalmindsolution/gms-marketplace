@@ -1,7 +1,7 @@
 ---
 name: create-pr
-description: Commit, push and open (or update) the pull request — the one acs skill that branches, commits and pushes. It splits the working tree's uncommitted changes into small reviewable commits (documents by doc set, then each slice's tests then code, doc updates, e2e suites), previews that plan for the user to confirm, commits it on a new branch, pushes, and opens the PR against the default branch with the ACS label, title and body composed from workspace state. Takes a ticket id, a prompt, or nothing (this checkout's current run); no ticket is needed — a PRD, architecture, LLD or ADR change or a prompt-driven fix ships the same way. Use whenever work in the working tree is ready for human review; the gate is a safety brake, not an order check — it refuses only a run whose recorded review left the verifier failing. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell or run git yourself: it locates all of them itself.
-argument-hint: "[ticket-id | prompt]"
+description: Commit, push and open (or update) the pull request — the one acs skill that branches, commits and pushes. It splits the working tree's uncommitted changes into small reviewable commits (documents by doc set, then each slice's tests then code, doc updates, e2e suites), previews that plan for the user to confirm, commits it on a new branch, pushes, and opens the PR against the default branch with the ACS label, title and body composed from workspace state. Takes a ticket id, documents, a prompt, a mix of them, or nothing (this checkout's current run); no ticket is needed — a PRD, architecture, LLD or ADR change or a prompt-driven fix ships the same way. Use whenever work in the working tree is ready for human review; the gate is a safety brake, not an order check — it refuses only a run whose recorded review left the verifier failing. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell or run git yourself: it locates all of them itself.
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -11,8 +11,8 @@ branch, stages, commits or pushes (ADR-0127): every pipeline step before it
 leaves its output as uncommitted changes and records the paths it wrote, and
 you split those changes into small reviewable commits the user confirms, push
 them, and open the PR. Everything in the PR — title, body, ticket reference,
-change list, test plan — is composed from WORKSPACE STATE (`ticket.json`,
-`specs/`, `design.md`, `steps/code/state.json` including its review summary,
+change list, test plan — is composed from WORKSPACE STATE (the run's
+requirements, the ticket when there is one, `specs/`, `design.md`, `steps/code/state.json` including its review summary,
 the confirmed commit plan), never from conversation history. You perform all of
 the apply-work yourself, inline, following `references/publish.md`, and
 **spawn no subagent** — no planner, no executor, no verifier: committing a
@@ -24,8 +24,8 @@ running the post-hook — always, even on failure.
 
 ## What it ships: a ticket, a prompt, or the current run
 
-No acs skill needs a ticket: each takes a ticket id or a prompt, and so does
-this one.
+No acs skill needs a ticket: each takes a ticket id, documents, a prompt or a
+mix of them, and so does this one.
 
 | Invocation | Run | Changeset the plan splits |
 |---|---|---|
@@ -62,9 +62,15 @@ Parse the printed context JSON. Fields you will use:
 
 - `run_id`, `subject` — the run and what it is about (`kind` `ticket` or
   `prompt`; a prompt subject carries its text).
+- `requirements` — `{path, sources, acceptance_criteria, features, feature,
+  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+  show` — a ticket id, documents and a prompt are only where they came from;
+  never read ticket.json for acceptance criteria.** The body's acceptance
+  criteria and test plan come from `requirements.path`.
 - `ticket_id`, `ticket` — id, title, type, and `external` (the
   `{provider, key}` remote-tracker mapping, when synced). Absent when the run
-  has no ticket.
+  has no ticket: then there is no ticket reference, no tracker sync and no
+  ticket status move.
 - `partition` — absolute path of the run's directory; phase artifacts go in
   its `steps/create-pr/`.
 - The PR title is free text you write (concise, normally the ticket's title,
@@ -80,14 +86,17 @@ Parse the printed context JSON. Fields you will use:
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
   ticket whose design applies and its basename is that ticket's id. When
   required, the design document — `artifacts["design.md"]` from
-  `acs.py artifacts show --ticket <that id>`, i.e. its docs folder, or
+  `acs.py artifacts show --ticket <that id>`, i.e. its design record in
+  `<architecture_dir>/lld/<feature>/<that id>/` (a legacy
+  `docs/tickets/<that id>/design.md` is still read), or
   `<design.dir>/design.md` when the tree is opted out — feeds the
   Summary/Changes content. Call it `<design_doc>`.
 
 State inputs (read these; conversation history is NOT an input):
 
-- the ticket's `ticket.json`, when there is a ticket — title, type,
-  description, acceptance criteria, `external` mapping.
+- the run's `requirements.md` (`requirements.path`) — title, description,
+  acceptance criteria, whatever container they came from; and the ticket
+  (`context.ticket`), when there is one — type and `external` mapping.
 - `steps/code/state.json` — `invocations[-1].states`: `specs_implemented`,
   `tests` `{passed, failed, coverage_percent, coverage_target}`,
   `docs_updated`, `files`, `review` `{iterations, findings_open}` (plus
@@ -254,14 +263,14 @@ C4. **Commit.**
    `{external_key}`; `{external_key_line}` renders as
    ` — tracker: <provider> <key>` when `ticket.external` is set, empty
    otherwise), replace HTML comments with real content and DELETE the comments,
-   fill every section strictly from the state files (`ticket.json`,
-   `steps/code/state.json`, `specs/*.md`, `design.md` when required, the
+   fill every section strictly from the state files (`requirements.md`,
+   `ticket.json` when there is a ticket, `steps/code/state.json`, `specs/*.md`, `design.md` when required, the
    confirmed commit plan). The base branch is the repo's default — the `<base>`
    step 1 already detected; reuse that value rather than running the detect a
    second time.
    Write the PR title directly — concise, normally the ticket's title
-   (`ticket.json` `title`; with no ticket, a summary of the prompt or of the
-   doc sets changed); no script renders it. This is the exact value passed **verbatim** to `gh pr create --title` /
+   (`ticket.json` `title`; with no ticket, a summary of the requirements — the
+   prompt or the documents — or of the doc sets changed); no script renders it. This is the exact value passed **verbatim** to `gh pr create --title` /
    `gh pr edit --title` in step 5 — no further transformation. The ticket is
    named by the body's Ticket section, not the title.
    Body: Summary (from specs scope + design decision), Ticket (id, title,
@@ -461,7 +470,7 @@ See `references/ci-convention-check.md` for that last read's one extra rule
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 (no `--ticket` when the run has none) and reuse any recorded answer — re-asking an
 answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
@@ -472,7 +481,7 @@ per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
-`clarify.py add --skill create-pr --question "..." --answer "..." --ticket <ticket-id>`
+`clarify.py add --skill create-pr --question "..." --answer "..."`
 BEFORE acting on it, and apply the relevant `C-n` entries yourself as you
 publish (no subagent receives them). If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
@@ -500,7 +509,7 @@ steps, and return as your final message a handoff like:
 <handoff skill="create-pr" ticket-id="SHOP-123" status="needs_input">
   <summary>The working tree carries SHOP-123's changes, uncommitted; the commit plan needs the user's confirmation before anything is committed.</summary>
   <questions>
-    <question>Commit plan for task/SHOP-123-bulk-import: 1. SHOP-123 Add ticket docs (docs/tickets/SHOP-123/…) 2. SHOP-123 Add tests for bulk import (tests/test_import.py) 3. SHOP-123 Implement bulk import (src/shop/importer.py). Left out: notes/todo.md. Confirm, edit, or cancel?</question>
+    <question>Commit plan for task/SHOP-123-bulk-import: 1. SHOP-123 Add ticket docs (docs/development/bulk-import/SHOP-123/…) 2. SHOP-123 Add tests for bulk import (tests/test_import.py) 3. SHOP-123 Implement bulk import (src/shop/importer.py). Left out: notes/todo.md. Confirm, edit, or cancel?</question>
   </questions>
   <next-step>Answer, then re-run /acs:ship SHOP-123.</next-step>
 </handoff>

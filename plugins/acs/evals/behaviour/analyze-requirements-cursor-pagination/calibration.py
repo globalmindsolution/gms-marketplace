@@ -3,7 +3,7 @@
 IDEAL does what /acs:analyze-requirements' coordinator does, through the
 plugin's own writers where they exist: `acs step start`, `clarify.py add` for
 each answer the prompt relayed, the draft in the step directory, the Publish
-copy into docs/tickets/EVAL-1/ left uncommitted on main (no branch, no
+copy into docs/development/customer-listing/EVAL-1/ left uncommitted on main (no branch, no
 commit -- ADR-0127), then result.json with `files` and the post-hook. The analyst's and impact reviewer's own phase
 files are workspace detail no grader reads, so only the draft is played.
 """
@@ -15,7 +15,7 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-cursor-pagination-for-get-customers"
-PUBLISHED = "docs/tickets/EVAL-1/analysis.md"
+PUBLISHED = "docs/development/customer-listing/EVAL-1/analysis.md"
 
 ANALYSIS = """---
 ticket: EVAL-1
@@ -102,7 +102,7 @@ def IDEAL(ws):
         ws.sh('python3 "%s/clarify.py" add --skill analyze-requirements --ticket EVAL-1 '
               '--question "%s" --answer "%s"' % (SCRIPTS, question, answer))
     ws.write(STEP + "/analysis.md", ANALYSIS)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/analysis.md" "%s"' % (STEP, PUBLISHED))
     _finish(ws)
 
 
@@ -124,7 +124,7 @@ def _api_surface_false(ws):
     would be skipped."""
     _start(ws)
     ws.write(STEP + "/analysis.md", ANALYSIS.replace("api_surface: true", "api_surface: false"))
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/analysis.md" "%s"' % (STEP, PUBLISHED))
     _finish(ws, api_surface=False)
 
 

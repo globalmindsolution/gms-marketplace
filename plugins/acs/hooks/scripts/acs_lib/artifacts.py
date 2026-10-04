@@ -1,29 +1,24 @@
-"""acs_lib.artifacts — the human-facing ticket documents, and where they live.
+"""acs_lib.artifacts — the ticket document, its derived status, and the LEGACY
+docs/tickets/<ID>/ tree (read-only since ADR-0128).
 
-Until the skills-independence refactor every ticket document sat in the
-state-machine workspace next to the run ledger: ticket.json, design.md, the
-plan under phases/code/. The documents a human reads and edits now live in the
-repo's docs tree, `<checkout>/docs/tickets/<ID>/` (TICKETS_PATH -- a fixed
-location, not a setting: ADR-0102), and the ledger stays where it was: <skill>-state.json,
-pipeline-state.json, phase artifacts, verdicts, locks, active-agents,
-clarifications.json and tickets-index.json never leave the partition.
+A ticket lives in the workspace and the tracker only: `<partition>/ticket.json`
+is its one home, and every save writes it there. Until ADR-0128 a ticket could
+also live in the repo as `docs/tickets/<ID>/ticket.md` (ADR-0090) beside the
+producer skills' documents; nothing writes that tree any more. A ticket that
+was migrated there still READS -- load_ticket falls back to its ticket.md (and
+to the ticket.json.moved pointer) until the first save writes ticket.json back
+into the partition, which then wins. A run's documents live in the phase
+folders `acs_lib.doc_layout` / `acs_lib.run_docs` resolve, with this tree as
+their read fallback.
 
-  ticket.md      today's ticket.json as YAML front matter (every field but
-                 `status`) over a markdown body: `## Description`,
+  ticket.md      the legacy rendering: ticket.json as YAML front matter (every
+                 field but `status`) over a markdown body: `## Description`,
                  `## Acceptance criteria` (a numbered list) and
                  `## Clarifications` (a read-only mirror of clarifications.json)
-  design.md, analysis.md, api-contract.md, plan.md, test-cases.md
-                 the producer skills' documents, resolved by artifact_path:
-                 the docs folder first, then the partition, then the legacy
-                 location (/acs:code's old plan phase wrote phases/code/plan.md)
 
 `status` is never stored in ticket.md. derive_status computes it from the
 ledger and the archive -- open / in_progress / in_review / done -- the same
 way the hooks used to flip it, so a load_ticket caller still sees the field.
-Because it is not stored, a caller that saves a ticket after flipping ONLY
-`status` would rewrite the document byte for byte; save_ticket detects that
-and writes nothing at all, so a tracked file is never re-dirtied for a field
-that does not live in it.
 
 THE BODY ROUND-TRIPS VERBATIM. A description is arbitrary markdown and
 normally carries its own `## ` headings -- the shipped task/story/epic
@@ -32,17 +27,6 @@ description templates are entirely `## `-headed, and one of them opens with
 `## `. parse_ticket_md finds the two sections that FOLLOW the description
 from the end of the body (see _body_sections); neither of them can emit a
 `## ` line, so the description survives whatever it contains.
-
-WHICH FILE A TICKET LIVES IN. load_ticket reads ticket.md when the ticket's
-docs folder holds one, else ticket.json, else the file a ticket.json.moved
-pointer names. save_ticket writes ticket.md only when the docs tree is ACTIVE
-for this checkout -- the process cwd resolves to a checkout whose workspace
-owns the partition, and <checkout>/docs/tickets/ exists (`acs.py artifacts migrate` creates it) -- and the ticket already lives
-there or has no ticket.json yet. A ticket that still has a ticket.json keeps
-being written as ticket.json until migrate moves it, so every ticket has
-exactly one home and no copy goes stale behind a reader. The workspace check
-is what keeps an in-process caller whose cwd is some OTHER checkout (a test
-runner, a metrics run from a sibling repo) out of that checkout's docs tree.
 
 Front matter is written in the subset acs_lib.yamlsubset reads back: quoted
 strings, integers, booleans, null, block lists and 2-space nested mappings. A
@@ -54,7 +38,7 @@ import os
 import re
 import sys
 
-from ._common import LEGACY_DELIVERY_TICKET_SKILLS, GateError, now_iso, read_json, write_json, write_text
+from ._common import LEGACY_DELIVERY_TICKET_SKILLS, GateError, now_iso, read_json, write_json
 from . import repo as _repo
 from .settings import load_settings
 from . import yamlsubset
@@ -113,11 +97,11 @@ def ticket_docs_dir(checkout_root, ticket_id):
 
 
 def artifact_path(checkout_root, tdir, ticket_id, name):
-    """Where `name` (design.md, analysis.md, api-contract.md, plan.md,
-    test-cases.md, ticket.md) lives for a ticket: the first EXISTING copy in
-    the docs folder, the partition, then the legacy partition location; when
-    none exists, where a writer should put it -- the docs folder when there is
-    a checkout, else the partition. os.path.isfile tells the two apart."""
+    """The LEGACY resolver for a ticket's document (ADR-0128 files a run's
+    documents by phase -- `acs_lib.run_docs`): the first EXISTING copy in the
+    old docs folder (docs/tickets/<ID>/), the partition, then the legacy
+    partition location; when none exists, the partition path. It never names a
+    path in the docs tree a writer has not already put there."""
     docs = ticket_docs_dir(checkout_root, ticket_id)
     candidates = [os.path.join(docs, name)] if docs else []
     candidates.append(os.path.join(tdir, name))
@@ -125,7 +109,7 @@ def artifact_path(checkout_root, tdir, ticket_id, name):
     for candidate in candidates:
         if os.path.isfile(candidate):
             return candidate
-    return candidates[0]
+    return os.path.join(tdir, name)
 
 
 def ticket_id_of(tdir):
@@ -190,8 +174,6 @@ def _docs_dir_for(tdir, view, ticket_id=None):
     return os.path.join(view["tickets_root"], ticket_id or ticket_id_of(tdir))
 
 
-def _tree_active(view):
-    return bool(view and view.get("tickets_root") and os.path.isdir(view["tickets_root"]))
 
 
 # ---------------------------------------------------------------------------
@@ -519,16 +501,17 @@ def _read_ticket_md(path, tdir):
 
 
 def ticket_source(tdir, view=None):
-    """(kind, path) for the file load_ticket would read: ("ticket.md", path)
-    from the docs folder, ("ticket.json", path), ("pointer", path) via
+    """(kind, path) for the file load_ticket would read: ("ticket.json", path)
+    in the partition first -- the only file a save writes (ADR-0128) -- then
+    the legacy ("ticket.md", path) in the docs folder, ("pointer", path) via
     ticket.json.moved, or (None, None)."""
+    json_path = os.path.join(tdir, TICKET_JSON_FILENAME)
+    if os.path.isfile(json_path):
+        return "ticket.json", json_path
     view = _current_view() if view is None else view
     docs = _docs_dir_for(tdir, view)
     if docs and os.path.isfile(os.path.join(docs, TICKET_MD_FILENAME)):
         return "ticket.md", os.path.join(docs, TICKET_MD_FILENAME)
-    json_path = os.path.join(tdir, TICKET_JSON_FILENAME)
-    if os.path.isfile(json_path):
-        return "ticket.json", json_path
     pointer = read_json(os.path.join(tdir, MOVED_POINTER_FILENAME))
     moved_to = pointer.get("moved_to") if isinstance(pointer, dict) else None
     if isinstance(moved_to, str) and os.path.isfile(moved_to):
@@ -548,55 +531,16 @@ def load_ticket(tdir):
     return read_json(os.path.join(tdir, TICKET_JSON_FILENAME))
 
 
-def _clarifications(tdir):
-    ledger = read_json(os.path.join(tdir, "clarifications.json"))
-    entries = ledger.get("clarifications") if isinstance(ledger, dict) else None
-    return entries if isinstance(entries, list) else []
-
-
-def md_target(tdir, ticket_id=None, view=None):
-    """Where save_ticket writes ticket.md, or None when it writes ticket.json:
-    the tree must be active for this checkout and own the partition, and the
-    ticket must already live there or have no ticket.json to leave behind."""
-    view = _current_view() if view is None else view
-    if not _tree_active(view):
-        return None
-    docs = _docs_dir_for(tdir, view, ticket_id)
-    if not docs:
-        return None
-    target = os.path.join(docs, TICKET_MD_FILENAME)
-    if os.path.isfile(target) or not os.path.isfile(os.path.join(tdir, TICKET_JSON_FILENAME)):
-        return target
-    return None
-
-
-def _read_text(path):
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            return fh.read()
-    except OSError:
-        return None
 
 
 def save_ticket(tdir, ticket):
-    """Persist the ticket to whichever home md_target names.
-
-    On the ticket.md path a save that would not change a single byte writes
-    NOTHING and does not bump `updated_at`. ticket.md is a TRACKED document:
-    several callers save a ticket after flipping only `status`, which ticket.md
-    does not store (derive_status owns it), so without this the pipeline would
-    re-dirty a committed file -- an `updated_at`-only diff a reviewer has to
-    read and someone has to commit -- for a field that never reached the page."""
-    target = md_target(tdir, ticket.get("id") or None)
-    if target:
-        clarifications = _clarifications(tdir)
-        if render_ticket_md(ticket, clarifications) == _read_text(target):
-            return
-        ticket["updated_at"] = now_iso()
-        write_text(target, render_ticket_md(ticket, clarifications))
-    else:
-        ticket["updated_at"] = now_iso()
-        write_json(os.path.join(tdir, TICKET_JSON_FILENAME), ticket)
+    """Persist the ticket as `<partition>/ticket.json`, its one home since
+    ADR-0128: a ticket is no longer stored in the repo's docs tree, so a save
+    never writes docs/tickets/<ID>/ticket.md -- not for a new ticket, and not
+    for one migrated there under ADR-0090 (its ticket.md stays as the legacy
+    copy, and the ticket.json written here wins from now on)."""
+    ticket["updated_at"] = now_iso()
+    write_json(os.path.join(tdir, TICKET_JSON_FILENAME), ticket)
 
 
 # ---------------------------------------------------------------------------
@@ -621,91 +565,27 @@ def live_partitions(workspace, repo_id):
     return out
 
 
-def _copy_text(src, dest):
-    with open(src, "r", encoding="utf-8") as fh:
-        write_text(dest, fh.read())
 
 
 def migrate(workspace, repo_id, checkout_root, dry_run=False):
-    """Move every live partition's ticket.json into docs/tickets/<ID>/ticket.md
-    once, copy its design.md and legacy plan alongside, and leave a
-    ticket.json.moved pointer where ticket.json was. Idempotent: a ticket
-    already moved is reported under `already`; a ticket.md already in the
-    tree is kept (it is the newer of the two by construction). Creating the
-    tree root is what activates the tree for save_ticket. The archive is
-    never touched. Refuses (GateError) when a partition still to move is
-    locked by a session."""
-    base = TICKETS_PATH
+    """RETIRED by ADR-0128. It moved every live partition's ticket.json into
+    docs/tickets/<ID>/ticket.md; a ticket is no longer stored in the docs tree,
+    so there is nothing to move and nothing is written. The report says so."""
     if not checkout_root:
-        raise GateError("no checkout root to anchor %s to" % base)
-    root = os.path.join(checkout_root, base)
-    partitions = live_partitions(workspace, repo_id)
-    for ticket_id, tdir in partitions:
-        if os.path.isfile(os.path.join(tdir, TICKET_JSON_FILENAME)) and os.path.isfile(_repo.lock_path(tdir)):
-            raise GateError("refusing to migrate — %s is locked by a session (%s); finish or "
-                            "force-unlock it first" % (ticket_id, _repo.lock_path(tdir)))
-    report = {"dry_run": bool(dry_run), "tickets_path": base, "docs_root": root,
-              "migrated": [], "already": [], "actions": []}
-
-    def act(ticket_id, action, name, path):
-        report["actions"].append({"ticket": ticket_id, "action": action, "file": name, "path": path})
-
-    if not dry_run:
-        os.makedirs(root, exist_ok=True)
-    for ticket_id, tdir in partitions:
-        docs = os.path.join(root, ticket_id)
-        json_path = os.path.join(tdir, TICKET_JSON_FILENAME)
-        md_path = os.path.join(docs, TICKET_MD_FILENAME)
-        if os.path.isfile(json_path):
-            ticket = read_json(json_path)
-            if not isinstance(ticket, dict):
-                act(ticket_id, "skip-corrupt", TICKET_JSON_FILENAME, json_path)
-                continue
-            if os.path.isfile(md_path):
-                act(ticket_id, "keep", TICKET_MD_FILENAME, md_path)
-            else:
-                act(ticket_id, "render", TICKET_MD_FILENAME, md_path)
-                if not dry_run:
-                    write_text(md_path, render_ticket_md(ticket, _clarifications(tdir)))
-            pointer_path = os.path.join(tdir, MOVED_POINTER_FILENAME)
-            act(ticket_id, "pointer", MOVED_POINTER_FILENAME, pointer_path)
-            act(ticket_id, "remove", TICKET_JSON_FILENAME, json_path)
-            if not dry_run:
-                write_json(pointer_path, {"ticket_id": ticket_id, "moved_to": md_path,
-                                          "relative": os.path.join(base, ticket_id, TICKET_MD_FILENAME),
-                                          "migrated_at": now_iso()})
-                os.unlink(json_path)
-            report["migrated"].append(ticket_id)
-        else:
-            report["already"].append(ticket_id)
-        for rel, name in MIGRATED_ARTIFACTS:
-            src, dest = os.path.join(tdir, rel), os.path.join(docs, name)
-            if os.path.isfile(src) and not os.path.isfile(dest):
-                act(ticket_id, "copy", name, dest)
-                if not dry_run:
-                    _copy_text(src, dest)
-    return report
+        raise GateError("no checkout root to anchor %s to" % TICKETS_PATH)
+    return {"dry_run": bool(dry_run), "retired": True, "tickets_path": TICKETS_PATH,
+            "docs_root": os.path.join(checkout_root, TICKETS_PATH),
+            "migrated": [], "already": [ticket_id for ticket_id, _t
+                                         in live_partitions(workspace, repo_id)],
+            "actions": [],
+            "reason": "since ADR-0128 a ticket lives only in the workspace and the tracker; "
+                      "docs/tickets/ is read as a legacy fallback and never written"}
 
 
 def describe(ctx, ticket_id, tdir):
-    """The `acs.py artifacts show` view: where the ticket and each document
-    live, whether the tree is active, and the derived status."""
-    view = _checkout_view(ctx["cwd"]) if ctx.get("cwd") else _current_view()
-    kind, path = ticket_source(tdir, view)
-    ticket = None
-    if kind == "ticket.json":
-        ticket = read_json(path)
-    elif kind:
-        ticket = _read_ticket_md(path, tdir)
-    if not isinstance(ticket, dict):
-        raise GateError("no readable ticket for %s (looked for ticket.md in the docs folder, "
-                        "ticket.json and %s under %s)" % (ticket_id, MOVED_POINTER_FILENAME, tdir))
-    root = ctx.get("checkout_root")
-    found = {}
-    for name in ARTIFACT_NAMES[1:]:
-        candidate = artifact_path(root, tdir, ticket_id, name)
-        found[name] = candidate if os.path.isfile(candidate) else None
-    return {"ticket_id": ticket_id, "partition": tdir,
-            "docs_dir": ticket_docs_dir(root, ticket_id),
-            "active": _tree_active(view), "source": kind, "source_path": path,
-            "status": ticket.get("status"), "artifacts": found, "ticket": ticket}
+    """The `acs.py artifacts show` view of a ticket with no run named: its
+    latest run's documents (acs_lib.run_docs), the ticket and its status."""
+    from . import run_docs
+    repo = _repo.repo_dir(ctx["workspace"], ctx["repo_id"])
+    return run_docs.describe(ctx, rdir=run_docs.latest_run_for_ticket(repo, ticket_id),
+                             ticket_id=ticket_id)

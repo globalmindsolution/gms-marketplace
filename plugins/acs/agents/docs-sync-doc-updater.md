@@ -17,13 +17,13 @@ the artifacts alone.
 ## Charter
 
 1. Read EVERY file in `<inputs>` — the six-input contract below: the diff,
-   `ticket.json`, `steps/code/result.json`, the code implementer
+   the requirements (`requirements.md`), `steps/code/result.json`, the code implementer
    report(s), the final review verdict, and the binding design when one
    applies — then survey (below) and write your authoring notes before
    editing a doc. `<context>` carries the user's recorded clarification
    answers and, on iteration >= 2, the drift-reviewer findings your output must
-   fix — both are BINDING. `<partition>` is the directory containing
-   `ticket.json`.
+   fix — both are BINDING. `<partition>` is the run directory — the one
+   containing `requirements.md`.
 2. Write in `<checkout_root>` on whatever is checked out — never create or
    switch a branch, never stage, commit or push, never open a PR (ADR-0127).
 3. Apply each doc-delta item your notes list — edit exactly the doc files and
@@ -98,9 +98,9 @@ the artifacts alone.
      `<checkout_root>`) — the ground-truth changeset, untracked files
      included. Never `git diff <default_branch>...HEAD`: the change is
      uncommitted, so that range is empty.
-   - the ticket (`acs.py artifacts show --ticket <id>` prints its `source_path`,
-     `docs/tickets/<id>/ticket.md` or the workspace `ticket.json`) — title,
-     description, acceptance criteria.
+   - the requirements — `<partition>/requirements.md` (a ticket's, a prompt's,
+     documents' or a mix's: title, description, acceptance criteria) — and the
+     analysis and the feature's living analysis when the task names them.
    - `steps/code/result.json`, specifically
      `states.docs_updated` — repo-relative paths of every doc file `/code`
      already believed it changed.
@@ -111,15 +111,16 @@ the artifacts alone.
      changeset review `/acs:review-code` recorded; `/acs:code` has no
      verifier of its own). Absent when no review has run — say so in your
      notes and proceed; it never stops a docs sync.
-   - The ticket's binding design — the published `design.md` the task
-     names: `docs/tickets/<id>/design.md` in the checkout (or the parent
-     epic's `docs/tickets/<parent-id>/design.md` when the ticket inherits
-     it), falling back to that ticket's workspace partition only when there
+   - The binding design — the published `design.md` the task
+     names: the design record `<architecture_dir>/lld/<feature>/<id>/design.md`
+     in the checkout (or the parent epic's when the ticket inherits it; a
+     legacy `docs/tickets/<id>/design.md` when that is where it was published),
+     falling back to that ticket's workspace partition only when there
      was no checkout to publish into — when the ticket or its parent epic
      needs design; absent otherwise. `steps/create-design/design.md` under
      `<partition>` is an unverified working draft, never the binding design.
 
-   The diff and `ticket.json` are the subject every docs sync works from.
+   The diff and `requirements.md` are the subject every docs sync works from.
    The `/acs:code` and `/acs:review-code` artifacts may be absent — docs-sync
    runs on its own whenever the docs have drifted — and the task names an
    absent one as absent: record that in your Diff analysis and derive from
@@ -268,7 +269,7 @@ its `<outputs>` naming `iter-1/authoring-general.md` and
 - `status="needs_input"`: you hit a genuinely open decision your survey and
   `<context>` do not settle — STOP, do not guess; put the decision and its
   trade-offs in `<questions>`, and still write the authoring notes.
-- `status="failed"`: the diff or `ticket.json` is missing/unreadable, or an
+- `status="failed"`: the diff or `requirements.md` is missing/unreadable, or an
   input the task names as present is unreadable — one `<error>` per problem,
   `<stop-reason>` set.
 
