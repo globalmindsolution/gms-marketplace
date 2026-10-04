@@ -66,7 +66,8 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    import mapping, the step-5 sync result, or null), `assignee` (or null),
    `story_points` (or null), `needs_design` (`true` for epics, `false`
    otherwise — never user-confirmed), `docs_only` (the confirmed value,
-   default false), `due_date` (ISO-8601 date string or null); refresh
+   default false), `due_date` (ISO-8601 date string or null), `features`
+   (the confirmed PRD feature slugs; omit when none); refresh
    `updated_at` (ISO-8601 UTC).
 4. **Epic fan-out** — runs in `--fan-out` mode or in the split/restructure
    mode — the two modes that mint children. The step-3 skip applies
@@ -78,10 +79,11 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    each user-confirmed child, run exactly:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --needs-design false --story-points 3
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --needs-design false --story-points 3 --features wishlist
    ```
 
-   The script mints the child id, writes BOTH link directions (child `parent`,
+   A child carries its epic's `features` unless the confirmed breakdown narrows
+   them. The script mints the child id, writes BOTH link directions (child `parent`,
    epic `children`), and records the child's completed create-ticket run —
    children never rerun /acs:create-ticket; their pipeline starts at
    /acs:code. Capture each printed `ticket_id`. After minting, write each

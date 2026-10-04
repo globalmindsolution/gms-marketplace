@@ -21,6 +21,17 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ### Added
 
+- **`/acs:setup` asks which design documents to write** (ADR-0120). A new
+  `design` settings block — `hld_types` and `lld_types`, each a list from a fixed
+  catalog (C4 views, conceptual ERD, API landscape, deployment, project structure,
+  data-flow and capability maps; API contracts, logical and physical ERDs,
+  sequence, activity and state diagrams, component and class detail) — is chosen
+  with two multi-select questions. Defaults write nothing. The Design skills will
+  read it; nothing does yet.
+- **Tickets carry `features`** (ADR-0120): the slugs of the PRD features a ticket
+  traces to. `/acs:create-ticket` proposes them, `/acs:analyze-requirements`
+  confirms them, `new-ticket.py --features` sets them on a minted child, and the
+  index records them.
 - **`/acs:setup` writes `.claude/launch.json`**, the Claude Code Desktop app's
   preview-server config (Code tab and Browser pane). `setup detect` reports the
   file and guesses a dev server from `package.json` (npm, pnpm, yarn or bun), a

@@ -16,6 +16,7 @@ import claude_code_adapter as cc  # noqa: E402
 
 from ._common import GateError, deep_merge, read_json
 from .models import validate_models
+from .design_types import defaults as design_defaults, validate_design
 from .migrate_settings import legacy_problems
 from .repo import checkout_root, default_state_root, main_repo_root
 
@@ -35,6 +36,8 @@ DEFAULT_SETTINGS = {
     "tests": {"coverage": 90},
     "workflow": {"advisories": True},
     "tracker": {"provider": "local"},
+    # Which HLD/LLD documents the Design skills write (ADR-0120); chosen at /acs:setup.
+    "design": design_defaults(),
 }
 
 #: Keys an older acs read and this one ignores (ADR-0102): no setting locates a
@@ -142,6 +145,7 @@ def validate_settings(settings, cwd, require_workspace=True):
     if strategy not in ("squash", "merge", "rebase"):
         raise GateError("merge_strategy must be one of squash|merge|rebase; got %r." % (strategy,))
     validate_models(settings.get("models", {}))
+    validate_design(settings.get("design", {}))
     return workspace if require_workspace else None
 
 

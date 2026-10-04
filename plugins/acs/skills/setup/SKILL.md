@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Optionally configure acs for the current repo — set the ticket prefix, install the CI ticket-link check (every PR names its ticket) and the test gates, scaffold the model settings, and write the Claude Code Desktop app's preview-server config (.claude/launch.json). Use when setting up acs on a new repo, when the user wants a ticket prefix, wants the ticket-link check or the tests/e2e gates enforced in CI, wants the pipeline protected from being bypassed, or wants the dev server the Desktop app previews set up for the team. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Optionally configure acs for the current repo — set the ticket prefix, install the CI ticket-link check (every PR names its ticket) and the test gates, choose which HLD and LLD design documents (C4 views, ERDs, API contracts, sequence and state diagrams …) the Design skills write, scaffold the model settings, and write the Claude Code Desktop app's preview-server config (.claude/launch.json). Use when setting up acs on a new repo, when the user wants a ticket prefix, wants the ticket-link check or the tests/e2e gates enforced in CI, wants the pipeline protected from being bypassed, or wants the dev server the Desktop app previews set up for the team, or wants to change which architecture diagrams and design documents acs produces. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
@@ -11,17 +11,14 @@ reflection loop.
 runs: no settings file is required, and tickets take the default prefix `ACS`
 (`ACS-1`, `ACS-2`, …). No other skill needs setup first.
 
-Setup does three things: it sets the **ticket prefix** (`ticket_prefix`),
-installs the **CI** gates on pull requests (the ticket-link check
-`conventions`, `tests`, `e2e`), and can scaffold the **`models`** block. Nothing
-else. Branch names, commit messages and PR titles are not configured: the branch
-is always `<type>/<ticket_id>-<slug>`, and commits and PR titles follow the
-repo's own style. Every other setting has a working default, and no setting
-locates a document or the workspace (ADR-0102). A user who wants to change one —
-tracker, merge strategy, coverage target, test suites — edits
-`.acs/settings.json` against
-`${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`; setup does not ask about
-them.
+Setup sets the **ticket prefix**, installs the **CI** gates on pull requests
+(the ticket-link check `conventions`, `tests`, `e2e`), picks the **design
+documents** the Design skills write (`design`, ADR-0120), and can scaffold the
+**`models`** block. The branch is always `<type>/<ticket_id>-<slug>`; commits and
+PR titles follow the repo's style. Every other setting has a working default and
+none locates a document (ADR-0102): tracker, merge strategy, coverage target and
+test suites are edited in `.acs/settings.json` against
+`${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`, not asked about.
 
 **Your job is the conversation.** Every write — the settings, the ignore
 entries, the workspace, the CI copies — is performed by the two commands below.
@@ -43,7 +40,8 @@ whether a broad rule is swallowing files CI must read
 (`swallowed_by_a_broad_rule`), the `toolchain` and `missing_tools`, plausible
 test commands (`test_command_candidates`), which CI installs are already
 present (`ci`), retired settings keys still sitting in a settings file
-(`retired_keys`), the preview-server config `.claude/launch.json` (`launch`:
+(`retired_keys`), the design-document catalog and current choice (`design`),
+the preview-server config `.claude/launch.json` (`launch`:
 whether it exists, its configuration names, `problems`, and `candidates` — a
 guessed dev server when there is none), and the git facts — `default_branch` is the branch to
 protect (null when it cannot be told; never guess it from `current_branch`).
@@ -87,6 +85,10 @@ asking again.
    Show each candidate — `runtimeExecutable`, `runtimeArgs`, `port` (the tool's
    default, a guess) — and let the user correct it. Never put secrets in `env`.
    An existing file is never rewritten: a configuration it already has is kept.
+5. **Design documents** — two multi-select questions from `design.catalog`, one
+   for HLD (`hld_types`) and one for LLD (`lld_types`), each option's `label` as
+   its description and `design.current` preselected; say that `hld_always` is
+   always written. The answer goes in `settings.design`; defaults write nothing.
 
 ## Step 3 — Apply
 
@@ -185,7 +187,7 @@ empty; replace the Ticket line with **Repo** (no ticket at init time):
 
 - **Repo**: <repo> (<greenfield|brownfield>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: toolchain preflight outcome (tools present / still missing with the install hint); settings written, per key (or "defaults"); models scaffolded (yes / no); retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined)
+- **Results**: toolchain preflight outcome (tools present / still missing with the install hint); settings written, per key (or "defaults"); models scaffolded (yes / no); design types (defaults / the custom choice); retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined)
 - **Findings**: <open findings, or "none">
 - **Artifacts**: <files written or staged>
 - **Metrics**: <wall time>

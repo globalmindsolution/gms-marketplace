@@ -57,6 +57,13 @@
       ],
       "default": null
     },
+    "features": {
+      "description": "Optional. The PRD features this ticket traces to, as slugs of their PRD names (`acs.py slug --text \"<feature name>\"`). Proposed by /acs:create-ticket, confirmed by /acs:analyze-requirements; the Design skills write a ticket's low-level design under docs/architecture/lld/<feature>/ (ADR-0120). Absent or [] when the ticket traces to no feature.",
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+      "uniqueItems": true,
+      "default": []
+    },
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"}
   },

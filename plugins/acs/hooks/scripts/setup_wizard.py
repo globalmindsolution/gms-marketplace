@@ -226,6 +226,8 @@ def detect(cwd):
         # The Desktop app's preview-server config: what is there, and a guess
         # at a dev server when nothing is.
         "launch": lib.launch_config.detect(root),
+        # The design-document catalog the setup question offers (ADR-0120).
+        "design": lib.design_types.detect(settings),
     }
 
 
@@ -580,6 +582,8 @@ def apply(cwd, answers, dry_run=False):
     # Conventions are the team's, so they go to the committed project file.
     settings_path = os.path.join(root, ".acs", "settings.json")
     raw_settings = dict(answers.get("settings") or {})
+    if "design" in raw_settings:  # canonical order, so a default choice compares equal
+        raw_settings["design"] = lib.design_types.normalise_block(raw_settings["design"])
     values, defaulted = split_defaults(raw_settings)
     refused = refusals(cwd, settings_path, raw_settings, values, defaulted,
                        list(answers.get("ci") or ()))

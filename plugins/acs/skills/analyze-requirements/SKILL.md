@@ -73,7 +73,7 @@ they exist, whether `/acs:ship` invoked it or a user did).
 Parse the printed context JSON. Fields you will use:
 
 - `ticket_id`, `ticket` — the resolved ticket (title, type, description,
-  `acceptance_criteria`, `needs_design`, `docs_only`,
+  `acceptance_criteria`, `needs_design`, `docs_only`, `features`,
   `parent`, `external`). The analysis is about THIS ticket.
 - `partition` — absolute path of the run partition. Phase artifacts go in
   `steps/analyze-requirements/`; the controller's state is
@@ -399,7 +399,9 @@ whole of what Stage 2 takes to the user:
   `Assumed: <default> — confirm or correct`.
 - **(c) Proposed refined acceptance criteria** — the rewrite of each
   ambiguous, untestable or contradicted criterion, and each missing one.
-- **(d) A needs_design recommendation**, when the survey has one.
+- **(d) A needs_design recommendation**, when the survey has one, and a
+  `features` correction when the PRD features the ticket touches differ from
+  its `features` (slugs, `acs.py slug --text "<PRD feature name>"`; ADR-0120).
 
 Researchable facts are never questions: the survey reads the code, the docs,
 the ledger and the previous analysis instead. An empty group says `_None._`.
@@ -477,7 +479,8 @@ printf '{"acceptance_criteria": ["...", "..."]}' \
   | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket save --ticket <id> --from -
 ```
 
-(`needs_design` is patched the same way, as `{"needs_design": true}`.) The
+(`needs_design` and `features` are patched the same way, as
+`{"needs_design": true}` or `{"features": ["wishlist"]}`.) The
 document is a PATCH merged over the stored ticket, so send the WHOLE
 confirmed criteria list — the ticket's criteria with each confirmed rewrite
 applied and each confirmed missing criterion added. A rejected proposal is
