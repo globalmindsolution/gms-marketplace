@@ -160,19 +160,31 @@ class CliTest(AcsWorkspaceCase):
 
 class AuditDesignRunsWithoutATicketTest(AcsWorkspaceCase):
 
-    def test_step_start_and_finish(self):
-        # A real invocation's pre-hook records the run over the prompt; stand in for it.
-        new = self.run_script("acs.py", "run", "new", "--prompt", "audit the design: all")
-        self.assertEqual(new.returncode, 0, new.stderr)
-        start = self.run_script("acs.py", "step", "start", "--step", "audit-design")
+    def start(self, *extra):
+        start = self.run_script("acs.py", "step", "start", "--step", "audit-design", *extra)
         self.assertEqual(start.returncode, 0, start.stderr)
-        ctx = json.loads(start.stdout)
-        self.assertEqual(ctx["agents"].get("gap-analyst"), "acs:audit-design-gap-analyst")
+        return json.loads(start.stdout)
+
+    def finish(self, ctx):
         result = {"status": "completed", "summary": "no gaps",
                   "states": {"audit": {"scope": "all", "drifted": 0}}}
-        done = self.run_script("post-audit-design.py", "--run", ctx["run_id"],
-                               stdin=json.dumps(result))
+        done = self.run_script("post-audit-design.py", stdin=json.dumps(result))
         self.assertEqual(done.returncode, 0, done.stderr)
+        return json.loads(done.stdout)
+
+    def test_a_fresh_checkout_gets_a_run_that_the_post_hook_concludes(self):
+        ctx = self.start("--args", "wishlist")
+        self.assertEqual(ctx["agents"].get("gap-analyst"), "acs:audit-design-gap-analyst")
+        out = self.finish(ctx)
+        self.assertEqual((out["run_id"], out["run_status"]), (ctx["run_id"], "completed"))
+        # Concluded and unpointed: the next audit opens a run of its own.
+        self.assertNotEqual(self.start()["run_id"], ctx["run_id"])
+
+    def test_a_run_opened_for_the_audit_is_resumed(self):
+        new = self.run_script("acs.py", "run", "new", "--prompt", "audit the design: all")
+        self.assertEqual(new.returncode, 0, new.stderr)
+        run_id = json.loads(new.stdout)["run_id"]
+        self.assertEqual(self.start()["run_id"], run_id)
 
 
 class RegistryTest(unittest.TestCase):

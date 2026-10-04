@@ -15,7 +15,7 @@ import os
 import shutil
 import sys
 
-from ._common import (DELIVERY_TICKET_SKILLS, GateError, WorkflowError, now_iso,
+from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS, GateError, WorkflowError, now_iso,
                       read_json, write_json)
 from .repo import (GuardTimeout, archive_dir, current_branch,
                    find_ticket_partition, index_path, repo_dir, sessions_dir)
@@ -315,6 +315,11 @@ def run_post(skill):
     elif skill in DELIVERY_TICKET_SKILLS:
         # The run exists only to carry this skill's delivery ticket; it ends
         # when the skill does, and the pointer is cleared below with it.
+        doc = run_machine.conclude_standalone_run(rdir, skill, status)
+    elif skill in AUDIT_SKILLS:
+        # The run `step start` opened over the audit's invocation ends with it;
+        # a run that also carries workflow steps is left alone (the helper
+        # refuses one).
         doc = run_machine.conclude_standalone_run(rdir, skill, status)
 
     ticket_id = (doc.get("subject") or {}).get("ticket_id")

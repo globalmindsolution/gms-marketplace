@@ -23,10 +23,11 @@ The scope is `$ARGUMENTS`: a feature slug → `hld/` plus `lld/<slug>/`; `hld` �
 only; `all` or nothing → the HLD and every `lld/<feature>/`. Then:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step audit-design
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step audit-design --args "$ARGUMENTS"
 ```
 
-If it exits non-zero, stop and surface its stderr verbatim. Otherwise parse the
+An audit needs no ticket: `step start` opens a run over the invocation (or resumes
+this checkout's interrupted audit), and the post-hook concludes it. If it exits non-zero, stop and surface its stderr verbatim. Otherwise parse the
 printed context JSON: `partition`, `run_id`, `settings`, `agents` (the agent name to
 spawn per role; the gap analyst's model and effort come from
 `settings.models.audit-design.gap-analyst`, inheriting when unset), `reconcile`,

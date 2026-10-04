@@ -37,6 +37,10 @@ WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
                    "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
                    "merge-pr", "audit-design"]
 PLANNING_SKILLS = ["create-design"]
+# The Audit skills (ADR-0122/0123): ticketless and read-only. `step start` opens
+# (or resumes) a run over the invocation for them, and their post-hook concludes
+# it, so no ticket and no workflow step is ever needed.
+AUDIT_SKILLS = ["audit-design"]
 HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 # `code`'s four delivery-path legs (ADR-0095). Each is a real Skill-tool call
 # and must pass the SAME gate `code` passes -- but it is NOT in HOOKED_SKILLS,
