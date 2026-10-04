@@ -36,7 +36,7 @@ WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
                    "create-api-contract", "create-test-docs", "code", "review-code",
                    "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
                    "merge-pr", "audit-design", "audit-security"]
-PLANNING_SKILLS = ["create-design"]
+PLANNING_SKILLS = ["create-design", "create-data-design", "create-flows"]
 # The Audit skills (ADR-0122/0123): ticketless and read-only. `step start` opens
 # (or resumes) a run over the invocation for them, and their post-hook concludes
 # it, so no ticket and no workflow step is ever needed.
