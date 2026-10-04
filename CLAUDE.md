@@ -111,7 +111,7 @@ golden suite, a schema-constraint generator, mutation sweeps, a tier-3 session m
 routing dataset with a renderer, and a Python behavioural harness. All of it was retired in
 favour of the documented format; git history has it. Two limits came with that, both recorded in
 the suite README: an explicit `/acs:<skill>` invocation is not reliably observable (it can be
-expanded before any model turn, so no `Skill` call happens), and three routing prompts presuppose
+expanded before any model turn, so no `Skill` call happens), and two routing prompts presuppose
 context the empty eval workspace lacks.
 
 **No eval runs in CI** (ADR-0022, ADR-0108). The invariant is a grep that must keep
