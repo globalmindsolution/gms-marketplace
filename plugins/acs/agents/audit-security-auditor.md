@@ -78,7 +78,8 @@ injection in an admin-only offline script is not `critical`.
 
 ## Your report
 
-Write `steps/audit-security/iter-1/auditor-<slice>.md`:
+Write `steps/audit-security/iter-<n>/auditor-<slice>.md` (`<n>` is your task's
+`iteration`, always 1):
 
 - `## Examined` — what you read and ran, with paths and commands.
 - `## Coverage` — what you could not examine and why (no scanner, binary file, path
@@ -88,7 +89,7 @@ Write `steps/audit-security/iter-1/auditor-<slice>.md`:
   source to sink, the scanner output), the exploit scenario in two or three
   sentences, and the fix guidance.
 
-Then `steps/audit-security/iter-1/auditor-<slice>.json` recording `commands` (each
+Then `steps/audit-security/iter-<n>/auditor-<slice>.json` recording `commands` (each
 command or search with its outcome), `scanners` (`ran` and `unavailable`) and `counts`
 by severity.
 

@@ -68,7 +68,7 @@ un-namespaced name only if the runtime rejects it).
 background anyway, wait for its completion notification — never poll with `sleep`
 loops. The same rule governs stage 2.
 
-Validate every message — the SubagentStop hook checks each one a subagent returns; on
+Validate every auditor message — the SubagentStop hook checks each one it returns; on
 an invalid message re-request it once, then fail the run with the error recorded.
 
 ## Stage 2 — adjudication
@@ -89,6 +89,11 @@ defaults to refuted when uncertain.
 | `confirmed` | a finding at the adjudicated severity, with its `resolved_when` |
 | `needs-context` | advisory — carried with what the adjudicator could not read, never dropped |
 | `refuted` | counted, with its reason kept in `adjudication-<id>.json` |
+
+An adjudicator's ruling is read from its `adjudication-<id>.json`, never from its
+message: the SubagentStop hook checks the auditors' messages, not the adjudicators'
+(as in /acs:review-code). An adjudication file that is missing or unreadable is
+re-requested once, then the finding is carried as advisory with that reason.
 
 **Corroboration is not a filter.** Two auditors raising one weakness does not confirm
 it, and one auditor alone does not weaken it; per-finding refutation is the filter.
@@ -123,8 +128,17 @@ rotated.
 
 ## User interaction
 
-None. The audit asks nothing and offers nothing: no ticket, no fix. If the scope
-argument names a path that does not exist, stop with that as the summary.
+None. The audit asks nothing and offers nothing: no ticket, no fix, and it never
+opens a grouped interaction. If the scope argument names a path that does not exist,
+stop with that as the summary.
+
+**Clarification ledger first.** Before settling anything an answer would decide — a
+focus note that names no path, a scope that matches two areas — run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list` and reuse any
+recorded answer. With none, take the wider reading, record it with
+`clarify.py add --skill audit-security --question "..." --source assumption
+--rationale "..."` (one `C-<n>` per decision; never skip, merge or auto-answer a
+question outside that assumption rule), and say so under **Scope and coverage**.
 
 ## Context pressure
 

@@ -21,6 +21,8 @@ share NO memory with the coordinator or the auditor.
 
 1. Read the cited evidence yourself. Do not take the claim's word for what a file
    contains or what a scanner said — re-run a read-only command where one is cited.
+   "A middleware guards this" is a refutation only if you read the middleware and
+   the route's registration.
 2. Try to construct the case that the finding is **wrong**:
    - the sink is unreachable — no route, job or CLI calls it;
    - the input is not attacker-controlled — it comes from config, a constant, or a
@@ -59,7 +61,8 @@ not make, restated as what a fix must make true — not the claim negated.
 
 ## Your record
 
-Write `steps/audit-security/iter-1/adjudication-<finding id>.json`: the finding id,
+Write `steps/audit-security/iter-<n>/adjudication-<finding id>.json` (`<n>` is your
+task's `iteration`, always 1): the finding id,
 your verdict, your reason, the evidence you checked (paths with lines, commands with
 output), the adjudicated severity, and `resolved_when` when you confirmed. Every
 ruling — a refuted finding survives only here. **Never write a secret's value**: its
@@ -67,18 +70,30 @@ location, kind and redacted form only.
 
 ## Grounding (anti-hallucination)
 
-Your ruling must be traceable to what you actually read in THIS task:
+Every decision, claim, and finding you produce must be traceable to a source
+you actually read or ran in THIS task:
 
-- **Cite the source next to the statement it supports**: the file and lines you
-  opened, the command you ran and its output.
-- **Never assert what you did not observe.** "A middleware guards this" is a
-  refutation only if you read the middleware and the route's registration.
-- **As a reviewer you police grounding too**: a candidate whose evidence does not
-  say what the claim says is refuted on exactly that ground, and your reason names the
-  gap.
-- **Precision is not the test; truth is.** A citation at the wrong lines does not
-  refute a finding whose cited fact holds. Note the correct location and rule on the
-  substance.
+- **Cite the source next to the statement it supports** in your phase
+  artifact: file path with line numbers or section heading for anything based
+  on repo code, docs, the ticket, specs, design, or workspace state.
+- **Quote the exact command and the relevant output** for anything based on a
+  command run (tests, builds, coverage, git/gh state).
+- **Never assert what you did not observe**: the content of a file you did not
+  open, an API you did not check, a test result you did not see. If an input
+  referenced in your `<task>` is missing or unreadable, report it in
+  `<errors>` instead of working from an assumed version.
+- **Mark unverifiable points as assumptions**, with the reason the assumption
+  is needed — an assumption is a finding for the coordinator to resolve, never
+  a silent default baked into your output.
+- **As adjudicator, police grounding too**: a candidate finding whose evidence
+  does not say what its claim says is refuted on exactly that ground, and your
+  reason names the gap — unverifiable work is unverified work.
+- **Precision is not the test; truth is.** A citation that names the right
+  file but the wrong lines or section, or a paraphrase looser than its
+  source, is not a finding while the cited fact holds — note the correct
+  location in your record and rule on the substance. What blocks: a source
+  that does not say what the draft claims (here, the candidate finding), a
+  file that does not exist, or a repo fact asserted with no citation at all.
 
 ## Your result
 

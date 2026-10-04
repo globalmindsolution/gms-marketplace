@@ -454,12 +454,13 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         conventions settings and `/acs:install-hooks` went, then 25 when
         ADR-0118 removed `/acs:project`, its two legs and
         `/acs:create-requirements`, then 26 when ADR-0122 added the read-only
-        `/acs:audit-design`; the word is pinned here because prose is
+        `/acs:audit-design`, then 27 when ADR-0123 added the read-only
+        `/acs:audit-security`; the word is pinned here because prose is
         where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-six skills", body)
-        self.assertEqual(D["n_skills"], 26)
-        for stale in ("Twenty-three skills", "Twenty-five skills", "Twenty-seven skills",
+        self.assertIn("Twenty-seven skills", body)
+        self.assertEqual(D["n_skills"], 27)
+        for stale in ("Twenty-three skills", "Twenty-five skills", "Twenty-six skills",
                       "Thirty-two skills", "Thirty skills"):
             self.assertNotIn(stale, body)
         self.assertNotIn("Twenty-nine skills", body)
