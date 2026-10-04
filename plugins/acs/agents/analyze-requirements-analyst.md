@@ -80,6 +80,11 @@ here. Start from the previously published analysis when `<inputs>` names one
    cross-component change, a new persisted format, a security or data-migration
    decision, or several plausible architectures with different user-visible
    outcomes. This is a RECOMMENDATION for the user, never a ticket write.
+   In the same pass, check `ticket.features` — the slugs of the PRD features
+   the ticket traces to (`acs.py slug --text "<PRD feature name>"`; ADR-0120),
+   which name the `lld/<feature>/` folders its design lives in — against the
+   PRD features the work actually touches; a missing, extra or misspelt slug
+   is a correction to propose, again never a ticket write.
 3. **Acceptance criteria that need refining.** Quote each criterion and mark
    it: testable as written; ambiguous (two readings); untestable (no observable
    outcome); contradicted by the codebase; or missing (a behaviour the ticket
@@ -100,7 +105,8 @@ here. Start from the previously published analysis when `<inputs>` names one
      `Assumed: <default> — confirm or correct`, citing the convention.
    - **(c) Proposed refined acceptance criteria** — each rewrite from step 3,
      and each missing criterion, quoted in full.
-   - **(d) needs_design recommendation** — from step 2, when you have one.
+   - **(d) needs_design recommendation and `features` correction** — from
+     step 2, when you have one (the proposed `features` list in full).
 
    Researchable facts are never questions: everything the code, the docs, the
    ledger or the previous analysis can answer, you answer yourself. A question
