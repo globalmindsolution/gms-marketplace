@@ -409,7 +409,7 @@ def _standalone_run(ctx, step, text):
 _audit_run = _standalone_run
 
 
-def _record_baseline(rdir, ctx):
+def _record_baseline(rdir, ctx, step=None):
     """The run's baseline (ADR-0127), recorded once, at its first step start:
     the HEAD it began from and the paths already dirty then. Fail-soft -- a
     baseline that cannot be taken (no git, a broken index) is a warning, never
@@ -418,7 +418,7 @@ def _record_baseline(rdir, ctx):
     if not root or lib.changes.load_baseline(rdir) is not None:
         return
     try:
-        lib.changes.record_baseline(rdir, root)
+        lib.changes.record_baseline(rdir, root, first_step=step)
     except (lib.GateError, OSError) as exc:
         sys.stderr.write("acs step start: no baseline recorded for %s: %s\n"
                          % (os.path.basename(rdir), exc))
@@ -526,7 +526,7 @@ def cmd_step_start(args):
         # that never fired the hook -- which is why the run reports itself
         # degraded rather than pretending either way.
         lib.append_invocation(rdir, args.step, doc["run_id"], gate=verdict)
-        _record_baseline(rdir, _ctx)
+        _record_baseline(rdir, _ctx, args.step)
         if evidence is not None:
             lib.consume_gate_evidence(ctx, evidence)
         lib.point_checkout_at(ctx, doc["run_id"], args.step)

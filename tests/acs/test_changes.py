@@ -202,6 +202,27 @@ class ChangesetTest(GitRepoCase):
                                     "b.txt": "deleted"})
         self.assertEqual(self.paths(cs["excluded"]), ["a.txt"])
 
+    def test_a_run_that_starts_by_reading_existing_work_adopts_the_dirty_paths(self):
+        # /acs:review-code (or docs-sync, create-pr, run-e2e-tests) as a run's
+        # FIRST step is about the hand-written changes already in the tree:
+        # leaving them out would review an empty changeset, silently.
+        write(self.root, "a.txt", "hand-written fix\n")
+        for step in C.ADOPTING_FIRST_STEPS:
+            rdir = os.path.join(self.tmp, "run-" + step)
+            baseline = C.record_baseline(rdir, self.root, first_step=step)
+            self.assertTrue(baseline["adopts_dirty"])
+            self.assertEqual(baseline["first_step"], step)
+            cs = C.changeset(self.root, baseline=baseline)
+            self.assertEqual(self.paths(cs["files"]), ["a.txt"], step)
+            self.assertEqual(cs["excluded"], [], step)
+
+    def test_a_run_that_starts_by_writing_leaves_the_dirty_paths_out(self):
+        write(self.root, "a.txt", "someone's work in progress\n")
+        baseline = C.record_baseline(self.rdir, self.root, first_step="code")
+        self.assertFalse(baseline["adopts_dirty"])
+        cs = C.changeset(self.root, baseline=baseline)
+        self.assertEqual(self.paths(cs["excluded"]), ["a.txt"])
+
     def test_since_a_review_snapshot_shows_only_what_followed_it(self):
         baseline = C.record_baseline(self.rdir, self.root)
         write(self.root, "src/one.py")

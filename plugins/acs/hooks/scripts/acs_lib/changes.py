@@ -169,7 +169,15 @@ def load_baseline(rdir):
     return doc if isinstance(doc, dict) else None
 
 
-def record_baseline(rdir, checkout_root):
+#: A run whose FIRST step is one of these reads work that already exists --
+#: hand-written changes to review, document, ship or test. The paths dirty at
+#: its baseline are its subject, not someone else's work in progress, so the
+#: changeset keeps them. A run that starts by writing (analysis, plan, code)
+#: leaves them out instead: they were there before it and are not its output.
+ADOPTING_FIRST_STEPS = ("review-code", "docs-sync", "create-pr", "run-e2e-tests")
+
+
+def record_baseline(rdir, checkout_root, first_step=None):
     """Write `<run>/baseline.json` once per run, never overwriting it. Returns
     the baseline (the existing one when already recorded)."""
     existing = load_baseline(rdir)
@@ -185,6 +193,8 @@ def record_baseline(rdir, checkout_root):
         "tree": tree,
         "dirty": dirty,
         "dirty_blobs": blobs(checkout_root, tree, dirty),
+        "first_step": first_step,
+        "adopts_dirty": first_step in ADOPTING_FIRST_STEPS,
         "recorded_at": now_iso(),
     }
     os.makedirs(rdir, exist_ok=True)
@@ -202,7 +212,9 @@ def changeset(root, since=None, baseline=None, tree=None):
     `since` defaults to the baseline's `base_sha` (the empty tree on a run that
     began on an unborn branch). A path the baseline found already dirty is
     left out -- reported under `excluded` -- unless its content changed again
-    since the baseline. Returns {"since", "tree", "files", "excluded"}."""
+    since the baseline, or the run adopted it (`adopts_dirty`: its first step
+    reads existing work, ADOPTING_FIRST_STEPS). Returns {"since", "tree",
+    "files", "excluded"}."""
     if since is None:
         if baseline is None:
             raise GateError("no baseline recorded for this run and no --since given -- "
@@ -211,7 +223,8 @@ def changeset(root, since=None, baseline=None, tree=None):
     resolve_tree(root, since)
     tree = tree or snapshot(root)
     entries = name_status(root, since, tree)
-    dirty = set((baseline or {}).get("dirty") or [])
+    adopted = bool((baseline or {}).get("adopts_dirty"))
+    dirty = set() if adopted else set((baseline or {}).get("dirty") or [])
     recorded_blobs = (baseline or {}).get("dirty_blobs") or {}
     candidates = [e["path"] for e in entries if e["path"] in dirty]
     now_blobs = blobs(root, tree, candidates)

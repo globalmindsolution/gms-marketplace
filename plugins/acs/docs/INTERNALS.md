@@ -1060,7 +1060,10 @@ tree, so reading it takes three pieces in `acs_lib/changes.py`:
 - **Baseline** — `runs/<run-id>/baseline.json`, written once by the run's first
   `acs step start` and never overwritten (ticketless runs too): `{base_sha,
   branch, dirty: [paths dirty or untracked at that moment, with their blob ids],
-  recorded_at}`. A file the user was already editing is not the run's.
+  first_step, adopts_dirty, recorded_at}`. A file the user was already editing is
+  not the run's — unless the run's FIRST step reads existing work (`review-code`,
+  `docs-sync`, `create-pr`, `run-e2e-tests`: `adopts_dirty`), where the hand-written
+  changes already in the tree are exactly its subject and stay in the changeset.
 - **Snapshot** — `acs changes snapshot`: a tree id of the full working tree,
   untracked non-ignored files included, built through a throwaway
   `GIT_INDEX_FILE` so the real index and the tree are untouched. The verdict's

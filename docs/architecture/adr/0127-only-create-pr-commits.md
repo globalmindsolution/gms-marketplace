@@ -69,7 +69,10 @@ commit; the rest of the pipeline did not follow.
 - **Baseline.** The first `acs.py step start` of a run writes `<run>/baseline.json`
   once and never overwrites it: the HEAD the run started from, the branch, and every
   path already dirty or untracked at that moment with its blob id. Ticketless runs
-  record one too.
+  record one too. Those paths are left out of the run's changeset — someone else's
+  work in progress — except when the run's first step reads existing work
+  (review-code, docs-sync, create-pr, run-e2e-tests): then the hand-written changes
+  are its subject, and the baseline records `adopts_dirty`.
 - **Snapshot.** `acs.py changes snapshot` returns a git tree id of the whole working
   tree, untracked non-ignored files included, built in a throwaway index so the real
   index and the tree are never touched. `/acs:review-code` records it as the verdict's
