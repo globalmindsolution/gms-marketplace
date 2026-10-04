@@ -992,7 +992,7 @@ write. The coordinator performs ONE action at a time and reports it:
 | `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
 | `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 and runs `front_matter_check` and `structure_lint` on it — beside the review, not after it (ADR-0125) — listing their findings as the `review` action's `draft_checks` | `review` |
 | `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>`, and folds in the draft's check findings (slice `draft-checks`) | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
-| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `conventions.COMMIT_SUBJECT`; never pushes | (unchanged) |
+| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only — plus the `lld/` files the ticket's completed `create-data-design` / `create-flows` results list in `states.files` (`analysis_publish.recorded_lld_files`: existing, inside the checkout, under an `lld/` directory; recorded as `publication.lld_files`) — with `conventions.COMMIT_SUBJECT`; never pushes | (unchanged) |
 | `record-publication` | re-reads the published bytes and `git show HEAD:<path>` | `completed` |
 
 Rules the code holds, each with a transition test in
@@ -1029,7 +1029,10 @@ document commits it on the ticket branch. `ticket.md` and `design.md` are
 published in the Design phase, BEFORE a ticket branch exists — acs never
 commits to the default branch — so their writers leave them in the working
 tree and `/acs:analyze-requirements`, the first Build step, commits the ticket's
-whole docs folder when it creates the branch.
+whole docs folder when it creates the branch. The low-level design documents
+`/acs:create-data-design` and `/acs:create-flows` write under
+`<architecture_dir>/lld/<feature>/` ride the same commit: each records the paths
+it wrote in its result's `states.files`, and the publish stages exactly those.
 
 ```
 <checkout>/docs/tickets/<ticket-id>/    # fixed: artifacts.TICKETS_PATH

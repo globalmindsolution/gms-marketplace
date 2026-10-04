@@ -629,7 +629,10 @@ commits that folder ONLY, in the repo's own commit style naming the ticket id. I
 when the ticket needed one, `design.md` were published in the Design phase
 before this branch existed, and acs never commits to the default branch, so
 this first Build commit is what carries them into the branch and into the PR
-(ADR 0090). It never pushes. `record-publication` re-derives all of it — the
+(ADR 0090). For the same reason it also stages the low-level design files the
+ticket's `/acs:create-data-design` and `/acs:create-flows` runs recorded in their
+result's `states.files` — only existing files inside the checkout under an
+`lld/` directory, never anything else. It never pushes. `record-publication` re-derives all of it — the
 published bytes are the reviewed bytes, and HEAD carries them — and completes
 the loop.
 
