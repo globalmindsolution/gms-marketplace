@@ -538,7 +538,7 @@ MANDATORY final step — never skipped, also on failure:
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
    names): `architecture` and `files`. `hld` entries are paths relative to
    `<path>/hld/`; `files` lists EVERY repo path written, repo-relative — the
-   paths `/acs:create-pr --docs` (docs-only mode) commits:
+   paths `/acs:create-pr --docs` commits:
 
 ```json
 {
@@ -571,8 +571,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --resu
 ```
 
 3. Report a compact summary to the user: mode, the uncommitted files written,
-   review iterations, and that `/acs:create-pr` (docs-only mode, after their
-   review) commits them and opens the PR — for a greenfield product, the next
+   review iterations, and that `/acs:create-pr --docs` (after their review)
+   commits them and opens the PR — for a greenfield product, the next
    step is to ticket the scaffold (`/acs:create-ticket "Scaffold the repository
    per the architecture docs"`) and ship it. If you genuinely cannot reach the user (a non-interactive run),
    return ONLY the `<handoff>` XML as your final message: status, summary under 1 KB,

@@ -522,8 +522,8 @@ MANDATORY final step — never skipped, also on failure.
    }
    ```
 
-   `files` lists EVERY repo path written, repo-relative — `/acs:create-pr`'s
-   docs-only mode commits exactly these. On failure keep whatever is true:
+   `files` lists EVERY repo path written, repo-relative — `/acs:create-pr
+   --docs` commits exactly these. On failure keep whatever is true:
    status `failed`, remaining reviewer findings in `findings`, `states.prd` and,
    in `states.files`, the files written so far, and the reason in `summary`.
 

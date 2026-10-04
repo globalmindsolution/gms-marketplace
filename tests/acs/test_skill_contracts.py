@@ -1072,7 +1072,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         self.assertIn('"files": ["docs/product/prd.md", "docs/product/roadmap.md"]', body)
         self.assertIn("uncommitted changes", body)
         self.assertIn("/acs:create-pr", body)
-        self.assertIn("docs-only mode", body)
+        self.assertIn("/acs:create-pr --docs", body)
         self.assertNotIn('"pr":', body)
 
     def test_no_regression_create_architecture(self):
@@ -1080,7 +1080,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
         self.assertIn('names): `architecture` and `files`', body)
         self.assertIn("uncommitted changes", body)
         self.assertIn("/acs:create-pr", body)
-        self.assertIn("docs-only mode", body)
+        self.assertIn("/acs:create-pr --docs", body)
         self.assertNotIn('"pr":', body)
         # The clean-tree requirement belonged to the branch it was cut for.
         self.assertNotIn("git status --porcelain", body)

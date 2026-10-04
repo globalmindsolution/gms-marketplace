@@ -173,8 +173,7 @@ class PlanTicketTest(CommitPlanCase):
         ])
         paths = {g["id"]: g["paths"] for g in plan["groups"]}
         self.assertEqual(paths["ticket-docs"], sorted([
-            self.docs + "/analysis.md", self.docs + "/design.md", self.docs + "/ticket.md",
-            "todo.md"]))
+            self.docs + "/analysis.md", self.docs + "/design.md", "todo.md"]))
         self.assertEqual(paths["design"], ["docs/architecture/hld/overview.md"])
         self.assertEqual(paths["slice-1-tests"], ["tests/test_api.py"])
         # A file the slice and docs-sync both touched lands once, in the slice.
@@ -260,6 +259,15 @@ class PlanTicketTest(CommitPlanCase):
         plan = self.plan("--ticket", self.ticket)
         self.assertEqual(plan["groups"][0]["paths"], ["docs/elsewhere/analysis.md"])
 
+    def test_the_tickets_own_docs_folder_counts_even_when_dirty_at_the_baseline(self):
+        """`--allocate` writes ticket.md before the first step's baseline."""
+        write(self.repo, self.docs + "/early.md")
+        self.baseline()
+        plan = self.plan("--ticket", self.ticket)
+        self.assertEqual([(g["id"], g["paths"]) for g in plan["groups"]],
+                         [("ticket-docs", [self.docs + "/early.md"])])
+        self.assertNotIn(self.docs + "/early.md", plan["excluded"])
+
     def test_refusals(self):
         self.assertIn("no baseline", self.run_script(
             "acs.py", "pr", "plan-commits", "--ticket", self.ticket).stderr)
@@ -282,6 +290,7 @@ class PlanDocsTest(CommitPlanCase):
         write(self.repo, "docs/architecture/lld/billing/data.md")
         write(self.repo, "docs/architecture/hld/context.md")
         write(self.repo, "docs/product/prd.md")
+        write(self.repo, "docs/tickets/SHOP-1/notes.md")
         write(self.repo, "README.md", "new readme\n")
         os.remove(os.path.join(self.repo, ".acs", "settings.json"))
         os.rmdir(os.path.join(self.repo, ".acs")) if not os.listdir(
@@ -294,7 +303,7 @@ class PlanDocsTest(CommitPlanCase):
             ("docs-lld-checkout", "Update LLD checkout",
              ["docs/architecture/lld/checkout/flows.mmd"]),
             ("docs-adr", "Update ADRs", ["docs/architecture/adr/0009-queue.md"]),
-            ("docs-tickets-SHOP-1", "Update ticket SHOP-1 docs", ["docs/tickets/SHOP-1/ticket.md"]),
+            ("docs-tickets-SHOP-1", "Update ticket SHOP-1 docs", ["docs/tickets/SHOP-1/notes.md"]),
             ("docs-other", "Update docs", ["README.md"]),
         ])
         self.assertEqual(plan["mode"], "docs")

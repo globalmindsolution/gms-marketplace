@@ -311,7 +311,7 @@ class TicketlessDeliveryTest(unittest.TestCase):
         delivery = norm(section(read(PRD_SKILL), "## Delivery", "## User interaction"))
         self.assertIn("no branch, no commit, no push, no PR", delivery)
         self.assertIn("`states.files`", delivery)
-        self.assertIn("`/acs:create-pr`", delivery)
+        self.assertIn("`/acs:create-pr --docs`", delivery)
         self.assertNotIn("Prepare the delivery branch", body)
         self.assertNotIn("--allocate", body)
 

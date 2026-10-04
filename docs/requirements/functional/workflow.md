@@ -81,10 +81,10 @@ human drives after review.
 | `create-test-docs` | build | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. Records an evidenced no-op when the Contract says `owes.test_cases: false`. |
 | `code` | build | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. It dispatches to the delivery-path leg the plan recorded. **It has no verifier, does not judge the changeset, and never runs the full suite** — targeted tests only. |
 | `review-code` | build | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding, then a final gate running build, lint, the full unit suite and coverage. **The only place the full suite runs.** Blocking findings re-enter at `code` through the workflow's single loop — see [Review feedback loop](#review-feedback-loop). |
-| `create-e2e-tests` | test | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, committed on the ticket branch. Records an evidenced no-op when no e2e suite is configured or the Contract says `owes.e2e: false`. |
+| `create-e2e-tests` | test | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, left uncommitted. Records an evidenced no-op when no e2e suite is configured or the Contract says `owes.e2e: false`. |
 | `run-e2e-tests` | test | Run this product's configured suites for the subject, scoped from `test-cases.md`. Records an evidenced no-op when there is nothing configured to run. |
-| `docs-sync` | build | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and `/acs:review-code`'s verdict rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
-| `create-pr` | ship | Create a pull request shipping the implementation. It is the last step in the list, so `/ship` ends there. |
+| `docs-sync` | build | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the run's changeset (`acs.py changes diff`), `/code`'s `result.json` and `/acs:review-code`'s verdict rather than from a hand-off summary; writes into the same working tree, uncommitted, never a branch or a PR of its own. |
+| `create-pr` | ship | The one step that branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)): split the working tree's uncommitted changes into small commits (ticket docs, design docs, per plan slice its tests then its code, doc updates, e2e suites), preview them for the user to confirm, commit on the ticket branch, push, and open the pull request. It is the last step in the list, so `/ship` ends there. |
 | — `/merge-pr` | ship | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
 **There is no predicate vocabulary.** The `when:` / `requires:` kinds, their
@@ -129,8 +129,8 @@ an epic do **not** repeat design: they inherit the parent epic's `design.md`.
 Lead runs them on a ticket whose persisted data or behaviour they want designed
 before implementation. Neither takes a run position, and neither branches,
 commits or opens a PR: each leaves its `lld/` documents as local uncommitted
-changes and lists every path it wrote in its result's `states.files` for the
-user to review and commit.
+changes and lists every path it wrote in its result's `states.files`, for
+`/create-pr` to commit with the ticket's design documents.
 
 ### Where a ticket's artifacts live
 
@@ -141,11 +141,13 @@ document belongs to exactly one of them:
   with no setting and no opt-out
   ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)), holds the
   **human-facing ticket documents**: `ticket.md`, `design.md`,
-  `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`. They are
-  committed on the ticket branch and reviewed in the PR like any other doc.
+  `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`. The skills
+  that write them leave them uncommitted; `/create-pr` commits the folder as
+  the first commit of the ticket's PR, where they are reviewed like any other
+  doc ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)).
   The ticket's low-level design documents live in the architecture set
-  instead, under `lld/<feature>/` (ADR-0126), and no skill commits them: the
-  user reviews and commits them.
+  instead, under `lld/<feature>/` (ADR-0126), and go into the PR's
+  design-documents commit.
 - **The workspace run** — `<workspace>/<repo>/runs/<run-id>/` holds the **run
   ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
   machine), each step's `result.json` and its `iter-<n>/` audit trail,
@@ -505,6 +507,12 @@ would require a shared or synced workspace — out of scope for now.
   `.acs/state-machine/` tree, so the same ticket pipeline can run inside a
   dedicated git worktree without state colliding with other worktrees
   (ADR-0086).
+- **One checkout, one changeset.** No step commits before `/create-pr`
+  (ADR-0127), so a run's changes are the working tree's. Two tickets in flight
+  in one checkout share that working tree and so one changeset; the run's
+  baseline keeps files that were dirty before it started out of its commits,
+  but it cannot tell two concurrent runs' new files apart. Run concurrent
+  tickets in a worktree each.
 - **Step-level parallelism within one run is declared, never computed.**
   `ship.yaml` v3 rejects `max_parallel` and `exclusive`; the only overlap is a
   parallel group the list itself declares (ADR-0110), whose members
@@ -591,7 +599,8 @@ ticket:
    problem, personas, goals with success metrics, prioritized features,
    product-level NFRs, constraints; shipped as the PRD doc set.
 3. **`/create-architecture`** — design the system to satisfy the PRD;
-   produce the full system design (HLD + LLD).
+   produce the high-level design (`hld/`). Then **`/create-pr --docs`**
+   commits both doc sets, one commit each, and opens one docs-only PR.
 4. **`/create-ticket "Scaffold the repository per the architecture docs"`**,
    then **`/ship`** it — the repo skeleton is ordinary ticket work
    ([ADR-0118](../../architecture/adr/0118-discovery-design-development-phases.md)):
@@ -606,13 +615,13 @@ ticket:
 6. **`/ship`** each child through the pipeline; **`/merge-pr`** after your
    own review.
 
-Each product-level step (2–3) creates its own **delivery ticket** and PR,
-and the scaffold (4) is a ticket of its own with its own PR
-([skills.md](skills.md#product-level-delivery-tickets)), so even the
-bootstrap work is tracked in project management — a fresh product's history
-starts at ticket #1.
+The product-level steps (2–3) run without a ticket and leave their documents
+uncommitted; `/create-pr --docs` delivers them as one docs-only PR, one commit
+per doc set ([skills.md](skills.md#product-level-delivery-no-ticket)). The
+scaffold (4) is the first ticket, with its own PR, so a fresh product's
+ticket history starts at ticket #1.
 
 From then on the product is effectively brownfield: the pipeline maintains
 the architecture docs as changes land, the PRD is amended via `/create-prd`
-re-runs (each amendment a new ticket) when scope grows, and the scaffold
+re-runs (each amendment delivered through `/create-pr --docs`) when scope grows, and the scaffold
 ticket is never needed again.
