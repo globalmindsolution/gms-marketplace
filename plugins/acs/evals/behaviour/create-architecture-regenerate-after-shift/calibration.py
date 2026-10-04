@@ -4,7 +4,11 @@ tests/evals/check_grader_calibration.py). The ideal run: `acs step start
 HLD in place against the new code (stale worker and Redis out; the orders API
 in; the two HLD files the old set lacked created), every file under lld/ is
 left exactly as it was, the coordinator commits and pushes the delivery
-branch, gh fails, and the result document goes through the real post-hook."""
+branch, gh fails, and the result document goes through the real post-hook.
+Beside the survey, one gap analyst compares the existing HLD with the code and
+its notes are joined into iter-1/gaps.md (ADR-0122); the old set predates
+version front matter, so every hld/ file the run writes gets its first block
+through `acs design init --status implemented`."""
 
 import json
 import os
@@ -56,6 +60,12 @@ LLD_REWRITE = {
                                 "  shop-->>Shopper: page of orders\n```\n",
 }
 
+GAPS = ("## Unimplemented\n\n- **export-worker container** and its **Redis `exports` queue** "
+        "-- hld/c4-container.md, hld/deployment.md; code: absent (src/export_worker deleted by "
+        "the latest commit).\n\n## Undocumented\n\n- **orders API** -- `GET "
+        "/orders?customer_id=`, src/shop/orders.py:4; HLD: absent.\n\n## Drifted\n\n_None._\n\n"
+        "## Unverified\n\n_None._\n")
+
 GH_FINDING = {"severity": "critical", "area": "pr",
               "message": "gh pr create failed; the docs-only PR was not opened",
               "error": "gh: command not found", "hint": "check `gh auth status` and repo access"}
@@ -67,10 +77,30 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _deliver(ws, docs=None, drop=()):
+def _gap_analysis(ws):
+    """The gap analyst (slice `repo`) beside the survey, joined by `acs notes
+    merge`: the HLD's export-worker and Redis are designed but no longer
+    built, and the orders API is built but not designed."""
+    ws.write(STEP + "/iter-1/gaps-repo.md", GAPS)
+    merged = ws.acs("notes", "merge", "--out", STEP + "/iter-1/gaps.md",
+                    STEP + "/iter-1/gaps-repo.md")
+    assert merged.returncode == 0, merged.stderr
+
+
+def _deliver(ws, docs=None, drop=(), gaps=True, versioned=True):
+    if gaps:
+        _gap_analysis(ws)
     ws.sh("git checkout -q -b %s main" % BRANCH)
+    written = []
     for rel, text in (REGENERATED if docs is None else docs).items():
         ws.write("%s/%s" % (A, rel), text)
+        if rel.startswith("hld/"):
+            written.append("%s/%s" % (A, rel))
+    if versioned:
+        # The old files carry no block yet, so each gets its first one; the
+        # set documents the code as built after the shift.
+        done = ws.acs("design", "init", "--status", "implemented", "--ticket", "EVAL-1", *written)
+        assert done.returncode == 0, done.stderr
     for rel in drop:
         ws.sh("git rm -q %s/%s" % (A, rel))
     ws.sh("git add %s && git commit -qm 'EVAL-1 Regenerate product architecture doc set'" % A)
@@ -138,6 +168,20 @@ def _no_integration_map(ws):
     _finish(ws, docs=docs)
 
 
+def _unversioned(ws):
+    """Regenerated the HLD but gave no file its version front matter."""
+    _start(ws)
+    _deliver(ws, versioned=False)
+    _finish(ws)
+
+
+def _no_gap_analysis(ws):
+    """Rewrote the HLD blind: no gap analyst compared it with the code first."""
+    _start(ws)
+    _deliver(ws, gaps=False)
+    _finish(ws)
+
+
 def _never_pushed(ws):
     _start(ws)
     ws.sh("git checkout -q -b %s main" % BRANCH)
@@ -153,5 +197,7 @@ BAD = {
     "left out hld/cross-cutting.md": _no_cross_cutting,
     "left out hld/integration-map.md": _no_integration_map,
     "regenerated but never committed or pushed": _never_pushed,
+    "regenerated without version front matter": _unversioned,
+    "regenerated with no gap analysis": _no_gap_analysis,
     "allocated the ticket and changed nothing": _start,
 }

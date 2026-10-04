@@ -88,7 +88,7 @@ whatever the status.
 
 **Clarification ledger first.** Before asking anything, run
 `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list` and reuse any recorded
-answer. The audit itself asks nothing. At the end, offer ONE grouped choice: which gap
+answer. The audit itself asks nothing. At the end, offer ONE grouped interaction: which gap
 groups to ticket. On a yes, run `/acs:create-ticket` (Skill tool) once per chosen group
 with the group's gaps and citations as its prompt, and list the ticket ids. Record the
 answer with `clarify.py add --skill audit-design --question "..." --answer "..."` before

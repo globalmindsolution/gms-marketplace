@@ -11,7 +11,10 @@ description: >-
 expected_outcome: >-
   hld/c4-container.md and hld/deployment.md no longer mention export-worker
   or Redis; hld/c4-component.md and the new hld/integration-map.md name the
-  orders API; hld/cross-cutting.md is created; lld/contracts.md,
+  orders API; hld/cross-cutting.md is created; hld/c4-container.md carries
+  version front matter with EVAL-1 in tickets; the run's iter-1/gaps.md files
+  the export worker / Redis as unimplemented and the orders API as
+  undocumented; lld/contracts.md,
   lld/flows/list-customers.md and lld/flows/nightly-export.md are byte for
   byte as the scaffold left them and no lld/ file is added; a task/EVAL-1-*
   branch is pushed; result.json records the gh failure and no PR.

@@ -253,7 +253,20 @@ class InternalsTopologyTest(unittest.TestCase):
                       "twelve triad-keeping skills", "triad-keeping",
                       "9 pre + 9 post", "21 reachable", "27 agent files",
                       "27 files", "43 agent files", "43 files"):
+            if _is_live_agent_count(stale):
+                continue
             self.assertNotIn(stale, body, "stale form %r still in INTERNALS.md" % stale)
+
+
+def _is_live_agent_count(form):
+    """True when a "N agent files" / "N files" stale form names today's count.
+
+    The stale lists in this module hold agent counts that were once wrong. ADR-0122
+    brought the tree back to 27 agent files, the number an earlier refactor
+    left behind, so a literal stale form can become the truth again; it is
+    only stale while it disagrees with the tree."""
+    m = re.match(r"(\d+) (agent )?files$", form)
+    return bool(m) and int(m.group(1)) == D["n_agents"]
 
 
 class OverviewTopologyTest(unittest.TestCase):
@@ -283,9 +296,10 @@ class OverviewTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertNotIn("six **triad-keeping skills**", body)
         self.assertNotIn("triad-keeping", body)
-        self.assertNotIn("27 agent files", body)
+        for stale in ("27 agent files", "43 agent files"):
+            if not _is_live_agent_count(stale):
+                self.assertNotIn(stale, body)
         self.assertNotIn("21 are reachable", body)
-        self.assertNotIn("43 agent files", body)
 
 
 class RoadmapTopologyTest(unittest.TestCase):
@@ -439,13 +453,14 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         when ADR-0104 removed `/acs:metrics` and `/acs:usage`, then 29 when the
         conventions settings and `/acs:install-hooks` went, then 25 when
         ADR-0118 removed `/acs:project`, its two legs and
-        `/acs:create-requirements`; the word is pinned here because prose is
+        `/acs:create-requirements`, then 26 when ADR-0122 added the read-only
+        `/acs:audit-design`; the word is pinned here because prose is
         where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-five skills", body)
-        self.assertEqual(D["n_skills"], 25)
-        for stale in ("Twenty-three skills", "Twenty-seven skills", "Thirty-two skills",
-                      "Thirty skills"):
+        self.assertIn("Twenty-six skills", body)
+        self.assertEqual(D["n_skills"], 26)
+        for stale in ("Twenty-three skills", "Twenty-five skills", "Twenty-seven skills",
+                      "Thirty-two skills", "Thirty skills"):
             self.assertNotIn(stale, body)
         self.assertNotIn("Twenty-nine skills", body)
 

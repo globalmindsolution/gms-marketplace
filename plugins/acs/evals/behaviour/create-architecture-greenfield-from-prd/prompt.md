@@ -11,7 +11,9 @@ expected_outcome: >-
   file was written; c4-container.md names booking-api, reminder-worker and
   PostgreSQL; integration-map.md is a Mermaid flowchart from booking-api and
   reminder-worker out to the SMS gateway; cross-cutting.md carries its four
-  required sections and the GDPR / EU constraint; no source file created; a
+  required sections and the GDPR / EU constraint; hld/c4-container.md opens
+  with version front matter, status proposed, EVAL-1 in tickets (ADR-0122);
+  no source file created; a
   task/EVAL-1-* branch pushed with upstream set; result.json records the gh
   failure and no PR.
 tags: [behaviour]

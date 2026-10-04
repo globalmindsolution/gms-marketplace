@@ -12,10 +12,10 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 25 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 25 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 16 pre + 16 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 16 pre + 16 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 26 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 27 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 17 pre + 17 post |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 17 pre + 17 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
@@ -690,8 +690,9 @@ pipeline end.
 **The `iterations` element.** A skill that runs no reflection loop omits it
 entirely rather than reporting a fraction of a loop it never ran. That is a
 property, not a list: it covers the inline apply-work skills (`create-ticket`,
-`create-pr`, `merge-pr`), the unhooked utilities (`setup`, `update`, `test`,
-`release`), and the orchestrators that drive other skills'
+`create-pr`, `merge-pr`), the read-only `audit-design`, whose gap analysts
+survey and nothing is written for a judge to judge, the unhooked utilities
+(`setup`, `update`, `test`, `release`), and the orchestrators that drive other skills'
 loops without running one of their own (`ship`, `handoff`). The
 ten skills that run a write → judge loop over their own subagents
 report it, with a constant `<cap>` of **3**. `/acs:code` reports the
@@ -779,6 +780,7 @@ every other key below is persisted verbatim from the result document:
 | create-e2e-tests | `suites_written: [...]`, `cases_covered: [...]` |
 | create-pr | `pr` `{number, url, branch, base}` (the /merge-pr brake) |
 | merge-pr | `merged: true/false`, `merge_strategy`, `readiness` `{ci, approvals, conflicts, protections}` |
+| audit-design | `audit` `{scope, report, unimplemented, planned, undocumented, drifted, unversioned, tickets:[...]}` — the counts per gap kind and the tickets minted from them |
 
 On failure, keep whatever is true (e.g. a `/acs:review-code` coverage
 hard-fail records `verifier_passed: false`, achieved coverage, and the reason
@@ -845,7 +847,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-25 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 25 reachable —
+27 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 27 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -867,7 +869,7 @@ setting.
 |---|---|
 | `analyze-requirements` | `analyst` (write — a `requirements` survey lane, a `synthesis` pass, then a `draft` pass after the user's answers) · `impact-analyst` (survey — one per code area, on the `executor` tier) · `impact-reviewer` (judge); the loop is run by a controller, `acs.py analysis` (ADR-0114) |
 | `create-prd` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
-| `create-architecture` | `architect` (write) · `reviewer` (judge) |
+| `create-architecture` | `architect` (write) · `gap-analyst` (survey — one per survey area, spawned beside the survey only when `hld/` already holds documents; ADR-0122) · `reviewer` (judge) |
 | `create-design` | `designer` (write) · `design-reviewer` (judge) |
 | `create-docs` | `author` (write) · `reviewer` (judge), one pair per doc set |
 | `create-impl-plan` | `planner` (write) · `plan-reviewer` (judge) |
@@ -877,6 +879,7 @@ setting.
 | `review-code` | `lens` · `adjudicator` (judge) |
 | `create-e2e-tests` | `test-writer` (write) · `suite-runner` (judge) |
 | `docs-sync` | `doc-updater` (write) · `drift-reviewer` (judge) |
+| `audit-design` | `gap-analyst` (survey — one per top-level code area); read-only, no writer and no judge (ADR-0122) |
 | `create-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from `skills/<skill>/references/` (`materialize.md`, `publish.md`, `merge.md`) |
 
 The surveyor runs on iteration 1 only and freezes its notes; the author
@@ -1270,6 +1273,46 @@ file; /create-ticket reads it as standing behavior and flags
 contradictions; `/acs:review-code` blocks a user-observable behavior change
 whose requirements file was not updated. Phrasing rule: the file states what
 the product DOES now — current behavior, not change history.
+
+### Design versions (ADR-0122)
+
+Every HLD and LLD document opens with a version front-matter block that says
+where the design stands against the code
+([ADR-0122](../../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)):
+
+```yaml
+---
+status: proposed        # proposed | approved | implemented | deprecated
+version: 3              # an integer >= 1, bumped on every change to the document
+tickets: ["SHOP-12"]    # the tickets that changed it, oldest first
+feature: wishlist       # LLD documents (under lld/) only: the PRD feature slug
+---
+```
+
+The block is **derived, never asserted**: it is written only through
+`acs.py design` (`acs_design_commands.py` over `acs_lib.design_docs`), never by
+hand-editing it, and every verb prints one JSON object:
+
+| Verb | Does |
+|---|---|
+| `design check <doc>...` | status, version and the problems per document; exits 0 whatever it finds (`ok` says whether every document is clean) — a missing or invalid block is a problem, not an error; a path that is not a file exits 2 |
+| `design init --status S [--ticket ID] [--feature F] <doc>...` | the first block, `version: 1`; a document that already has one is left alone (`already_versioned`) |
+| `design bump [--ticket ID] <doc>...` | a change: `version + 1`, the ticket appended, and the document re-opened as `proposed`; a `deprecated` document is refused |
+| `design status --set S [--ticket ID] <doc>...` | a legal transition (`acs_lib.design_docs.TRANSITIONS`): `proposed → approved \| deprecated`; `approved → proposed \| implemented \| deprecated`; `implemented → proposed \| deprecated`; `deprecated` is final |
+
+A refused write verb exits 2 and writes nothing for the document it refused.
+`/acs:create-architecture`'s architect inits a new HLD file `implemented`
+when it documents the code as built and `proposed` when it designs ahead of it,
+and bumps a file it changes; its reviewer runs `design check` on every in-scope
+file. The team's approval of the docs PR is the design's approval.
+`acs_lib.design_docs` assigns the move to `implemented` to `/acs:docs-sync`,
+once a gap analysis finds the code matching; docs-sync's own SKILL.md does not
+run it yet, so until it does that move is a `design status --set implemented`
+run by hand. The gap
+analysts (`create-architecture-gap-analyst` beside that skill's survey, and
+`/acs:audit-design`'s over the whole set) read the status: an element designed
+but not built is *planned* in a `proposed` or `approved` document and a
+regression in an `implemented` one.
 
 ## Size control: tickets, specs, PRs
 

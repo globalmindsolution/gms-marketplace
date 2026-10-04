@@ -656,7 +656,7 @@ implementation ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-d
   `approved` document MUST be reported as **planned** — the design ahead of
   the code, not a defect; in an `implemented` document it is a regression.
   Undocumented and drifted gaps are gaps whatever the status.
-- Asks nothing during the audit; at the end it MUST offer ONE grouped choice
+- Asks nothing during the audit; at the end it MUST offer ONE grouped interaction
   of which gap groups to ticket, record the answer in the clarification
   ledger before acting on it, and on a yes run `/acs:create-ticket` once per
   chosen group. Unable to reach the user, it tickets nothing and says so.
