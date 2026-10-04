@@ -127,10 +127,10 @@ an epic do **not** repeat design: they inherit the parent epic's `design.md`.
 
 `/create-data-design` and `/create-flows` carry no such flag: the SA or Tech
 Lead runs them on a ticket whose persisted data or behaviour they want designed
-before implementation. Neither takes a run position, and neither commits on the
-default branch: each records the `lld/` paths it wrote in its result's
-`states.files`, and `analyze-requirements`' publish commits exactly those
-files with the ticket's docs folder when it creates the ticket branch.
+before implementation. Neither takes a run position, and neither branches,
+commits or opens a PR: each leaves its `lld/` documents as local uncommitted
+changes and lists every path it wrote in its result's `states.files` for the
+user to review and commit.
 
 ### Where a ticket's artifacts live
 
@@ -144,8 +144,8 @@ document belongs to exactly one of them:
   `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`. They are
   committed on the ticket branch and reviewed in the PR like any other doc.
   The ticket's low-level design documents live in the architecture set
-  instead, under `lld/<feature>/` (ADR-0126), and ride the same first Build
-  commit.
+  instead, under `lld/<feature>/` (ADR-0126), and no skill commits them: the
+  user reviews and commits them.
 - **The workspace run** — `<workspace>/<repo>/runs/<run-id>/` holds the **run
   ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
   machine), each step's `result.json` and its `iter-<n>/` audit trail,
@@ -354,7 +354,7 @@ Done.
 ## Inside each step: Reflection
 
 Each skill spawns only the subagents its own logic needs, each named for
-the work it does (ADR-0109). The nine **authoring** skills MUST
+the work it does (ADR-0109). The eleven **authoring** skills MUST
 internally run a **write → judge** cycle with a dedicated subagent per role
 (e.g. `docs-sync-doc-updater`, `docs-sync-drift-reviewer`); `create-prd`
 adds a read-only `surveyor` that runs on iteration 1 only and freezes the

@@ -118,7 +118,8 @@ hooked lifecycle — pre-hook gate and post-hook persistence, partition-scoped
 state, settings-driven subagent models, the per-ticket clarification ledger,
 and the standard completion report. MAR-77 changed only where `/create-design`
 sits in `acs_lib.HOOKED_SKILLS`'s internal grouping and in the pipeline order
-table; none of its runtime obligations changed.
+table; none of its runtime obligations changed. The same holds for `/create-data-design` and
+`/create-flows`, which ADR-0126 added to `acs_lib.PLANNING_SKILLS` beside it.
 
 ---
 
@@ -876,10 +877,10 @@ Design-phase work, run by the SA or Tech Lead on a ticket.
 - The reviewer runs as three slices (model, conventions, form) beside the $0
   checks (`acs.py design check`, `mermaid_lint.py`, `structure_lint.py`); any
   blocking finding blocks; same 3-iteration reflection cap.
-- MUST NOT commit on the default branch: with no ticket branch checked out it
-  records every path it wrote in its result's `states.files`, and
-  `/analyze-requirements`' publish commits exactly those files with the ticket's
-  docs folder.
+- MUST be **docs-only in delivery too**: it MUST NOT create a branch, commit,
+  push or open a PR. The documents stay as local uncommitted changes, and the
+  run finishes by listing every path it wrote, repo-relative, in its result's
+  `states.files` (and its completion report) for the user to review and commit.
 - Subagents: `create-data-design-designer` (write), `create-data-design-gap-analyst`
   (survey), `create-data-design-reviewer` (judge).
 - States: `feature`, `files`, `types`, `gaps` `{undocumented, unimplemented,
@@ -920,8 +921,9 @@ detail — before implementation
 - MUST version every file through `acs.py design … --feature <slug>`, run gap
   analysis over existing `flows/` and `components/` documents beside the survey,
   and ask once in a grouped ask — as `/create-data-design` does.
-- Delivery as `/create-data-design`: recorded in `states.files`, committed by
-  `/analyze-requirements`' publish.
+- Delivery as `/create-data-design`: no branch, commit or PR — local
+  uncommitted changes, listed in `states.files` for the user to review and
+  commit.
 - Subagents: `create-flows-designer` (write), `create-flows-gap-analyst`
   (survey), `create-flows-reviewer` (judge — three slices: agreement,
   references, form).
@@ -984,11 +986,7 @@ with the user, and say plainly whether it is ready to plan.
      (`pass` = `draft`) writes the analysis from the reconciled notes and the
      recorded answers; the impact reviewer judges it (analyse → impact
      review, at most 3 rounds); the coordinator publishes it and commits the
-     ticket's docs folder on the ticket branch — plus the `lld/` files the
-     ticket's completed `/create-data-design` and `/create-flows` runs recorded
-     in their result's `states.files` (only existing files inside the checkout
-     under an `lld/` directory; read from the recorded results, never asserted
-     — ADR-0126). A reviewer finding that is a
+        ticket's docs folder on the ticket branch. A reviewer finding that is a
      new question for the user goes back through Stage 2.
 - MUST write `analysis.md` to the ticket's docs folder with front matter
   `{ticket, ready_for_planning, api_surface, needs_design_recommendation}`
