@@ -76,7 +76,7 @@ class ProseContractTest(unittest.TestCase):
         body = flat("skills", "audit-security", "SKILL.md")
         for phrase in ("`code`", "`secrets-config`", "`dependencies`", "`threat-model`",
                        "hld/data-flow.md", "exactly one fresh-context adjudicator",
-                       "Corroboration is not a filter", "max_parallel = 4",
+                       "Corroboration is not a filter", "settings.parallel.max_agents",
                        "run_in_background: false"):
             self.assertIn(phrase, body)
 

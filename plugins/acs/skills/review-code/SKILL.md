@@ -34,7 +34,27 @@ report — the parts every acs skill shares.
 ## Stage 1 — the lenses
 
 Five lenses, spawned **in parallel**, read-only, running nothing. Each writes
-`iter-<n>/lens-<A..E>.md` and returns its candidate findings.
+`iter-<n>/lens-<A..E>.md` and returns its candidate findings. The five lenses
+are ONE message whatever `settings.parallel.max_agents` says — five is the
+review's own fan-out, not a wave of the cap. When lens B fans out (below),
+its instances beyond the first run after that message, in waves of
+`settings.parallel.max_agents` (default 4).
+
+**The gate starts in the same turn.** In the message that spawns the lenses,
+also start stage 3's commands as jobs (`${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`,
+"Jobs: commands beside the agents"), so the suite runs while the lenses read:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name gate-build -- <the repo's build command>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name gate-lint -- <the repo's lint command>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name gate-suite -- <the full unit suite with coverage>
+```
+
+Build and lint are separate jobs so they run concurrently; the suite and its
+coverage are one job, because one run answers both. This is safe because the
+tree is frozen for the whole review: lenses and adjudicators are read-only and
+you edit nothing, so the gate runs over exactly the changeset they judge. A
+repo with no build step has no `gate-build` job; record that in `gate.json`.
 
 | Lens | Judges | May read |
 |---|---|---|
@@ -95,7 +115,10 @@ not read the delivery path.
 ## Stage 2 — adjudication
 
 **Every candidate finding gets exactly one fresh-context adjudicator.** Spawn
-them in parallel, one `acs:review-code-adjudicator` per finding.
+them in parallel, one `acs:review-code-adjudicator` per finding, at most
+`settings.parallel.max_agents` (default 4) per message; more findings than
+that run in waves of that size, each wave one message, the next only after the
+last returned.
 
 Each adjudicator receives: the finding, the requirement's intent, and read
 access to the cited evidence. It receives **neither the other findings nor
@@ -121,18 +144,36 @@ being raised by only one lens, and never promote one for being raised by two.
 
 ## Stage 3 — the final gate
 
-Runs **only** when stage 2 leaves nothing blocking. Run all four yourself and
-record the commands and their output in `iter-<n>/gate.json`:
+Its result counts **only** when stage 2 leaves nothing blocking. Run all four
+yourself — the jobs you started beside the lenses — and record the commands
+and their output in `iter-<n>/gate.json`:
 
 - **build** succeeds
 - **lint** clean
 - **full unit test suite** green
 - **coverage ≥ `settings.tests.coverage`**
 
+After adjudication:
+
+- **Nothing blocks** → collect the gate with ONE blocking call, and call it
+  again while it exits 3 (timeout, still running) — never `sleep`:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job wait --name gate-build --name gate-lint --name gate-suite
+  ```
+
+  Each job's command, exit code and log are its evidence; read the coverage
+  figure from the suite job's log. Record `gate.json` from them exactly as a
+  gate you ran in the foreground.
+- **Findings block** → stop the jobs (`acs.py job stop --name <each>`) and
+  record the gate as not run for this iteration: the changeset is going back
+  to `/acs:code` and the tree is about to change.
+
 This is the only place the full suite runs in the whole pipeline. It runs
-last, exactly once per iteration that survives review. A gate failure is a
-blocking finding of `kind: gate` with the failing command as its evidence —
-it needs no separate channel and does not skip the loop.
+once per iteration, beside the review, and its result is read last, only by
+an iteration that survives review. A gate failure is a blocking finding of
+`kind: gate` with the failing command as its evidence — it needs no separate
+channel and does not skip the loop.
 
 ## The verdict
 
@@ -170,7 +211,7 @@ hunks changed since `since_sha`, but do not restrict to them.
   human breaks the tie rather than the last iteration being spent on the same
   argument.
 
-The gate runs again in full.
+The gate runs again in full, started again beside that iteration's lenses.
 
 ## Finish
 

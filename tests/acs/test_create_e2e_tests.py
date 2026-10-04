@@ -450,8 +450,9 @@ class TestParallelFanOut(unittest.TestCase):
 
     def test_every_fan_out_is_one_message_under_the_cap(self):
         self.assertIn("in ONE message", self.norm)
-        self.assertIn("max_parallel = 4", self.norm)
-        self.assertRegex(self.norm, r"waves of four, each wave one message")
+        self.assertIn("At most `settings.parallel.max_agents` (default 4) instances per message",
+                      self.norm)
+        self.assertRegex(self.norm, r"waves of that size, each wave one message")
 
     def test_the_slice_is_on_the_wire(self):
         self.assertIn('phase="test-writer" slice="2"', self.norm)

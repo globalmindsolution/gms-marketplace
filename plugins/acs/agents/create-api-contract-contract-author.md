@@ -76,6 +76,12 @@ other group's. Everything in this file applies, narrowed to your group:
 - On iteration ≥ 2 `<context>` carries EVERY finding of the review: fix the
   ones in your group, and list the others under **Findings addressed** as
   another slice's.
+- Your report carries `seams`: one `{"what": …, "slices": [...]}` entry per
+  change you made that another group's fragment or contract file names — an
+  error code it also returns, a shared definition, an item it cross-references
+  — and `[]` when there is none. On iteration ≥ 2 the coordinator runs the
+  integration pass again only when a seam finding is open or a slice lists a
+  seam, so an omitted entry leaves a seam unreconciled.
 - No item in your group: write the notes with the evidence, write no
   fragment, and report `items: 0`.
 

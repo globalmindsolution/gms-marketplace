@@ -34,7 +34,10 @@ continuing:
    whose report is on disk is never re-run, and the joined
    `iter-<n>/plan-reviewer.md` is written only once every slice's report
    exists.
-4. Nothing carries across iterations but the draft: the planner's authoring
+4. The `suite` job (SKILL.md, The suite job) belongs to the run, not to an
+   iteration: `acs.py job status --name suite` — `missing` or `stopped` →
+   start it again; `running`, `passed` or `failed` → keep it, never re-run it.
+5. Nothing carries across iterations but the draft: the planner's authoring
    notes (`iter-<n>/authoring.md`) belong to their iteration, and a resumed
    run never re-runs an iteration whose plan review is already on disk.
 

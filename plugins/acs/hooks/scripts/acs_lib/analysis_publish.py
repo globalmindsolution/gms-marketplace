@@ -5,12 +5,14 @@ published bytes were the reviewed bytes, or that the commit carried the
 ticket's docs folder and nothing else. This is that step as code:
 
   1. refuse unless the loop's last review passed, and the draft is still the
-     exact bytes that review judged (its sha256 was recorded at review time);
-  2. run the two deterministic checks (front matter, ordered sections) on the
-     draft -- a finding fails the iteration like a judge's blocking finding;
-  3. copy the draft byte-for-byte to the resolved analysis path, and read it
+     exact bytes that review judged (its sha256 was recorded at review time).
+     The two deterministic checks (front matter, ordered sections) ran on
+     those bytes when the draft was recorded, and a finding failed that
+     iteration's review (`analysis_loop.run_checks`, ADR-0125), so a passed
+     review is a clean check;
+  2. copy the draft byte-for-byte to the resolved analysis path, and read it
      back to prove the copy;
-  4. inside the repo, `git add` ONLY the ticket's docs folder and commit ONLY
+  3. inside the repo, `git add` ONLY the ticket's docs folder and commit ONLY
      that pathspec with `conventions.COMMIT_SUBJECT`. It never pushes:
      /acs:create-pr does.
 
@@ -23,36 +25,9 @@ import os
 import subprocess
 
 from ._common import GateError, now_iso
-from .analysis_loop import (_advance, _block, _expect, draft_path,
-                            record_check_failure)
+from .analysis_loop import _advance, _block, _expect, draft_path
 from .artifacts import artifact_path, ticket_docs_dir
 from . import conventions
-
-FRONT_MATTER_SPEC = ("ticket: str; ready_for_planning: bool; api_surface: bool; "
-                     "needs_design_recommendation: bool")
-SECTIONS = ("Problem restated; Impact map; Questions; Assumptions; Risks; "
-            "Refined acceptance criteria; Verdict")
-
-
-def run_checks(path, ticket_id):
-    """[{dimension, file, text}] from front_matter_check and structure_lint,
-    called in-process through the same functions their CLIs use."""
-    import front_matter_check  # noqa: E402 -- hooks/scripts is on sys.path
-    import structure_lint  # noqa: E402
-    findings = []
-    for f in front_matter_check.check_file(path, front_matter_check.parse_spec(FRONT_MATTER_SPEC),
-                                           ticket=ticket_id):
-        findings.append(_check_finding("front-matter", f))
-    for f in structure_lint.lint_file(path, structure_lint._parse_sections(SECTIONS),
-                                      ordered=True):
-        findings.append(_check_finding("structure", f))
-    return findings
-
-
-def _check_finding(dimension, finding):
-    return {"slice": "publish-checks", "severity": "blocking", "dimension": dimension,
-            "file": "analysis.md",
-            "text": "line %d: [%s] %s" % (finding.line, finding.rule, finding.message)}
 
 
 def _git(cwd, *args, check=True):
@@ -119,8 +94,7 @@ def _reviewed_sha(loop):
 
 
 def publish(rdir, loop, ctx, tdir, ticket, summary=None):
-    """Publish the reviewed draft. Returns (loop, report). On a failed check the
-    loop moves on (next draft, stalled or capped) and nothing is written."""
+    """Publish the reviewed draft. Returns (loop, report)."""
     _expect(loop, "publish")
     draft = draft_path(rdir)
     if not os.path.isfile(draft):
@@ -131,12 +105,6 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
     if _sha(data) != reviewed:
         raise GateError("refusing to publish: the draft is not the bytes the review passed "
                         "(reviewed %s, now %s)" % ((reviewed or "-")[:12], _sha(data)[:12]))
-    findings = run_checks(draft, loop["ticket_id"])
-    if findings:
-        record_check_failure(loop, findings)
-        return loop, {"published": False, "findings": findings,
-                      "reason": "%d deterministic check finding(s) on the draft"
-                                % len(findings)}
     path, docs_dir = resolve_target(ctx, tdir, loop["ticket_id"])
     root = ctx.get("checkout_root")
     if root and _inside(path, docs_dir):

@@ -21,9 +21,12 @@ SubagentStop hook writes, or the coordinator on a host that does not fire it)
 and derives the pass from the findings in it.
 
 State lives in `steps/analyze-requirements/loop.json`, written only here and
-held to `schemas/analysis-loop.schema.json` on every write. Publication -- the
-deterministic checks, the byte-for-byte copy, the docs-folder-only commit --
-is `acs_lib.analysis_publish`.
+held to `schemas/analysis-loop.schema.json` on every write. The two $0
+deterministic checks (front matter, ordered sections) run on each draft when
+`record-draft` records it -- beside the review, not after it (ADR-0125) -- and
+`record_review` folds their findings into that iteration's blocking set.
+Publication -- the byte-for-byte copy and the docs-folder-only commit -- is
+`acs_lib.analysis_publish`.
 """
 
 import hashlib
@@ -85,6 +88,14 @@ STOP_REASONS = ("stalled", "cap")
 RESULT_STATUSES = ("completed", "failed", "needs_input")
 
 _CLI = 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis '
+
+#: The draft's deterministic checks: the same front-matter spec and section
+#: list the `form` judge slice runs.
+FRONT_MATTER_SPEC = ("ticket: str; ready_for_planning: bool; api_surface: bool; "
+                     "needs_design_recommendation: bool")
+SECTIONS = ("Problem restated; Impact map; Questions; Assumptions; Risks; "
+            "Refined acceptance criteria; Verdict")
+CHECKS_SLICE = "draft-checks"
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +309,8 @@ def _render(rdir, loop, phase, n):
                           "report": review_report_path(rdir, n, sid),
                           "snapshot": snapshot_path(rdir, n, REVIEWER, sid)}
                          for sid, dims in JUDGE_SLICES]
+        # Ran when the draft was recorded; they join this iteration's findings.
+        out["draft_checks"] = list((loop.get("draft") or {}).get("checks") or [])
         out.update(joined_report=review_report_path(rdir, n), draft=draft_path(rdir),
                    analyst_report=iter_path(rdir, n, "%s.json" % ANALYST),
                    notes=[notes_path(rdir)] + ([iter_path(rdir, n, "authoring.md")]
@@ -516,9 +529,41 @@ def record_draft(rdir, loop):
         needed.append(iter_path(rdir, n, "authoring.md"))
     if not _require_files(loop, needed, [report]):
         return loop
-    loop["draft"] = {"iteration": n, "sha256": sha256_file(draft_path(rdir))}
+    loop["draft"] = {"iteration": n, "sha256": sha256_file(draft_path(rdir)),
+                     "checks": run_checks(draft_path(rdir), loop["ticket_id"])}
     _advance(loop, "review", "draft", "iteration %d draft %s" % (n, loop["draft"]["sha256"][:12]))
     return loop
+
+
+def run_checks(path, ticket_id):
+    """[finding] from front_matter_check and structure_lint, called in-process
+    through the same functions their CLIs use. $0 and instant, so they run as
+    the draft is recorded and their findings join that iteration's review."""
+    import front_matter_check  # noqa: E402 -- hooks/scripts is on sys.path
+    import structure_lint  # noqa: E402
+    findings = []
+    for f in front_matter_check.check_file(path, front_matter_check.parse_spec(FRONT_MATTER_SPEC),
+                                           ticket=ticket_id):
+        findings.append(_check_finding("front-matter", f))
+    for f in structure_lint.lint_file(path, structure_lint._parse_sections(SECTIONS),
+                                      ordered=True):
+        findings.append(_check_finding("structure", f))
+    return findings
+
+
+def _check_finding(dimension, finding):
+    return {"slice": CHECKS_SLICE, "severity": "blocking", "dimension": dimension,
+            "file": DRAFT_FILENAME,
+            "text": "line %d: [%s] %s" % (finding.line, finding.rule, finding.message)}
+
+
+def _draft_checks(rdir, loop):
+    """The checks recorded with this iteration's draft; a loop recorded before
+    they ran there gets them now, over the same bytes."""
+    draft = loop.get("draft") or {}
+    if "checks" in draft and draft.get("iteration") == loop["iteration"]:
+        return list(draft["checks"])
+    return run_checks(draft_path(rdir), loop["ticket_id"])
 
 
 def parse_findings(root, slice_id):
@@ -580,6 +625,9 @@ def record_review(rdir, loop):
             blocking.append({"slice": sid, "severity": "blocking", "dimension": "review-failed",
                              "file": sid, "text": _children_text(root, "error")
                              or "judge slice %s returned status=failed" % sid})
+    # The draft's deterministic checks ran beside the review: a failure is a
+    # blocking finding of this iteration, exactly like a judge's.
+    blocking += _draft_checks(rdir, loop)
     kept, dropped = dedupe(blocking)
     joined = review_report_path(rdir, n)
     merge_files([review_report_path(rdir, n, sid) for sid, _d in JUDGE_SLICES], joined)
@@ -598,7 +646,7 @@ def record_review(rdir, loop):
 
 def _after_failed_iteration(loop, entry):
     """Stalled, capped, or the next draft: the transition a failed iteration
-    takes, whether the judges or publish's checks failed it."""
+    takes, whether the judges or the draft's checks failed it."""
     n = entry["iteration"]
     previous = [h for h in loop["history"] if h["iteration"] == n - 1]
     if previous and blocking_set(previous[-1]) == blocking_set(entry):
@@ -635,13 +683,3 @@ def _append_dedupe_section(path, dropped):
         lines.append("- %s / %s / %s — duplicate of %s's finding" % (
             f["slice"], f["dimension"], f["file"], orig["slice"]))
     write_text(path, text + "\n".join(lines) + "\n")
-
-
-def record_check_failure(loop, findings):
-    """Publish's deterministic checks failed on the reviewed draft: the
-    iteration did not pass after all, and its findings go to the next draft."""
-    entry = loop["history"][-1]
-    entry["passed"] = False
-    entry["blocking"] = dedupe(entry["blocking"] + findings)[0]
-    loop["blocked"] = None
-    return _after_failed_iteration(loop, entry)

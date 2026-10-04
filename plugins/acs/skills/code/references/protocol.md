@@ -113,7 +113,7 @@ Messaging rules (the SubagentStop hook checks them):
   the plan's file map); any overlap — source, tests, or docs — means sequential
   execution. When they are disjoint, parallel is the default from iteration 1:
   every implementer of a wave is spawned in ONE message, at most
-  `max_parallel = 4` per wave, and you wait for all of them before the next
+  `settings.parallel.max_agents` (default 4) per wave, and you wait for all of them before the next
   phase (`execute.md`, **Parallel implementers**).
 
 ---

@@ -43,14 +43,17 @@ If `context.reconcile` is true: re-run ONLY the gap-analyst slices whose own rep
 
 ## The audit
 
-Read each in-scope document's version front matter first:
+Read each in-scope document's version front matter — in the SAME message as the
+gap-analyst spawn below, since the analysts compare every document whatever its front
+matter says and nothing they do waits on it:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design check <every in-scope document>
 ```
 
 A document with no or invalid front matter is itself a finding (`unversioned`) in the
-report — the audit still compares it.
+report — the audit still compares it. You need each document's status only when you
+read the joined report (below), after the analysts return.
 
 **Slice by code area.** On a repository whose source spans two or more disjoint
 top-level areas (packages, services or apps), spawn one gap analyst per area — slice id
@@ -59,7 +62,8 @@ the area's directory name, lowercased — else one with `slice="repo"`. Each tas
 and `architecture_dir`; its `<inputs>` are the in-scope documents.
 
 **One message, then wait for all.** The parallel instances are the SAME agent spawned N
-times in ONE message, at most `max_parallel = 4` per wave. Spawn with the Agent tool as
+times in ONE message, at most `settings.parallel.max_agents` (default 4) per message;
+beyond it, waves of that size. Spawn with the Agent tool as
 `context.agents.gap-analyst` (`acs:audit-design-gap-analyst`; fall back to the
 un-namespaced name only if the runtime rejects it).
 

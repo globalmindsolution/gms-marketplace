@@ -212,8 +212,9 @@ doc-updater authors the remediation. Decomposition is YOURS alone —
 subagents never spawn subagents. Both phases run as parallel slices of the
 same agent file (Doc areas and Drift-review slices, below): spawn every
 instance of a phase in ONE message, in the foreground, wait for all of them,
-and join their outputs before the next phase starts. At most **4** instances
-per phase (`max_parallel = 4`); both phases have at most four slices, so
+and join their outputs before the next phase starts. At most
+`settings.parallel.max_agents` (default 4) instances per message; beyond it,
+waves of that size. Both phases have at most four slices, so at the default
 neither needs a second wave.
 
 **What an iteration counts:** one doc-updater → drift-reviewer round.

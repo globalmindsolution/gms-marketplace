@@ -208,8 +208,9 @@ Decomposition is YOURS alone — subagents never spawn subagents.
 
 Every fan-out here is yours: spawn the N instances of the SAME agent in ONE
 message (all foreground, in the same message), wait for all of them, and join
-their outputs before the next phase. At most `max_parallel = 4` instances run
-per phase; beyond that, run the rest in waves of four.
+their outputs before the next phase. At most `settings.parallel.max_agents`
+(default 4) instances run per message; beyond that, run the rest in waves of
+that size.
 
 **Writer — one planner, never sliced.** `plan.md` is a single document, so
 the write is never partitioned. Its survey is not sliced either: the survey IS
@@ -226,7 +227,7 @@ check dimensions, so it always runs as three slices, each a fresh instance of
 
 | Slice | Dimensions | Owns the run of |
 |---|---|---|
-| `tests` | 1 acceptance-criteria coverage, 5 test strategy executability | the ONE run of the repo's existing suite command |
+| `tests` | 1 acceptance-criteria coverage, 5 test strategy executability | the ONE run of the repo's existing suite command — the `suite` job you started beside the planner, read with `acs.py job wait --name suite` |
 | `map` | 4 file-map honesty, 6 design and architecture conformance, 7 scope | the `git ls-files` / `ls` check of every mapped path |
 | `document` | 2 completeness, 3 structure (fold only), 8 documentation map, 9 grounding, 10 authoring-conformance | `structure_lint.py` on the fold |
 
@@ -297,6 +298,27 @@ runtime moves the agent to the background anyway, wait for its completion
 notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
 sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
 agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+
+### The suite job — once per run, beside the planner
+
+The `tests` slice's dimension 5 rests on one run of the repo's EXISTING suite
+command, and that command does not depend on the plan. So you start it, as a
+job (`${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`, "Jobs: commands beside the
+agents"), in the same message as iteration 1's planner spawn:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name suite -- <the repo's existing suite command>
+```
+
+The command is the one the repo already documents (CLAUDE.md, the README, CI,
+or `settings.tests` when it names one) — or, when the repo documents that run
+as long, its `--collect-only`/`--help` equivalent, the plan reviewer's own
+rule for dimension 5. Start it once per run, not per iteration: every
+iteration's `tests` slice reads the same job with `acs.py job wait --name
+suite` (it returns at once when the job has ended; on exit 3, still running,
+it calls it again — never `sleep`) and never runs the suite itself. A repo
+with no suite command starts no job, and you tell the `tests` slice so in its
+`<constraints>`.
 
 ### Planner (per iteration) — survey, then author the plan
 
@@ -443,7 +465,8 @@ Spawn the three `acs:create-impl-plan-plan-reviewer` slices (Judge slices
 above) in ONE message AFTER the draft is written, each with
 `<inputs>` of the draft, the ticket file, `analysis.md` and `design.md` when
 they exist, every `<partition>/specs/*.md`, and the repo paths the file map
-names. The plan reviewer judges fresh — never forward the planner's reasoning —
+names; the `tests` slice's `<constraints>` also name the `suite` job (The
+suite job, above) whose result it reads. The plan reviewer judges fresh — never forward the planner's reasoning —
 and each slice writes `steps/create-impl-plan/iter-<n>/plan-reviewer-<slice>.md`,
 which you join into `steps/create-impl-plan/iter-<n>/plan-reviewer.md`. The
 slices' `<result>` `<findings>` are the verdict: `status="completed"` means

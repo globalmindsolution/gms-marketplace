@@ -300,8 +300,10 @@ class ParallelImplementersTest(unittest.TestCase):
 
     def test_the_shared_mechanics_spawn_in_one_message_under_a_cap(self):
         self.assertIn("in ONE message", self.execute)
-        self.assertIn("max_parallel = 4", self.execute)
-        self.assertRegex(self.execute, r"(?i)run in waves of at most four")
+        self.assertIn("settings.parallel.max_agents", self.execute)
+        self.assertRegex(self.execute, r"(?i)run in waves of that size")
+        self.assertIn("the leg's own smaller cap wins (`code-small` 2, `code-trivial` 1)",
+                      self.execute)
 
     def test_the_slice_travels_on_task_and_result(self):
         for body in (self.execute, self.protocol):
@@ -324,14 +326,15 @@ class ParallelImplementersTest(unittest.TestCase):
         for leg in self.FANNING_LEGS:
             body = norm(leg_body(leg))
             for token in ("in ONE message", 'slice="<k>"', "implementer-<k>.json",
-                          "max_parallel = 4", "filemap show --iteration <n>"):
+                          "settings.parallel.max_agents", "filemap show --iteration <n>"):
                 with self.subTest(leg=leg, token=token):
                     self.assertIn(token, body)
 
     def test_small_keeps_rarely_two_and_caps_itself_at_two(self):
         body = norm(leg_body("code-small"))
         self.assertIn("One implementer by default", body)
-        self.assertIn("Two is this path's own cap", body)
+        self.assertIn("Two is this path's own structural cap, kept whatever "
+                      "`settings.parallel.max_agents` says", body)
 
     def test_trivial_is_the_un_sliced_case(self):
         body = norm(leg_body("code-trivial"))

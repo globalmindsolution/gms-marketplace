@@ -15,8 +15,9 @@ questions to the user, an author writes the documents from the notes and the
 answers, and a reviewer judges them fresh. You never write the PRD content
 yourself. Two of the three phases fan out: the survey runs as parallel
 surveyor slices over disjoint areas of the repo when a brownfield or amend
-code survey spans two or more of them, and the review always runs as three
-parallel reviewer slices over disjoint check dimensions. The author never
+code survey spans two or more of them, and the review always runs as two
+parallel reviewer slices over disjoint check dimensions, beside the
+deterministic floor you run yourself. The author never
 splits — `prd.md` and `roadmap.md` are one coupled deliverable (see Author).
 
 ## Start
@@ -112,7 +113,7 @@ continuing:
    and re-run ONLY the slices whose own report is missing (a surveyor slice
    without `iter-1/authoring-<id>.md` and `iter-1/surveyor-<id>.json`, a
    reviewer slice without `iter-<n>/reviewer-<id>.md`), all of them in ONE
-   message, then run the join (`acs.py notes merge`) over EVERY slice file of
+   message — and the floor again when `iter-<n>/reviewer-floor.md` is missing — then run the join (`acs.py notes merge`) over EVERY slice file of
    the plan. A slice whose report exists is never re-run; re-joining slice
    files that are all present is idempotent.
 
@@ -125,7 +126,7 @@ of the same checks, and continue from where it points.
 The loop is surveyor → author → review, max 3 iterations. Iteration 1 runs
 the surveyor once: it classifies the mode, surveys the codebase or plans the
 elicitation, and writes the authoring notes (the outline, the open questions,
-the three corroboration sections the reviewer's floor parses) read-only. You
+the three corroboration sections the review's deterministic floor parses) read-only. You
 relay its open questions to the user, then spawn the author, who writes
 `prd.md` and `roadmap.md` from the notes and the answers; the reviewer judges
 the result fresh. On iterations 2-3 the reviewer's findings go verbatim into
@@ -187,11 +188,11 @@ ALL of them, and join their outputs before the next phase starts. The rules
 every sliced phase follows:
 
 - **Slice id on the wire.** Each parallel instance's `<task>` carries
-  `slice="<id>"` (`<task skill="create-prd" phase="reviewer" slice="floor" …>`)
+  `slice="<id>"` (`<task skill="create-prd" phase="reviewer" slice="delta" …>`)
   and its `<result>` echoes it, so the SubagentStop snapshot lands at
   `iter-<n>/<role>-<id>-message.xml` with no collision. An un-sliced instance
   omits `slice` exactly as before. A slice id is a short lowercase name
-  (`api`, `web-app`, `floor`); the join derives each id from the part of the
+  (`api`, `web-app`, `delta`); the join derives each id from the part of the
   file name after the prefix all its inputs share, so ids may carry hyphens.
 - **Slice plan first.** Before spawning, write the partition to
   `steps/create-prd/iter-<n>/<role>-slices.json` (`{"<id>": [<the paths or
@@ -213,9 +214,9 @@ every sliced phase follows:
 
   It prints `{ok, out, sections, inputs}` and refuses when a slice file is
   missing — a missing slice is a failed slice, never a smaller join.
-- **Cap.** At most `max_parallel = 4` instances per phase; beyond the cap, run
-  the slices in waves of 4 (each wave one message) and join once after the last
-  wave.
+- **Cap.** At most `settings.parallel.max_agents` (default 4) instances per
+  message; beyond the cap, run the slices in waves of that size (each wave one
+  message) and join once after the last wave.
 
 ### Survey — iteration 1 only
 
@@ -242,7 +243,7 @@ clarification answers the ledger already records):
 
 ```xml
 <task skill="create-prd" phase="surveyor" ticket-id="SHOP-1" iteration="1">
-  <objective>Classify mode (greenfield/brownfield/amend) with evidence; record the prd.md and roadmap.md outline, the elicitation or reverse-engineering survey, the open questions for the user, and the `## Code evidence` / `## Answer fidelity` / `## Roadmap milestones` corroboration sections the reviewer's deterministic floor parses in the authoring notes; write no repo file.</objective>
+  <objective>Classify mode (greenfield/brownfield/amend) with evidence; record the prd.md and roadmap.md outline, the elicitation or reverse-engineering survey, the open questions for the user, and the `## Code evidence` / `## Answer fidelity` / `## Roadmap milestones` corroboration sections the review's deterministic floor parses in the authoring notes; write no repo file.</objective>
   <inputs>
     <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
     <file>/abs/repo/docs/product/prd.md</file>
@@ -294,7 +295,7 @@ a set of top-level directories and no directory belongs to two slices, so no
 two slices survey — or cite — the same path.
 
 1. Write `iter-1/surveyor-slices.json`, then spawn `lead` plus one surveyor
-   per area in ONE message (cap 4, waves beyond it), each `<task
+   per area in ONE message (at most `settings.parallel.max_agents`, waves beyond it), each `<task
    skill="create-prd" phase="surveyor" slice="<id>" …>` carrying
    `<constraint name="survey_area"><its top-level paths, or "lead"></constraint>`
    beside the survey constraints above.
@@ -392,11 +393,9 @@ the iteration's authoring notes and `<partition>/clarifications.json`, and its
 `audience_style_profile` (all declared above in the survey task example — the
 same eight-section list the author was instructed to write, so the structure
 gate has no second, driftable copy), and `repo_root` (the consumer repo root,
-for the plan-conformance code-evidence family). In amend mode, the reviewer
-itself derives the `--added-heading` values its plan-conformance check needs
-from its own `git diff -- "<prd>" "<roadmap>"` (already dimension 8's
-mechanism): every `+###`/`+####` heading line added to `roadmap.md`. It
-re-reads everything fresh and checks, all findings blocking:
+for the plan-conformance code-evidence family). It re-reads everything fresh,
+and the review — its slices plus the floor you run — checks, all findings
+blocking:
 
 - all eight required `prd.md` sections present and non-empty, plus `roadmap.md`;
 - every feature traces to at least one goal; no orphan features, no goal without a
@@ -412,29 +411,59 @@ re-reads everything fresh and checks, all findings blocking:
   version is a blocking finding;
 - amend mode: `git diff` shows only the intended sections changed.
 
-**Reviewer slices — every iteration, the default.** The reviewer has eleven
-check dimensions (numbered in `create-prd-reviewer.md`), so it always runs as
-three slices, each a fresh instance of `acs:create-prd-reviewer` whose task
-carries `slice="<id>"` and `<constraint name="dimensions">` naming the
-dimension numbers it owns, beside every input and constraint above:
+**Reviewer slices and the floor — every iteration, the default.** The review
+has eleven check dimensions (numbered in `create-prd-reviewer.md`). The ones a
+script settles are not an agent's: **the `floor` is yours**, run with Bash in
+the SAME message as the reviewer spawn, as soon as the author has written the
+set. The rest run as two slices, each a fresh instance of
+`acs:create-prd-reviewer` whose task carries `slice="<id>"` and
+`<constraint name="dimensions">` naming the dimension numbers it owns, beside
+every input and constraint above:
 
 | Slice | Dimensions | Owns the run of |
 |---|---|---|
-| `substance` | 2 feature → goal traceability, 3 measurable success metrics, 4 prioritization discipline, 5 constraint consistency, 11 audience-style | the fresh semantic read of `prd.md` and `roadmap.md` |
-| `floor` | 1 required sections, 7 plan conformance, 10 structure | the deterministic floor: `prd_conformance_check.py` (the three-family check, whose code-evidence family re-opens every citation through the shared citation-check helpers it imports) and `structure_lint.py` — each run in this slice only, exactly once per iteration |
+| `substance` | 2 feature → goal traceability, 3 measurable success metrics, 4 prioritization discipline, 5 constraint consistency, 7 plan conformance (the semantic ceiling), 11 audience-style | the fresh semantic read of `prd.md` and `roadmap.md`, and of every entry in the notes' `## Code evidence`, `## Answer fidelity` and `## Roadmap milestones` sections |
 | `delta` | 6 roadmap coverage, 8 amend-mode diff discipline, 9 iteration 2+ regression check | `git diff -- "<prd>" "<roadmap>"` and the re-verification of every prior finding |
+| `floor` | 1 required sections, 7 plan conformance (the deterministic floor), 10 structure | run by YOU, no agent: `prd_conformance_check.py` (the three-family check, whose code-evidence family re-opens every citation through the shared citation-check helpers it imports), `structure_lint.py` and the heading check — each run here only, exactly once per iteration |
 
-Grounding policing applies in every slice. Write `iter-<n>/reviewer-slices.json`,
-spawn the three slices in ONE message and wait for all three. Then
-**de-duplicate**: the slices own disjoint dimensions, so the join below is the
-synthesis, but two slices can still report one defect (a missing section seen
-by two dimensions). Drop a finding that cites the same location and the same
-defect as another slice's finding, keeping the one with the higher severity,
-and record every drop — which finding, from which slice, kept in favour of
-which — under `## De-duplicated findings` in `iter-<n>/reviewer-dedup.md`
-(write `none` there when nothing was dropped). Join the slices' reports, in the
-table's order, with the de-duplication record last, into the one report every
-later reader reads:
+**The floor, in the reviewer's own commands** (dimensions 1, 7 and 10 of
+`create-prd-reviewer.md`, which stay the definition):
+
+```bash
+grep -n '^#' "<prd>"; test -s "<roadmap>"          # 1: the eight sections, each non-empty; roadmap.md non-empty
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py" \
+  --plan <partition>/steps/create-prd/iter-<n>/authoring.md --mode <greenfield|brownfield|amend> \
+  --repo-root <repo_root> --clarifications <partition>/clarifications.json \
+  --prd "<prd>" --roadmap "<roadmap>" [--added-heading "<heading>" ...]
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
+  --sections "<required_sections, verbatim>" --ordered "<prd>"
+```
+
+In amend mode derive the `--added-heading` values yourself from `git diff --
+"<prd>" "<roadmap>"`: every `+###`/`+####` heading line added to `roadmap.md`;
+omit the flag otherwise. Each stderr `source:line: [rule] message` is one
+blocking finding (dimension `Plan conformance` or `structure`); exit 2 is
+itself a blocking finding, so a broken invocation never passes. Write
+`iter-<n>/reviewer-floor.md` — one `## ` section per dimension (Required
+sections, Plan conformance, Structure) with the exact commands and output,
+then `## Findings` — so the join below reads it like a slice's report. The
+floor's semantic ceiling (whether the documents actually reflect each recorded
+answer, whether a resolved citation substantiates its claim, whether a matched
+milestone maps to the intended epic) is not a script's call: the `substance`
+slice judges it from the notes' corroboration sections.
+
+Grounding policing applies in every slice. Write `iter-<n>/reviewer-slices.json`
+(the two slices; the floor is not a slice), spawn the two slices in ONE message
+beside the floor and wait for both. Then **de-duplicate**: the slices and the
+floor own disjoint dimensions, so the join below is the synthesis, but two can
+still report one defect (a missing section seen by two dimensions). Drop a
+finding that cites the same location and the same defect as another slice's
+finding, keeping the one with the higher severity, and record every drop —
+which finding, from which slice, kept in favour of which — under
+`## De-duplicated findings` in `iter-<n>/reviewer-dedup.md` (write `none`
+there when nothing was dropped). Join the reports, in the table's order with
+the floor between the slices as before, and the de-duplication record last,
+into the one report every later reader reads:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
@@ -446,15 +475,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
 ```
 
 **Pass rule for sliced reviewers:** the iteration passes only if EVERY slice
-returned `status="completed"` with zero blocking findings. Any slice's blocking
-finding blocks the iteration. A slice that failed or returned no usable result
+returned `status="completed"` with zero blocking findings and the floor found
+nothing. Any slice's or the floor's blocking finding blocks the iteration. A slice that failed or returned no usable result
 fails the iteration — never "pass with a missing slice"; re-run that slice
 once, and if it fails again the iteration counts as failed with its error as a
 finding.
 
-Zero findings across all slices = pass -> Deliver. The findings that go on
-are the de-duplicated set. Findings -> route every
-finding of every slice verbatim into the next iteration's author `<task>`
+Zero findings across all slices and the floor = pass -> Deliver. The findings
+that go on are the de-duplicated set. Findings -> route every
+finding of every slice and the floor verbatim into the next iteration's author `<task>`
 `<context>`; the surveyor does not re-run — the author authors the remediation,
 and the run continues author -> review.
 After iteration 3 with findings remaining: STOP — final status `failed`,

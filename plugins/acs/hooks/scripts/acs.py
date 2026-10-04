@@ -13,7 +13,7 @@ Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
     context, gate, run, step, result, ticket, pr, tracker, readiness, lock,
-    filemap, guard, verdict, slug, doctor, workflow, artifacts.
+    filemap, guard, verdict, slug, doctor, workflow, artifacts, job.
   * Delegated — the verbs an existing script already implements: `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
     when called directly; acs.py forwards argv to them and returns their exit
@@ -69,6 +69,10 @@ Usage:
   acs.py analysis plan --areas api,web
   acs.py analysis record-survey | record-synthesis | record-clarify | record-draft
   acs.py analysis record-review | publish | record-publication
+  acs.py job start --name gate-suite [--cwd DIR] -- pytest --cov
+  acs.py job wait --name gate-build --name gate-suite [--timeout 540]
+  acs.py job status --name gate-suite
+  acs.py job stop --name gate-suite
 """
 
 import argparse

@@ -94,8 +94,8 @@ BEFORE continuing:
 - A sliced phase resumes slice by slice: re-run ONLY the slices whose own
   report is missing — a survey slice without `iter-1/authoring-<id>.md` or
   `iter-1/architect-<id>.json`, a gap-analyst slice without `iter-1/gaps-<id>.md`,
-  a reviewer slice without
-  `iter-<n>/reviewer-<id>.md` — in one
+  a write slice without `iter-<n>/architect-write-<group>.json`, a reviewer
+  slice without `iter-<n>/reviewer-<id>.md` — in one
   message, then redo the join with `acs.py notes merge`; the joined file is
   always rebuilt from the slice files, never trusted on its own.
 
@@ -156,12 +156,14 @@ The loop is architect -> review, max 3 iterations. Iteration 1 opens with a
 **survey pass**: the architect decides the mode, inventories the PRD and the
 codebase, fixes the canonical container/component vocabulary and records the
 open points in its authoring notes, and writes no doc file. Once the user has
-answered the open points, ONE **write pass** architect writes the whole HLD from
-the notes — the HLD is one small, tightly cross-referenced set, so a single
-writer keeps its names consistent with no seams to reconcile — and the reviewer
-judges the result fresh, itself sliced by dimension. On iterations 2-3 the
-reviewer's findings go verbatim into the next architect's `<task>` `<context>`
-and it authors the remediation. Decomposition is YOURS alone — subagents never
+answered the open points, the **write pass** runs as parallel write slices, one
+architect per HLD file group, all writing from the notes — which pinned the
+shared vocabulary (the names of containers, components and entities), so each
+group can be written without the others; ONE integration architect follows
+only when a slice reports a seam — and the reviewer judges the result fresh,
+itself sliced by dimension. On iterations 2-3 the reviewer's findings go
+verbatim into the next write slices' `<task>` `<context>` and they author the
+remediation. Decomposition is YOURS alone — subagents never
 spawn subagents; every fan-out below is yours.
 
 **What an iteration counts:** one architect -> review round (iteration 1's
@@ -195,14 +197,16 @@ notification — never poll with `sleep` loops.
 - **One message, then wait for all.** The parallel instances of a phase are
   the SAME agent spawned N times in ONE message — one Agent call per slice,
   each `run_in_background: false` — and you wait for every one of them
-  before the join. Cap: at most `max_parallel = 4` instances per phase;
-  more slices than that run in waves of 4, and the next phase starts only
-  after the last wave is joined.
+  before the join. Cap: at most `settings.parallel.max_agents` (default 4)
+  instances per message; more slices than that run in waves of that size, and
+  the next phase starts only after the last wave is joined.
 - **Slice ids.** Each instance's task and result carry `slice="<id>"`
   (`<task skill="create-architecture" phase="architect" slice="prd" …>`), so
   the SubagentStop snapshot lands at `iter-<n>/<role>-<id>-message.xml` and
   siblings never collide. A slice id is a short lowercase token (letters,
-  digits, hyphens). The id `prd` is reserved for the survey slice below. A single, un-sliced instance omits `slice`
+  digits, hyphens). The id `prd` is reserved for the survey slice below,
+  `write-<group>` for the write slices and `integration` for the integration
+  pass. A single, un-sliced instance omits `slice`
   exactly as before and writes the un-suffixed file names.
 - **Per-slice files.** A sliced architect writes `iter-<n>/architect-<id>.json`
   and, as a survey slice, its notes to `iter-<n>/authoring-<id>.md`; a
@@ -228,14 +232,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
 On an existing codebase whose source spans two or more disjoint top-level
 areas (top-level packages, services or apps — e.g. `api/`, `web/`,
 `worker/`), the survey is sliced: one `prd` slice plus one slice per area,
-at most 4 per wave.
+at most `settings.parallel.max_agents` per wave.
 
 - **`prd`** owns the PRD, the roadmap, the existing docs (an existing set at
   `<architecture_dir>` included), the ADR-0012 doc-consistency step, and the
   notes' cross-cutting sections: Target doc set (the enabled file list and its
   PRD-driven outline), Reviewer checklist.
 - **`<area>`** — the area's directory name, lowercased (`web-app/` →
-  `web-app`; an area whose name is a reserved id is prefixed `area-`) — owns
+  `web-app`; an area whose name is a reserved id or starts with `write-` is
+  prefixed `area-`) — owns
   ONLY the files
   under its directory: the Mode evidence, the Inventory, the canonical names
   of the containers/components whose code lives there, the APIs it exposes
@@ -270,7 +275,8 @@ disagree, and the HLD must not be rewritten blind to it. Spawn the gap analysts
 **in the SAME message as the survey** — one `acs:create-architecture-gap-analyst`
 per survey area (slice id = the area's id; `repo` when the survey is un-sliced),
 each `<constraint name="area">` the same directory, its `<inputs>` the existing
-`hld/` files and the PRD — counted against the same cap of 4 per wave. They run
+`hld/` files and the PRD — counted against the same cap,
+`settings.parallel.max_agents` per wave. They run
 while the survey runs. Join their notes once all have returned:
 
 ```bash
@@ -289,26 +295,66 @@ analysis and say so in the report. Each gap is handled by default as:
 - **drifted** (both, disagreeing) → a question in the survey's ONE grouped ask, with
   both readings and their citations — never silently resolved either way.
 
-### Write pass — one architect
+### Write pass — one architect per HLD file group
 
-After the grouped ask, spawn ONE write architect. Its `<inputs>` are the
-joined `iter-1/authoring.md`, `iter-1/gaps.md` when the gap analysis ran, and the
-PRD, its `<context>` the recorded answers (the drifted gaps' included), and its `<constraint name="hld_types">` the enabled types; it writes
-every file of the Output contract for those types and nothing else, in the
-container/component vocabulary the notes pinned. Create the branch (Delivery)
-before spawning it.
+After the grouped ask, spawn the write slices: one architect per **HLD file
+group** that holds at least one file this run writes (the always-on three plus
+the enabled `hld_types`), all in ONE message — at most
+`settings.parallel.max_agents` (default 4), waves of that size beyond it. The
+partition rule is the file: every Output-contract file belongs to exactly one
+group, so no two slices write the same file.
 
-**Survey synthesis.** When the survey was sliced, the write architect is the
-consumer of the joined notes and MUST reconcile them for the facts its files
-use: where two survey slices' notes contradict each other, it records the
+| Slice | Files (only the enabled ones) |
+|-------|------------------------------|
+| `write-context` | `hld/overview.md`, `hld/c4-context.md`, `hld/capability-map.md` |
+| `write-structure` | `hld/c4-container.md`, `hld/c4-component.md`, `hld/deployment.md`, `hld/project-structure.md` |
+| `write-data` | `hld/data-model.md`, `hld/integration-map.md`, `hld/data-flow.md` |
+| `write-conventions` | `hld/tech-stack.md`, `hld/cross-cutting.md` |
+
+`write-context` and `write-conventions` always run (they hold always-on
+files); `write-structure` and `write-data` run when one of their types is
+enabled. Each task carries `slice="write-<group>"`, `<constraint
+name="files">` naming its group's files, and the same `<inputs>`: the joined
+`iter-1/authoring.md`, `iter-1/gaps.md` when the gap analysis ran, and the
+PRD; its `<context>` is the recorded answers (the drifted gaps' included), its
+`<constraint name="hld_types">` the enabled types. A slice writes ONLY its
+group's files, in the container/component/entity vocabulary the notes pinned —
+never inventing a name — and reports `iter-<n>/architect-write-<group>.json`.
+Create the branch (Delivery) before spawning them.
+
+**Seams.** The groups meet where a file names what another group draws: the
+container and component names of the C4 views, the entities of the data model,
+the overview's links to the other files. The notes pin those names, so a slice
+needs no sibling's output. A name a slice needed that the notes do not pin —
+or a pinned name it found wrong — is a **seam**: it records it in its report's
+`seams` (`[{"what": …, "file": …, "owner": "write-<group>"}]`, `[]` when
+none) and writes the notes' name meanwhile. After the last wave:
+
+- no slice reported a seam → skip the integration pass and go to review;
+- any seam → spawn ONE more architect, alone, with `slice="integration"`. Its
+  `<inputs>` name every slice's files and reports; it reconciles ONLY the
+  reported seams — one name for one element across every file, cross-links
+  that resolve — never a slice's substance, edits the files in place, and
+  records each change (file, what, why, which slices) in
+  `iter-<n>/architect-integration.json`. A conflict the evidence cannot settle
+  comes back as `needs_input`.
+
+The reviewer's `coherence` slice still judges cross-file naming
+(internal-consistency): a seam nobody reported is a finding for the next
+iteration.
+
+**Survey synthesis.** When the survey was sliced, the write slices are the
+consumers of the joined notes and each MUST reconcile them for the facts its
+files use: where two survey slices' notes contradict each other, it records the
 resolution with its evidence under a `## Synthesis` heading in
-`iter-1/authoring-write.md`, or returns `needs_input` with the contradiction as
-a question — never silently picks one. It writes that file whenever the
-survey was sliced (its Synthesis says "none" when nothing contradicted); redo
-the iteration-1 join with it appended (`acs.py notes merge --out
-iter-1/authoring.md iter-1/authoring-prd.md iter-1/authoring-<area>.md …
-iter-1/authoring-write.md`), so iteration 1's notes carry every `## Synthesis`
-entry the reviewer checks.
+`iter-1/authoring-write-<group>.md`, or returns `needs_input` with the
+contradiction as a question — never silently picks one. A resolution that
+changes a name another group also uses is a seam, reported as above. Each
+slice writes that file whenever the survey was sliced (its Synthesis says
+"none" when nothing contradicted); redo the iteration-1 join with them
+appended (`acs.py notes merge --out iter-1/authoring.md iter-1/authoring-prd.md
+iter-1/authoring-<area>.md … iter-1/authoring-write-<group>.md …`), so
+iteration 1's notes carry every `## Synthesis` entry the reviewer checks.
 
 **Design versions (ADR-0122).** Every HLD file carries version front matter
 (`status`, `version`, `tickets`), set only through `acs.py design`: a new file
@@ -321,21 +367,26 @@ a dashed `planned` classDef and marked `(planned)` in prose. The team's approval
 the docs PR is the design's approval; `/acs:docs-sync` later moves a design to
 `implemented` when its code lands.
 
-The architect writes files only and never commits: you commit once, after
+The architects write files only and never commit: you commit once, after
 the review passes (Delivery).
 
-On iterations 2-3 the write architect receives ALL the reviewer's findings
-verbatim in `<context>`, fixes them, and records them under one
-`## Findings addressed` heading in `iter-<n>/authoring-write.md`. Join it
-after the previous iteration's notes (`acs.py notes merge --out
-iter-<n>/authoring.md iter-<n-1>/authoring.md iter-<n>/authoring-write.md`), so
-the notes the reviewer reads are the pinned survey plus what was fixed.
+On iterations 2-3 re-run only the write slices whose group's files the
+findings name, each receiving ALL the reviewer's findings verbatim in
+`<context>`; it fixes the ones in its files and records them under one
+`## Findings addressed` heading in `iter-<n>/authoring-write-<group>.md`. A
+finding that spans two groups' files (a cross-file naming inconsistency) goes
+to the integration pass, which then runs after the re-run slices — alone, when
+only such findings were open — and also whenever a re-run slice reports a
+seam. Join the re-run slices' notes after the previous iteration's notes
+(`acs.py notes merge --out iter-<n>/authoring.md iter-<n-1>/authoring.md
+iter-<n>/authoring-write-<group>.md …`), so the notes the reviewer reads are
+the pinned survey plus what was fixed.
 
 Communicate in XML per `the SubagentStop hook's message check`; the `phase=`
 of every task and result is the role (`architect`, `reviewer`). Example
 survey architect task (un-sliced; a survey slice adds `slice="<id>"` and
-`<constraint name="area">`; the write architect's objective is the write
-pass):
+`<constraint name="area">`; a write slice's objective is the write pass
+for the files in its `<constraint name="files">`):
 
 ```xml
 <task skill="create-architecture" phase="architect" ticket-id="SHOP-2" iteration="1">
@@ -374,16 +425,18 @@ yourself. The architects' own artifacts are `iter-<n>/authoring.md` (Mode;
 Inventory; Target doc set with the per-file outline; Risks & open decisions;
 Reviewer checklist — the Upstream inventory cites every PRD and codebase fact
 verbatim — joined from `iter-<n>/authoring-<id>.md` when sliced) and
-`iter-<n>/architect.json` (`iter-<n>/architect-<id>.json` per slice); the reviewer's is
+`iter-<n>/architect.json` (`iter-<n>/architect-<id>.json` per slice — survey,
+write and integration); the reviewer's is
 `iter-<n>/reviewer.md`, joined from `iter-<n>/reviewer-<id>.md`. Every
 iteration's reviewer `<inputs>` name that iteration's joined authoring notes.
 
 Phases:
 
 1. **Architect** — the survey pass (iteration 1 only), the grouped ask, then
-   the write pass, all as above. On iterations 2-3 the reviewer's findings go
-   verbatim into the write architect's `<task>` `<context>`.
-2. **Review** — after the write architect finishes, spawn the reviewer
+   the write slices and, when a seam was reported, the integration pass, all
+   as above. On iterations 2-3 the reviewer's findings go verbatim into the
+   re-run write slices' `<task>` `<context>`.
+2. **Review** — after the write pass finishes, spawn the reviewer
    slices on its result. The reviewer has ten check dimensions, so the
    review is sliced by dimension: three fresh instances of the SAME
    `acs:create-architecture-reviewer` agent in ONE message, each task
@@ -433,7 +486,7 @@ nothing is lost, but do NOT push or open the PR.
 The delivery-ticket pattern, done by you
 (/acs:create-design and /acs:code are not involved):
 
-1. **Branch** (before the write architect writes): require a clean working
+1. **Branch** (before the write slices write): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
    proceeding). Name the branch
    `<type>/<ticket_id>-<slug>` with `type=task`, the ticket id, and the

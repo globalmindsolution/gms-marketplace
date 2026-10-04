@@ -271,8 +271,8 @@ never spawn subagents.
 
 Every fan-out is yours: spawn the N instances in ONE message (all foreground,
 in the same message), wait for all of them, and only then call the `record`
-verb. At most `max_parallel = 4` instances run per phase; beyond that, run the
-rest in waves of four.
+verb. At most `settings.parallel.max_agents` (default 4) instances run per
+message; beyond that, run the rest in waves of that size.
 
 **Writer — one analyst, never sliced.** `analysis.md` is a single document:
 there is no disjoint-file partition of the deliverable, so one analyst writes
@@ -588,20 +588,14 @@ confirmed criteria match the ticket. Each writes
 `steps/analyze-requirements/iter-<n>/impact-reviewer-<slice>.md`. Then
 `record-review`: the controller joins the reports into
 `iter-<n>/impact-reviewer.md` and derives the verdict from the slices'
-`<result>` snapshots — never conclude a pass yourself.
+`<result>` snapshots plus the draft's deterministic checks (below) — never
+conclude a pass yourself.
 
-### Phase: publish — the controller is the only writer of `analysis.md`
-
-The `publish` action:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis publish
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis record-publication
-```
-
-`publish` refuses unless the last review passed and the draft is still the
-exact bytes that review judged. It runs the two deterministic checks on the
-draft — the same front-matter spec and section list the `form` slice runs:
+**The deterministic checks run beside the review.** `record-draft` runs the
+two $0 checks on the draft as it records it — the same front-matter spec and
+section list the `form` slice runs — so they are done before the review
+spawns, not after it passes; the `review` action lists their findings as
+`draft_checks`:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
@@ -613,9 +607,22 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --ordered "steps/analyze-requirements/analysis.md"
 ```
 
-— a finding fails the iteration like a blocking review finding (it goes to
-the next draft pass, or ends the run at the cap), never patched by you. Then
-it copies the draft byte-for-byte to the resolved analysis path and reads it
+`record-review` folds them into that iteration's blocking findings: a check
+finding fails the iteration like a judge's blocking finding (it goes to the
+next draft pass, or ends the run at the cap), never patched by you.
+
+### Phase: publish — the controller is the only writer of `analysis.md`
+
+The `publish` action:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis publish
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis record-publication
+```
+
+`publish` refuses unless the last review passed and the draft is still the
+exact bytes that review judged — bytes whose deterministic checks ran clean
+beside that review (above). Then it copies the draft byte-for-byte to the resolved analysis path and reads it
 back; inside the repo it runs `git add` on the ticket's docs folder ONLY and
 commits that folder ONLY, in the repo's own commit style naming the ticket id. It commits
 **the ticket's whole docs folder**, not only `analysis.md`: `ticket.md` and,

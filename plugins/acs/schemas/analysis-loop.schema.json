@@ -101,7 +101,9 @@
           "required": ["iteration", "sha256"],
           "properties": {
             "iteration": {"type": "integer", "minimum": 1},
-            "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "checks": {"type": "array", "items": {"type": "object"},
+                       "description": "The draft's deterministic check findings, run when record-draft records it and folded into that iteration's review (ADR-0125)."}
           }
         }
       ]

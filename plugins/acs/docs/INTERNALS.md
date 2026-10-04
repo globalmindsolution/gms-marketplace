@@ -476,8 +476,8 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
                over disjoint dimensions, joined by `acs notes merge`; the
                iteration passes only when every slice passed.
      - a fan-out is N instances of the SAME agent spawned in ONE message,
-       each carrying slice="<id>", at most max_parallel = 4 per phase (see
-       "Fan-out inside a skill")
+       each carrying slice="<id>", at most settings.parallel.max_agents
+       (default 4) per message (see "Fan-out inside a skill")
      - every task and result carries phase="<role>"
      - every subagent WRITES ITS OWN ITERATION ARTIFACT (see below) and names it
        in its outputs; the message itself stays compact
@@ -513,10 +513,18 @@ spawns the planner.
 
 A subagent cannot spawn a subagent, so every fan-out is the coordinator's: it
 runs N instances of the SAME agent in ONE message, in the foreground, each over
-a disjoint **slice**, and waits for all of them before the next phase. The
-cap is **`max_parallel = 4` instances per phase**; a skill with its own cap
-keeps it, and work beyond the cap
-runs in waves. Three kinds of work fan out:
+a disjoint **slice**, and waits for all of them before the next phase.
+
+**The cap is a setting: `settings.parallel.max_agents`** (default 4, an
+integer from 1 to 16; `acs_lib/settings.py`, `schemas/settings.schema.json`;
+ADR-0125). It is the most subagents a skill spawns in one message; work
+beyond it runs in **waves of that size**, each wave one message, the next only
+after the last returned. Every skill reads it from the `settings` its context
+JSON carries — no SKILL.md hard-codes a number. A skill with its own SMALLER
+structural cap keeps it (`/acs:code-small` 2, `/acs:code-trivial` 1),
+and one fan-out is a fixed shape
+rather than a wave: `/acs:review-code`'s five lenses are one message whatever
+the setting. Three kinds of work fan out:
 
 | Kind | When | Slice | Joined by |
 |---|---|---|---|
@@ -586,8 +594,54 @@ missing.
 never force anything.
 
 **Cost.** Wall time falls wherever work splits; token cost rises with sliced
-judges, which re-read shared inputs once per slice, and the per-phase cap
+judges, which re-read shared inputs once per slice, and the per-message cap
 bounds it.
+
+#### Jobs: commands beside the agents (ADR-0125)
+
+Subagents stay in the foreground — the coordinator waits on their results,
+never on a clock. A long DETERMINISTIC command (a build, a lint, a test
+suite) is different: it needs no model, so it runs as a **job**, started in
+the same turn as the spawn it runs beside, and collected when its result is
+needed:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name <n> [--cwd <dir>] -- <command>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job wait --name <n> [--name <m> …] [--timeout <s>]
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job status --name <n> [--name <m> …]
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job stop --name <n>
+```
+
+- `start` runs the command detached (default cwd: the checkout root) and
+  returns at once. A job of the same name still running is refused; a
+  finished one is replaced.
+- `wait` is ONE blocking call that returns the moment every named job has
+  ended, with each job's state, exit code and the tail of its log. It exits
+  **0** when all passed, **1** when one failed or was stopped, **3** when the
+  timeout (default 540 s, under the Bash tool's ceiling) passed with a job
+  still running — call it again. This is not polling: never wrap it, or
+  anything else, in a `sleep` loop.
+- `status` answers without waiting (`running|passed|failed|stopped|missing`);
+  `stop` kills a running job's process group.
+- Jobs belong to the run: `<run>/jobs/<name>.json` (the record),
+  `<name>.log` (combined output) and `<name>.exit` (the exit code, written
+  only after the command ends). Names are lowercase letters, digits, `-`
+  and `_`.
+
+A job is safe only over a tree nothing else is writing — read-only agents, or
+a command that does not read what the agents write. Where it runs:
+`/acs:review-code` starts the gate (`gate-build`, `gate-lint`, `gate-suite`)
+beside its lenses and reads it only when nothing blocks;
+`/acs:create-impl-plan` starts the repo's existing suite (`suite`) beside
+iteration 1's planner, once per run, and its `tests` plan-review slice reads
+it.
+
+**Deterministic checks go beside the judge, not after it.** A $0 check a
+coordinator runs on a draft (`front_matter_check.py`, `structure_lint.py`,
+`prd_conformance_check.py`, a coverage grep) needs no review result, so it
+runs as soon as the draft is written, in the same turn as the judge spawn, and
+its failures are blocking findings of THAT iteration — never a second failure
+after a passing review.
 
 ### Phase artifacts (written by the subagents themselves)
 
@@ -936,9 +990,9 @@ write. The coordinator performs ONE action at a time and reports it:
 | `record-survey` | every lane's `<result>` snapshot, notes and JSON report; joins the notes into `iter-1/authoring.md` | `synthesize` (always: ≥ 2 lanes) |
 | `record-synthesis` | the synthesis snapshot and notes; re-joins with the synthesis last | `clarify` |
 | `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
-| `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 | `review` |
-| `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>` | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
-| `publish` | refuses unless the last review passed and the draft is the reviewed bytes; runs `front_matter_check` and `structure_lint` (a finding fails the iteration); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `conventions.COMMIT_SUBJECT`; never pushes | (unchanged) |
+| `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 and runs `front_matter_check` and `structure_lint` on it — beside the review, not after it (ADR-0125) — listing their findings as the `review` action's `draft_checks` | `review` |
+| `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>`, and folds in the draft's check findings (slice `draft-checks`) | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
+| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `conventions.COMMIT_SUBJECT`; never pushes | (unchanged) |
 | `record-publication` | re-reads the published bytes and `git show HEAD:<path>` | `completed` |
 
 Rules the code holds, each with a transition test in
@@ -946,8 +1000,9 @@ Rules the code holds, each with a transition test in
 
 - **Derived, never asserted.** No verb takes a verdict. An iteration passes
   iff every judge slice returned `status="completed"` with zero
-  `severity="blocking"` findings; a slice with `status="failed"` contributes a
-  `review-failed` blocking finding.
+  `severity="blocking"` findings and the draft's deterministic checks found
+  nothing; a slice with `status="failed"` contributes a `review-failed`
+  blocking finding.
 - **Stall.** The blocking set — (dimension, file, whitespace-normalised text),
   de-duplicated, order-insensitive — identical to the previous iteration's
   ends the run `failed` with `stop_reason: stalled`.

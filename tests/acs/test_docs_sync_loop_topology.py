@@ -188,7 +188,7 @@ class ParallelFanOutTest(unittest.TestCase):
 
     def test_every_instance_of_a_phase_spawns_in_one_message_under_the_cap(self):
         self.assertRegex(self.norm, r"(?i)spawn every instance of a phase in ONE message")
-        self.assertIn("`max_parallel = 4`", self.norm)
+        self.assertIn("`settings.parallel.max_agents` (default 4) instances per message", self.norm)
 
     def test_both_joins_use_notes_merge(self):
         self.assertIn('acs.py" notes merge', self.skill)
