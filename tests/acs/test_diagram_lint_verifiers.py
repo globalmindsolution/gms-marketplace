@@ -38,9 +38,9 @@ HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py"
 
 ARCH_DIMENSIONS = (
     "doc-set-completeness", "prd-coverage", "codebase-match", "mermaid-diagrams",
-    "internal-consistency", "diagram-prose-agreement", "hld-lld-consistency",
+    "internal-consistency", "diagram-prose-agreement",
     "authoring-conformance", "docs-only-changeset",
-)
+)  # hld-lld-consistency went with the LLD (ADR-0121)
 DESIGN_DIMENSIONS = ("alternatives", "consistency", "feasibility", "nfr", "completeness")
 
 
@@ -155,7 +155,7 @@ class DimensionListRegressionTest(unittest.TestCase):
     """Surgical-edit proof: neither rewrite drops, renames, or renumbers a
     neighboring check dimension (protects sibling MAR-138's rebase surface)."""
 
-    def test_all_nine_architecture_dimensions_present(self):
+    def test_all_architecture_dimensions_present(self):
         body = read(ARCH_VERIFIER)
         for label in ARCH_DIMENSIONS:
             self.assertTrue(

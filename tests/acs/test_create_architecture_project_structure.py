@@ -15,6 +15,7 @@ Run:  python3 -m unittest tests.acs.test_mar120_create_architecture_project_stru
 
 import os
 import re
+import sys
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -154,15 +155,14 @@ class ArchitectDoingTheWorkTest(unittest.TestCase):
 
 class ReviewerDimensionsTest(unittest.TestCase):
     """AC-3: reviewer dimension-1 doc-set-completeness names
-    project-structure.md; exactly one C4-traceability clause, in
-    internal-consistency, not duplicated in hld-lld-consistency."""
+    project-structure.md; the C4-traceability clause lives in
+    internal-consistency (hld-lld-consistency went with the LLD, ADR-0121)."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(REVIEWER_PATH)
         cls.dim1 = dimension(cls.body, "doc-set-completeness")
         cls.dim5 = dimension(cls.body, "internal-consistency")
-        cls.dim7 = dimension(cls.body, "hld-lld-consistency")
 
     def test_dimension1_names_project_structure(self):
         self.assertIn("hld/project-structure.md", self.dim1)
@@ -173,8 +173,8 @@ class ReviewerDimensionsTest(unittest.TestCase):
             "c4-container" in self.dim5 or "c4-component" in self.dim5,
             "internal-consistency dimension must reference the C4 views by name")
 
-    def test_c4_traceability_clause_not_duplicated_in_hld_lld_consistency(self):
-        self.assertNotIn("project-structure", self.dim7)
+    def test_no_hld_lld_dimension_remains(self):
+        self.assertNotIn("hld-lld-consistency", self.body)
 
 
 class SkillsMdSectionTest(unittest.TestCase):
@@ -272,13 +272,14 @@ class ScopeGuardTest(unittest.TestCase):
 
 
 class SkillAdditivityGuardTest(unittest.TestCase):
-    """AC-5: pre-existing Output-contract rows survive (table now 10 rows);
-    Re-run additive phrase preserved verbatim."""
+    """AC-5, restated by ADR-0121: the Output contract has one row per HLD
+    document -- the always-on three plus one per catalog type -- and no LLD
+    row; the Re-run additive phrase is preserved verbatim."""
 
     PRE_EXISTING = [
         "hld/overview.md", "hld/c4-context.md", "hld/c4-container.md",
         "hld/c4-component.md", "hld/data-model.md", "hld/deployment.md",
-        "hld/tech-stack.md", "lld/flows/", "lld/contracts.md",
+        "hld/tech-stack.md",
     ]
 
     @classmethod
@@ -292,12 +293,16 @@ class SkillAdditivityGuardTest(unittest.TestCase):
             self.assertIn(name, self.output, "%s dropped from Output contract" % name)
         self.assertIn("hld/project-structure.md", self.output)
 
-    def test_output_contract_has_exactly_ten_data_rows(self):
-        rows = re.findall(r"(?m)^\| `", self.output)
-        self.assertEqual(
-            len(rows), 10,
-            "expected 10 Output-contract data rows (9 pre-existing + 1 new), found %d: %r"
-            % (len(rows), rows))
+    def test_one_row_per_hld_document_and_no_lld_row(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)))), "plugins", "acs", "hooks", "scripts"))
+        from acs_lib import design_types
+        rows = re.findall(r"(?m)^\| `hld/([a-z0-9-]+)\.md` \| `?([a-z0-9-]+)`? \|", self.output)
+        self.assertEqual([doc for doc, _kind in rows],
+                         list(design_types.HLD_ALWAYS) + list(design_types.HLD_TYPES))
+        for doc, kind in rows:
+            self.assertEqual(kind, "always" if doc in design_types.HLD_ALWAYS else doc)
+        self.assertNotIn("| `lld/", self.output)
 
     def test_rerun_additive_phrase_preserved(self):
         self.assertIn("keep the same file set, update content in place", self.inputs)

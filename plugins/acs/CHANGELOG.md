@@ -78,6 +78,17 @@ matching section here, and merge to `main` — the Release workflow tags
   `docs/adr/`; an existing ADR folder is still found where it is, so nothing in a
   consumer repo moves.
 
+- **⚠️ BREAKING: `/acs:create-architecture` writes the high-level design only**
+  (ADR-0121). It writes `hld/overview.md`, `hld/tech-stack.md` and the new
+  `hld/cross-cutting.md`, plus one file per enabled `design.hld_types` entry —
+  including the new `hld/integration-map.md` (the API landscape), on by default —
+  and nothing under `lld/`. One write architect replaces the write slices and the
+  integration pass; the reviewer drops `hld-lld-consistency` (ten dimensions); the
+  flow-list question is gone. **Migration:** existing `lld/flows/` and
+  `lld/contracts.md` stay where they are and `/acs:docs-sync` keeps them current;
+  the next re-run adds `cross-cutting.md` and `integration-map.md`. Turn types off
+  in `design.hld_types` (`/acs:setup`).
+
 ### Removed
 
 - **⚠️ BREAKING: `/acs:project`, `create-project`, `standardize-project` and

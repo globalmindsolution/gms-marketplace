@@ -89,23 +89,20 @@ class CreateArchitectureFanOutTest(JudgeSlicingMixin, unittest.TestCase):
         cls.architect = read(os.path.join(AGENTS, "create-architecture-architect.md"))
         cls.reviewer = read(os.path.join(AGENTS, "create-architecture-reviewer.md"))
 
-    def test_writers_fan_out_from_iteration_one(self):
-        self.assertIn("parallel by default, from iteration 1", self.flat)
-        self.assertNotIn("MAY run two architects", self.flat)
-        self.assertNotIn("Iteration 1 runs a single architect", self.flat)
+    def test_one_write_architect_writes_the_hld(self):
+        """ADR-0121: the HLD is one small, cross-referenced set, so it has one
+        writer -- no write slices, no file partition, no seams to reconcile."""
+        self.assertIn("spawn ONE write architect", self.flat)
+        self.assertIn("no seams to reconcile", self.flat)
+        for gone in ("parallel by default, from iteration 1", '<constraint name="owns">',
+                     "min(3, number of flows) contiguous groups"):
+            self.assertNotIn(gone, self.flat)
 
-    def test_write_partition_rule(self):
-        rows = slice_table(self.skill, "hld")
-        self.assertIn("hld", rows)
-        self.assertIn("hld/*.md", rows["hld"])
-        self.assertIn("lld1", rows)
-        self.assertIn("lld/contracts.md", rows["lld1"])
-        self.assertIn("lld/flows/<flow>.md", rows["lld1"])
-        for phrase in ("every Output contract file has exactly one owner",
-                       "two slices can never write the same file",
-                       '<constraint name="owns">',
-                       "min(3, number of flows) contiguous groups"):
-            self.assertIn(phrase, self.flat)
+    def test_writes_only_the_enabled_hld_types(self):
+        contract = flat(self.skill.split("## Output contract", 1)[1].split("\n## ", 1)[0])
+        self.assertIn("`settings.design.hld_types`", contract)
+        self.assertIn("never touches `lld/`", contract)
+        self.assertIn('<constraint name="hld_types">', self.skill)
 
     def test_survey_sliced_over_disjoint_areas(self):
         for phrase in ("two or more disjoint top-level areas",
@@ -145,31 +142,16 @@ class CreateArchitectureFanOutTest(JudgeSlicingMixin, unittest.TestCase):
 
     def test_resume_reruns_only_missing_slices(self):
         self.assertIn("re-run ONLY the slices whose own report is missing", self.flat)
-        self.assertIn("the integration pass without `iter-<n>/architect-integration.json`",
-                      self.flat)
 
-    def test_integration_pass_before_the_review(self):
-        section = flat(self.skill.split("### Integration pass", 1)[1].split("\n### ", 1)[0])
-        self.assertIn('slice="integration"', section)
-        self.assertIn("After ALL write slices of an iteration finish and BEFORE the reviewer",
-                      section)
-        self.assertIn("It is skipped when only one writer ran", section)
-        self.assertIn("iter-<n>/architect-integration.json", section)
-        self.assertIn("It never rewrites a slice's substance", section)
-        self.assertIn('status="needs_input"', section)
-        for seam in ("component names shared by HLD and LLD",
-                     "the HLD overview's links to LLD flows",
-                     "contracts vs flows across LLD slices",
-                     "`## Synthesis` entries"):
-            self.assertIn(seam, section)
-        # the review runs on the integrated result
-        self.assertIn("the integration pass included, spawn the reviewer slices on the "
-                      "integrated result", self.flat)
-        self.assertLess(self.skill.index("### Integration pass"),
-                        self.skill.index("2. **Review**"))
+    def test_no_integration_pass(self):
+        """With one writer there are no seams between writers to reconcile."""
+        for body in (self.skill, self.architect):
+            self.assertNotIn("### Integration pass", body)
+            self.assertNotIn("architect-integration.json", body)
+            self.assertNotIn('slice="integration"', body)
 
     def test_survey_consumers_synthesize(self):
-        self.assertIn("each one MUST reconcile them", self.flat)
+        self.assertIn("MUST reconcile them for the facts its files use", self.flat)
         self.assertIn("under a `## Synthesis` heading", self.flat)
         self.assertIn("never silently picks one", self.flat)
         self.assertIn("## Synthesis", self.architect)
@@ -185,18 +167,10 @@ class CreateArchitectureFanOutTest(JudgeSlicingMixin, unittest.TestCase):
         body = flat(self.architect)
         self.assertIn("## When you are one slice", self.architect)
         for phrase in ("iter-<n>/architect-<id>.json", "iter-<n>/authoring-<id>.md",
-                       'phase="architect" slice="<id>"', "`owns`",
+                       'phase="architect" slice="<id>"',
                        "never invent a container/component name"):
             self.assertIn(phrase, body)
         self.assertNotIn("architect-<k>", body)
-
-    def test_architect_integration_slice_contract(self):
-        body = flat(self.architect)
-        for phrase in ('(`slice="integration"`, after every write slice has finished)',
-                       "Never rewrite a slice's substance",
-                       "`iter-<n>/architect-integration.json` listing each seam you changed",
-                       "the HLD overview's links to LLD flows"):
-            self.assertIn(phrase, body)
 
     def test_reviewer_slice_contract(self):
         section = self.reviewer.split("## When you are one slice", 1)[1].split("\n## ", 1)[0]
@@ -204,7 +178,7 @@ class CreateArchitectureFanOutTest(JudgeSlicingMixin, unittest.TestCase):
         for phrase in ('<constraint name="dimensions">', "iter-<n>/reviewer-<id>.md",
                        "police grounding in every slice",
                        "`mermaid_lint.py` only when dimension 4 is yours",
-                       "`structure_lint.py` only when dimension 10 is yours"):
+                       "`structure_lint.py` only when dimension 9 is yours"):
             self.assertIn(phrase, body)
 
 

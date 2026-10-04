@@ -65,7 +65,7 @@ VERIFIERS = {
         (
             "doc-set-completeness", "prd-coverage", "codebase-match",
             "mermaid-diagrams", "internal-consistency",
-            "diagram-prose-agreement", "hld-lld-consistency",
+            "diagram-prose-agreement",
             "authoring-conformance", "docs-only-changeset",
         ),
     ),

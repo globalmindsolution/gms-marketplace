@@ -767,7 +767,7 @@ every other key below is persisted verbatim from the result document:
 | Skill | Required `states` keys on success |
 |-------|-----------------------------------|
 | create-prd | `prd` `{path, files:[...]}`, `pr` `{number, url, branch}` |
-| create-architecture | `architecture` `{path, hld:[...], lld:[...]}`, `pr` `{...}` |
+| create-architecture | `architecture` `{path, hld:[...]}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (the published `design.md` — the docs folder, or the partition when there is no checkout), `decision` (one line) |
 | analyze-requirements | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |

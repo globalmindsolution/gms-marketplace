@@ -1,14 +1,16 @@
 ---
 name: create-architecture
-description: Bootstrap or regenerate the product architecture doc set (C4 HLD plus LLD flows and contracts, all Mermaid) from the PRD and the codebase, delivered as a docs-only PR on its own delivery ticket. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the docs after a major architectural shift. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Bootstrap or regenerate the product's high-level design (HLD) — the overview, tech stack and cross-cutting conventions plus the HLD views the repo enabled at /acs:setup (C4 context, container and component views, conceptual data model, API landscape, deployment, project structure, and opt-in data-flow and capability maps), all Mermaid — from the PRD and the codebase, delivered as a docs-only PR on its own delivery ticket. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the HLD after a major architectural shift. Not for a ticket's low-level design. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[delivery-ticket-id to resume | focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-architecture. You produce the product
-architecture doc set in the consumer repo — wherever the repo already keeps it,
-else at `docs/architecture/` — judged against the PRD, and ship it as a
-docs-only PR on a fresh delivery ticket. This is a product-level skill: it is
+You are the coordinator of /acs:create-architecture. You produce the product's
+**high-level design** — the `hld/` part of the architecture set, wherever the
+repo already keeps it, else at `docs/architecture/hld/` — judged against the
+PRD, and ship it as a docs-only PR on a fresh delivery ticket. The low-level
+design (`lld/<feature>/`) is not yours: the Design skills write it per ticket
+(ADR-0118). This is a product-level skill: it is
 ticket-independent and runs on its own — the PRD is its primary input, which
 you look for yourself at Start, and when there is none it works from the
 run's subject instead. You orchestrate two subagents — the
@@ -57,7 +59,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ar
 
 If `acs step start` exits non-zero: stop immediately and surface its stderr to the
 user verbatim. Otherwise parse the printed context JSON; the fields you need:
-`partition`, `ticket_id`, `ticket`, `settings` (`tracker`), `agents`
+`partition`, `ticket_id`, `ticket`, `settings` (`tracker`, and `design.hld_types`
+— the HLD types this repo writes), `agents`
 (the agent name to spawn per role; the architect's and the reviewer's model and
 effort come from `settings.models.create-architecture.<role>`, inheriting when
 unset), `reconcile`, `handoff_summary`,
@@ -90,11 +93,8 @@ BEFORE continuing:
   belong to their iteration.
 - A sliced phase resumes slice by slice: re-run ONLY the slices whose own
   report is missing — a survey slice without `iter-1/authoring-<id>.md` or
-  `iter-1/architect-<id>.json`, a write slice without
-  `iter-<n>/architect-<id>.json` (or with an owned file missing or
-  truncated), the integration pass without
-  `iter-<n>/architect-integration.json` (after the write slices), a reviewer
-  slice without `iter-<n>/reviewer-<id>.md` — in one
+  `iter-1/architect-<id>.json`, a reviewer slice without
+  `iter-<n>/reviewer-<id>.md` — in one
   message, then redo the join with `acs.py notes merge`; the joined file is
   always rebuilt from the slice files, never trusted on its own.
 
@@ -117,49 +117,51 @@ in for them). Then pick the mode:
 - **Greenfield** (essentially empty repo): design the system to satisfy the
   PRD — goals, product-level NFRs, constraints drive every choice.
 - **Re-run** (doc set already exists at `<architecture_dir>`): regenerate
-  after major shifts — keep the same file set, update content in place,
-  preserve flow files grown ticket-by-ticket unless the flow no longer
-  exists.
+  after major shifts — keep the same file set, update content in place. A
+  file for a type the repo no longer enables is left as it is and named in
+  the report; anything under `lld/` is never touched.
 
 ## Output contract
 
-The architect writes EXACTLY this doc set under
-`<checkout_root>/<architecture_dir>/` (no other repo files are touched):
+The architect writes EXACTLY these files under
+`<checkout_root>/<architecture_dir>/hld/` — the three always-on documents plus
+one file per type in `settings.design.hld_types` (ADR-0120; the catalog is
+`acs_lib.design_types`) — and no other repo file:
 
-| File | Content | Diagram |
-|------|---------|---------|
-| `hld/overview.md` | system context, goals, quality attributes, constraints | — |
-| `hld/c4-context.md` | C4 level 1 — system in its environment | `C4Context` (or `flowchart`) |
-| `hld/c4-container.md` | C4 level 2 — deployable containers | `C4Container` (or `flowchart`) |
-| `hld/c4-component.md` | C4 level 3 — components per container | `C4Component` (or `flowchart`) |
-| `hld/data-model.md` | entities and relationships | `erDiagram` |
-| `hld/deployment.md` | runtime and infrastructure topology | `flowchart` |
-| `hld/tech-stack.md` | languages, frameworks, conventions | — |
-| `hld/project-structure.md` | intended repo layout derived from the C4 container/component views — the canonical target a repo's structure is reviewed against | `flowchart` (directory-tree style) |
-| `lld/flows/<flow>.md` | one file per key runtime flow | `sequenceDiagram` |
-| `lld/contracts.md` | interface/API contracts between components | — |
+| File | Type | Content | Diagram |
+|------|------|---------|---------|
+| `hld/overview.md` | always | system context, goals, quality attributes, constraints | — |
+| `hld/tech-stack.md` | always | languages, frameworks, conventions | — |
+| `hld/cross-cutting.md` | always | the conventions every feature follows: API (error model, auth, pagination, versioning, idempotency), data (naming, keys, audit columns, migration policy), the event envelope; security, observability, configuration | — |
+| `hld/c4-context.md` | `c4-context` | C4 level 1 — system, users, external systems | `C4Context` (or `flowchart`) |
+| `hld/c4-container.md` | `c4-container` | C4 level 2 — deployable containers, relations labelled with protocol | `C4Container` (or `flowchart`) |
+| `hld/c4-component.md` | `c4-component` | C4 level 3 — components per container | `C4Component` (or `flowchart`) |
+| `hld/data-model.md` | `data-model` | conceptual ERD — entities and relationships, no attributes | `erDiagram` |
+| `hld/integration-map.md` | `integration-map` | API landscape — who exposes and consumes which API, style, sync or async, versioning and auth strategy | `flowchart` |
+| `hld/deployment.md` | `deployment` | runtime and infrastructure topology | `flowchart` |
+| `hld/project-structure.md` | `project-structure` | intended repo layout derived from the C4 container/component views — the canonical target a repo's structure is reviewed against | `flowchart` (directory-tree style) |
+| `hld/data-flow.md` | `data-flow` | data-flow diagram with trust boundaries, for threat modelling | `flowchart` |
+| `hld/capability-map.md` | `capability-map` | business capabilities mapped to containers | `mindmap` |
 
 Rules: ALL diagrams are Mermaid (diffable, GitHub-rendered). C4 level 4
 (code) is deliberately out of scope — the code and its API docs serve that
-level. Iteration 1's survey pass selects the main runtime flows for
-`lld/flows/` in its authoring notes and the user confirms the list before
-the doc set is written (User interaction). Every file above has exactly one
-owning write slice (Write pass below).
+level. Detailed design — contracts, schemas, flows — is the low-level design
+under `lld/<feature>/`, written per ticket by the Design skills; this skill
+writes none of it and never touches `lld/`.
 
 ## Reflection loop — architect → review
 
 The loop is architect -> review, max 3 iterations. Iteration 1 opens with a
 **survey pass**: the architect decides the mode, inventories the PRD and the
-codebase, fixes the canonical container/component vocabulary and proposes the
-flow list in its authoring notes, and writes no doc file. The flow list and
-the vocabulary the survey fixes are exactly what the docs are written in, so
-the same role writes them: once the user confirms the flow list, the **write
-pass** fans out parallel architects over disjoint files of the doc set, all
-writing from the one set of notes, and the reviewer judges the combined
-result fresh — itself sliced by dimension. On iterations 2-3 the reviewer's
-findings go verbatim into the next architects' `<task>` `<context>` and they
-author the remediation. Decomposition is YOURS alone — subagents never spawn
-subagents; every fan-out below is yours.
+codebase, fixes the canonical container/component vocabulary and records the
+open points in its authoring notes, and writes no doc file. Once the user has
+answered the open points, ONE **write pass** architect writes the whole HLD from
+the notes — the HLD is one small, tightly cross-referenced set, so a single
+writer keeps its names consistent with no seams to reconcile — and the reviewer
+judges the result fresh, itself sliced by dimension. On iterations 2-3 the
+reviewer's findings go verbatim into the next architect's `<task>` `<context>`
+and it authors the remediation. Decomposition is YOURS alone — subagents never
+spawn subagents; every fan-out below is yours.
 
 **What an iteration counts:** one architect -> review round (iteration 1's
 survey pass belongs to iteration 1). `/acs:create-architecture` has no
@@ -184,9 +186,7 @@ run with that exact error — no silent fallback.
 `run_in_background: false` to the Agent tool: the phase's `<result>` is your
 next input and nothing else can usefully happen while it runs. If the
 runtime moves the agent to the background anyway, wait for its completion
-notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
-sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
-agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+notification — never poll with `sleep` loops.
 
 ### Fan-out rules (every sliced phase)
 
@@ -197,11 +197,10 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
   more slices than that run in waves of 4, and the next phase starts only
   after the last wave is joined.
 - **Slice ids.** Each instance's task and result carry `slice="<id>"`
-  (`<task skill="create-architecture" phase="architect" slice="hld" …>`), so
+  (`<task skill="create-architecture" phase="architect" slice="prd" …>`), so
   the SubagentStop snapshot lands at `iter-<n>/<role>-<id>-message.xml` and
   siblings never collide. A slice id is a short lowercase token (letters,
-  digits, hyphens). The ids `prd`, `hld`, `lld<k>` and `integration` are
-  reserved for the slices below. A single, un-sliced instance omits `slice`
+  digits, hyphens). The id `prd` is reserved for the survey slice below. A single, un-sliced instance omits `slice`
   exactly as before and writes the un-suffixed file names.
 - **Per-slice files.** A sliced architect writes `iter-<n>/architect-<id>.json`
   and, as a survey slice, its notes to `iter-<n>/authoring-<id>.md`; a
@@ -231,20 +230,20 @@ at most 4 per wave.
 
 - **`prd`** owns the PRD, the roadmap, the existing docs (an existing set at
   `<architecture_dir>` included), the ADR-0012 doc-consistency step, and the
-  notes' cross-cutting sections: Target doc set (the file list and its
-  PRD-driven outline), Delivery step, Reviewer checklist.
+  notes' cross-cutting sections: Target doc set (the enabled file list and its
+  PRD-driven outline), Reviewer checklist.
 - **`<area>`** — the area's directory name, lowercased (`web-app/` →
   `web-app`; an area whose name is a reserved id is prefixed `area-`) — owns
   ONLY the files
   under its directory: the Mode evidence, the Inventory, the canonical names
-  of the containers/components whose code lives there, the candidate flows
-  that enter the system there (Flow selection — a participant another area
-  owns is named by that area's directory path, and the write pass resolves
-  it to the name the owning slice recorded), and its Risks & open decisions.
+  of the containers/components whose code lives there, the APIs it exposes
+  or consumes (a counterpart another area owns is named by that area's
+  directory path, and the write pass resolves it to the name the owning slice
+  recorded), and its Risks & open decisions.
 - The areas are disjoint directories, so no two slices should name the same
   component; where their notes still disagree (two areas claim one
-  component, a flow's participants differ, the Mode evidence conflicts), the
-  write pass synthesizes them (below) — nobody silently picks one.
+  component, the Mode evidence conflicts), the write pass synthesizes them
+  (below) — nobody silently picks one.
 
 Each slice's task carries `<constraint name="area">` (its directory, or
 `prd`) and it writes `iter-1/authoring-<id>.md` under the notes' standard
@@ -253,119 +252,54 @@ Each slice's task carries `<constraint name="area">` (its directory, or
 preamble leads. Greenfield or a single-area repo runs ONE un-sliced survey
 architect, which writes `iter-1/authoring.md` itself.
 
-A survey instance, sliced or not, writes no doc file. Unless the task
-`<context>` says the flow list is already confirmed, it returns
-`needs_input` with its flow candidates and open reverse-engineering points.
-Collect the questions of ALL slices, de-duplicate the flow candidates into
-one list, and ask everything in ONE grouped clarification-ledger interaction
-(User interaction); the confirmed flow list, recorded as `C-<n>` entries, is
-the one the write pass follows. The survey (the `prd` slice, when sliced)
+A survey instance, sliced or not, writes no doc file. When it has open
+reverse-engineering points it returns `needs_input` with them. Collect the
+questions of ALL slices, de-duplicate them, and ask everything in ONE grouped
+clarification-ledger interaction (User interaction); the answers, recorded as
+`C-<n>` entries, go to the write pass in `<context>`. The survey (the `prd` slice, when sliced)
 also runs the shared ADR-0012 design-time doc-consistency step; any
 findings surface through the same grouped ask.
 
-### Write pass — parallel architects from iteration 1
+### Write pass — one architect
 
-The doc set splits into disjoint files, so the write pass is parallel by
-default, from iteration 1:
+After the grouped ask, spawn ONE write architect. Its `<inputs>` are the
+joined `iter-1/authoring.md` and the PRD, its `<context>` the recorded
+answers, and its `<constraint name="hld_types">` the enabled types; it writes
+every file of the Output contract for those types and nothing else, in the
+container/component vocabulary the notes pinned. Create the branch (Delivery)
+before spawning it.
 
-| Slice | Owns — and writes nothing else |
-|-------|--------------------------------|
-| `hld` | every `hld/*.md` file of the Output contract, plus their `.evidence.md` sidecars |
-| `lld1` … `lld3` | the `lld/flows/<flow>.md` files of its flow group, plus their sidecars; `lld1` also owns `lld/contracts.md` (and its sidecar) |
+**Survey synthesis.** When the survey was sliced, the write architect is the
+consumer of the joined notes and MUST reconcile them for the facts its files
+use: where two survey slices' notes contradict each other, it records the
+resolution with its evidence under a `## Synthesis` heading in
+`iter-1/authoring-write.md`, or returns `needs_input` with the contradiction as
+a question — never silently picks one. It writes that file whenever the
+survey was sliced (its Synthesis says "none" when nothing contradicted); redo
+the iteration-1 join with it appended (`acs.py notes merge --out
+iter-1/authoring.md iter-1/authoring-prd.md iter-1/authoring-<area>.md …
+iter-1/authoring-write.md`), so iteration 1's notes carry every `## Synthesis`
+entry the reviewer checks.
 
-Flow groups: split the confirmed flow list, in its recorded order, into
-min(3, number of flows) contiguous groups as even as possible; with no flow
-at all `lld1` still runs, for `lld/contracts.md`. That is one HLD architect
-plus one to three LLD architects — never more than the cap of 4. The
-partition is by file path and every Output contract file has exactly one
-owner, so two slices can never write the same file: each architect task
-names its files in `<constraint name="owns">` and the architect writes
-nothing outside them. Their content is built not to conflict: every slice's
-`<inputs>` include the joined `iter-1/authoring.md` and the PRD, its
-`<context>` the confirmed flow list, and every slice writes in the
-container/component vocabulary those notes pinned — the `hld` slice names
-the containers and components, the `lld<k>` slices use exactly those names
-as participants and never invent one. What remains at the seams, the
-integration pass reconciles (below). Create the branch (Delivery) before
-spawning the write pass.
+The architect writes files only and never commits: you commit once, after
+the review passes (Delivery).
 
-**Survey synthesis.** When the survey was sliced, the write slices are the
-consumers of the joined notes, and each one MUST reconcile them for the
-facts its files use: where two survey slices' notes contradict each other,
-it records the resolution with its evidence under a `## Synthesis` heading
-in its own `iter-1/authoring-<id>.md`, or returns `needs_input` with the
-contradiction as a question — never silently picks one. Every write slice
-writes that file when the survey was sliced (its Synthesis says "none" when
-nothing contradicted), because the join fails on a missing input. After the
-write pass, redo the iteration-1 join with the write slices' files appended
-(`acs.py notes merge --out iter-1/authoring.md iter-1/authoring-prd.md
-iter-1/authoring-<area>.md … iter-1/authoring-hld.md
-iter-1/authoring-lld1.md …`), so iteration 1's notes carry every
-`## Synthesis` entry; the integration pass then checks that every slice
-used the same reconciled facts.
-
-The architects write files only and never commit: you commit once, after
-the review passes (Delivery), so there is no shared-index contention to
-retry around.
-
-On iteration 1 the write slices write notes only for Survey synthesis — the
-joined survey notes are that iteration's notes. On iterations 2-3 re-run
-only the write slices that own a file some finding names (`file=`), and
-every write slice when a finding names no file; each re-run slice receives
-ALL the reviewer's findings verbatim in `<context>`, fixes those that fall
-in its own files, and records them under one `## Findings addressed`
-heading in `iter-<n>/authoring-<id>.md`. A finding that spans slices' files
-(an orphan participant, an overview link to a missing flow) is a seam
-finding: it goes to that iteration's integration pass, and neither write
-slice invents a new name for it. Join
-the iteration's notes with the previous iteration's notes FIRST:
-`acs.py notes merge --out iter-<n>/authoring.md iter-<n-1>/authoring.md
-iter-<n>/authoring-<id>.md …`, so they are the pinned survey plus every
-re-run slice's Findings addressed.
-
-### Integration pass — reconcile the seams, before the review
-
-A mechanical join is not a synthesis. After ALL write slices of an iteration
-finish and BEFORE the reviewer, spawn ONE more architect with
-`slice="integration"` (the pattern `/acs:code-complex`'s final integration
-implementer uses). Its task names every write slice's outputs and reports
-(`iter-<n>/architect-hld.json`, `iter-<n>/architect-lld1.json`, …) and the
-joined notes. It reconciles ONLY these seams between the slices' files:
-
-- **component names shared by HLD and LLD** — every `participant`/`actor` in
-  `lld/flows/*.md` and every component `lld/contracts.md` assigns an
-  interface to, against the names in `hld/c4-container.md` /
-  `hld/c4-component.md` and the notes' vocabulary;
-- **the HLD overview's links to LLD flows** — `hld/overview.md` (and any
-  other HLD file) linking or listing `lld/flows/<flow>.md`: every link
-  resolves, every confirmed flow is listed, no removed flow lingers;
-- **contracts vs flows across LLD slices** — `lld/contracts.md` (owned by
-  `lld1`) covers the interfaces the other `lld<k>` slices' flows cross;
-- **the `## Synthesis` entries** of the write slices agree, and every slice
-  used the same reconciled facts.
-
-It never rewrites a slice's substance. A genuine conflict it cannot resolve
-from the evidence comes back as `status="needs_input"` with a question
-(asked through the clarification ledger, then the integration pass is re-run
-with the answer). It writes `iter-<n>/architect-integration.json` listing
-each seam it changed — file, what, why, which slices. It runs on every
-iteration whose write pass ran. It is skipped when only one writer ran —
-meaning the whole doc set came from one writer, which this skill's partition
-never produces (`hld` plus at least `lld1`) — so it runs even on an
-iteration that re-ran a single write slice, whose seams with the untouched
-slices still need checking. The reviewer
-then judges the integrated result, and a seam inconsistency it finds is a
-finding for the next iteration's integration pass (or the owning slice when
-it sits inside one slice's files).
+On iterations 2-3 the write architect receives ALL the reviewer's findings
+verbatim in `<context>`, fixes them, and records them under one
+`## Findings addressed` heading in `iter-<n>/authoring-write.md`. Join it
+after the previous iteration's notes (`acs.py notes merge --out
+iter-<n>/authoring.md iter-<n-1>/authoring.md iter-<n>/authoring-write.md`), so
+the notes the reviewer reads are the pinned survey plus what was fixed.
 
 Communicate in XML per `the SubagentStop hook's message check`; the `phase=`
 of every task and result is the role (`architect`, `reviewer`). Example
 survey architect task (un-sliced; a survey slice adds `slice="<id>"` and
-`<constraint name="area">`):
+`<constraint name="area">`; the write architect's objective is the write
+pass):
 
 ```xml
 <task skill="create-architecture" phase="architect" ticket-id="SHOP-2" iteration="1">
-  <objective>Survey pass: read the PRD and inventory the codebase; decide reverse-engineer vs greenfield; record the per-file outline, the canonical component vocabulary and the proposed runtime flows for lld/flows/ in the authoring notes. Write no doc file.</objective>
+  <objective>Survey pass: read the PRD and inventory the codebase; decide reverse-engineer vs greenfield; record the per-file outline of the enabled HLD types, the canonical component vocabulary and the open points in the authoring notes. Write no doc file.</objective>
   <inputs>
     <file>docs/product/prd.md</file>
     <file>docs/product/roadmap.md</file>
@@ -374,22 +308,17 @@ survey architect task (un-sliced; a survey slice adds `slice="<id>"` and
   <constraints>
     <constraint name="prd">docs/product/prd.md</constraint>
     <constraint name="architecture_dir">docs/architecture</constraint>
-    <constraint name="diagrams">Mermaid only: C4Context/C4Container/C4Component or flowchart, erDiagram, sequenceDiagram; C4 level 4 out of scope.</constraint>
-    <constraint name="naming">Fix the canonical container/component names in the authoring notes; HLD and LLD must share this vocabulary.</constraint>
+    <constraint name="hld_types">c4-context, c4-container, c4-component, data-model, integration-map, deployment, project-structure</constraint>
+    <constraint name="diagrams">Mermaid only: C4Context/C4Container/C4Component or flowchart, erDiagram, mindmap; C4 level 4 out of scope.</constraint>
+    <constraint name="naming">Fix the canonical container/component names in the authoring notes; every HLD file uses this vocabulary.</constraint>
     <constraint name="required_sections:hld/overview.md">System context; Goals; Quality attributes; Constraints</constraint>
     <constraint name="required_sections:hld/tech-stack.md">Languages; Frameworks; Conventions</constraint>
+    <constraint name="required_sections:hld/cross-cutting.md">API conventions; Data conventions; Security; Observability</constraint>
     <constraint name="required_sections:hld/project-structure.md">Directory layout</constraint>
-    <constraint name="required_sections:lld/contracts.md">Contracts</constraint>
     <constraint name="audience_style_profile">engineers/architects (technical, diagram-heavy)</constraint>
   </constraints>
 </task>
 ```
-
-A write slice's task is `<task skill="create-architecture" phase="architect"
-slice="lld1" ticket-id="SHOP-2" iteration="1">` with the same constraints
-plus `<constraint name="owns">lld/contracts.md; lld/flows/checkout.md;
-lld/flows/user-signup.md</constraint>`, the joined `iter-1/authoring.md` in
-`<inputs>`, and the confirmed flow list in `<context>`.
 
 Validate EVERY message you send and receive — the SubagentStop hook checks
 each one a subagent returns and reports why it is invalid. On an invalid
@@ -402,30 +331,29 @@ phase starts: the SubagentStop hook snapshots each returned message to
 `iter-<n>/<role>-<id>-message.xml`); if that snapshot is missing (a host
 that does not fire the hook), write the `<task>` and `<result>` there
 yourself. The architects' own artifacts are `iter-<n>/authoring.md` (Mode;
-Inventory; Target doc set with the per-file outline; Flow selection;
-Delivery step; Risks & open decisions; Reviewer checklist — the Upstream
-inventory cites every PRD and codebase fact verbatim — joined from
-`iter-<n>/authoring-<id>.md` when sliced) and `iter-<n>/architect.json`
-(`iter-<n>/architect-<id>.json` per slice); the reviewer's is
+Inventory; Target doc set with the per-file outline; Risks & open decisions;
+Reviewer checklist — the Upstream inventory cites every PRD and codebase fact
+verbatim — joined from `iter-<n>/authoring-<id>.md` when sliced) and
+`iter-<n>/architect.json` (`iter-<n>/architect-<id>.json` per slice); the reviewer's is
 `iter-<n>/reviewer.md`, joined from `iter-<n>/reviewer-<id>.md`. Every
 iteration's reviewer `<inputs>` name that iteration's joined authoring notes.
 
 Phases:
 
-1. **Architect** — the survey pass (iteration 1 only), the grouped ask, the
-   write pass, then the integration pass, all as above. On iterations 2-3 the reviewer's findings
-   go verbatim into each re-run write slice's `<task>` `<context>`.
-2. **Review** — after ALL architects finish, the integration pass included,
-   spawn the reviewer slices on the integrated result. The reviewer has eleven check dimensions, so the
+1. **Architect** — the survey pass (iteration 1 only), the grouped ask, then
+   the write pass, all as above. On iterations 2-3 the reviewer's findings go
+   verbatim into the write architect's `<task>` `<context>`.
+2. **Review** — after the write architect finishes, spawn the reviewer
+   slices on its result. The reviewer has ten check dimensions, so the
    review is sliced by dimension: three fresh instances of the SAME
    `acs:create-architecture-reviewer` agent in ONE message, each task
    carrying `<constraint name="dimensions">` with its dimension numbers:
 
    | Slice | Dimensions (numbers as in the reviewer agent) |
    |-------|-----------------------------------------------|
-   | `coverage` | 1 doc-set-completeness · 2 prd-coverage · 3 codebase-match · 9 docs-only-changeset |
-   | `diagrams` | 4 mermaid-diagrams — the ONLY slice that runs `mermaid_lint.py` · 6 diagram-prose-agreement · 7 hld-lld-consistency |
-   | `coherence` | 5 internal-consistency · 8 authoring-conformance · 10 structure — the ONLY slice that runs `structure_lint.py` · 11 audience-style |
+   | `coverage` | 1 doc-set-completeness · 2 prd-coverage · 3 codebase-match · 8 docs-only-changeset |
+   | `diagrams` | 4 mermaid-diagrams — the ONLY slice that runs `mermaid_lint.py` · 6 diagram-prose-agreement |
+   | `coherence` | 5 internal-consistency · 7 authoring-conformance · 9 structure — the ONLY slice that runs `structure_lint.py` · 10 audience-style |
 
    Grounding policing applies in every slice. Each slice writes
    `iter-<n>/reviewer-<id>.md`; join them with `acs.py notes merge --out
@@ -437,26 +365,15 @@ Phases:
    and say so in the joined report — append a `## De-duplicated findings`
    section naming each dropped finding and the one it duplicates (re-apply
    it whenever the join is redone). The de-duplicated findings are the ones
-   the pass rule and the next write pass see. It judges
-   fresh from artifacts only (never the architects' reasoning) and checks,
-   all blocking:
-   - the design **satisfies the PRD**: goals, product-level NFRs,
-     constraints all addressed;
-   - the docs **match the actual codebase** (existing repos): tech stack vs
-     real manifests, containers/components vs real module layout,
-     deployment vs real infra/CI files;
-   - **internal consistency**: no doc contradicts another;
-   - **diagrams agree with the prose** in the same file;
-   - **HLD and LLD agree**: every participant in every
-     `lld/flows/*.md` sequence diagram exists in the C4 container or
-     component views, and `lld/contracts.md` covers the interfaces those
-     flows cross.
+   the pass rule and the next write pass see. It judges fresh from
+   artifacts only (never the architects' reasoning), against the dimensions
+   in the reviewer agent, all blocking.
 
-   The reviewer task's `<constraints>` also carry each in-scope file's
-   `required_sections:<file>` and the `audience_style_profile` declared in
-   the architect task example above — the single-diagram HLD files and
-   `lld/flows/<flow>.md` stay outside the structure floor (covered instead
-   by dim-1 `doc-set-completeness` and the diagram-lint gate).
+   The reviewer task's `<constraints>` also carry `hld_types`, each in-scope
+   file's `required_sections:<file>` and the `audience_style_profile`
+   declared in the architect task example above — the single-diagram HLD
+   files stay outside the structure floor (covered instead by dim-1
+   `doc-set-completeness` and the diagram-lint gate).
 
 **Pass rule.** The iteration passes only if EVERY reviewer slice returned
 `status="completed"` with zero blocking findings — zero reviewer findings =
@@ -475,7 +392,7 @@ nothing is lost, but do NOT push or open the PR.
 The delivery-ticket pattern, done by you
 (/acs:create-design and /acs:code are not involved):
 
-1. **Branch** (before the write pass's architects write): require a clean working
+1. **Branch** (before the write architect writes): require a clean working
    tree (`git status --porcelain` empty — if not, ask the user before
    proceeding). Name the branch
    `<type>/<ticket_id>-<slug>` with `type=task`, the ticket id, and the
@@ -515,8 +432,8 @@ Before a needs_input handoff, record the outgoing questions as `open`
 (`clarify.py add` without `--answer`).
 
 Ask clarifying questions when genuinely ambiguous (AskUserQuestion or plain
-questions) — at minimum: confirm the architect's flow list for `lld/flows/`,
-and confirm open reverse-engineering points on existing codebases. A sliced
+questions) — at minimum: confirm open reverse-engineering points on existing
+codebases. A sliced
 survey's open questions — every slice's — go into that ONE grouped ask. Do not
 ask about things the PRD or the code already answers.
 
@@ -528,7 +445,7 @@ ticket-id="<id>" status="needs_input">` with the `<questions>` list instead.
 ## Context pressure
 
 If your context is running low mid-run: flush in-flight work plus soft
-context (mode decision, confirmed flow list, partial reviewer findings,
+context (mode decision, confirmed answers, partial reviewer findings,
 gotchas) to `steps/create-architecture/handoff-context.md`,
 then run:
 
@@ -546,7 +463,7 @@ MANDATORY final step — never skipped, also on failure:
 1. Write `steps/create-architecture/result.json` per the
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
    names): `architecture` and `pr`. `hld` entries are paths relative to
-   `<path>/hld/`, `lld` entries relative to `<path>/lld/`:
+   `<path>/hld/`:
 
 ```json
 {
@@ -555,8 +472,7 @@ MANDATORY final step — never skipped, also on failure:
   "states": {
     "architecture": {
       "path": "docs/architecture",
-      "hld": ["overview.md", "c4-context.md", "c4-container.md", "c4-component.md", "data-model.md", "deployment.md", "tech-stack.md", "project-structure.md"],
-      "lld": ["contracts.md", "flows/checkout.md", "flows/user-signup.md"]
+      "hld": ["overview.md", "tech-stack.md", "cross-cutting.md", "c4-context.md", "c4-container.md", "c4-component.md", "data-model.md", "integration-map.md", "deployment.md", "project-structure.md"]
     },
     "pr": {"number": 7, "url": "https://github.com/owner/repo/pull/7", "branch": "task/SHOP-2-product-architecture-doc-set"}
   },
@@ -599,7 +515,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: HLD/LLD files written at `<architecture_dir>`; delivery ticket id; PR number/URL
+- **Results**: HLD files written at `<architecture_dir>/hld/` (and the enabled types); delivery ticket id; PR number/URL
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/<cap> · <wall time>
