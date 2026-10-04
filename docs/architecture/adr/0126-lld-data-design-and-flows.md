@@ -4,9 +4,7 @@
 
 **Amends**: [0118](0118-discovery-design-development-phases.md) (two of the Design-phase
 skills it names now ship), [0120](0120-design-document-catalog-and-ticket-features.md)
-(the first readers of `design.lld_types` and of a ticket's `features`) and
-[0090](0090-ticket-artifacts-in-repo-docs-tree.md) (the first Build step's commit also
-carries the Design phase's recorded LLD files).
+(the first readers of `design.lld_types` and of a ticket's `features`).
 
 ## Context
 
@@ -38,12 +36,12 @@ updates.
    write → judge loop with a gap analyst beside its survey (ADR-0122), versions every
    file through `acs.py design` with its `feature`, and runs its $0 checks beside the
    review (ADR-0125).
-4. **Delivery.** A Design skill runs before the ticket branch exists, so it leaves its
-   files in the working tree and records every path it wrote in its result's
-   `states.files`. `/acs:analyze-requirements`' publish stages those recorded paths —
-   only existing files under an `lld/` directory — in the same commit as the ticket's
-   docs folder. The list is read from the recorded results, never asserted by the
-   agent that publishes.
+4. **Delivery: documents stay local.** Neither skill branches, commits or opens a PR,
+   whichever branch is checked out. Each records every path it wrote, repo-relative, in
+   its result's `states.files` and ends by listing those files as local changes; the
+   user reviews them and commits them, or opens a PR, themselves. No later step commits
+   them on the user's behalf: `/acs:analyze-requirements`' publish still commits only
+   the ticket's docs folder (ADR-0090 unchanged).
 
 ## Consequences
 

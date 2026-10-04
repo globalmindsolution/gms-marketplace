@@ -5,7 +5,7 @@
   one per code area beside the survey) and the reviewer (judge, three slices).
 - Documents only, under lld/<feature>/flows/ (and components/ only when enabled),
   only for the enabled lld_types; versioned with `acs.py design`; the written paths
-  recorded in `states.files` for /acs:analyze-requirements' publish to commit.
+  recorded in `states.files` and left as local changes for the user to commit.
 """
 
 import json
@@ -127,9 +127,8 @@ class SkillProseTest(unittest.TestCase):
             self.assertIn(phrase, self.body)
 
     def test_written_files_are_recorded_for_the_publish(self):
-        for phrase in ("record EVERY written path, repo-relative, in result `states.files`",
-                       "/acs:analyze-requirements' publish commits the recorded "
-                       "`states.files` with the ticket folder",
+        for phrase in ("Record EVERY written path, repo-relative, in result `states.files`",
+                       "no branch, no commit, no PR",
                        "\"state_machines\"", "\"flows\""):
             self.assertIn(phrase, self.body)
 

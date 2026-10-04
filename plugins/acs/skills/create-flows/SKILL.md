@@ -271,13 +271,10 @@ status `failed`, findings in the result document.
 
 ## Delivery
 
-No PR of its own: the documents stay in the working tree. If a ticket branch for
-`<id>` is ALREADY the checked-out branch, commit the written files on it in the
-repo's own commit style naming the ticket id, and never push (a writer meeting
-git's `index.lock` waits briefly and retries; never delete it). Otherwise commit
-nothing: record EVERY written path, repo-relative, in result `states.files` —
-/acs:analyze-requirements' publish commits the recorded `states.files` with the
-ticket folder when it creates the ticket branch.
+Documents only, and they stay local: no branch, no commit, no PR — whichever branch is
+checked out. Record EVERY written path, repo-relative, in result `states.files`, and
+end by listing those files as local changes for the user to review and commit (or
+open a PR for) themselves.
 
 ## User interaction
 
@@ -366,9 +363,9 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: flows, state machines and component docs written under `lld/<feature>/`; types; gaps by kind; committed on the ticket branch or left for /acs:analyze-requirements' publish
+- **Results**: flows, state machines and component docs written under `lld/<feature>/`; types; gaps by kind; left as local uncommitted changes (`states.files`)
 - **Findings**: <open findings / clarifications / assumptions, or "none">
 - **Artifacts**: <partition files, repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:analyze-requirements <ticket-id>` (its publish commits these files with the ticket folder); `/acs:create-data-design` / `/acs:create-api-contract` first when a `references` info finding named a missing `data/` or `api/` document
+- **Next**: review and commit the listed files yourself, then `/acs:analyze-requirements <ticket-id>`; `/acs:create-data-design` / `/acs:create-api-contract` first when a `references` info finding named a missing `data/` or `api/` document
 ```

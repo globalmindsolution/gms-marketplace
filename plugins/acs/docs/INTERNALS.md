@@ -826,7 +826,7 @@ every other key below is persisted verbatim from the result document:
 | create-architecture | `architecture` `{path, hld:[...]}`, `pr` `{...}` |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (the published `design.md` — the docs folder, or the partition when there is no checkout), `decision` (one line) |
-| create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — what `/acs:analyze-requirements`' publish commits), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |
+| create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — left as local changes for the user to review and commit), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |
 | create-flows | `feature: [...]`, `files: [...]` (as create-data-design's), `types: [...]`, `gaps` `{undocumented, unimplemented, drifted}`, `flows` (int), `state_machines` (int) |
 | analyze-requirements | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
 | create-impl-plan | `plan_path`, `plan_approved: true/false` (written by `plan-approval.py`), `file_map` (object) |
@@ -996,7 +996,7 @@ write. The coordinator performs ONE action at a time and reports it:
 | `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
 | `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 and runs `front_matter_check` and `structure_lint` on it — beside the review, not after it (ADR-0125) — listing their findings as the `review` action's `draft_checks` | `review` |
 | `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>`, and folds in the draft's check findings (slice `draft-checks`) | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
-| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only — plus the `lld/` files the ticket's completed `create-data-design` / `create-flows` results list in `states.files` (`analysis_publish.recorded_lld_files`: existing, inside the checkout, under an `lld/` directory; recorded as `publication.lld_files`) — with `conventions.COMMIT_SUBJECT`; never pushes | (unchanged) |
+| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `conventions.COMMIT_SUBJECT`; never pushes | (unchanged) |
 | `record-publication` | re-reads the published bytes and `git show HEAD:<path>` | `completed` |
 
 Rules the code holds, each with a transition test in
@@ -1035,8 +1035,8 @@ commits to the default branch — so their writers leave them in the working
 tree and `/acs:analyze-requirements`, the first Build step, commits the ticket's
 whole docs folder when it creates the branch. The low-level design documents
 `/acs:create-data-design` and `/acs:create-flows` write under
-`<architecture_dir>/lld/<feature>/` ride the same commit: each records the paths
-it wrote in its result's `states.files`, and the publish stages exactly those.
+`<architecture_dir>/lld/<feature>/` are not committed by any skill: they stay local
+changes, listed in the result's `states.files`, for the user to review and commit.
 
 ```
 <checkout>/docs/tickets/<ticket-id>/    # fixed: artifacts.TICKETS_PATH

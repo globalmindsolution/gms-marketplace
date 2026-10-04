@@ -12,10 +12,9 @@ ticket's docs folder and nothing else. This is that step as code:
      review is a clean check;
   2. copy the draft byte-for-byte to the resolved analysis path, and read it
      back to prove the copy;
-  3. inside the repo, `git add` ONLY the ticket's docs folder -- plus the
-     low-level design files the ticket's Design runs recorded (`lld_files`) --
-     and commit ONLY those pathspecs with `conventions.COMMIT_SUBJECT`. It
-     never pushes: /acs:create-pr does.
+  3. inside the repo, `git add` ONLY the ticket's docs folder and commit ONLY
+     that pathspec with `conventions.COMMIT_SUBJECT`. It never pushes:
+     /acs:create-pr does.
 
 `record_publication` then re-derives all of it from disk and git before the
 loop is `completed`.
@@ -25,17 +24,10 @@ import hashlib
 import os
 import subprocess
 
-from ._common import GateError, now_iso, read_json
+from ._common import GateError, now_iso
 from .analysis_loop import _advance, _block, _expect, draft_path
 from .artifacts import artifact_path, ticket_docs_dir
-from .repo import repo_dir
-from .run import run_dir
-from .step import result_path
 from . import conventions
-
-#: The Design skills whose low-level design documents (`lld/<feature>/...`)
-#: are written before the ticket branch exists, and so ride this commit.
-LLD_SKILLS = ("create-data-design", "create-flows")
 
 
 def _git(cwd, *args, check=True):
@@ -94,46 +86,6 @@ def commit_message(settings, ticket, summary):
         ticket_id=ticket.get("id") or "", summary=summary)
 
 
-def _result_dirs(rdir, ctx, ticket_id):
-    """The run directories whose step results name this ticket's LLD files:
-    the analysis's own run, then the run `step start --ticket` opens for the
-    ticket (its id is the ticket id) when that is a different directory."""
-    dirs = [rdir]
-    if ticket_id and ctx.get("workspace") and ctx.get("repo_id"):
-        own = run_dir(repo_dir(ctx["workspace"], ctx["repo_id"]), ticket_id)
-        if os.path.realpath(own) != os.path.realpath(rdir):
-            dirs.append(own)
-    return dirs
-
-
-def recorded_lld_files(rdir, ctx, ticket_id):
-    """The low-level design files the ticket's Design runs wrote, as absolute
-    paths, sorted: every `states.files` entry of a COMPLETED
-    `steps/<skill>/result.json` for each skill in LLD_SKILLS. An entry is kept
-    only when it is an existing file inside the checkout and under an `lld/`
-    directory -- a stray path, an escape from the checkout or anything outside
-    `lld/` is dropped, never staged."""
-    root = ctx.get("checkout_root")
-    if not root:
-        return []
-    found = set()
-    for directory in _result_dirs(rdir, ctx, ticket_id):
-        for skill in LLD_SKILLS:
-            result = read_json(result_path(directory, skill))
-            if not isinstance(result, dict) or result.get("status") != "completed":
-                continue
-            files = (result.get("states") or {}).get("files")
-            for entry in files if isinstance(files, list) else ():
-                if not isinstance(entry, str) or not entry.strip():
-                    continue
-                path = os.path.realpath(os.path.join(root, entry))
-                rel = os.path.relpath(path, os.path.realpath(root))
-                if (_inside(path, root) and os.path.isfile(path)
-                        and "lld" in rel.split(os.sep)[:-1]):
-                    found.add(path)
-    return sorted(found)
-
-
 def _reviewed_sha(loop):
     history = loop.get("history") or []
     if not history or not history[-1].get("passed"):
@@ -171,23 +123,15 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
         summary = summary or ("Update requirements analysis" if existed
                               else "Add requirements analysis")
         message = commit_message(ctx.get("settings"), ticket, summary)
-        lld_files = recorded_lld_files(rdir, ctx, loop.get("ticket_id"))
-        pathspecs = [docs_dir] + lld_files
         _git(root, "add", "--", docs_dir)
-        if lld_files:
-            _git(root, "add", "--", *lld_files)
-        staged = _git(root, "diff", "--cached", "--quiet", "--", *pathspecs, check=False)
+        staged = _git(root, "diff", "--cached", "--quiet", "--", docs_dir, check=False)
         if staged.returncode == 1:
-            _git(root, "commit", "-q", "-m", message, "--", *pathspecs)
+            _git(root, "commit", "-q", "-m", message, "--", docs_dir)
             commit = _git(root, "rev-parse", "HEAD").stdout.decode().strip()
             committed = True
-    else:
-        lld_files = []
     loop["publication"] = {"path": path, "sha256": _sha(data), "bytes": len(data),
                            "docs_dir": docs_dir, "committed": committed, "commit": commit,
-                           "message": message, "verified": False, "at": now_iso(),
-                           "lld_files": [os.path.relpath(p, os.path.realpath(root))
-                                         for p in lld_files]}
+                           "message": message, "verified": False, "at": now_iso()}
     loop["events"].append({"at": now_iso(), "event": "publish",
                            "detail": "%s%s" % (path, " @ %s" % commit[:12] if commit else "")})
     return loop, {"published": True, "publication": loop["publication"]}

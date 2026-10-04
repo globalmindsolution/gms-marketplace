@@ -5,8 +5,8 @@
 - Documents only: the logical ERD and the physical schema under
   lld/<feature>/data/, never migration code; only the enabled lld_types; every
   document versioned with `design init --feature`; the gap analysts run in the SAME
-  message as the survey; every written path recorded in `states.files`, which
-  /acs:analyze-requirements' publish commits.
+  message as the survey; every written path recorded in `states.files` and left as a local
+  change for the user to review and commit (no branch, commit or PR).
 """
 
 import json
@@ -22,7 +22,6 @@ PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
 
 import acs_lib as lib  # noqa: E402
-from acs_lib import analysis_publish  # noqa: E402
 
 SKILL = "create-data-design"
 ROLES = ["designer", "gap-analyst", "reviewer"]
@@ -83,11 +82,9 @@ class StartedWithATicketTest(AcsWorkspaceCase):
         done = self.run_script("post-%s.py" % SKILL, "--result-file", path)
         self.assertEqual(done.returncode, 0, done.stderr)
 
-        # What the post-hook persisted is what the analysis publish stages.
-        found = analysis_publish.recorded_lld_files(
-            ctx["partition"], {"checkout_root": self.repo, "workspace": self.ws,
-                               "repo_id": "acme-shop"}, tid)
-        self.assertEqual(found, [os.path.realpath(doc)])
+        with open(os.path.join(ctx["partition"], "steps", SKILL, "result.json"),
+                  encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["states"]["files"], result["states"]["files"])
 
 
 class ProseContractTest(unittest.TestCase):
@@ -128,12 +125,11 @@ class ProseContractTest(unittest.TestCase):
                        "--ordered", "never \"pass with a missing slice\""):
             self.assertIn(phrase, body)
 
-    def test_every_written_path_is_recorded_for_the_publish(self):
+    def test_documents_stay_local_and_every_path_is_recorded(self):
         body = flat("skills", SKILL, "SKILL.md")
-        self.assertIn("record EVERY written path, repo-relative, in result `states.files`", body)
-        self.assertIn('"files": [', body)
-        self.assertIn("states.files", flat("skills", "analyze-requirements", "SKILL.md"))
-        self.assertIn("recorded_lld_files", flat("docs", "INTERNALS.md"))
+        for phrase in ("Record EVERY written path, repo-relative, in result `states.files`",
+                       "no branch, no commit, no PR", '"files": ['):
+            self.assertIn(phrase, body)
 
     def test_the_designer_never_writes_migration_code(self):
         body = flat("agents", "%s-designer.md" % SKILL)
