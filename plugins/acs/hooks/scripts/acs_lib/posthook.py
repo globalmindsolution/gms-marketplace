@@ -24,7 +24,7 @@ from .tickets import update_index
 from .lock import release_lock
 from .step import STEP_STATUSES, STOP_REASONS
 from .derive import DERIVED_KEYS, derive_states, disagreements
-from . import derive, run as run_machine, sessions, step as step_machine, workflow
+from . import audit_report, derive, run as run_machine, sessions, step as step_machine, workflow
 
 # `gates` owns the context, the epic lookup and the workflow resolver, and it
 # imports this module's siblings rather than this module, so this is not a
@@ -265,6 +265,16 @@ def run_post(skill):
         sys.exit(1)
     status = result["status"]
 
+    # An Audit skill's report follows its template (ADR-0123): a completed
+    # audit whose report breaks the contract is refused before anything is
+    # written, and the counts it carries are derived from it below.
+    audit_problems, audit_counts, _report = audit_report.derive(
+        rdir, skill, ctx.get("checkout_root"), ctx["plugin_root"])
+    if audit_problems and status == "completed":
+        sys.stderr.write("acs post-%s: the report does not follow its template: %s\n"
+                         % (skill, "; ".join(audit_problems)))
+        sys.exit(1)
+
     try:
         derived, notes = derive_states(
             rdir, skill, result, settings=ctx["settings"], run_id=run_id,
@@ -279,6 +289,11 @@ def run_post(skill):
         # running elsewhere" while the coordinator's result was lost.
         derived, notes = {}, {"__error__": "derivation failed (%r); no key was "
                                            "computed from artifacts" % exc}
+    if audit_counts:
+        audit = dict((result.get("states") or {}).get("audit") or {})
+        audit.update(audit_counts)
+        derived["audit"] = audit
+        notes["audit"] = "counted from the report's sections against its template"
     conflicts = disagreements(result.get("states") or {}, derived)
     if derived:
         result.setdefault("states", {}).update(derived)

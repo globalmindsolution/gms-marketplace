@@ -85,6 +85,18 @@ an invalid message re-request it once, then fail the run with the error recorded
 longer does what the design says it does. **Undocumented** and **drifted** are gaps
 whatever the status.
 
+## The report
+
+Write `<partition>/steps/audit-design/iter-1/report.md` from the report template —
+`.acs/templates/audit-design-report.md` when the repo has one, else
+`${CLAUDE_PLUGIN_ROOT}/templates/audit-design-report.md` — from the joined `gaps.md`
+and the `design check` output only. Keep every `## ` section in the template's order;
+each gap is one `### ` entry under its section, and an empty section says `_None._`.
+An unimplemented gap goes under **Unimplemented** only in an `implemented` document;
+in a `proposed` or `approved` one it goes under **Planned**. The post-hook refuses a
+report that breaks the template and counts the entries itself: the numbers in
+`states.audit` are the report's, whatever the result document says.
+
 ## User interaction
 
 **Clarification ledger first.** Before asking anything, run
@@ -114,7 +126,7 @@ result-document contract in INTERNALS.md, with `states`:
   "states": {
     "audit": {
       "scope": "all",
-      "report": "steps/audit-design/iter-1/gaps.md",
+      "report": "steps/audit-design/iter-1/report.md",
       "unimplemented": 1, "planned": 2, "undocumented": 2, "drifted": 1, "unversioned": 0,
       "tickets": ["SHOP-31"]
     }
@@ -140,7 +152,7 @@ Every terminal outcome ends your final message with the standard block (INTERNAL
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: gaps by kind (unimplemented / planned / undocumented / drifted / unversioned), each with its document and code citation; tickets created
 - **Findings**: <regressions in implemented documents, unversioned documents, or "none">
-- **Artifacts**: the joined report path in the workspace
+- **Artifacts**: the report path in the workspace
 - **Metrics**: gap-analyst slices <n> · <wall time>
 - **Next**: `/acs:create-architecture` or the LLD skill for a design gap; `/acs:ship <ticket>` for a code gap
 ```

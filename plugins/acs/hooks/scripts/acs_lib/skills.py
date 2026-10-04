@@ -57,6 +57,7 @@ ROLE_KINDS = {
     "impact-analyst": "survey",
     # design <-> code gap detection, read-only, beside a Design skill's survey (ADR-0122)
     "gap-analyst": "survey",
+    "auditor": "survey",
     # write -- produces the deliverable
     "analyst": "write",
     "author": "write",

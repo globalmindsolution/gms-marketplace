@@ -28,6 +28,7 @@ data_file = ${ACS_COV_ROOT}/.coverage
 omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-analyze-requirements.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-audit-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-audit-security.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-review-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-run-e2e-tests.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-code.py
@@ -45,6 +46,7 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-merge-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-analyze-requirements.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-audit-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-audit-security.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-review-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-run-e2e-tests.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-code.py

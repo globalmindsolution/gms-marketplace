@@ -38,7 +38,7 @@ _RECOMMENDED = {
     "planner": (OPUS, "high"), "architect": (OPUS, "high"),
     "designer": (OPUS, "high"),
     "impact-analyst": (SONNET, "high"), "analyst": (SONNET, "high"),
-    "gap-analyst": (SONNET, "high"),
+    "gap-analyst": (SONNET, "high"), "auditor": (OPUS, "high"),
     # write: produced against an upstream spec, then reviewed
     "author": (SONNET, "medium"), "contract-author": (SONNET, "medium"),
     "test-designer": (SONNET, "medium"), "doc-updater": (SONNET, "medium"),

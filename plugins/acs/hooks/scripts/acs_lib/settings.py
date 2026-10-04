@@ -22,7 +22,8 @@ from .repo import checkout_root, default_state_root, main_repo_root
 
 
 
-BUILTIN_TEMPLATES = {"pr-default", "epic-default", "story-default", "task-default"}
+BUILTIN_TEMPLATES = {"pr-default", "epic-default", "story-default", "task-default",
+                     "audit-design-report", "audit-security-report"}
 
 
 #: The ticket id prefix when a repo sets none (ADR-0105): tickets are ACS-1,

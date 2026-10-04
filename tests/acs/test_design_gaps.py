@@ -24,6 +24,17 @@ import acs_lib as lib  # noqa: E402
 from acs_lib import design_docs as D  # noqa: E402
 
 
+def write_report(partition, skill):
+    """The built-in template with every section empty: a valid, all-zero report."""
+    with open(os.path.join(PLUGIN, "templates", "%s-report.md" % skill), encoding="utf-8") as fh:
+        text = fh.read()
+    path = os.path.join(partition, "steps", skill, "iter-1", "report.md")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return path
+
+
 def flat(path):
     with open(path, encoding="utf-8") as fh:
         return " ".join(fh.read().split())
@@ -166,6 +177,7 @@ class AuditDesignRunsWithoutATicketTest(AcsWorkspaceCase):
         return json.loads(start.stdout)
 
     def finish(self, ctx):
+        write_report(ctx["partition"], "audit-design")
         result = {"status": "completed", "summary": "no gaps",
                   "states": {"audit": {"scope": "all", "drifted": 0}}}
         done = self.run_script("post-audit-design.py", stdin=json.dumps(result))

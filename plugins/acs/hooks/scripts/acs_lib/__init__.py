@@ -154,6 +154,7 @@ from . import models  # noqa: F401,E402
 from . import launch_config  # noqa: F401,E402
 from . import design_types  # noqa: F401,E402
 from . import design_docs  # noqa: F401,E402
+from . import audit_report  # noqa: F401,E402
 from . import migrate_settings  # noqa: F401,E402
 from . import conventions  # noqa: F401,E402
 from . import agent_sync  # noqa: F401,E402
