@@ -35,7 +35,6 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-api-contract.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-architecture.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-design.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-e2e-tests.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-impl-plan.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-pr.py
@@ -53,7 +52,6 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-api-contract.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-architecture.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-design.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-e2e-tests.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-impl-plan.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-pr.py

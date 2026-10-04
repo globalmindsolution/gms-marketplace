@@ -9,7 +9,7 @@ respectively, per the reorg mapping.
 
 | Principle | Requirement |
 |-----------|-------------|
-| Reflection | Each of the twelve **authoring** skills and `create-docs` runs a write → judge cycle over subagents named for its own work (ADR-0109) — e.g. `create-prd`'s surveyor, author and reviewer, `create-impl-plan`'s planner and plan-reviewer; `/acs:code` spawns implementers and is judged by `/acs:review-code`; the three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`) run inline — the coordinator alone, no subagent, in any lane. |
+| Reflection | Each of the nine **authoring** skills runs a write → judge cycle over subagents named for its own work (ADR-0109) — e.g. `create-prd`'s surveyor, author and reviewer, `create-impl-plan`'s planner and plan-reviewer; `/acs:code` spawns implementers and is judged by `/acs:review-code`; the three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`) run inline — the coordinator alone, no subagent, in any lane. |
 | Reflection (amended, MAR-72 slice 2 of MAR-69) | For `/acs:code`, the row above's "dedicated subagents" description is lane-conditional for the plan phase only: a dedicated `code-planner` subagent is spawned on STANDARD/COMPLEX; on TRIVIAL/SMALL the coordinator authors the plan artifact itself, with zero planner spawns (ADR 0074). The execute and verify subagents, and the verifier-as-gate, are unchanged in every lane, for `/acs:code` and for the other eleven triad-keeping skills. |
 | Gated pipeline | A skill refuses to run (pre-hook exit 2) until its predecessor's state file says it is complete. |
 | XML messaging | Coordinator ↔ subagent communication uses a defined XML format. |

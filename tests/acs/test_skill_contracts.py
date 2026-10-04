@@ -92,8 +92,7 @@ _PROJECT_RESPONSES = {
 # create-api-contract, create-test-docs, create-e2e-tests); `run-e2e-tests`
 # (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
 # for one release as the alias directory.
-HOOKED_SKILLS = ["create-prd", "create-architecture",
-                 "create-docs", "create-ticket",
+HOOKED_SKILLS = ["create-prd", "create-architecture", "create-ticket",
                  "create-design", "analyze-requirements", "create-impl-plan",
                  "create-api-contract", "create-test-docs", "code",
                  "review-code", "run-e2e-tests",
@@ -126,7 +125,6 @@ EXPECTED_AGENTS = {
     "create-prd": ["surveyor", "author", "reviewer"],
     "create-architecture": ["architect", "gap-analyst", "reviewer"],
     "create-design": ["designer", "design-reviewer"],
-    "create-docs": ["author", "reviewer"],
     "create-impl-plan": ["planner", "plan-reviewer"],
     "create-api-contract": ["contract-author", "contract-reviewer"],
     "create-test-docs": ["test-designer", "trace-reviewer"],
@@ -227,7 +225,7 @@ class TestSkillContracts(unittest.TestCase):
         # command working -- the exact opposite of what it was used for here.
         # Six of the eight skills that carried it are dispatched BY another
         # skill's Skill-tool call (see the next test), so the flag broke both
-        # folds: /acs:create-docs could not start one of its four doc legs and
+        # folds: /acs:create-docs (since removed, ADR-0124) could not start one of its four doc legs and
         # /acs:project could not start either of its two. The registry said so
         # all along -- skill_legs()'s own docstring is "stays Skill-invocable,
         # but whose only user-facing command is the entry point it serves" --
@@ -1032,7 +1030,7 @@ class TestProductSkillConventionWiring(unittest.TestCase):
     (spec 02) so the two read as a matched pair. Additive only. Written
     TDD-first (RED before Spec 03's SKILL.md edits land)."""
 
-    SKILLS = ("create-prd", "create-architecture", "create-docs")
+    SKILLS = ("create-prd", "create-architecture")
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
@@ -3193,10 +3191,11 @@ def _hook_pair_count():
 
 class TestCreateQualityDocConformance(unittest.TestCase):
     """MAR-112 spec 04 (AC-7): doc-conformance for the quality doc-set
-    closure — skills.md's product-level section (since ADR-0094 the
-    /acs:create-docs section, which delivers the quality set), configuration.md's
-    quality default (a quality_path key row until ADR-0102 removed the key),
-    and c4-component.md's own reachable-agent/pre-post-pair arithmetic.
+    closure — skills.md's product-level section (the /acs:create-docs
+    section until ADR-0124 removed that skill and its section with it),
+    configuration.md's quality default (a quality_path key row until ADR-0102
+    removed the key), and c4-component.md's own reachable-agent/pre-post-pair
+    arithmetic.
     Structural string/regex assertions only."""
 
     def _skills_req(self):
@@ -3207,38 +3206,6 @@ class TestCreateQualityDocConformance(unittest.TestCase):
 
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
-
-    def test_skills_md_has_create_docs_section(self):
-        """AC-7, after ADR-0094: skills.md carries a '/acs:create-docs'
-        (product-level) section naming the quality set's default directory,
-        create-docs-author, and the step's state file — the quality set's
-        closure now lives in the one skill that delivers it. After ADR-0102
-        the set is found, not configured: the section names `docs/quality/`
-        as the default and never the removed `quality_path` key."""
-        body = self._skills_req()
-        heading = "## `/acs:create-docs` (product-level)"
-        self.assertIn(heading, body,
-                      "docs/requirements/functional/skills.md must have a "
-                      "'/acs:create-docs' (product-level) section (MAR-112 AC-7)")
-        section_start = body.index(heading)
-        next_heading = re.search(r"\n## ", body[section_start + 1:])
-        section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
-        section = body[section_start:section_end]
-        self.assertIn("`docs/quality/`", section,
-                      "the create-docs section must name the quality set's "
-                      "default directory docs/quality/ (MAR-112 AC-7, ADR-0102)")
-        self.assertNotIn("quality_path", section,
-                         "the create-docs section must not name the removed "
-                         "quality_path setting (ADR-0102)")
-        self.assertIn("create-docs-author", section,
-                      "the create-docs section must name create-docs-author (MAR-112 AC-7)")
-        # The state file moved with the run re-key (ADR-0097): the flat
-        # `create-docs-state.json` is `steps/create-docs/state.json`. What
-        # this pins is that the section still says WHERE the step's state
-        # lives, not the filename it had in 2026.
-        self.assertIn("steps/create-docs/state.json", section,
-                      "the create-docs section must name the step's state "
-                      "file (MAR-112 AC-7)")
 
     def test_configuration_md_documents_the_quality_default_not_a_key(self):
         """AC-7, inverted by ADR-0102: configuration.md used to carry a
@@ -3266,10 +3233,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **23 agents**", body,
+        self.assertIn("— **21 agents**", body,
                       "c4-component.md must count the reflection-loop "
-                      "skills' agents (ADR-0109/ADR-0122/ADR-0123: 23 = 29 "
-                      "files less code's implementer, review-code's two "
+                      "skills' agents (ADR-0109/ADR-0122/ADR-0123/ADR-0124: "
+                      "21 = 27 files less code's implementer, review-code's two "
                       "roles, audit-design's gap analyst and audit-security's "
                       "auditor and adjudicator)")
         self.assertNotIn("8 active triads (24 agents)", body,
@@ -3282,10 +3249,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **23 agents**")
+        triad_idx = body.index("— **21 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("29 agent files, all reachable", window,
-                      "c4-component.md must read '29 agent files, all reachable' "
+        self.assertIn("27 agent files, all reachable", window,
+                      "c4-component.md must read '27 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3364,24 +3331,6 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
-    def test_skills_md_names_the_operations_set_in_the_create_docs_section(self):
-        """AC-7, after ADR-0094: the operations set's closure lives in the
-        '/acs:create-docs' (product-level) section, which names the set's
-        default directory (`docs/operations/`, ADR-0102 — never the removed
-        operations_path key), create-docs-author and the step's state
-        file."""
-        body = self._skills_req()
-        heading = "## `/acs:create-docs` (product-level)"
-        self.assertIn(heading, body)
-        section_start = body.index(heading)
-        next_heading = re.search(r"\n## ", body[section_start + 1:])
-        section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
-        section = body[section_start:section_end]
-        self.assertIn("`docs/operations/`", section)
-        self.assertNotIn("operations_path", section)
-        self.assertIn("create-docs-author", section)
-        self.assertIn("steps/create-docs/state.json", section)
-
     def test_configuration_md_documents_the_operations_default_not_a_key(self):
         """AC-7, inverted by ADR-0102: configuration.md used to carry an
         operations_path row in its Keys table. No key locates a document now,
@@ -3408,7 +3357,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **23 agents**", body,
+        self.assertIn("— **21 agents**", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143/MAR-160)")
@@ -3422,10 +3371,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **23 agents**")
+        triad_idx = body.index("— **21 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("29 agent files, all reachable", window,
-                      "c4-component.md must advance to '29 agent files, all reachable' "
+        self.assertIn("27 agent files, all reachable", window,
+                      "c4-component.md must advance to '27 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,

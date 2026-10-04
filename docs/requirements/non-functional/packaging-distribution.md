@@ -12,24 +12,23 @@ unchanged).
   `claude plugin marketplace add` (or the equivalent UI flow) and install it.
 - acs MUST bundle, per standard Claude Code plugin layout:
   - **Skills** (slash commands): `/setup`, `/ship`, `/handoff`, `/update`,
-    `/release`, `/create-prd`, `/create-architecture`, `/create-docs`,
+    `/release`, `/create-prd`, `/create-architecture`,
     `/create-ticket`, `/create-design`, `/analyze-requirements`,
     `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
     `/code`, `/review-code`, `/create-e2e-tests`, `/docs-sync`,
-    `/run-e2e-tests`, `/create-pr`, `/merge-pr`, `/audit-design` — each a skill directory
+    `/run-e2e-tests`, `/create-pr`, `/merge-pr`, `/audit-design`,
+    `/audit-security` — each a skill directory
     with no per-skill manifest (ADR-0109), bundled alongside the default
     `workflows/ship.yaml` the delivery order is declared in (ADR-0089 as
     superseded by ADR-0096).
   - **Subagents**, one agent file per role a skill's own logic needs, named
     `<skill>-<role>` for the work it does (ADR-0109): the nine
-    **authoring skills** and `create-docs` each bundle a write role and a
-    judge role —
+    **authoring skills** each bundle a write role and a judge role —
     `analyze-requirements` (plus an impact analyst: impact-analyst, analyst,
     impact-reviewer), `create-prd` (plus a surveyor: surveyor, author,
     reviewer),
     `create-architecture` (architect, gap-analyst, reviewer), `create-design` (designer,
-    design-reviewer), `create-docs` (author, reviewer — one pair serving all
-    four doc sets, ADR-0094), `create-impl-plan` (planner, plan-reviewer),
+    design-reviewer), `create-impl-plan` (planner, plan-reviewer),
     `create-api-contract` (contract-author, contract-reviewer),
     `create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
     (test-writer, suite-runner) and `docs-sync` (doc-updater,
@@ -40,13 +39,13 @@ unchanged).
     (ADR-0122) and the read-only `audit-security` an auditor and an
     adjudicator (ADR-0123); the three **apply-work skills** (`create-ticket`,
     `create-pr`, `merge-pr`) run inline and bundle no subagent.
-    29 agent files exist on disk and 29 are reachable (21 for the nine
-    authoring skills + 2 for `create-docs` + 1 for `code` + 2 for
+    27 agent files exist on disk and 27 are reachable (21 for the nine
+    authoring skills + 1 for `code` + 2 for
     `review-code` + 1 for `audit-design` + 2 for `audit-security`): every file name
     resolves to a shipped skill and a role in `acs_lib.skills.ROLE_KINDS`,
     so none is orphaned. See
     [../functional/reflection.md](../functional/reflection.md).
-  - **Hooks**: a pre and post hook per hooked skill (eighteen of each),
+  - **Hooks**: a pre and post hook per hooked skill (seventeen of each),
     implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).
 
 ## Distribution & versioning

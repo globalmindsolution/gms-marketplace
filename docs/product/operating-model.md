@@ -110,7 +110,7 @@ releases — through the acs pipeline.
 | Seat | Mission | Decides on | Operates (skills) | Answers for | Failure mode to guard |
 |---|---|---|---|---|---|
 | **PdM** (1) | The right product gets built | PRD, roadmap, tickets, priorities, requirement clarifications | create-prd, create-ticket | Feature-to-goal tracing; **same-day clarification SLA**; release content | Clarification latency silently becoming pipeline latency |
-| **Principal AI Platform** (shared, dept-level) | The product is built right | Architecture, design sign-off, standards, platform + org policy — at a **declared capacity split** | create-architecture, create-design approval, setup; create-docs principles,standards | Architecture conformance; high-stakes review; policy floors | Two-hat overload; becoming the review bottleneck |
+| **Principal AI Platform** (shared, dept-level) | The product is built right | Architecture, design sign-off, standards, platform + org policy — at a **declared capacity split** | create-architecture, create-design approval, setup; the principles and standards docs (hand-written) | Architecture conformance; high-stakes review; policy floors | Two-hat overload; becoming the review bottleneck |
 | **AI Product Builder** (2-4) | Tickets land | Implementation choices within spec; lane escalation acceptance | code, create-pr, merge-pr, ship, handoff | TDD/coverage on own tickets; cross-review quota | Being measured on code written instead of tickets landed + review quality |
 | **AI Quality & Evals Engineer** (1, shareable across 2 small teams) | The gates stay trustworthy | Test strategy, eval suites, coverage/e2e policy, release quality bar | e2e config; future create-quality, test | Verifier efficacy; per-release eval baselines; product evals (fairness, reproducibility, evidence) | Sliding into manual per-PR testing, duplicating the verifier |
 
@@ -239,11 +239,11 @@ a greenfield repo is a ticket shipped through the pipeline.
 | Backlog | create-ticket + tracker sync | PdM |
 | Design | create-design (+ sign-off) | Principal |
 | Spec → code → PR → merge | code, create-pr, merge-pr, ship | Builders |
-| Standards | create-docs principles,standards | Principal |
-| Test strategy & regression | create-docs quality, run-e2e-tests | Evals engineer |
+| Standards | *(no skill — principles and standards docs are hand-written, read by create-design, create-impl-plan and review-code)* | Principal |
+| Test strategy & regression | run-e2e-tests (the test strategy itself is hand-written) | Evals engineer |
 | Release | release | Ops hat |
 | Deploy | *(no skill by design — release tag triggers repo CD)* | Ops hat |
-| Operate & observe | failure-mode dashboards, create-docs operations | Ops hat / evals engineer |
+| Operate & observe | failure-mode dashboards; operations docs are hand-written | Ops hat / evals engineer |
 | Governance | setup, install-hooks, org policy | Principal |
 
 ---

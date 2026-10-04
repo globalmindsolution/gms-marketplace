@@ -104,16 +104,6 @@
         "effort": "high"
       }
     },
-    "create-docs": {
-      "author": {
-        "model": "claude-sonnet-5-5",
-        "effort": "medium"
-      },
-      "reviewer": {
-        "model": "claude-opus-5-5",
-        "effort": "high"
-      }
-    },
     "create-e2e-tests": {
       "suite-runner": {
         "model": "claude-sonnet-5-5",

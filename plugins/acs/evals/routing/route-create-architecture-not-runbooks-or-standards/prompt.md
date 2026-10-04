@@ -1,9 +1,9 @@
 ---
 description: >-
-  Borrows the vocabulary of /acs:create-docs on purpose -- it names the
-  runbooks and coding standards -- while the request still belongs to this
-  skill. It tests that the description, not a keyword, decides the route.
-  Never names the skill.
+  Borrows the vocabulary of /acs:docs-sync on purpose -- it names the
+  runbooks, a doc that skill brings in line -- while the request still
+  belongs to this skill. It tests that the description, not a keyword,
+  decides the route. Never names the skill.
 expected_outcome: Routes to acs:create-architecture.
 tags: [routing, description, confusable]
 max_turns: 1

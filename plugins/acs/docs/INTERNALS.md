@@ -12,10 +12,10 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 27 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 29 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 18 pre + 18 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 18 pre + 18 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 26 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 27 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 17 pre + 17 post |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 17 pre + 17 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
@@ -33,7 +33,7 @@ onto the plugin hooks API like this:
 1. **Pre-hooks — deterministic, enforced.** `hooks.json` registers a
    `PreToolUse` hook matching the `Skill` tool. `dispatch.py pre` extracts the
    skill name from the tool input (handling the `acs:` namespace), no-ops
-   (exit 0) for anything that is not one of the eighteen hooked skills, and
+   (exit 0) for anything that is not one of the seventeen hooked skills, and
    otherwise runs that skill's gate from `acs_lib.gates` **in-process** (the
    `pre-<skill>.py` wrappers exist for tests and `acs.py gate`, not for the
    hook path).
@@ -230,8 +230,7 @@ PRD or the architecture set lives, so the skill that reads one finds it at
 Start. `create-architecture` takes the PRD as its primary input and, without
 one, works from the run's subject (a document in its arguments, else the
 focus notes plus the codebase) and confirms goals, NFRs and constraints
-through the clarification ledger; `create-docs` stops without the
-architecture set's `hld/tech-stack.md` (ADR-0102). A
+through the clarification ledger (ADR-0102). A
 `SUBJECT_GATES` row is `f(ctx, payload)` raising `GateError` to refuse; it
 resolves a ticket and reads step state through path joins and `read_json`, so
 it opens no run and takes no lock, which is what lets `acs gate` reach it too.
@@ -516,7 +515,7 @@ A subagent cannot spawn a subagent, so every fan-out is the coordinator's: it
 runs N instances of the SAME agent in ONE message, in the foreground, each over
 a disjoint **slice**, and waits for all of them before the next phase. The
 cap is **`max_parallel = 4` instances per phase**; a skill with its own cap
-keeps it (`/acs:create-docs` runs its doc sets at 2), and work beyond the cap
+keeps it, and work beyond the cap
 runs in waves. Three kinds of work fan out:
 
 | Kind | When | Slice | Joined by |
@@ -696,7 +695,7 @@ analysts survey and nothing is written for a judge to judge, and
 findings with no writer between them — the unhooked utilities
 (`setup`, `update`, `test`, `release`), and the orchestrators that drive other skills'
 loops without running one of their own (`ship`, `handoff`). The
-ten skills that run a write → judge loop over their own subagents
+nine skills that run a write → judge loop over their own subagents
 report it, with a constant `<cap>` of **3**. `/acs:code` reports the
 iteration of ship.yaml's review-code → code loop it is on, whose ceiling is
 that loop's `max_iterations`, the same on every delivery path.
@@ -850,7 +849,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-29 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 29 reachable —
+27 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 27 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -874,7 +873,6 @@ setting.
 | `create-prd` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
 | `create-architecture` | `architect` (write) · `gap-analyst` (survey — one per survey area, spawned beside the survey only when `hld/` already holds documents; ADR-0122) · `reviewer` (judge) |
 | `create-design` | `designer` (write) · `design-reviewer` (judge) |
-| `create-docs` | `author` (write) · `reviewer` (judge), one pair per doc set |
 | `create-impl-plan` | `planner` (write) · `plan-reviewer` (judge) |
 | `create-api-contract` | `contract-author` (write) · `contract-reviewer` (judge) |
 | `create-test-docs` | `test-designer` (write) · `trace-reviewer` (judge) |

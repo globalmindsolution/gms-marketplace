@@ -17,7 +17,8 @@ running).
     tracker.milestone / .jira  -> dropped; provider jira -> local
     formats / enforcement / hook_gates -> dropped
     models.<removed skill>     -> dropped (ADR-0118: create-project,
-                                  standardize-project, create-requirements)
+                                  standardize-project, create-requirements;
+                                  ADR-0124: create-docs)
 
 Nothing here reads the disk; the CLI (`acs.py settings migrate`) does that.
 """
@@ -32,9 +33,14 @@ MODEL_TIER_KEYS = ("planner", "executor", "verifier", "overrides")
 #: Blocks that are simply gone.
 DROPPED_BLOCKS = ("formats", "enforcement", "hook_gates")
 
-#: Skills ADR-0118 removed. A scaffolded `models` block names them, and
-#: validate_models would refuse an unknown skill outright.
-RETIRED_MODEL_SKILLS = ("create-project", "standardize-project", "create-requirements")
+#: Removed skills -> the ADR that removed them. A scaffolded `models` block
+#: names them, and validate_models would refuse an unknown skill outright.
+RETIRED_MODEL_SKILLS = {
+    "create-project": "ADR-0118",
+    "standardize-project": "ADR-0118",
+    "create-requirements": "ADR-0118",
+    "create-docs": "ADR-0124",
+}
 
 #: Key of `tests` that is a number, not a suite.
 COVERAGE_KEY = "coverage"
@@ -60,8 +66,9 @@ def legacy_problems(settings):
     if isinstance(block, dict):
         retired = [k for k in RETIRED_MODEL_SKILLS if k in block]
         if retired:
-            problems.append("models.%s name skills that were removed (ADR-0118)"
-                            % "/".join(retired))
+            adrs = sorted({RETIRED_MODEL_SKILLS[k] for k in retired})
+            problems.append("models.%s name skills that were removed (%s)"
+                            % ("/".join(retired), ", ".join(adrs)))
     tracker = settings.get("tracker")
     if isinstance(tracker, dict) and (tracker.get("provider") == "jira" or "jira" in tracker):
         problems.append("tracker.jira is no longer supported (provider is local or github)")
@@ -113,10 +120,10 @@ def migrate(data):
 
     block = out.get("models")
     if isinstance(block, dict):
-        for key in RETIRED_MODEL_SKILLS:
+        for key, adr in RETIRED_MODEL_SKILLS.items():
             if key in block:
                 del block[key]
-                notes.append("removed models.%s (the skill was removed; ADR-0118)" % key)
+                notes.append("removed models.%s (the skill was removed; %s)" % (key, adr))
     if isinstance(block, dict) and any(k in block for k in MODEL_TIER_KEYS):
         out["models"], _added = models.merge_missing(
             {k: v for k, v in block.items() if k not in MODEL_TIER_KEYS})

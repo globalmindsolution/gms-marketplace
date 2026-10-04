@@ -1,6 +1,6 @@
 # 0011 — Full-SDLC doc sets (quality, operations) + standing test runs
 
-**Status**: Accepted · **Date**: 2026-06-14
+**Status**: Accepted — amended by [0124](0124-remove-create-docs.md) (no skill bootstraps the quality and operations sets any more; they are hand-written, and the standing test runs stand) · **Date**: 2026-06-14
 
 > **Forward pointer — ADR-0091 (2026-09-12).** The one-skill-per-doc-set
 > decision below is **unamended**: each set still has its own skill, its own

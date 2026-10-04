@@ -211,44 +211,6 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
                 "%s description must not reference the deleted /create-spec" % field)
 
 
-class TestProducerDocSetGates(AcsWorkspaceCase):
-    """MAR-122: the four doc-set producer skills (create-quality,
-    create-operations, create-principles, create-standards) had no GATES
-    entry, so run_pre's bare GATES[skill] subscript raised KeyError, caught
-    by the fail-closed handler as exit 2 "unexpected error in gate" -- these
-    drive the real dispatcher end-to-end and prove that failure mode is gone."""
-
-    PRODUCERS = ("create-docs",)
-
-    def test_passes_with_architecture_present(self):
-        hld = os.path.join(self.repo, "docs", "architecture", "hld")
-        os.makedirs(hld)
-        with open(os.path.join(hld, "tech-stack.md"), "w") as fh:
-            fh.write("# tech stack")
-        for skill in self.PRODUCERS:
-            with self.subTest(skill=skill):
-                result = self.pre(skill)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertNotIn("KeyError", result.stderr)
-
-    def test_without_architecture_neither_the_skill_nor_the_hook_stops(self):
-        """ADR-0102: the architecture check moved into the skill, which can
-        find a set wherever the repo keeps it; the hook passes. Since the
-        per-skill subagents the skill does not stop either: it falls back to
-        the PRD/repo and only RECOMMENDS /acs:create-architecture."""
-        for skill in self.PRODUCERS:
-            with self.subTest(skill=skill):
-                result = self.pre(skill)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertNotIn("KeyError", result.stderr)
-                with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", skill,
-                                       "SKILL.md"), encoding="utf-8") as fh:
-                    body = " ".join(fh.read().split())
-                self.assertIn("run /acs:create-architecture first", body)
-                self.assertIn("(a recommendation, never a precondition)", body)
-                self.assertNotIn("None found → STOP", body)
-
-
 class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
     """Order is `ship.yaml`'s, not a gate's: running a step before its
     neighbours prints ONE stderr advisory and exits 0 (§2.1, §5). The one thing

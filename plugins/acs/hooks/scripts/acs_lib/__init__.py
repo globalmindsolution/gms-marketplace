@@ -12,7 +12,7 @@ it always did. In dependency order:
   run / step     the two state machines (§4.3, §4.4)
   lock           the run lock and its audit ledger
   tickets        ticket.json, the id counter and tickets-index.json
-  setup_helpers  doc-set fan-out, toolchain probing, exempt-PR classifier
+  setup_helpers  toolchain probing, exempt-PR classifier
   forge          PR-metadata fill and tracker sync against gh (MAR-525)
   gate_inputs    the ticket-artifact input checks the Build/Test gates share
   gates          context resolution, the input/brake gates, post-hook persistence
@@ -35,9 +35,7 @@ from . import (_common, settings, repo, hostgates, planrules, lock, tickets,  # 
                advisory)  # noqa: F401
 
 from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS,
-    DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
-    DOC_BOOTSTRAP_SENTINEL, DOC_SET_DEFAULT_DIR, DOC_SET_TITLES, DOC_SETS,
-    CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
+    DELIVERY_TICKET_TITLES, CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
     PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
     PRODUCT_TICKET_TITLES, ReconciliationRequired, TICKET_ID_RE,
     TICKET_STATUSES, TICKET_TYPES, UNHOOKED_SKILLS, WORKFLOW_SKILLS, _ISO_INSTANT,
@@ -84,14 +82,10 @@ from . import tickets as tickets_module  # noqa: F401
 from .tickets import (allocate_ticket_id, load_ticket, new_ticket_doc,  # noqa: F401
     parse_features, save_ticket, update_index)
 
-from .setup_helpers import (DOC_SET_ALL, DocSetRequest,
-    TOOLCHAIN, _BARE_INT_RE,
-    _FANOUT_FOR_RE, _LEGACY_FOR_NOTE, _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
-    _pr_labels, _short_doc_set, _unknown_doc_set_note,
-    _soft_peers, _tool_version,
-    canonical_doc_set, check_toolchain,
-    classify_merge_pr_arg, doc_set_spellings, fanout_batches, missing_tools,
-    parse_doc_set_arg, parse_fanout_for_arg,
+from .setup_helpers import (TOOLCHAIN, _BARE_INT_RE,
+    _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
+    _pr_labels, _tool_version, check_toolchain,
+    classify_merge_pr_arg, missing_tools,
     tracker_cli_warning, validate_exempt_pr)  # noqa: F401
 
 from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401

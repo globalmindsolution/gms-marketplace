@@ -1,6 +1,6 @@
 # 0085 — Doc-bootstrap parallel fan-out: new umbrella skill, phase-level interleave, worktree-per-leg delivery, declared dependency/eligibility, no new ledger, scoped fail-fast isolation, v1 pair, deferred trigger probe
 
-**Status**: Accepted — amended by [0091](0091-design-phase-entry-point-fold.md) and [0094](0094-doc-set-legs-fold-into-create-docs.md) (the mechanics stand; the doc-set legs are gone) · **Date**: 2026-08-31
+**Status**: Superseded by [0124](0124-remove-create-docs.md) (`/acs:create-docs` and its fan-out are removed); earlier amended by [0091](0091-design-phase-entry-point-fold.md) and [0094](0094-doc-set-legs-fold-into-create-docs.md) · **Date**: 2026-08-31
 
 > **Forward pointer — ADR-0094 (2026-09-14).** The legs are gone: the four
 > doc-set skills this umbrella fanned out were folded *into* `/acs:create-docs`,

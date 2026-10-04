@@ -185,9 +185,9 @@ Repo-level files (all maintained by hooks):
 
 Product-level skills have **no repo-level state**: each run creates its own
 delivery ticket, and the skill's state file (`create-prd-state.json`,
-`create-architecture-state.json`, `create-docs-state.json`) lives in
-that ticket's partition; the skills' *outputs* (PRD, architecture doc set,
-product doc sets) live in the consumer repo
+`create-architecture-state.json`) lives in
+that ticket's partition; the skills' *outputs* (PRD, architecture doc set)
+live in the consumer repo
 ([skills.md](skills.md#product-level-delivery-tickets)).
 
 The **ticket document** is the local source of truth for the ticket:
@@ -398,25 +398,9 @@ worktree per ticket**:
 - **A parallel group of steps** (ADR-0110) runs inside ONE `/ship` session
   under the run's one lock: its members are steps of the same run, each with
   its own `steps/<skill>/state.json`, so no second lock or pointer is needed.
-- **Cross-skill, phase-level fan-out** (`/acs:create-docs`) is a second,
-  narrower parallelism shape layered on top of worktree-per-ticket: one
-  unhooked coordinator mints **two independent delivery tickets** (one per
-  eligible doc-bootstrap skill) via real `Skill`-tool Starts in the shared
-  session checkout, then runs each role (author → reviewer) as a
-  parallel batch across both legs; each leg enters its own worktree at its
-  own Delivery step's **Branch** sub-step, before that leg's Execute phase.
-  Both tickets share the run's `checkout_id`
-  for the Start/plan/execute/verify portion of the run — the disposition for
-  this shared-checkout case is: pointer collisions are
-  accepted, labeled degradations rather than a correctness
-  bug, because every consumer of ticket identity gets the ticket id
-  explicitly. Each
-  leg's own `.lock`/pointer/state files are otherwise unaffected — the
-  legs remain two ordinary, independently-resumable delivery tickets. See
-  `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
 - **Repo-level counter guard**: `update_index()` (the repo-level
   `tickets-index.json`) is wrapped in an `O_EXCL`-guarded
-  critical section that serializes two legs finishing concurrently on the
+  critical section that serializes two writers finishing concurrently on the
   normal path. The spin is bounded, and exhausting it **fails closed**: the
   guard raises `GuardTimeout` and the write does not happen. A refused write is
   recoverable and visible; the fail-open write it replaced lost an update with
@@ -477,7 +461,7 @@ is therefore resolved from EXPLICIT inputs only:
   id rather than prose citing one.
 
 The session pointer and the branch name — which `resolve_ticket_id` consults
-on the non-allocating path — MUST NOT be consulted here. Product-level legs
-run concurrently (a doc-bootstrap fan-out runs two at once) passing neither,
-and resolving through either would collapse two independent delivery tickets
-into one.
+on the non-allocating path — MUST NOT be consulted here. Product-level skills
+can run concurrently (a PRD amendment beside an architecture regeneration)
+passing neither, and resolving through either would collapse two independent
+delivery tickets into one.

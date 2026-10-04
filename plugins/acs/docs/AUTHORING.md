@@ -100,8 +100,8 @@ skill"; what a SKILL.md must say is:
    share. `integration` is reserved for the integration pass.
 3. **One message, the cap, waves.** Spawn every instance of a phase in ONE
    message, in the foreground, and wait for all of them. At most
-   `max_parallel = 4` per phase unless the skill has its own cap
-   (`/acs:create-docs` keeps 2 for doc sets); beyond it, run in waves.
+   `max_parallel = 4` per phase unless the skill has its own cap; beyond it,
+   run in waves.
 4. **The task carries the slice.** `<task skill="S" phase="<role>"
    slice="<id>" …>`; a sliced judge's task also carries `<constraint
    name="dimensions">`, and a survey slice names its area. The result echoes

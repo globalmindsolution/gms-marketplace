@@ -63,9 +63,7 @@ is absent (ADR-0109).
 - A repo **document** (the PRD, the architecture set) is not a pre-hook
   check either: no setting says where one lives, so the skill that reads it
   finds it at Start ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md))
-  — `/create-architecture` works from the subject when there is no PRD;
-  `/acs:create-docs` stops without the architecture set's
-  `hld/tech-stack.md`.
+  — `/create-architecture` works from the subject when there is no PRD.
 
 **2. Safety brakes** — refusals that protect correctness rather than
 sequence:
@@ -172,13 +170,12 @@ file in the workspace partition:
 
 ## Hook inventory
 
-Sixteen hooked skills, each with one pre-hook and one post-hook:
+Seventeen hooked skills, each with one pre-hook and one post-hook:
 
 | Skill | Pre-hook | Post-hook | Post-hook writes |
 |-------|----------|-----------|------------------|
 | `/create-prd` | `pre-create-prd.py` | `post-create-prd.py` | `create-prd-state.json` |
 | `/create-architecture` | `pre-create-architecture.py` | `post-create-architecture.py` | `create-architecture-state.json` |
-| `/acs:create-docs` | `pre-create-docs.py` | `post-create-docs.py` | `create-docs-state.json` (one partition per doc set's delivery ticket) |
 | `/create-ticket` | `pre-create-ticket.py` | `post-create-ticket.py` | `create-ticket-state.json` |
 | `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |
 | `/analyze-requirements` | `pre-analyze-requirements.py` | `post-analyze-requirements.py` | `analyze-requirements-state.json` |
@@ -192,6 +189,8 @@ Sixteen hooked skills, each with one pre-hook and one post-hook:
 | `/run-e2e-tests` | `pre-run-e2e-tests.py` | `post-run-e2e-tests.py` | `run-e2e-tests-state.json` |
 | `/create-pr` | `pre-create-pr.py` | `post-create-pr.py` | `create-pr-state.json` |
 | `/merge-pr` | `pre-merge-pr.py` | `post-merge-pr.py` | `merge-pr-state.json` |
+| `/acs:audit-design` | `pre-audit-design.py` | `post-audit-design.py` | `audit-design-state.json` (a ticketless run over the invocation) |
+| `/acs:audit-security` | `pre-audit-security.py` | `post-audit-security.py` | `audit-security-state.json` (a ticketless run over the invocation) |
 
 The utility skills (`/setup`, `/ship`, `/handoff`, `/update`,
 `/release`) are **unhooked**: they
@@ -210,7 +209,6 @@ for an upstream artifact.
 | `/create-prd` | — (only the baseline checks; no settings file needed) | — |
 | `/create-ticket` | — | — |
 | `/create-architecture` | — (the skill reads the PRD at Start when there is one, else works from the subject) | — |
-| `/acs:create-docs` | — (the skill itself checks for the architecture set at Start, once for every doc set) | — |
 | `/create-design` | ticket resolves; ticket flagged `needs_design` | lock free |
 | `/analyze-requirements` | ticket resolves | not an epic; lock free |
 | `/create-impl-plan` | ticket resolves | not an epic; lock free |

@@ -1,10 +1,10 @@
 # The delivery-ticket PR — label, title, body, self-check, open
 
 Open this at the **Push & PR** step of any product-level skill that ships its
-work on its own delivery ticket: `/acs:create-prd`, `/acs:create-architecture`,
-`/acs:create-docs`. Each of them reaches this same point by a different route
-and leaves it the same way, so the mechanics live here once rather than three
-times.
+work on its own delivery ticket: `/acs:create-prd` and
+`/acs:create-architecture`. Each of them reaches this same point by a different
+route and leaves it the same way, so the mechanics live here once rather than
+twice.
 
 **What this file does NOT decide**, because it genuinely differs per skill and
 getting it wrong is how a delivery PR goes bad:

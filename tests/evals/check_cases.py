@@ -303,8 +303,9 @@ class CoverageTest(unittest.TestCase):
     """Every shipped skill is probed, and the probes stay honest."""
 
     #: Skills added by the docs-set fold, which must expect themselves rather
-    #: than the entry point that used to answer for them.
-    NEW_CASES = {"create-docs", "docs-sync"}
+    #: than the entry point that used to answer for them. The fold's other
+    #: skill, create-docs, was removed by ADR-0124.
+    NEW_CASES = {"docs-sync"}
 
     #: Shipped skills with no routing case, each for a stated reason. Empty,
     #: and it should stay empty.

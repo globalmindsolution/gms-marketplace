@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-seven skills in total. There is no registry file listing them: a skill is
+Twenty-six skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
 writes, or which group it belongs to, because nothing needs to: each skill
@@ -10,8 +10,11 @@ artifact is absent.
 The groups below are a reader's aid, not a structure the code knows about:
 
 - **Product & design** — `/acs:create-prd`, `/acs:create-architecture`,
-  `/acs:create-docs` (the four product doc sets, one skill since ADR-0094),
-  `/acs:create-ticket`, `/acs:create-design`.
+  `/acs:create-ticket`, `/acs:create-design`. The quality, operations,
+  principles and standards doc sets are written by hand: no skill bootstraps
+  them since `/acs:create-docs` was removed
+  ([ADR-0124](../../architecture/adr/0124-remove-create-docs.md)), and the
+  skills that read them find them where the repo keeps them.
 - **Implementation** — `/acs:analyze-requirements`,
   `/acs:create-impl-plan`, `/acs:create-api-contract`,
   `/acs:create-test-docs`, `/acs:code` and its four delivery-path legs,
@@ -34,8 +37,8 @@ Test and Ship steps run in for a ticket is declared in
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Eighteen of the twenty-seven are **hooked** (a pre-hook and a post-hook
-each): the five Product & design skills, all seven Implementation skills,
+Seventeen of the twenty-six are **hooked** (a pre-hook and a post-hook
+each): the four Product & design skills, all seven Implementation skills,
 both Test skills, `/create-pr`, `/merge-pr` and both Audit skills. Five (`/setup`, `/ship`,
 `/handoff`, `/update`, `/acs:release`) are unhooked and take no position in a
 run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
@@ -51,11 +54,11 @@ Every **workflow** skill MUST:
   (ADR-0109; [reflection.md](reflection.md)): a `survey` role that reads
   and records notes and questions, a `write` role that produces the
   deliverable, a `judge` role that re-derives and judges it fresh. The
-  nine **authoring skills** and `create-docs` run a write → judge Reflection cycle over
+  nine **authoring skills** run a write → judge Reflection cycle over
   their own roles — `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
   `create-prd` (surveyor, author, reviewer),
   `create-architecture` (architect, gap-analyst, reviewer), `create-design` (designer,
-  design-reviewer), `create-docs` (author, reviewer), `create-impl-plan`
+  design-reviewer), `create-impl-plan`
   (planner, plan-reviewer), `create-api-contract` (contract-author,
   contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
   `create-e2e-tests` (test-writer, suite-runner) and `docs-sync` (doc-updater,
@@ -290,9 +293,8 @@ closing the loop on failures with a regression ticket.
   recurred — never duplicating and never silently reopening a closed ticket.
   See `docs/architecture/adr/0044-acs-test-closed-loop-ticketing.md` for the full policy.
 - **Scheduling is the caller's job** — Claude Code routines/cron invoke
-  `/acs:run-e2e-tests` headless; the concrete recipe lives in
-  `templates/operations/test-scheduling.md` (shipped by `/acs:create-docs operations`),
-  not duplicated here.
+  `/acs:run-e2e-tests` headless; the concrete recipe lives in the skill's
+  `references/test-scheduling.md`, not duplicated here.
 - **Ticket-scoped mode (`--for-ticket <id>`):** reuses the same
   suite-execution core (Steps 1-3: setup→command→teardown, the
   results-artifact write) scoped to the reserved `e2e` suite plus the
@@ -352,14 +354,14 @@ an exempt `release/*` PR for a mandatory human merge.
 ## Product-level delivery (tickets)
 
 **Every change is tracked as a ticket — including product-level work.**
-Tickets are the project-management record, so the three product-level
+Tickets are the project-management record, so the two product-level
 skills, while not running the ticket pipeline, MUST each create their own
 **delivery ticket** per run:
 
 - The skill creates the ticket first (type **task**, e.g.
   `SHOP-1 — Product definition (PRD)`): a normal id from the per-repo
   counter, a normal workspace partition, tracker sync when configured (so
-  PRD/architecture/doc-set work is visible in GitHub Projects), and
+  PRD and architecture work is visible in GitHub Projects), and
   the standard archive lifecycle. Re-running a product-level skill (e.g. a
   PRD amendment) creates a **new ticket** for that change. Re-running
   `/create-prd` for an amendment creates a new ticket with a specific title
@@ -534,102 +536,6 @@ not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-
 - Maintenance afterwards belongs to the pipeline: `/create-design` designs
   against the doc set, and `/code` updates it whenever a change alters the
   architecture ([workflow.md](workflow.md#product-level-architecture)).
-
-## `/acs:create-docs` (product-level)
-
-Purpose: bootstrap and maintain the four **product doc sets** — `quality`
-(test strategy, coverage policy), `operations` (release process, runbooks,
-observability, incident response, test scheduling), `principles`
-(engineering principles + rationale) and `standards` (coding standards,
-conventions, review checklist) — the standing contracts the pipeline
-verifies against. One skill, four sets (ADR-0094): the sets used to be four
-internal leg skills that differed only in a table row, and that table,
-`acs_lib.DOC_SETS`, is now the whole difference.
-
-- Product-level and **ticket-independent**: not part of the per-ticket
-  pipeline. Run once after `/acs:create-architecture`; re-run to refresh a
-  set after its policy changes. Takes `all`, a comma-separated list of sets
-  (`quality` or the former leg name `create-quality`), or a delivery-ticket
-  id to resume one set; a token naming no set refuses the whole run.
-- **Declared, not inferred**: `DOC_SETS` declares, per set, the directory a
-  new set is created in when the repo has none (`docs/quality/`,
-  `docs/operations/`, `docs/principles/`, `docs/standards/` — an existing
-  set is found through `CLAUDE.md` and the repo, not configured,
-  [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)), its
-  delivery-ticket title, its template
-  directory, its output files with the sections each must carry (the first
-  file is the sentinel that says the set has shipped), its audience
-  register, its upstream inputs and its dependency edges. Adding a fifth set
-  is a row plus its templates. `fanout_batches()` reads the derived view
-  `DOC_BOOTSTRAP_DEPENDENCIES` (keyed by set name) and the sets the
-  coordinator found already present in the repo to decide eligibility and
-  batching; `parse_doc_set_arg()` is the argument contract.
-- MUST take the **PRD** (its Non-functional requirements section for
-  `quality` and `operations`; the PRD generally for `principles` and
-  `standards`) and the full architecture set as upstream inputs —
-  architecture is upstream of every set. `standards` additionally reads the
-  principles set **when the repo has one** (the conformance
-  chain `architecture → principles → standards`); when the set is absent
-  the author notes the grounding step as not
-  applicable and proceeds — never a block. `principles` has no cross-read on
-  `standards/`. That soft edge is why `principles` lands in an earlier
-  fan-out batch than `standards`.
-- **One precondition for every set**: the skill checks for the architecture
-  doc set (its `hld/tech-stack.md`, not merely a directory) at Start and
-  stops when none is found — "no architecture doc set found (expected
-  hld/tech-stack.md) — run /acs:create-architecture first." — once, before
-  any delivery ticket is minted ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
-- **One delivery ticket per set**: `acs.py step start --step create-docs
-  --doc-set <set> --allocate` mints a `task` ticket titled from `DOC_SETS`
-  that records its `doc_set`; each set runs in its own worktree on its own
-  branch and lands as its own docs-only PR; sets run in capped parallel
-  (at most `max_parallel`, default 2). Failures are isolated per set; a set
-  resumes by its ticket id.
-- Runs the Reflection cycle as **author → review** (ADR-0109):
-  `create-docs-author` authors the set — decides bootstrap vs
-  re-run from the disk, bootstraps each file from
-  `templates/<set>/` verbatim, tailors it to the detected stack (and, for
-  `standards`, to the stated principles), and writes its authoring notes
-  (`iter-<n>-authoring.md`: mode, Upstream inventory, ADR-0012 consistency
-  findings, decisions); `create-docs-reviewer` judges it fresh — doc-set
-  completeness, architecture conformance (stack/technology claims agree with
-  `architecture/hld/tech-stack.md`), required sections, authoring
-  conformance, docs-only changeset, consistency, a deterministic `structure`
-  floor over each file (declared `required_sections:<file>`, blocking) and a
-  blocking `audience-style` check (an unwaived audience-mismatch blocks; a
-  `clarify.py --source assumption` waiver makes it `severity="info"`,
-  non-blocking). The set, its files and its sections reach both agents as
-  task constraints; the same two agent files serve every set.
-- **Citation corroboration (MAR-303).** The author MUST record every
-  `Upstream inventory` citation in the one-line grammar
-
-  ```
-  - <claim> — `<path>[:line]` — "<verbatim excerpt>"
-  ```
-
-  The path is backtick-quoted exactly as shown, the optional
-  `:line`/`:line-start-line-end` suffix is advisory only, and the excerpt is
-  verbatim and mandatory. The reviewer's `authoring-conformance` dimension
-  MUST independently re-open and check every such citation: it runs the
-  shared deterministic `citation_check.py` floor over the located PRD +
-  architecture set (plus the principles set for `standards`, when
-  present), then itself judges substantiation for every
-  citation the script resolves. Every such finding — mechanical or semantic —
-  and an exit 2 from the script are `severity="blocking"`; there is **no**
-  `severity="info"` carve-out. The located PRD is a declared verify-task
-  constraint.
-- The author also runs the shared ADR-0012 design-time doc-consistency
-  step, surfacing gap/staleness findings through the existing clarification
-  ledger; the reviewer's `consistency` dimension confirms any such findings
-  were resolved or explicitly deferred.
-- State lives in each set's delivery-ticket partition
-  (`steps/create-docs/state.json`; the run's own `workflow` field
-  with the step key `create-docs`)
-  ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: docs-only PR per set via the
-  [product-level delivery rules](#product-level-delivery-tickets) — each
-  run creates its own delivery ticket per set; the TDD pipeline does not
-  apply to a docs-only change.
 
 ## `/acs:audit-design` (product-level, read-only)
 

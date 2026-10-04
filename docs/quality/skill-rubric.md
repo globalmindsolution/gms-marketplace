@@ -54,9 +54,9 @@ neighbour's is worse than a plain one that wins only its own.
 - **Blocks** when a gate opens that should have stayed shut, or a fail-closed
   path fails open. This is the one dimension where `acs-evals`' `critical`
   severity maps straight across.
-- An unhooked skill (`ship`, `create-docs`, `project`, `release`, …) has no
+- An unhooked skill (`ship`, `release`, …) has no
   gate **by construction**, which is n/a, not a gap. Judge it on the gates of
-  the legs it drives.
+  the skills it drives.
 
 ### 3. Contract — does it produce what it promises?
 

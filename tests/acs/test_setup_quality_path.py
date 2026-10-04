@@ -1,10 +1,10 @@
 """MAR-112 -- /acs:setup and `quality_path` (AC-3), inverted by ADR-0102.
 
 AC-3 was a prose-contract test that /acs:setup's optional-settings batch
-defaulted `quality_path` to `docs/quality` and named `/acs:create-docs quality` as
-its consumer. ADR-0102 removed every document-locating settings key: the
-quality set is found where the repo keeps it, else created at the conventional
-`docs/quality/` that `acs_lib.DOC_SETS` declares. AC-3 is therefore inverted
+defaulted `quality_path` to `docs/quality` and named the doc-set skill as its
+consumer. ADR-0102 removed every document-locating settings key: the
+quality set is found where the repo keeps it (ADR-0124 then removed the skill
+that created one). AC-3 is therefore inverted
 into a guard that setup -- its skill prose and its deterministic half,
 `setup_wizard.py` -- never names the key and that `DEFAULT_SETTINGS` never
 seeds it. The "always ask explicitly" carve-out check was deleted with it: a
@@ -46,9 +46,6 @@ class SetupOffersNoQualityPathCase(unittest.TestCase):
 
     def test_default_settings_never_seed_quality_path(self):
         self.assertNotIn("quality_path", acs_lib.DEFAULT_SETTINGS)
-
-    def test_the_quality_set_default_is_declared_on_its_row(self):
-        self.assertEqual(acs_lib.DOC_SETS["quality"]["default_dir"], "docs/quality")
 
 
 if __name__ == "__main__":

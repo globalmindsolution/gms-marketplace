@@ -341,7 +341,7 @@ Done.
 ## Inside each step: Reflection
 
 Each skill spawns only the subagents its own logic needs, each named for
-the work it does (ADR-0109). The nine **authoring** skills and `/acs:create-docs` MUST
+the work it does (ADR-0109). The nine **authoring** skills MUST
 internally run a **write → judge** cycle with a dedicated subagent per role
 (e.g. `docs-sync-doc-updater`, `docs-sync-drift-reviewer`); `create-prd`
 adds a read-only `surveyor` that runs on iteration 1 only and freezes the
@@ -489,14 +489,6 @@ would require a shared or synced workspace — out of scope for now.
   `.acs/state-machine/` tree, so the same ticket pipeline can run inside a
   dedicated git worktree without state colliding with other worktrees
   (ADR-0086).
-- A second, narrower mechanism layers cross-*skill*, phase-level fan-out on
-  top of the above: `/acs:create-docs` mints one delivery ticket per
-  eligible doc-bootstrap skill and runs each phase (plan, then execute,
-  then verify) as a parallel batch across both tickets, rather than running
-  the skills one after another — reusing the same worktree-per-ticket
-  primitive per leg, with each leg entering its own worktree at its own
-  Branch step, before that leg's Execute phase.
-  See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
 - **Step-level parallelism within one run is declared, never computed.**
   `ship.yaml` v3 rejects `max_parallel` and `exclusive`; the only overlap is a
   parallel group the list itself declares (ADR-0110), whose members
@@ -508,8 +500,7 @@ would require a shared or synced workspace — out of scope for now.
   coordinator runs several instances of one role at once over disjoint slices
   — writers, judges with five or more check dimensions, surveys spanning
   disjoint repo areas — at most four per phase unless the skill sets its own
-  cap (`/acs:create-docs`'s sets run two at a time; `/acs:review-code` fans out
-  its five lenses). The rules are in [reflection.md](reflection.md#decomposition--concurrency-rules).
+  cap (`/acs:review-code` fans out its five lenses). The rules are in [reflection.md](reflection.md#decomposition--concurrency-rules).
 
 ## Product-level architecture
 

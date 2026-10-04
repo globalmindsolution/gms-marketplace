@@ -190,10 +190,6 @@ class TestSmallSurfaces(AcsCliCase):
         self.assertIsInstance(out["toolchain"], list)
         self.assertIsInstance(out["missing"], list)
 
-    def test_fanout_batches_returns_the_library_verdict(self):
-        out = self.ok_json(self.acs("fanout", "batches"))
-        self.assertIn("batches", out)
-
 
 class TestDelegation(AcsCliCase):
     """The front door must be behaviourally identical to the entry point it
@@ -252,7 +248,6 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
         "slugify": ("slug", "--text", "a title"),
         "check_toolchain": ("doctor",),
         "build_context": ("context",),
-        "fanout_batches": ("fanout", "batches"),
         "lock_staleness": ("lock", "status", "--run", "@ticket"),
         "cursor": ("run", "next", "--run", "@ticket"),
         "check_run": ("run", "check", "--run", "@ticket"),
@@ -308,8 +303,10 @@ class TestEveryNamedFunctionIsReachable(AcsCliCase):
         for group in ("context", "gate", "run", "step", "result", "ticket", "pr",
                       "tracker", "readiness",
                       "lock", "filemap", "verdict",
-                      "slug", "fanout", "doctor", "workflow", "plan"):
+                      "slug", "doctor", "workflow", "plan"):
             self.assertIn(group, res.stdout)
+        # `fanout batches` served only /acs:create-docs, removed by ADR-0124.
+        self.assertNotIn("fanout", res.stdout)
 
 
 class TestReviewFixes(AcsCliCase):
@@ -331,7 +328,7 @@ class TestReviewFixes(AcsCliCase):
 
     def test_ticket_save_keeps_the_index_row_populated(self):
         """The wholesale overwrite blanked title/type/status in the index, which
-        gate_code and fanout_batches read."""
+        gate_code reads."""
         ticket = self.new_ticket("Add a widget", "task")
         self.ok_json(self.acs("ticket", "save", "--ticket", ticket,
                               stdin=json.dumps({"description": "clarified"})))

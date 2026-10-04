@@ -25,7 +25,7 @@ import claude_code_adapter as cc  # noqa: E402
 # Registry
 # ---------------------------------------------------------------------------
 
-PRODUCT_SKILLS = ["create-prd", "create-architecture", "create-docs"]
+PRODUCT_SKILLS = ["create-prd", "create-architecture"]
 # The ticket-flow skills. The five Build/Test additions (analyze-ticket,
 # create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests)
 # join here rather than in a sixth list: they are ticket-scoped like the rest,
@@ -57,9 +57,6 @@ HOOKED_SKILLS = PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 #: {leg: the skill whose gate, hooks and state it runs under}.
 LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
-# `create-docs` is hooked (ADR-0094): it absorbed its four doc legs, so it is
-# the product skill that bootstraps a doc set itself,
-# one delivery ticket per set.
 # `run-e2e-tests` is HOOKED, not unhooked: it is a step of `ship.yaml` with its
 # own pre/post pair, so there is one mode (§3.11), not the "not really a
 # pipeline skill in its default mode" framing it carried while it was the
@@ -77,10 +74,6 @@ PRIORITIES = ["critical", "high", "medium", "low"]
 PRODUCT_TICKET_TITLES = {
     "create-prd": "Product definition (PRD)",
     "create-architecture": "Product architecture doc set",
-    # /acs:create-docs mints one delivery ticket PER DOC SET, titled from
-    # DOC_SETS below (`acs step start --doc-set`); this row is the fallback a
-    # caller that names no set would get, and that Start refuses.
-    "create-docs": "Product doc set",
 }
 
 # Delivery-ticket predicate: the skills that mint their own delivery ticket and
@@ -90,96 +83,6 @@ PRODUCT_TICKET_TITLES = {
 DELIVERY_TICKET_SKILLS = list(PRODUCT_SKILLS)
 DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES)
 
-# ---------------------------------------------------------------------------
-# The product doc sets /acs:create-docs bootstraps and maintains (ADR-0094)
-# ---------------------------------------------------------------------------
-#: One row per doc set, and the ONLY declaration of what a set is: the
-#: directory a NEW set is created in when the repo has none (an existing set is
-#: found, not configured -- ADR-0102), the title of the delivery ticket each
-#: run mints, the template directory under
-#: templates/, the files the executor writes (in order; the FIRST is the
-#: sentinel that says "this set has shipped") with the sections each must
-#: carry, the audience register its prose is judged against, the upstream
-#: inputs it is grounded in (which part of the PRD; the architecture set;
-#: whether the principles set is read when present), and its dependency edges:
-#: "hard" gates eligibility outright, "soft" only keeps a set out of the same
-#: fan-out batch as an eligible peer. /acs:create-docs reads this table, the
-#: executor and verifier receive it as task constraints, and nothing restates
-#: it in prose. Adding a fifth doc set is one row here plus its templates.
-DOC_SETS = {
-    "quality": {
-        "default_dir": "docs/quality",
-        "title": "Product quality doc set",
-        "template_dir": "quality",
-        "files": {
-            "test-strategy.md": ["Testing philosophy", "Coverage policy",
-                                 "Suite inventory", "CI gates", "Flaky-test policy"],
-            "coverage-policy.md": ["Target and hard-fail rule", "Exclusions",
-                                   "Measurement per stack", "Escalation"],
-        },
-        "audience": "QA (test/verification runbook register)",
-        "upstream": {"prd": "Non-functional requirements", "architecture": True,
-                     "principles": False},
-        "hard": [], "soft": [],
-    },
-    "operations": {
-        "default_dir": "docs/operations",
-        "title": "Product operations doc set",
-        "template_dir": "operations",
-        "files": {
-            "release-process.md": ["Versioning and release-cut steps", "Changelog discipline",
-                                   "Branch and tag conventions", "Rollback procedure"],
-            "runbooks.md": ["Standard operating procedures", "On-call escalation path",
-                            "Incident triage steps"],
-            "observability.md": ["Logging, metrics, and alerting conventions", "Dashboards",
-                                 "SLO/SLA notes"],
-            "incident-response.md": ["Severity levels", "Roles during an incident",
-                                     "Postmortem process"],
-            "test-scheduling.md": ["The /acs:test scheduling recipe", "Example cron/CI snippets",
-                                   "Where results land"],
-        },
-        "audience": "ops/SRE (runbook register)",
-        "upstream": {"prd": "Non-functional requirements", "architecture": True,
-                     "principles": False},
-        "hard": [], "soft": [],
-    },
-    "principles": {
-        "default_dir": "docs/principles",
-        "title": "Product principles doc set",
-        "template_dir": "principles",
-        "files": {"principles.md": ["Principles", "Rationale"]},
-        "audience": "engineers (concise normative rules)",
-        "upstream": {"prd": "whole", "architecture": True, "principles": False},
-        "hard": [], "soft": [],
-    },
-    "standards": {
-        "default_dir": "docs/standards",
-        "title": "Product standards doc set",
-        "template_dir": "standards",
-        "files": {
-            "coding-standards.md": ["Language and style conventions", "Error handling",
-                                    "Testing conventions"],
-            "conventions.md": ["Naming conventions", "Project layout", "Formatting"],
-            "review-checklist.md": ["Pre-review checklist", "Reviewer checklist"],
-        },
-        "audience": "engineers (concise normative rules)",
-        # The one set with an extra upstream read: architecture -> principles
-        # -> standards is an altitude gradient, an abstract principle realized
-        # by a concrete standard. Read when the repo has a principles set;
-        # otherwise grounding N/A for the run, never a block.
-        "upstream": {"prd": "whole", "architecture": True, "principles": True},
-        "hard": [], "soft": ["principles"],
-    },
-}
-
-#: Views of DOC_SETS, keyed by set name, that the fan-out predicate and the
-#: skill read. Derived, never restated: widening the table widens every one.
-DOC_BOOTSTRAP_FANOUT_V1 = tuple(DOC_SETS)
-DOC_BOOTSTRAP_DEPENDENCIES = {name: {"hard": list(row["hard"]), "soft": list(row["soft"])}
-                              for name, row in DOC_SETS.items()}
-DOC_SET_DEFAULT_DIR = {name: row["default_dir"] for name, row in DOC_SETS.items()}
-DOC_BOOTSTRAP_SENTINEL = {name: next(iter(row["files"])) for name, row in DOC_SETS.items()}
-DOC_SET_TITLES = {name: row["title"] for name, row in DOC_SETS.items()}
 """The six plan headings create-impl-plan/SKILL.md requires on every run."""
 """The five spec-authoring-fold sections, in the order structure_lint's
 --ordered lint checks them (code/SKILL.md's fold contract)."""

@@ -9,7 +9,8 @@ commits the doc updates from them; the drift-reviewer re-derives the impact
 itself and judges the result fresh. The per-skill subagents replaced the
 generic executor/verifier pair with those two roles. This module pins that
 topology so a planner cannot creep back in through prose, the agents tree, or
-an agent file. Mirrors tests/acs/test_create_docs_loop_topology.py.
+an agent file. Mirrored tests/acs/test_create_docs_loop_topology.py, which
+ADR-0124 removed with its skill.
 
 Run:  python3 -m unittest tests.acs.test_docs_sync_loop_topology -v
 """
