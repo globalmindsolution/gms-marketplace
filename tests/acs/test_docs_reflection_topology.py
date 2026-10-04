@@ -206,7 +206,9 @@ class TopologyDerivationTest(unittest.TestCase):
     def test_loops_are_the_authoring_skills(self):
         self.assertEqual(set(D["pairs"]) - set(D["authoring"]), NON_AUTHORING_LOOPS)
         self.assertEqual(set(D["pairs"]), set(D["authoring"]))
-        self.assertEqual(D["n_authoring"], 9)
+        # Nine through ADR-0125; ADR-0126 adds create-data-design and
+        # create-flows, each a designer -> reviewer loop.
+        self.assertEqual(D["n_authoring"], 11)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, D["authoring"])
         writers_only = [s for s, roles in D["declared_roles"].items()
@@ -245,7 +247,7 @@ class InternalsTopologyTest(unittest.TestCase):
         self.assertIn("%d files" % D["n_agents"], body)
         self.assertIn("%d reachable" % D["reachable"], body)
         self.assertIn("%s skills that run a write → judge loop"
-                      % {9: "nine"}[D["n_pairs"]], body)
+                      % {11: "eleven"}[D["n_pairs"]], body)
         self.assertNotIn("executor + verifier pairs", body)
         self.assertIn("%d agent files named" % D["n_agents"], body)
 
@@ -285,7 +287,7 @@ class OverviewTopologyTest(unittest.TestCase):
         body = self._body()
         self.assertIn("%d agent files exist on disk" % D["n_agents"], body)
         self.assertIn("%d are reachable" % D["reachable"], body)
-        self.assertIn("%d for the nine" % D["authoring_agents"], body)
+        self.assertIn("%d for the eleven" % D["authoring_agents"], body)
 
     def test_pair_enumeration_names_new_skills(self):
         body = self._body()
@@ -351,15 +353,15 @@ class ReflectionTopologyTest(unittest.TestCase):
         loops, the write-only skill whose judge is a separate step, and the
         review, which is judge-only (ADR-0109)."""
         body = self._body()
-        self.assertIn("**Nine** skills run the write → judge cycle", body)
-        self.assertIn("all **nine** authoring", body)
+        self.assertIn("**Eleven** skills run the write → judge cycle", body)
+        self.assertIn("all **eleven** authoring", body)
         self.assertIn("**One** prefix is write-only: `code`", body)
         self.assertIn("**One** prefix is judge-only: `review-code`", body)
         self.assertNotIn("triad", body)
         self.assertNotIn("executor-only", body)
         # ...and the words match the tree, not just each other.
-        self.assertEqual(D["n_pairs"], 9)
-        self.assertEqual(D["n_authoring"], 9)
+        self.assertEqual(D["n_pairs"], 11)
+        self.assertEqual(D["n_authoring"], 11)
         self.assertEqual(
             len([s for s, roles in D["declared_roles"].items() if roles == ["implementer"]]), 1)
 
@@ -389,7 +391,7 @@ class PrdTopologyTest(unittest.TestCase):
     def test_must_have_reachable_and_authoring_pairs(self):
         body = self._body()
         self.assertIn("only %d are reachable" % D["reachable"], body)
-        self.assertIn("%d agents in the nine authoring skills" % D["authoring_agents"], body)
+        self.assertIn("%d agents in the eleven authoring skills" % D["authoring_agents"], body)
 
     def test_discoverability_bullet_skill_count(self):
         body = self._body()
@@ -458,13 +460,14 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         `/acs:create-requirements`, then 26 when ADR-0122 added the read-only
         `/acs:audit-design`, then 27 when ADR-0123 added the read-only
         `/acs:audit-security`, then 26 again when ADR-0124 removed
-        `/acs:create-docs`; the word is pinned here because prose is
-        where a count goes stale."""
+        `/acs:create-docs`, then 28 when ADR-0126 added
+        `/acs:create-data-design` and `/acs:create-flows`; the word is pinned
+        here because prose is where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-six skills", body)
-        self.assertEqual(D["n_skills"], 26)
-        for stale in ("Twenty-three skills", "Twenty-five skills", "Twenty-seven skills",
-                      "Thirty-two skills", "Thirty skills"):
+        self.assertIn("Twenty-eight skills", body)
+        self.assertEqual(D["n_skills"], 28)
+        for stale in ("Twenty-three skills", "Twenty-five skills", "Twenty-six skills",
+                      "Twenty-seven skills", "Thirty-two skills", "Thirty skills"):
             self.assertNotIn(stale, body)
         self.assertNotIn("Twenty-nine skills", body)
 
@@ -472,7 +475,8 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
         self.assertNotIn("Nine **workflow/product skills**", body)
         self.assertNotIn("Eleven **workflow/product skills**", body)
-        self.assertIn("nine **authoring skills**", body)
+        self.assertIn("eleven **authoring skills**", body)
+        self.assertNotIn("nine **authoring skills**", body)
         self.assertNotIn("triad", body)
         for suffix in NEW_TRIAD_SUFFIXES:
             self.assertIn(suffix, body)

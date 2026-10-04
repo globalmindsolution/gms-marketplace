@@ -65,13 +65,16 @@ inside a parallel group (a loop that re-entered half a group would leave the
 other half's work neither kept nor redone) — and never what a skill needs. An
 out-of-order override validates, and its steps run on their fallbacks.
 
-`/create-ticket` and `/create-design` are **design** work that runs before
-`/ship`; `/merge-pr` is **ship** work a human drives after review.
+`/create-ticket`, `/create-design`, `/create-data-design` and `/create-flows`
+are **design** work that runs before `/ship`; `/merge-pr` is **ship** work a
+human drives after review.
 
 | Step (`ship.yaml`) | Phase | Purpose (summary) |
 |--------------------|-------|-------------------|
 | — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. Runs before `/ship`. |
 | — `/create-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
+| — `/create-data-design` | design | Write the ticket's data low-level design under `lld/<feature>/data/` — logical ERD and physical schema with a migration outline, for the enabled `design.lld_types` only; documents only. Runs before `/ship`, on any ticket that adds or changes persisted data ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
+| — `/create-flows` | design | Write the ticket's behaviour low-level design under `lld/<feature>/flows/` (and `components/` when enabled) — one file per flow and one per entity state machine; documents only. Runs before `/ship` ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
 | `analyze-requirements` | build | Read the subject, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict. A not-ready analysis returns `needs_input`. |
 | `create-impl-plan` | build | The plan phase carved out of `/code`: the planner's survey, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. **It also judges the delivery path**, once, from the plan's own scope, and writes it into the plan's `## Contract` block (ADR-0098). |
 | `create-api-contract` | build | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files where the repo keeps them (else `docs/api/`). Records an evidenced no-op when the Contract says `owes.api_contract: false`. |
@@ -122,6 +125,13 @@ they are one parallel group, and `run-e2e-tests` waits for both.
 set for **epics only**; stories/tasks are always `false`. Child tickets of
 an epic do **not** repeat design: they inherit the parent epic's `design.md`.
 
+`/create-data-design` and `/create-flows` carry no such flag: the SA or Tech
+Lead runs them on a ticket whose persisted data or behaviour they want designed
+before implementation. Neither takes a run position, and neither commits on the
+default branch: each records the `lld/` paths it wrote in its result's
+`states.files`, and `analyze-requirements`' publish commits exactly those
+files with the ticket's docs folder when it creates the ticket branch.
+
 ### Where a ticket's artifacts live
 
 The workflow reads and writes two distinct stores, and a requirement in this
@@ -133,6 +143,9 @@ document belongs to exactly one of them:
   **human-facing ticket documents**: `ticket.md`, `design.md`,
   `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`. They are
   committed on the ticket branch and reviewed in the PR like any other doc.
+  The ticket's low-level design documents live in the architecture set
+  instead, under `lld/<feature>/` (ADR-0126), and ride the same first Build
+  commit.
 - **The workspace run** — `<workspace>/<repo>/runs/<run-id>/` holds the **run
   ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
   machine), each step's `result.json` and its `iter-<n>/` audit trail,

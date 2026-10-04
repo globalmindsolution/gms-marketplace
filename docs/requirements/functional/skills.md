@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-six skills in total. There is no registry file listing them: a skill is
+Twenty-eight skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
 writes, or which group it belongs to, because nothing needs to: each skill
@@ -10,7 +10,9 @@ artifact is absent.
 The groups below are a reader's aid, not a structure the code knows about:
 
 - **Product & design** — `/acs:create-prd`, `/acs:create-architecture`,
-  `/acs:create-ticket`, `/acs:create-design`. The quality, operations,
+  `/acs:create-ticket`, `/acs:create-design`, `/acs:create-data-design`,
+  `/acs:create-flows` (the last two write a ticket's low-level design,
+  [ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). The quality, operations,
   principles and standards doc sets are written by hand: no skill bootstraps
   them since `/acs:create-docs` was removed
   ([ADR-0124](../../architecture/adr/0124-remove-create-docs.md)), and the
@@ -37,8 +39,8 @@ Test and Ship steps run in for a ticket is declared in
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Seventeen of the twenty-six are **hooked** (a pre-hook and a post-hook
-each): the four Product & design skills, all seven Implementation skills,
+Nineteen of the twenty-eight are **hooked** (a pre-hook and a post-hook
+each): the six Product & design skills, all seven Implementation skills,
 both Test skills, `/create-pr`, `/merge-pr` and both Audit skills. Five (`/setup`, `/ship`,
 `/handoff`, `/update`, `/acs:release`) are unhooked and take no position in a
 run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
@@ -54,11 +56,12 @@ Every **workflow** skill MUST:
   (ADR-0109; [reflection.md](reflection.md)): a `survey` role that reads
   and records notes and questions, a `write` role that produces the
   deliverable, a `judge` role that re-derives and judges it fresh. The
-  nine **authoring skills** run a write → judge Reflection cycle over
+  eleven **authoring skills** run a write → judge Reflection cycle over
   their own roles — `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
   `create-prd` (surveyor, author, reviewer),
   `create-architecture` (architect, gap-analyst, reviewer), `create-design` (designer,
-  design-reviewer), `create-impl-plan`
+  design-reviewer), `create-data-design` (designer, gap-analyst, reviewer),
+  `create-flows` (designer, gap-analyst, reviewer), `create-impl-plan`
   (planner, plan-reviewer), `create-api-contract` (contract-author,
   contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
   `create-e2e-tests` (test-writer, suite-runner) and `docs-sync` (doc-updater,
@@ -833,6 +836,97 @@ tickets where the change is architecturally significant.
   [configuration.md](configuration.md#document-and-workspace-locations)) by
   `/code` as part of its documentation updates.
 
+## /acs:create-data-design
+
+Purpose: write a ticket's **data low-level design** — the logical ERD and the
+physical schema of the PRD features it traces to — before implementation
+([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)).
+Design-phase work, run by the SA or Tech Lead on a ticket.
+
+- A ticket-scoped Design skill (`PLANNING_SKILLS`, beside `/create-design`):
+  hooked, takes no run position, and runnable on its own at any time before
+  implementation. Input: the ticket, its `analysis.md` and `design.md`, the
+  HLD (`hld/data-model.md`, `hld/cross-cutting.md`, `hld/tech-stack.md`,
+  `hld/c4-container.md`), the feature's `api/` documents and its existing
+  `data/` documents, each read when present; else the ticket and the code's
+  real schema.
+- MUST write **documents only** — never source, migration code, DDL scripts,
+  ORM models or machine-readable schema files; the physical schema's
+  **Migration outline** is ordered prose, never code.
+- MUST write only the types it owns that `design.lld_types` enables —
+  `logical-erd.md` (entities, attributes, keys, cardinalities; database-agnostic)
+  and `physical-schema.md` (tables or collections, column types, indexes,
+  constraints, migration outline), both Mermaid `erDiagram`. A disabled type is
+  never written; neither enabled → the run completes with nothing written.
+- MUST write only inside the ticket's feature folders,
+  `<architecture_dir>/lld/<feature>/data/` for each of the ticket's `features`
+  (proposed through `acs.py slug` and confirmed in the grouped ask when the
+  ticket has none), plus the feature's `README.md` and its row in
+  `lld/README.md` when absent — never `api/`, `flows/` or `hld/`.
+- The two documents describe ONE model and MUST agree: one designer writes both,
+  so there is no integration pass.
+- MUST version every document through `acs.py design` — `design init --status
+  <proposed|implemented> --ticket <id> --feature <slug>` for a new file,
+  `design bump` for a changed one (ADR-0122); elements designed but not built are
+  marked planned.
+- MUST run gap analysis when the feature already has `data/` documents: one gap
+  analyst per survey area in the same message as the survey; undocumented →
+  documented as built, unimplemented → kept and marked planned, drifted → a
+  question in the ONE grouped ask.
+- The reviewer runs as three slices (model, conventions, form) beside the $0
+  checks (`acs.py design check`, `mermaid_lint.py`, `structure_lint.py`); any
+  blocking finding blocks; same 3-iteration reflection cap.
+- MUST NOT commit on the default branch: with no ticket branch checked out it
+  records every path it wrote in its result's `states.files`, and
+  `/analyze-requirements`' publish commits exactly those files with the ticket's
+  docs folder.
+- Subagents: `create-data-design-designer` (write), `create-data-design-gap-analyst`
+  (survey), `create-data-design-reviewer` (judge).
+- States: `feature`, `files`, `types`, `gaps` `{undocumented, unimplemented,
+  drifted}`, `entities`.
+
+## /acs:create-flows
+
+Purpose: write a ticket's **behaviour low-level design** — its flows and the
+state machines of the entities they change, and, when enabled, its component
+detail — before implementation
+([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)).
+
+- A ticket-scoped Design skill (`PLANNING_SKILLS`, beside `/create-design`):
+  hooked, takes no run position, runnable on its own. Input: the ticket, its
+  `analysis.md` and `design.md`, the HLD, and the feature's `api/` and `data/`
+  documents — participants, operations and entities are named as those name
+  them — each read when present.
+- MUST write **documents only** — never source or machine-readable contracts.
+- MUST write only the types it owns that `design.lld_types` enables: `sequence`
+  and `activity` (`flows/<flow>.md`, one file per flow, the activity only where
+  the flow branches on business rules), `state` (`flows/state-<entity>.md`, one
+  per entity whose lifecycle the ticket touches), and the opt-in
+  `component-detail` and `class` (`components/<component>.md`). All Mermaid.
+- MUST write only inside the ticket's feature folders,
+  `<architecture_dir>/lld/<feature>/flows/` and `components/` (plus the feature
+  README and its `lld/README.md` row when absent) — never `api/`, `data/` or
+  `hld/`.
+- MUST write in **parallel slices**, every file in exactly one: one writer per
+  flow group, `write-states` for the state machines, `write-components` for the
+  components, spawned in one message within `parallel.max_agents`. A name or
+  event a slice needed that another slice owns is reported as a **seam**; an
+  `integration` pass runs ONLY when a slice reported a seam, reconciling only
+  those seams (ADR-0125's pattern).
+- A sequence message that changes an entity's state MUST be a transition in
+  that entity's state machine, and every transition MUST be triggered by a
+  sequence message or a named external event; a reference to an `api/` or
+  `data/` document that does not exist yet is an `info` finding, not a failure.
+- MUST version every file through `acs.py design … --feature <slug>`, run gap
+  analysis over existing `flows/` and `components/` documents beside the survey,
+  and ask once in a grouped ask — as `/create-data-design` does.
+- Delivery as `/create-data-design`: recorded in `states.files`, committed by
+  `/analyze-requirements`' publish.
+- Subagents: `create-flows-designer` (write), `create-flows-gap-analyst`
+  (survey), `create-flows-reviewer` (judge — three slices: agreement,
+  references, form).
+- States: `feature`, `files`, `types`, `gaps`, `flows`, `state_machines`.
+
 > **Section numbering.** The numbers below are stable identifiers for these
 > per-skill blocks, not the run order. The order the Build/Test/Ship steps
 > run in is declared in `plugins/acs/workflows/ship.yaml`
@@ -890,7 +984,11 @@ with the user, and say plainly whether it is ready to plan.
      (`pass` = `draft`) writes the analysis from the reconciled notes and the
      recorded answers; the impact reviewer judges it (analyse → impact
      review, at most 3 rounds); the coordinator publishes it and commits the
-     ticket's docs folder on the ticket branch. A reviewer finding that is a
+     ticket's docs folder on the ticket branch — plus the `lld/` files the
+     ticket's completed `/create-data-design` and `/create-flows` runs recorded
+     in their result's `states.files` (only existing files inside the checkout
+     under an `lld/` directory; read from the recorded results, never asserted
+     — ADR-0126). A reviewer finding that is a
      new question for the user goes back through Stage 2.
 - MUST write `analysis.md` to the ticket's docs folder with front matter
   `{ticket, ready_for_planning, api_surface, needs_design_recommendation}`

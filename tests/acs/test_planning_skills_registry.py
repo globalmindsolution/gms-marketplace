@@ -6,6 +6,11 @@ three-way concatenation `PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS`
 so every existing `HOOKED_SKILLS` consumer (dispatch.py, `acs step start`,
 clarify.py, handoff.py, acs_lib's own session-end sweep) keeps seeing
 `create-design` with no code change of its own.
+
+ADR-0126 adds the two ticket-scoped low-level Design skills,
+`create-data-design` and `create-flows`, to `PLANNING_SKILLS` beside
+`create-design`: they run on a ticket before implementation and take no
+run position, exactly as create-design does.
 """
 
 import json
@@ -32,8 +37,8 @@ from acs_lib import workflow  # noqa: E402
 PINNED_SORTED_HOOKED_SKILLS = [
     "analyze-requirements", "audit-design", "audit-security", "code",
     "create-api-contract",
-    "create-architecture",
-    "create-design", "create-e2e-tests", "create-impl-plan",
+    "create-architecture", "create-data-design",
+    "create-design", "create-e2e-tests", "create-flows", "create-impl-plan",
     "create-pr", "create-prd",
     "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "review-code",
     "run-e2e-tests",
@@ -62,8 +67,12 @@ def _section(body, heading):
 class RegistryShapeCase(unittest.TestCase):
     """AC-1: the three-list shape and unchanged total membership."""
 
-    def test_planning_skills_is_exactly_create_design(self):
-        self.assertEqual(acs_lib.PLANNING_SKILLS, ["create-design"])
+    def test_planning_skills_is_exactly_the_three_design_skills(self):
+        # create-design alone through ADR-0125; ADR-0126 adds the low-level
+        # data and flows designs beside it. Pinned in order, so a fourth
+        # planning skill (or a reorder) is a deliberate edit here.
+        self.assertEqual(acs_lib.PLANNING_SKILLS,
+                         ["create-design", "create-data-design", "create-flows"])
 
     def test_create_design_not_in_workflow_skills(self):
         self.assertNotIn("create-design", acs_lib.WORKFLOW_SKILLS)
@@ -86,7 +95,8 @@ class RegistryShapeCase(unittest.TestCase):
         # create-api-contract, create-test-docs, create-e2e-tests), and
         # v0.5.0 adds review-code and run-e2e-tests as steps of their own;
         # ADR-0122 adds the read-only audit-design; ADR-0123 the read-only
-        # audit-security.
+        # audit-security; ADR-0126 the Design skills create-data-design and
+        # create-flows.
         self.assertEqual(len(acs_lib.HOOKED_SKILLS), HOOKED_SKILL_COUNT)
 
     def test_sorted_hooked_skills_membership_pinned(self):
