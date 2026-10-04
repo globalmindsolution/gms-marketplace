@@ -25,19 +25,24 @@ def _start(ws):
 
 
 def _plan(ws):
-    ws.called("Bash", command='python3 "%s/acs.py" pr plan-commits --ticket EVAL-1' % SCRIPTS)
-    out = ws.acs("pr", "plan-commits", "--ticket", "EVAL-1")
+    """C1: the real CLI, which also writes the plan where C3 keeps it."""
+    ws.called("Bash", command='python3 "%s/acs.py" pr plan-commits --ticket EVAL-1 --out %s'
+              % (SCRIPTS, PLAN))
+    os.makedirs(os.path.join(ws.path, os.path.dirname(PLAN)), exist_ok=True)
+    out = ws.acs("pr", "plan-commits", "--ticket", "EVAL-1", "--out", PLAN)
     assert out.returncode == 0, out.stderr
     plan = json.loads(out.stdout)
     assert plan["groups"], plan
     return plan
 
 
-def _confirm(ws, plan):
+def _confirm(ws, plan, edited=False):
+    """C2/C3: the up-front approval recorded; an edited plan rewritten."""
     ws.sh('python3 "%s/clarify.py" add --skill create-pr --ticket EVAL-1 '
           '--question "Commit plan" --answer "confirm: approved up front in the request" '
           '--source user' % SCRIPTS)
-    ws.write(PLAN, json.dumps(plan, indent=2))
+    if edited:
+        ws.write(PLAN, json.dumps(plan, indent=2))
 
 
 def _commit(ws):
@@ -77,7 +82,7 @@ def _failed(ws, branch=None, commits=()):
 
 
 def _commits_of(result):
-    return [{"group": c.get("group"), "sha": c.get("sha"), "subject": c.get("subject")}
+    return [{"id": c.get("id"), "sha": c.get("sha"), "subject": c.get("subject")}
             for c in result.get("commits", [])]
 
 
@@ -96,7 +101,7 @@ def _swept_everything(ws):
            "page size at 100'" % plan["branch"])
     ws.called("Bash", command=cmd)
     ws.sh(cmd)
-    _failed(ws, plan["branch"], [{"group": "all", "sha": "HEAD", "subject": "EVAL-1 all"}])
+    _failed(ws, plan["branch"], [{"id": "all", "sha": "HEAD", "subject": "EVAL-1 all"}])
 
 
 def _folded_in_the_wip(ws):
@@ -104,7 +109,7 @@ def _folded_in_the_wip(ws):
     plan = _plan(ws)
     plan["groups"][-1]["paths"].append(WIP)
     plan["left_out"] = [p for p in plan.get("left_out", []) if p != WIP]
-    _confirm(ws, plan)
+    _confirm(ws, plan, edited=True)
     result = _commit(ws)
     _failed(ws, result.get("branch", plan["branch"]), _commits_of(result))
 
@@ -122,7 +127,7 @@ def _committed_on_main(ws):
            "&& git add -- tests/test_customers.py && git commit -qm 'EVAL-1 Test the cap'")
     ws.called("Bash", command=cmd)
     ws.sh(cmd)
-    _failed(ws, "main", [{"group": "code", "sha": "HEAD~1", "subject": "EVAL-1 Cap"}])
+    _failed(ws, "main", [{"id": "code", "sha": "HEAD~1", "subject": "EVAL-1 Cap"}])
 
 
 def _pushed(ws):

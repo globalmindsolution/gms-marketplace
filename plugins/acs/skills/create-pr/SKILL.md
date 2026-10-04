@@ -142,13 +142,16 @@ confirmed commits, and a re-run resumes at the push.
 C1. **Plan.** Ticket mode:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" pr plan-commits --ticket <ticket_id>
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" pr plan-commits --ticket <ticket_id> \
+     --out <partition>/steps/create-pr/iter-<n>/commit-plan.json
    ```
 
-   Docs mode: `acs.py pr plan-commits --docs`. It prints
-   `{"branch", "base", "groups": [{"id", "subject", "layer", "paths"}],
-   "left_out", "excluded"}`: the proposed branch, the baseline commit, the
-   ordered groups — ticket docs, then design docs (HLD, LLD, ADRs), then per
+   Docs mode: `acs.py pr plan-commits --docs --out …` the same way
+   (`<partition>` and `<n>`, the `iteration`, come from the context JSON). It
+   prints `{"branch", "base", "groups": [{"id", "subject", "layer", "paths"}],
+   "left_out", "excluded"}` and writes the same plan to `--out`: the proposed
+   branch (the current one when it already is a feature branch), the baseline
+   commit, the ordered groups — ticket docs, then design docs (HLD, LLD, ADRs), then per
    plan slice its tests then its code, then the doc updates, then the e2e
    suites (docs mode: one group per doc set) — the paths changed since the
    baseline that no step recorded (`left_out`), and the paths already dirty
@@ -189,8 +192,9 @@ C2. **Preview and confirm — ONE grouped question.** Show the user the whole
    cannot reach the user and holds no such approval commits nothing and hands
    off `needs_input` (see "User interaction").
 
-C3. **Write the confirmed plan** to `steps/create-pr/iter-<n>/commit-plan.json`
-   — the printed plan with the user's edits applied, nothing else changed.
+C3. **Keep the confirmed plan** in `steps/create-pr/iter-<n>/commit-plan.json`:
+   `--out` already wrote it as proposed; after an edit, rewrite it (Write) as
+   that plan with the user's edits applied, nothing else changed.
 
 C4. **Commit.**
 
@@ -200,11 +204,14 @@ C4. **Commit.**
 
    It creates the plan's branch from the current checkout when you are not
    already on it (`git switch -c` carries the working tree with it), then
-   commits each group in order by pathspec, and prints the branch and every
-   commit's sha. It refuses a branch named like the default branch, a path
-   that is not in the changeset, and an empty group: surface the refusal and
-   stop failed — never work around it with a raw `git add` / `git commit`.
-   Copy the printed commits into the publish report and `states.commits`.
+   commits each group in order by pathspec, and prints `{"branch", "commits":
+   [{"id", "subject", "sha", "paths"}], "remaining"}` — `remaining` is what
+   stays uncommitted. It refuses the default branch, a branch that already
+   exists at another commit, a path that is not an uncommitted change, a path
+   in two groups, and an empty group: surface the refusal and stop failed —
+   never work around it with a raw `git add` / `git commit`. A refusal midway
+   names the commits made so far; record them. Copy the printed commits into
+   the publish report and `states.commits`.
    Paths the plan left out stay exactly as they were in the working tree.
 
 ### Publish phase — origin and GitHub
@@ -482,7 +489,7 @@ steps, and return as your final message a handoff like:
 <handoff skill="create-pr" ticket-id="SHOP-123" status="needs_input">
   <summary>The working tree carries SHOP-123's changes, uncommitted; the commit plan needs the user's confirmation before anything is committed.</summary>
   <questions>
-    <question>Commit plan for task/SHOP-123-bulk-import: 1. SHOP-123 Add the ticket docs (docs/tickets/SHOP-123/…) 2. SHOP-123 Test the bulk import (tests/test_import.py) 3. SHOP-123 Bulk import (src/shop/importer.py). Left out: notes/todo.md. Confirm, edit, or cancel?</question>
+    <question>Commit plan for task/SHOP-123-bulk-import: 1. SHOP-123 Add ticket docs (docs/tickets/SHOP-123/…) 2. SHOP-123 Add tests for bulk import (tests/test_import.py) 3. SHOP-123 Implement bulk import (src/shop/importer.py). Left out: notes/todo.md. Confirm, edit, or cancel?</question>
   </questions>
   <next-step>Answer, then re-run /acs:ship SHOP-123.</next-step>
 </handoff>
@@ -523,9 +530,9 @@ MANDATORY final step — never skipped, also on failure:
        },
        "branch": "task/SHOP-123-bulk-import",
        "commits": [
-         {"group": "ticket-docs", "sha": "0f3c2ab9", "subject": "SHOP-123 Add the ticket docs"},
-         {"group": "slice-1-tests", "sha": "5d1e07c4", "subject": "SHOP-123 Test the bulk import"},
-         {"group": "slice-1-code", "sha": "9a8b7c6d", "subject": "SHOP-123 Bulk import"}
+         {"id": "ticket-docs", "sha": "0f3c2ab9", "subject": "SHOP-123 Add ticket docs"},
+         {"id": "slice-01-tests", "sha": "5d1e07c4", "subject": "SHOP-123 Add tests for bulk import"},
+         {"id": "slice-01-code", "sha": "9a8b7c6d", "subject": "SHOP-123 Implement bulk import"}
        ]
      },
      "findings": [],

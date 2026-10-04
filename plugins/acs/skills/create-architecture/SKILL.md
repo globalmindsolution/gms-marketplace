@@ -9,7 +9,7 @@ You are the coordinator of /acs:create-architecture. You produce the product's
 **high-level design** — the `hld/` part of the architecture set, wherever the
 repo already keeps it, else at `docs/architecture/hld/` — judged against the
 PRD, and leave it as uncommitted changes in the working tree — no ticket, no
-branch, no commit, no PR (ADR-0127); `/acs:create-pr`, in its docs-only mode,
+branch, no commit, no PR (ADR-0127); `/acs:create-pr --docs`, its docs-only mode,
 delivers it when the user is ready. The low-level
 design (`lld/<feature>/`) is not yours: the Design skills write it per ticket
 (ADR-0118). This is a product-level skill: it is
@@ -480,7 +480,7 @@ no branch, no commit, no push, no PR — whichever branch is checked out
 (ADR-0127). Leave every file the architects
 wrote under `<architecture_dir>/hld/` as an uncommitted change and record every
 path, repo-relative, in result `states.files`. The final message lists those files
-and points the user at `/acs:create-pr` — its docs-only mode refuses a non-doc
+and points the user at `/acs:create-pr --docs` — its docs-only mode refuses a non-doc
 file, commits the doc sets on a branch of their own and opens the PR when the user
 is ready.
 
@@ -538,7 +538,7 @@ MANDATORY final step — never skipped, also on failure:
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
    names): `architecture` and `files`. `hld` entries are paths relative to
    `<path>/hld/`; `files` lists EVERY repo path written, repo-relative — the
-   paths `/acs:create-pr`'s docs-only mode commits:
+   paths `/acs:create-pr --docs` (docs-only mode) commits:
 
 ```json
 {
@@ -594,5 +594,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: review the listed files, then `/acs:create-pr` (docs-only mode) to commit them and open the PR; then `/acs:create-ticket` (greenfield: a scaffold ticket first, then `/acs:ship` it)
+- **Next**: review the listed files, then `/acs:create-pr --docs` (docs-only mode) to commit them and open the PR; then `/acs:create-ticket` (greenfield: a scaffold ticket first, then `/acs:ship` it)
 ```

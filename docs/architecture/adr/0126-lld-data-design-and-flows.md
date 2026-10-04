@@ -1,6 +1,6 @@
 # 0126 — The low-level design is written per feature by `/acs:create-data-design` and `/acs:create-flows`
 
-**Status**: Accepted · **Date**: 2026-10-04
+**Status**: Accepted — amended by [0127](0127-only-create-pr-commits.md) (documents staying local is now every skill's rule; `/acs:create-pr` commits them) · **Date**: 2026-10-04
 
 **Amends**: [0118](0118-discovery-design-development-phases.md) (two of the Design-phase
 skills it names now ship), [0120](0120-design-document-catalog-and-ticket-features.md)

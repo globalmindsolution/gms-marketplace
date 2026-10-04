@@ -6,9 +6,9 @@ as its args; allocating again there minted a second ticket for the same work.
 Reuse is deliberately narrow, and the narrowness is the safety property: an
 --allocate run adopting the wrong partition writes one flow's state into
 another's ticket. Three ways that can happen, one test each below --
-the session pointer (a doc-bootstrap fan-out runs two legs at once, neither
-passing an id), free text that merely CITES a live id, and a product-level
-skill picking up a delivery ticket it never owned.
+the session pointer, free text that merely CITES a live id, and a
+product-level skill picking up a ticket it never owned (since ADR-0127 a
+product skill may not --allocate at all).
 
 Run:  python3 -m unittest tests.acs.test_allocate_only_when_absent -v
 """
@@ -60,19 +60,15 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         self.assertEqual(json.loads(again.stdout)["ticket_id"], ticket_id)
         self.assertEqual(self._ids(), [ticket_id])
 
-    def test_a_second_product_leg_still_gets_its_own_ticket(self):
-        """Two product skills run concurrently with no id in their args;
-        neither may adopt the other's ticket through the session pointer."""
-        first = self.run_script("acs.py", "step", "start", "--step", "create-prd", "--allocate")
-        self.assertEqual(first.returncode, 0, first.stderr)
-        second = self.run_script("acs.py", "step", "start", "--step", "create-architecture",
-                                 "--allocate")
-        self.assertEqual(second.returncode, 0, second.stderr)
-        self.assertNotEqual(json.loads(first.stdout)["ticket_id"],
-                            json.loads(second.stdout)["ticket_id"])
-        self.assertEqual(len(self._ids()), 2)
-
-
+    def test_a_product_skill_can_no_longer_allocate(self):
+        """ADR-0127: create-prd and create-architecture mint no delivery
+        ticket -- they run ticketless and ship through /acs:create-pr --docs."""
+        for step in ("create-prd", "create-architecture"):
+            with self.subTest(step=step):
+                out = self.run_script("acs.py", "step", "start", "--step", step, "--allocate")
+                self.assertEqual(out.returncode, 2, out.stdout)
+                self.assertIn("ADR-0127", out.stderr)
+        self.assertEqual(self._ids(), [])
 
     def test_free_text_that_only_cites_a_live_id_still_mints_a_new_one(self):
         """create-ticket is invoked with the user's prompt verbatim as --args
@@ -94,11 +90,9 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
                             "a prompt citing a ticket adopted that ticket's partition")
         self.assertEqual(len(self._ids()), 2)
 
-    def test_a_product_leg_never_derives_its_ticket_from_args(self):
-        """The product-level skills each route resume through a separate
-        --ticket call with no --allocate, so args-derived reuse buys them
-        nothing -- and would let a delivery ticket be adopted by a flow that
-        never owned it."""
+    def test_a_product_skill_never_adopts_a_ticket_from_args(self):
+        """A product skill handed a live ticket id is refused --allocate rather
+        than adopting a ticket it never owned."""
         first = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                 "--allocate", "--args", "add a wishlist API")
         self.assertEqual(first.returncode, 0, first.stderr)
@@ -107,9 +101,8 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
 
         leg = self.run_script("acs.py", "step", "start", "--step", "create-architecture",
                               "--allocate", "--args", delivery)
-        self.assertEqual(leg.returncode, 0, leg.stderr)
-        self.assertNotEqual(json.loads(leg.stdout)["ticket_id"], delivery,
-                            "a product-level leg adopted a delivery ticket")
+        self.assertEqual(leg.returncode, 2, leg.stdout)
+        self.assertEqual(self._ids(), [delivery])
 
     def test_seed_next_on_a_resuming_run_is_refused(self):
         """MAR-402's --seed-next repairs the counter for a newly minted id. A
@@ -127,20 +120,20 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
         self.assertIn("--seed-next", again.stderr)
         self.assertIn(ticket_id, again.stderr)
 
-    def test_an_explicit_ticket_flag_still_resumes_for_any_skill(self):
+    def test_an_explicit_ticket_flag_still_resumes(self):
         """The narrowing is on --args only: --ticket is unambiguous by
-        construction and stays the supported resume path everywhere."""
-        first = self.run_script("acs.py", "step", "start", "--step", "create-architecture",
+        construction and stays the supported resume path."""
+        first = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                                 "--allocate")
         self.assertEqual(first.returncode, 0, first.stderr)
-        leg = json.loads(first.stdout)["ticket_id"]
-        self._release(leg)
+        minted = json.loads(first.stdout)["ticket_id"]
+        self._release(minted)
 
-        again = self.run_script("acs.py", "step", "start", "--step", "create-architecture",
-                                "--allocate", "--ticket", leg)
+        again = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
+                                "--allocate", "--ticket", minted)
         self.assertEqual(again.returncode, 0, again.stderr)
-        self.assertEqual(json.loads(again.stdout)["ticket_id"], leg)
-        self.assertEqual(self._ids(), [leg])
+        self.assertEqual(json.loads(again.stdout)["ticket_id"], minted)
+        self.assertEqual(self._ids(), [minted])
 
 
 if __name__ == "__main__":

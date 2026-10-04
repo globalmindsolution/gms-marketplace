@@ -1,12 +1,11 @@
 ---
 description: >-
-  Docs-only mode: documents with no ticket and no code run go up through this
-  skill too. Borrows the vocabulary of /acs:create-prd and
-  /acs:create-architecture on purpose -- the PRD and the ADRs are named --
-  while the documents are already written and the request is only to ship
-  them. Never names the skill.
+  Docs-only mode (--docs): documents with no ticket and no code run go up
+  through this skill too. The documents are already written, so the request is
+  only to commit and ship them, with the context it needs stated in the
+  prompt. Never names the skill.
 expected_outcome: Routes to acs:create-pr.
-tags: [routing, description, confusable]
+tags: [routing, description]
 max_turns: 1
 allowed_tools: [Skill]
 ---

@@ -7,17 +7,19 @@ description: >-
   per-ticket contracts and flows sits beside it. It should regenerate the HLD
   in place -- stale container and datastore gone, the orders API added, the
   two missing HLD files created -- leave every lld/ file exactly as it was,
-  push its delivery branch, and report the failed gh PR step as a finding.
+  and leave its changes uncommitted, listed in states.files -- no ticket,
+  branch, commit, push or PR (ADR-0127).
 expected_outcome: >-
   hld/c4-container.md and hld/deployment.md no longer mention export-worker
   or Redis; hld/c4-component.md and the new hld/integration-map.md name the
   orders API; hld/cross-cutting.md is created; hld/c4-container.md carries
-  version front matter with EVAL-1 in tickets; the run's iter-1/gaps.md files
+  version front matter; the run's iter-1/gaps.md files
   the export worker / Redis as unimplemented and the orders API as
   undocumented; lld/contracts.md,
   lld/flows/list-customers.md and lld/flows/nightly-export.md are byte for
-  byte as the scaffold left them and no lld/ file is added; a task/EVAL-1-*
-  branch is pushed; result.json records the gh failure and no PR.
+  byte as the scaffold left them and no lld/ file is added; HEAD is still the
+  scaffold's last commit and nothing was pushed; the step finished with the
+  written files in states.files and no PR.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 3000
@@ -39,6 +41,3 @@ Treat all of it as confirmed and do not ask me anything.
 - Deployment: the service runs as a single container behind a load
   balancer; there is no cron job any more.
 - Anything else you would confirm: take what the code and the PRD say.
-
-Pushing to origin works from this machine, but there is no GitHub access
-here: when a gh call fails, handle it the way the skill says to, and finish.

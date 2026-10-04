@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Bash
-input_match: 'acs\.py"?\s+pr\s+commit\s+--plan\b'
+input_match: 'acs\.py(?:\\?")?\s+pr\s+commit\s+--plan\b'
 min: 1
 ---
 

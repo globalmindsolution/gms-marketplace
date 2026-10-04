@@ -80,3 +80,7 @@ Delivers deposits at booking.
 MD
 git add -A && git commit -qm "groomr PRD and roadmap, approved"
 acs_local_origin
+acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
+# The run the skill resumes: a ticketless run (ADR-0127), opened here so
+# its id -- and so every grader path -- is deterministic.
+acs run new --prompt "Design the groomr architecture" > /dev/null

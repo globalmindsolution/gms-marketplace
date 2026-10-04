@@ -88,6 +88,9 @@ def is_doc_path(path):
 
 def doc_set(path):
     """(key, label) of the doc set a document belongs to, for `--docs` mode."""
+    if path.startswith(TICKETS_PATH + "/") and path.count("/") >= 3:
+        ticket_id = path.split("/")[2]
+        return "tickets/%s" % ticket_id, "ticket %s docs" % ticket_id
     parts = [p.lower() for p in path.split("/")]
     dirs, name = parts[:-1], parts[-1]
     if "lld" in dirs:
@@ -106,7 +109,7 @@ def doc_set(path):
 
 
 def _doc_order(key):
-    order = ["prd", "requirements", "hld", "lld", "adr", "other"]
+    order = ["prd", "requirements", "hld", "lld", "adr", "tickets", "other"]
     head = key.split("/", 1)[0]
     return (order.index(head) if head in order else len(order), key)
 
@@ -309,7 +312,9 @@ def plan_ticket(root, rdirs, ticket, baseline):
     changed = [e["path"] for e in cs["files"]]
     excluded_paths = [e["path"] for e in cs["excluded"]]
     records.claim_declared(changed)
-    for path in changed:
+    # The ticket's own docs folder is the ticket's by construction -- even
+    # `ticket.md`, which `--allocate` wrote before the baseline was taken.
+    for path in changed + excluded_paths:
         if path.startswith("%s/%s/" % (TICKETS_PATH, ticket_id)):
             records.claim(path, "ticket-docs")
     included = [p for p in changed + excluded_paths if p in records.claims]

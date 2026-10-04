@@ -1,10 +1,11 @@
 """Calibration plays for create-architecture-regenerate-after-shift (see
-tests/evals/check_grader_calibration.py). The ideal run: `acs step start
---allocate` mints the delivery ticket, the architect regenerates the existing
-HLD in place against the new code (stale worker and Redis out; the orders API
-in; the two HLD files the old set lacked created), every file under lld/ is
-left exactly as it was, the coordinator commits and pushes the delivery
-branch, gh fails, and the result document goes through the real post-hook.
+tests/evals/check_grader_calibration.py). The ideal run: `acs step start`
+resumes the ticketless run the scaffold opened, the architect regenerates the
+existing HLD in place against the new code (stale worker and Redis out; the
+orders API in; the two HLD files the old set lacked created), every file under
+lld/ is left exactly as it was, the changes stay uncommitted, and the result
+document, listing every written path in `states.files`, goes through the real
+post-hook. Nothing is branched, committed or pushed (ADR-0127).
 Beside the survey, one gap analyst compares the existing HLD with the code and
 its notes are joined into iter-1/gaps.md (ADR-0122); the old set predates
 version front matter, so every hld/ file the run writes gets its first block
@@ -15,7 +16,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-architecture.py")
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-architecture"
+STEP = ".acs/state-machine/example-shop/runs/regenerate-the-architecture-after-the-shift-1304/steps/create-architecture"
 BRANCH = "task/EVAL-1-product-architecture-doc-set"
 A = "docs/architecture"
 
@@ -66,14 +67,11 @@ GAPS = ("## Unimplemented\n\n- **export-worker container** and its **Redis `expo
         "/orders?customer_id=`, src/shop/orders.py:4; HLD: absent.\n\n## Drifted\n\n_None._\n\n"
         "## Unverified\n\n_None._\n")
 
-GH_FINDING = {"severity": "critical", "area": "pr",
-              "message": "gh pr create failed; the docs-only PR was not opened",
-              "error": "gh: command not found", "hint": "check `gh auth status` and repo access"}
 
 
 def _start(ws):
     ws.skill("create-architecture")
-    started = ws.acs("step", "start", "--step", "create-architecture", "--allocate", "--args", "")
+    started = ws.acs("step", "start", "--step", "create-architecture", "--args", "")
     assert started.returncode == 0, started.stderr
 
 
@@ -87,10 +85,9 @@ def _gap_analysis(ws):
     assert merged.returncode == 0, merged.stderr
 
 
-def _deliver(ws, docs=None, drop=(), gaps=True, versioned=True):
+def _deliver(ws, docs=None, drop=(), gaps=True, versioned=True, commit=False):
     if gaps:
         _gap_analysis(ws)
-    ws.sh("git checkout -q -b %s main" % BRANCH)
     written = []
     for rel, text in (REGENERATED if docs is None else docs).items():
         ws.write("%s/%s" % (A, rel), text)
@@ -99,21 +96,26 @@ def _deliver(ws, docs=None, drop=(), gaps=True, versioned=True):
     if versioned:
         # The old files carry no block yet, so each gets its first one; the
         # set documents the code as built after the shift.
-        done = ws.acs("design", "init", "--status", "implemented", "--ticket", "EVAL-1", *written)
+        # The run is ticketless, so no `--ticket` (ADR-0127).
+        done = ws.acs("design", "init", "--status", "implemented", *written)
         assert done.returncode == 0, done.stderr
     for rel in drop:
         ws.sh("git rm -q %s/%s" % (A, rel))
-    ws.sh("git add %s && git commit -qm 'EVAL-1 Regenerate product architecture doc set'" % A)
-    ws.sh("git push -q -u origin %s" % BRANCH)
+    if commit:
+        # The pre-ADR-0127 delivery: a delivery branch, a commit and a push.
+        ws.sh("git checkout -q -b %s main" % BRANCH)
+        ws.sh("git add %s && git commit -qm 'EVAL-1 Regenerate product architecture doc set'" % A)
+        ws.sh("git push -q -u origin %s" % BRANCH)
 
 
-def _finish(ws, findings=(GH_FINDING,), docs=None):
+def _finish(ws, docs=None, files=None):
     hld = [rel.split("/", 1)[1] for rel in (REGENERATED if docs is None else docs)
            if rel.startswith("hld/")]
     ws.write(STEP + "/result.json", json.dumps({
-        "status": "completed", "summary": "HLD regenerated after the shift; gh failed, no PR",
-        "states": {"architecture": {"path": A, "hld": hld}},
-        "findings": list(findings), "errors": []}, indent=2))
+        "status": "completed", "summary": "HLD regenerated after the shift; left as local changes",
+        "states": {"architecture": {"path": A, "hld": hld},
+                   "files": ["%s/hld/%s" % (A, n) for n in hld] if files is None else files},
+        "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
@@ -121,9 +123,9 @@ def IDEAL(ws):
     _start(ws)
     _deliver(ws)
     _finish(ws)
-    ws.reply = ("EVAL-1 (re-run): HLD regenerated in place on %s -- export-worker and Redis "
-                "removed, the orders API added, cross-cutting.md and integration-map.md written; "
-                "lld/ left as it was. Pushed; gh pr create failed, so no PR was opened." % BRANCH)
+    ws.reply = ("Re-run: HLD regenerated in place -- export-worker and Redis removed, the orders "
+                "API added, cross-cutting.md and integration-map.md written; lld/ left as it was. "
+                "The changes are uncommitted; review them, then /acs:create-pr.")
 
 
 def _added_only(ws):
@@ -182,12 +184,16 @@ def _no_gap_analysis(ws):
     _finish(ws)
 
 
-def _never_pushed(ws):
+def _delivered_it_itself(ws):
     _start(ws)
-    ws.sh("git checkout -q -b %s main" % BRANCH)
-    for rel, text in REGENERATED.items():
-        ws.write("%s/%s" % (A, rel), text)
+    _deliver(ws, commit=True)
     _finish(ws)
+
+
+def _recorded_no_files(ws):
+    _start(ws)
+    _deliver(ws)
+    _finish(ws, files=[])
 
 
 BAD = {
@@ -196,8 +202,9 @@ BAD = {
     "deleted the stale nightly-export LLD flow": _deleted_the_stale_flow,
     "left out hld/cross-cutting.md": _no_cross_cutting,
     "left out hld/integration-map.md": _no_integration_map,
-    "regenerated but never committed or pushed": _never_pushed,
+    "committed and pushed a delivery branch": _delivered_it_itself,
+    "recorded no files in states.files": _recorded_no_files,
     "regenerated without version front matter": _unversioned,
     "regenerated with no gap analysis": _no_gap_analysis,
-    "allocated the ticket and changed nothing": _start,
+    "started the run and changed nothing": _start,
 }

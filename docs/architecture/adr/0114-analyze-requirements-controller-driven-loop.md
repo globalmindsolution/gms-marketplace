@@ -1,6 +1,6 @@
 # 0114 — analyze-requirements runs on a controller, not on prose
 
-**Status**: Accepted · **Date**: 2026-09-30
+**Status**: Accepted — amended by [0127](0127-only-create-pr-commits.md) (the publish writes and records the ticket's docs folder; it no longer commits) · **Date**: 2026-09-30
 
 **Builds on**: [0092](0092-skill-machinery-declared-per-skill.md) (no planner
 role when the deliverable is the analysis — unchanged here).

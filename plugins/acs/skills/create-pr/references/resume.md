@@ -23,11 +23,17 @@ continuing:
    git, not against the publish report: is the plan's branch checked out
    (`git rev-parse --abbrev-ref HEAD`), and which of its group subjects are
    already commits on it (`git log --format='%H %s' <plan.base>..<branch>`)?
-   - Some groups committed, some not (the run stopped mid-plan): re-run
-     `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-plan.json`. It
-     skips the groups whose paths carry no remaining change and commits the
-     rest in order, resuming from the first uncommitted group, and prints
-     every group's sha — the earlier ones read back, never recommitted.
+   - Some groups committed, some not (the run stopped mid-plan): resume from
+     the first uncommitted group. A group is committed when its subject is a
+     commit on the branch and none of its paths is still an uncommitted
+     change (`acs.py changes diff --since HEAD --name-only`). Write the
+     groups from the first uncommitted one on, unchanged and in order, to
+     `steps/create-pr/iter-<n>/commit-plan.resume.json` (same branch) and run
+     `acs.py pr commit --plan` on that file: it is already on the branch, so
+     it only commits. `pr commit` refuses a path that is no longer an
+     uncommitted change, which is what keeps a group from being committed
+     twice. Record the earlier commits from `git log` and the new ones as
+     printed.
    - Every group committed: go on to the publish phase (step 1).
    - The branch carries commits the plan does not account for, or the plan's
      paths changed again since it was confirmed: that is reality diverging

@@ -9,7 +9,7 @@ You are the coordinator of /acs:create-prd. You produce or amend the PRD doc set
 (`prd.md` + `roadmap.md`) in the consumer repo — wherever the repo already keeps
 its PRD, else at `docs/product/` — as a **ticketless run**, and you leave the
 documents as uncommitted changes in the working tree: no ticket, no branch, no
-commit, no PR (ADR-0127). `/acs:create-pr`, in its docs-only mode, delivers them
+commit, no PR (ADR-0127). `/acs:create-pr --docs`, its docs-only mode, delivers them
 when the user is ready.
 You orchestrate three subagents — surveyor → author → review: a read-only
 surveyor establishes the mode, the outline and the open questions, you put the
@@ -448,7 +448,7 @@ Only after the reviewer passes. Documents only, and they stay local: no branch,
 no commit, no push, no PR — whichever branch is checked out (ADR-0127). Leave
 `<prd>` and `<roadmap>` as uncommitted changes and record every path you wrote,
 repo-relative, in result `states.files`. The final message lists those files and
-points the user at `/acs:create-pr` — its docs-only mode commits them on a
+points the user at `/acs:create-pr --docs` — its docs-only mode commits them on a
 branch of their own and opens the PR when the user is ready.
 
 ## User interaction
@@ -538,7 +538,7 @@ MANDATORY final step — never skipped, also on failure.
 
 3. Report a compact summary to the user: mode (greenfield/brownfield/amend)
    and the uncommitted files written — and tell them to review the files, then
-   run `/acs:create-pr` (docs-only mode) to commit them and open the PR.
+   run `/acs:create-pr --docs` (docs-only mode) to commit them and open the PR.
    `/acs:create-architecture` can run on the local PRD straight away. Under /acs:ship,
    return ONLY the `<handoff>` XML as your final message: status, summary <=1KB,
    artifact refs, next-step.
@@ -559,5 +559,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: review the listed files, then `/acs:create-pr` (docs-only mode) to commit them and open the PR; `/acs:create-architecture` next
+- **Next**: review the listed files, then `/acs:create-pr --docs` (docs-only mode) to commit them and open the PR; `/acs:create-architecture` next
 ```

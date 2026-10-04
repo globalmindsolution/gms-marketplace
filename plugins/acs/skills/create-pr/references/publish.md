@@ -74,13 +74,16 @@ C2. **Preview and confirm.** One grouped AskUserQuestion — confirm / edit /
    commit-subject format). An `excluded` path is never added. After an edit,
    show the edited plan once more; a run that cannot reach the user and holds
    no approval of the plan in the request commits nothing (`needs_input`).
-C3. **Write** the confirmed plan to `steps/create-pr/iter-<n>/commit-plan.json`.
+C3. **Keep** the confirmed plan in `steps/create-pr/iter-<n>/commit-plan.json`
+   (C1's `--out` wrote it as proposed; rewrite it only after an edit).
 C4. **Commit** with `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-plan.json`:
    it switches to the plan's branch (creating it from the current checkout,
    which carries the working tree along) and commits the groups in order, each
-   by pathspec, printing every commit's sha. Its refusals — a branch named
-   like the default branch, a path outside the changeset, an empty group —
-   end the run failed; they are never routed around with raw git.
+   by pathspec, printing every commit's sha and what `remaining` stays
+   uncommitted. Its refusals — the default branch, a branch that exists at
+   another commit, a path that is not an uncommitted change, a path in two
+   groups, an empty group — end the run failed; they are never routed around
+   with raw git.
 
 ## Ship the PR, in this order
 
@@ -173,9 +176,9 @@ normally 1):
   "artifacts": ["steps/create-pr/iter-1/commit-plan.json", "steps/create-pr/pr-body.md"],
   "run_mode": "ticket",
   "commit_plan": {"path": "steps/create-pr/iter-1/commit-plan.json", "confirmed_by": "C-1", "left_out": ["notes/todo.md"], "excluded": []},
-  "commits": [{"group": "ticket-docs", "sha": "0f3c2ab9", "subject": "SHOP-123 Add the ticket docs"},
-              {"group": "slice-1-tests", "sha": "5d1e07c4", "subject": "SHOP-123 Test the bulk import"},
-              {"group": "slice-1-code", "sha": "9a8b7c6d", "subject": "SHOP-123 Bulk import"}],
+  "commits": [{"id": "ticket-docs", "sha": "0f3c2ab9", "subject": "SHOP-123 Add ticket docs", "paths": ["docs/tickets/SHOP-123/analysis.md"]},
+              {"id": "slice-01-tests", "sha": "5d1e07c4", "subject": "SHOP-123 Add tests for bulk import", "paths": ["tests/test_import.py"]},
+              {"id": "slice-01-code", "sha": "9a8b7c6d", "subject": "SHOP-123 Implement bulk import", "paths": ["src/shop/importer.py"]}],
   "pr": {"number": 42, "url": "https://github.com/acme/shop/pull/42", "branch": "task/SHOP-123-bulk-import", "base": "main"},
   "pushed_sha": "9a8b7c6d",
   "mode": "created",
