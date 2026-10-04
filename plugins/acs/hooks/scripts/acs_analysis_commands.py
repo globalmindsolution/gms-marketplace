@@ -145,8 +145,9 @@ def add_parser(group):
     verb("record-review", cmd_analysis_record_review,
          "derive the iteration's verdict from the judge slices' snapshots")
     publish = verb("publish", cmd_analysis_publish,
-                   "checks, byte-for-byte copy, docs-folder-only commit; never pushes")
-    publish.add_argument("--summary", help="the {summary} of the commit message")
+                   "checks, byte-for-byte copy into the docs folder; never commits "
+                   "(ADR-0127) -- prints the written paths")
+    publish.add_argument("--summary", help="ignored since ADR-0127: publish commits nothing")
     verb("record-publication", cmd_analysis_record_publication,
-         "verify the published bytes and the commit")
+         "verify the published bytes in the working tree")
     return analysis
