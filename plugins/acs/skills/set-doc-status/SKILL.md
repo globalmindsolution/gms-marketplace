@@ -94,6 +94,9 @@ user which one and show the list (Step 3), or stop when you cannot ask. When
 the arguments name the status AND the targets (and, for `deprecated`, the
 reason), skip Steps 3 and 4 entirely and go to Step 5: the command line is the
 user's choice. When they name only some of it, ask only for what is missing.
+A request that states the same things in words ("deprecate every gift-cards
+document, the reason is …", "approve the wishlist feature") counts exactly as
+the arguments do — never re-ask what the user already said.
 
 ## Step 3 — Pick the documents (ONE grouped ask)
 
@@ -128,10 +131,10 @@ a feature whose analysis is already approved and whose LLD is proposed is one
 move. Order: `approved` first when any selected document is
 `proposed`, then `implemented`, `proposed`, `deprecated`. Ask it as ONE
 AskUserQuestion with two questions: the target status, and an optional reason
-(options `No reason`, plus free text). When the intersection is empty, the
-selection mixes documents no single move fits (a `deprecated` one, or an
-`implemented` one with a `proposed` one asked to become `implemented`): say
-which documents block which moves and go back to Step 3 once.
+(options `No reason`, plus free text). When no status fits, the selection
+mixes documents no single move fits (a `proposed` document cannot become
+`implemented` before it is approved): say which documents block which moves
+and go back to Step 3 once.
 
 **Reason.** A move to `deprecated` needs one — ask for it again when the
 answer was `No reason`; still none → stop with status `failed`, "deprecation

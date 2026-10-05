@@ -7,7 +7,8 @@ description: >-
   listed in states.files -- no ticket, branch, commit, push or PR (ADR-0127).
 expected_outcome: >-
   docs/product/prd.md and docs/product/roadmap.md written from the stated
-  facts and left uncommitted on main (HEAD still the scaffold's commit,
+  facts, each opening with version front matter at status proposed,
+  version 1, and left uncommitted on main (HEAD still the scaffold's commit,
   nothing pushed), the step finished with both files in states.files and no
   PR, and a reply that lists the files and points at /acs:create-pr.
 tags: [behaviour]

@@ -1,8 +1,9 @@
 """Calibration plays for create-prd-greenfield-no-code (see
 tests/evals/check_grader_calibration.py). The ideal run: `acs step start`
 resumes the ticketless run the scaffold opened, the author writes the two
-documents from the elicited answers alone and leaves them uncommitted, and the
-result document, listing both in `states.files`, goes through the real
+documents from the elicited answers alone and leaves them uncommitted, the
+coordinator gives both their first version front matter (`acs.py design init
+--status proposed`), and the result document, listing both in `states.files`, goes through the real
 post-hook. Nothing is branched, committed or pushed (ADR-0127)."""
 
 import json
@@ -105,9 +106,17 @@ def _finish(ws):
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
+def _version(ws):
+    """The coordinator's Versions step: a new document gets `design init`."""
+    done = ws.acs("design", "init", "--status", "proposed",
+                  "docs/product/prd.md", "docs/product/roadmap.md")
+    assert done.returncode == 0, done.stderr
+
+
 def IDEAL(ws):
     _start(ws)
     _deliver(ws)
+    _version(ws)
     _finish(ws)
     ws.reply = ("Greenfield: groomr PRD and roadmap written. Uncommitted: docs/product/prd.md, "
                 "docs/product/roadmap.md. Review them, then run /acs:create-pr to commit them "
@@ -147,7 +156,14 @@ def _delivered_it_itself(ws):
     _finish(ws)
 
 
+def _unversioned(ws):
+    _start(ws)
+    _deliver(ws)
+    _finish(ws)
+
+
 BAD = {
+    "left the new documents without version front matter": _unversioned,
     "filled the skeleton with vague placeholders": _vague_prd,
     "shipped a PRD missing three sections": _missing_sections,
     "scaffolded code beside the PRD": _started_building,
