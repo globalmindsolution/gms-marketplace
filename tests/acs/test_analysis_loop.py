@@ -53,6 +53,7 @@ ready_for_planning: true
 class AnalysisLoopCase(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
+        self.decide_shared()
         for key, value in (("user.email", "t@example.com"), ("user.name", "T")):
             subprocess.run(["git", "-C", self.repo, "config", key, value], check=True)
         with open(os.path.join(self.repo, "README.md"), "w") as fh:
@@ -67,6 +68,15 @@ class AnalysisLoopCase(AcsWorkspaceCase):
         out = self.start("analyze-requirements", self.tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.r = self.rdir(self.tid)
+
+    def decide_shared(self):
+        """ADR-0132: the user decided once -- documents are shared, in the
+        built-in folders -- so publish files into the repo's phase folders."""
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90},
+                             "docs": {"share_run_documents": True,
+                                      "prd_dir": "docs/product",
+                                      "architecture_dir": "docs/architecture",
+                                      "development_dir": "docs/development"}})
 
     # -- driving the CLI ----------------------------------------------------
 
@@ -627,6 +637,7 @@ class TicketlessAnalysisCase(AnalysisLoopCase):
 
     def setUp(self):  # noqa: D401 -- a different subject, the same loop
         AcsWorkspaceCase.setUp(self)
+        self.decide_shared()
         for key, value in (("user.email", "t@example.com"), ("user.name", "T")):
             subprocess.run(["git", "-C", self.repo, "config", key, value], check=True)
         with open(os.path.join(self.repo, "README.md"), "w") as fh:

@@ -1,6 +1,6 @@
 # 0128 — Skills take requirements from any container; a run's documents live one folder per phase
 
-**Status**: Accepted — amended by [0130](0130-prd-versions-and-set-doc-status.md) (the documents in the Discovery and Design folders are listed by phase and feature, `acs.py design list`, for a status move) · **Date**: 2026-10-04
+**Status**: Accepted — amended by [0130](0130-prd-versions-and-set-doc-status.md) (the documents in the Discovery and Design folders are listed by phase and feature, `acs.py design list`, for a status move) and [0132](0132-share-or-keep-run-documents-local.md) (a run's documents reach their phase folder only when the repo shares them — kept local, they stay in the run's step folder — and a phase folder that resolves only to the built-in default is confirmed before it is created) · **Date**: 2026-10-04
 
 **Supersedes**: [0090](0090-ticket-artifacts-in-repo-docs-tree.md) in part — its
 in-repo ticket docs tree (`docs/tickets/<ID>/` with `ticket.md` and the ticket's

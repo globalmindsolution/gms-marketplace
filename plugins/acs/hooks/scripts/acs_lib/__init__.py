@@ -29,6 +29,7 @@ it always did. In dependency order:
   requirements   a run's requirements from any container: sources, requirements.md, refine
   doc_layout     the phase folders a run's documents live in (prd/lld/development dirs)
   run_docs       one run's documents: where each is read from and written to
+  doc_share      shared or kept local, and whether a docs folder still needs an answer (ADR-0132)
   team_handoff   member -> member ticket handoff over refs/acs/handoff/<ID> (ADR-0131);
                  team_handoff_receive is its receiving half (reached via acs_handoff_commands).
 
@@ -204,7 +205,7 @@ from .step import state_path, state_path as step_state_path  # noqa: F401
 from . import notes  # noqa: F401,E402
 from .notes import merge_files as merge_notes, merge_texts, split_sections  # noqa: F401
 
-from . import doc_layout, requirements, run_docs  # noqa: F401,E402
+from . import doc_layout, requirements, run_docs, doc_share  # noqa: F401,E402
 from .gates import record_requirements  # noqa: F401,E402
 
 from . import artifacts  # noqa: F401,E402

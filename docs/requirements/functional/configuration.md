@@ -16,15 +16,24 @@ validated against `settings.schema.json`.
 | Project (shared) | `<repo>/.acs/settings.json` | **committed** | Team-shared, repo-specific settings (tracker, models, coverage, merge strategy). |
 | Project (local) | `<repo>/.acs/settings.local.json` | **gitignored** | Machine-specific overrides of any key. |
 
-- `/setup` writes only the project file `<repo>/.acs/settings.json` —
-  conventions are the team's, so there is no scope question. The user file
-  is edited by hand.
+- `/setup` writes its conventions only to the project file
+  `<repo>/.acs/settings.json` — conventions are the team's, so they carry no
+  scope question. The user file is edited by hand.
+- **One setting is an answer with a scope**: `docs.share_run_documents`
+  ([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)).
+  Whoever records it — the first skill that writes a run document, or
+  `/setup`'s documents question — asks whether to save it **for me** (this
+  machine: `<repo>/.acs/settings.local.json`) or **for the team**
+  (`<repo>/.acs/settings.json`), and writes it through `acs.py docs decide`,
+  which creates the file when absent and touches no other key. A confirmed
+  docs folder (`docs.<kind>_dir`) is always the team's: the repo's layout is
+  shared.
 - `/setup` MUST NOT write a value equal to its built-in default, and removes
   one an earlier run wrote (reported as `defaulted`), so the file carries
   only choices: a key absent from it resolves to the default.
 - Machine-specific keys belong in the **gitignored `settings.local.json`**;
-  `/setup` writes no key there, but ensures the file is listed in the repo's
-  `.gitignore`.
+  `/setup` writes no convention there — only a share choice saved "for me" —
+  and ensures the file is listed in the repo's `.gitignore`.
 - Resolution order (per-key merge, most specific wins):
   **`settings.local.json` → `settings.json` → `~/.acs/settings.json`**.
 - Re-running `/setup` **updates the existing files in place**, preserving
@@ -62,6 +71,7 @@ introduced by any of this.
 | `tracker` | object | `{ "provider": "local" }` | No | Ticket tracking backend. `provider` is `local` (default) or `github` (GitHub Projects). Tickets are always stored **local-first** in the workspace; when `github` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the `gh` CLI, the only tracker transport. Provider-specific sub-keys live under `tracker.github`. Jira is not supported. |
 | `design` | object | every default-on type | No | Which design documents the Design skills write ([ADR-0120](../../architecture/adr/0120-design-document-catalog-and-ticket-features.md)): `hld_types` and `lld_types`, each a list of type ids from the catalog in `acs_lib.design_types` (HLD: `c4-context`, `c4-container`, `c4-component`, `data-model`, `integration-map`, `deployment`, `project-structure` by default; `data-flow`, `capability-map` opt-in. LLD: `api-contract`, `logical-erd`, `physical-schema`, `sequence`, `activity`, `state` by default; `component-detail`, `class` opt-in). HLD `overview`, `tech-stack` and `cross-cutting` are always written and are not listed. Chosen by `/acs:setup`'s design question; an unknown id is refused. `hld_types` is read by `/create-architecture`; `lld_types` by `/create-data-design` (`logical-erd`, `physical-schema`) and `/create-flows` (`sequence`, `activity`, `state`, `component-detail`, `class`), each writing only the enabled types it owns ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
 | `parallel.max_agents` | integer `1`–`16` | `4` | No | The most subagents a skill spawns in one message ([ADR-0125](../../architecture/adr/0125-parallelism-in-skills.md)); work beyond it runs in waves of this size. Every multi-agent skill reads it from its context JSON's `settings`; a skill with a smaller structural cap keeps it (`code-small` 2, `code-trivial` 1), and `/acs:review-code`'s five lenses are one message whatever it says. `1` runs every fan-out sequentially; past 16 a wave's join outgrows a coordinator's context, so the schema and `acs_lib.settings.validate_parallel` refuse it. |
+| `docs` | object | unset | No | Where a run's documents go, recorded as **answers** rather than configured up front ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md), [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)). `docs.prd_dir`, `docs.architecture_dir`, `docs.development_dir`: each a repo-relative folder (no leading `/`, no `..`) naming a phase folder; absent, acs discovers the folder and otherwise proposes its built-in default (`docs/product`, `docs/architecture`, `docs/development`) — and **asks before creating it**: the user takes the proposal, names another path (saved here, in `.acs/settings.json`) or keeps documents local. `docs.share_run_documents`: `true` publishes every per-run document (a Development `analysis.md`, `plan.md`, `test-cases.md`, `design.md`, `api-contract.md`) to its phase folder, `false` keeps them in the run's step folder in the workspace (read by later steps, never in the repo or `/create-pr`'s commit plan); absent = not decided, asked once by the first skill that writes one and saved in the scope the user picks. The living documents (PRD, roadmap, HLD, LLD, a feature's living analysis) are always shared. A headless run with no answer keeps its documents local for that run and saves nothing. `/acs:setup` shows and changes both. |
 | `formats` | — | — | — | **Removed.** Branch, commit and PR-title style are the model's to follow (it reads `CLAUDE.md`, `CONTRIBUTING.md` and recent history). What a script must parse is fixed in `acs_lib.conventions`: the branch name `<type>/<ticket_id>-<slug>` (ticket detection depends on the id), the built-in template names (`pr-default`, `epic-default`, `story-default`, `task-default`, `design-default`; a repo's `.acs/templates/<name>.md` replaces one) and an epic's `[EPIC] ` title prefix. A block a repo still carries is accepted and ignored. |
 | `evals` | object | unset | No | **Read by nothing.** Accepted by the schema and ignored: its only reader was the behavioural-eval harness's forge tier, retired when the eval suite moved to `claude plugin eval` case files. It never affected the hook layer, so it changes no acs runtime behavior. Kept in the schema so a consumer's existing settings stay valid; removing it is a schema change for its own release. |
 
@@ -70,13 +80,23 @@ unknown keys for forward compatibility.
 
 ### Document and workspace locations
 
-No key locates a document or the workspace
+No key has to locate a document, and none locates the workspace
 ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)). A skill
 finds a repo document the way any Claude Code session does: `CLAUDE.md`
 (project instructions, loaded in every session) and whatever docs index it or
 the repo points at (e.g. `docs/README.md`), then a Glob/Grep search by file
-name or content. Found → it uses that location. Not found → it creates the
-document at the conventional default:
+name or content. Found → it uses that location. Not found → it proposes the
+conventional default below. For the three phase folders a run writes into —
+the PRD folder, the architecture folder and the Development folder — the
+proposal is a **question, not a write**
+([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)):
+`acs.py docs where` reports each folder's resolution `source` (`setting`,
+`discovered` or `default`), and while it is `default` the first skill that
+would write there asks once — use the proposed folder, give another
+repo-relative path, or keep documents local — and `acs.py docs decide` saves
+the answer as `docs.<kind>_dir` in `.acs/settings.json` (or, for "keep local",
+as `docs.share_run_documents`). acs never creates a new docs folder in the repo
+without that answer. The conventional defaults:
 
 | Document | Default location | Produced / consumed by |
 |----------|------------------|------------------------|
@@ -95,7 +115,10 @@ A run's own documents live one folder per phase
 Discovery under the PRD set's `features/<feature>/`, Design under the
 architecture set's `lld/<feature>/<ticket-id or run-id>/`, and Development
 under `docs/development/<feature>/<ticket-id or run-id>/` (an existing
-`docs/development/` is used where it is). Nothing writes the old
+`docs/development/` is used where it is) — when the repo shares them. A repo
+that keeps run documents local (`docs.share_run_documents: false`) finds them
+in the run's step folder instead, and its phase folders hold only the living
+documents. Nothing writes the old
 `docs/tickets/<ID>/` any more; an existing folder there is still read. One
 location is **fixed, never discovered**: the workspace — the folder where all skills and
 hooks read/write ticket state — is always `<main-checkout>/.acs/state-machine`,
@@ -215,6 +238,9 @@ configured under `models`:
   default and every pre-hook runs. A pre-hook MUST fail clearly if the
   workspace cannot be derived.
 - `tests.coverage` MUST be a number in `(0, 100]`; absent → `90`.
+- `docs.prd_dir`, `docs.architecture_dir` and `docs.development_dir` MUST be
+  non-empty repo-relative paths with no `..` segment; `docs.share_run_documents`
+  MUST be a boolean. Any other key under `docs` is refused.
 - `ticket_prefix` is optional (absent → `ACS`, otherwise set by hand)
   and MUST be a non-empty uppercase identifier — ticket ids are
   `<prefix>-<n>`, scoped per repo. A malformed one is refused (exit 2) with

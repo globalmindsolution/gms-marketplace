@@ -922,7 +922,7 @@
       "additionalProperties": false
     },
     "docs": {
-      "description": "Where this repo keeps the folders a run's documents are filed in (ADR-0128), each a repo-relative path. Optional and never defaulted here: an absent key means acs DISCOVERS the folder (prd_dir: a prd.md that CLAUDE.md or the docs index names, else the shallowest prd.md, else docs/product; architecture_dir: the folder holding hld/tech-stack.md, else docs/architecture; development_dir: docs/development).",
+      "description": "Where this repo keeps the folders a run's documents are filed in (ADR-0128), each a repo-relative path. Optional and never defaulted here: an absent key means acs DISCOVERS the folder (prd_dir: a prd.md that CLAUDE.md or the docs index names, else the shallowest prd.md, else docs/product; architecture_dir: the folder holding hld/tech-stack.md, else docs/architecture; development_dir: docs/development). A folder that resolves only to that built-in default does not exist yet: acs asks before creating it and records the answer here (ADR-0132). share_run_documents is the user's saved choice for a run's own documents.",
       "type": "object",
       "properties": {
         "prd_dir": {
@@ -942,6 +942,10 @@
           "minLength": 1,
           "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
           "description": "The Development directory; a change's plan, test cases and Development analysis go to <development_dir>/<feature>/<ticket-id or run-id>/."
+        },
+        "share_run_documents": {
+          "type": "boolean",
+          "description": "Whether a run's own documents (analysis, plan, test cases, design, API contract) are SHARED -- published to their phase folders -- or kept LOCAL in the run's state folder, never committed (ADR-0132). Absent means not decided yet: the first skill that writes one asks, and saves the answer here (team) or in .acs/settings.local.json (this machine). The living documents (PRD, roadmap, HLD, LLD, a feature's living analysis) are always shared."
         }
       },
       "additionalProperties": false

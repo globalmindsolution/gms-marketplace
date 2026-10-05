@@ -62,9 +62,10 @@ class HealthE2E(unittest.TestCase):
         status, _headers, body = get("/health")
         self.assertEqual((status, body), (200, "ok"))
 PY
-cat > .acs/settings.json <<'JSON'
+cat > .acs/settings.json <<JSON
 {
   "ticket_prefix": "EVAL",
+  $ACS_DOCS_ANSWERED,
   "tests": {
     "e2e": {
       "command": "PYTHONPATH=src python3 -m unittest discover -s tests/e2e -p 'test_*.py'"

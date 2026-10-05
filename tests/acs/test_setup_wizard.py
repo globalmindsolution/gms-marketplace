@@ -571,8 +571,11 @@ class SkillShapeTest(unittest.TestCase):
 
     def test_setup_configures_conventions_and_ci_only(self):
         """What setup no longer does: write a CLAUDE.md block, set the status
-        line, pick a scope, or ask about models, tracker or doc locations.
-        Those keep their defaults until someone edits the file by hand."""
+        line, pick a scope, or ask about models or the tracker. Those keep
+        their defaults until someone edits the file by hand. (The doc folders
+        and the share default came back as answers in ADR-0132: setup shows
+        and changes them through `acs.py docs where|decide` -- pinned in
+        test_doc_share_skills.)"""
         for gone in ("CLAUDE.acs.md", "claude_md", "status_line", "statusLine",
                      "### models", "Recommended (default)", "### Optional settings",
                      "| `workspace_path` |", "**Scope**"):

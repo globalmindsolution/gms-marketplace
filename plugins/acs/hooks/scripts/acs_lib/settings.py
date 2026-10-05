@@ -170,8 +170,15 @@ def validate_settings(settings, cwd, require_workspace=True):
 
 
 #: The optional `docs` folders (ADR-0128). Never defaulted in the settings: an
-#: absent key means acs_lib.doc_layout DISCOVERS the folder.
+#: absent key means acs_lib.doc_layout DISCOVERS the folder -- and, when there
+#: is nothing to discover, a writer asks before creating one (ADR-0132), then
+#: records the answer here.
 DOCS_KEYS = ("prd_dir", "architecture_dir", "development_dir")
+#: The `docs` choices that are not folders (ADR-0132): whether a run's own
+#: documents (analysis, plan, test cases, design, API contract) are SHARED in
+#: the repo's phase folders or kept LOCAL in the run's state folder. Absent
+#: means the user has not decided yet -- a writer asks once, then saves it.
+DOCS_FLAG_KEYS = ("share_run_documents",)
 
 
 def docs_path_problem(value):
@@ -187,17 +194,33 @@ def docs_path_problem(value):
 
 
 def validate_docs(docs):
-    """`docs` is {prd_dir?, architecture_dir?, development_dir?}: each a
-    repo-relative folder with no `..`. Raises GateError."""
+    """`docs` is {prd_dir?, architecture_dir?, development_dir?,
+    share_run_documents?}: each folder a repo-relative path with no `..`, the
+    share choice a boolean. Raises GateError."""
     if not isinstance(docs, dict):
         raise GateError("docs must be an object: {prd_dir?, architecture_dir?, "
-                        "development_dir?} (repo-relative folders).")
+                        "development_dir?} (repo-relative folders) and "
+                        "{share_run_documents?} (true|false).")
     for key, value in docs.items():
+        if key in DOCS_FLAG_KEYS:
+            if not isinstance(value, bool):
+                raise GateError("docs.%s must be true or false; got %r (remove it to be "
+                                "asked again)." % (key, value))
+            continue
         if key not in DOCS_KEYS:
-            raise GateError("docs.%s is not a setting (allowed: %s)." % (key, ", ".join(DOCS_KEYS)))
+            raise GateError("docs.%s is not a setting (allowed: %s)."
+                            % (key, ", ".join(DOCS_KEYS + DOCS_FLAG_KEYS)))
         problem = docs_path_problem(value)
         if problem:
             raise GateError("docs.%s %s." % (key, problem))
+
+
+def share_run_documents(settings):
+    """`docs.share_run_documents` as True/False, or None when undecided (absent
+    or not a boolean -- an invalid value is refused at every gate)."""
+    docs = (settings or {}).get("docs")
+    value = docs.get("share_run_documents") if isinstance(docs, dict) else None
+    return value if isinstance(value, bool) else None
 
 
 def resolve_template(value, repo_root, plugin_root):

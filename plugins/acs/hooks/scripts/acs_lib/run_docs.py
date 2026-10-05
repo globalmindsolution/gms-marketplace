@@ -12,14 +12,21 @@ key (the ticket id, else the run id) place every document:
 
 A reader that finds nothing there falls back to the legacy
 `docs/tickets/<ID>/<name>`, then the ticket's workspace partition. A run with
-no feature yet has no write target (`paths[name]` is None) until one is named
-(`acs.py requirements refine`, analyze-requirements' grouped ask).
+no feature yet has no shared write target until one is named (`acs.py
+requirements refine`, analyze-requirements' grouped ask).
+
+Whether a run document is written to its phase folder at all is the user's
+saved choice (ADR-0132, `acs_lib.doc_share`): `paths[name]` is the phase-folder
+target when documents are SHARED, the run's own `steps/<skill>/local/<name>`
+when they are kept LOCAL, and None -- with `needs[name]` naming the open
+question -- while the share choice or a not-yet-existing folder is undecided.
+`artifacts[name]` reads the existing file wherever it is.
 """
 
 import os
 
 from ._common import GateError, read_json
-from . import doc_layout
+from . import doc_layout, doc_share
 from .repo import find_ticket_partition
 from .run import load_run
 
@@ -56,11 +63,29 @@ def run_layout(ctx, rdir=None, doc=None, ticket_id=None):
         feature = ((ticket or {}).get("features") or [None])[0]
         phase = "development"
     key = ticket_id or doc.get("run_id")
-    paths, found = {}, {}
+    shared, local = {}, {}
     for name in doc_layout.DOCUMENT_NAMES:
-        target = doc_layout.document_target(root, name, feature, key, phase, settings)
-        paths[name] = target
-        candidates = [target] if target else []
+        shared[name] = doc_layout.document_target(root, name, feature, key, phase, settings)
+        local[name] = doc_share.local_path(rdir if has_run else None, name)
+    base = {"run_id": doc.get("run_id") if has_run else None, "phase": phase,
+            "feature": feature, "key": key, "shared_paths": shared}
+    paths, found, needs, share = {}, {}, {}, None
+    for name in doc_layout.DOCUMENT_NAMES:
+        info = doc_share.where(ctx, name, rdir if has_run else None, layout=base)
+        needs[name] = info["needs"]
+        if info["kind"] == "run":
+            share = info["share"]
+        if info["needs"]:
+            paths[name] = None
+        elif info["share"]:
+            paths[name] = shared[name]
+        else:
+            paths[name] = local[name]
+        # A reader finds the document wherever it is: where the decision files
+        # it first, then the other side, then the legacy folders.
+        order = [local[name], shared[name]] if info["share"] is False \
+            else [shared[name], local[name]]
+        candidates = [c for c in order if c]
         legacy = doc_layout.legacy_ticket_dir(root, ticket_id)
         if legacy:
             candidates.append(os.path.join(legacy, name))
@@ -82,6 +107,8 @@ def run_layout(ctx, rdir=None, doc=None, ticket_id=None):
         "design_dir": doc_layout.design_run_dir(root, feature, key, settings),
         "legacy_dir": legacy if legacy and os.path.isdir(legacy) else None,
         "paths": paths, "artifacts": found,
+        "shared_paths": shared, "local_paths": local, "needs": needs, "share": share,
+        "locations": doc_layout.resolve_dirs(root, settings) if root else None,
         "requirements": (requirements.requirements_path(rdir) if has_run else None),
         "partition": tdir, "ticket": ticket,
     }

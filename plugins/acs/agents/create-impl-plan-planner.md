@@ -258,7 +258,8 @@ addressed** section mapping each `<context>` finding to what you changed.
    (`git ls-files` / `ls`); no two tasks declared disjoint share a path.
    Record each command and its outcome in your planner report.
 5. **Never publish.** The published `plan.md` — in the change's Development
-   folder or the partition — is written by the coordinator alone, from your draft's
+   folder, or the run's `local/` folder when run documents are kept local
+   (ADR-0132), or the partition — is written by the coordinator alone, from your draft's
    bytes. The file-map write guard denies any running `write`-kind agent — you
    included — a write to the published plan, and for good reason: the plan
    is the control input an implementer is checked against. Write the draft, nothing else.

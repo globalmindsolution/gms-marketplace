@@ -2,7 +2,7 @@
 
 Cases asserting what each shipped skill **did** in a real session — the files
 it wrote, the state it recorded through acs's own writers, the reply it gave —
-never where a prompt routed (that is `../routing/`). Every skill has 2–7 cases
+never where a prompt routed (that is `../routing/`). Every skill has 2–8 cases
 here, one per documented mode, branch or refusal (a resume, a no-op, a gate
 that must refuse, an input that must stop for the user), and `setup`,
 `create-ticket` and `code` also have `../setup/` and `../artifacts/`. GitHub
@@ -43,6 +43,16 @@ Grader rules worth knowing (read out of claude 2.1.281): `files` and
 `file_exists` see only paths the run **created**, not ones it modified or the
 scaffold made; a `regex` on a file that does not exist fails in every match
 mode, `not_contains` included.
+
+## Document choices (ADR-0132)
+
+`acs_repo` saves the team's answers to acs's two document questions in
+`.acs/settings.json` — run documents shared, and the PRD, architecture and
+Development folders named (`ACS_DOCS_ANSWERED`) — so a case's skill writes where
+it always did without asking first. A case about those questions opts out with
+`ACS_DOCS_UNDECIDED=1 acs_repo` (`analyze-requirements-asks-where-docs-go`,
+`analyze-requirements-keeps-docs-local`); a scaffold that rewrites the settings
+file splices `$ACS_DOCS_ANSWERED` back in.
 
 ## Calibration (free)
 

@@ -172,6 +172,40 @@ matching section here, and merge to `main` — the Release workflow tags
   The snapshot commit is the one commit outside `/acs:create-pr` — never on a
   branch, never merged (amends ADR-0127). Anyone with read access to the
   remote can fetch the ref.
+- **Share run documents or keep them local, asked once** (ADR-0132). A run's
+  own documents — a Development `analysis.md`, `plan.md`, `test-cases.md`,
+  `design.md`, `api-contract.md` — are either shared (published to the phase
+  folder and committed by `/acs:create-pr`, as before) or kept local (left in
+  the run's step folder in the gitignored workspace: later steps read them
+  through `acs.py artifacts show`, `/acs:handoff` carries them, and they never
+  reach the repo or the commit plan). The first skill that writes one asks, in
+  its one grouped ask, whether to share or keep local and whether to save that
+  for you (`.acs/settings.local.json`) or for the team (`.acs/settings.json`);
+  the new setting `docs.share_run_documents` records it, later runs follow it
+  silently and name it in their report, and `/acs:setup` shows and changes it.
+  The PRD, roadmap, HLD, LLD and a feature's living analysis are always shared.
+  A headless run with no saved choice keeps its documents local for that run
+  and saves nothing.
+- **acs asks before creating a docs folder** (ADR-0132). When a phase folder
+  resolves only to acs's built-in default — no `docs.*_dir` setting and no
+  existing folder found — the first skill that would write there asks: use the
+  proposed folder, give another repo-relative path (saved as `docs.<kind>_dir`
+  in `.acs/settings.json`), or keep documents local. The living documents'
+  first write into a missing folder (`/acs:create-prd`, a Discovery analysis,
+  `/acs:create-architecture`, `/acs:create-data-design`, `/acs:create-flows`)
+  asks the location only.
+- **`acs.py docs where|decide`** (ADR-0132). `docs where --doc <name>
+  [--run R]` (`analysis.md`, `plan.md`, `test-cases.md`, `design.md`,
+  `api-contract.md`, `living:prd`, `living:architecture`) prints where the
+  document goes, the saved share choice, the folder's resolution source
+  (`setting`, `discovered`, `default`), the questions still owed (`needs`) and
+  the proposed folder; `docs decide [--share yes|no --scope user|team]
+  [--location KIND=PATH]… [--doc <name>] [--run R]` merges the answers into the
+  settings file of that scope, creating it when absent and touching no other
+  key (a "for me" answer's `.acs/settings.local.json` is kept out of git), and
+  prints what it wrote and the new `where`. A publish
+  into the repo while an answer is owed (`analysis publish` and every other run
+  document write) exits 2 naming `acs.py docs decide`.
 
 ### Changed
 

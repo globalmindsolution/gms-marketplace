@@ -41,9 +41,18 @@ architecture must satisfy (User interaction) and record each as its own
 goals from C-<n>, …</constraint>` with those entries in `<context>`, and
 they stand in for `<prd>` wherever this file names it.
 
-Locate the architecture set the same way (an existing set is the directory
-holding `hld/tech-stack.md`): found → that directory is `<architecture_dir>`;
-none → `<architecture_dir>` = `docs/architecture/`, the conventional default.
+Locate the architecture set by asking acs — `python3
+"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc
+living:architecture` (a `docs.architecture_dir` setting, else the directory
+holding `hld/tech-stack.md`, else an existing `docs/architecture/`): its `path`
+is `<architecture_dir>`. The architecture set is a living document, always
+shared, but acs never creates a new docs folder without asking (ADR-0132):
+when `needs` names `location` (`location_source: default` — no setting, no
+existing folder), the folder is a question in the survey's ONE grouped ask
+(User interaction) — use `proposed_path` or give another repo-relative folder,
+no keep-local option — saved for the team with `acs.py docs decide --location
+architecture=<folder>`. Until then `<architecture_dir>` is `proposed_path` and
+no architect writes there.
 
 Then run exactly:
 
@@ -520,7 +529,8 @@ Before a needs_input handoff, record the outgoing questions as `open`
 Ask clarifying questions when genuinely ambiguous (AskUserQuestion or plain
 questions) — at minimum: confirm open reverse-engineering points on existing
 codebases. A sliced
-survey's open questions — every slice's — go into that ONE grouped ask. Do not
+survey's open questions — every slice's — go into that ONE grouped ask, with the
+architecture folder when `docs where` named `location` (Start). Do not
 ask about things the PRD or the code already answers.
 
 If you genuinely cannot reach the user (e.g. a non-interactive run), do not
@@ -602,7 +612,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: none — a ticketless run; the documents are delivered by `/acs:create-pr`
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: HLD files written at `<architecture_dir>/hld/` (and the enabled types), left as uncommitted changes (`states.files`)
+- **Results**: HLD files written at `<architecture_dir>/hld/` (and the enabled types; the folder named as chosen now when Start asked for it), left as uncommitted changes (`states.files`)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>

@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Optionally configure acs for the current repo — set the ticket prefix, install the CI ticket-link check (every PR names its ticket) and the test gates, choose which HLD and LLD design documents (C4 views, ERDs, API contracts, sequence and state diagrams …) the Design skills write, scaffold the model settings, and write the Claude Code Desktop app's preview-server config (.claude/launch.json). Use when setting up acs on a new repo, when the user wants a ticket prefix, wants the ticket-link check or the tests/e2e gates enforced in CI, wants the pipeline protected from being bypassed, or wants the dev server the Desktop app previews set up for the team, or wants to change which architecture diagrams and design documents acs produces. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Optionally configure acs for the current repo — set the ticket prefix, install the CI ticket-link check (every PR names its ticket) and the test gates, choose which HLD and LLD design documents (C4 views, ERDs, API contracts, sequence and state diagrams …) the Design skills write, scaffold the model settings, and write the Claude Code Desktop app's preview-server config (.claude/launch.json). Use when setting up acs on a new repo, when the user wants a ticket prefix, wants the ticket-link check or the tests/e2e gates enforced in CI, wants the pipeline protected from being bypassed, or wants the dev server the Desktop app previews set up for the team, wants to change which architecture diagrams and design documents acs produces, or wants to see or change whether run documents are shared in the repo or kept local, or where the doc folders are. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 ---
 
 You are the coordinator of `/acs:setup`, the acs bootstrap skill. This is NOT a
@@ -13,15 +13,15 @@ runs: no settings file is required, and tickets take the default prefix `ACS`
 
 Setup sets the **ticket prefix**, installs the **CI** gates on pull requests
 (the ticket-link check `conventions`, `tests`, `e2e`), picks the **design
-documents** the Design skills write (`design`, ADR-0120), and can scaffold the
-**`models`** block. The branch is always `<type>/<ticket_id>-<slug>`; commits and
-PR titles follow the repo's style. Every other setting has a working default and
-none locates a document (ADR-0102): tracker, merge strategy, coverage target and
-test suites are edited in `.acs/settings.json` against
+documents** the Design skills write (`design`, ADR-0120), shows and changes
+where **run documents** go (`docs`, ADR-0132), and can scaffold the **`models`**
+block. The branch is always `<type>/<ticket_id>-<slug>`; commits and PR titles
+follow the repo's style. Tracker, merge strategy, coverage target and test
+suites have working defaults, edited in `.acs/settings.json` against
 `${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`, not asked about.
 
 **Your job is the conversation.** Every write — the settings, the ignore
-entries, the workspace, the CI copies — is performed by the two commands below.
+entries, the workspace, the CI copies — is performed by the commands below.
 You ask, you explain the trade-off, you record the answer; you never hand-write
 a `.gitignore` line or a JSON dict. Settings go to the project file
 `.acs/settings.json` (committed: they are the team's). Unknown keys in an
@@ -46,10 +46,8 @@ whether it exists, its configuration names, `problems`, and `candidates` — a
 guessed dev server when there is none), and the git facts — `default_branch` is the branch to
 protect (null when it cannot be told; never guess it from `current_branch`).
 No git repository → STOP. `missing_tools` non-empty → name each gap and its
-install hint now; nothing here blocks on it.
-
-**`retired_keys` non-empty** → name each key and the file it is in, and say it
-is ignored.
+install hint now; nothing here blocks on it. **`retired_keys` non-empty** →
+name each key and the file it is in, and say it is ignored.
 
 **A project settings file or an installed CI gate means this is a re-run** —
 `scopes.project.exists` is true, or any `ci` entry has its `workflow` or
@@ -89,6 +87,12 @@ asking again.
    for HLD (`hld_types`) and one for LLD (`lld_types`), each option's `label` as
    its description and `design.current` preselected; say that `hld_always` is
    always written. The answer goes in `settings.design`; defaults write nothing.
+6. **Run documents and doc folders** (ADR-0132) — show `acs.py docs where`: are
+   run documents (analysis, plan, test cases, design, API contract) shared in the
+   repo or kept local, and whose default (yours or the team's), and each docs
+   folder with how it was found. On a change, save it with `python3
+   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes|no --scope
+   user|team` (user: `.acs/settings.local.json`) and/or `--location <kind>=<folder>`.
 
 ## Step 3 — Apply
 
@@ -161,8 +165,8 @@ reference. Both are written for you; neither survives being deleted by hand.
 
 ## Step 5 — Summary and next steps
 
-Print a table of each setting you touched (ticket prefix, unit-test command, models),
-its value, and where it landed (`.acs/settings.json`, or "default — not written"). The next steps come from
+Print a table of each setting you touched (ticket prefix, unit-test command, models,
+run documents, doc folders), its value, and where it landed (`.acs/settings.json`, or "default — not written"). The next steps come from
 `commands` — run it now (`--cwd .` is enough) if Step 4 did not: `next_steps`
 carries the greenfield/brownfield call, the pipeline read from `ship.yaml` and
 the solo-maintainer caveat, so you report them rather than re-deriving them.
@@ -187,7 +191,7 @@ empty; replace the Ticket line with **Repo** (no ticket at init time):
 
 - **Repo**: <repo> (<greenfield|brownfield>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: toolchain preflight outcome (tools present / still missing with the install hint); settings written, per key (or "defaults"); models scaffolded (yes / no); design types (defaults / the custom choice); retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined)
+- **Results**: toolchain preflight outcome (tools present / still missing with the install hint); settings written, per key (or "defaults"); models scaffolded (yes / no); design types (defaults / the custom choice); run documents (shared / kept local, whose default) and doc folders; retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined)
 - **Findings**: <open findings, or "none">
 - **Artifacts**: <files written or staged>
 - **Metrics**: <wall time>

@@ -20,6 +20,17 @@ set (found by its `hld/tech-stack.md`, default `docs/architecture`) and
 feature is the ticket's first feature or the one `/acs:analyze-requirements`
 confirms; a ticketless run names one in that skill's grouped ask.
 
+**A run's own documents can stay in the workspace instead**
+([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)). A repo that keeps run documents local (`docs.share_run_documents:
+false`, asked once and saved for one machine or the team) gets a Development
+`analysis.md`, `plan.md`, `test-cases.md`, `design.md` and `api-contract.md`
+in `runs/<run-id>/steps/<skill>/local/` rather than in a phase folder: they
+are read by the run's later steps, never versioned, and never committed. The
+living documents (PRD, roadmap, HLD, LLD, a feature's living analysis) always
+go to the repo. A phase folder that resolves only to the built-in default is
+created only after the user confirms it (or names another, saved as
+`docs.<kind>_dir`).
+
 **A ticket is not a document.** It lives in the workspace partition and in the
 tracker; nothing writes `docs/tickets/<ID>/` or a `ticket.md`. Readers MUST
 still look in an existing `docs/tickets/<ID>/` when a phase folder has no such
@@ -86,8 +97,10 @@ document, so a ticket started before ADR-0128 keeps its documents
   `git mv` is enough. `acs.py artifacts migrate` is retired: it reports and
   writes nothing.
 - `acs.py artifacts show [--run R | --ticket ID]` reports, for one run, where
-  each document resolves — its phase folder, the legacy ticket folder or the
-  partition — the diagnostic for "where did my design.md go".
+  each document resolves — its phase folder, the run's step folder (kept
+  local), the legacy ticket folder or the partition — the diagnostic for
+  "where did my design.md go"; `acs.py docs where --doc <name>` says where the
+  next write of a document goes and which answer is still owed.
 
 ## Requirements of a run
 
