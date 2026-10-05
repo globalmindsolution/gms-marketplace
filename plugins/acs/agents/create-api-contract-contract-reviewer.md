@@ -195,5 +195,5 @@ reason.
   file but the wrong lines or section, or a paraphrase looser than its source,
   is not a finding while the cited fact holds — note the exact location in
   your report and move on. What blocks: a source that does not say what the
-  document claims, a file that does not exist, or a repo fact asserted with no
+  draft claims, a file that does not exist, or a repo fact asserted with no
   citation at all.

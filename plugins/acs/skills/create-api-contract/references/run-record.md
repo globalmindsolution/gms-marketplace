@@ -28,12 +28,12 @@ reports `artifacts["analysis.md"]` (the analysis folder's `README.md`;
 `analysis_files` lists its context files) and `artifacts["design.md"]` — the
 inputs every subagent is handed.
 
-## Share or keep local — asked once, in the same grouped ask (ADR-0132)
+### Share or keep local — asked once, in the same grouped ask (ADR-0132)
 
 Local-only sharing applies to the run record ONLY: the interface documents
 under `lld/<feature>/api/` are living documents and always shared. Whether the
-run record enters the repo is a saved choice, not yours. Before anything is
-written, ask acs:
+run record enters the repo is a saved choice, not yours. Right after the
+artifact resolution, before anything is written, ask acs:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc api-contract.md
@@ -46,14 +46,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc api-contra
   `states.files`, and `/acs:create-pr` never commits it. Either way
   `<contract_path>` is its `abs_path`.
 - **`needs` non-empty** → its questions join this skill's ONE grouped ask,
-  never a separate one. `share`: "share run documents in the repo, or keep
-  them local?" and "save this for you (this machine:
+  never a separate one; with no other question, ask them alone in one
+  AskUserQuestion before Publish. `share`: "share run documents in the repo,
+  or keep them local?" and "save this for you (this machine:
   `.acs/settings.local.json`) or for the team (`.acs/settings.json`)?".
   `location` (`location_source: default`): "use `proposed_path`, give another
   repo-relative folder, or keep documents local?" — keeping them local is the
-  share answer, so ask its scope too. Record the answers in the ledger, then
-  save them in ONE call carrying only what was answered — it prints the new
-  `where`: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location architecture=docs/architecture --doc api-contract.md`.
+  share answer, so ask its scope too. acs never creates a new docs folder
+  without that answer. Record the answers in the ledger, then save them in ONE
+  call carrying only what was answered — it prints the new `where`: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location architecture=docs/architecture --doc api-contract.md`.
 - **The user cannot be reached** (headless) and `needs` is non-empty → keep
   the record LOCAL for this run only — `acs.py docs decide --share no --scope
   run`, nothing saved — and say so in the report.

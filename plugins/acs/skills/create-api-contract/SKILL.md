@@ -26,10 +26,9 @@ compares the existing interface documents with the code, and the
 **contract-reviewer**, which judges fresh (contract-author → contract-reviewer)
 — and never write a design document yourself.
 
-This skill is independent: it runs the same whoever invokes it and never
-refuses because an upstream artifact is missing. It works from what it finds —
-the analysis, the design, the HLD, the code — and falls back to the run's
-requirements when an upstream artifact is absent.
+This skill is independent: it never refuses because an upstream artifact is
+missing — it works from what it finds (the analysis, the design, the HLD, the
+code) and falls back to the run's requirements.
 
 ## Start
 
@@ -196,7 +195,8 @@ change or remove, NEW / CHANGED / REMOVED, today's shape from the code), the
 **Conventions** (versioning, error envelope, naming, pagination, auth, from
 `hld/cross-cutting.md` and the code), the compatibility questions and the open
 decisions. It writes no document and reports `iter-1/contract-author-survey.json`.
-The objective is in `references/contract-author.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/contract-author.md`
+when you task a contract-author — each pass's objective and early exits.
 
 In the SAME message as the survey, when the feature already has `api/`
 documents, spawn one gap analyst per existing interface document (slice id =

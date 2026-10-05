@@ -450,7 +450,7 @@ class TestTriadShape(unittest.TestCase):
         analyst = flat(agent("gap-analyst"))
         for phrase in ("A gap is a fact with two citations", "## Unverified",
                        "**unimplemented**", "**undocumented**", "**drifted**",
-                       "steps/create-api-contract/iter-1/gaps-<interface>.md"):
+                       "steps/create-api-contract/iter-<n>/gaps-<interface>.md"):
             self.assertIn(phrase, analyst)
 
     def test_the_reviewer_re_derives_and_polices_grounding(self):

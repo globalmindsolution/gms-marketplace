@@ -68,7 +68,8 @@ with why.
 
 ## Your notes and report (mandatory)
 
-Write `steps/create-api-contract/iter-1/gaps-<interface>.md` with the Write tool —
+Write `steps/create-api-contract/iter-<n>/gaps-<interface>.md` (`<n>` is your task's
+`iteration`, always 1) with the Write tool —
 the coordinator joins every interface's file into `iter-1/gaps.md` with `acs.py notes
 merge` — under exactly these headings (an empty one says `_None._`):
 
@@ -77,7 +78,7 @@ merge` — under exactly these headings (an empty one says `_None._`):
   readings.
 - `## Unverified` — what you could not settle, and why.
 
-Then write `steps/create-api-contract/iter-1/gap-analyst-<interface>.json` recording
+Then write `steps/create-api-contract/iter-<n>/gap-analyst-<interface>.json` recording
 `commands` (each Glob/Grep/command run with its outcome) and `counts`
 (`unimplemented`, `undocumented`, `drifted`). The XML result references these
 files; it never inlines the detail.
