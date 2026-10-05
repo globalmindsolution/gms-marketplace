@@ -1187,10 +1187,12 @@ Design-phase work, run by the SA or Tech Lead.
 - MUST NOT create or edit the repo's machine-readable contract files
   (OpenAPI, JSON Schema, proto, AsyncAPI): `/create-impl-plan` plans them from
   the approved contract and `/code` makes them.
-- MUST run gap analysis: `create-api-contract-gap-analyst` in the same message
-  as the survey, every gap between the feature's `api/` documents and the
-  code classified unimplemented, undocumented or drifted, cited on both sides
-  (ADR-0122).
+- MUST run gap analysis when the feature already has `api/` documents: one
+  `create-api-contract-gap-analyst` per existing interface document, in the
+  same message as the survey, every gap between the document and the code
+  classified unimplemented, undocumented or drifted, cited on both sides
+  (ADR-0122); undocumented → documented as built, unimplemented → kept and
+  marked planned, drifted → a question in the ONE grouped ask.
 - The contract-author writes in slices, one per interface, with an
   integration pass only when a slice reports a seam (ADR-0125); the reviewer
   judges beside the $0 checks (`acs.py design check` on every written api
@@ -1454,6 +1456,12 @@ are stated here because `/code`'s execute phase anchors on their outputs:
 - The **API/data changes** section SHOULD call out the documentation impact
   (which consumer-repo docs the change touches), so `/code` knows what to
   update.
+- When an approved API contract exists (`api-contract.md` and the feature's
+  `lld/<feature>/api/` files) and the repo keeps machine-readable contract
+  files, the plan MUST carry the items that create or update those files
+  from the contract, and `/code` implements them like any other item — the
+  contract skill never writes them
+  ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)).
 - When a design exists (the ticket's own or its parent epic's), the plan MUST
   **conform to it**, and `/review-code`'s lens C MUST check that conformance
   against `design.md` and the architecture doc set.

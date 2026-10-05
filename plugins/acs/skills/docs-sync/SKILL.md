@@ -140,7 +140,9 @@ subject docs-sync falls back to):
    no checkout to publish into). On a ticketless run `design.dir` is null (or `design`
    is absent): read `artifacts["design.md"]` from the run's own
    `artifacts show` when it reports one. `null` there means no design was published —
-   name it absent.
+   name it absent. The same call reports `artifacts["api-contract.md"]`: read it
+   and the `<architecture_dir>/lld/<feature>/api/` documents it links as the
+   designed surface the repo's API reference and README must agree with.
 
 `docs_updated`/`problems` may legitimately be near-empty for doc categories
 `/code` no longer touches — reading them still tells docs-sync what `/code`'s

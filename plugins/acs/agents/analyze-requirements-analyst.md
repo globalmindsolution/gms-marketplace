@@ -1,6 +1,6 @@
 ---
 name: analyze-requirements-analyst
-description: Records what the requirements ask — from a ticket, documents, a prompt or a mix, normalised in the run's requirements.md — the problem against the code, the acceptance criteria to refine, design significance, the PRD feature and the questions for the user — as the requirements lane of the survey (starting from the previously published analysis, and the feature's living analysis, when there is one); reconciles that lane with the impact analysts' code-impact lanes and settles the bounded contexts; and, in a separate pass after the user's answers, writes the analysis draft — a folder with a README and one file per context (impact maps, API-surface verdict, refined acceptance criteria) — for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
+description: Records what the requirements ask — from a ticket, documents, a prompt or a mix, normalised in the run's requirements.md — the problem against the code, the acceptance criteria to refine, design significance, the PRD feature and the questions for the user — as the requirements lane of the survey (starting from the previously published analysis, and the feature's living analysis, when there is one); reconciles that lane with the impact analysts' code-impact lanes and settles the bounded contexts; and, in a separate pass after the user's answers, writes the analysis draft — a folder with a README and one file per context (impact maps, the interfaces it changes, refined acceptance criteria) — for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -201,7 +201,7 @@ the draft, `steps/analyze-requirements/iter-<n>/analyst.json`:
   "analysis_dir": "/abs/workspace/owner-repo/SHOP-123/steps/analyze-requirements/iter-1/analysis",
   "contexts": ["csv-import"],
   "impact_paths": ["src/import/api.py", "tests/test_import_api.py"],
-  "api_surface": true,
+  "interfaces": ["POST /import"],
   "ready_for_planning": true,
   "problems": [],
   "clarifications_used": ["C-1"]
@@ -210,8 +210,8 @@ the draft, `steps/analyze-requirements/iter-<n>/analyst.json`:
 
 `contexts` lists the context files' names without `.md`; `impact_paths` is
 every context file's impact-map first column, verbatim (a requirements or
-synthesis report lists the paths its notes name, with `analysis_dir`,
-`api_surface` and `ready_for_planning` null, and the synthesis lists the
+synthesis report lists the paths its notes name, with `analysis_dir` and
+`ready_for_planning` null and `interfaces` the ones its notes name, and the synthesis lists the
 contexts it settled). A path missing here is a surface nobody
 downstream knows the change touches — and since the delivery path is judged
 from what the work touches (ADR-0095), an omission there is rigor silently

@@ -3250,10 +3250,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **27 agents**", body,
+        self.assertIn("— **28 agents**", body,
                       "c4-component.md must count the reflection-loop "
-                      "skills' agents (ADR-0109/ADR-0122/ADR-0123/ADR-0124/ADR-0126: "
-                      "27 = 33 files less code's implementer, review-code's two "
+                      "skills' agents (ADR-0109/ADR-0122/ADR-0123/ADR-0124/ADR-0126/"
+                      "ADR-0134: 28 = 34 files less code's implementer, review-code's two "
                       "roles, audit-design's gap analyst and audit-security's "
                       "auditor and adjudicator)")
         self.assertNotIn("8 active triads (24 agents)", body,
@@ -3266,10 +3266,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **27 agents**")
+        triad_idx = body.index("— **28 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("33 agent files, all reachable", window,
-                      "c4-component.md must read '33 agent files, all reachable' "
+        self.assertIn("34 agent files, all reachable", window,
+                      "c4-component.md must read '34 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3374,7 +3374,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **27 agents**", body,
+        self.assertIn("— **28 agents**", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143/MAR-160)")
@@ -3388,10 +3388,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **27 agents**")
+        triad_idx = body.index("— **28 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("33 agent files, all reachable", window,
-                      "c4-component.md must advance to '33 agent files, all reachable' "
+        self.assertIn("34 agent files, all reachable", window,
+                      "c4-component.md must advance to '34 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,

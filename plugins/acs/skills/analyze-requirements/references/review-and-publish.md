@@ -58,7 +58,7 @@ action lists their findings as `draft_checks`. Per file, they are:
 ```bash
 # README.md
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
-  --require "ticket: str; ready_for_planning: bool; api_surface: bool; needs_design_recommendation: bool" \
+  --require "ticket: str; ready_for_planning: bool; needs_design_recommendation: bool" \
   --ticket <id> "<draft>/README.md"
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Scope and summary; Contexts; Refined acceptance criteria; Cross-cutting risks and decisions; Questions and assumptions; Verdict" \
@@ -107,9 +107,9 @@ agent — the analyst included — a write under the run's document folders, bec
 these documents are precisely the control inputs an implementer is checked
 against. The partition draft is workspace state and is never committed.
 
-The front-matter check uses the same parser the gate and the
-`api_surface_changed` predicate use, so a draft it accepts cannot be rejected
-downstream for its front matter.
+The front-matter check uses the same parser the gates and the analysis
+folder check use, so a draft it accepts cannot be rejected downstream for its
+front matter.
 
 **The published file is the reusable record.** The run's
 analysis folder is what `/acs:create-impl-plan`, `/acs:create-api-contract` and

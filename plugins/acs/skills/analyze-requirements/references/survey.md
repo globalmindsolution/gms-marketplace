@@ -91,9 +91,9 @@ A legacy `docs/tickets/<id>/analysis.md` from before ADR-0128 is still READ
 legacy single-file `analysis.md` in the phase folder from before ADR-0133;
 nothing writes either any more — the revision is published as a folder to
 `paths["analysis.md"]`. This is exactly what `acs_lib.artifacts.artifact_path`
-resolves, what `acs.py analysis publish` writes to, and what the
-`/acs:create-api-contract` gate looks for, so the path this run publishes is
-the path that opens the next gate. A run with no feature yet has no folder to
+resolves, what `acs.py analysis publish` writes to, and what the next skills
+read through `acs.py artifacts show`, so the path this run publishes is the
+path they find. A run with no feature yet has no folder to
 publish to: `publish` refuses until Stage 2 records one.
 
 ## The inputs, in order

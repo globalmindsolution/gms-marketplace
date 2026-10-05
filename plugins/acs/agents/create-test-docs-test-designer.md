@@ -20,7 +20,7 @@ artifacts alone), and you never write outside the workspace partition.
 1. Read EVERY file in `<inputs>`: the requirements document
    (`requirements.md` — the acceptance criteria numbered `AC-1…`, whether a
    ticket, a prompt or documents carried them), `plan.md`,
-   `api-contract.md`, the analysis (its `README.md` and the context files
+   `api-contract.md` and the `lld/<feature>/api/` documents it links, the analysis (its `README.md` and the context files
    named), the feature's living analysis and
    `design.md` when they exist, and the
    repo's existing test files — then survey the case set (below) and record
@@ -68,7 +68,8 @@ artifacts alone), and you never write outside the workspace partition.
    that already covers the area — the analysis's impact map and the existing
    tests tell you which one; only name a NEW file when no existing one fits, and
    mark it as new.
-5. **Contract coverage.** When `api-contract.md` exists, every item in it —
+5. **Contract coverage.** When the API contract exists (`api-contract.md` and
+   the interface documents it links), every item in it —
    each endpoint/command/message, its error codes, its compatibility note —
    needs at least one case, and the case's expected result quotes the contract's
    shape rather than paraphrasing it. Name the contract item beside the case.

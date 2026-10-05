@@ -444,5 +444,5 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (the plan path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:code <ticket-id>`; `/acs:create-api-contract <ticket-id>` first when the analysis declared an API surface change; after a split answer, `/acs:create-ticket split <ticket-id>`. The files stay uncommitted until `/acs:create-pr <ticket-id>`
+- **Next**: `/acs:code <ticket-id>`; after a split answer, `/acs:create-ticket split <ticket-id>`. The files stay uncommitted until `/acs:create-pr <ticket-id>`
 ```

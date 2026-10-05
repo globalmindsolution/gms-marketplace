@@ -27,7 +27,11 @@ parallel (see **When you are one slice**) — and:
   the implicit plan `/acs:code` recorded at `steps/code/plan.md`); your task's
   file map and
   test strategy live there — `test-cases.md` when `/acs:create-test-docs` has
-  written one, the requirements document (`requirements.md`), the analysis
+  written one, the API contract (`api-contract.md` and the `lld/<feature>/api/`
+  documents it links) when the change has one — the shapes, errors and
+  compatibility decisions you implement, and the source of any machine-readable
+  contract file your task creates or updates — the requirements document
+  (`requirements.md`), the analysis
   and the feature's living analysis when they exist, and `design.md` when one applies. READ
   EVERY ONE. Derive `<partition>` from the directory containing the run
   ledger named in `<inputs>`;

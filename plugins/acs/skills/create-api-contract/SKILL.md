@@ -1,50 +1,35 @@
 ---
 name: create-api-contract
-description: Specify the API surface an approved plan adds or changes — every endpoint, command or message, its request/response shapes, error codes, compatibility notes and examples, each traced to an acceptance criterion and a plan item. Writes api-contract.md plus any machine-readable contract files the repo keeps. Use after /acs:create-impl-plan when the analysis found an API surface change — on a ticket, or on requirements given as a prompt or documents. Use whenever a request asks to write down, spec out or document the shapes, flags, exit or error codes, or payloads of an interface a ticket's or a change's plan adds — REST, gRPC, CLI, webhook or event. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id] [documents…] [prompt]"
+description: Design a feature's API low-level design — one living document per interface (a REST resource, a CLI command group, an event topic, a gRPC service, a webhook) under lld/<feature>/api/, each operation's request/response or payload shapes, error codes, compatibility and examples traced to the acceptance criteria — each versioned, checked against the interfaces in code for design gaps, and reviewed against the HLD's integration map and API conventions, plus a per-run record api-contract.md linking every interface at its version. Takes a ticket (an epic too), a PRD feature slug, a prompt or documents — or a mix. Use in the Design phase, before or without an implementation plan, whenever a ticket or a feature adds or changes an interface, or when asked to design, spec out or document the shapes, flags, exit or error codes, or payloads of an endpoint, command, webhook, event or RPC; it writes documents only, never OpenAPI, JSON Schema, proto or other machine-readable files and never code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[ticket-id] [feature-slug] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-api-contract. Your job: turn the API
-surface the change's implementation plan declares into a specification others
-can build and test against — `api-contract.md` for the change, plus the repo's
-machine-readable contract files when it keeps any. Every item traces back to an
-acceptance criterion AND to the plan item that introduces it. You orchestrate
-two subagents over XML — the **contract-author** enumerates the surface and
-writes the draft, the **contract-reviewer** re-derives the surface and judges
-the draft fresh (contract-author → contract-reviewer); you never write the
-contract content yourself. Both roles fan out in parallel where the work
-splits: one contract-author per contract-file group when the surface spans
-several, then one integration contract-author that reconciles the seams
-between them (Writer slices), and the contract-reviewer's eight dimensions
-across three reviewer slices on every review (Reviewer slices). Every fan-out
-is yours — you spawn the slices in one message, have the seams synthesized,
-and join their files with `acs.py notes merge`.
+You are the coordinator of /acs:create-api-contract. You produce one change's
+**API low-level design** — the interfaces of the PRD features its requirements
+trace to, one living document per interface under
+`<architecture_dir>/lld/<feature>/api/`, plus the per-run record
+`api-contract.md` that summarises the change — before implementation
+(ADR-0134, ADR-0118, ADR-0120). This is Design-phase work run by the SA / Tech
+Lead, beside /acs:create-data-design and /acs:create-flows; no plan is needed
+and none is read as a boundary. Every contract item traces back to an
+acceptance criterion.
 
-You specify; you never implement. No production code, no tests: `/acs:code`
-implements this contract, `/acs:create-test-docs` derives contract cases from
-it, and `/acs:review-code` checks the changeset against it.
+**Documents only**: you and your subagents never write source code, tests or
+machine-readable contracts (OpenAPI, JSON Schema, `.proto`, AsyncAPI, a GraphQL
+SDL). When the repo keeps such files, `/acs:create-impl-plan` plans their
+update from the approved contract and `/acs:code` writes them;
+`/acs:create-test-docs` derives contract cases from it and `/acs:review-code`
+checks the changeset against it. You orchestrate three subagents — the
+**contract-author**, which surveys and writes, the **gap-analyst**, which
+compares the existing interface documents with the code, and the
+**contract-reviewer**, which judges fresh (contract-author → contract-reviewer)
+— and never write a design document yourself.
 
-This skill is independent: it runs the same whether `/acs:ship` invoked it or a
-user did, and it never refuses because an earlier skill has not run. It works
-from what it finds — the plan, the analysis, the design — and falls back to the
-run's requirements (the acceptance criteria a ticket, a prompt, documents or a
-mix of them carried) when an upstream artifact is absent.
-
-## When nothing is owed
-
-`/acs:create-api-contract` is **not invoked at all** on a run that owes no
-public surface. The plan's `## Contract` block records `owes.api_contract`,
-and the pre-hook completes this step from it with
-`outcome: no_surface_owed` — no coordinator, no subagents, zero tokens (§2.2).
-
-That is an ANSWER on the ledger, not a step that silently did not run: a
-reader sees `completed` with a reason, and `/acs:review-code`'s lens C reads
-the same outcome and records that it had no contract to judge against.
-
-Silence is not permission to skip. A plan that states nothing about
-`owes.api_contract` does NOT settle the step — you run, and decide from the
-plan and the subject whether a surface is owed.
+This skill is independent: it runs the same whoever invokes it and never
+refuses because an upstream artifact is missing. It works from what it finds —
+the analysis, the design, the HLD, the code — and falls back to the run's
+requirements when an upstream artifact is absent.
 
 ## Start
 
@@ -54,282 +39,267 @@ MANDATORY first action — run exactly:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-api-contract --args "$ARGUMENTS"
 ```
 
-If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround. `pre-create-api-contract.py` refuses only what would do
-damage re-running cannot undo: a run that does not resolve to a live,
-unlocked partition, and — on a ticket run only — an epic (an epic is designed
-and fanned out, never given one contract). No ticket is required. It never refuses because an upstream artifact is missing,
-and there is no predecessor-completed check: order lives in
-`workflows/ship.yaml`, not in this gate.
+`$ARGUMENTS` carries the requirements and where to put them, in any mix and
+order: a ticket id (`<PREFIX>-<n>` — an epic too: Design runs on epics), a PRD
+feature slug, documents (repo paths, or files attached from outside the repo —
+copied into the run), and a prompt. No ticket is required: a feature slug, a
+prompt or a document is enough. `step start` turns them into the run's
+requirements.
+
+If it exits non-zero: stop immediately and surface its stderr to the user
+verbatim. Do not improvise a workaround. Otherwise parse the context JSON; the
+fields you need: `partition`, `run_id`, `requirements` (`{path, sources,
+acceptance_criteria, features, feature, needs_design}` — **Requirements:
+`context.requirements` / `acs.py requirements show` — a ticket id, documents
+and a prompt are only where they came from; never read ticket.json for
+acceptance criteria**; its `acceptance_criteria`, `AC-1…`, are what every item
+traces to), `ticket` and `ticket_id` (present only when a ticket is one of the
+sources), `settings` (`design.lld_types`, `parallel.max_agents`, `models`),
+`agents` (the agent name to spawn per role; each role's model and effort come
+from `settings.models.create-api-contract.<role>`, inheriting when unset),
+`reconcile`, `handoff_summary`, `checkout_root`. `<partition>` below is
+`partition`, `<id>` is `ticket_id` when the run has a ticket, else `run_id`.
+
+Then, in order:
+
+1. **Type.** This skill owns one LLD type, `api-contract`. Only when
+   `settings.design.lld_types` enables it is anything written; a disabled type
+   is never written. Disabled → write result.json `completed` with `outcome:
+   type_disabled`, summary "the api-contract type is not enabled in
+   design.lld_types", `states` holding empty lists and zero counts, run Finish,
+   and stop.
+2. **Architecture set.** Ask acs where it is — `python3
+   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc
+   living:architecture` (a `docs.architecture_dir` setting, else the folder
+   holding `hld/tech-stack.md`, else an existing `docs/architecture/`): its
+   `path` is `<architecture_dir>`. The interface documents are living
+   documents, always shared, but acs never creates a new docs folder without
+   asking (ADR-0132): when `needs` names `location` (`location_source:
+   default`), the folder is a question in the ONE grouped ask below — use
+   `proposed_path` or give another repo-relative folder — saved with `acs.py
+   docs decide --location architecture=<folder>`; nothing is written there
+   before it.
+3. **The run record.** Resolve `<contract_path>` and whether it is shared —
+   read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/run-record.md`.
+4. **Features** — the PRD feature slugs (ADR-0120) this run designs, taken from
+   the first of these that names any:
+   1. **the argument** — a token of `$ARGUMENTS` that is a feature slug
+      (lowercase kebab-case naming a `<prd_dir>/features/<slug>/` folder, an
+      `<architecture_dir>/lld/<slug>/` folder or a PRD feature; it is otherwise
+      prompt text in `requirements.md`). On a ticket run the slug must be one
+      of the ticket's features (one it does not carry → stop and say so);
+   2. **the requirements** — `requirements.feature`, else `requirements.features`;
+   3. **the ticket** — `context.ticket.features`, when the run has a ticket.
+
+   None → propose slugs, each made with `python3
+   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" slug --text "<PRD feature name>"`,
+   as a question in the ONE grouped ask below, and once confirmed record them
+   on the run: `printf '{"features": [...]}' | python3
+   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" requirements refine --from -`
+   (on a ticket run it patches the ticket as `ticket save` does — never call
+   `ticket save` on a run with no ticket).
+5. **Baseline.** `git -C <checkout_root> status --porcelain >
+   <partition>/steps/create-api-contract/baseline-status.txt`, so the review
+   can tell this run's changes from what was already in the tree.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/inputs.md`
-before the first spawn — what you find (plan, analysis) decides how you scope
-the run, never whether it runs.
-
-Parse the printed context JSON. Fields you will use:
-
-- `requirements` — `{path, sources, acceptance_criteria, features, feature,
-  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
-  show` — a ticket id, documents and a prompt are only where they came from;
-  never read ticket.json for acceptance criteria.** Its `acceptance_criteria`
-  (`AC-1…` in `requirements.path`) are what every contract item traces to.
-- `ticket_id`, `ticket` — present only when a ticket is one of the sources
-  (its `type`, for the epic check); null on a prompt or document run.
-- `partition` — absolute path of the run directory (`<workspace>/<repo-id>/runs/<run-id>/`). Phase
-  artifacts go in `steps/create-api-contract/`.
-- `checkout_root` — the consumer repo root.
-- `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
-  ticket whose design applies and its basename is that ticket's id. When
-  `design.required`, resolve the design document with `acs.py artifacts show
-  --ticket <that id>` (`artifacts["design.md"]` — its design record in
-  `<architecture_dir>/lld/<feature>/<that id>/`, a legacy
-  `docs/tickets/<that id>/design.md`, or `<design.dir>/design.md` when an older
-  design still lives in the partition; on a ticketless run, whatever
-  `artifacts["design.md"]` the run's own `artifacts show` reports) and read it
-  for the interface decisions it already settled. Call it
-  `<design_doc>`.
-- `agents` — the agent name to spawn per role; the contract-author's and the
-  contract-reviewer's model and effort come from
-  `settings.models.create-api-contract.<role>` (inheriting when unset).
-- `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
-
-Throughout this file `<partition>` means the `partition` path from the context
-JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a ticket,
-else `run_id` — the name of the folder its documents live in.
-
-Locate the repo's architecture doc set (its `hld/tech-stack.md`; its
-`lld/contracts.md` is the existing contract narrative) once, here, the way any
-session finds a document: CLAUDE.md and whatever docs index it or the repo
-points at (e.g. `docs/README.md`), then a Glob/Grep by file name or content.
-Its repo-relative directory is `<architecture_dir>` below. A repo without one
-simply has none; this skill does not create it.
-
-## Working tree — the contract is a repo file
-
-`api-contract.md` (a design record, in `<architecture_dir>/lld/<feature>/<id>/`
-— ADR-0128) and
-every machine-readable contract file are repo files that travel with the rest
-of the change — the contract unless run documents are kept local (Share or
-keep local, below). This skill never creates, switches or names a branch, and
-never stages, commits or pushes (ADR-0127): it leaves every file it wrote as
-an uncommitted change in the working tree, on whatever is checked out, and
-records each repo-relative path in the result's `states.files`.
-`/acs:create-pr` is the only skill that branches and commits.
-
-### Contract artifact resolution
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
-```
-
-It resolves by the run the checkout points at (`--run <run-id>` names
-another): design records in `<architecture_dir>/lld/<feature>/<id>/`,
-Development documents (`plan.md`, `test-cases.md`, the run's `analysis/`
-folder) in `<development_dir>/<feature>/<id>/`, the feature's living analysis
-in `<prd_dir>/features/<feature>/analysis/` (`feature_analysis`, its
-`README.md`), and a legacy
-`docs/tickets/<ID>/` file only when the new folder has none.
-
-- `artifacts["api-contract.md"]` non-null → that existing file is the contract;
-  this run REVISES it (a superseded plan, a review finding, a second
-  surface) — a legacy `docs/tickets/<ID>/api-contract.md` is revised by
-  publishing to `paths["api-contract.md"]`. One contract per change, one name.
-- else `paths["api-contract.md"]` non-null → publish there.
-- else → publish to `<partition>/api-contract.md`.
-
-Call it `<contract_path>`; record it as `states.contract_path`. The same call
-reports `artifacts["plan.md"]` and `artifacts["analysis.md"]` (the analysis
-folder's `README.md`; `analysis_files` lists its context files) — the exact paths
-the gate resolved (`null` when one does not exist). Pass THOSE paths to every
-subagent `<inputs>`; do not
-re-derive them.
-
-The working draft lives at
-`steps/create-api-contract/api-contract.md`; the published file is
-a copy of those exact bytes (see Publish).
-
-### Machine-readable contract files
-
-Read
-`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/contract-files.md`
-once, before the first spawn — it resolves `contracts_mode`, which every task's
-`<constraints>` carries.
+before the first spawn — what you find decides how you scope the run, never
+whether it runs.
 
 ## Resume & reconcile
 
-Read
-`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/not-a-first-run.md`
+Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/not-a-first-run.md`
 when `context.reconcile` or `context.handoff_summary` is set — verify recorded
 progress against reality, then resume.
 
-## Inputs — gather before the loop
+## Output contract
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/inputs.md`
-for the list — each input is named by path in `<inputs>`, never inlined or
-invented.
+The contract-authors write ONLY these files, for each feature, under
+`<checkout_root>/<architecture_dir>/lld/<feature>/`:
+
+| File | Type | Required sections (in order) |
+|------|------|------------------------------|
+| `api/<interface>.md` — one per interface | `api-contract` | Scope; Surface; Error model; Compatibility & versioning; Examples; Traceability |
+
+An **interface** is one unit a consumer integrates with: a REST resource or
+API, a CLI command group, an event topic or stream, a gRPC service, a webhook,
+a library's public module. `<interface>` is its slug (`customers`,
+`order-events`, `export-cli`); an existing `api/` document keeps its name and
+is revised in place. `## Surface` carries one `### ` subsection per operation,
+command, message or signature (an **item**); what each holds is defined in
+`create-api-contract-contract-author.md`. The first skill to touch a feature
+also creates `lld/<feature>/README.md` (the PRD feature it designs, the HLD
+containers it spans, a ticket history table) if absent, adds this ticket (or,
+with no ticket, this run's id) to its history, and adds the feature's row to
+`lld/README.md` if missing. Nothing else in the repo is written — never
+`data/` or `flows/`, never `hld/`, never a machine-readable contract file.
+
+**Design versions (ADR-0122).** Every interface document carries version front
+matter set only through `acs.py design`: a new file `design init --status
+<proposed|implemented> --ticket <id> --feature <slug>` (`implemented` when it
+documents the interface as built, `proposed` when it designs ahead of it); a
+changed file `design bump --ticket <id>`. On a run with no ticket drop
+`--ticket <id>`. Items designed but not built are marked `(planned)` in their
+`### ` heading. The README files are indexes, not designs: no version front
+matter.
+
+The **run record** (`<contract_path>`, Start step 3) is what this change did to
+the interfaces: front matter (`ticket`, `items`, `interfaces`), then the five
+headings below, linking every interface document at the version this run
+left it at:
+
+```markdown
+---
+ticket: SHOP-123
+items: 3
+interfaces: ["docs/architecture/lld/bulk-import/api/imports.md"]
+---
+
+# API contract — SHOP-123: Accept CSV imports over 10 MB
+
+## Scope & sources
+## Interfaces
+## Compatibility & versioning
+## Traceability
+## Gaps
+```
+
+`items` is the number of `### ` subsections under `## Surface` across the
+interface documents this run wrote or changed; `interfaces` lists those
+documents, repo-relative.
 
 ## Reflection loop — contract-author → contract-reviewer
 
-Run contract-author → contract-reviewer until the contract-reviewer returns
-zero blocking findings or the cap is reached. The cap is a
-fixed **3** on every run — `/acs:create-api-contract` has
-no path-driven verify depth. Iteration 1's
-contract-author surveys the inputs, writes its authoring notes, and authors the
-contract draft from them; the contract-reviewer re-derives the surface and
-judges the result fresh. On iterations 2-3 the contract-reviewer's findings go
-verbatim into the next contract-author `<task>` `<context>` and the
-contract-author authors the remediation.
+Max 3 iterations — a fixed **3** on every run, no path-driven verify depth;
+one iteration is one write → review round (iteration 1's survey belongs to
+iteration 1). Decomposition is YOURS alone — subagents never spawn subagents.
 
-**What an iteration counts:** one contract-author → contract-reviewer round.
-
-Decomposition is YOURS alone — subagents never spawn subagents, so every
-parallel fan-out below is yours to spawn and yours to join.
+| Role | Kind | Agent | Spawn as |
+|------|------|-------|----------|
+| contract-author | write | `acs:create-api-contract-contract-author` | `context.agents.contract-author` |
+| gap-analyst | survey | `acs:create-api-contract-gap-analyst` | `context.agents.gap-analyst` |
+| contract-reviewer | judge | `acs:create-api-contract-contract-reviewer` | `context.agents.contract-reviewer` |
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/messaging.md`
-before the first spawn — the `<task>`/`<result>` rules, snapshots and agent
-names.
+before the first spawn — the `<task>`/`<result>` rules, snapshots, agent
+names, the fan-out cap and the `notes merge` join.
 
-### Phase: contract-author — `acs:create-api-contract-contract-author`
+### 1. Survey and gap analysis — iteration 1, one message
 
-Read
-`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/contract-author.md`
-when you task the contract-author — its iteration-1 objective (enumerate the
-surface into the authoring notes, then draft from them), its `needs_input` and
-no-surface exits, and the draft's skeleton.
+ONE contract-author, `slice="survey"`, reads the inputs and the interfaces in
+code and records in `iter-1/authoring.md`: the **Interface inventory** (each
+interface the requirements' acceptance criteria touch — its kind, its existing
+`api/` document or "new", the code that implements it today with `path:line`,
+the HLD `integration-map.md` row it details), the **Item list** (per
+interface, every operation, command, message or signature the criteria add,
+change or remove, NEW / CHANGED / REMOVED, today's shape from the code), the
+**Conventions** (versioning, error envelope, naming, pagination, auth, from
+`hld/cross-cutting.md` and the code), the compatibility questions and the open
+decisions. It writes no document and reports `iter-1/contract-author-survey.json`.
+The objective is in `references/contract-author.md`.
 
-The same phase then writes the contract draft to
-`steps/create-api-contract/api-contract.md` — one draft per run,
-revised in place across iterations — and, when the mode says the repo keeps
-machine-readable contracts, update those files in the consumer repo and leave
-them uncommitted in the working tree. When the contract-authors run sliced (Writer
-slices, below), each slice does all of this for its own group only, and you
-assemble the one draft from their fragments.
+In the SAME message as the survey, when the feature already has `api/`
+documents, spawn one gap analyst per existing interface document (slice id =
+its file stem), its `<inputs>` that document and the feature's `data/`
+documents — counted against the same cap. No such documents yet → skip the
+gap analysis and say so in the report (the survey's inventory documents the
+interfaces as built). Join the gap slices into `iter-1/gaps.md`. Gaps are
+handled by default as: **undocumented** → documented as built;
+**unimplemented** → kept and marked planned; **drifted** → a question in the
+grouped ask, both readings cited.
 
-On iteration ≥ 2 the contract-author fixes every finding in `<context>` and
-nothing else.
+### 2. The grouped ask
 
-#### Writer slices — one contract-author per contract-file group
+Collect the survey's questions, every drifted gap, the feature slugs when no
+argument, requirement or ticket named one, the architecture folder and the run
+record's share questions when `docs where` named them, and the open design
+decisions; de-duplicate them and ask in ONE grouped interaction (User
+interaction). The recorded `C-<n>` answers go to every writer in `<context>`.
 
-Read
-`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/writer-slices.md`
-when the plan touches two or more contract-file groups — one contract-author
-per group, an integration pass, then the join.
+### 3. Write — one contract-author per interface
 
-### Phase: contract-reviewer — `acs:create-api-contract-contract-reviewer`
+Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/writer-slices.md`
+before the write — one contract-author per interface when the survey found two
+or more, an integration pass on the seams between them, then the join of the
+run-record fragments into the draft `steps/create-api-contract/api-contract.md`.
+One interface → ONE contract-author, `slice="write"`, writes it un-sliced.
 
-Spawn `acs:create-api-contract-contract-reviewer` AFTER the draft is written,
-with `<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`),
-the contract-author report (`iter-<n>/contract-author.json`), `plan.md` and
-the analysis (`README.md` and its context files) when they exist, `requirements.md`, `design.md` when it binds,
-and every contract file the contract-author touched. It judges fresh — never
-forward the contract-author's reasoning — re-derives the surface from the plan
-(or the subject) and the code itself, and writes
-`steps/create-api-contract/iter-<n>/contract-reviewer.md`. When the
-contract-authors ran sliced, `<inputs>` name every slice's latest report
-(`iter-<n>/contract-author-<k>.json`), the integration pass's
-`iter-<n>/contract-author-integration.json` and every group's contract files,
-beside the joined draft and the joined notes — the reviewer judges the
-integrated result, and a seam inconsistency it finds is a finding for the next
-iteration's integration pass.
+Each writer writes its interface documents in place under
+`lld/<feature>/api/`, versioned as above, and its fragment of the run record
+in the partition. On iterations 2-3 the writers re-run with the findings
+verbatim in `<context>`, recording them under `## Findings addressed` in
+their notes, and fix every finding and nothing else.
 
-#### Reviewer slices — the eight dimensions in three parallel judges
+### 4. Review — reviewer slices plus the $0 checks, one turn
 
-Read
-`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/reviewer-slices.md`
-before every review — three slices (`surface`, `trace`, `files`) in ONE
-message, de-duplication, and the pass rule.
-
-Join the three slices' reports, in the table's order, into the one report
-every reader expects:
+Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/reviewer-slices.md`
+before every review — three slices (`surface`, `trace`, `form`) in ONE
+message, each with the survey notes, the writers' notes, `iter-1/gaps.md`, the
+baseline status file, every written interface document and the draft in
+`<inputs>`; de-duplication; the pass rule. Join them in the table's order:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
   --out <partition>/steps/create-api-contract/iter-<n>/contract-reviewer.md \
   <partition>/steps/create-api-contract/iter-<n>/contract-reviewer-surface.md \
   <partition>/steps/create-api-contract/iter-<n>/contract-reviewer-trace.md \
-  <partition>/steps/create-api-contract/iter-<n>/contract-reviewer-files.md
+  <partition>/steps/create-api-contract/iter-<n>/contract-reviewer-form.md
 ```
 
-ALL blocking findings block — zero blocking findings = pass.
-`status="completed"` means the review RAN; the empty `<findings>` is the
-pass. On findings: persist, then AUTOMATICALLY re-run the contract-author with
-every finding in its `<context>`. After iteration 3 with findings remaining:
-stop with final status `"failed"`, findings recorded, and no published
-contract — `/acs:code` then implements against the plan alone, which is exactly
-the ambiguity this step exists to remove, so say so in `summary`.
-
-### Deterministic checks the coordinator runs beside the review
-
-Run both on the DRAFT as soon as the join has written it, in the SAME turn as
-the contract-reviewer spawn — they are $0 and need no review result, so they
-never wait for one:
+In the same turn, run the $0 checks yourself — they need no review result, so
+they never wait for one:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
-  --require "ticket: str; items: int; contract_files: list" \
-  --ticket <id> "steps/create-api-contract/api-contract.md"
-
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design check <every written interface document>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py" <every written interface document>
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
-  --sections "Scope & sources; Surface; Error model; Compatibility & versioning; Examples; Traceability; Contract files" \
+  --sections "Scope; Surface; Error model; Compatibility & versioning; Examples; Traceability" \
+  --ordered <each written interface document>
+
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
+  --require "ticket: str; items: int; interfaces: list" \
+  --ticket <id> "steps/create-api-contract/api-contract.md"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
+  --sections "Scope & sources; Interfaces; Compatibility & versioning; Traceability; Gaps" \
   --ordered "steps/create-api-contract/api-contract.md"
 ```
 
-Fold a failure from either into THAT iteration's findings, as a blocking
-finding beside the slices': the iteration passes only when the slices pass and
-both checks are clean. It is remediated in the next contract-author iteration
-(or, at iteration 3, fails the run) — never patched by you.
+Each problem `design check` reports, each lint or checker stderr line, and an
+exit 2 are blocking findings of THIS iteration, appended under `##
+Deterministic checks` in the joined report — remediated by the next writer
+iteration, never patched by you.
 
-### Publish — the coordinator is the only writer of `api-contract.md`
+**Pass rule.** The iteration passes only when EVERY reviewer slice returned
+`status="completed"` with zero blocking findings and every $0 check is clean.
+`status="completed"` means the review RAN; the empty `<findings>` is the pass.
+On findings: persist, then AUTOMATICALLY re-run the writers with every
+finding. After iteration 3 with findings remaining: stop with final status
+`"failed"`, findings recorded, and no published run record — the interface
+documents stay as written (status `proposed`), so say so in `summary`.
 
-Once the contract-reviewer passes and both checks are clean, publish the
-draft. **The coordinator performs this step itself, never a subagent:** the
-file-map write guard (`acs_lib/filemap.py`) denies any running `write`-kind
-agent a write to a published contract, because the contract is a control
-input the implementers of `/acs:code` are later checked against. Copy, never re-author:
+### 5. Publish the run record — the coordinator is its only writer
+
+Once the review passes and the checks are clean, publish the draft. **The
+coordinator performs this step itself, never a subagent:** the file-map write
+guard (`acs_lib/filemap.py`) treats the run's Design folder as a control input
+the implementers of `/acs:code` are later checked against. Copy, never
+re-author:
 
 ```bash
 cp "<partition>/steps/create-api-contract/api-contract.md" "<contract_path>"
 ```
 
-Leave `<contract_path>` as an uncommitted change when it is inside the repo,
-beside the machine-readable contract files the run changed, and record every
-one of those paths in `states.files` — `/acs:create-pr` commits them together
-as the change's docs. The partition draft is workspace state and never enters
-the repo.
+The partition draft is workspace state and never enters the repo.
 
-### Share or keep local — asked once, in the same grouped ask (ADR-0132)
+## Delivery
 
-Whether `api-contract.md` enters the repo is a saved choice, not yours. Right after the
-artifact resolution, before anything is written, ask acs:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc api-contract.md
-```
-
-- **`needs` empty** → follow it silently. `share: true` publishes to `path`,
-  the phase folder; `share: false` keeps the document LOCAL — `path` is in the
-  run's state folder (`steps/create-api-contract/local/api-contract.md`),
-  later steps still read it through `acs.py artifacts show`, it never enters
-  `states.files`, and `/acs:create-pr` never commits it. Either way
-  `<contract_path>` is its `abs_path`.
-- **`needs` non-empty** → its questions join this skill's ONE grouped ask
-  (User interaction), never a separate one; with no other question, ask them
-  alone in one AskUserQuestion before Publish. `share`: "share run documents
-  in the repo, or keep them local?" and "save this for you (this machine:
-  `.acs/settings.local.json`) or for the team (`.acs/settings.json`)?".
-  `location` (`location_source: default` — no setting, no existing folder):
-  "use `proposed_path`, give another repo-relative folder, or keep documents
-  local?" — keeping them local is the share answer, so ask its scope too. acs
-  never creates a new docs folder without that answer. Record the answers in
-  the ledger, then save them in ONE call carrying only what was answered — it
-  prints the new `where`: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location architecture=docs/architecture --doc api-contract.md`.
-- **The user cannot be reached** (headless, nothing relayed in a `/acs:ship`
-  brief) and `needs` is non-empty → keep the document LOCAL for this run only
-  — `acs.py docs decide --share no --scope run`, nothing saved — and say so in
-  the report.
-
-The completion report names where it went: "shared to <path>", "kept local
-(team default)", "kept local (your default)" or "kept local (this run only)".
+This skill never creates, switches or names a branch, and never stages,
+commits or pushes (ADR-0127): every file it wrote stays an uncommitted change
+on whatever is checked out. Record EVERY written path, repo-relative, in
+result `states.files` — the interface documents, the README files and the run
+record when shared (never a record kept local). `/acs:create-pr` commits them
+as the change's `design` layer when the change goes to a PR; otherwise the
+user reviews and commits them. End by listing those files as local changes.
 
 ## User interaction
 
@@ -342,7 +312,7 @@ serial round-trips. Record each answer as its own `clarify.py add` entry (one
 `C-<n>` per question, `--source` preserved). Never skip a question, merge two
 questions into one entry, or auto-answer outside the existing
 `--source assumption --rationale "..."` rule. Record every Q&A — obtained
-interactively or relayed in a `/acs:ship` brief — with
+interactively or relayed in the prompt — with
 `clarify.py add --skill create-api-contract --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`.
@@ -350,25 +320,26 @@ BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 The questions this skill actually raises are compatibility questions, and they
 are user decisions, not researchable facts: whether an existing consumer may be
 broken, whether the change is versioned or in-place, how long a deprecated
-field is kept, which error code an existing client already depends on. Ask
-before specifying; a contract that guesses a breaking change is worse than no
-contract.
+field is kept, which error code an existing client already depends on, which
+of two shapes the product wants. Ask before specifying; a contract that
+guesses a breaking change is worse than no contract. A survey that finds no
+interface the requirements touch is a question too ("which interface does this
+change?"), never an empty contract. Do not ask about what the requirements,
+the docs or the code already answer.
 
 If you genuinely cannot reach the user (a non-interactive run): do not guess.
 Record the outgoing questions as `open` (`clarify.py add` without `--answer`),
-write the result document with `"status": "interrupted"` and
-`"stop_reason": "needs_input"` (`needs_input` is a stop reason, not a status —
-the post-hook refuses any status but `completed | failed | interrupted`), run
-the Finish steps, and return a `<handoff status="needs_input">` whose
-`<questions>` carry them.
+write the result document with `"status": "interrupted"` and `"stop_reason":
+"needs_input"` (`needs_input` is a stop reason, not a status), run the Finish
+steps, and return a `<handoff skill="create-api-contract" ticket-id="<id>"
+status="needs_input">` whose `<questions>` carry them.
 
 ## Context pressure
 
-If your context window is running low mid-run: do NOT burn the remainder on
-work that would be lost. Leave any published contract and contract files in
-the working tree, flush in-flight state plus soft context (decisions, settled items,
-gotchas) to `steps/create-api-contract/handoff-context.md`, then
-run:
+If your context is running low mid-run: leave the interface documents written
+so far in the working tree, flush in-flight state plus soft context
+(decisions, settled items, gotchas) to
+`steps/create-api-contract/handoff-context.md`, then run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
@@ -378,31 +349,35 @@ Tell the user the `continue_with` command it prints, and stop.
 
 ## Finish
 
-MANDATORY final step — never skipped, also on failure or handoff:
+MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/create-api-contract/result.json` per the
-   result-document contract in INTERNALS.md:
+1. Write `steps/create-api-contract/result.json` per the result-document
+   contract in INTERNALS.md:
 
    ```json
    {
      "status": "completed",
      "outcome": "contract_written",
-     "summary": "contract-reviewer passed with zero findings on iteration 2; contract published, left uncommitted",
+     "summary": "imports API designed for bulk-import; review passed on iteration 2; run record shared",
      "states": {
        "contract_path": "docs/architecture/lld/bulk-import/SHOP-123/api-contract.md",
+       "feature": ["bulk-import"],
+       "files": ["docs/architecture/lld/bulk-import/README.md", "docs/architecture/lld/bulk-import/api/imports.md", "docs/architecture/lld/bulk-import/SHOP-123/api-contract.md"],
+       "types": ["api-contract"],
+       "interfaces": ["docs/architecture/lld/bulk-import/api/imports.md"],
        "items": 3,
        "traced_acs": ["AC-1", "AC-2", "AC-4"],
-       "files": ["docs/architecture/lld/bulk-import/SHOP-123/api-contract.md", "docs/api/openapi.yaml"]
+       "gaps": {"undocumented": 1, "unimplemented": 0, "drifted": 0}
      },
      "findings": [],
      "errors": []
    }
    ```
 
-   Read
-   `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/result-states.md`
-   as you write it — the canonical `states` keys (`files` names nothing that
-   was kept local) and when each `outcome` applies.
+   Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/result-states.md`
+   as you write it — the canonical `states` keys and when each `outcome`
+   applies. On handoff you write no result document: `handoff.py` finalizes
+   the step.
 
 2. Run the post-hook:
 
@@ -413,34 +388,23 @@ MANDATORY final step — never skipped, also on failure or handoff:
    If it exits non-zero, surface its stderr verbatim — the run is not closed
    until it succeeds.
 
-3. Report:
-   - Direct invocation: a compact summary — the contract path, the items
-     specified, which acceptance criteria they trace to, the compatibility
-     verdict (backward compatible / breaking, and what was decided), the
-     machine-readable contract files changed, the uncommitted files left in the
-     working tree, open findings, and the next step
-     (`/acs:create-test-docs <id>`; `/acs:create-pr <id>` commits them later).
-   - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
-     `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
-     published contract and the contract files, `<questions>` when
-     `needs_input`, and `<next-step>/acs:create-test-docs <id></next-step>`.
-
 ## Completion report (normative)
 
-Every terminal outcome of a direct invocation — completed, failed, interrupted,
-or handed off — ends your final message with the standard block (INTERNALS.md
-"Completion report"), rendered only AFTER the post-hook succeeded. Same labels,
-same order, `none` where empty; under `/acs:ship` your final message is the
-`<handoff>` XML instead — this report is for direct invocations:
+Every terminal outcome of a direct invocation — completed, failed,
+interrupted, or handed off — ends your final message with the standard block
+(INTERNALS.md "Completion report"), rendered only AFTER the post-hook
+succeeded. Same labels, same order, `none` where empty; under /acs:ship your
+final message is the `<handoff>` XML instead — this report is for direct
+invocations:
 
 ```markdown
 ## /acs:create-api-contract · <ticket-id> · <status>
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: contract path and where it went (shared / kept local, whose default); items specified; acceptance criteria traced; compatibility verdict; machine-readable contract files changed
-- **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <uncommitted files written (contract path, contract files), partition phase artifacts>
+- **Results**: interface documents written under `<architecture_dir>/lld/<feature>/api/` (each with its version and status); items specified; acceptance criteria traced; compatibility verdict and what was decided; gaps by kind; the run record and where it went (shared / kept local, whose default); documents only — no machine-readable contract file or code written; left as local uncommitted changes (`states.files`)
+- **Findings**: <open findings / clarifications / assumptions, or "none">
+- **Artifacts**: <repo paths written, partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:create-test-docs <ticket-id>` (the files stay uncommitted until `/acs:create-pr <ticket-id>`)
+- **Next**: `/acs:create-data-design` / `/acs:create-flows <ticket-id or feature-slug>` when the feature's data or flows need designing; then `/acs:analyze-requirements <ticket-id>` and `/acs:create-impl-plan <ticket-id>` — the plan adds the items that create or update the repo's machine-readable contract files from this contract when it keeps them; `/acs:create-pr` commits the listed files, or review and commit them yourself
 ```

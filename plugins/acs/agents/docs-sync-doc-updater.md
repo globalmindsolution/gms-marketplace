@@ -119,6 +119,9 @@ the artifacts alone.
      was no checkout to publish into — when the ticket or its parent epic
      needs design; absent otherwise. `steps/create-design/design.md` under
      `<partition>` is an unverified working draft, never the binding design.
+     With it, the API contract when the task names one — `api-contract.md` and
+     the `lld/<feature>/api/` documents it links: the designed surface an API
+     reference or README section the diff touches must agree with.
 
    The diff and `requirements.md` are the subject every docs sync works from.
    The `/acs:code` and `/acs:review-code` artifacts may be absent — docs-sync

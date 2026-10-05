@@ -20,7 +20,7 @@ evidence wastes an adjudicator and teaches the pipeline nothing.
 |---|---|---|
 | A | requirement conformance, features delivered | `requirements.md`, the plan, `test-cases.md`, the diff |
 | B | logic errors, security | **the diff and nothing else** |
-| C | API/data contract, design, plan conformance | `api-contract.md`, `design.md`, architecture docs, the plan |
+| C | API/data contract, design, plan conformance | `api-contract.md` and the `lld/<feature>/api/` documents it links, `design.md`, architecture docs, the plan |
 | D | revert/hotfix patterns on the touched lines | `git log --follow -p`, bounded lookback |
 | E | quality, standards, simplicity, scope creep | `standards/`, the diff |
 

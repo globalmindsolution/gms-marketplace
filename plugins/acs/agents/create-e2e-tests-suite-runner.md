@@ -144,7 +144,8 @@ the written suite files, the test-writer's authoring notes
 (`iter-<n>/test-writer.json`, or one `iter-<n>/test-writer-<k>.json` per
 test-writer slice), `test-cases.md` (or the requirements document (`requirements.md`) on the
 acceptance-criteria fallback),
-`api-contract.md` when it exists, and the repo's existing e2e suites),
+the API contract (`api-contract.md` and the `lld/<feature>/api/` documents it
+links) when it exists, and the repo's existing e2e suites),
 `<constraints>` (at least `e2e_command`, `e2e_root`, `tc_ids` — the `TC-<n>`
 ids in scope — `start_tree` and `audience_style_profile`; plus `dimensions` when you are a
 slice), and optional `<context>` (prior findings). You

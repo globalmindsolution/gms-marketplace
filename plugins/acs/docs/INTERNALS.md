@@ -952,7 +952,7 @@ setting.
 | `create-design` | `designer` (write) · `design-reviewer` (judge) |
 | `create-data-design` | `designer` (write — a survey pass, then ONE write pass over both documents, which must agree) · `gap-analyst` (survey — one per survey area, spawned beside the survey only when the feature's `data/` already holds documents; ADR-0126) · `reviewer` (judge — three slices) |
 | `create-flows` | `designer` (write — a survey pass, then parallel write slices, one per flow group plus `write-states` and `write-components`, and an `integration` pass only when a slice reports a seam) · `gap-analyst` (survey — as create-data-design's, over `flows/` and `components/`) · `reviewer` (judge — three slices; ADR-0126) |
-| `create-api-contract` | `contract-author` (write — sliced per interface, with an `integration` pass only when a slice reports a seam) · `gap-analyst` (survey — spawned in the same message as the survey, over the feature's `api/` documents against the code; ADR-0134) · `contract-reviewer` (judge) |
+| `create-api-contract` | `contract-author` (write — sliced per interface, with an `integration` pass only when a slice reports a seam) · `gap-analyst` (survey — one per existing interface document, spawned in the same message as the survey only when the feature's `api/` already holds documents; ADR-0134) · `contract-reviewer` (judge) |
 | `create-impl-plan` | `planner` (write) · `plan-reviewer` (judge) |
 | `create-test-docs` | `test-designer` (write) · `trace-reviewer` (judge) |
 | `code` (and its four legs) | `implementer` (write), one per file-map partition |

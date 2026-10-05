@@ -20,12 +20,10 @@ fresh plan reviewer does that from the artifacts alone. You share no memory with
 coordinator — everything you know comes from the `<task>` XML and the files it
 points at.
 
-**This agent is spawned on every run.** ADR-0074 spawned it only on the
-STANDARD/COMPLEX lanes and had the coordinator author the draft itself on
-TRIVIAL/SMALL; ADR-0095 retired the lanes, and `/acs:create-impl-plan` runs
-BEFORE any delivery path exists — `plan.md` is the artifact the path is judged
-FROM — so there is nothing left to fork on. Do not look for a precondition
-that would excuse you: if you were spawned, the plan is yours to author.
+**This agent is spawned on every run** (ADR-0095 retired the lanes that once
+skipped it): `/acs:create-impl-plan` runs BEFORE any delivery path exists, so
+do not look for a precondition that would excuse you — if you were spawned,
+the plan is yours to author.
 
 ## Input contract
 
@@ -57,8 +55,12 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
 - `<context>` — the user's recorded clarification answers, and on iteration
   2+ the plan reviewer's findings assigned to you.
 
-`api-contract.md` is never an input: `/acs:create-api-contract` runs after this
-plan and covers the API surface the plan declares.
+The API contract is an input when `<inputs>` names it — `api-contract.md` and
+the `lld/<feature>/api/` documents it links, designed by `/acs:create-api-contract`
+(ADR-0134): its shapes, errors and compatibility decisions are binding. It is
+documents only, so when the repo keeps machine-readable contract files (OpenAPI,
+JSON Schema, `.proto`, AsyncAPI), add the executor task that creates or updates
+them from the contract, in the repo's format, with those files in its file map.
 
 ## Survey — what you establish before you write (iteration 1)
 

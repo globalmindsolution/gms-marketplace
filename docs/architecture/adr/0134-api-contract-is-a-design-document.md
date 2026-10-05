@@ -86,7 +86,8 @@ for Design. ADR-0129 listed it under Design while it still ran as a step.
    sliced per interface with an integration pass only on a reported seam
    (ADR-0125); the `contract-reviewer` judges; a new read-only
    **`create-api-contract-gap-analyst`** runs in the same message as the survey
-   and classifies every gap between the feature's api documents and the code as
+   — one per existing interface document, when the feature already has any —
+   and classifies every gap between the document and the code as
    unimplemented, undocumented or drifted (ADR-0122). The review turn runs the
    $0 checks beside the judge: `acs.py design check` on every written api
    document, and the Mermaid and structure lints where data-design runs them.

@@ -34,7 +34,7 @@ for each role** (ADR-0109):
 | create-data-design | `create-data-design-gap-analyst` (beside the designer's survey, when the feature's `data/` holds documents — ADR-0126) | `create-data-design-designer` | `create-data-design-reviewer` |
 | create-flows | `create-flows-gap-analyst` (beside the designer's survey, when the feature's `flows/` or `components/` hold documents — ADR-0126) | `create-flows-designer` | `create-flows-reviewer` |
 | create-impl-plan | — | `create-impl-plan-planner` | `create-impl-plan-plan-reviewer` |
-| create-api-contract | `create-api-contract-gap-analyst` (beside the contract-author's survey, over the feature's `api/` documents — ADR-0134) | `create-api-contract-contract-author` | `create-api-contract-contract-reviewer` |
+| create-api-contract | `create-api-contract-gap-analyst` (beside the contract-author's survey, when the feature's `api/` holds documents — ADR-0134) | `create-api-contract-contract-author` | `create-api-contract-contract-reviewer` |
 | create-test-docs | — | `create-test-docs-test-designer` | `create-test-docs-trace-reviewer` |
 | create-e2e-tests | — | `create-e2e-tests-test-writer` | `create-e2e-tests-suite-runner` |
 | docs-sync | — | `docs-sync-doc-updater` | `docs-sync-drift-reviewer` |

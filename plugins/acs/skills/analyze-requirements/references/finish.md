@@ -10,12 +10,11 @@ invocation, what its summary covers.
 Canonical `states` keys — EXACT names; `acs step finish` documents
 them and the next steps read them:
 - `ready_for_planning` (bool): the verdict. `false` is the `needs_input`
-  arm, and `/acs:create-impl-plan` is what consumes it.
-- `api_surface` (bool): whether the change adds or alters an API surface.
-  It MUST equal the published front matter's `api_surface` (the README's) — that front
-  matter is what `ship.yaml`'s `api_surface_changed` predicate and the
-  `/acs:create-api-contract` gate actually read, and a result document that
-  disagrees with it is a defect, not a second opinion.
+  arm, and `/acs:create-impl-plan` is what consumes it. It MUST equal the
+  published front matter's `ready_for_planning` (the README's) — a result
+  document that disagrees with it is a defect, not a second opinion. There is
+  no `api_surface` key any more (ADR-0134): an interface change is named in
+  the README and pointed to `/acs:create-api-contract`.
 - `questions_open` (int): clarifications still unanswered in the ledger —
   the count `clarify.py list --open` (`--ticket <id>` on a ticket run)
   prints after this run.
@@ -37,7 +36,8 @@ whatever is true: `ready_for_planning: false`, the open findings in
 
 - Direct invocation: a compact summary — the verdict, the contexts it
   split the analysis into, the impact maps' component/file/test counts, what changed since the previous analysis
-  when there was one, whether an API surface changes, the questions asked
+  when there was one, the interfaces it changes (and, when any, "an interface
+  changes — design it with /acs:create-api-contract"), the questions asked
   and answered (or "Stage 2 skipped"), the feature it is filed under, the
   criteria and needs_design confirmed into the requirements (and the
   ticket), any proposal still awaiting the user, open questions, where the
