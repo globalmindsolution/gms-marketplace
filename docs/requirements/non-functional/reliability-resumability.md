@@ -11,8 +11,11 @@ pointer here rather than being copied).
 - [../functional/workflow.md](../functional/workflow.md#resuming-a-ticket) —
   resume at three levels (between steps, within `/ship`, mid-skill
   reconcile).
-- [../functional/workflow.md](../functional/workflow.md#session-handoff) —
-  deliberate session handoff (flush, mark, release, take over).
+- [../functional/workflow.md](../functional/workflow.md#session-pause) —
+  session pause under context pressure (flush, mark, release, take over).
+- [../functional/workflow.md](../functional/workflow.md#ticket-handoff) —
+  ticket handoff between members, across machines (send the resume set over
+  a hidden ref, receive with a three-way apply).
 - [../functional/workspace-and-state.md](../functional/workspace-and-state.md#lifecycle) —
   archived-partition lifecycle.
 - [../functional/workspace-and-state.md](../functional/workspace-and-state.md#concurrency--parallel-tickets) —

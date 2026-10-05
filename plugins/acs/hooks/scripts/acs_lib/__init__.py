@@ -29,6 +29,8 @@ it always did. In dependency order:
   requirements   a run's requirements from any container: sources, requirements.md, refine
   doc_layout     the phase folders a run's documents live in (prd/lld/development dirs)
   run_docs       one run's documents: where each is read from and written to
+  team_handoff   member -> member ticket handoff over refs/acs/handoff/<ID> (ADR-0131);
+                 team_handoff_receive is its receiving half (reached via acs_handoff_commands).
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
 this facade does NOT reach a caller that already imported it. Patch the module

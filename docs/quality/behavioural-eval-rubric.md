@@ -134,9 +134,12 @@ would cost:
    has already acted on it — the `critical` failure mode above, exactly.
 2. **Skills that write to the consumer's repo.** The doc-bootstrap legs,
    `project`, `docs-sync`. Their output is what the user actually keeps.
-3. **Skills that mutate shared state.** `merge-pr`, `release`.
-4. **Session bookkeeping.** `handoff` — named in PRD G8 as today's
-   trigger-only gap, and genuinely the lowest risk of the four.
+3. **Skills that mutate shared state.** `merge-pr`, `release`, and
+   `handoff`, which pushes a ticket's work and state to a hidden ref and,
+   on receive, applies them to the receiver's tree (ADR-0131).
+4. **Session bookkeeping.** Nothing user-facing since the session-handoff
+   skill became a team handoff; the context-pressure pause is `handoff.py`,
+   covered by the unit layer.
 
 Where the skill needs a real codebase, have the case's `scaffold_script`
 build one rather than prompting against an empty workspace, so that

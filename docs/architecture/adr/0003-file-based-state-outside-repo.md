@@ -1,6 +1,6 @@
 # 0003 — File-based state in a workspace outside the repo
 
-**Status**: Superseded by [0086](0086-in-repo-anchored-state-machine.md) · **Date**: 2026-06-12
+**Status**: Superseded by [0086](0086-in-repo-anchored-state-machine.md); its "cross-machine handoff is out of scope" consequence superseded by [0131](0131-ticket-handoff-between-members.md) (a ticket's work and state cross machines over a hidden ref) · **Date**: 2026-06-12
 
 ## Context
 

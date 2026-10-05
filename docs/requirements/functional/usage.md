@@ -152,18 +152,33 @@ ticket partition is locked by its session, so the two never collide. The
 workspace resolves to the same main-checkout-anchored location from every
 worktree, precisely so both worktrees share one state store (ADR-0086).
 
-## Long session? Hand off
+## Handing a ticket to a teammate
 
 ```text
-/handoff
-  → flushed in-flight work + decisions to SHOP-5's partition
-  → the in-flight step marked interrupted (stop_reason: context_pressure), lock released
-  → continue with:  /code SHOP-5   (in a fresh session)
+# Ana, who planned SHOP-5:
+/acs:handoff SHOP-5
+  → one ask: the note (done / in flight / next / decisions), each outside-repo
+    attachment (include or skip), push?
+  → pushed refs/acs/handoff/SHOP-5 — your work, run and lock are unchanged
+
+# Bo, on another machine, from a clean tree:
+/acs:handoff list            → SHOP-5
+/acs:handoff receive SHOP-5
+  → work applied (3-way), run restored, ref deleted
+  → Ana's note; continue with:  /acs:ship SHOP-5
 ```
 
-Crashed or interrupted instead? Just re-run the same skill — the
-coordinator sees the `in_progress` run entry and reconciles (e.g. re-runs
-the tests for specs marked implemented) before continuing.
+Anyone who can read the remote can fetch that ref — hand off only what the
+repo's readers may see. Handing a finished *phase* to the next team needs no
+handoff: approve the documents with `/acs:set-doc-status`, open the docs PR
+with `/acs:create-pr`, and tell them.
+
+## Long session, crash or interruption?
+
+Just re-run the same skill. A step that ran low on context paused itself
+(`interrupted`, `stop_reason: context_pressure`, lock released); a crash
+left an `in_progress` run entry. Either way the coordinator reconciles (e.g.
+re-runs the tests for specs marked implemented) before continuing.
 
 ## Changing product scope
 

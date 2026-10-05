@@ -311,50 +311,43 @@ class Rule2OutcomeTextTest(unittest.TestCase):
         self.assertNotIn("create-spec", body)
 
 
-class Dr1HandoffInFlightStepTest(unittest.TestCase):
-    """Assertion 5: handoff/SKILL.md Step 2 carries no create-spec token and
-    still restates no skill list.
+class Dr1HandoffRestatesNoSkillListTest(unittest.TestCase):
+    """Assertion 5: handoff/SKILL.md carries no create-spec token and restates
+    no skill list.
 
     DR-1's original subject was a hand-copied HOOKED_SKILLS enumeration in a
-    "scan the skills in order" bullet. v0.5.0 removed the scan itself: I1
-    allows one in_progress step per run and the run ledger names it, so
-    `acs_lib.in_flight_step` reads it rather than walking a list. The drift
-    guard survives as the shape it was protecting against — a restated list
-    must not come back, in any form.
+    "scan the skills in order" bullet. v0.5.0 removed the scan (the run ledger
+    names the in-flight step), and ADR-0131 removed the session handoff
+    itself: the team handoff names no step at all -- the command to continue
+    is `continue_with`, which `acs.py handoff receive` derives from the
+    restored ledger. The drift guard survives as the shape it was protecting
+    against: a restated list must not come back, in any form.
     """
 
     @classmethod
     def setUpClass(cls):
-        body = read(HANDOFF_SKILL)
-        start = body.index("## Step 2")
-        end = body.index("## Step 3")
-        cls.bullet = body[start:end]
-        cls.bullet_norm = norm(cls.bullet)
-
-    def test_resolves_the_step_from_the_run_ledger(self):
-        self.assertIn("acs_lib.in_flight_step", self.bullet)
-        self.assertRegex(self.bullet_norm, r"(?i)run\.json")
+        cls.body = read(HANDOFF_SKILL)
+        cls.body_norm = norm(cls.body)
 
     def test_no_create_spec_token(self):
-        self.assertNotIn("create-spec", self.bullet)
+        self.assertNotIn("create-spec", self.body)
 
     def test_no_restated_skill_list(self):
         # A restated enumeration looks like `name`, `name`, `name` (3+ in a
-        # row) — the exact shape DR-1 says drifted; must not reappear.
-        self.assertIsNone(
-            re.search(r"(`[a-z][a-z-]*`,\s*){3,}", self.bullet),
-            "handoff/SKILL.md must not restate the skill list — the run "
-            "ledger names the in-flight step (DR-1)")
+        # row) — the exact shape DR-1 says drifted; must not reappear. The
+        # whole file is scanned now, so a list counts only when three of its
+        # names are shipped skills: the CLI's JSON keys (`commit`, `pushed`,
+        # …) are not a skill list.
+        skills = set(os.listdir(SKILLS_DIR))
+        for run in re.finditer(r"(?:`[a-z][a-z_-]*`,\s*){2,}`[a-z][a-z_-]*`", self.body):
+            names = re.findall(r"`([a-z][a-z_-]*)`", run.group(0))
+            self.assertLess(
+                len([n for n in names if n in skills]), 3,
+                "handoff/SKILL.md must not restate the skill list (DR-1): %r"
+                % run.group(0))
 
-    def test_do_not_re_derive_rationale_present(self):
-        self.assertRegex(self.bullet_norm, r"(?i)do not re-derive")
-
-    def test_same_resolution_as_handoff_py_claim_still_present(self):
-        self.assertRegex(
-            self.bullet_norm, r"(?i)handoff\.py.{0,40}(performs|resolution)")
-
-    def test_names_the_invariant_that_replaced_the_scan(self):
-        self.assertIn("I1", self.bullet)
+    def test_the_continue_command_is_the_clis(self):
+        self.assertRegex(self.body_norm, r"`continue_with` VERBATIM")
 
 
 class ChangelogUnreleasedEntryTest(unittest.TestCase):

@@ -1,228 +1,237 @@
 ---
 name: handoff
-description: Deliberately hand the current run off to a fresh session — flush in-flight soft context to the run directory, finalize the in-flight step as interrupted with a stop_reason, release the run's lock, and print the exact command to continue. Use when the session has grown long, the user wants to stop and resume later, or the user says "hand off" / "continue this in a new session". Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[run-id]"
+description: Hand a ticket over to a teammate on another machine, or pick one up — send packages the ticket's uncommitted work, the run state it resumes from and a handoff note (done, in flight, next, decisions) into the hidden git ref refs/acs/handoff/<ID> on origin, never a branch or a PR; receive restores that work and state into this checkout and prints the command to continue; list shows which ticket handoffs are waiting on the remote. Use when the user wants to hand a ticket, or the work on it, to a teammate, pass it on to someone else, take over or pick up a ticket a teammate handed off, or asks which handoffs are waiting for them. Not for pausing your own session — acs resumes a step from its recorded state by itself. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, run or repo files, and do not look for a shell or git: it locates all of them itself.
+argument-hint: "<ticket-id> | receive <ticket-id> | list"
 ---
 
-You are the coordinator of `/acs:handoff` — the session-handoff utility skill.
+You are the coordinator of `/acs:handoff`, the team-handoff utility skill
+(ADR-0131): one member hands a ticket to another, across machines, through
+the shared git remote. This is NOT a hooked pipeline skill: no `acs step
+start`, no pre/post hooks, no subagents, no reflection loop. You do the work
+inline with Bash and AskUserQuestion, and every byte that moves is moved by
+`acs.py handoff` — never by hand.
 
-This skill is NOT part of the gated workflow: no pre/post hooks fire for it,
-you spawn NO subagents, and you do NOT run `acs step start` (it would acquire
-the run's lock and open a new invocation — the opposite of what a handoff
-does). You touch the consumer repo read-only; the only file you write is
-`steps/<step>/handoff-context.md` inside the run directory. All state mutation
-(invocation finalization, step transition, run ledger, lock release) is done by
-`handoff.py` — never edit `state.json`, `run.json`, or `.lock` by hand.
+**The package.** `acs.py handoff send` builds ONE commit and pushes it to the
+hidden ref `refs/acs/handoff/<ID>` on `origin`:
 
-A handoff is a *planned* interruption, so it beats crash recovery: it captures
-the soft context that phase boundaries have not persisted yet, then releases
-the run's lock so ANY session — not only this checkout — can take over.
-`handed_off` is not a status. It named a REASON wearing a status: a handoff is
-an interruption, `interrupted` is the one resumable state, and `stop_reason`
-carries why. A handoff records `status: interrupted` with
-`stop_reason: context_pressure`.
+- `work/` — the ticket's uncommitted work, as a snapshot of the working tree
+  over the run's baseline (ignored files are never packaged);
+- `acs/` — the **resume set**: the ticket, its clarifications, the run ledger,
+  the run's requirements and sources, its baseline, and each step's state,
+  result, artifacts and verdict. Iteration scratch, jobs, agent copies, locks,
+  sessions and logs are never packaged;
+- `attachments/` — only the outside-repo files the sender confirmed, one by
+  one;
+- `note.md` — the handoff note; `manifest.json` — who sent it, when, from which
+  base commit and branch.
 
-## Step 1 — Resolve the run
+The ref lives outside every branch: `git log`, `git branch -a` and the PR list
+never show it. That commit is the one acs commit that is not
+`/acs:create-pr`'s (ADR-0127, amended by ADR-0131), and it is the CLI's job.
+You yourself never create or switch a branch, stage, commit, push or open a
+PR; `receive` leaves the work as uncommitted changes, exactly as it was on the
+sender's machine.
 
-Resolve `<run-id>` in this order; first hit wins:
+**Not a session pause.** Pausing your OWN work needs no skill: every step
+records its state on disk, a step stopped by context pressure finalizes
+itself, and `/acs:ship <ID>` resumes the run from its cursor in any session.
+When the user only wants to stop and continue later themselves, say so in one
+line, give them `/acs:ship <ID>`, and stop — do not send anything.
 
-1. **Explicit argument** — `$ARGUMENTS` contains a run id (for a ticket-backed
-   run that is the ticket id, e.g. `SHOP-123`).
-2. **Pointer file** — `<workspace>/<repo-id>/sessions/<checkout-id>.json`,
-   field `run_id` (see "Locating the workspace" below). This is the
-   authoritative answer: the pointer is what `acs step start` wrote.
-3. **Session context** — the run or ticket id appears in this conversation (a
-   skill you were coordinating, a ticket just created or discussed).
-4. **Branch name** — `git rev-parse --abbrev-ref HEAD`, match
-   `<ticket_prefix>-<number>` (e.g. `SHOP-123` in `feature/SHOP-123-cart`).
+## Step 1 — Pick the mode
 
-If none resolves, STOP and ask the user which run to hand off (suggest
-`/acs:handoff SHOP-123` with an explicit id). Never guess. You do not have to
-resolve it yourself in the common case: `handoff.py` reads the same pointer and
-refuses with `no current run for this checkout (nothing to hand off)` when
-there is nothing to resolve.
+Read `$ARGUMENTS`, then the request's words:
 
-### Locating the workspace
+| Arguments / request | Mode |
+|---|---|
+| `receive <ID>`, or "pick up / take over <ID> from <teammate>" | **receive** (Step 3) |
+| `list`, or "what handoffs are waiting (for me)" | **list** (Step 4) |
+| `<ID>`, or "hand <ID> to <teammate>", "pass <ID> on to …" | **send** (Step 2) |
 
-You need the run directory before flushing. Resolve it like the hooks do:
-
-- **Settings** (per-key merge, most specific wins): read
-  `<main-checkout>/.acs/settings.local.json`, then
-  `<main-checkout>/.acs/settings.json`, then `~/.acs/settings.json`; take the
-  first `ticket_prefix` found, or the default `ACS` when none sets one (no
-  settings file is required). In a linked worktree also check the worktree's
-  own `.acs/` files. **Workspace**: always `<main-checkout>/.acs/state-machine`,
-  the same derivation `acs_lib.default_state_root()` does — no override
-  exists. When it cannot be derived (a bare repo or a submodule), stop and tell
-  the user that acs must be run from a regular git checkout.
-- **repo-id**: from `git config --get remote.origin.url` take the last two
-  path segments as `owner-name` (strip scheme, `user@`, trailing `.git`;
-  replace `:` with `/`; sanitize any character outside `[A-Za-z0-9._-]` to
-  `-`). Fallback: the main repo directory's basename, sanitized the same way.
-- **checkout-id** (only needed for the pointer-file lookup):
+A teammate's name is not an argument the CLI takes: on a send it goes into the
+note ("For Minh: …"); on a receive it is only who to thank. A receive with no
+id runs list first and, when exactly one handoff is waiting, offers it; with
+several, ask which (or stop when you cannot ask). A send with no id resolves
+the ticket from this checkout's run:
 
 ```bash
-python3 -c 'import hashlib,os,re,subprocess;r=subprocess.check_output(["git","rev-parse","--show-toplevel"],text=True).strip();print(re.sub(r"[^A-Za-z0-9._-]+","-",os.path.basename(r))+"-"+hashlib.sha1(os.path.abspath(r).encode()).hexdigest()[:8])'
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" run show
 ```
 
-The run directory is `<workspace>/<repo-id>/runs/<run-id>/`. If it holds no
-`run.json`, there is no run to hand off — report that and stop.
+Its `run.subject.ticket_id` is the id. When it refuses with `no current run
+for this checkout`, there is **nothing to send** from here: say so, suggest
+`/acs:handoff <ID>` with an explicit id, push nothing, and finish `completed`.
+A run whose `subject.kind` is not `ticket` cannot be handed off — a handoff
+names a ticket on both machines: tell the user to give the work a ticket with
+`/acs:create-ticket` first, and stop. Never guess an id from the branch name.
 
-## Step 2 — Identify the in-flight step
+## Step 2 — Send
 
-Read `run.json`'s `steps` map and take the one step whose `status` is
-`in_progress`. Invariant I1 says there is at most one, so there is nothing to
-scan and nothing to guess: the ledger either names it or nothing is in flight.
-That is the same resolution `handoff.py` performs
-(`acs_lib.in_flight_step` → `acs_lib.in_progress_step`), so your flush lands
-where its finalization points. Do not re-derive it from the step directories
-or from your memory of the conversation: the run ledger is the authority.
-
-If no step is in flight, skip Step 3 (there is no in-flight phase to flush —
-completed steps are already fully recorded in the run directory) and go
-straight to Step 4.
-
-## Step 3 — Flush soft context
-
-Write `steps/<in-flight-step>/handoff-context.md` (create the directory if
-needed). Capture ONLY what the phase artifacts and state files have NOT
-already persisted — the soft context that dies with this session:
-
-- **user clarifications & decisions** made in conversation (and their why);
-- **partial findings** of the in-flight phase (what the current
-  plan/execute pass has learned but not yet written out);
-- **discovered gotchas** (flaky tests, surprising couplings, env quirks,
-  approaches already tried and rejected);
-- **next actions**, concrete and ordered.
-
-Skeleton (keep it to a page or two; reference existing artifacts by path
-instead of duplicating them):
-
-```markdown
-# Handoff context — SHOP-123 / code (iteration 2, execute in flight)
-
-Written by /acs:handoff on 2026-06-12T09:30:00Z.
-
-## Done (verified)
-- task 1 of the plan implemented; unit tests green (steps/code/iter-1/execute.md)
-
-## In flight
-- task 2 (cart API): tests written, handler half-implemented (src/cart/api.py)
-
-## Next actions
-1. Finish the PATCH handler in src/cart/api.py; re-run pytest tests/cart/
-2. Hand back to /acs:review-code for the gate (build, lint, full suite, coverage)
-
-## User clarifications & decisions
-- User chose cursor-based pagination over offset (perf on large carts)
-
-## Partial findings (current phase)
-- Existing serializer drops null quantities — workaround in tests, fix pending
-
-## Gotchas
-- tests/cart/test_api.py::test_empty is flaky under -n auto; run serially
-```
-
-`handoff.py` separately writes a derived `handoff-context.md` at the RUN root
-from the ledger alone (run, workflow, in-flight step, open clarifications).
-That one is a snapshot of state; yours is the soft context state cannot know.
-They do not overwrite each other.
-
-## Step 4 — Record the handoff
-
-Run the helper (this finalizes the open invocation and the step as
-`interrupted` with your summary and `stop_reason`, updates `run.json`, and
-releases the run's `.lock`):
+**2a. Preview.** MANDATORY first commands; they push nothing:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --run SHOP-123 \
-  --summary "done: plan task 1 implemented, tests green; in flight: task 2 executor, handler partial; next: finish PATCH handler, then review-code; decisions: cursor pagination — detail in steps/code/handoff-context.md"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" handoff send --ticket <ID> --dry-run
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" handoff list
 ```
 
-`--run` defaults to this checkout's pointer, so it can be omitted in the
-common case. `--stop-reason` defaults to `context_pressure`; pass another of
-`acs_lib.STOP_REASONS` when the session is stopping for a different reason.
+The dry run prints what the package would hold — `package` (every path in
+it: `work/…`, `acs/…`), `work_changes`, the `branch` and `base_sha`,
+`excluded` (what stays behind), and `attachments_available`: each
+outside-repo document the run copied, by its `ref` and `name`. The list says
+whether a handoff of `<ID>` is already waiting on the remote. On a non-zero
+exit, surface stderr verbatim and finish `failed` (known cases below).
 
-Summary rules: one compact line, well under 1 KB, covering the four parts —
-**done / in flight / next / decisions** — and pointing at
-`handoff-context.md` for detail. For a longer summary write it to a temp file
-and pass `--summary-file <path>` instead; the deep detail still belongs in
-`handoff-context.md`, not the summary. A summary is required even when
-nothing is in flight.
+**2b. Draft the note** from the run, not from memory alone: the ledger's
+completed steps (**done**), the step in progress or interrupted and what its
+artifacts say is left (**in flight**), the run's cursor —
+`acs.py run next --ticket <ID>` — (**next**), and the clarifications ledger
+plus anything decided in this conversation that no file records
+(**decisions**). Four short sections, a page at most; reference artifacts by
+their run-relative path rather than copying them.
 
-On success it prints JSON:
+**2c. ONE grouped AskUserQuestion**, every question in the same call:
 
-```json
-{
-  "ok": true,
-  "run_id": "SHOP-123",
-  "step": "code",
-  "stop_reason": "context_pressure",
-  "lock_released": true,
-  "continue_with": "/acs:code SHOP-123"
-}
+1. **The note** — show the drafted note in the question; options `Send as
+   drafted` and free text to replace or extend it.
+2. **One question per offered attachment** — `Include` / `Skip`, the
+   description naming the file, its size and where the run got it. Nothing
+   outside the repo is ever packaged without its own `Include`. More than
+   three attachments: one multi-select question listing them all instead,
+   every option unchecked by default. An attachment whose `present` is false
+   (its copy is gone) is listed under Findings, never offered.
+3. **Confirm the push** — the plan in one line: `<n> work files, <n> state
+   paths, <n> attachments → origin refs/acs/handoff/<ID>`, and the warning
+   that hidden is not private — anyone who can read the remote can fetch the
+   package; options `Send`, `Cancel`. When the list showed `<ID>` waiting,
+   the options are `Replace the waiting handoff` and `Cancel`: a replace
+   overwrites a package nobody has picked up yet.
+
+`Cancel` → status `completed`, "nothing sent", and stop. Ask only what the
+request left open: a request that already gave the note's content, said which
+attachments to include (or that there are none) and confirmed the push in so
+many words has answered all three — skip the ask and send. Without an explicit
+confirmation, always ask it: the push is the one step a re-run cannot take
+back. A request to replace a waiting handoff counts only when it says so.
+
+**Headless.** When AskUserQuestion is unavailable and the request left any
+of the three open, send nothing: print the drafted note, the offered
+attachments and the exact `send` command that would run, and finish
+`interrupted` with `stop_reason: needs_input`.
+
+**2d. Send.** Write the confirmed note to a temp file outside the repo, then:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" handoff send --ticket <ID> \
+  --note-file <tmp-note> [--attach <ref> …] [--replace]
 ```
 
-If it exits non-zero, surface its stderr verbatim and stop. Known cases:
+One `--attach <ref>` per INCLUDED attachment, exactly as
+`attachments_available` printed its `ref`; `--replace` only after `Replace
+the waiting handoff`. It prints the dry run's report plus `commit`, `pushed`,
+`replaced`, `sender` and `withheld_attachments` (the ones you skipped). Never
+retry with a `--replace` the user did not choose, and never push the ref
+yourself.
 
-- `a handoff summary is required (--summary or --summary-file)` — write the
-  summary first; it is the whole point of a planned handoff.
-- `acs requires a git repository` — tell the user acs must be run inside a
-  git checkout. A missing `.acs/settings.json` is never the cause: acs runs on
-  its defaults, and no `/acs:setup` run is needed first.
-- `ticket_prefix '<x>' is invalid …` — a hand-set prefix is malformed; the
-  user fixes it in `.acs/settings.json`, or removes it to use the default
-  `ACS`.
-- `... acs cannot derive an in-repo state root here` (bare repo or
-  submodule) — tell the user that acs must be run from a regular git
-  checkout.
-- `no current run for this checkout (nothing to hand off)` — ask the user
-  for the run id and re-run `/acs:handoff SHOP-123`.
-- `no run recorded at <path>` — the run never started, or the id is wrong;
-  nothing to hand off.
+**2e. Say what the sender keeps.** Nothing on this machine changes: the work
+stays in the working tree, the run, its lock and its state stay as they are.
+The package is a copy. If the sender keeps working, a later send with
+`--replace` updates the waiting package; once the teammate has received it,
+the two copies diverge and the team decides whose continues.
 
-## Step 5 — Report
+## Step 3 — Receive
 
-Tell the user, compactly:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" handoff receive <ID> [--replace] [--keep-ref]
+```
 
-1. **How to continue** — print the `continue_with` value VERBATIM as the
-   command to run in the fresh session (e.g. `/acs:code SHOP-123`). The next
-   coordinator will see the step `interrupted` with its `stop_reason`, read
-   the summary and `handoff-context.md`, run a light reconcile (recorded state
-   trusted but cheaply verified, e.g. by re-running tests), and continue.
-2. **What was flushed** — the path
-   `steps/<step>/handoff-context.md` plus a one-line bullet per
-   section actually captured (decisions, partial findings, gotchas, next
-   actions).
-3. **Lock released** — any session or worktree on this machine can now take
-   the run over, not just this checkout.
-4. **Scope** — the handoff targets a new session on the **same machine and
-   checkout**: the state machine lives in the repo's main checkout at
-   `.acs/state-machine/`, local to this machine, so cross-machine handoff is
-   out of scope.
+In order, refusing before anything is written: it fetches the ref and reads
+its manifest, refuses when this workspace already holds the ticket or its run,
+refuses a working tree with uncommitted changes (the work arrives as
+uncommitted changes and must not mix with yours), and dry-runs a three-way
+apply so a checkout whose `HEAD` moved on still takes the work. Then it
+applies the work (unstaged, as the sender had it), restores the resume set
+into this machine's workspace, raises the id counter, points this checkout at
+the run, keeps the commit locally under `refs/acs/received/<ID>`, and deletes
+the remote ref unless `--keep-ref`.
 
-If `handoff.py` reported `"step": null`, say explicitly that **nothing was
-in flight — there is nothing to hand off**: every completed step is already
-recorded in the run directory, no flush file was written, and the lock (if
-any) was released. Still print the `continue_with` command verbatim (it will
-be `/acs:ship SHOP-123`) so the user knows exactly how to pick the run up —
-`/acs:ship` resumes from the run's own cursor.
+- **Dirty working tree** (`the working tree is not clean`) — surface the
+  refusal and the files it names; tell the user to commit, stash or move
+  them, then run `/acs:handoff receive <ID>` again. Never stash or discard
+  anything yourself.
+- **This workspace already holds `<ID>`** — ask whether to take the handoff
+  anyway (`--replace` moves the local ticket and run to a backup it reports
+  under `backup`) or keep the local one; headless → `interrupted`,
+  `needs_input`.
+- **Conflicts** (`conflicts with this checkout in: …`) — nothing was changed
+  and the ref is still on the remote. Report the paths and the CLI's advice
+  verbatim; the user reconciles those files or checks out the sender's base,
+  then receives again.
+- `--keep-ref` only when the user asks to leave the package on the remote as
+  well (for a second teammate).
+
+On success show, in order: `sender` and `sent_at`, the **note** verbatim,
+`work_changes` (the files now changed in this checkout), `sender_branch` (the
+branch the sender worked on — `/acs:create-pr` makes this checkout's branch
+when it is time; you never create one), `steps` with their statuses,
+`attachments` restored and `withheld_attachments` the sender kept back, and
+`continue_with` VERBATIM as the next command (`/acs:ship <ID>`, or the step
+to resume, e.g. `/acs:code <ID>`). A `ref_delete_error` is a Finding: the
+handoff was received, but the remote ref is still there for someone to
+delete.
+
+## Step 4 — List
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" handoff list --details
+```
+
+It prints `handoffs: [{ticket, ref, commit, sender, sent_at, branch, note}]`
+and `count`. Show one line per waiting handoff — the ticket, who sent it and
+when, and the note's first line. `count: 0` → "no handoffs are waiting on
+origin". For each, the next command is `/acs:handoff receive <ID>`. List
+fetches the packages to read them but changes nothing in this checkout or
+the workspace.
+
+## When a command fails
+
+Surface stderr verbatim and finish `failed` (or `interrupted` with
+`needs_input` where the user must choose). Known cases:
+
+- `acs requires a git repository`, or no `origin` remote — a handoff travels
+  through the shared remote; nothing to do without one. A missing
+  `.acs/settings.json` is never the cause: acs runs on its defaults, and no
+  `/acs:setup` run is needed first.
+- `<ID> is archived (merged or closed) -- there is nothing to hand off` —
+  the ticket is done; nothing left to hand over.
+- `no ticket <ID> in this workspace` — the id is wrong, or the ticket lives
+  on another machine: that machine sends it.
+- `a handoff of <ID> is already waiting on origin` — Step 2c's replace
+  question; never add `--replace` on your own.
+- `--attach <x> is not one of this run's outside-repo attachments` — only
+  documents the run already copied can travel; offer the ones listed.
+- The push or fetch is refused (no access, offline, a ruleset that blocks
+  refs outside `refs/heads/`) — report it; the package was not delivered.
+  Never route around it through a branch, another remote or another
+  transport.
+- `no handoff of <ID> is waiting on origin` — run list and show what is
+  waiting.
 
 ## Completion report (normative)
 
-Every terminal outcome of a direct invocation — completed, failed, or
-interrupted — ends your final message with the standard block (INTERNALS.md
-"Completion report"), rendered only AFTER the helper succeeded. Same labels,
-same order, `none` where empty:
+Every terminal outcome ends your final message with the standard block
+(INTERNALS.md "Completion report"). A handoff runs no loop, so Metrics
+carries no iterations. Under list, and on a send with nothing to send, no
+ticket is involved: the heading's id is `list` (or `none`) and the **Ticket**
+line reads **Scope** — `<n> handoff(s) waiting on origin` or `this checkout`:
 
 ```markdown
-## /acs:handoff · <run-id> · <status>
+## /acs:handoff · <ticket-id> · <sent|received|listed> · <status>
 
-- **Run**: <run-id> — <subject>
-- **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: what was flushed to the run directory (soft context, decisions, partial findings); the in-flight invocation and step finalized `interrupted`; lock released
-- **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <run-directory files, repo paths, branch, PR URL>
-- **Metrics**: <wall time>
-- **Next**: the exact `continue_with` command printed by `handoff.py`, e.g. `/acs:code SHOP-123` in a fresh session
+- **Ticket**: <id> — <title> (<type>)
+- **Status**: <completed|failed|interrupted> — <one line; `stop_reason` when interrupted>
+- **Results**: send — ref, commit, note sections, attachments included / skipped, and "the sender keeps everything"; receive — sender, note, restored files, steps; list — the waiting tickets
+- **Findings**: <refusals and conflicts verbatim, or "none">
+- **Artifacts**: send — `origin refs/acs/handoff/<ID>` @ <sha>; receive — the uncommitted repo paths restored and the run directory; list — none
+- **Metrics**: <n> work files · <n> state files · <n> attachments · <wall time>
+- **Next**: send — tell the teammate to run `/acs:handoff receive <ID>`; receive — the `continue_with` command verbatim; list — `/acs:handoff receive <ID>`
 ```

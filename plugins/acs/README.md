@@ -282,7 +282,7 @@ report breaks it and derives the counts it records from the report itself.
 | `/acs:setup` | — (optional; no skill needs it first) | Sets the ticket prefix and installs the CI gates: the optional ticket-link check (every PR names its ticket), tests and e2e; can scaffold the `models` block and write `.claude/launch.json`, the Desktop app's preview-server config. Writes `.acs/settings.json` (never a value equal to its default); every other setting is edited by hand. Re-runs update in place. |
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
-| `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
+| `/acs:handoff` | — (utility) | Hands a ticket in mid-flight to a teammate on another machine. `/acs:handoff <ID>` asks one question — your note (done, in flight, next, decisions), each outside-repo attachment (include or skip) and the push — then sends the ticket's resume set (the uncommitted work, the run and its steps' state, results and verdicts) as one commit to the hidden ref `refs/acs/handoff/<ID>`; your own work, run and lock stay as they are. `/acs:handoff receive <ID>`, from a clean tree, applies the work with a three-way merge, restores the run, deletes the ref and prints the command to continue; `/acs:handoff list` shows what is waiting. Anyone who can read the remote can fetch the ref. Handing a finished phase to the next team needs no handoff: `/acs:set-doc-status`, then `/acs:create-pr` ([ADR-0131](../../docs/architecture/adr/0131-ticket-handoff-between-members.md)). |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
 | `/acs:set-doc-status` | — (unhooked) | Approves, or otherwise moves the status of, the versioned Discovery and Design documents — the PRD, the roadmap, feature analyses, the HLD and each feature's LLD. Lists them by phase and feature (`acs.py design list`), lets you pick whole features, design areas or single documents in one ask, offers only the legal moves, then runs one all-or-nothing `acs.py design status --set` that records who moved them, when and why (`status_by`, `status_at`, `status_reason`). Commits nothing: it lists the changed files for `/acs:create-pr` ([ADR-0130](../../docs/architecture/adr/0130-prd-versions-and-set-doc-status.md)). Also `/acs:set-doc-status approved wishlist`. |
 
@@ -459,7 +459,7 @@ deleted.
   already treated as reconciled and never sees this.
 - **"another session holds the lock."** Each ticket partition has a `.lock`
   owned by one session. If the other session is live (e.g. a parallel
-  worktree), finish or hand off there. If it crashed, ending that session
+  worktree), finish or pause there. If it crashed, ending that session
   normally releases the lock via the `SessionEnd` hook; after a hard kill
   the lock is stale — verify the owning process is gone, then delete
   `<workspace>/<repo>/<ticket-id>/.lock` and re-run the skill.
@@ -474,16 +474,17 @@ deleted.
   the cursor is derived as the first step that is not `completed`, `acs.py run
   next` re-offers it rather than letting a half-recorded step count as done.
   Re-run that skill for the ticket to regenerate its state.
-- **Long session running out of context.** Run `/acs:handoff`: it flushes
-  in-flight work and decisions to the run, marks the in-flight step
+- **Long session running out of context.** The running skill pauses itself:
+  it flushes in-flight work and decisions to the run, marks the in-flight step
   `interrupted` with a `stop_reason` of `context_pressure`, releases the lock,
   and prints the exact command (e.g. `/acs:code SHOP-123`) to continue in a
-  fresh session.
+  fresh session. To stop deliberately, just stop and re-run that command later.
+  `/acs:handoff` is for passing a ticket to a teammate, not for this.
 
 ## For contributors
 
 The binding implementation contract — skill lifecycle, helper CLIs (`acs.py`,
-`new-ticket.py`, `handoff.py`, `plan-approval.py`), result-document shape,
+`new-ticket.py`, `handoff.py` — the session pause, `plan-approval.py`), result-document shape,
 canonical `states` keys, the JSON Schemas, and subagent conventions — lives in
 [docs/INTERNALS.md](docs/INTERNALS.md). The
 business requirements live in the repo's

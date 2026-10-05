@@ -27,4 +27,6 @@ environment. The workspace defaults to an in-repo, gitignored
 folder anchored to the repo's main checkout, so every linked worktree
 resolves to the same physical state (ADR-0086) — worktree-sharing survives
 via that anchoring, not via a fully separate machine-local folder;
-cross-machine handoff is still out of scope (see PRD).
+the workspace itself never crosses machines; one ticket's work and state do,
+as a handoff package pushed to the hidden ref `refs/acs/handoff/<ID>` and
+applied by the receiver (ADR-0131).

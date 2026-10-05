@@ -152,6 +152,26 @@ matching section here, and merge to `main` — the Release workflow tags
   Discovery and Design documents grouped by phase and feature, each with its
   `status`, `version`, `problems` and the `allowed` targets from its status; a
   run's design-record folders (`lld/<feature>/<id>/`) are not listed.
+- **Ticket handoff between team members, across machines** (ADR-0131).
+  `/acs:handoff <ID>` sends a ticket in mid-flight to a teammate: one grouped
+  ask for the note (done, in flight, next, decisions), each outside-repo
+  attachment (include or skip — nothing outside the repo leaves unconfirmed)
+  and the push, then `acs.py handoff send` packages the ticket's resume set —
+  the uncommitted work, the ticket and its clarification ledger, the run ledger
+  and baseline, each step's state, result, current artifacts and verdict, the
+  trees the state cites, a manifest; absolute paths travel as tokens — as one commit on
+  the run's base, built through a temporary index, and pushes it to the hidden
+  ref `refs/acs/handoff/<ID>`. Audit trails, jobs, agents, locks, sessions and
+  logs stay behind; `--dry-run` shows the package without pushing. The sender
+  keeps everything. `/acs:handoff receive <ID>`
+  (`acs.py handoff receive`) refuses a dirty tree, checks the work applies with
+  `git apply --3way` in a temporary index before applying it, restores the run with local paths, raises the counters,
+  deletes the ref (`--keep-ref` keeps it) and prints the command to continue;
+  `/acs:handoff list` shows what is waiting. `--replace` re-sends over an
+  existing ref, or receives over an existing local run after backing it up.
+  The snapshot commit is the one commit outside `/acs:create-pr` — never on a
+  branch, never merged (amends ADR-0127). Anyone with read access to the
+  remote can fetch the ref.
 
 ### Changed
 
@@ -294,6 +314,25 @@ matching section here, and merge to `main` — the Release workflow tags
   not as a phase. The README's skill tables follow; no skill, gate or step changes.
 
 ### Removed
+
+- **⚠️ BREAKING: the session-handoff skill is gone; `/acs:handoff` is now a
+  ticket handoff between members** (ADR-0131, superseding ADR-0003's
+  "cross-machine handoff is out of scope"). `/acs:handoff` no longer flushes,
+  finalizes and unlocks the current run for a fresh session on the same
+  checkout — "hand off" / "continue this in a new session" no longer route to
+  it. The context-pressure resume is **unchanged**: a step that runs low on
+  context still pauses itself through `handoff.py` (`interrupted`,
+  `stop_reason: context_pressure`, lock released, `continue_with` printed),
+  and the `PreCompact` hook still writes `handoff-context.md`. A phase
+  handoff needs no skill: approve the documents with `/acs:set-doc-status`,
+  open the docs PR with `/acs:create-pr`, tell the next team.
+  **Migration:** to stop a long session, just stop it (the `SessionEnd` hook
+  releases the lock) and re-run the same skill or `/acs:ship <ID>` later — it
+  resumes from the interrupted step as before. A script that ran
+  `/acs:handoff` for a session handoff should call `handoff.py --summary …`
+  directly, or drop the call. To pass a ticket to a teammate, push access to
+  `origin` is needed for `refs/acs/handoff/*`: a ruleset that restricts ref
+  creation outside `refs/heads/` must allow it.
 
 - **⚠️ BREAKING: `/acs:create-docs` is removed (ADR-0124).** The quality,
   operations, principles and standards doc sets are no longer bootstrapped by
