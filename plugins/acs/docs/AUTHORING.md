@@ -245,7 +245,7 @@ skill"; what a SKILL.md must say is:
 | Component | Restriction | Enforces |
 |-----------|-------------|----------|
 | Hooked skills + `/ship` | `disallowed-tools: Edit, NotebookEdit` | coordinators orchestrate; only write roles mutate sources |
-| `/setup`, `/handoff` | none | user-present utility skills |
+| `/setup`, `/handoff`, `/update`, `/release` | none | user-present utility skills |
 | `/set-doc-status` | `disallowed-tools: Edit, NotebookEdit, Write` | a status moves only through `acs.py design status`, never by hand-editing front matter |
 | Survey and judge roles | `tools: Read, Glob, Grep, Bash, Write` | read-only discipline + own phase artifacts; no spawning, no skill calls |
 | Write roles | `disallowedTools: Agent, Skill` | no sub-subagents; no re-entering the hook pipeline |

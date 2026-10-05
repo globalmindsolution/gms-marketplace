@@ -207,6 +207,15 @@ matching section here, and merge to `main` — the Release workflow tags
   into the repo while an answer is owed (`analysis publish` and every other run
   document write) exits 2 naming `acs.py docs decide`.
 
+- **`/acs:setup` offers acs's Claude Code permission rules.** One more question:
+  add `permissions.allow` rules for acs's own scripts (`Bash(python3
+  *acs/*hooks/scripts/*.py*)`) and read-only git (`status`, `diff`, `log`,
+  `rev-parse`, `ls-files`, `show`, `check-ignore`) to `.claude/settings.json`
+  (team), to the main checkout's `.claude/settings.local.json` (me — ignored if
+  nothing ignores it yet), or skip, which is the default. Nothing that writes is
+  pre-approved. Setup also ignores `.claude/worktrees/`, where Claude Code puts the
+  worktrees it creates. **Migration:** none — re-run `/acs:setup` to opt in.
+
 ### Changed
 
 - **⚠️ BREAKING: only `/acs:create-pr` branches, commits and pushes** (ADR-0127).
@@ -492,6 +501,17 @@ matching section here, and merge to `main` — the Release workflow tags
   CI gates and the e2e templates with `/acs:setup`; write principles and
   standards with `/acs:create-docs`. An existing `requirements/` set stays
   readable context.
+
+### Fixed
+
+- **A worktree inside the checkout no longer leaks into a run's changeset.** A
+  Claude Code worktree at `.claude/worktrees/<name>/` (or any embedded repository
+  never committed as a submodule) appeared in the main checkout's snapshot as a
+  gitlink: `acs changes diff` listed it, `/acs:create-pr` showed it as left out,
+  and `/acs:handoff` packaged it, so the receiver got a bogus submodule entry. The
+  snapshot now leaves such repositories out, `handoff receive` drops any gitlink a
+  package carries, and an embedded repository with no commit no longer breaks the
+  snapshot. **Migration:** none.
 
 ## [0.5.0] - 2026-09-30
 
