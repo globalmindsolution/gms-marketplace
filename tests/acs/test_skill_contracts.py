@@ -1208,7 +1208,9 @@ class TestGeneralizedFold(unittest.TestCase):
         return os.path.join(PLUGIN, "agents", name)
 
     def _code_body(self):
-        return read(self.skill_path("create-impl-plan"))
+        # What the skill SAYS: the plan's shape moved to `references/` under
+        # progressive disclosure, so the fold's obligations are read there too.
+        return read_skill_contract("create-impl-plan")
 
     def _planner_body(self):
         # the plan charter is the planner's survey

@@ -29,6 +29,7 @@ TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TESTS_ACS)
 
 import acs_case  # noqa: E402
+from skill_text import skill_contract  # noqa: E402
 from acs_case import lib  # noqa: E402
 
 MODULE_FILENAME = "plan-approval.py"
@@ -587,7 +588,9 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         # The prohibition sits where the record is DESCRIBED: create-impl-plan
         # publishes the plan the approval hashes, and is the skill a reader
         # arrives at asking who writes the record.
-        norm_body = _norm(_read(IMPL_PLAN_SKILL))
+        # What the skill SAYS: the approval note moved to `references/` behind
+        # a pointer (progressive disclosure), and is read where it points.
+        norm_body = _norm(skill_contract("create-impl-plan"))
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), norm_body):
             window = norm_body[max(0, m.start() - 250):m.end() + 250]
@@ -759,7 +762,9 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.skill_body = _read(IMPL_PLAN_SKILL)
+        # SKILL.md with its references read where it points at them: the
+        # approval note and the canonical states moved there behind pointers.
+        cls.skill_body = skill_contract("create-impl-plan")
         cls.internals_body = _read(INTERNALS)
         cls.leg_bodies = {leg: _read(os.path.join(SKILLS, leg, "SKILL.md"))
                           for leg in ("code-standard", "code-complex")}

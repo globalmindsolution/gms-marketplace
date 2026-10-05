@@ -53,26 +53,54 @@ SKILL_REFERENCES = os.path.join(PLUGIN, "skills", "analyze-requirements", "refer
 
 
 def skill_contract():
-    """SKILL.md plus the references it points at.
+    """SKILL.md with the references it points at inlined at their pointers.
 
-    The reconcile procedure and the `ready_for_planning: false` arm moved into
-    `references/` under progressive disclosure -- a fresh run that finds the
-    ticket plannable reads neither. The rule for deciding whether a question
-    blocks stayed inline, because it fires on every run. These pins say what
-    the skill SAYS, never which of its files says it.
+    Under progressive disclosure the reconcile procedure, the
+    `ready_for_planning: false` arm, the survey's inputs, the fan-out and
+    messaging rules, the clarify arms, the draft's templates and the review and
+    publish details live in `references/` -- a run reads each only at the phase
+    or in the arm that needs it. These pins say what the skill SAYS, never
+    which of its files says it; each reference sits where its pointer does
+    (tests/acs/skill_text.py), so an order or a slice measures what it always
+    did. Pins about SKILL.md itself -- its front matter, its stage headings
+    and their order -- keep reading SKILL.md alone.
     """
-    import glob as _glob
-    parts = [read(SKILL_PATH)]
-    parts += [read(q) for q in
-              sorted(_glob.glob(os.path.join(SKILL_REFERENCES, "*.md")))]
-    return "\n".join(parts)
+    return skill_text.skill_contract("analyze-requirements")
+
+
+#: An agent's pointer into a skill's `references/`, read before it writes.
+_AGENT_POINTER = re.compile(
+    r"\$\{CLAUDE_PLUGIN_ROOT\}/skills/([a-z0-9-]+)/references/([a-z0-9-]+\.md)")
+
+
+def agent_contract(role):
+    """The agent file with each skill reference it points at inlined there.
+
+    The draft's templates (the README and context-file skeletons and what each
+    section carries) are one file the coordinator and the analyst both read --
+    `references/analysis-templates.md` -- so what the analyst is told to emit
+    is that file, read where its pointer sits."""
+    out, seen = [], set()
+    for line in agent(role).splitlines(keepends=True):
+        out.append(line)
+        for skill, name in _AGENT_POINTER.findall(line):
+            if (skill, name) in seen:
+                continue
+            seen.add((skill, name))
+            out.append("\n" + read(os.path.join(PLUGIN, "skills", skill,
+                                                 "references", name)) + "\n")
+    return "".join(out)
+
+
 AGENTS = os.path.join(PLUGIN, "agents")
 
 sys.path.insert(0, HOOKS)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
+import skill_text  # noqa: E402
 
 ROLES = ("analyst", "impact-analyst", "impact-reviewer")
 
@@ -157,12 +185,13 @@ class TestLifecycleWiring(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.skill_md = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_start_hook_is_the_mandatory_first_action(self):
-        self.assertIn('acs.py" step start', self.body)
-        self.assertRegex(self.body, r"--step analyze-requirements\b")
-        self.assertIn("MANDATORY first action", self.body)
+        self.assertIn('acs.py" step start', self.skill_md)
+        self.assertRegex(self.skill_md, r"--step analyze-requirements\b")
+        self.assertIn("MANDATORY first action", self.skill_md)
 
     def test_the_finish_verb_closes_the_step_from_its_result_document(self):
         """The POST-HOOK closes the step, and it reads the status and
@@ -200,7 +229,7 @@ class TestIndependence(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_order_is_declared_in_the_workflow_not_the_gate(self):
         self.assertIn("workflows/ship.yaml", self.body)
@@ -264,7 +293,7 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
         cls.specs = flag_values(cls.body, "--require")
         cls.example = doc_front_matter_example(cls.body)
 
@@ -286,13 +315,13 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
         self.assertEqual(findings, [])
 
     def test_the_context_example_satisfies_the_context_spec(self):
-        for body in (self.body, agent("analyst")):
+        for body in (self.body, agent_contract("analyst")):
             example = context_skeleton(body).split("\n---\n", 1)[0] + "\n---\n"
             self.assertEqual(fmc.check_front_matter(example, fmc.parse_spec(self.specs[1])),
                              [])
 
     def test_the_analyst_emits_the_same_four_keys(self):
-        example = doc_front_matter_example(agent("analyst"))
+        example = doc_front_matter_example(agent_contract("analyst"))
         self.assertEqual(findings_of(example, self.specs[0]), [])
 
     def test_the_impact_reviewer_re_runs_the_same_specs(self):
@@ -325,7 +354,7 @@ class TestAnalysisSectionContract(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
         cls.sections = flag_values(cls.body, "--sections")
 
     def test_the_skill_declares_both_section_lists_in_order(self):
@@ -344,9 +373,9 @@ class TestAnalysisSectionContract(unittest.TestCase):
                          CONTEXT_SECTIONS)
 
     def test_the_analyst_skeletons_match_the_skill_skeletons(self):
-        self.assertEqual(re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("analyst"))),
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", doc_skeleton(agent_contract("analyst"))),
                          SECTIONS)
-        self.assertEqual(re.findall(r"(?m)^## (.+)$", context_skeleton(agent("analyst"))),
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", context_skeleton(agent_contract("analyst"))),
                          CONTEXT_SECTIONS)
 
     def test_the_impact_reviewer_re_runs_the_same_section_lists(self):
@@ -411,7 +440,7 @@ class TestResultDocument(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
         cls.post_hook = read(os.path.join(HOOKS, "post-analyze-requirements.py"))
 
     def test_the_skill_records_exactly_the_documented_states(self):
@@ -452,7 +481,7 @@ class TestItClassifiesNothingTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_no_retired_axis_command_survives(self):
         for dead in ("stakes recommend", "lane apply", "--proposed-stakes",
@@ -481,7 +510,7 @@ class TestTicketAmendments(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
         cls.norm = norm(cls.body)
 
     def test_amendments_go_through_the_requirements_refine_cli(self):
@@ -536,8 +565,7 @@ class TestNotReadyArm(unittest.TestCase):
             "not a blocker.**", skill)
         self.assertIn("keep `ready_for_planning: true`", skill)
         self.assertIn("where every default could build the wrong thing", skill)
-        analyst = " ".join(
-            read(os.path.join(AGENTS, "analyze-requirements-analyst.md")).split())
+        analyst = " ".join(agent_contract("analyst").split())
         self.assertIn("A detail with a conventional default", analyst)
         self.assertIn("never a reason for `false`", analyst)
         self.assertIn("every default could build the wrong thing", analyst)
@@ -550,7 +578,7 @@ class TestPublishing(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_the_artifact_path_is_resolved_by_the_cli_not_guessed(self):
         self.assertIn('acs.py" artifacts show\n```', self.body)
@@ -625,7 +653,7 @@ class TestSubagentShape(unittest.TestCase):
     def test_no_planner_and_a_capped_loop(self):
         """ADR-0092 class D: the deliverable is the analysis, so a plan for it
         would be a second copy of the work — analyst -> impact review only."""
-        body = read(SKILL_PATH)
+        body = skill_contract()
         self.assertRegex(body, r"analyst → impact review")
         self.assertRegex(body, r"No third role\s+plans the analysis")
         self.assertNotIn("acs:analyze-requirements-planner", body)
@@ -668,9 +696,9 @@ class TestParallelism(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.skill = norm(read(SKILL_PATH))
+        cls.skill = norm(skill_contract())
         cls.contract = norm(skill_contract())
-        cls.analyst = norm(agent("analyst"))
+        cls.analyst = norm(agent_contract("analyst"))
         cls.reviewer = norm(agent("impact-reviewer"))
 
     def test_the_writer_stays_single_and_says_why(self):
@@ -707,7 +735,7 @@ class TestParallelism(unittest.TestCase):
     def test_judge_slice_table_covers_all_seven_dimensions_once(self):
         owned = []
         for sid, dims in JUDGE_SLICES.items():
-            row = re.search(r"\| `%s` \| ([^|]+) \|" % sid, read(SKILL_PATH))
+            row = re.search(r"\| `%s` \| ([^|]+) \|" % sid, skill_contract())
             self.assertIsNotNone(row, sid)
             numbers = tuple(int(n) for n in re.findall(r"\b(\d) `", row.group(1)))
             self.assertEqual(numbers, dims)
@@ -825,8 +853,9 @@ class TestThreeStages(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.raw = read(SKILL_PATH)
-        cls.skill = norm(cls.raw)
-        cls.analyst = norm(agent("analyst"))
+        cls.contract_raw = skill_contract()
+        cls.skill = norm(cls.contract_raw)
+        cls.analyst = norm(agent_contract("analyst"))
 
     def test_an_overview_near_the_top_names_the_three_stages_in_order(self):
         overview = _pos(self.raw, "## Three stages")
@@ -920,9 +949,9 @@ class TestThreeStages(unittest.TestCase):
                       "as confirmations, in the one grouped ask — never silently "
                       "assumed", self.skill)
         # The assumption arm is scoped to an unreachable user.
-        unreachable = _pos(self.raw, "### When the user is not reachable")
+        unreachable = _pos(self.contract_raw, "### When the user is not reachable")
         self.assertGreater(
-            _pos(self.raw, "**A question with a conventional default is an "
+            _pos(self.contract_raw, "**A question with a conventional default is an "
                            "assumption, not a blocker.**"), unreachable)
         self.assertNotIn("record the default as an assumption (`--source "
                          "assumption --rationale \"...\"`), state it in "
@@ -934,14 +963,14 @@ class TestThreeStages(unittest.TestCase):
     def test_confirmed_requirements_are_refined_and_reach_the_ticket(self):
         heading = ("### Confirmed requirements are refined — and go into the ticket "
                    "when there is one")
-        self.assertIn(heading, self.raw)
+        self.assertIn(heading, self.contract_raw)
         self.assertIn("so the requirements every later skill plans from carry the "
                       "clarified version", self.skill)
         self.assertIn("send the WHOLE confirmed criteria list", self.skill)
         self.assertIn("A rejected proposal is recorded (its answer says so) and "
                       "NOT applied.", self.skill)
-        section = self.raw[_pos(self.raw, heading):
-                           _pos(self.raw, "### When the user is not reachable")]
+        section = self.contract_raw[_pos(self.contract_raw, heading):
+                                    _pos(self.contract_raw, "### When the user is not reachable")]
         self.assertIn('acs.py" requirements refine --from -', section)
         self.assertIn('{"needs_design": true}', section)
         self.assertIn('{"feature": "wishlist"}', section)
@@ -1004,7 +1033,7 @@ class TestReviewerQuestionCoverage(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.reviewer = norm(agent("impact-reviewer"))
-        cls.skill = norm(read(SKILL_PATH))
+        cls.skill = norm(skill_contract())
 
     def test_every_question_for_the_user_is_accounted_for(self):
         self.assertIn("**Questions and ticket coverage:** every item of the "
@@ -1037,7 +1066,7 @@ class TestRequirementsFromAnyContainer(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.raw = read(SKILL_PATH)
+        cls.raw = skill_contract()
         cls.skill = norm(cls.raw)
         cls.contract = norm(skill_contract())
         cls.analyst = norm(agent("analyst"))
@@ -1100,8 +1129,9 @@ class TestTwoModes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.raw = read(SKILL_PATH)
-        cls.skill = norm(cls.raw)
-        cls.analyst = norm(agent("analyst"))
+        cls.contract_raw = skill_contract()
+        cls.skill = norm(cls.contract_raw)
+        cls.analyst = norm(agent_contract("analyst"))
 
     def test_the_modes_table_names_both_paths(self):
         self.assertIn("## Two modes — Discovery and Development", self.raw)
@@ -1127,8 +1157,8 @@ class TestTwoModes(unittest.TestCase):
                       "there is none)", self.analyst)
 
     def test_nothing_is_published_to_the_legacy_ticket_folder(self):
-        self.assertNotRegex(self.raw, r"published to `docs/tickets")
-        self.assertNotIn("copies it to `docs/tickets", self.raw)
+        self.assertNotRegex(self.contract_raw, r"published to `docs/tickets")
+        self.assertNotIn("copies it to `docs/tickets", self.contract_raw)
         self.assertIn("nothing writes either any more — the revision is published "
                       "as a folder", self.skill)
 
@@ -1139,7 +1169,7 @@ class TestTwoModes(unittest.TestCase):
             self.assertIn(reader, tail)
 
     def test_the_result_records_the_new_paths(self):
-        block = re.search(r'(?s)"states": \{(.*?)\}', self.raw).group(1)
+        block = re.search(r'(?s)"states": \{(.*?)\}', self.contract_raw).group(1)
         self.assertIn("docs/development/wishlist/SHOP-123/analysis/README.md", block)
         self.assertIn("docs/development/wishlist/SHOP-123/analysis/wishlist-sharing.md",
                       block)
@@ -1153,7 +1183,7 @@ class TestTheFeature(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.raw = read(SKILL_PATH)
+        cls.raw = skill_contract()
         cls.skill = norm(cls.raw)
         cls.analyst = norm(agent("analyst"))
 
@@ -1198,7 +1228,7 @@ class TestTicketlessFrontMatter(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.raw = read(SKILL_PATH)
+        cls.raw = skill_contract()
         cls.spec = flag_values(cls.raw, "--require")[0]
 
     def test_the_discovery_example_passes_the_feature_spec(self):
@@ -1230,9 +1260,9 @@ class TestAnalysisIsAFolder(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.raw = read(SKILL_PATH)
+        cls.raw = skill_contract()
         cls.skill = norm(cls.raw)
-        cls.analyst = norm(agent("analyst"))
+        cls.analyst = norm(agent_contract("analyst"))
         cls.impact = norm(agent("impact-analyst"))
         cls.reviewer = norm(agent("impact-reviewer"))
 
@@ -1281,7 +1311,7 @@ class TestAnalysisIsAFolder(unittest.TestCase):
     def test_every_reader_opens_the_readme_first(self):
         for skill in self.READERS:
             with self.subTest(skill=skill):
-                body = norm(read(os.path.join(PLUGIN, "skills", skill, "SKILL.md")))
+                body = norm(skill_text.skill_contract(skill))
                 self.assertIn("README.md", body)
                 self.assertNotIn("features/<feature>/analysis.md", body)
         protocol = norm(read(os.path.join(PLUGIN, "skills", "code", "references",
@@ -1291,7 +1321,7 @@ class TestAnalysisIsAFolder(unittest.TestCase):
         for skill in ("create-impl-plan", "create-test-docs", "create-design",
                       "create-api-contract"):
             with self.subTest(legacy=skill):
-                body = norm(read(os.path.join(PLUGIN, "skills", skill, "SKILL.md")))
+                body = norm(skill_text.skill_contract(skill))
                 self.assertIn("a legacy single `analysis.md` is read whole", body)
 
 

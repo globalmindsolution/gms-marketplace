@@ -19,7 +19,11 @@ tests/acs/test_code_loop_topology.py. Stdlib only (os, re, unittest). Run:
 import io
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from skill_text import skill_contract  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -87,6 +91,17 @@ def _code_contract():
 def read(path):
     with open(path, encoding="utf-8") as fh:
         return fh.read()
+
+
+def impl_plan_contract():
+    """What the skill SAYS: SKILL.md with the `references/` it points at read
+    in place. Progressive disclosure moved the plan's shape, the judge-slice
+    and messaging rules, the user-interaction arms, approval and the result
+    states behind one-line pointers; a pin on what the skill says reads them
+    where the pointer stands, so order and section slices still measure what
+    they did. Pins on SKILL.md itself (front matter, which headings it keeps)
+    read IMPL_PLAN_SKILL."""
+    return skill_contract("create-impl-plan")
 
 
 def norm(body):
@@ -157,7 +172,7 @@ class PlanContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        cls.body = impl_plan_contract()
         cls.norm = norm(cls.body)
 
     def test_the_contract_block_and_its_three_readers_are_named(self):
@@ -345,7 +360,7 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        cls.body = impl_plan_contract()
 
     def _section(self):
         return slice_between(self.body, "### Plan approval", "### Docs-only tickets")
@@ -360,7 +375,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         docs_only_idx = self.body.index("### Docs-only tickets")
         self.assertGreater(approval_idx, plan_idx)
         self.assertLess(approval_idx, docs_only_idx)
-        self.assertNotIn("### Plan revocation", self.body)
+        self.assertNotIn("### Plan revocation", read(IMPL_PLAN_SKILL))
 
     def test_subsection_says_which_paths_bind_and_where_the_call_went(self):
         section_norm = norm(self._section())
@@ -382,7 +397,7 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     def test_script_is_the_sole_writer_of_the_record(self):
         # The prohibition travelled with the call site, to the deep legs.
-        section_norm = norm(read(os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")))
+        section_norm = norm(impl_plan_contract())
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), section_norm):
             window = section_norm[max(0, m.start() - 250):m.end() + 250]
@@ -455,7 +470,7 @@ class ResultDocumentStatesTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        cls.body = impl_plan_contract()
         cls.post = read(POST_HOOK)
 
     def test_finish_example_carries_all_three_states(self):
@@ -491,7 +506,7 @@ class OversizeSplitSignalTest(unittest.TestCase):
         cls.item2 = slice_between(
             body, "2. **Executor decomposition with a file map.**",
             "3. **Test strategy per spec")
-        cls.skill_body = read(IMPL_PLAN_SKILL)
+        cls.skill_body = impl_plan_contract()
 
     def test_rubric_numbers_present(self):
         for token in ("~4", "~400", "~7", "create-ticket/SKILL.md"):
@@ -564,7 +579,7 @@ class DocGraphGapTest(unittest.TestCase):
             body, "4. **Documentation map — docs are part of the change.**",
             "5. **Risks.**")
         cls.item4_norm = norm(cls.item4)
-        skill = read(IMPL_PLAN_SKILL)
+        skill = impl_plan_contract()
         cls.bullet = slice_between(
             skill, "- The documentation map: whether any factual",
             "- Risks, and what a reviewer")
@@ -698,7 +713,7 @@ class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.norm = norm(read(IMPL_PLAN_SKILL))
+        cls.norm = norm(impl_plan_contract())
         cls.analyze = norm(read(os.path.join(SKILLS_DIR, "analyze-requirements", "SKILL.md")))
 
     def test_the_plan_skill_carries_open_proposals_instead_of_asking(self):
@@ -732,10 +747,10 @@ class ParallelismTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.skill = _flat(read(IMPL_PLAN_SKILL))
+        cls.skill = _flat(impl_plan_contract())
         cls.rerun = _flat(read(IMPL_PLAN_RERUN_REF))
         cls.reviewer = _flat(read(IMPL_PLAN_REVIEWER))
-        cls.raw = read(IMPL_PLAN_SKILL)
+        cls.raw = impl_plan_contract()
 
     def test_the_planner_stays_single_and_says_why(self):
         self.assertIn("Writer — one planner, never sliced.", self.skill)

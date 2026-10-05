@@ -23,6 +23,9 @@ import subprocess
 import sys
 import unittest
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SKILLS = os.path.join(ROOT, "plugins", "acs", "skills")
 ACS = os.path.join(ROOT, "plugins", "acs", "hooks", "scripts", "acs.py")
@@ -48,8 +51,10 @@ ANALYSIS_SECTION = "### Where the analysis goes — share or keep local, in the 
 
 
 def _read(skill):
-    with open(os.path.join(SKILLS, skill, "SKILL.md"), encoding="utf-8") as fh:
-        return fh.read()
+    """What the skill SAYS: SKILL.md with its `references/` inlined where it
+    points at them (tests/acs/skill_text.py), so a share section whose
+    conditional arms moved behind a pointer is still read whole."""
+    return skill_text.skill_contract(skill)
 
 
 def _norm(text):

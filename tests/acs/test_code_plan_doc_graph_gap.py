@@ -25,7 +25,11 @@ Stdlib-only (os, re, unittest, importlib.util). Run:
 import importlib.util
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from skill_text import skill_contract  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -169,7 +173,9 @@ class PlanSkillPointerSentenceTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        # The bullet moved to `references/plan-shape.md` (progressive
+        # disclosure); the contract text reads it where SKILL.md points.
+        cls.body = skill_contract("create-impl-plan")
         start = cls.body.index("- The documentation map: whether any factual")
         end = cls.body.index("- Risks, and what a reviewer")
         cls.bullet = cls.body[start:end]
