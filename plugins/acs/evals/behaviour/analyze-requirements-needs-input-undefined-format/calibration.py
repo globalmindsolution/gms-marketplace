@@ -2,7 +2,7 @@
 
 IDEAL follows references/not-ready-for-planning.md through the plugin's own
 writers: `acs step start`, the blocking question recorded OPEN with
-`clarify.py add` (no --answer), the not-ready draft, the Publish copy left
+`clarify.py add` (no --answer), the not-ready draft folder (ADR-0133), the Publish copy left
 uncommitted (ADR-0127), then result.json as an interrupted step with
 stop_reason needs_input, and the post-hook."""
 
@@ -14,7 +14,12 @@ SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-customer-export-for-finance"
-ANALYSIS = "---\nticket: EVAL-1\nready_for_planning: false\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Customer export for finance\n\n## Problem restated\n\nFinance needs every customer in a file their accounting system imports.\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | new export built on `list_customers` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents the export | README.md:5 |\n\n## Questions\n\n- C-1 which accounting system and import format — OPEN: blocks; every\n  format we could pick (CSV, OFX, a vendor schema) may be the wrong one.\n\n## Assumptions\n\n- Export columns follow the fields `list_customers` returns.\n\n## Risks\n\n- A new public endpoint (README.md's API section).\n\n## Refined acceptance criteria\n\nAC-2 cannot be tested until C-1 names the target format.\n\n## Verdict\n\nNot ready for planning: C-1 is open and blocks the build.\n"
+README = "---\nticket: EVAL-1\nready_for_planning: false\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Customer export for finance\n\n## Scope and summary\n\nFinance needs every customer in a file their accounting system imports.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer export | [customer-export.md](customer-export.md) | how finance gets every customer in a file |\n\n## Refined acceptance criteria\n\nAC-2 cannot be tested until C-1 names the target format.\n\n## Cross-cutting risks and decisions\n\n- A new public endpoint (README.md's API section).\n\n## Questions and assumptions\n\n- C-1 which accounting system and import format — OPEN: blocks; every\n  format we could pick (CSV, OFX, a vendor schema) may be the wrong one.\n\nAssumptions:\n\n- Export columns follow the fields `list_customers` returns.\n\n## Verdict\n\nNot ready for planning: C-1 is open and blocks the build.\n"
+
+CONTEXT = "---\ncontext: customer-export\n---\n\n# Customer export\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | new export built on `list_customers` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents the export | README.md:5 |\n\n## Rules and edge cases\n\n_None._\n\n## Risks\n\n- A new public endpoint (README.md's API section).\n\n## Open questions\n\n_None._\n\n## API notes\n\n_None._\n"
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "customer-export.md": CONTEXT}
 
 def _written(ws):
     """What the run records in `states.files`: the repo paths it wrote and
@@ -36,10 +41,19 @@ def _finish(ws, status="completed", ready=True, api_surface=True, questions_open
           % (SCRIPTS, STEP))
 
 
-def _publish(ws, text):
-    """The Publish copy, left uncommitted on the checked-out branch (ADR-0127)."""
-    ws.write(STEP + "/analysis.md", text)
-    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/analysis.md" docs/development/customer-listing/EVAL-1/analysis.md' % STEP)
+def _publish(ws, files):
+    """The draft folder, then the Publish copy of every file, left uncommitted
+    on the checked-out branch (ADR-0127, ADR-0133)."""
+    for name, text in files.items():
+        ws.write(STEP + "/iter-1/analysis/" + name, text)
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1/analysis && cp "%s"/iter-1/analysis/*.md docs/development/customer-listing/EVAL-1/analysis/' % STEP)
+
+
+def _edit(files, old, new):
+    """Every file of the folder with `old` replaced by `new`."""
+    out = {n: t.replace(old, new) for n, t in files.items()}
+    assert out != files, old
+    return out
 
 
 def _clarify(ws, question, answer=None, source=None, rationale=None):
@@ -69,8 +83,8 @@ def _guessed_csv(ws):
     """Assumed CSV, declared the ticket ready and completed."""
     _start(ws)
     _clarify(ws, "Which file format does finance import?", "CSV", "assumption", "most common")
-    ready = (ANALYSIS.replace("ready_for_planning: false", "ready_for_planning: true")
-             .replace("OPEN: blocks", "assumed CSV"))
+    ready = _edit(_edit(ANALYSIS, "ready_for_planning: false", "ready_for_planning: true"),
+                  "OPEN: blocks", "assumed CSV")
     _publish(ws, ready)
     _finish(ws)
 

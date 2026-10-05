@@ -86,7 +86,8 @@ def front_matter_spec(ticket_id, phase=None):
 
 
 def context_front_matter_spec(phase=None):
-    """A context file's front-matter spec for a run."""
+    """A context file's front-matter spec: the version keys on a run with no
+    ticket in Discovery -- exactly when README.md carries them."""
     return DISCOVERY_CONTEXT_FRONT_MATTER_SPEC if phase == "discovery" \
         else CONTEXT_FRONT_MATTER_SPEC
 
@@ -309,8 +310,8 @@ def _read(folder, name):
         return handle.read()
 
 
-def _lint(dimension_findings, name, findings):
-    return [_finding(dimension_findings, name, f.line, f.rule, f.message) for f in findings]
+def _lint(dimension, name, findings):
+    return [_finding(dimension, name, f.line, f.rule, f.message) for f in findings]
 
 
 def check_folder(folder, ticket_id=None, phase=None):
@@ -350,7 +351,9 @@ def check_folder(folder, ticket_id=None, phase=None):
         findings.append(_finding("structure", None, 0, "no-context-files",
                                  "an analysis holds at least one context file beside "
                                  "README.md"))
-    spec = front_matter_check.parse_spec(context_front_matter_spec(phase))
+    # The context files carry the version keys exactly when the README does.
+    spec = front_matter_check.parse_spec(
+        context_front_matter_spec(None if ticket_id else phase))
     for name in contexts:
         findings += _check_context(folder, name, spec, readme_front, front_matter_check,
                                    structure_lint)

@@ -5,10 +5,10 @@ description: >-
   clarification ledger. The skill should reconcile (context.reconcile, the
   handoff summary), reuse the recorded answers rather than re-asking or re-
   recording them -- one of them, a maximum page size of 250, exists only in
-  the ledger -- publish analysis.md (uncommitted) and close the step as a
+  the ledger -- publish the analysis folder (uncommitted) and close the step as a
   second, completed invocation.
 expected_outcome: >-
-  docs/development/customer-listing/EVAL-1/analysis.md exists and carries the ledger-only answer
+  docs/development/customer-listing/EVAL-1/analysis/README.md exists and carries the ledger-only answer
   250; the clarification ledger still holds exactly one maximum-page-size
   question; the step's state.json records the interrupted invocation followed
   by a completed one; main is still checked out with nothing committed.

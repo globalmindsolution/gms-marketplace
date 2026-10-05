@@ -1085,9 +1085,20 @@ no anchor. Findings: `broken-link` (a link that resolves to no file in the
 folder), `unlisted-context` (a context file the table does not link),
 `no-contexts` (a table that lists none).
 
+Each finding names `file: analysis/<name>` with the text `line N: [rule] msg`;
+besides `front_matter_check` / `structure_lint`'s own rules, the folder rules are
+`missing-folder`, `missing-readme`, `index-file`, `bad-name`, `unexpected-entry`,
+`unreadable`, `no-contexts-table`, `unlinked-row`, `bad-link`, `broken-link`,
+`no-contexts`, `unlisted-context`, `no-context-files`, `context-mismatch` and
+`feature-mismatch`. The controller's `draft` action names the folder (`draft`),
+its `readme`, the `previous_draft` already copied in on n ≥ 2, and the `shape`
+it must have; the `review` action lists `draft_files`, README first.
+
 **A context file `<slug>.md`** — one bounded context, named in plain words.
-Front matter `context: <slug>`, equal to the file stem; on Discovery also
-`feature`, `status`, `version`, `tickets`. Title `# <Context name in plain
+Front matter `context: <slug>`, equal to the file stem; on a Discovery run with
+no ticket — exactly when README carries the version keys — also `feature`,
+`status`, `version`, `tickets`. A `feature`, wherever present beside README's,
+must equal it. Title `# <Context name in plain
 words>` (not checked). Required `##` headings, in this order, each non-empty
 (`_None._` counts as content):
 

@@ -3,7 +3,7 @@
 # LOCAL (ADR-0132): .acs/settings.json, committed, records
 # docs.share_run_documents false. `acs.py docs where --doc analysis.md` then
 # needs nothing and resolves the analysis to the run's own state folder,
-# steps/analyze-requirements/local/analysis.md -- so the run must not ask, must
+# steps/analyze-requirements/local/analysis/ -- so the run must not ask, must
 # not publish anything under docs/, and names the choice in its report. The
 # PRD, the architecture set and story EVAL-1 are cursor-pagination's.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.

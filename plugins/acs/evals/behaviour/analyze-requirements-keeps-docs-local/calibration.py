@@ -3,9 +3,9 @@
 The team saved "keep run documents local" (ADR-0132). IDEAL does what the
 coordinator does, through the plugin's own CLIs: `acs step start`, `acs.py docs
 where --doc analysis.md` (which must need nothing and resolve the analysis to
-the run's `steps/analyze-requirements/local/analysis.md`), the relayed answers
-into the ledger, the draft, the publish to that local path -- the `where`'s
-`abs_path`, which `artifacts show` reports too -- and result.json with no repo
+the run's `steps/analyze-requirements/local/analysis/` folder), the relayed
+answers into the ledger, the draft folder (ADR-0133), the publish to that local
+folder -- the `where`'s `abs_path`, whose README `artifacts show` reports -- and result.json with no repo
 file and the post-hook. Nothing is asked and nothing is saved.
 """
 
@@ -15,10 +15,11 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
-LOCAL = STEP + "/local/analysis.md"
-SHARED = "docs/development/customer-listing/EVAL-1/analysis.md"
+LOCAL = STEP + "/local/analysis"
+SHARED = "docs/development/customer-listing/EVAL-1/analysis"
+DRAFT = STEP + "/iter-1/analysis"
 
-ANALYSIS = """---
+README = """---
 ticket: EVAL-1
 ready_for_planning: true
 api_surface: true
@@ -27,11 +28,46 @@ needs_design_recommendation: false
 
 # Analysis — EVAL-1: Cursor pagination for GET /customers
 
-## Problem restated
+## Scope and summary
 
 Offset paging on GET /customers skips or repeats customers when rows are
 inserted between page requests. Clients need an opaque cursor that walks every
 customer exactly once, while existing offset clients keep working.
+
+## Contexts
+
+| Context | File | Purpose |
+|---|---|---|
+| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |
+
+## Refined acceptance criteria
+
+The three criteria on the ticket are confirmed as written.
+
+## Cross-cutting risks and decisions
+
+- Public API: GET /customers is documented in README.md and called by
+  clients; `offset` must keep working (src/shop/__init__.py, README.md).
+
+## Questions and assumptions
+
+- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.
+- C-2 offset compatibility — answered: kept, deprecated; cursor wins.
+- C-3 limit bounds — answered: default 20, maximum 100.
+- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.
+
+Assumptions: none.
+
+## Verdict
+
+Ready for planning; api_surface true; no design needed.
+"""
+
+CONTEXT = """---
+context: customer-listing
+---
+
+# Customer listing
 
 ## Impact map
 
@@ -41,14 +77,7 @@ customer exactly once, while existing offset clients keep working.
 | tests/test_customers.py | tests | new unit tests for cursor paging | tests/ holds only test_health.py |
 | README.md | docs | API section documents `cursor` and `next_cursor` | README.md:7 |
 
-## Questions
-
-- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.
-- C-2 offset compatibility — answered: kept, deprecated; cursor wins.
-- C-3 limit bounds — answered: default 20, maximum 100.
-- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.
-
-## Assumptions
+## Rules and edge cases
 
 _None._
 
@@ -57,14 +86,17 @@ _None._
 - Public API: GET /customers is documented in README.md and called by
   clients; `offset` must keep working (src/shop/__init__.py, README.md).
 
-## Refined acceptance criteria
+## Open questions
 
-The three criteria on the ticket are confirmed as written.
+_None._
 
-## Verdict
+## API notes
 
-Ready for planning; api_surface true; no design needed.
+_None._
 """
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "customer-listing.md": CONTEXT}
 
 ANSWERS = [
     ("How is the cursor encoded?", "URL-safe base64 of the last customer id"),
@@ -86,12 +118,18 @@ def _start(ws):
     assert info["share_scope"] == "team", info
     assert info["abs_path"].replace(os.sep, "/").endswith(LOCAL), info
     shown = json.loads(ws.acs("artifacts", "show").stdout)
-    assert shown["paths"]["analysis.md"].replace(os.sep, "/").endswith(LOCAL), shown
+    assert shown["paths"]["analysis.md"].replace(os.sep, "/").endswith(LOCAL + "/README.md"), shown
     for question, answer in ANSWERS:
         ws.sh('python3 "%s/clarify.py" add --skill analyze-requirements --ticket EVAL-1 '
               '--question "%s" --answer "%s"' % (SCRIPTS, question, answer))
-    ws.write(STEP + "/analysis.md", ANALYSIS)
+    for name, text in ANALYSIS.items():
+        ws.write(DRAFT + "/" + name, text)
     return info
+
+
+def _copy(ws, target):
+    """The publish copy: every file of the draft folder, byte for byte."""
+    ws.sh('mkdir -p "%s" && cp "%s"/*.md "%s"/' % (target, DRAFT, target))
 
 
 def _finish(ws, files=()):
@@ -111,8 +149,7 @@ REPLY = ("## /acs:analyze-requirements · EVAL-1 · completed\n\n"
 
 def IDEAL(ws):
     info = _start(ws)
-    ws.sh('mkdir -p "$(dirname "%s")" && cp "%s/analysis.md" "%s"'
-          % (info["abs_path"], STEP, info["abs_path"]))
+    _copy(ws, info["abs_path"])
     _finish(ws)
     ws.reply = REPLY
 
@@ -126,8 +163,8 @@ def _started_only(ws):
 def _published_anyway(ws):
     """Ignored the saved default and published to the Development folder."""
     _start(ws)
-    ws.sh('mkdir -p "$(dirname "%s")" && cp "%s/analysis.md" "%s"' % (SHARED, STEP, SHARED))
-    _finish(ws, [SHARED])
+    _copy(ws, SHARED)
+    _finish(ws, [SHARED + "/README.md", SHARED + "/customer-listing.md"])
     ws.reply = REPLY.replace("kept local (team default)", "published")
 
 
@@ -136,8 +173,7 @@ def _asked_and_resaved(ws):
     info = _start(ws)
     decided = ws.acs("docs", "decide", "--share", "no", "--scope", "user")
     assert decided.returncode == 0, decided.stderr
-    ws.sh('mkdir -p "$(dirname "%s")" && cp "%s/analysis.md" "%s"'
-          % (info["abs_path"], STEP, info["abs_path"]))
+    _copy(ws, info["abs_path"])
     _finish(ws)
     ws.reply = REPLY
 
@@ -145,8 +181,7 @@ def _asked_and_resaved(ws):
 def _silent_about_it(ws):
     """Kept it local but never said so: the reader looks for a docs/ file."""
     info = _start(ws)
-    ws.sh('mkdir -p "$(dirname "%s")" && cp "%s/analysis.md" "%s"'
-          % (info["abs_path"], STEP, info["abs_path"]))
+    _copy(ws, info["abs_path"])
     _finish(ws)
     ws.reply = "## /acs:analyze-requirements · EVAL-1 · completed\n\nReady for planning."
 

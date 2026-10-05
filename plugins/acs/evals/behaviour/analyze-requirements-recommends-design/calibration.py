@@ -15,7 +15,12 @@ SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-live-order-tracking-from-carrier-updates"
-ANALYSIS = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: true\n---\n\n# Analysis — EVAL-1: Live order tracking from carrier updates\n\n## Problem restated\n\nCarriers push shipment status to the shop; the shop stores every change per\norder, serves the latest, and emails the shopper.\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | new tracking store, webhook intake, order status | src/shop/__init__.py:1 |\n| docs/architecture/lld/flows.md | docs | new inbound carrier flow | docs/architecture/lld/flows.md:3 |\n\n## Questions\n\n- C-1 how carriers deliver updates — answered: signed webhooks.\n- C-2 design needed — answered: yes, confirmed; needs_design set on the ticket.\n\n## Assumptions\n\n_None._\n\n## Risks\n\n- New inbound surface from third parties (authentication); a new stored shape.\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Verdict\n\nReady for planning once designed; api_surface true; needs a design.\n'
+README = "---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: true\n---\n\n# Analysis — EVAL-1: Live order tracking from carrier updates\n\n## Scope and summary\n\nCarriers push shipment status to the shop; the shop stores every change per\norder, serves the latest, and emails the shopper.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Carrier tracking | [carrier-tracking.md](carrier-tracking.md) | how carrier updates become an order's status |\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- New inbound surface from third parties (authentication); a new stored shape.\n\n## Questions and assumptions\n\n- C-1 how carriers deliver updates — answered: signed webhooks.\n- C-2 design needed — answered: yes, confirmed; needs_design set on the ticket.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning once designed; api_surface true; needs a design.\n"
+
+CONTEXT = '---\ncontext: carrier-tracking\n---\n\n# Carrier tracking\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | new tracking store, webhook intake, order status | src/shop/__init__.py:1 |\n| docs/architecture/lld/flows.md | docs | new inbound carrier flow | docs/architecture/lld/flows.md:3 |\n\n## Rules and edge cases\n\n_None._\n\n## Risks\n\n- New inbound surface from third parties (authentication); a new stored shape.\n\n## Open questions\n\n_None._\n\n## API notes\n\n_None._\n'
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "carrier-tracking.md": CONTEXT}
 
 def _written(ws):
     """What the run records in `states.files`: the repo paths it wrote and
@@ -37,10 +42,19 @@ def _finish(ws, status="completed", ready=True, api_surface=True, questions_open
           % (SCRIPTS, STEP))
 
 
-def _publish(ws, text):
-    """The Publish copy, left uncommitted on the checked-out branch (ADR-0127)."""
-    ws.write(STEP + "/analysis.md", text)
-    ws.sh('mkdir -p docs/development/order-tracking/EVAL-1 && cp "%s/analysis.md" docs/development/order-tracking/EVAL-1/analysis.md' % STEP)
+def _publish(ws, files):
+    """The draft folder, then the Publish copy of every file, left uncommitted
+    on the checked-out branch (ADR-0127, ADR-0133)."""
+    for name, text in files.items():
+        ws.write(STEP + "/iter-1/analysis/" + name, text)
+    ws.sh('mkdir -p docs/development/order-tracking/EVAL-1/analysis && cp "%s"/iter-1/analysis/*.md docs/development/order-tracking/EVAL-1/analysis/' % STEP)
+
+
+def _edit(files, old, new):
+    """Every file of the folder with `old` replaced by `new`."""
+    out = {n: t.replace(old, new) for n, t in files.items()}
+    assert out != files, old
+    return out
 
 
 def _clarify(ws, question, answer=None, source=None, rationale=None):
@@ -97,8 +111,8 @@ def _recommended_only(ws):
 def _no_recommendation(ws):
     """Judged no design needed."""
     _start(ws)
-    _publish(ws, ANALYSIS.replace("needs_design_recommendation: true",
-                                  "needs_design_recommendation: false"))
+    _publish(ws, _edit(ANALYSIS, "needs_design_recommendation: true",
+                       "needs_design_recommendation: false"))
     _finish(ws)
 
 

@@ -1,9 +1,9 @@
 ---
 type: regex
-target: { source: file, path: docs/development/customer-listing/EVAL-1/analysis.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/analysis/README.md }
 pattern: '^-{3}\n(?:[a-z_]+:[^\n]*\n)*ready_for_planning:[ \t]*false[ \t]*\n(?:[a-z_]+:[^\n]*\n)*-{3}'
 ---
 
 A not-ready analysis is still published -- "the artifact the answers come back
-to" -- and its machine-read front matter says `ready_for_planning: false`. A
+to" -- and its README's machine-read front matter says `ready_for_planning: false`. A
 guessed format published as ready, or nothing published, fails.
