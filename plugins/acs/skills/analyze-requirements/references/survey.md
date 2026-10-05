@@ -3,10 +3,11 @@
 Open this before the `plan` action: how the run's mode and folders are
 derived, what the context fields and the keys `acs.py artifacts show` prints
 mean for this run, which inputs every survey lane is named, and what each
-lane records. The questions the survey ends with are SKILL.md's Stage 1.
+lane records, down to the four groups of questions the survey ends with.
 
 **Where the cross-references below point.** "Two modes", "Stage 1",
-"Stage 2", "Stage 3" and "The feature" are SKILL.md's sections.
+"Stage 2" and "Stage 3" are SKILL.md's sections; "The feature" is
+`references/clarify.md`.
 
 ## The mode and the folders
 
@@ -26,6 +27,13 @@ record it — `acs.py analysis plan --mode discovery` when you declare the
 lanes, or `{"phase": "discovery"}` with `acs.py requirements refine`.
 
 ## The context fields, in full
+
+`--args` is the invocation's raw argument text — the ticket id, document paths
+and prompt, in any order and any mix. `step start` parses it into the run's
+sources (a `<PREFIX>-<n>` token is a ticket, a token naming an existing file is
+a document, everything else is the prompt), copies a document from outside
+the repo into the run and hashes it, and writes the run's `requirements.md`;
+on a host whose Skill pre-hook already did this it is idempotent.
 
 In `context.requirements`, `path` is the run's
 `requirements.md` — the ticket's title, description and acceptance criteria
@@ -142,3 +150,24 @@ entry and the bounded context it belongs to, named in plain words, the
 API-surface evidence, the code risks and the seams into other areas. The notes are what
 the impact reviewer checks the draft against; a draft with no notes is a
 blocking finding. No lane writes the draft.
+
+**The survey ends with `## Questions for the user`**, in four groups — the
+whole of what Stage 2 takes to the user:
+
+- **(a) Open questions** the code and docs cannot answer — the answer changes
+  the impact map, the acceptance criteria or the verdict. Each says what the
+  analysis would proceed on if it stays unanswered, or that it blocks
+  (every default could build the wrong thing).
+- **(b) Conventional defaults** the analysis would assume — each phrased
+  `Assumed: <default> — confirm or correct`.
+- **(c) Proposed refined acceptance criteria** — the rewrite of each
+  ambiguous, untestable or contradicted criterion, and each missing one.
+- **(d) A needs_design recommendation**, when the survey has one, and the
+  **feature**: a `features` correction when the PRD features the work touches
+  differ from the requirements' `features`, and — when the run has no feature
+  yet (`context.requirements.feature` null and no ticket `features`) — the
+  PRD feature slugs it most likely belongs to, best first, or a new slug when
+  none fits (slugs, `acs.py slug --text "<PRD feature name>"`; ADR-0120).
+
+Researchable facts are never questions: the survey reads the code, the docs,
+the ledger and the previous analysis instead. An empty group says `_None._`.

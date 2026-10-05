@@ -5,7 +5,8 @@ were relayed — the definition is the first paragraph below. A run with a
 reachable user reads none of it: every question goes in the one grouped ask.
 
 **Where the cross-references below point.** "Where the analysis goes" is
-SKILL.md's Stage 2 section.
+SKILL.md's Stage 2 section; its share and location questions are
+`references/clarify.md`.
 
 The user is unreachable when this session cannot ask — AskUserQuestion is not
 available or returns nothing (a non-interactive run: `claude -p`, an eval, a

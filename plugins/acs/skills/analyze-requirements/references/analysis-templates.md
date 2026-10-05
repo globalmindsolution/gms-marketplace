@@ -11,12 +11,14 @@ must name. The survey and the synthesis need none of it.
 The `draft` pass writes a folder for people first: plain-word headings, short
 sections, a README someone can read without opening anything else. Every file
 name is `README.md` or kebab-case `.md` made of plain words (no `index.md`, no
-subfolder, nothing else). The README's front matter is machine-read:
-`api_surface` is what `workflows/ship.yaml`'s `api_surface_changed` predicate
-and the `/acs:create-api-contract` gate use to decide whether an API contract
-is written at all. Emit exactly these keys, with these types, and exactly these
-headings in this order (the task's `<constraint name="mode">` and
-`<constraint name="feature">` say which front matter applies).
+subfolder, nothing else). The analysis is read by machines as well as people:
+the README's front-matter `api_surface` is what `workflows/ship.yaml`'s
+`api_surface_changed` predicate and the `/acs:create-api-contract` gate read to
+decide whether an API contract is written for this change at all — so the front
+matter is part of the deliverable, not decoration. Emit exactly these keys, with
+these types, and exactly these headings in this order (the task's
+`<constraint name="mode">` and `<constraint name="feature">` say which front
+matter applies).
 
 The folder holds two kinds of file.
 
@@ -170,6 +172,13 @@ needs_design_recommendation: false
 ```
 
 ## What the review holds the draft to
+
+This skill is where the requirements' ambiguities are SUPPOSED to surface, so the
+README's `## Questions and assumptions` and the ledger are the same set of
+facts in two places: every question is a ledger entry, and that section names
+each entry by its `C-n` id and its status, so the next skill can see what is
+still open. A question that concerns one context only is also listed in that
+context file's `## Open questions`, by the same `C-n`.
 
 What each section carries is defined above; the
 contract that matters here is that every context file's `## Impact map` is a

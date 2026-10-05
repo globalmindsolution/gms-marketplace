@@ -1,8 +1,11 @@
-# /acs:analyze-requirements — the result document's `states`
+# /acs:analyze-requirements — the result document and the report
 
-Read this at Finish, before you write `steps/analyze-requirements/result.json`
-(the example is SKILL.md's): what each canonical `states` key means and
-must equal, and what a failed run keeps.
+Read this at Finish: before you write `steps/analyze-requirements/result.json`
+(the example is SKILL.md's), what each canonical `states` key means and
+must equal, and what a failed run keeps; before you report a direct
+invocation, what its summary covers.
+
+## The `states` keys
 
 Canonical `states` keys — EXACT names; `acs step finish` documents
 them and the next steps read them:
@@ -29,3 +32,20 @@ The needs_design recommendation is applied through its own CLI
 whatever is true: `ready_for_planning: false`, the open findings in
 `findings`, and the reason (`stalled`, the iteration cap, needs input) in
 `summary` — the `failed` action's `stop_reason` and `reason`, verbatim.
+
+## The direct-invocation summary
+
+- Direct invocation: a compact summary — the verdict, the contexts it
+  split the analysis into, the impact maps' component/file/test counts, what changed since the previous analysis
+  when there was one, whether an API surface changes, the questions asked
+  and answered (or "Stage 2 skipped"), the feature it is filed under, the
+  criteria and needs_design confirmed into the requirements (and the
+  ticket), any proposal still awaiting the user, open questions, where the
+  analysis went ("shared to docs/development/…", "kept local (team
+  default)", "kept local (this run only)"), the uncommitted files it left in
+  the working tree, and the next step — on a
+  Development run `/acs:create-impl-plan <id>` (`/acs:create-pr <id>` later
+  commits everything the Development steps wrote); on a Discovery run the
+  Design skills that read the feature's analysis (`/acs:create-design`,
+  `/acs:create-data-design <feature>`, `/acs:create-flows <feature>`) or
+  `/acs:create-ticket` to turn it into delivery work.

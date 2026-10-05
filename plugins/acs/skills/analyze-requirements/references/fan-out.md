@@ -113,7 +113,9 @@ slice". A failed iteration's blocking findings are the next `draft` action's
   `context.agents.<role>` — the plugin's `acs:analyze-requirements-<role>`, or the
   generated `acs-analyze-requirements-<role>` copy `acs step start` wrote where
   `settings.models` sets a model or effort for it. Model and effort travel with
-  that agent, so pass none of your own. If the runtime rejects the agent, FAIL
+  that agent, so pass none of your own: the analyst's, impact analysts'
+  and impact reviewer's model and effort come from
+  `settings.models.analyze-requirements.<role>` (inheriting when unset). If the runtime rejects the agent, FAIL
   the run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass

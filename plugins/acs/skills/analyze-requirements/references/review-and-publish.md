@@ -6,7 +6,8 @@ draft of a run needs only SKILL.md's Stage 3 and
 `references/analysis-templates.md`.
 
 **Where the cross-references below point.** "Two modes", "Stage 1",
-"Stage 2", "Stage 3" and "The feature" are SKILL.md's sections.
+"Stage 2" and "Stage 3" are SKILL.md's sections; "The feature" is
+`references/clarify.md`.
 
 ## Revising the draft — iteration ≥ 2
 

@@ -39,12 +39,6 @@ tests, no repo docs other than the analysis folder (and the requirement refineme
 the user confirms): `/acs:create-impl-plan` decides HOW the change is built,
 and this analysis is what it plans from.
 
-The analysis is read by machines as well as people. Its README's front-matter
-`api_surface` is what `workflows/ship.yaml`'s `api_surface_changed` predicate
-and the `/acs:create-api-contract` gate read to decide whether an API contract
-is written for this change at all — so the front matter is part of the
-deliverable, not decoration.
-
 ## Two modes — Discovery and Development
 
 The same three stages run in both; what differs is what the analysis is OF and
@@ -88,13 +82,6 @@ MANDATORY first action — run exactly:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step analyze-requirements --args "$ARGUMENTS"
 ```
 
-`--args` is the invocation's raw argument text — the ticket id, document paths
-and prompt, in any order and any mix. `step start` parses it into the run's
-sources (a `<PREFIX>-<n>` token is a ticket, a token naming an existing file is
-a document, everything else is the prompt), copies a document from outside
-the repo into the run and hashes it, and writes the run's `requirements.md`;
-on a host whose Skill pre-hook already did this it is idempotent.
-
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
 improvise a workaround — `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/blocked.md`
 says what the gate checks, and what to do if an epic reaches this step anyway.
@@ -118,11 +105,11 @@ Parse the printed context JSON. Fields you will use:
   is repo-relative to it.
 - `design` — `{required, dir, source}`: when `required`, the design that
   bounds the analysis, `<design_doc>` (`references/survey.md` resolves it).
-- `agents` — the agent name to spawn per role; the analyst's, impact analysts'
-  and impact reviewer's model and effort come from
-  `settings.models.analyze-requirements.<role>` (inheriting when unset).
-- `reconcile`, `handoff_summary`, `prior_status` — see
-  `references/resume.md`.
+- `agents` — the agent name to spawn per role (Subagents, below).
+- `reconcile`, `handoff_summary`, `prior_status` — when `reconcile` is true or
+  `handoff_summary` is set, read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/resume.md`
+  first: the reconcile procedure (the controller already knows which action
+  the prior run reached). A fresh run skips it.
 
 Throughout this file `<partition>` means the `partition` path from the context
 JSON, `<id>` means `ticket_id` (e.g. `SHOP-123`) on a run that has a ticket,
@@ -157,31 +144,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 <id>` names it explicitly.)
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/survey.md` once it
-has printed — what each key means for this run (`<previous_analysis>`, the
-publish target, the partition fallback, the feature's living analysis
-`<feature_analysis>`), a feature the invocation names to record BEFORE the
-survey, and the legacy files still read.
-
-## The two references, and when to open each
-
-Nearly all of this skill is one flow: survey, clarify, store. Two parts are
-not, and each is read by exactly one kind of run:
-
-| Open | When |
-|---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/resume.md` | `context.reconcile` or `context.handoff_summary` is set. It carries the reconcile procedure; the controller already knows which action the prior run reached. A fresh run skips it. |
-| `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/not-ready-for-planning.md` | `next` returns `blocked` with `kind: "needs_input"` and the question cannot be settled — still open after Stage 2's follow-up round, or the user is unreachable and a question genuinely blocks (no default could settle it without risking the wrong build). It carries the `ready_for_planning: false` / `needs_input` procedure. Most analyses never open it, and that is the intended outcome. |
+has printed — what each key means (`<previous_analysis>`, `<feature_analysis>`,
+the publish target), and a feature to record BEFORE the survey.
 
 ## Inputs — gather before the survey
 
 Read these yourself and name them by path in the survey lanes' `<inputs>`
 (never inline a file body). Each is read WHEN PRESENT — a missing one is not
-an error, and the requirements alone are enough to analyze from:
-
-Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/survey.md` (The
-inputs, in order) for the seven: the requirements and the documents they
-cite, `<design_doc>`, the PRD and the requirements set, the architecture set,
-the repo itself, the ledger, and `<previous_analysis>` / `<feature_analysis>`.
+an error, and the requirements alone are enough to analyze from: the seven
+`references/survey.md` lists under The inputs, in order.
 
 ## The controller loop
 
@@ -198,7 +169,7 @@ reports it. Use the paths it prints; never derive them yourself. Then:
 
 | `action` | You do | Then report with |
 |---|---|---|
-| `plan` | Declare the code areas, once (Survey lanes below). | `acs.py analysis plan --areas <a>,<b>` (empty → one impact lane over the whole repository; `--mode` only on the user's explicit ask, Two modes above) |
+| `plan` | Declare the code areas, once (Survey lanes, in the fan-out reference). | `acs.py analysis plan --areas <a>,<b>` (empty → one impact lane over the whole repository; `--mode` only on the user's explicit ask, Two modes above) |
 | `survey` | Spawn every lane in `lanes` in ONE message (Stage 1). | `acs.py analysis record-survey` |
 | `synthesize` | Spawn the one synthesis analyst it names (Stage 1). | `acs.py analysis record-synthesis` |
 | `clarify` | Stage 2: ledger first, then one grouped ask. | `acs.py analysis record-clarify` — add `--blocking-open` when a question that blocks planning is still open |
@@ -214,9 +185,8 @@ a separate `next` call. Each reads the snapshots and artifacts ITSELF: you
 pass no verdict, no finding count and no path.
 
 **`blocked`** never spends an iteration. Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/blocked.md`
-when an action returns `blocked` — what each `kind` (`machinery`,
-`agent_failed`, `needs_input`) asks of you, and which `record` verb to call
-again.
+when an action returns `blocked` — what each `kind` asks of you, and which
+`record` verb to call again.
 
 ## Subagents — roles, spawning and messages
 
@@ -230,17 +200,17 @@ Decomposition of the survey into code areas is YOURS alone — subagents
 never spawn subagents.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/fan-out.md` before you
-spawn the first subagent — each analyst task's pass and the iteration cap, the
-one-message fan-out, the survey lanes and the judge slices, what every
-`<task>` and `<result>` carries, and spawning each agent in the foreground.
+spawn the first subagent — the passes and the cap, the one-message fan-out and
+its slices, what every `<task>` and `<result>` carries, and how to spawn.
 
 ## Stage 1 — Impact: survey the codebase
 
 The `survey` action: the analyst's requirements lane records what the
 requirements ASK and one impact lane per code area what code they TOUCH, in
-parallel. Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/survey.md` (What the
-survey records) before you spawn the lanes — what each records, and why a
-draft with no notes is a blocking finding.
+parallel, and the notes end with a `## Questions for the user` in four groups
+(a)–(d) — the whole of what Stage 2 takes to the user. Read
+`${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/survey.md` (What the survey
+records) before you spawn the lanes — what each lane records, and each group.
 
 **Reuse the previous analysis.** When `<previous_analysis>` exists — and on a
 Development run, `<feature_analysis>` — name it in every lane's `<inputs>`:
@@ -248,27 +218,6 @@ the survey starts from it instead of from nothing. Read
 `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/reuse.md` when one exists —
 what each lane re-verifies and carries forward, and the answers re-recorded
 rather than asked again.
-
-**The survey ends with `## Questions for the user`**, in four groups — the
-whole of what Stage 2 takes to the user:
-
-- **(a) Open questions** the code and docs cannot answer — the answer changes
-  the impact map, the acceptance criteria or the verdict. Each says what the
-  analysis would proceed on if it stays unanswered, or that it blocks
-  (every default could build the wrong thing).
-- **(b) Conventional defaults** the analysis would assume — each phrased
-  `Assumed: <default> — confirm or correct`.
-- **(c) Proposed refined acceptance criteria** — the rewrite of each
-  ambiguous, untestable or contradicted criterion, and each missing one.
-- **(d) A needs_design recommendation**, when the survey has one, and the
-  **feature**: a `features` correction when the PRD features the work touches
-  differ from the requirements' `features`, and — when the run has no feature
-  yet (`context.requirements.feature` null and no ticket `features`) — the
-  PRD feature slugs it most likely belongs to, best first, or a new slug when
-  none fits (slugs, `acs.py slug --text "<PRD feature name>"`; ADR-0120).
-
-Researchable facts are never questions: the survey reads the code, the docs,
-the ledger and the previous analysis instead. An empty group says `_None._`.
 
 ### The synthesis pass
 
@@ -322,20 +271,6 @@ still open after that is a blocker: `references/not-ready-for-planning.md`
 carries what to do about it — report it with `record-clarify --blocking-open`.
 Otherwise report the stage with `record-clarify`.
 
-### The feature — named or inferred, in the same ask
-
-Every analysis is filed under a PRD feature (Two modes, above). A ticket run
-takes its ticket's first `features` slug; a run whose requirements name a
-feature (`context.requirements.feature`, or a PRD feature document among the
-sources) takes that one. Otherwise — a ticketless prompt or an attached spec,
-or a ticket with no `features` — the feature is a group-(d) question in the
-SAME grouped ask, never a separate round-trip: offer the PRD feature slugs the
-survey proposed, best first (each from `acs.py slug --text "<PRD feature
-name>"`), and a new slug derived the same way when none fits. Record the
-answer in the ledger and then with `acs.py requirements refine` as
-`{"feature": "<slug>"}` (below) — `acs.py analysis publish` refuses a run that
-has no feature recorded, naming this step.
-
 ### Where the analysis goes — share or keep local, in the same ask (ADR-0132)
 
 Before Stage 2 asks anything, ask acs where the analysis will go:
@@ -352,29 +287,10 @@ always shared, so only its folder can be in question.) Read `needs`:
   state folder (`path`: `steps/analyze-requirements/local/analysis/`), where
   every later step still reads it through `acs.py artifacts show`, never in
   the repo and never in `/acs:create-pr`'s commits.
-- **`share`** → two group-(d) questions in the SAME grouped ask, never a
-  separate one: "share run documents in the repo, or keep them local?" and
-  "save this for you (this machine: `.acs/settings.local.json`) or for the
-  team (`.acs/settings.json`)?"
-- **`location`** → the folder resolves only to acs's built-in default
-  (`location_source: default` — no `docs.*_dir` setting, no existing folder):
-  one group-(d) question — use `proposed_path`, give another repo-relative
-  folder, or keep documents local (the share answer, so its scope is asked
-  too; not offered for `living:prd`). acs never creates a new docs folder
-  without that answer.
 
-Record each answer in the ledger like any other, then save it with ONE call
-carrying only what was answered; it prints the new `where`:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location development=docs/development --doc analysis.md
-```
-
-When the user is not reachable (below) and `needs` is non-empty, a
-Development run keeps the analysis LOCAL for this run only — `acs.py docs decide --share no --scope run`,
-nothing saved — and say so in the report. A Discovery run whose folder is
-still open cannot publish without the answer: finish `interrupted`,
-`stop_reason: "needs_input"`, with the location question in `<questions>`.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/clarify.md` when
+`needs` is not empty — the `share` and `location` questions and how they are
+saved — and when the run has no feature yet: naming or inferring it.
 
 ### Confirmed requirements are refined — and go into the ticket when there is one
 
@@ -409,16 +325,7 @@ as written, on a ticketless run).
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/unreachable-user.md`
 when this session cannot ask and no answers were relayed in a `/acs:ship`
-brief — a conventional default becomes a recorded assumption, a missing
-feature is inferred, and only a question every default could get wrong
-blocks.
-
-This skill is where the requirements' ambiguities are SUPPOSED to surface, so the
-README's `## Questions and assumptions` and the ledger are the same set of
-facts in two places: every question is a ledger entry, and that section names
-each entry by its `C-n` id and its status, so the next skill can see what is
-still open. A question that concerns one context only is also listed in that
-context file's `## Open questions`, by the same `C-n`.
+brief — which defaults become assumptions, and which questions still block.
 
 ## Stage 3 — Store: write, review and publish the analysis for reuse
 
@@ -438,19 +345,15 @@ and writes the analysis folder the action prints as `draft`
 across iterations, never renumbered) and its report `iter-<n>/analyst.json`.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/analysis-templates.md`
-when the `draft` action is due — the README's and each context file's exact
-front matter and headings, what each section carries, and the load-bearing
-surfaces the Risks must name; the analyst reads the same file before it
-writes. Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/review-and-publish.md`
-when a `draft` action carries `findings` (iteration ≥ 2) — how they reach the
-draft pass, and when they go back through Stage 2 first.
+when the `draft` action is due — each file's exact front matter, headings and
+sections (the analyst reads it too) — and `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/review-and-publish.md`
+when it carries `findings` (iteration ≥ 2).
 
 ### Phase: impact reviewer — `acs:analyze-requirements-impact-reviewer`
 
 The `review` action. Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/review-and-publish.md`
-before you spawn its three judge slices in ONE message — what each is given
-and judges, the $0 folder checks `record-draft` already ran beside it, and
-how `record-review` derives the verdict from the slices' snapshots.
+before you spawn its three judge slices in ONE message — what each is given,
+the $0 checks beside it, and how `record-review` derives the verdict.
 
 ### Phase: publish — the controller is the only writer of the analysis
 
@@ -466,10 +369,8 @@ exact bytes that review judged — bytes whose deterministic checks ran clean
 beside that review, and unless the run has a feature (Stage 2, "The
 feature"), and while `docs where` still reports `needs` it exits 2 naming
 `acs.py docs decide` (Stage 2, "Where the analysis goes"). Copy
-`publication.files` into your result's `states.files`. Read
-`${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/review-and-publish.md`
-(Publishing) for what `publish` copies where, the write guard that keeps
-every agent out of the published folder, and who reads it next.
+`publication.files` into your result's `states.files`. What `publish`
+copies where, and who reads it next: `references/review-and-publish.md`.
 
 ## Context pressure
 
@@ -507,7 +408,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/result-states.md`
+   Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/finish.md`
    before you write it — what each of the four `states` keys means and must
    equal, and what a failed run keeps.
 
@@ -521,20 +422,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    until it succeeds.
 
 3. Report:
-   - Direct invocation: a compact summary — the verdict, the contexts it
-     split the analysis into, the impact maps' component/file/test counts, what changed since the previous analysis
-     when there was one, whether an API surface changes, the questions asked
-     and answered (or "Stage 2 skipped"), the feature it is filed under, the
-     criteria and needs_design confirmed into the requirements (and the
-     ticket), any proposal still awaiting the user, open questions, where the
-     analysis went ("shared to docs/development/…", "kept local (team
-     default)", "kept local (this run only)"), the uncommitted files it left in
-     the working tree, and the next step — on a
-     Development run `/acs:create-impl-plan <id>` (`/acs:create-pr <id>` later
-     commits everything the Development steps wrote); on a Discovery run the
-     Design skills that read the feature's analysis (`/acs:create-design`,
-     `/acs:create-data-design <feature>`, `/acs:create-flows <feature>`) or
-     `/acs:create-ticket` to turn it into delivery work.
+   - Direct invocation: a compact summary, then the Completion report below —
+     `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/finish.md` lists what the summary covers.
    - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published analysis's README, `<questions>` when `needs_input`, and
