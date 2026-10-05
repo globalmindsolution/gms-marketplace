@@ -33,23 +33,26 @@ epic, after that epic's own design is approved. Resulting precedence:
    (`parent %s is a %s, not an epic`), so the two can never disagree.
 3. **Design precondition.** Resolve the epic's published design with
    `acs.py artifacts show --ticket <epic-id>` and read
-   `artifacts["design.md"]` — the epic's design record
-   `<architecture_dir>/lld/<feature>/<epic-id>/design.md` in the checkout (a
-   legacy `docs/tickets/<epic-id>/design.md` is still read), or `design.md` in
-   the epic's workspace partition when there was no checkout (`null` = none
-   published) — and the `create-design` step's
-   status in the epic run's `run.json`. When `create-design` has not completed, or
-   `design.md` is absent, surface that to the user and obtain their explicit
-   confirmation before proceeding — never proceed silently, and never
-   hard-refuse; the user may still choose to fan out an undesigned epic.
-4. **Breakdown derivation.** When the epic's `design.md` exists, derive the
+   `artifacts["tech-design.md"]` — the epic's tech design
+   `<architecture_dir>/lld/<feature>/<epic-id>/tech-design.md` in the checkout (a
+   legacy `design.md` there or in `docs/tickets/<epic-id>/` is still read), or
+   the copy in the epic's workspace partition when there was no checkout
+   (`null` = none published) — its status (`acs.py design check <path>`), and
+   the `create-tech-design` step's status in the epic run's `run.json`. When
+   `create-tech-design` has not completed, the tech design is absent, or it is
+   not yet `approved` (`/acs:set-doc-status approved <feature>`), surface that
+   to the user and obtain their explicit confirmation before proceeding —
+   never proceed silently, and never hard-refuse; the user may still choose to
+   fan out an undesigned or unapproved epic.
+4. **Breakdown derivation.** When the epic's `tech-design.md` exists, derive the
    proposed child breakdown from the design's own slice/seam content. The
    built-in template (`templates/design-default.md`) has no slice table: read
-   the seams from its `## Architecture` section (the new/changed components
-   and interfaces — each coherent component or interface change is a
-   candidate child) and the ordering from `## Rollout/migration` (sequencing,
-   migrations, flags, backward compatibility) — plus any slice breakdown a
-   repo's own design template adds. Otherwise derive it from the epic's own
+   the seams from its `## LLD` snapshots and `## HLD views affected` (the
+   new/changed interfaces, flows, entities and components — each coherent
+   change is a candidate child) and the ordering from `## Risks` › `### Rollout
+   & migration` (sequencing, migrations, flags, backward compatibility) — plus
+   any slice breakdown a repo's own design template adds. A legacy
+   `design.md` carries them under `## Architecture` and `## Rollout/migration`. Otherwise derive it from the epic's own
    description and acceptance criteria. Apply Step 1's concreteness/testability judgment to every
    proposed child AC/DoD entry, the same as the root flow.
 5. **Confirmation gate.** Reuse Step 2 item 6 — "Epic only: present the

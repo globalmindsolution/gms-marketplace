@@ -107,7 +107,7 @@ Reference by path in every task; never inline file bodies. The requirements
 acceptance criteria are the behaviour the flows must cover. When they exist (`acs.py
 artifacts show` reports them): the feature's living analysis
 (`feature_analysis`, `<prd_dir>/features/<feature>/analysis/`), the run's
-analysis and its `design.md` (`<architecture_dir>/lld/<feature>/<id>/`) — an
+analysis and its `tech-design.md` (`<architecture_dir>/lld/<feature>/<id>/`) — an
 analysis is a folder (ADR-0133): pass its `README.md`, then only the context
 files this design draws on (`analysis_files`; a legacy single `analysis.md`
 whole); the HLD

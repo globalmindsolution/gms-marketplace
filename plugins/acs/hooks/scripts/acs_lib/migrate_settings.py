@@ -19,6 +19,11 @@ running).
     models.<removed skill>     -> dropped (ADR-0118: create-project,
                                   standardize-project, create-requirements;
                                   ADR-0124: create-docs)
+    models.<renamed skill>     -> models.<its new name>, with its renamed
+                                  roles (ADR-0135: create-design ->
+                                  create-tech-design, design-reviewer ->
+                                  reviewer); an entry the new block already
+                                  has wins
 
 Nothing here reads the disk; the CLI (`acs.py settings migrate`) does that.
 """
@@ -40,6 +45,12 @@ RETIRED_MODEL_SKILLS = {
     "standardize-project": "ADR-0118",
     "create-requirements": "ADR-0118",
     "create-docs": "ADR-0124",
+}
+
+#: Renamed skills -> (new name, {old role: new role}, the ADR that renamed
+#: them). validate_models would refuse the old name as an unknown skill.
+RENAMED_MODEL_SKILLS = {
+    "create-design": ("create-tech-design", {"design-reviewer": "reviewer"}, "ADR-0135"),
 }
 
 #: Key of `tests` that is a number, not a suite.
@@ -69,6 +80,9 @@ def legacy_problems(settings):
             adrs = sorted({RETIRED_MODEL_SKILLS[k] for k in retired})
             problems.append("models.%s name skills that were removed (%s)"
                             % ("/".join(retired), ", ".join(adrs)))
+        for old, (new, _roles, adr) in RENAMED_MODEL_SKILLS.items():
+            if old in block:
+                problems.append("models.%s is now models.%s (%s)" % (old, new, adr))
     tracker = settings.get("tracker")
     if isinstance(tracker, dict) and (tracker.get("provider") == "jira" or "jira" in tracker):
         problems.append("tracker.jira is no longer supported (provider is local or github)")
@@ -79,6 +93,30 @@ def _strip(suite):
     if isinstance(suite, dict):
         suite = {k: v for k, v in suite.items() if k != "per_iteration"}
     return suite
+
+
+def _rename_model_skills(block):
+    """Rename each RENAMED_MODEL_SKILLS block (and its renamed roles) in
+    place, keeping the old block's position. An entry the new block already
+    has wins over the old one. Returns the notes."""
+    notes = []
+    for old, (new, roles, adr) in RENAMED_MODEL_SKILLS.items():
+        if old not in block:
+            continue
+        notes.append("models.%s -> models.%s (%s)" % (old, new, adr))
+        merged = {}
+        for role, value in (block[old] if isinstance(block[old], dict) else {}).items():
+            if role in roles:
+                notes.append("models.%s.%s -> models.%s.%s (%s)"
+                             % (new, role, new, roles[role], adr))
+            merged[roles.get(role, role)] = value
+        if isinstance(block.get(new), dict):
+            merged.update(block[new])
+        rebuilt = {(new if key == old else key): (merged if key == old else value)
+                   for key, value in block.items() if key != new}
+        block.clear()
+        block.update(rebuilt)
+    return notes
 
 
 def migrate(data):
@@ -124,6 +162,8 @@ def migrate(data):
             if key in block:
                 del block[key]
                 notes.append("removed models.%s (the skill was removed; %s)" % (key, adr))
+    if isinstance(block, dict):
+        notes += _rename_model_skills(block)
     if isinstance(block, dict) and any(k in block for k in MODEL_TIER_KEYS):
         out["models"], _added = models.merge_missing(
             {k: v for k, v in block.items() if k not in MODEL_TIER_KEYS})

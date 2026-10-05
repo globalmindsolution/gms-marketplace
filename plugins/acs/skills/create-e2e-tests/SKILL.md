@@ -160,7 +160,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 It resolves by the run the checkout points at (`--run <run-id>` names
 another): `<development_dir>/<feature>/<id>/` for `plan.md` and
 `test-cases.md`, `<architecture_dir>/lld/<feature>/<id>/` for
-`api-contract.md` and `design.md`, and a legacy `docs/tickets/<ID>/` file
+`api-contract.md` and `tech-design.md` (a legacy `design.md` when no
+`tech-design.md` exists), and a legacy `docs/tickets/<ID>/` file
 only when the new folder has none.
 `artifacts["test-cases.md"]` is the exact path acs resolved — pass THAT
 path to every subagent, and read it yourself now (absent → the acceptance
@@ -175,7 +176,7 @@ python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import acs_lib; print(a
 ```
 
 The same `artifacts show` call reports `artifacts["plan.md"]`,
-`artifacts["api-contract.md"]` and `artifacts["design.md"]` — read them when
+`artifacts["api-contract.md"]` and `artifacts["tech-design.md"]` — read them when
 they exist, the contract with the `lld/<feature>/api/` documents it links: they
 give the exact shapes an e2e assertion checks, and the plan names what the
 change actually built.

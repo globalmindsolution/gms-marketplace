@@ -42,7 +42,7 @@ is named as absent, never invented:
    exist. Each is a folder (ADR-0133): pass its `README.md`, then only the
    context files whose API notes touch an interface (`analysis_files`); a
    legacy single `analysis.md` is read whole.
-3. The run's `design.md` (`artifacts["design.md"]`) when it exists — interface
+3. The run's `tech-design.md` (`artifacts["tech-design.md"]`) when it exists — interface
    decisions the design already settled are binding; the contract renders
    them, never re-opens them.
 4. The HLD: `hld/integration-map.md` (who exposes and consumes which API, sync

@@ -649,7 +649,8 @@ ARTIFACT_FILES = {
     "plan": ("create-impl-plan", "plan.md"),
     "api-contract": ("create-api-contract", "api-contract.md"),
     "test-cases": ("create-test-docs", "test-cases.md"),
-    "design": ("create-design", "design.md"),
+    # ADR-0135: the tech design; the key stays `design` (`tech-design` is an alias).
+    "design": ("create-tech-design", "tech-design.md"),
     "verdict": ("review-code", "verdict.json"),
     "e2e-results": ("run-e2e-tests", "e2e-results.json"),
     "pr": ("create-pr", "pr.json"),
@@ -659,13 +660,29 @@ ARTIFACT_FILES = {
 #: is promoted because every later step reads it.
 RUN_ROOT_ARTIFACTS = {"requirements": "requirements.md"}
 
+#: Another name an artifact is asked for by.
+ARTIFACT_ALIASES = {"tech-design": "design"}
+
+#: Where an artifact's producer kept it before it was renamed (ADR-0135:
+#: create-design wrote design.md) -- read when the current file is absent.
+LEGACY_ARTIFACT_FILES = {"design": (("create-design", "design.md"),)}
+
 
 def artifact_path(rdir, artifact):
     """Where `artifact` lives in this run, or None when acs keeps no file for
-    it (`changeset` is the working tree, `docs` is commits)."""
+    it (`changeset` is the working tree, `docs` is commits). A run recorded
+    before a rename keeps the file where the old producer wrote it: that path
+    is returned while the current one does not exist."""
+    artifact = ARTIFACT_ALIASES.get(artifact, artifact)
     if artifact in RUN_ROOT_ARTIFACTS:
         return os.path.join(rdir, RUN_ROOT_ARTIFACTS[artifact])
     if artifact not in ARTIFACT_FILES:
         return None
     producer, filename = ARTIFACT_FILES[artifact]
-    return os.path.join(step_dir(rdir, producer), filename)
+    path = os.path.join(step_dir(rdir, producer), filename)
+    if not os.path.isfile(path):
+        for old_producer, old_name in LEGACY_ARTIFACT_FILES.get(artifact, ()):
+            old = os.path.join(step_dir(rdir, old_producer), old_name)
+            if os.path.isfile(old):
+                return old
+    return path

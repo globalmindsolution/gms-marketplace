@@ -1,31 +1,42 @@
 <!--
-  design-default — built-in design template (the default create-design writes to
-  <partition>/design.md). The `## ` headings below — and only the headings — are
-  the enforcement contract: enforcement.design_sections defaults to exactly this
-  list, in this order, and the create-design structure gate checks their presence
-  and order. Fill each section from workspace state; the HTML-comment guidance is
-  authoring help, not part of the gate.
+  design-default — built-in tech design template (the default create-tech-design
+  writes as tech-design.md, ADR-0135). The `## ` headings below — and only the
+  `## ` headings — are the enforcement contract: the required_sections constraint
+  is exactly this list, in this order, and the create-tech-design structure gate
+  checks their presence and order. Fill each section from workspace state; a
+  section a story does not need reads "n/a — <why>". The HTML-comment guidance
+  and the `### ` subsections are authoring help the reviewer checks, not part of
+  the structure gate. The version front matter is written by `acs.py design
+  init`, never by hand.
 -->
-## Context & constraints
+## Decision & options
 
-<!-- Problem, scope, assumptions; binding constraints from PRD/architecture/codebase; NFRs — security and performance REQUIRED, plus others that apply (availability, cost, operability, compliance). -->
+<!-- The one-line decision statement first — it becomes states.decision. Then ### Context (problem, scope, assumptions, binding constraints), ### Options considered (>= 2 real options per major decision, #### Option A/B/..., each with how it works and explicit trade-offs — no strawmen), ### Rationale and ### Decision records. -->
 
-## Options considered
+## HLD views affected
 
-<!-- >= 2 real options (### Option A/B/...), each with how it works and explicit trade-offs (pros/cons vs. the NFRs and constraints). No strawmen. -->
+<!-- One entry per hld/ view the change touches: a link with its version and status, a snapshot excerpt of the part touched, and "conforms — no change" or the exact change it needs. -->
 
-## Decision & rationale
+## LLD
 
-<!-- The chosen option, why it wins, why the others lose. One-line decision statement first — it becomes states.decision. -->
+<!-- One line naming the feature's LLD folder, then the four subsections: snapshots of the feature's living documents this change touches, each linked with its version and status — or "none yet — run /acs:create-…". -->
 
-## Architecture
+### API
 
-<!-- Components (new/changed, mapped to the C4 container/component views), interfaces/contracts (signatures, payloads, error shapes), data model changes (Mermaid ER when entities change), and Mermaid sequence diagrams for every new or changed runtime flow. Include an ### Architecture conformance subsection. -->
+### Data
 
-## Impact & risks
+### Flows
 
-<!-- Blast radius, affected tickets/components, risks with mitigations. -->
+### Components
 
-## Rollout/migration
+## NFRs
 
-<!-- Ordering, data/schema migration, feature flags, backward compatibility, rollback plan (or "single-step deploy, no migration" with justification). -->
+<!-- Security and performance REQUIRED, concretely; plus others that apply (availability, cost, operability, compliance). -->
+
+## Risks
+
+<!-- Blast radius, affected tickets/components, risks with mitigations, and ### Rollout & migration: ordering, data/schema migration, feature flags, backward compatibility, rollback plan. -->
+
+## Open questions
+
+<!-- What the team should settle at review, each with its options and ledger entry — or "none". -->

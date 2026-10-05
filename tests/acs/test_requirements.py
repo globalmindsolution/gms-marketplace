@@ -541,8 +541,8 @@ class TestRunDocs(RequirementsCase):
         self.assertEqual(layout["paths"]["analysis.md"],
                          os.path.join(dev, "analysis", "README.md"))
         self.assertEqual(layout["analysis_target_dir"], os.path.join(dev, "analysis"))
-        self.assertEqual(layout["paths"]["design.md"], os.path.join(
-            self.repo, "docs", "architecture", "lld", "wishlist", tid, "design.md"))
+        self.assertEqual(layout["paths"]["tech-design.md"], os.path.join(
+            self.repo, "docs", "architecture", "lld", "wishlist", tid, "tech-design.md"))
         self.assertEqual(layout["artifacts"]["plan.md"], legacy, "legacy read fallback")
         fresh = self.write(os.path.join(dev, "plan.md"), "# new plan\n")
         self.assertEqual(run_docs.document_path(self.ctx(), "plan.md", rdir), (fresh, fresh))
@@ -832,7 +832,7 @@ class TestRunDocsAreAGuardControlInput(FileMapGuardCase):
         self.spawn_writer()
         for target in ("docs/development/ship-it/%s/plan.md" % self.ticket,
                        os.path.join(self.repo, "docs", "architecture", "lld", "ship-it",
-                                    self.ticket, "design.md")):
+                                    self.ticket, "tech-design.md")):
             with self.subTest(target=target):
                 out = self.write_attempt(target)
                 self.assertEqual(out.returncode, 2, out.stderr)

@@ -53,7 +53,7 @@ Parse the printed context JSON. Fields you will use:
   input resolution), `test-cases.md` and `api-contract.md` when they exist —
   `acs.py artifacts show` reports each (`<development_dir>/<feature>/<id>/` for
   `plan.md` and `test-cases.md`, `<architecture_dir>/lld/<feature>/<id>/` for
-  `api-contract.md` and `design.md`, a legacy `docs/tickets/<ID>/` file only
+  `api-contract.md` and `tech-design.md` (else a legacy `design.md`), a legacy `docs/tickets/<ID>/` file only
   when the new folder has none), plus the living interface documents under
   `<architecture_dir>/lld/<feature>/api/` the contract links — the API design
   `/acs:create-api-contract` wrote in the Design phase (ADR-0134), documents
@@ -115,7 +115,7 @@ Messaging rules (the SubagentStop hook checks them):
   resolved `plan.md`, `test-cases.md`, `api-contract.md` and the
   `lld/<feature>/api/` documents it links when they exist,
   `requirements.md`, the analysis and the feature's living analysis when they
-  exist, `design.md` when it applies, repo paths) and
+  exist, `tech-design.md` when it applies, repo paths) and
   `constraints`. The implementer returns a `<result skill="code"
   phase="implementer" …>` document as its final content. When several
   implementers run at once, each task and its result carry the slice id,
@@ -150,7 +150,7 @@ step therefore has `ticket.type != "epic"`.
 That invariant is true of a gate that fired. If `ticket.type == "epic"`
 nonetheless reaches this step — a bypassed or best-effort pre-gate on some
 runtimes — STOP immediately and surface the same breakdown message the gate
-would have raised: design the epic with `/acs:create-design <id>` if it has
+would have raised: design the epic with `/acs:create-tech-design <id>` if it has
 none, break it down into child tickets with `/acs:create-ticket <id>` (epic
 fan-out), then run `/acs:code` on a child. **Never implement an epic under any
 circumstance**, regardless of what the pre-gate did or did not enforce.

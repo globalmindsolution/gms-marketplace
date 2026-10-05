@@ -53,7 +53,8 @@ names new containers adds them (`acs.py requirements add --args "…"`), and
   ticket whose design applies (`source` is `"own"` or `"parent"`); its
   basename is that ticket's id. When `design.required` is true, resolve the
   design document itself with `acs.py artifacts show --ticket <that id>` and
-  read `artifacts["design.md"]`. Call it `<design_doc>`; the analysis is
+  read `artifacts["tech-design.md"]` (a legacy `design.md` when no
+  `tech-design.md` exists). Call it `<design_doc>`; the analysis is
   bounded by a design that already exists, never a second opinion on it.
 
 ## Resolving the previous analysis
@@ -162,7 +163,9 @@ whole of what Stage 2 takes to the user:
   `Assumed: <default> — confirm or correct`.
 - **(c) Proposed refined acceptance criteria** — the rewrite of each
   ambiguous, untestable or contradicted criterion, and each missing one.
-- **(d) A needs_design recommendation**, when the survey has one, and the
+- **(d) A needs_design recommendation**, when the survey has one (true: the
+  change needs a tech design — `/acs:create-tech-design` — the team approves
+  before it is planned), and the
   **feature**: a `features` correction when the PRD features the work touches
   differ from the requirements' `features`, and — when the run has no feature
   yet (`context.requirements.feature` null and no ticket `features`) — the

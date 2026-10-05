@@ -7,9 +7,13 @@ under the PRD feature they belong to:
 
   Discovery    <prd_dir>/features/<feature>/analysis/       the feature's living
                analysis (a standalone, ticketless analysis)
-  Design       <architecture_dir>/lld/<feature>/<key>/      design.md, api-contract.md
+  Design       <architecture_dir>/lld/<feature>/<key>/      tech-design.md, api-contract.md
   Development  <development_dir>/<feature>/<key>/           plan.md, test-cases.md, and
                the analysis of a Development run as analysis/
+
+The tech design is `tech-design.md` since ADR-0135; the `design.md` it was
+called before is read wherever a reader looks for it (an older run, an older
+docs folder), and never written.
 
 An analysis is a FOLDER (ADR-0133): `analysis/README.md` plus one file per
 bounded context. The document name `analysis.md` is kept as its key; its
@@ -63,10 +67,23 @@ DOCUMENT_SIDES = {
     "analysis.md": "development",
     "plan.md": "development",
     "test-cases.md": "development",
-    "design.md": "design",
+    "tech-design.md": "design",
     "api-contract.md": "design",
 }
 DOCUMENT_NAMES = tuple(DOCUMENT_SIDES)
+#: A document's name before it was renamed -> its current name (ADR-0135).
+#: The old name is a READ fallback beside the new one, never a write target.
+LEGACY_DOCUMENT_NAMES = {"design.md": "tech-design.md"}
+
+
+def canonical_document(name):
+    """The current name of a document named by its current or legacy name."""
+    return LEGACY_DOCUMENT_NAMES.get(name, name)
+
+
+def legacy_names(name):
+    """The names `name` was written under before it was renamed, read after it."""
+    return tuple(old for old, new in LEGACY_DOCUMENT_NAMES.items() if new == name)
 
 #: Directories a `prd.md` / `hld/tech-stack.md` search never descends into.
 _SKIP_DIRS = {"node_modules", "vendor", "venv", "__pycache__", "dist", "build", "target"}
@@ -200,6 +217,7 @@ def document_kind(name, phase="development"):
     """Which phase folder `name` is filed under: `prd` for a Discovery
     analysis (the feature's living analysis), `architecture` for the design
     records, `development` otherwise. None for an unknown document."""
+    name = canonical_document(name)
     if name not in DOCUMENT_SIDES:
         return None
     if name == "analysis.md" and phase == "discovery":
@@ -274,8 +292,9 @@ def document_target(root, name, feature, key, phase="development", settings=None
 
     analysis.md -- the entry README.md of the analysis FOLDER (ADR-0133) --
     goes to the feature root on a Discovery run and to the Development folder
-    otherwise; plan/test-cases to Development; design and api-contract to the
-    Design folder."""
+    otherwise; plan/test-cases to Development; the tech design (named by its
+    legacy `design.md` too) and api-contract to the Design folder."""
+    name = canonical_document(name)
     if name not in DOCUMENT_SIDES or not feature:
         return None
     if name == "analysis.md" and phase == "discovery":
@@ -293,7 +312,9 @@ def document_candidates(root, name, feature, key, phase="development", ticket_id
                         settings=None):
     """Every place a READER looks for `name`, in order: the phase folder (for
     an analysis, its folder's README.md, then the legacy single file beside
-    it), then the legacy `docs/tickets/<ID>/` folder."""
+    it; for the tech design, the legacy `design.md` beside it), then the
+    legacy `docs/tickets/<ID>/` folder (the current name, then the legacy one)."""
+    name = canonical_document(name)
     out = []
     target = document_target(root, name, feature, key, phase, settings)
     if target:
@@ -301,7 +322,8 @@ def document_candidates(root, name, feature, key, phase="development", ticket_id
         if name == "analysis.md":
             # The single file the folder replaced (ADR-0133): beside the folder.
             out.append(os.path.join(os.path.dirname(os.path.dirname(target)), name))
+        out += [os.path.join(os.path.dirname(target), old) for old in legacy_names(name)]
     legacy = legacy_ticket_dir(root, ticket_id)
     if legacy:
-        out.append(os.path.join(legacy, name))
+        out += [os.path.join(legacy, n) for n in (name,) + legacy_names(name)]
     return out

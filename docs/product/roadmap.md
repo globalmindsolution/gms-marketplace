@@ -688,7 +688,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   extends the eval harness to **all** currently-uncovered acs skills — not only
   `handoff` — adding behavioral (artifact-level) scenarios for the
   three product-producer skills (`create-prd`, `create-architecture`,
-  `create-design`) and for `create-pr`, `merge-pr`, `ship`,
+  `create-tech-design`) and for `create-pr`, `merge-pr`, `ship`,
   and reports a **per-plugin behavioral-coverage ratio** (skills-with-a-runnable-
   behavioral-scenario / total-skills), tracked release over release toward the
   100%-within-2-releases target. Maps to PRD **G31** (extends G8). **Traces G31.**
@@ -724,7 +724,9 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   3. **Design sign-off surface** — publish approved `design.md` (for
      `needs_design` tickets) to a shared reviewable surface (tracker issue or
      docs PR) for Principal AI Platform sign-off, closing today's
-     machine-local role-separation gap. Maps to PRD's workflow-gap-promotions
+     machine-local role-separation gap. *(Partly delivered by ADR-0135: the
+     design is `tech-design.md` in the Design folder, and its sign-off is
+     recorded in it with `/acs:set-doc-status approved`.)* Maps to PRD's workflow-gap-promotions
      Should-have + **G10**. The MECHANISM (which surface, transport) is
      settled in this epic's design phase.
   4. **code-planner user-confirmed stakes-bump** *(RETIRED — ADR-0095)* —
@@ -804,7 +806,7 @@ scratch against the documented Codex primitives (see the Correction note in
 **Deferral:** the MECHANISM for both epics (the hook-gating / subagent-protocol /
 dispatch mapping, which gates are native vs shimmed on Codex CLI, the runner's
 trigger transport and host) is deferred to each epic's own dedicated design
-phase / an ADR; each requires its own `/acs:create-design` run before
+phase / an ADR; each requires its own `/acs:create-tech-design` run before
 implementation. Mirrors the Notion/remote-docs and org-policy deferrals.
 
 **Implementation note:** this is a future epic pending design — this entry defines what
@@ -829,7 +831,7 @@ Deliver a pluggable docs backend for acs, mirroring the `tracker.provider` prece
 
 **Deferral:** the MECHANISM — Notion API/auth, markdown→Notion-blocks mapping, PR-less
 vs sync delivery, per-mode review/audit implementation — is deferred to this epic's
-dedicated design phase. This epic requires its own `/acs:create-design` run before
+dedicated design phase. This epic requires its own `/acs:create-tech-design` run before
 implementation begins. Non-Notion remote providers (Confluence, Google Docs, SharePoint)
 are Won't-have now; they may be considered as future extensions after this epic ships.
 

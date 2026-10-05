@@ -9,7 +9,7 @@ below belongs to exactly one of them
 | | Repo phase folders | Workspace |
 |---|----------------|---------------------|
 | **Where** | one folder per phase, keyed by the run's feature: Discovery `<prd_dir>/features/<feature>/`, Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, Development `<development_dir>/<feature>/<ticket-id or run-id>/` | `<workspace>/<repo>/` — the ticket partition `<ticket-id>/` and the run partition `runs/<run-id>/` |
-| **Holds** | the human-facing documents: the feature's living analysis, an `analysis/` folder (Discovery, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); `design.md`, `api-contract.md` (Design); a Development run's `analysis/` folder, `plan.md`, `test-cases.md` (Development) | the ticket (`ticket.json`) and its clarification ledger; the run ledger: `run.json`, `requirements.md`, `subject/` (`sources.json` and the copied documents), `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, a ticketless run's `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
+| **Holds** | the human-facing documents: the feature's living analysis, an `analysis/` folder (Discovery, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); `tech-design.md` (a legacy `design.md` still read, [ADR-0135](../../architecture/adr/0135-create-tech-design.md)), `api-contract.md` (Design); a Development run's `analysis/` folder, `plan.md`, `test-cases.md` (Development) | the ticket (`ticket.json`) and its clarification ledger; the run ledger: `run.json`, `requirements.md`, `subject/` (`sources.json` and the copied documents), `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, a ticketless run's `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
 | **Versioned** | yes — written uncommitted by the skills, committed by `/create-pr` (ADR-0127), reviewed in the PR | no — gitignored |
 | **Written by** | the coordinators of the skills that own each document | hooks, the `acs.py` CLIs and the skills' own subagents |
 
@@ -23,7 +23,7 @@ confirms; a ticketless run names one in that skill's grouped ask.
 **A run's own documents can stay in the workspace instead**
 ([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)). A repo that keeps run documents local (`docs.share_run_documents:
 false`, asked once and saved for one machine or the team) gets a Development
-`analysis/` folder, `plan.md`, `test-cases.md`, `design.md` and `api-contract.md`
+`analysis/` folder, `plan.md`, `test-cases.md`, `tech-design.md` and `api-contract.md`
 in `runs/<run-id>/steps/<skill>/local/` rather than in a phase folder: they
 are read by the run's later steps, never versioned, and never committed. The
 living documents (PRD, roadmap, HLD, LLD, a feature's living analysis) always
@@ -99,7 +99,7 @@ document, so a ticket started before ADR-0128 keeps its documents
 - `acs.py artifacts show [--run R | --ticket ID]` reports, for one run, where
   each document resolves — its phase folder, the run's step folder (kept
   local), the legacy ticket folder or the partition — the diagnostic for
-  "where did my design.md go"; `acs.py docs where --doc <name>` says where the
+  "where did my tech-design.md go"; `acs.py docs where --doc <name>` says where the
   next write of a document goes and which answer is still owed.
 
 ## Requirements of a run
@@ -146,7 +146,7 @@ and, inside it, one per ticket or run):
 │       └── bulk-export/
 │           ├── api/ data/ flows/ components/   # the living LLD, edited in place (ADR-0126; api/<interface>.md, ADR-0134)
 │           ├── SHOP-122/               # Design records of one change: an epic
-│           │   └── design.md           # epics always carry the design; children read it from here
+│           │   └── tech-design.md      # epics always carry the design; children read it from here
 │           └── SHOP-123/
 │               └── api-contract.md     # /create-api-contract's per-run record, linking the api/<interface>.md files it wrote
 ├── docs/development/                   # <development_dir>
@@ -406,7 +406,7 @@ perform lightweight stdlib-only structural checks
 - Writers are the subagents/hooks of the owning skill; other skills read but
   MUST NOT modify another skill's state file.
 - Cross-ticket **reads** are allowed (e.g. a child ticket resolves its
-  parent epic's `design.md`, from the epic's Design folder or, for an older
+  parent epic's `tech-design.md` (else a legacy `design.md`), from the epic's Design folder or, for an older
   epic, its legacy `docs/tickets/<ID>/` folder or its partition); cross-partition **writes** are limited
   to the defined parent-epic status updates performed by child hooks
   ([workflow.md](workflow.md#epic-fan-out)).

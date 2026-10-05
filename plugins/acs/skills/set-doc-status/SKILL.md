@@ -1,6 +1,6 @@
 ---
 name: set-doc-status
-description: Approve, deprecate, mark implemented or reopen the product's versioned documents — the PRD, the roadmap, each feature's analysis, the HLD and each feature's LLD — by picking whole features, design areas or single documents from one grouped list that shows every document's status and version, then moving all of them at once along the legal status transitions, with who moved them and why recorded in their front matter. Use whenever the user says a feature's documents, the PRD or the design were approved or signed off, wants a design or PRD document deprecated or retired, marked implemented once built, or reopened as proposed, or wants to choose which features to approve. Call it as your first action on such a request — do not Glob, Grep or Read for the documents, ticket or repo files, and do not look for a shell: it lists every versioned document itself.
+description: Approve, deprecate, mark implemented or reopen the product's versioned documents — the PRD, the roadmap, each feature's analysis, the HLD, each feature's LLD and each change's tech design — by picking whole features, design areas or single documents from one grouped list that shows every document's status and version, then moving all of them at once along the legal status transitions, with who moved them and why recorded in their front matter. Use whenever the user says a feature's documents, the PRD, the design or a tech design were approved or signed off, wants a design or PRD document deprecated or retired, marked implemented once built, or reopened as proposed, or wants to choose which features to approve. Call it as your first action on such a request — do not Glob, Grep or Read for the documents, ticket or repo files, and do not look for a shell: it lists every versioned document itself.
 argument-hint: "[status] [feature|doc…] [--reason TEXT]"
 disallowed-tools: Edit, NotebookEdit, Write
 ---
@@ -51,9 +51,12 @@ problems, allowed}]}]}`, deterministically ordered:
 - **Discovery** — the PRD (`<prd_dir>/prd.md`), the roadmap, and each feature's
   living analysis (`<prd_dir>/features/<f>/analysis.md`);
 - **Design** — the HLD (`<architecture_dir>/hld/*.md`) and each feature's LLD
-  (`<architecture_dir>/lld/<f>/{api,data,flows,components}/**`). The per-run
-  design records under `lld/<f>/<id>/` are not versioned documents and are
-  never listed.
+  (`<architecture_dir>/lld/<f>/{api,data,flows,components}/**`), plus each
+  change's tech design `lld/<f>/<id>/tech-design.md` — the hand-off
+  `/acs:create-tech-design` publishes `proposed` for the team to approve
+  (ADR-0135) — in its feature's `LLD <f>` group. Nothing else in a per-run
+  folder `lld/<f>/<id>/` (an `api-contract.md` run record, a legacy
+  `design.md`) is a versioned document, and none is listed.
 
 Group labels read `PRD` (the PRD and the roadmap together), `feature <f>
 analysis`, `HLD` and `LLD <f>`; a feature's groups carry `feature`. Paths are
@@ -65,7 +68,7 @@ If the command exits non-zero, STOP and surface its stderr verbatim. If
 `groups` is empty, there is nothing to move: report status `completed` with
 "no versioned documents found" and point at the skills that create them
 (`/acs:create-prd`, `/acs:analyze-requirements`, `/acs:create-architecture`,
-`/acs:create-data-design`, `/acs:create-flows`).
+`/acs:create-data-design`, `/acs:create-flows`, `/acs:create-tech-design`).
 
 A document with `problems` cannot be moved: never offer it, and list it under
 Findings with its problems (the skill that writes it gives it front matter,
@@ -108,7 +111,8 @@ per phase that has an offerable document (`Discovery`, then `Design`):
   label (`LLD wishlist`, `HLD`, `PRD`); its
   `description` lists every document in it as `<file name> · <status> v<version>`,
   e.g. `features/wishlist/analysis.md · proposed v2` or
-  `api/wishlist-api.md · proposed v1; flows/add-item.md · proposed v1`. Always
+  `api/wishlist-api.md · proposed v1; flows/add-item.md · proposed v1;
+  SHOP-7/tech-design.md · proposed v1`. Always
   show the status and the version — the user is approving a specific version.
 - **A single document** — a group of one is that document's option. To pick
   one document out of a larger group, the user types its path in the

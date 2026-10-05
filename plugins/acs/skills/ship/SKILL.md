@@ -273,8 +273,9 @@ nothing about being blocked tells you the other session is actually gone.
 ## Epic fan-out — refuse and point at it
 
 Epics are never shipped. The epic brake refuses every implementation step on
-an epic, printing the whole Design-phase path: settle the epic's design with
-`/acs:create-design <epic-id>`, mint its children with
+an epic, printing the whole Design-phase path: settle the epic's tech design
+with `/acs:create-tech-design <epic-id>` (approved with `/acs:set-doc-status`),
+mint its children with
 `/acs:create-ticket <epic-id> --fan-out`, then run `/acs:ship <child-id>` for
 each child you want shipped, one run at a time (parallel children belong in
 separate worktrees and sessions). Surface that pointer verbatim and stop.

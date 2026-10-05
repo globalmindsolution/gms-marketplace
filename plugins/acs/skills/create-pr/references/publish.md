@@ -29,7 +29,7 @@ history:
 - the run's `requirements.md` (`context.requirements.path`) — the
   acceptance criteria whatever container they came from — and the ticket's
   `ticket.json`, when the run has a ticket — title, type, `external`;
-- `steps/code/state.json`, `specs/*.md`, and `design.md` when the ticket
+- `steps/code/state.json`, `specs/*.md`, and `tech-design.md` when the ticket
   has one;
 - the commit plan `acs.py pr plan-commits` printed, and the confirmed copy you
   write to `steps/create-pr/iter-<n>/commit-plan.json`;
@@ -237,7 +237,7 @@ How the run ends, and what the report then says:
   work — what the plan leaves out stays in the working tree exactly as it
   was.
 - Never fabricate body content: every Summary/Changes/Test-plan claim comes from
-  `requirements.md`, `ticket.json`, `specs/`, `design.md`, `steps/code/state.json`, or the commits
+  `requirements.md`, `ticket.json`, `specs/`, `tech-design.md`, `steps/code/state.json`, or the commits
   `acs.py pr commit` printed (with no ticket: the run's requirements and the changed
   files) — a section the
   state cannot fill stays honest and minimal.

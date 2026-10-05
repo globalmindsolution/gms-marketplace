@@ -6,7 +6,8 @@ user's saved answers that decide it (ADR-0132).
                        [--location KIND=PATH ...] [--doc <name>] [--run R]
 
 `<name>` is a per-run document (analysis.md, plan.md, test-cases.md,
-design.md, api-contract.md) or a living one (living:prd, living:architecture).
+tech-design.md, api-contract.md) or a living one (living:prd, living:architecture);
+the legacy `design.md` names tech-design.md (ADR-0135).
 `where` is read-only: the destination, the saved share choice and its scope,
 how the folder was resolved (setting | discovered | default), and `needs` --
 the questions still open (`share`, `location`). Every writer runs it before
@@ -128,7 +129,7 @@ def cmd_docs_decide(args):
     if args.share is None and not locations:
         die("docs decide", "nothing to record: pass --share yes|no --scope user|team|run "
                            "and/or --location KIND=PATH")
-    if args.doc and args.doc not in doc_share.DOC_CHOICES:
+    if args.doc and args.doc not in doc_share.DOC_CHOICES + tuple(doc_share.DOC_ALIASES):
         die("docs decide", "unknown document %r (one of %s)"
             % (args.doc, ", ".join(doc_share.DOC_CHOICES)))
     ctx, rdir = _run("docs decide", args.run)
@@ -179,7 +180,8 @@ def add_parser(group):
 
     where = sub.add_parser("where", help="read-only: a document's destination and "
                                          "the questions still open")
-    where.add_argument("--doc", choices=doc_share.DOC_CHOICES,
+    where.add_argument("--doc",
+                       choices=doc_share.DOC_CHOICES + tuple(doc_share.DOC_ALIASES),
                        help="one document; without it, every document plus the share "
                             "choice and the three folders")
     where.add_argument("--run", help="a run other than this checkout's current one")

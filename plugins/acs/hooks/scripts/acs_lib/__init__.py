@@ -102,7 +102,7 @@ from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
 from .gates import _workflow_for as workflow_for  # noqa: F401
 from .gates import (BRAKES, NothingOwed,  # noqa: F401
     SUBJECT_GATES, _merge_pr_arg_text,
-    build_context, design_requirement, gate_create_design, gate_merge_pr,
+    build_context, design_requirement, gate_create_tech_design, gate_merge_pr,
     gate_outcome, parent_epic_dir, resolve_run_for,
     run_pre, run_pre_payload, session_end, step_brakes,
     subject_from_payload)

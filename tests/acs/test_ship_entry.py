@@ -131,7 +131,7 @@ class EntryContractTest(unittest.TestCase):
         steps, which is also what makes them independently invocable."""
         wf = lib.validate_workflow_file(lib.default_workflow_path())
         steps = lib.steps_of(wf)
-        for retired in ("create-ticket", "create-design", "create-prd",
+        for retired in ("create-ticket", "create-tech-design", "create-prd",
                         "create-architecture", "merge-pr", "release"):
             with self.subTest(skill=retired):
                 self.assertNotIn(retired, steps)
@@ -158,7 +158,7 @@ class RefusalPointerTest(unittest.TestCase):
     def test_epic_refusal_pointer_names_design_then_fan_out_then_ship(self):
         epic = section(self.body, "## Epic fan-out")
         self.assertIn("--fan-out", epic)
-        self.assertIn("/acs:create-design", epic)
+        self.assertIn("/acs:create-tech-design", epic)
         self.assertIn("/acs:ship <child-id>", epic)
         self.assertIsNotNone(
             re.search(r"(?i)never shipped|refuse", norm(epic)),
@@ -179,7 +179,7 @@ class RefusalPointerTest(unittest.TestCase):
         self.assertIsNotNone(pointer, "gate_inputs.py must carry the epic pointer")
         pointer_text = norm(pointer.group(0))
         epic = norm(section(self.body, "## Epic fan-out"))
-        for command in ("/acs:create-design", "/acs:create-ticket", "fan-out"):
+        for command in ("/acs:create-tech-design", "/acs:create-ticket", "fan-out"):
             self.assertIn(command, pointer_text, command)
             self.assertIn(command, epic, command)
         self.assertIn("/acs:ship <child-id>", epic)

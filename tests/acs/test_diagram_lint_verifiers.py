@@ -1,7 +1,7 @@
 """MAR-137 spec 02 — wire the diagram-lint gate into the two verifiers.
 
 Prose-contract tests over `plugins/acs/agents/create-architecture-reviewer.md`
-(dimension `mermaid-diagrams`) and `plugins/acs/agents/create-design-design-reviewer.md`
+(dimension `mermaid-diagrams`) and `plugins/acs/agents/create-tech-design-reviewer.md`
 (dimension `completeness`): both dimensions must invoke the Spec-01-promoted
 `mermaid_lint.py` helper via `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py`
 and map any finding to `severity="blocking"`, replacing the old soft/LLM-judgment
@@ -32,7 +32,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 ARCH_VERIFIER = os.path.join(PLUGIN, "agents", "create-architecture-reviewer.md")
-DESIGN_VERIFIER = os.path.join(PLUGIN, "agents", "create-design-design-reviewer.md")
+DESIGN_VERIFIER = os.path.join(PLUGIN, "agents", "create-tech-design-reviewer.md")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mermaid_lint.py"
 
@@ -106,7 +106,7 @@ class ArchitectureMermaidDiagramsDimensionTest(unittest.TestCase):
 
 
 class DesignCompletenessDiagramSubCheckTest(unittest.TestCase):
-    """AC-3: create-design-design-reviewer.md dimension 5 (completeness) diagram
+    """AC-3: create-tech-design-reviewer.md dimension 5 (completeness) diagram
     sub-clause invokes the promoted helper as a blocking gate, replacing the
     old 'syntactically plausible' LLM-judgment clause. The dimension label
     stays `completeness` — no new numbered dimension."""
@@ -130,22 +130,20 @@ class DesignCompletenessDiagramSubCheckTest(unittest.TestCase):
 
     def test_other_completeness_subchecks_preserved_byte_for_byte(self):
         # These sub-checks are unrelated to the diagram-syntax clause and
-        # must survive the surgical edit untouched.
+        # must survive the surgical edit untouched. ADR-0135 moved the flow
+        # and ER diagrams into the feature's LLD, which the tech design
+        # snapshots: the per-flow sequenceDiagram / ER sub-checks became the
+        # LLD-subsection and front-matter sub-checks.
         block = self._block()
         self.assertIn("all six required sections present and substantive", block)
-        self.assertIn(
-            "A Mermaid `sequenceDiagram` exists for EVERY new\n"
-            "   or changed runtime flow named by the ticket and plan",
-            block,
-        )
-        self.assertIn("an ER diagram exists", block)
-        self.assertIn("when the data model changes", block)
-        self.assertIn("`### Decision records` is", block)
+        self.assertIn("`### API`, `### Data`, `### Flows` and `### Components`", block)
+        self.assertIn("acs.py\n   design check tech-design.md", block)
+        self.assertIn("`### Decision records` names", block)
         # The one sub-check ADR-0102 rewrote: with the `adr_path: null`
         # opt-out gone, Decision records is always required and names the
         # located ADR folder the task constraints carry (`adr_dir`).
         self.assertIn(
-            "present and names the `adr_dir` the task constraints carry.",
+            "names the `adr_dir` the task constraints carry.",
             " ".join(block.split()),
         )
         self.assertNotIn("adr_path", block)

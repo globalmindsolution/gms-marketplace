@@ -91,9 +91,10 @@ _PROJECT_RESPONSES = {
 # Build/Test coordinators (analyze-requirements, create-impl-plan,
 # create-api-contract, create-test-docs, create-e2e-tests); ADR-0126 added the
 # two low-level Design skills (create-data-design, create-flows) beside
-# create-design; ADR-0134 moved create-api-contract among them.
+# create-design; ADR-0134 moved create-api-contract among them; ADR-0135
+# renamed create-design to create-tech-design.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-ticket",
-                 "create-design", "create-api-contract", "create-data-design",
+                 "create-tech-design", "create-api-contract", "create-data-design",
                  "create-flows", "analyze-requirements", "create-impl-plan",
                  "create-test-docs", "code",
                  "review-code", "run-e2e-tests",
@@ -125,7 +126,8 @@ EXPECTED_AGENTS = {
     "analyze-requirements": ["analyst", "impact-analyst", "impact-reviewer"],
     "create-prd": ["surveyor", "author", "reviewer"],
     "create-architecture": ["architect", "gap-analyst", "reviewer"],
-    "create-design": ["designer", "design-reviewer"],
+    # ADR-0135: renamed from create-design, its judge from design-reviewer.
+    "create-tech-design": ["designer", "reviewer"],
     "create-data-design": ["designer", "gap-analyst", "reviewer"],
     "create-flows": ["designer", "gap-analyst", "reviewer"],
     "create-impl-plan": ["planner", "plan-reviewer"],
@@ -871,7 +873,7 @@ class TestApplyTierInline(unittest.TestCase):
         they own -- every role EXPECTED_AGENTS names for them, by its
         namespaced agent name -- and never a generic executor/verifier."""
         for skill in ("create-impl-plan", "create-prd", "docs-sync",
-                      "create-design", "create-architecture",
+                      "create-tech-design", "create-architecture",
                       "create-data-design", "create-flows"):
             body = read(self.skill_path(skill))
             self.assertIsNone(
@@ -3463,7 +3465,7 @@ class TestCreateTicketAcDodGateDocs(unittest.TestCase):
         finalization absent explicit confirmation, and no new subagent."""
         body = self._skills_req()
         section_start = body.index("## 1. `/create-ticket`")
-        section_end = body.index("## 2. `/create-design`")
+        section_end = body.index("## 2. `/create-tech-design`")
         section = body[section_start:section_end]
         self.assertIsNotNone(
             re.search(r"(?is)(concrete|testable).{0,300}acceptance_criteria"

@@ -36,9 +36,9 @@ class RefusedGateEvidenceTest(AcsWorkspaceCase):
 
     def test_refused_evidence_is_never_accepted(self):
         story = self.new_ticket("Wishlist API", "story")
-        out = self.pre("create-design", story)
+        out = self.pre("create-tech-design", story)
         self.assertEqual(out.returncode, 2, out.stderr)
-        verdict = self.verdict("create-design")
+        verdict = self.verdict("create-tech-design")
         self.assertFalse(verdict["gated"])
         self.assertEqual(verdict["reason"], "gate_refused")
 
@@ -102,9 +102,9 @@ class StepStartAppliesTheBrakesTest(AcsWorkspaceCase):
         self.assertEqual(out.returncode, 2, out.stdout)
         self.assertIn("no PR reference recorded", out.stderr)
 
-    def test_create_design_needs_the_flag(self):
+    def test_create_tech_design_needs_the_flag(self):
         story = self.new_ticket("Wishlist API", "story")
-        out = self.step_start("--step", "create-design", "--ticket", story)
+        out = self.step_start("--step", "create-tech-design", "--ticket", story)
         self.assertEqual(out.returncode, 2, out.stdout)
         self.assertIn("needs_design", out.stderr)
 

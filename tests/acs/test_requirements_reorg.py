@@ -374,7 +374,8 @@ REWORDED_BY_ADR_0102 = {
         '| `adr_path` | string (repo-relative path) or `null` | `"docs/architecture/adr"` | No | `/code` commits the accepted decision records from the ticket\'s `design.md` to this path as part of its documentation updates — on by default so decisions outlive archived ticket partitions. Explicit `null` disables (designs then stay workspace-only). |':
             # ADR-0127 reworded it again: /code writes them, /create-pr commits.
             "| ADRs | `docs/architecture/adr/` | `/code` writes the accepted decision records "
-            "from the ticket's `design.md` here (and `/create-pr` commits them), so "
+            # ADR-0135 renamed the document tech-design.md.
+            "from the ticket's `tech-design.md` here (and `/create-pr` commits them), so "
             "decisions outlive archived ticket partitions. |",
         '| `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |':
             # ADR-0121 reworded it again: the HLD is create-architecture's, the
@@ -385,7 +386,8 @@ REWORDED_BY_ADR_0102 = {
             "`/create-architecture`; **LLD** (`lld/<feature>/`: API contracts, data "
             "design, flows) written per ticket by the Design skills "
             "([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-hld-only.md)); "
-            "consumed by `/create-design`, kept current by `/code`. |",
+            # ADR-0135 renamed the skill /create-tech-design.
+            "consumed by `/create-tech-design`, kept current by `/code`. |",
         '| `prd_path` | string (repo-relative path) | `"docs/product"` | No | Location of the PRD doc set (`prd.md`, `roadmap.md`) in the consumer repo — bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |':
             "| PRD | `docs/product/prd.md` + `docs/product/roadmap.md` | Bootstrapped "
             "and amended by `/create-prd`; `/create-architecture` requires and is "
@@ -502,8 +504,28 @@ REWORDED_BY_ADR_0128 = {
     },
 }
 
+#: ADR-0135: /create-design is renamed /create-tech-design and its document
+#: tech-design.md, a hand-off the team approves with /set-doc-status. The
+#: obligations are unchanged: the hook-naming row names the renamed scripts,
+#: the workflow row the new document's sections, and the design gate the
+#: renamed document.
+REWORDED_BY_ADR_0135 = {
+    'hooks.md': {
+        '| `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |':
+            '| `/create-tech-design` | `pre-create-tech-design.py` | `post-create-tech-design.py` | `create-tech-design-state.json` |',
+    },
+    'workflow.md': {
+        'Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout.':
+            'Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`',
+    },
+    'overview.md(scoped:Packaging+Distribution+CorePrinciples)': {
+        'Architecturally significant tickets (`needs_design`) get an approved `design.md`':
+            'Architecturally significant tickets (`needs_design`) get a reviewed `tech-design.md`',
+    },
+}
+
 REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103,
-                    REWORDED_BY_ADR_0109, REWORDED_BY_ADR_0128)
+                    REWORDED_BY_ADR_0109, REWORDED_BY_ADR_0128, REWORDED_BY_ADR_0135)
 
 
 def _retired():

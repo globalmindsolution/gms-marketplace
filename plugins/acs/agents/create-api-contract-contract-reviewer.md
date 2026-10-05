@@ -25,7 +25,7 @@ built wrong and tested wrong.
    and every item's request, response and errors are fully specified (no "TBD",
    no "as today" without stating what today is).
 2. `accuracy` — each CHANGED item's "today" matches the implementation you read
-   (file and line), and each shape agrees with `design.md` when it binds and
+   (file and line), and each shape agrees with `tech-design.md` when it binds and
    with the feature's `data/` documents. A field, type, status code or error the
    code contradicts is a finding.
 3. `traceability` — every item traces to at least one acceptance criterion;
@@ -138,7 +138,7 @@ ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always the
 run-record draft, every written interface document, the survey notes
 (`iter-1/authoring.md`), the writers' joined notes (`iter-<n>/writers.md`) and
 reports, `iter-1/gaps.md`, the baseline status file, the requirements
-(`requirements.md`), the analysis and `design.md` when they exist, the HLD files
+(`requirements.md`), the analysis and `tech-design.md` when they exist, the HLD files
 and the feature's `data/` documents), `<constraints>` (at least
 `required_sections`, `audience_style_profile`; `dimensions` when the task
 carries a `slice="<id>"` attribute), and optional `<context>` (prior findings).

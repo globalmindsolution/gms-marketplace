@@ -28,7 +28,7 @@ The planner's authoring notes cover, in the order
   from the diff after `/acs:code` completes.
   The planner also performs a bounded, touched-area ADR-0012 doc-graph-gap
   check (`create-impl-plan-planner.md`'s survey item 4, edges E1-E4) — not the
-  full shared design-time step `create-design`'s designer runs — riding the same
+  full shared design-time step `create-tech-design`'s designer runs — riding the same
   `problems` carrier as the existing Boy-scout drift item.
 - Risks, and what a reviewer should look hardest at.
 

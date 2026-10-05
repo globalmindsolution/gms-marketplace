@@ -72,7 +72,6 @@ ROLE_KINDS = {
     # judge -- read-only, re-derives and judges fresh
     "reviewer": "judge",
     "impact-reviewer": "judge",
-    "design-reviewer": "judge",
     "plan-reviewer": "judge",
     "contract-reviewer": "judge",
     "trace-reviewer": "judge",

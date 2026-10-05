@@ -11,7 +11,9 @@ Mirrors the already-shipped `pr_description_template` /
 The load-bearing invariant (AC-4): with NO `*_template` key set, the default
 section lists are byte-identical to today's hardcoded `required_sections`
 literal, so create-design/create-spec output and the structure gate are
-unchanged. `test_design_sections_default_byte_identical_to_skill_literal` proves
+unchanged. ADR-0135 renamed create-design to create-tech-design and changed
+the template's six headings to the hand-off sections; the invariant -- the
+skill's literal IS the template's headings -- is unchanged. `test_design_sections_default_byte_identical_to_skill_literal` proves
 default == today's literal.
 
 Stdlib-only (json, os, re, html, unittest) — no `jsonschema` import, mirroring
@@ -25,13 +27,17 @@ import html
 import json
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 DESIGN_TEMPLATE_PATH = os.path.join(PLUGIN, "templates", "design-default.md")
-CREATE_DESIGN_SKILL = os.path.join(PLUGIN, "skills", "create-design", "SKILL.md")
+CREATE_DESIGN_SKILL = "create-tech-design"  # read through skill_text: the literal lives in references/
 CHANGELOG_PATH = os.path.join(PLUGIN, "CHANGELOG.md")
 C4_CONTAINER_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
 CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
@@ -41,12 +47,12 @@ ADR_PATH = os.path.join(
 )
 
 DESIGN_HEADINGS = [
-    "Context & constraints",
-    "Options considered",
-    "Decision & rationale",
-    "Architecture",
-    "Impact & risks",
-    "Rollout/migration",
+    "Decision & options",
+    "HLD views affected",
+    "LLD",
+    "NFRs",
+    "Risks",
+    "Open questions",
 ]
 
 
@@ -76,13 +82,13 @@ class TestDesignSectionsAreDerivedFromTheTemplate(unittest.TestCase):
     required_sections literal must equal them."""
 
     def test_the_skill_literal_equals_the_template_headings(self):
-        skill = read_text(CREATE_DESIGN_SKILL)
+        skill = skill_text.skill_contract(CREATE_DESIGN_SKILL)
         m = re.search(
             r'<constraint name="required_sections">(.*?)</constraint>',
             skill,
             re.DOTALL,
         )
-        self.assertIsNotNone(m, "create-design SKILL must keep the required_sections literal")
+        self.assertIsNotNone(m, "create-tech-design SKILL must keep the required_sections literal")
         # The literal is HTML-encoded (&amp;) and may wrap across lines inside the
         # XML example — unescape and collapse whitespace before comparing.
         literal = re.sub(r"\s+", " ", html.unescape(m.group(1))).strip()

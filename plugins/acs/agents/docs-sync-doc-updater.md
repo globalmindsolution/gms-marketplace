@@ -111,13 +111,14 @@ the artifacts alone.
      changeset review `/acs:review-code` recorded; `/acs:code` has no
      verifier of its own). Absent when no review has run — say so in your
      notes and proceed; it never stops a docs sync.
-   - The binding design — the published `design.md` the task
-     names: the design record `<architecture_dir>/lld/<feature>/<id>/design.md`
+   - The binding design — the published `tech-design.md` the task
+     names: `<architecture_dir>/lld/<feature>/<id>/tech-design.md`
      in the checkout (or the parent epic's when the ticket inherits it; a
-     legacy `docs/tickets/<id>/design.md` when that is where it was published),
+     legacy `design.md` there or in `docs/tickets/<id>/` when that is where
+     it was published),
      falling back to that ticket's workspace partition only when there
      was no checkout to publish into — when the ticket or its parent epic
-     needs design; absent otherwise. `steps/create-design/design.md` under
+     needs design; absent otherwise. `steps/create-tech-design/tech-design.md` under
      `<partition>` is an unverified working draft, never the binding design.
      With it, the API contract when the task names one — `api-contract.md` and
      the `lld/<feature>/api/` documents it links: the designed surface an API

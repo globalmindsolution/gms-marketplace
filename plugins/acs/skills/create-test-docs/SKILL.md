@@ -72,10 +72,9 @@ Parse the printed context JSON. Fields you will use:
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
   ticket whose design applies and its basename is that ticket's id. When
   `design.required`, resolve the design document with `acs.py artifacts show
-  --ticket <that id>` (`artifacts["design.md"]` — its design record in
-  `<architecture_dir>/lld/<feature>/<that id>/`, a legacy
-  `docs/tickets/<that id>/design.md`, or
-  `<design.dir>/design.md` when an older design still lives in the partition)
+  --ticket <that id>` (`artifacts["tech-design.md"]` — its tech design in
+  `<architecture_dir>/lld/<feature>/<that id>/` or the partition, falling
+  back to a legacy `design.md` there or in `docs/tickets/<that id>/`)
   and read it for the behaviour the design already settled. Call it
   `<design_doc>`.
 - `settings` — you need `tests` (the named suites a case's target may
@@ -144,7 +143,7 @@ that opens the next gate. Call it `<cases_path>` below.
 `docs/tickets/<ID>/` file only when the new folder has none.
 The same call reports `artifacts["plan.md"]`, `artifacts["api-contract.md"]`,
 `artifacts["analysis.md"]` (the analysis folder's `README.md`; `analysis_files`
-lists every file in it), `artifacts["design.md"]` and `feature_analysis` — the exact paths the
+lists every file in it), `artifacts["tech-design.md"]` and `feature_analysis` — the exact paths the
 other steps published. Pass THOSE paths to every subagent `<inputs>`; do
 not re-derive them. A `null` entry means the artifact does not exist: work from
 what does, and say so in `## Gaps and assumptions`.

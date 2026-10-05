@@ -40,8 +40,8 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   then the context files named — a folder, ADR-0133) when
   `/acs:analyze-requirements` has run (impact map, assumptions, risks, refined
   acceptance criteria) and the feature's living analysis
-  (`<prd_dir>/features/<feature>/analysis/`) when one exists; `design.md`
-  when the ticket or its parent epic has one; every `<partition>/specs/*.md` when a spec set exists (the numeric
+  (`<prd_dir>/features/<feature>/analysis/`) when one exists; `tech-design.md`
+  when the ticket or its parent epic has one (not `approved`: a `problems` entry); every `<partition>/specs/*.md` when a spec set exists (the numeric
   prefix `01-`, `02-`, ... is the dependency order); relevant consumer-repo
   source/doc paths; and on iteration 2+ the iteration-1 authoring notes.
   READ EVERY ONE. Derive `<partition>` from the directory containing the run
@@ -182,7 +182,7 @@ them from the contract, in the repo's format, with those files in its file map.
    new lifecycle. Bound: touched-area only, the same scope as the
    drift repair above — no whole-repo reconciliation. Explicitly NOT
    covered: `requirements_dir` edges and `adr_dir` edges — they
-   remain the responsibility of `/acs:create-design`'s full ADR-0012
+   remain the responsibility of `/acs:create-tech-design`'s full ADR-0012
    step (for `needs_design: true` tickets) and `/acs:docs-sync`'s
    diff-grounded re-derivation. When the consumer repo has no
    architecture doc set on disk, this check finds nothing to compare

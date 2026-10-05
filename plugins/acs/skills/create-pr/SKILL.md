@@ -12,7 +12,7 @@ leaves its output as uncommitted changes and records the paths it wrote, and
 you split those changes into small reviewable commits the user confirms, push
 them, and open the PR. Everything in the PR — title, body, ticket reference,
 change list, test plan — is composed from WORKSPACE STATE (the run's
-requirements, the ticket when there is one, `specs/`, `design.md`, `steps/code/state.json` including its review summary,
+requirements, the ticket when there is one, `specs/`, `tech-design.md`, `steps/code/state.json` including its review summary,
 the confirmed commit plan), never from conversation history. You perform all of
 the apply-work yourself, inline, following `references/publish.md`, and
 **spawn no subagent** — no planner, no executor, no verifier: committing a
@@ -85,11 +85,11 @@ Parse the printed context JSON. Fields you will use:
   `references/resume.md`.
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
   ticket whose design applies and its basename is that ticket's id. When
-  required, the design document — `artifacts["design.md"]` from
-  `acs.py artifacts show --ticket <that id>`, i.e. its design record in
-  `<architecture_dir>/lld/<feature>/<that id>/` (a legacy
-  `docs/tickets/<that id>/design.md` is still read), or
-  `<design.dir>/design.md` when the tree is opted out — feeds the
+  required, the tech design — `artifacts["tech-design.md"]` from
+  `acs.py artifacts show --ticket <that id>`, i.e. its tech design in
+  `<architecture_dir>/lld/<feature>/<that id>/` (a legacy `design.md` there or
+  in `docs/tickets/<that id>/` is still read), or the copy in
+  `<design.dir>` when the tree is opted out — feeds the
   Summary/Changes content. Call it `<design_doc>`.
 
 State inputs (read these; conversation history is NOT an input):
@@ -264,7 +264,7 @@ C4. **Commit.**
    ` — tracker: <provider> <key>` when `ticket.external` is set, empty
    otherwise), replace HTML comments with real content and DELETE the comments,
    fill every section strictly from the state files (`requirements.md`,
-   `ticket.json` when there is a ticket, `steps/code/state.json`, `specs/*.md`, `design.md` when required, the
+   `ticket.json` when there is a ticket, `steps/code/state.json`, `specs/*.md`, `tech-design.md` when required, the
    confirmed commit plan). The base branch is the repo's default — the `<base>`
    step 1 already detected; reuse that value rather than running the detect a
    second time.

@@ -21,7 +21,8 @@ The groups below are a reader's aid, not a structure the code knows about
   living low-level design,
   [ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md),
   [ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)),
-  `/acs:create-design`. The quality, operations,
+  `/acs:create-tech-design` (the change's hand-off for team review,
+  [ADR-0135](../../architecture/adr/0135-create-tech-design.md)). The quality, operations,
   principles and standards doc sets are written by hand: no skill bootstraps
   them since `/acs:create-docs` was removed
   ([ADR-0124](../../architecture/adr/0124-remove-create-docs.md)), and the
@@ -85,8 +86,8 @@ Every **workflow** skill MUST:
   eleven **authoring skills** run a write → judge Reflection cycle over
   their own roles — `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
   `create-prd` (surveyor, author, reviewer),
-  `create-architecture` (architect, gap-analyst, reviewer), `create-design` (designer,
-  design-reviewer), `create-data-design` (designer, gap-analyst, reviewer),
+  `create-architecture` (architect, gap-analyst, reviewer), `create-tech-design` (designer,
+  reviewer), `create-data-design` (designer, gap-analyst, reviewer),
   `create-flows` (designer, gap-analyst, reviewer), `create-impl-plan`
   (planner, plan-reviewer), `create-api-contract` (contract-author,
   gap-analyst, contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
@@ -145,11 +146,12 @@ Every **workflow** skill MUST:
   only after the post-hook succeeded; under `/ship` the compact XML handoff
   replaces it.
 
-`/create-design` remains bound by every clause above despite MAR-77's split of
+`/create-tech-design` (named `/create-design` until ADR-0135) remains bound
+by every clause above despite MAR-77's split of
 `acs_lib.PLANNING_SKILLS` out of `acs_lib.WORKFLOW_SKILLS`: it keeps the same
 hooked lifecycle — pre-hook gate and post-hook persistence, partition-scoped
 state, settings-driven subagent models, the per-ticket clarification ledger,
-and the standard completion report. MAR-77 changed only where `/create-design`
+and the standard completion report. MAR-77 changed only where the skill
 sits in `acs_lib.HOOKED_SKILLS`'s internal grouping and in the pipeline order
 table; none of its runtime obligations changed. The same holds for `/create-data-design` and
 `/create-flows`, which ADR-0126 added to `acs_lib.PLANNING_SKILLS` beside it, and
@@ -159,7 +161,7 @@ for `/create-api-contract`, which ADR-0134 moved there from `acs_lib.WORKFLOW_SK
 
 The five **per-run documents** — a Development run's analysis (the
 `analysis/` folder, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md); `docs where --doc analysis.md` resolves it),
-`plan.md`, `test-cases.md`, `design.md` and `api-contract.md` — are either
+`plan.md`, `test-cases.md`, `tech-design.md` and `api-contract.md` — are either
 **shared** (published to the run's phase folder, committed by `/create-pr`)
 or **kept local** (left in the run's step folder, `<run>/steps/<skill>/`, in
 the gitignored workspace) by a saved choice, `docs.share_run_documents`
@@ -167,7 +169,7 @@ the gitignored workspace) by a saved choice, `docs.share_run_documents`
 LLD, a feature's living analysis — are always shared.
 
 Every skill that writes a per-run document (`/analyze-requirements`,
-`/create-impl-plan`, `/create-test-docs`, `/create-design`,
+`/create-impl-plan`, `/create-test-docs`, `/create-tech-design`,
 `/create-api-contract`) MUST:
 
 - run `acs.py docs where --doc <name>` before its first write of that
@@ -204,7 +206,7 @@ working tree, so `/create-pr`'s commit plan never lists it.
 An analysis is a folder — `analysis/README.md` plus one file per bounded
 context ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)). Every skill that reads one — a feature's
 living analysis or a run's own (`/create-impl-plan`, `/create-test-docs`,
-`/create-design`, `/create-api-contract`, `/create-data-design`,
+`/create-tech-design`, `/create-api-contract`, `/create-data-design`,
 `/create-flows`, `/create-architecture`, `/code`, `/create-ticket`, and the
 next `/analyze-requirements` survey) — MUST:
 
@@ -494,8 +496,10 @@ an exempt `release/*` PR for a mandatory human merge.
 
 Purpose: approve, and otherwise move the status of, the versioned Discovery
 and Design documents — the PRD, the roadmap, each feature's living analysis,
-the HLD and each feature's living LLD — and record who moved them, when and
-why ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)).
+the HLD, each feature's living LLD and each change's `tech-design.md` — and
+record who moved them, when and
+why ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md),
+[ADR-0135](../../architecture/adr/0135-create-tech-design.md)).
 
 - **Unhooked and inline** — like `/setup`/`/update`, it spawns no subagents,
   opens no run, runs no `acs step start` and has no pre- or post-hook. It is
@@ -504,8 +508,10 @@ why ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md))
 - MUST list the documents through `acs.py design list` — grouped by phase
   (Discovery: PRD with roadmap, feature analyses; Design: HLD, each feature's
   LLD) and feature, each with its `status`, `version`, `problems` and
-  `allowed` moves — and MUST NOT list a run's design-record folders
-  (`lld/<feature>/<ticket-id or run-id>/`).
+  `allowed` moves — and from a run's design-record folder
+  (`lld/<feature>/<ticket-id or run-id>/`) MUST list `tech-design.md` only,
+  in its feature's Design group, labelled with that ticket id or run id
+  (ADR-0135); no other file of that folder is listed.
 - MUST NOT offer a document with `problems` (no or an invalid block) or one
   with no `allowed` move (a `deprecated` one); a document with `problems` is
   reported under Findings.
@@ -737,7 +743,7 @@ not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-
 - Delivery: none of its own — the documents stay uncommitted for
   `/create-pr "<prompt>"` ([product-level delivery rules](#product-level-delivery-no-ticket));
   the TDD pipeline does not apply to a docs-only change.
-- Maintenance afterwards belongs to the pipeline: `/create-design` designs
+- Maintenance afterwards belongs to the pipeline: `/create-tech-design` designs
   against the doc set, and `/code` updates it whenever a change alters the
   architecture ([workflow.md](workflow.md#product-level-architecture)).
 
@@ -985,17 +991,21 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   defined field is skipped silently as expected data, mirroring the
   null-assignee rule.
 
-## 2. `/create-design` *(conditional)*
+## 2. `/create-tech-design` *(conditional)*
 
 Purpose: settle the system design before implementation is specified — for
-tickets where the change is architecturally significant.
+tickets where the change is architecturally significant — and hand it to the
+team for review before implementation starts
+([ADR-0135](../../architecture/adr/0135-create-tech-design.md); the skill was
+`/create-design` until then, and no alias keeps the old name).
 
 - Runs only when the run's requirements carry **`needs_design: true`** —
   refined by `/analyze-requirements`, else the ticket's flag (set for epics
   only; stories/tasks are always `false` and skip straight to `/code`, unless
   they inherit a parent epic's design). A ticketless run with no recorded
   `needs_design` runs it when the user invoked the skill with requirements:
-  the invocation is the ask (ADR-0128).
+  the invocation is the ask (ADR-0128). The gate is `gate_create_tech_design`
+  in `SUBJECT_GATES`; epics are allowed.
 - MUST analyze the requirements, the feature's living analysis, the
   codebase, and existing docs; MUST evaluate
   **multiple options with trade-offs** and interact with the user on the
@@ -1005,20 +1015,38 @@ tickets where the change is architecturally significant.
   documented architecture** or explicitly lists the architecture changes it
   requires — which `/code` then applies to the doc set as part of the
   change.
-- Produces **`design.md`** in the run's Design folder
+- Produces **`tech-design.md`** in the run's Design folder
   (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128) — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)) — the designer drafts it
-  under `steps/create-design/` and the coordinator publishes the reviewed
-  bytes — with required sections:
-  **context & constraints (incl. NFRs such as security and performance),
-  options considered, decision & rationale, architecture (components,
-  interfaces/contracts, data model, and Mermaid sequence diagrams for new or
-  changed flows), impact & risks, rollout/migration**.
+  under `steps/create-tech-design/` and the coordinator publishes the reviewed
+  bytes — with these sections, in order:
+  **Decision & options** (context, options considered, decision & rationale),
+  **HLD views affected** (excerpts of the `hld/` views the change touches,
+  each linked at its version), **LLD** with **API**, **Data**, **Flows** and
+  **Components** (snapshots of the feature's living `lld/<feature>/` documents,
+  each linked at its version; "none yet" with the skill that writes it when
+  absent), **NFRs**, **Risks** (rollout and migration included) and **Open
+  questions**. An epic fills every section; a story or task fills those it
+  needs and marks the rest "n/a" with the reason.
+- MUST open the document with ADR-0122's front matter (`status: proposed`,
+  `version`, `tickets`, `feature`), written only through `acs.py design init`
+  for a new file and `design bump` for a revised one. `acs.py design list`
+  lists it in its feature's Design group, so the team approves it with
+  `/acs:set-doc-status approved <feature>`; the skill's report points there,
+  then at `/create-impl-plan`, which states the document's status in its own
+  report and warns, without blocking, when it is not approved.
+- Every reader resolves `tech-design.md` first and falls back to a legacy
+  `design.md` (and an older run's `steps/create-design/`) when it is absent;
+  nothing writes `design.md`. The run artifact keeps the key `design`
+  (`acs.py artifacts show design`), with `tech-design` an alias.
 - Child tickets of an epic do NOT repeat design: their `/code` reads
-  the **parent epic's** `design.md` (cross-partition read,
+  the **parent epic's** `tech-design.md` (cross-partition read,
   [workspace-and-state.md](workspace-and-state.md)).
-- The `create-design-design-reviewer` checks: alternatives genuinely weighed,
+- The `create-tech-design-reviewer` checks: alternatives genuinely weighed,
   consistency with the existing codebase and docs (including conformance
-  with the repo's `standards/` doc set when it has one),
+  with the repo's `standards/` doc set when it has one), cross-category
+  consistency between the snapshots (an operation a flow names is in the api
+  document, an entity it names is in the data document), snapshot freshness
+  (each linked version is the document's current version),
   feasibility, NFR coverage, and a deterministic `structure` floor
   (declared `required_sections`, **configurable** via
   `formats.design_template` / `enforcement.design_sections` — byte-identical
@@ -1026,8 +1054,10 @@ tickets where the change is architecturally significant.
   blocking `audience-style` check (declared audience/style profile; an unwaived
   audience-mismatch blocks, a `clarify.py --source assumption` waiver makes it
   `severity="info"`, non-blocking) — same 3-iteration reflection cap.
-- Subagents: `create-design-designer`, `create-design-design-reviewer`
-  (design → review — ADR-0109).
+- Subagents: `create-tech-design-designer`, `create-tech-design-reviewer`
+  (design → review — ADR-0109). Their models are set under
+  `models.create-tech-design` (`designer`, `reviewer`); a saved
+  `models.create-design` block is migrated to it on load.
 - The designer's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
@@ -1044,12 +1074,12 @@ physical schema of the PRD features it traces to — before implementation
 ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)).
 Design-phase work, run by the SA or Tech Lead on a ticket.
 
-- A Design skill (`PLANNING_SKILLS`, beside `/create-design`): hooked, takes
+- A Design skill (`PLANNING_SKILLS`, beside `/create-tech-design`): hooked, takes
   no run position, and runnable on its own at any time before
   implementation, on a ticket, a feature slug, a prompt or documents — the
   feature comes from the argument, the requirements' features or the ticket,
   and no ticket is needed (ADR-0128). Input: the run's requirements, the
-  feature's living analysis, the change's analysis (README first) and `design.md`, the
+  feature's living analysis, the change's analysis (README first) and `tech-design.md`, the
   HLD (`hld/data-model.md`, `hld/cross-cutting.md`, `hld/tech-stack.md`,
   `hld/c4-container.md`), the feature's `api/` documents and its existing
   `data/` documents, each read when present; else the ticket and the code's
@@ -1099,11 +1129,11 @@ state machines of the entities they change, and, when enabled, its component
 detail — before implementation
 ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)).
 
-- A Design skill (`PLANNING_SKILLS`, beside `/create-design`): hooked, takes
+- A Design skill (`PLANNING_SKILLS`, beside `/create-tech-design`): hooked, takes
   no run position, runnable on its own on a ticket, a feature slug, a prompt
   or documents (the feature from the argument, the requirements or the
   ticket; ADR-0128). Input: the run's requirements, the feature's living
-  analysis, the change's analysis (README first) and `design.md`, the HLD, and the feature's `api/` and `data/`
+  analysis, the change's analysis (README first) and `tech-design.md`, the HLD, and the feature's `api/` and `data/`
   documents — participants, operations and entities are named as those name
   them — each read when present.
 - MUST write **documents only** — never source or machine-readable contracts.
@@ -1315,7 +1345,7 @@ user, and say plainly whether they are ready to plan. It works in two phases
   `analysis/` folder.
 - The published analysis is the reusable record: the feature's living
   analysis is read by `/create-architecture`, `/create-api-contract`,
-  `/create-data-design`, `/create-flows`, `/create-design` and by every later
+  `/create-data-design`, `/create-flows`, `/create-tech-design` and by every later
   run on the feature; a Development run's is read by `/create-impl-plan`,
   `/create-test-docs` and `/code`, and the next run of this skill starts from
   it, each reading `README.md` first ("Reading an analysis: README first"
@@ -1357,7 +1387,7 @@ user, and say plainly whether they are ready to plan. It works in two phases
 Purpose: `/code`'s plan phase, carved out whole into its own skill, ending in
 an approved `plan.md`.
 
-- Input: the run's requirements, the analysis (its `README.md` first, then the context files the plan needs), `design.md` and the approved API
+- Input: the run's requirements, the analysis (its `README.md` first, then the context files the plan needs), `tech-design.md` (or a legacy `design.md`) and the approved API
   contract (`api-contract.md` through `acs.py artifacts show`, and the
   feature's `lld/<feature>/api/` files) when present; with none, the
   requirements alone. The contract is designed *before* the plan
@@ -1464,7 +1494,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)).
 - When a design exists (the ticket's own or its parent epic's), the plan MUST
   **conform to it**, and `/review-code`'s lens C MUST check that conformance
-  against `design.md` and the architecture doc set.
+  against `tech-design.md` and the architecture doc set.
 - **Plan-simplicity gate (MAR-88):** the plan's author MUST evaluate each
   candidate decomposition for a **materially** simpler alternative that meets
   the **same acceptance criteria** with materially less code/complexity,
@@ -1574,7 +1604,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   `/acs:docs-sync`. This is **not** the full ADR-0012 design-time
   step: living-requirements edges and ADR edges are explicitly
   not covered by it and remain the responsibility of
-  `/acs:create-design`'s full step (for `needs_design: true` tickets)
+  `/acs:create-tech-design`'s full step (for `needs_design: true` tickets)
   and `/acs:docs-sync`'s diff-grounded re-derivation.
 - `/code` MUST NOT branch, stage or commit: implementers leave their files
   uncommitted and list them in their reports' `files_changed`; the run
@@ -1596,7 +1626,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   exists for it (the input `/code` consumes rather than produces — a run
   without one is refused with a pointer at `/acs:create-impl-plan <id>`), and
   that the subject ticket's own `type` is not `epic`: an epic is refused
-  outright with a `GateError` directing the user to `/acs:create-design` (if
+  outright with a `GateError` directing the user to `/acs:create-tech-design` (if
   the epic has no design yet), then `/acs:create-ticket <id> --fan-out`, then
   `/acs:code` on a child. The epic brake is unconditional and runs for every
   implementation step, not only this one.
@@ -1689,7 +1719,7 @@ full unit suite runs.
        diff), **B** changed-hunk defects and security (**the diff and nothing
        else**), **C** contracts and architecture (`api-contract.md` and the
        feature's living `lld/<feature>/api/` files when they exist — no
-       "nothing owed" branch since ADR-0134 — `design.md`, architecture docs,
+       "nothing owed" branch since ADR-0134 — `tech-design.md`, architecture docs,
        the plan), **D** history and regression
        (`git log --follow -p`, bounded lookback), **E** craft and scope
        (the repo's `standards/` set, the diff; **Simplicity & scope** —

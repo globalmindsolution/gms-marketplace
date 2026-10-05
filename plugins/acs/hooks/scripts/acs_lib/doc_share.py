@@ -5,7 +5,7 @@ Two choices, each asked once and saved, never inferred:
 
   share    `docs.share_run_documents` (true|false; absent = undecided). It
            covers the per-run documents only -- analysis.md (a Development
-           run's), plan.md, test-cases.md, design.md, api-contract.md. SHARED:
+           run's), plan.md, test-cases.md, tech-design.md, api-contract.md. SHARED:
            the document is published to its phase folder (ADR-0128). LOCAL: it
            stays in the run's state folder, `<run>/steps/<skill>/local/<name>`
            (gitignored with the rest of the workspace), later steps still read
@@ -41,15 +41,21 @@ LOCAL_STEPS = {
     "analysis.md": "analyze-requirements",
     "plan.md": "create-impl-plan",
     "test-cases.md": "create-test-docs",
-    "design.md": "create-design",
+    "tech-design.md": "create-tech-design",
     "api-contract.md": "create-api-contract",
 }
+#: Where a renamed document was kept LOCAL before its rename (ADR-0135):
+#: (the step, the file name) -- read after the current local path, never written.
+LEGACY_LOCAL = {"tech-design.md": (("create-design", "design.md"),)}
 #: The subfolder of that step folder a local document is kept in -- apart from
 #: the step's working draft (`steps/<skill>/<name>`), which is revised in place.
 LOCAL_DIRNAME = "local"
 #: The living documents `where` answers for: always shared, by folder kind.
 LIVING_DOCS = {"living:prd": "prd", "living:architecture": "architecture"}
 DOC_CHOICES = tuple(LOCAL_STEPS) + tuple(LIVING_DOCS)
+#: A document's legacy name, accepted wherever a document is named and
+#: answered as the current one (ADR-0135).
+DOC_ALIASES = dict(doc_layout.LEGACY_DOCUMENT_NAMES)
 #: The scopes a share choice is saved in: this machine, the team, or -- when
 #: the user cannot be asked -- this run only (nothing saved).
 SCOPES = ("user", "team", "run")
@@ -69,6 +75,15 @@ def local_path(rdir, name):
     if name == "analysis.md":
         return os.path.join(base, doc_layout.ANALYSIS_DIRNAME, doc_layout.ANALYSIS_ENTRY)
     return os.path.join(base, name)
+
+
+def legacy_local_paths(rdir, name):
+    """Where a renamed document was kept LOCAL before its rename (absolute),
+    in reading order; [] without a run or for a document never renamed."""
+    if not rdir:
+        return []
+    return [os.path.join(step_dir(rdir, step), LOCAL_DIRNAME, old)
+            for step, old in LEGACY_LOCAL.get(name, ())]
 
 
 def _folder_of(doc, path):
@@ -170,7 +185,9 @@ def where(ctx, doc, rdir=None, layout=None):
 
     For `analysis.md` -- a folder since ADR-0133 -- `path`, `abs_path`,
     `shared_path` and `local_path` name the analysis FOLDER, and
-    `entry_path` / `abs_entry_path` its README.md."""
+    `entry_path` / `abs_entry_path` its README.md. A legacy name (DOC_ALIASES,
+    `design.md`) is answered as the document it became."""
+    doc = DOC_ALIASES.get(doc, doc)
     if doc not in DOC_CHOICES:
         raise GateError("unknown document %r (one of %s)" % (doc, ", ".join(DOC_CHOICES)))
     root = ctx.get("checkout_root")

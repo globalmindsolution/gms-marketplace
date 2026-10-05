@@ -28,7 +28,7 @@ def _refused(ws, step="analyze-requirements"):
 def IDEAL(ws):
     refusal = _refused(ws)
     ws.reply = ("## /acs:ship · EVAL-1 · failed\n\n%s\n\nEpics are never shipped: run "
-                "/acs:create-design EVAL-1, then /acs:create-ticket EVAL-1 --fan-out, then "
+                "/acs:create-tech-design EVAL-1, then /acs:create-ticket EVAL-1 --fan-out, then "
                 "/acs:ship <child-id> for each child." % refusal)
 
 
@@ -40,11 +40,11 @@ def _started_by_hand(ws):
 
 def _designed_and_fanned_out(ws):
     _refused(ws)
-    ws.skill("create-design")
-    ws.acs("step", "start", "--step", "create-design", "--ticket", "EVAL-1")
+    ws.skill("create-tech-design")
+    ws.acs("step", "start", "--step", "create-tech-design", "--ticket", "EVAL-1")
     ws.sh("python3 '%s' --title 'Checkout endpoint' --type story --needs-design false "
           "--description 'child of EVAL-1' > /dev/null" % NEW_TICKET)
-    ws.reply = ("Ran /acs:create-design EVAL-1 and the fan-out; shipping the children next.")
+    ws.reply = ("Ran /acs:create-tech-design EVAL-1 and the fan-out; shipping the children next.")
 
 
 def _implemented_the_epic(ws):
@@ -52,7 +52,7 @@ def _implemented_the_epic(ws):
     with open(os.path.join(ws.path, "src/shop/__init__.py"), encoding="utf-8") as fh:
         src = fh.read()
     ws.write("src/shop/__init__.py", src + "\n\ndef checkout(basket, card):\n    return 1\n")
-    ws.reply = "Implemented checkout directly; run /acs:create-design EVAL-1 and the fan-out later."
+    ws.reply = "Implemented checkout directly; run /acs:create-tech-design EVAL-1 and the fan-out later."
 
 
 def _vague(ws):

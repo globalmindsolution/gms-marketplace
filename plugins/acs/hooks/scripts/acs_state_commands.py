@@ -390,8 +390,8 @@ def _brake_or_die(ctx, step, rdir, doc, wf=None):
 
 def _run_from_invocation(ctx, step, text):
     """The run id the pre-hook would have opened for `/acs:<step> <text>`.
-    A skill that is not a step (create-design, create-api-contract,
-    create-data-design, create-flows) gets one too, over the same subject: its requirements need
+    A skill that is not a step (create-api-contract, create-data-design,
+    create-flows, create-tech-design) gets one too, over the same subject: its requirements need
     a run to be recorded in (ADR-0128)."""
     payload = {"tool_input": {"args": text}, "cwd": os.getcwd()}
     try:
@@ -483,7 +483,7 @@ def cmd_step_start(args):
         return _exempt_pr_start(args, ctx, verdict)
     subject_gate = lib.SUBJECT_GATES.get(args.step)
     if subject_gate:
-        # The pre-hook's subject gates (create-design's needs_design flag,
+        # The pre-hook's subject gates (create-tech-design's needs_design flag,
         # merge-pr's recorded PR), re-applied: without the hook they were
         # never checked at all.
         text = args.args or args.ticket or args.run or ""

@@ -6,12 +6,12 @@ design/spec templates. The config/data foundation (schema keys, built-in
 templates, docs) is spec 01, covered by
 `test_configurable_doc_templates_schema.py`; THIS module pins the wiring:
 
-- `create-design/SKILL.md` sources `required_sections` from the resolved
+- `create-tech-design/SKILL.md` (create-design until ADR-0135) sources `required_sections` from the resolved
   `formats.design_template` / `enforcement.design_sections` (3-tier resolution
   identical to `create-pr`'s `pr_description_template`), no longer a hardcoded
   literal — while KEEPING the six-heading literal present as the default
   (the byte-identical guard in the schema module greps this SKILL for it).
-- `create-design-design-reviewer.md` dim `structure` notes the section list is the
+- `create-tech-design-reviewer.md` dim `structure` notes the section list is the
   CONFIGURED one.
 
 MAR-156 deletes create-spec outright; its `formats.spec_template`/
@@ -31,20 +31,23 @@ Run:  python3 -m unittest tests.acs.test_configurable_doc_templates_wiring -v
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 AGENTS = os.path.join(PLUGIN, "agents")
 SKILLS = os.path.join(PLUGIN, "skills")
 
-CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
-CREATE_DESIGN_VERIFIER = os.path.join(AGENTS, "create-design-design-reviewer.md")
+CREATE_DESIGN_VERIFIER = os.path.join(AGENTS, "create-tech-design-reviewer.md")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 
-DESIGN_SIX = ("Context & constraints", "Options considered", "Decision & rationale",
-              "Architecture", "Impact & risks", "Rollout/migration")
+DESIGN_SIX = ("Decision & options", "HLD views affected", "LLD", "NFRs", "Risks",
+              "Open questions")
 
 
 def read(path):
@@ -91,13 +94,14 @@ def execute_region(body):
 
 
 class CreateDesignSkillResolutionTest(unittest.TestCase):
-    """create-design SKILL uses the built-in `design-default` template (a repo's
+    """create-tech-design SKILL uses the built-in `design-default` template (a repo's
     `.acs/templates/design-default.md` replaces it) and derives the required
     sections from the template itself, with no settings key for either —
     while keeping the six-heading literal present."""
 
     def setUp(self):
-        self.skill = read(CREATE_DESIGN_SKILL)
+        # The template procedure lives in references/, inlined at its pointer.
+        self.skill = skill_text.skill_contract("create-tech-design")
 
     def test_names_the_built_in_template_and_its_override(self):
         self.assertIn("design-default", self.skill)
@@ -113,7 +117,7 @@ class CreateDesignSkillResolutionTest(unittest.TestCase):
         # spec 02 must NOT delete it — only reframe it as the default.
         m = re.search(r'<constraint name="required_sections">(.*?)</constraint>',
                       self.skill, re.DOTALL)
-        self.assertIsNotNone(m, "create-design SKILL must keep the required_sections literal")
+        self.assertIsNotNone(m, "create-tech-design SKILL must keep the required_sections literal")
         literal = m.group(1).replace("&amp;", "&")
         literal = re.sub(r"\s+", " ", literal).strip()
         self.assertEqual(literal, "; ".join(DESIGN_SIX))
@@ -129,7 +133,7 @@ class CreateDesignSkillResolutionTest(unittest.TestCase):
 
 
 class CreateDesignVerifierConfiguredSectionsTest(unittest.TestCase):
-    """create-design-design-reviewer dim `structure` still invokes structure_lint
+    """create-tech-design-reviewer dim `structure` still invokes structure_lint
     against the sections derived from the resolved design template."""
 
     def setUp(self):

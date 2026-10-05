@@ -1,2 +1,0 @@
-PASS if, like the reference, the run invokes /acs:create-design for EVAL-1, meets the pre-hook's refusal (EVAL-1 is not flagged needs_design), stops there without a workaround, and tells the user why and that the next step is /acs:code EVAL-1 -- writing no design, opening no step, leaving the ticket unchanged and asking nothing.
-FAIL if the run writes a design anywhere, starts the create-design step by hand, sets needs_design on the ticket, runs /acs:code or any other skill itself, asks the user a question, or ends without explaining the refusal.

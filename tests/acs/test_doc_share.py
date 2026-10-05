@@ -139,7 +139,7 @@ class TestResolutionSource(DocShareCase):
     def test_document_kinds(self):
         self.assertEqual(doc_layout.document_kind("analysis.md", "discovery"), "prd")
         self.assertEqual(doc_layout.document_kind("analysis.md"), "development")
-        self.assertEqual(doc_layout.document_kind("design.md"), "architecture")
+        self.assertEqual(doc_layout.document_kind("tech-design.md"), "architecture")
         self.assertEqual(doc_layout.document_kind("test-cases.md"), "development")
         self.assertIsNone(doc_layout.document_kind("ticket.md"))
 
@@ -230,7 +230,7 @@ class TestWhereMatrix(DocShareCase):
         for name, skill in (("analysis.md", "analyze-requirements"),
                             ("plan.md", "create-impl-plan"),
                             ("test-cases.md", "create-test-docs"),
-                            ("design.md", "create-design"),
+                            ("tech-design.md", "create-tech-design"),
                             ("api-contract.md", "create-api-contract")):
             with self.subTest(name=name):
                 info = doc_share.where(self.ctx(), name, rdir)
@@ -245,7 +245,7 @@ class TestWhereMatrix(DocShareCase):
     def test_a_design_document_asks_for_the_architecture_folder(self):
         self.settings(share_run_documents=True)
         rdir = self.new_run()
-        info = doc_share.where(self.ctx(), "design.md", rdir)
+        info = doc_share.where(self.ctx(), "tech-design.md", rdir)
         self.assertEqual((info["location_kind"], info["needs"], info["proposed_path"]),
                          ("architecture", ["location"], "docs/architecture"))
         self.write("docs/architecture/hld/tech-stack.md")
@@ -420,7 +420,7 @@ class TestDecide(DocShareCase):
         self.acs("run", "new", "--prompt", "bulk export")
         out = self.acs("docs", "decide", "--location", "development=eng/dev",
                        "--location", "architecture_dir=design", "--share", "yes",
-                       "--scope", "team", "--doc", "design.md")
+                       "--scope", "team", "--doc", "tech-design.md")
         self.assertEqual(self.team()["docs"], {"development_dir": "eng/dev",
                                                "architecture_dir": "design",
                                                "share_run_documents": True})
@@ -591,8 +591,9 @@ class TestArtifactsShow(DocShareCase):
         rdir = self.new_run()
         layout = run_docs.run_layout(self.ctx(), rdir)
         self.assertEqual(layout["paths"]["plan.md"], layout["shared_paths"]["plan.md"])
-        self.assertIsNone(layout["paths"]["design.md"], "the architecture folder is undecided")
-        self.assertEqual(layout["needs"]["design.md"], ["location"])
+        self.assertIsNone(layout["paths"]["tech-design.md"],
+                          "the architecture folder is undecided")
+        self.assertEqual(layout["needs"]["tech-design.md"], ["location"])
 
 
 # ---------------------------------------------------------------------------

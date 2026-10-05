@@ -124,7 +124,10 @@ Or cut a ticket first, when the work needs one to track or sync:
                            #   number from local evidence — confirm or
                            #   correct it with --seed-next <n> (see
                            #   Troubleshooting below), then re-run
-/acs:create-design ACS-5   # only when the ticket carries needs_design: true
+/acs:create-tech-design ACS-5
+                           # only when the ticket carries needs_design: true:
+                           #   tech-design.md, the hand-off the team reviews —
+                           #   approve it with /acs:set-doc-status approved <feature>
 /acs:create-api-contract ACS-5
                            # when the change adds or changes an interface:
                            #   docs/architecture/lld/<feature>/api/<interface>.md,
@@ -186,7 +189,7 @@ entry point.
 **Gate** says what each skill's pre-hook checks before letting it start: the
 subject resolves, and the *safety brakes* — the lock; the epic refusal;
 `/acs:code`'s plan approval; `/acs:create-pr`'s failed review;
-`/acs:create-design`'s `needs_design`; `/acs:merge-pr`'s recorded PR
+`/acs:create-tech-design`'s `needs_design`; `/acs:merge-pr`'s recorded PR
 reference. No gate refuses a skill because an upstream artifact is missing
 (the skill falls back to the run's subject) or for a *predecessor's position*
 in the workflow — run a step out of the declared order and the pre-hook prints
@@ -217,7 +220,7 @@ is a `ship.yaml` step: they run before the plan.
 | `/acs:create-api-contract` | Settings exist | Takes a ticket (an epic included), a feature slug, a prompt or documents — no plan needed — and designs the feature's interfaces: one living file per interface (a REST resource, a CLI command group, an event topic, a gRPC service) under `lld/<feature>/api/`, versioned through `acs.py design`, each endpoint, command or message with its shapes, error codes, compatibility notes and examples traced to an acceptance criterion, plus the run's `api-contract.md` record in `lld/<feature>/<id>/` linking each file at its version. A gap analyst compares the existing `api/` documents with the code beside the survey. Documents only: the repo's OpenAPI, JSON Schema, proto or AsyncAPI files are made by `/acs:code` from plan items, never here; the files stay as local uncommitted changes listed in `states.files` ([ADR-0134](../../docs/architecture/adr/0134-api-contract-is-a-design-document.md)). |
 | `/acs:create-data-design` | Settings exist | Takes a ticket, a feature slug, a prompt or documents — no ticket needed — and writes the feature's data low-level design under `lld/<feature>/data/` — the logical ERD and the physical schema with a migration *outline*, for the enabled `design.lld_types` only; documents only, never migration code; never branches, commits or opens a PR — the files stay as uncommitted changes, listed in `states.files`, for `/acs:create-pr` ([ADR-0126](../../docs/architecture/adr/0126-lld-data-design-and-flows.md)). |
 | `/acs:create-flows` | Settings exist | Takes a ticket, a feature slug, a prompt or documents and writes the feature's behaviour low-level design under `lld/<feature>/flows/` — one file per flow (sequence, and activity where it branches) and one per entity state machine — plus `components/` when enabled; parallel writers per flow group, an integration pass only on a reported seam; documents only, left as local uncommitted changes listed in `states.files` ([ADR-0126](../../docs/architecture/adr/0126-lld-data-design-and-flows.md)). |
-| `/acs:create-design` | Subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag), or invoked by hand with requirements | Weighs options with you and writes `design.md` (decision, architecture, NFRs, risks) to `lld/<feature>/<id>/`; an epic's children inherit it. |
+| `/acs:create-tech-design` | Subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag), or invoked by hand with requirements | Weighs options with you and writes `tech-design.md` to `lld/<feature>/<id>/` — the hand-off the team reviews before implementation: the decision and options, the HLD views the change touches, snapshots of the feature's API, data, flows and components documents linked at their versions, NFRs, risks and open questions. It opens `proposed`; approve it with `/acs:set-doc-status approved <feature>`, then `/acs:create-impl-plan`, which reports its status. An epic's children inherit it; an older `design.md` is still read ([ADR-0135](../../docs/architecture/adr/0135-create-tech-design.md)). |
 
 ### Development — build, review and land one change
 
@@ -229,7 +232,7 @@ run's analysis) go to `docs/development/<feature>/<ticket-id or run-id>/`.
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
 | `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id, documents, a prompt or a mix** — the arguments go to the first step whatever the subject. Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step (every member at once when the cursor sits in a parallel group), then asks again, until the list is done. Never merges. |
-| `/acs:create-impl-plan` | Subject resolves; not an epic | The plan phase carved out of `/acs:code`: a planner surveys and drafts (the former planner charter), the spec fold, the executor file map, and plan approval, and a plan reviewer judges the draft, ending in an approved `plan.md` in `docs/development/<feature>/<id>/`. Reads the analysis (its `README.md` first, then the contexts it needs), `design.md` and the approved API contract (`api-contract.md` and the feature's `lld/<feature>/api/`) when present, else works from the run's requirements; when the repo keeps machine-readable contract files it plans the items that create or update them from the contract. |
+| `/acs:create-impl-plan` | Subject resolves; not an epic | The plan phase carved out of `/acs:code`: a planner surveys and drafts (the former planner charter), the spec fold, the executor file map, and plan approval, and a plan reviewer judges the draft, ending in an approved `plan.md` in `docs/development/<feature>/<id>/`. Reads the analysis (its `README.md` first, then the contexts it needs), `tech-design.md` (or an older `design.md`) — stating its status in its report, a warning when it is not approved — and the approved API contract (`api-contract.md` and the feature's `lld/<feature>/api/`) when present, else works from the run's requirements; when the repo keeps machine-readable contract files it plans the items that create or update them from the contract. |
 | `/acs:create-test-docs` | Subject resolves | Writes `test-cases.md` to `docs/development/<feature>/<id>/` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
 | `/acs:code` | Subject resolves; not an epic | Dispatches to the delivery-path leg the plan recorded (ADR-0095). TDD implementation in the working tree, left uncommitted, writing tests from `test-cases.md` when present. **Targeted tests only** — it has no verifier and never runs the full suite. |
 | `/acs:review-code` | Subject resolves; a changeset exists | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. Writes `verdict.json`; on blocking findings `/acs:code` reads it and fixes them. |
@@ -289,7 +292,7 @@ report breaks it and derives the counts it records from the report itself.
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 | `/acs:handoff` | — (utility) | Hands a ticket in mid-flight to a teammate on another machine. `/acs:handoff <ID>` asks one question — your note (done, in flight, next, decisions), each outside-repo attachment (include or skip) and the push — then sends the ticket's resume set (the uncommitted work, the run and its steps' state, results and verdicts) as one commit to the hidden ref `refs/acs/handoff/<ID>`; your own work, run and lock stay as they are. `/acs:handoff receive <ID>`, from a clean tree, applies the work with a three-way merge, restores the run, deletes the ref and prints the command to continue; `/acs:handoff list` shows what is waiting. Anyone who can read the remote can fetch the ref. Handing a finished phase to the next team needs no handoff: `/acs:set-doc-status`, then `/acs:create-pr` ([ADR-0131](../../docs/architecture/adr/0131-ticket-handoff-between-members.md)). |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
-| `/acs:set-doc-status` | — (unhooked) | Approves, or otherwise moves the status of, the versioned Discovery and Design documents — the PRD, the roadmap, feature analyses, the HLD and each feature's LLD. Lists them by phase and feature (`acs.py design list`), lets you pick whole features, design areas or single documents in one ask, offers only the legal moves, then runs one all-or-nothing `acs.py design status --set` that records who moved them, when and why (`status_by`, `status_at`, `status_reason`). Commits nothing: it lists the changed files for `/acs:create-pr` ([ADR-0130](../../docs/architecture/adr/0130-prd-versions-and-set-doc-status.md)). Also `/acs:set-doc-status approved wishlist`. |
+| `/acs:set-doc-status` | — (unhooked) | Approves, or otherwise moves the status of, the versioned Discovery and Design documents — the PRD, the roadmap, feature analyses, the HLD, each feature's LLD and each change's `tech-design.md`. Lists them by phase and feature (`acs.py design list`), lets you pick whole features, design areas or single documents in one ask, offers only the legal moves, then runs one all-or-nothing `acs.py design status --set` that records who moved them, when and why (`status_by`, `status_at`, `status_reason`). Commits nothing: it lists the changed files for `/acs:create-pr` ([ADR-0130](../../docs/architecture/adr/0130-prd-versions-and-set-doc-status.md)). Also `/acs:set-doc-status approved wishlist`. |
 
 ## How gating works
 
@@ -312,7 +315,7 @@ report breaks it and derives the counts it records from the report itself.
 - **The brakes that survive are facts, not order.** `/acs:code` refuses a
   standard or complex run whose plan approval is missing or is for a different
   revision of the plan on disk; `/acs:create-pr` refuses a run whose recorded
-  `/acs:review-code` step did not pass; `/acs:create-design`
+  `/acs:review-code` step did not pass; `/acs:create-tech-design`
   refuses a ticket that is not flagged `needs_design`; and `/acs:merge-pr`
   refuses without a PR reference recorded by a completed run. An epic id is
   refused by the steps that would work it as one ticket, and every hooked
@@ -337,7 +340,7 @@ ticket itself — stays in the gitignored workspace (and your tracker)
 
 ```text
 <repo>/docs/product/features/<feature>/analysis/         # Discovery: the feature's living analysis (a folder)
-<repo>/docs/architecture/lld/<feature>/<id>/              # Design: design.md  api-contract.md (per-run records)
+<repo>/docs/architecture/lld/<feature>/<id>/              # Design: tech-design.md  api-contract.md (per-run records)
 <repo>/docs/architecture/lld/<feature>/api/               # Design: the living interface docs, one per interface
 <repo>/docs/development/<feature>/<id>/                   # Development: analysis/  plan.md  test-cases.md
                                                           #   <id> = the ticket id, else the run id
@@ -385,7 +388,7 @@ docs/development/checkout/SHOP-12/analysis/
 
 **Shared or kept local — your choice, asked once** ([ADR-0132](../../docs/architecture/adr/0132-share-or-keep-run-documents-local.md)). A run's own
 documents (a Development `analysis/` folder, `plan.md`, `test-cases.md`,
-`design.md`, `api-contract.md`) go to those folders only when you share them.
+`tech-design.md`, `api-contract.md`) go to those folders only when you share them.
 Kept local, they stay in the run's `steps/<skill>/` folder: the later steps
 still read them, `/acs:handoff` carries them, and they never reach the repo or
 `/acs:create-pr`'s commits. The first skill that writes one asks — share or
@@ -403,7 +406,7 @@ decide` records the answers.
 Two machines, not one. `run.json` records the run — its workflow, its subject,
 its position in the loop; `steps/<skill>/state.json` records that step's own
 invocations. Keeping them apart is what lets a skill the workflow never names
-(`/acs:create-design`, say) hold step state without taking a position in any
+(`/acs:create-tech-design`, say) hold step state without taking a position in any
 run.
 
 A ticket's status is DERIVED from the ledger (`open` → `in_progress` →

@@ -253,7 +253,7 @@ class TestIndependence(unittest.TestCase):
         self.assertIn("Nothing\nupstream is required", self.body)
 
     def test_the_epic_refusal_points_at_design_then_fan_out_then_a_child(self):
-        self.assertIn("/acs:create-design <id>", self.body)
+        self.assertIn("/acs:create-tech-design <id>", self.body)
         self.assertIn("/acs:create-ticket <id>", self.body)
         self.assertRegex(self.body, r"/acs:analyze-requirements` on a child")
 
@@ -1176,7 +1176,7 @@ class TestTwoModes(unittest.TestCase):
     def test_the_readers_of_each_analysis_are_named(self):
         tail = self.skill[_pos(self.skill, "**The published file is the reusable record.**"):]
         for reader in ("/acs:create-architecture", "/acs:create-data-design",
-                       "/acs:create-flows", "/acs:create-design"):
+                       "/acs:create-flows", "/acs:create-tech-design"):
             self.assertIn(reader, tail)
 
     def test_the_result_records_the_new_paths(self):
@@ -1265,7 +1265,7 @@ class TestAnalysisIsAFolder(unittest.TestCase):
     every other skill reads the README first, then only the context files it
     needs, with the legacy single file still read."""
 
-    READERS = ("create-impl-plan", "create-test-docs", "create-design",
+    READERS = ("create-impl-plan", "create-test-docs", "create-tech-design",
                "create-api-contract", "create-data-design", "create-flows",
                "create-architecture", "create-ticket")
 
@@ -1329,7 +1329,7 @@ class TestAnalysisIsAFolder(unittest.TestCase):
                                           "protocol.md")))
         self.assertIn("its `README.md` (`artifacts[\"analysis.md\"]`) first, then "
                       "only the context files", protocol)
-        for skill in ("create-impl-plan", "create-test-docs", "create-design",
+        for skill in ("create-impl-plan", "create-test-docs", "create-tech-design",
                       "create-api-contract"):
             with self.subTest(legacy=skill):
                 body = norm(skill_text.skill_contract(skill))

@@ -1,6 +1,6 @@
 """The two pre-hook gates for skills that are NOT steps of the resolved workflow.
 
-Originating ticket: MAR-586. `/acs:merge-pr` and `/acs:create-design` are
+Originating ticket: MAR-586. `/acs:merge-pr` and `/acs:create-tech-design` are
 deliberately absent from `ship.yaml`, so the gate's `has_step` return used to
 short-circuit before any brake ran and both hooks exited 0 on every profile.
 This module pins the restored behaviour:
@@ -9,7 +9,7 @@ This module pins the restored behaviour:
     a PR reference for the one that does -- bare, ticketed and epic alike;
   * merge-pr's exempt non-ticket forms (--pr N, #N, a PR URL) still pass through
     un-gated, which is what keeps `_merge_pr_arg_text` a live helper;
-  * create-design refuses a ticket that is not flagged needs_design, and refuses
+  * create-tech-design refuses a ticket that is not flagged needs_design, and refuses
     when no ticket resolves, while a needs_design ticket keeps opening;
   * the refusal WORDING is read out of the golden dataset at test time, so
     drift fails here rather than only in the eval tier;
@@ -161,31 +161,31 @@ class CodeSubjectGateTest(acs_case.AcsWorkspaceCase):
 
 
 class CreateDesignGateTest(acs_case.AcsWorkspaceCase):
-    """/acs:create-design only runs for a design-significant ticket."""
+    """/acs:create-tech-design only runs for a design-significant ticket."""
 
-    def test_create_design_is_refused_for_a_ticket_not_flagged_needs_design(self):
+    def test_create_tech_design_is_refused_for_a_ticket_not_flagged_needs_design(self):
         ticket = self.new_ticket("Add user login", "task")
-        out = self.pre("create-design", ticket)
+        out = self.pre("create-tech-design", ticket)
         self.assertEqual(out.returncode, 2, out.stderr)
-        self.assertIn("acs pre-create-design: blocked", out.stderr)
+        self.assertIn("acs pre-create-tech-design: blocked", out.stderr)
         self.assertIn(
-            "ticket %s is not flagged needs_design — /create-design only runs for "
+            "ticket %s is not flagged needs_design — /create-tech-design only runs for "
             "design-significant tickets; go straight to /acs:code %s."
             % (ticket, ticket), out.stderr)
 
-    def test_create_design_is_refused_with_no_requirements_at_all(self):
-        out = self.pre("create-design")
+    def test_create_tech_design_is_refused_with_no_requirements_at_all(self):
+        out = self.pre("create-tech-design")
         self.assertEqual(out.returncode, 2, out.stderr)
-        self.assertIn("acs pre-create-design: blocked", out.stderr)
+        self.assertIn("acs pre-create-tech-design: blocked", out.stderr)
         self.assertIn(
-            "no requirements for /create-design: no ticket, document or prompt in the "
+            "no requirements for /create-tech-design: no ticket, document or prompt in the "
             "invocation, and no current run. Give it a ticket id, documents or a "
-            "prompt, e.g. /acs:create-design SHOP-123.", out.stderr)
+            "prompt, e.g. /acs:create-tech-design SHOP-123.", out.stderr)
 
     def test_a_prompt_is_the_ask_with_no_ticket(self):
-        """ADR-0128: invoking /acs:create-design with requirements -- here a
+        """ADR-0128: invoking /acs:create-tech-design with requirements -- here a
         prompt -- IS the request for a design; no ticket flag is needed."""
-        out = self.pre("create-design", "split the order service into two")
+        out = self.pre("create-tech-design", "split the order service into two")
         self.assertEqual(out.returncode, 0, out.stderr)
 
     def test_a_ticket_whose_refined_requirements_need_a_design_opens(self):
@@ -197,7 +197,7 @@ class CreateDesignGateTest(acs_case.AcsWorkspaceCase):
                         "refine patches the ticket too")
         lib.save_ticket(self.tdir(ticket), dict(lib.load_ticket(self.tdir(ticket)),
                                                 needs_design=False))
-        out = self.pre("create-design", ticket)
+        out = self.pre("create-tech-design", ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
 
     def test_a_ticketless_run_that_recorded_no_design_is_refused(self):
@@ -206,16 +206,16 @@ class CreateDesignGateTest(acs_case.AcsWorkspaceCase):
         run_id = json.loads(out.stdout)["run_id"]
         rdir = lib.run_dir(lib.repo_dir(self.ws, "acme-shop"), run_id)
         lib.requirements.refine(rdir, lib.build_context(self.repo), {"needs_design": False})
-        out = self.pre("create-design")
+        out = self.pre("create-tech-design")
         self.assertEqual(out.returncode, 2, out.stderr)
         self.assertIn("record needs_design false", out.stderr)
         self.assertIn("requirements refine", out.stderr)
         lib.requirements.refine(rdir, lib.build_context(self.repo), {"needs_design": True})
-        self.assertEqual(self.pre("create-design").returncode, 0)
+        self.assertEqual(self.pre("create-tech-design").returncode, 0)
 
-    def test_create_design_opens_for_a_needs_design_ticket(self):
+    def test_create_tech_design_opens_for_a_needs_design_ticket(self):
         ticket = self.new_ticket("Checkout revamp", "epic")
-        out = self.pre("create-design", ticket)
+        out = self.pre("create-tech-design", ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn("blocked", out.stderr)
 
@@ -329,7 +329,7 @@ class SubjectGateCreatesNoRunTest(acs_case.AcsWorkspaceCase):
     def test_a_refused_subject_gate_creates_no_run(self):
         ticket = self.new_ticket("Add user login", "task")
         runs = os.path.join(lib.repo_dir(self.ws, "acme-shop"), "runs")
-        for skill in ("merge-pr", "create-design"):
+        for skill in ("merge-pr", "create-tech-design"):
             with self.subTest(skill=skill):
                 out = self.pre(skill, ticket)
                 self.assertEqual(out.returncode, 2, out.stderr)
@@ -344,9 +344,9 @@ class RecordedGoldenWordingTest(acs_case.AcsWorkspaceCase):
         task = self.new_ticket("Add user login", "task")
         epic = self.new_ticket("Checkout revamp", "epic")
         cases = [
-            ("GATE-011", "create-design", ""),
+            ("GATE-011", "create-tech-design", ""),
             ("GATE-015", "merge-pr", ""),
-            ("GATE-026", "create-design", task),
+            ("GATE-026", "create-tech-design", task),
             ("GATE-030", "merge-pr", task),
             ("GATE-045", "merge-pr", epic),
         ]

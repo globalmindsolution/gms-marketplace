@@ -7,4 +7,4 @@ match: not_contains
 ---
 
 Discovery analyzes; it never implements, and a confirmed needs_design is
-recorded, not acted on -- the design is /acs:create-design's.
+recorded, not acted on -- the design is /acs:create-tech-design's.

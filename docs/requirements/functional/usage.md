@@ -74,10 +74,11 @@ What happens (you are asked clarifying questions along the way):
 
 1. `/create-ticket` — analyzes the prompt against the PRD, codebase, and
    docs; creates epic `SHOP-4` with **no children** (`children: []`). Its
-   `/create-design` runs next; then `/acs:create-ticket SHOP-4 --fan-out`
+   `/create-tech-design` runs next (approve its `tech-design.md` with
+   `/set-doc-status approved <feature>`); then `/acs:create-ticket SHOP-4 --fan-out`
    mints children `SHOP-5`, `SHOP-6` from the design's slices (you confirm
    the breakdown). Epic flips to **In Progress** when work starts.
-2. Per child: `/create-design` (or the child inherits the epic's design) →
+2. Per child: `/create-tech-design` (or the child inherits the epic's design) →
    `/code` (TDD against 90% coverage, verifier review loop
    ≤3 iterations, docs + architecture updated) → `/docs-sync` → `/create-pr`.
 3. `/ship` **stops before merge** — it never merges for you.

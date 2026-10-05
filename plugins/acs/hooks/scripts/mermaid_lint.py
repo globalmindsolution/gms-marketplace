@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Dependency-free linter for Mermaid diagrams embedded in Markdown.
 
-The acs skills (`/acs:create-architecture`, `/acs:create-design`) emit
+The acs skills (`/acs:create-architecture`, `/acs:create-tech-design`) emit
 architecture/design docs whose diagrams are fenced ```mermaid blocks rendered
 by GitHub. GitHub's renderer is strict: a single syntax error turns the whole
 block into an error box. This linter is a deterministic ($0, no Node, no

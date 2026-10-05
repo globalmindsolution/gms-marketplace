@@ -10,12 +10,16 @@ key (the ticket id, else the run id) place every document:
                              Discovery: <prd_dir>/features/<f>/analysis/README.md
                              Development: <development_dir>/<f>/<key>/analysis/README.md
   plan.md, test-cases.md     <development_dir>/<f>/<key>/
-  design.md, api-contract.md <architecture_dir>/lld/<f>/<key>/
+  tech-design.md,            <architecture_dir>/lld/<f>/<key>/
+  api-contract.md
 
 A reader that finds nothing there falls back to the legacy
-`docs/tickets/<ID>/<name>`, then the ticket's workspace partition. A run with
-no feature yet has no shared write target until one is named (`acs.py
-requirements refine`, analyze-requirements' grouped ask).
+`docs/tickets/<ID>/<name>`, then the ticket's workspace partition. The tech
+design is also read under the name it had before ADR-0135, `design.md` --
+beside each place it is looked for, and in the old local step folder
+`steps/create-design/local/` -- so an older run or docs folder still
+resolves. A run with no feature yet has no shared write target until one is
+named (`acs.py requirements refine`, analyze-requirements' grouped ask).
 
 Whether a run document is written to its phase folder at all is the user's
 saved choice (ADR-0132, `acs_lib.doc_share`): `paths[name]` is the phase-folder
@@ -47,6 +51,21 @@ def _ticket_features(ctx, ticket_id):
     tdir, _archived = find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
     ticket = load_ticket(tdir) if os.path.isdir(tdir) else None
     return tdir, ticket if isinstance(ticket, dict) else None
+
+
+def _with_legacy_names(candidates, name, local, rdir):
+    """`candidates` with, after each, where the document was kept under its
+    name before a rename (ADR-0135): the old local step folder after the
+    local path, the old file name beside any other."""
+    out = []
+    for path in candidates:
+        out.append(path)
+        if path == local:
+            out += doc_share.legacy_local_paths(rdir, name)
+        else:
+            out += [os.path.join(os.path.dirname(path), old)
+                    for old in doc_layout.legacy_names(name)]
+    return out
 
 
 def run_layout(ctx, rdir=None, doc=None, ticket_id=None):
@@ -98,11 +117,14 @@ def run_layout(ctx, rdir=None, doc=None, ticket_id=None):
             # A folder's README.md first, then the single file it replaced.
             candidates = [p for c in candidates
                           for p in (c, analysis_folder.legacy_sibling(c)) if p]
+        candidates = _with_legacy_names(candidates, name, local[name],
+                                        rdir if has_run else None)
+        names = (name,) + doc_layout.legacy_names(name)
         legacy = doc_layout.legacy_ticket_dir(root, ticket_id)
         if legacy:
-            candidates.append(os.path.join(legacy, name))
+            candidates += [os.path.join(legacy, n) for n in names]
         if tdir:
-            candidates.append(os.path.join(tdir, name))
+            candidates += [os.path.join(tdir, n) for n in names]
             candidates += [os.path.join(tdir, rel) for rel in _PARTITION_LEGACY.get(name, ())]
         found[name] = next((c for c in candidates if os.path.isfile(c)), None)
     living = doc_layout.existing_feature_analysis(root, feature, settings) if feature else None

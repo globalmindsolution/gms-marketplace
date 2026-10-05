@@ -25,7 +25,7 @@ only when the new folder has none.
 
 Call it `<contract_path>`; record it as `states.contract_path`. The same call
 reports `artifacts["analysis.md"]` (the analysis folder's `README.md`;
-`analysis_files` lists its context files) and `artifacts["design.md"]` — the
+`analysis_files` lists its context files) and `artifacts["tech-design.md"]` — the
 inputs every subagent is handed.
 
 ### Share or keep local — asked once, in the same grouped ask (ADR-0132)

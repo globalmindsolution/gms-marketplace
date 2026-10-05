@@ -498,7 +498,7 @@ document; whatever was written stays in the working tree, listed in
 
 ## Delivery
 
-Documents only, and they stay local (/acs:create-design and /acs:code are not involved):
+Documents only, and they stay local (/acs:create-tech-design and /acs:code are not involved):
 no branch, no commit, no push, no PR — whichever branch is checked out
 (ADR-0127). Leave every file the architects
 wrote under `<architecture_dir>/hld/` as an uncommitted change and record every

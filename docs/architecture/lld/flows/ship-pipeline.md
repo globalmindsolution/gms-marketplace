@@ -21,7 +21,7 @@ cost.
 `/ship` takes a **ticket id**. This diagram is therefore the whole of what it
 drives — the implementation walk for a subject that already exists (and, for
 an epic child, has already been fanned out). `create-ticket` and
-`create-design` are Design-phase work that runs before it; see "Planning
+`create-tech-design` are Design-phase work that runs before it; see "Planning
 pipeline (epics)" below.
 
 ```mermaid
@@ -112,20 +112,24 @@ creation time.
 sequenceDiagram
     actor Dev as Developer
     participant CT as create-ticket
-    participant CD as create-design
+    participant CD as create-tech-design
+    participant SDS as set-doc-status
     participant FO as create-ticket fan-out mode
 
     Dev->>CT: acs create-ticket, type epic
     CT-->>Dev: epic created, children empty
-    Dev->>CD: acs create-design EPIC-id
-    CD-->>Dev: design.md approved, decision recorded
+    Dev->>CD: acs create-tech-design EPIC-id
+    CD-->>Dev: tech-design.md reviewed, status proposed
+    Dev->>SDS: acs set-doc-status approved feature
+    SDS-->>Dev: tech-design.md approved, approver recorded
     Dev->>FO: acs create-ticket EPIC-id --fan-out
     FO-->>Dev: children minted per the design's seams, Step-2 gate reused
     note over Dev: planning pipeline stops here, implementation is a separate pipeline per child
 ```
 
 The epic path in one sentence: `create-ticket` (epic, `children: []`) →
-`create-design` → `create-ticket <epic-id> --fan-out` → STOP; implementation
+`create-tech-design` → `set-doc-status approved` (the team's sign-off on the
+hand-off, ADR-0135) → `create-ticket <epic-id> --fan-out` → STOP; implementation
 is the separate, per-child pipeline diagrammed above. Each child runs in a
 worktree of its own when two are in flight at once: one checkout has one
 working tree, and so one changeset.

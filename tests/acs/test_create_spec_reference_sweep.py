@@ -21,7 +21,11 @@ Stdlib-only (os, re, sys, unittest). Run:
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -45,12 +49,12 @@ IMPL_PLAN_SHAPE_REF = os.path.join(SKILLS_DIR, "create-impl-plan", "references",
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
 
 # --- This spec's sweep-set files ---
-CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
+CREATE_DESIGN_SKILL = "create-tech-design"  # ADR-0135; read via skill_text (references/)
 CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
 SETUP_SKILL = os.path.join(SKILLS_DIR, "setup", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
-CREATE_DESIGN_DESIGNER = os.path.join(AGENTS_DIR, "create-design-designer.md")
+CREATE_DESIGN_DESIGNER = os.path.join(AGENTS_DIR, "create-tech-design-designer.md")
 # create-ticket spawns no subagent: its former executor charter is the
 # materialization reference the coordinator follows inline.
 CREATE_TICKET_MATERIALIZE = os.path.join(SKILLS_DIR, "create-ticket", "references",
@@ -83,14 +87,18 @@ PROVENANCE_SUBSTRINGS = [
 
 # The 7 Rule-1 lines assertion 4 covers (create-design's 7 sites plus the
 # create-ticket "Next" line's two occurrences, tested separately below).
+# ADR-0135 renamed the skill create-tech-design and put the team's approval
+# and the plan between it and /acs:code, so the sites that route a non-epic
+# ticket onward now name /acs:create-impl-plan (then /acs:code) -- still
+# never create-spec.
 CREATE_DESIGN_ROUTING_PHRASES = [
     "tickets without the flag skip straight to /acs:code.",
-    "design reviewer before it gates `/acs:code`.",
+    "approved by the team with `/acs:set-doc-status` (ADR-0130) before `/acs:create-impl-plan` plans it.",
     "INHERIT this design via cross-partition read in their /acs:code; never",
     "the /acs:code gate stays closed until it succeeds.",
-    "the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,",
-    "exactly one `<next-step>`: `/acs:code <id>`",
-    "**Next**: `/acs:code <ticket-id>` for a non-epic ticket",
+    "for a non-epic ticket, `/acs:create-impl-plan <id>` and `/acs:code <id>`; for an epic,",
+    "exactly one `<next-step>`: `/acs:create-impl-plan <id>` for a non-epic ticket",
+    "**Next**: approve it with `/acs:set-doc-status approved <feature>`, then `/acs:create-impl-plan <ticket-id>` for a non-epic ticket",
 ]
 
 
@@ -242,13 +250,13 @@ class Rule2HygieneTest(unittest.TestCase):
 
 
 class Rule1CreateDesignRoutingTest(unittest.TestCase):
-    """Assertion 4 (part 1): create-design/SKILL.md's 7 Rule-1 lines each
+    """Assertion 4 (part 1): create-tech-design/SKILL.md's 7 Rule-1 lines each
     now name /acs:code — a positive replacement check, not merely an
     absence-of-create-spec check (a silent deletion would also pass an
     absence check while dropping the routing target)."""
 
     def test_all_seven_lines_route_to_code(self):
-        body_norm = norm(read(CREATE_DESIGN_SKILL))
+        body_norm = norm(skill_text.skill_contract(CREATE_DESIGN_SKILL))
         for phrase in CREATE_DESIGN_ROUTING_PHRASES:
             with self.subTest(phrase=phrase):
                 self.assertRegex(body_norm, phrase_re(phrase))
@@ -262,14 +270,14 @@ class Rule1CreateTicketNextLineBothOccurrencesTest(unittest.TestCase):
     def test_next_line_both_occurrences_route_to_code(self):
         body_norm = norm(read(CREATE_TICKET_SKILL))
         self.assertRegex(body_norm, phrase_re(
-            "**Next**: `/acs:create-design <id>` when `needs_design` is "
+            "**Next**: `/acs:create-tech-design <id>` when `needs_design` is "
             "true, else `/acs:code <id>`; for an epic, each child continues "
             "with `/acs:code <child-id>` after the epic's design"))
 
 
 class Rule1RemainingSitesTest(unittest.TestCase):
     """Assertion 8: the 5 Rule-1 sites assertion 4 does not reach —
-    create-ticket/SKILL.md's other 3 lines, create-design-designer.md, and
+    create-ticket/SKILL.md's other 3 lines, create-tech-design-designer.md, and
     create-ticket's references/materialize.md (its executor charter until the
     skill went inline) — each proven REPLACED, not merely absent."""
 
@@ -307,13 +315,13 @@ class Rule2OutcomeTextTest(unittest.TestCase):
         for path in RULE2_IDENTICAL_FILES:
             with self.subTest(path=path):
                 self.assertIn(
-                    "/acs:create-design and /acs:code are not involved):",
+                    "/acs:create-tech-design and /acs:code are not involved):",
                     read(path))
 
     def test_setup_pipeline_recital_adjacency(self):
         body = read(SETUP_SKILL)
         self.assertRegex(
-            norm(body), phrase_re("`/acs:create-design` → `/acs:code`"))
+            norm(body), phrase_re("`/acs:create-tech-design` → `/acs:code`"))
         self.assertNotIn("create-spec", body)
 
 

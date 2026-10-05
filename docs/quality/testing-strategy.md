@@ -127,7 +127,7 @@ never hand-picked:
 | `create-prd` | ✅ | ✅ | ✅ | — |
 | `create-architecture` | ✅ | ✅ | ✅ | — |
 | `create-ticket` | ✅ | ✅ | ✅ | ✅† |
-| `create-design` | ✅ | ✅ | ✅ | — |
+| `create-tech-design` | ✅ | ✅ | ✅ | — |
 | `code` | ✅ | ✅ | ✅ | ✅† |
 | `docs-sync` | ✅ | ✅ | ✅ | — |
 | `create-pr` | ✅ | ✅ | ✅ | — |
@@ -246,7 +246,7 @@ output is asserted but not yet measured.
    eval sandbox cannot reach; the retired harness's forge tier (MAR-67/68) was
    the only route, and it has no equivalent in the current format.
 4. **LLM-as-judge for subjective skills** *(paid).* Rubric-scored evals for
-   `create-prd` / `create-architecture` / `create-design`, whose quality is
+   `create-prd` / `create-architecture` / `create-tech-design`, whose quality is
    about content soundness rather than artifact shape.
 5. **Dogfooding as standing coverage (E3).** Every acs change shipped via
    `/acs:ship` is a real behavioral test; its run ledger and review findings

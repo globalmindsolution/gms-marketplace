@@ -188,7 +188,7 @@ echo it when present) with `<objective>`, `<inputs>` (always
 including the analysis draft folder — its README and every context file — the analyst's authoring notes
 (`iter-1/authoring.md`, and `iter-<n>/authoring.md` on iteration ≥ 2), the
 analyst report (`iter-<n>/analyst.json`), `requirements.md` as refined by
-the user's confirmations (and the ticket document, when there is one), the clarification ledger, `design.md`
+the user's confirmations (and the ticket document, when there is one), the clarification ledger, `tech-design.md`
 when it binds, and the repo paths the impact map names), `<constraints>` (at
 least `required_sections` and `audience_style_profile`, plus `dimensions` when
 you are one slice), and optional `<context>` (prior findings). A sliced task

@@ -381,7 +381,7 @@ class TestClarifications(AcsWorkspaceCase):
         self.assertEqual((entry["id"], entry["status"]), ("C-1", "answered"))
 
         opened = json.loads(self.clarify(
-            "add", "--skill", "create-design", "--question", "Duplicates?").stdout)
+            "add", "--skill", "create-tech-design", "--question", "Duplicates?").stdout)
         self.assertEqual(opened["status"], "open")
         answered = json.loads(self.clarify(
             "answer", "--id", "C-2", "--answer", "reject with 409").stdout)

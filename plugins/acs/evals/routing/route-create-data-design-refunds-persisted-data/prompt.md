@@ -1,7 +1,7 @@
 ---
 description: >-
   A natural-language request in the skill's domain, never naming the
-  skill. The neighbour is create-design; the prompt is scoped to
+  skill. The neighbour is create-tech-design; the prompt is scoped to
   documenting the persisted data of an already-decided change rather than
   weighing options.
 expected_outcome: Routes to acs:create-data-design.

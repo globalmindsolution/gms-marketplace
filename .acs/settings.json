@@ -98,12 +98,12 @@
         "effort": "high"
       }
     },
-    "create-design": {
-      "design-reviewer": {
+    "create-tech-design": {
+      "designer": {
         "model": "claude-opus-5-5",
         "effort": "high"
       },
-      "designer": {
+      "reviewer": {
         "model": "claude-opus-5-5",
         "effort": "high"
       }
