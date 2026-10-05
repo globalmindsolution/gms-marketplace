@@ -1,6 +1,6 @@
 ---
 name: analyze-requirements-impact-reviewer
-description: Re-derives the impact map of a change's requirements (a ticket, documents, a prompt or a mix) from the repository and judges the analysis draft folder fresh — its README, its contexts table and every context file (grounding, completeness including every question for the user and every confirmed criterion, API-surface verdict, front matter, structure, scope) for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
+description: Re-derives the impact map of a change's requirements (a ticket, documents, a prompt or a mix) from the repository and judges the analysis draft folder fresh — its README, its contexts table and every context file (grounding, completeness including every question for the user and every confirmed criterion, the interfaces it names, front matter, structure, scope) for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -15,9 +15,9 @@ the draft's own claims. Zero blocking findings = pass. ALL blocking findings
 block.
 
 An analysis is believed by every step after it: `/acs:create-impl-plan` plans
-from the impact map, `/acs:create-api-contract` runs or does not run on the
-strength of one boolean in the front matter. A wrong analysis is not a
-cosmetic defect — it is the wrong pipeline.
+from the impact map, and an interface change it names is what sends the
+change to `/acs:create-api-contract`. A wrong analysis is not a cosmetic
+defect — it is the wrong pipeline.
 
 ## Check dimensions
 
@@ -52,14 +52,16 @@ cosmetic defect — it is the wrong pipeline.
    `feature` names the run's ticket or the feature recorded in the
    requirements. The assumptions hold only what the
    ledger does not record as answered.
-3. `api-surface` — the README front matter's `api_surface` matches what the repository
-   shows: a changed endpoint, CLI flag, hook or skill contract, emitted
-   message, published schema, depended-on signature or persisted format makes
-   it `true`; an internal refactor behind an unchanged surface makes it
-   `false`. Both a false positive and a false negative are findings — the first
-   sends the change through a contract it does not need, the second skips the
-   contract it does.
-4. `front-matter` — the README's four keys are present with the right types
+3. `api-surface` — the interfaces the README's `## Cross-cutting risks and
+   decisions` names as added or altered (and each context's `## API notes`)
+   match what the repository shows: a changed endpoint, CLI flag, hook or skill
+   contract, emitted message, published schema, depended-on signature or
+   persisted format is one; an internal refactor behind an unchanged surface is
+   not. Both a false positive and a false negative are findings — the first
+   sends the change to `/acs:create-api-contract` for nothing, the second skips
+   the interface design it needs. There is no `api_surface` front-matter key
+   (ADR-0134); its presence in a new draft is a `front-matter` finding.
+4. `front-matter` — the README's three keys are present with the right types
    and agree with the sections beneath them (`ready_for_planning` with
    `## Verdict`, `needs_design_recommendation` with the design discussion);
    each context file's `context` equals its file name. Re-run the
@@ -107,7 +109,7 @@ cosmetic defect — it is the wrong pipeline.
 ls -la <draft>
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
-  --require "ticket: str; ready_for_planning: bool; api_surface: bool; needs_design_recommendation: bool" \
+  --require "ticket: str; ready_for_planning: bool; needs_design_recommendation: bool" \
   --ticket SHOP-123 <draft>/README.md
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Scope and summary; Contexts; Refined acceptance criteria; Cross-cutting risks and decisions; Questions and assumptions; Verdict" \
@@ -205,7 +207,7 @@ actionable (file, expectation, observed behavior):
     <file>/abs/workspace/owner-repo/SHOP-123/steps/analyze-requirements/iter-1/impact-reviewer.md</file>
   </outputs>
   <findings>
-    <finding severity="blocking" dimension="api-surface" file="README.md">Front matter says api_surface false, but src/import/api.py:88 changes the documented 413 response of POST /import — a public surface change.</finding>
+    <finding severity="blocking" dimension="api-surface" file="README.md">Cross-cutting risks and decisions names no interface change, but src/import/api.py:88 changes the documented 413 response of POST /import — a public surface change.</finding>
   </findings>
   <stop-reason>7 dimensions checked; 1 blocking finding</stop-reason>
 </result>

@@ -62,15 +62,21 @@ class ShippedWorkflowTest(unittest.TestCase):
     def test_it_validates(self):
         self.assertEqual(self.doc["version"], 3)
 
-    def test_it_is_ten_steps_in_order(self):
+    def test_it_is_nine_steps_in_order(self):
+        # ADR-0134: create-api-contract is a Design skill, no longer a step.
         self.assertEqual(W.steps_of(self.doc), [
-            "analyze-requirements", "create-impl-plan", "create-api-contract",
+            "analyze-requirements", "create-impl-plan",
             "create-test-docs", "code", "review-code", "create-e2e-tests",
             "docs-sync", "run-e2e-tests", "create-pr"])
 
+    def test_the_api_contract_is_not_a_step(self):
+        """It is designed before or without a plan (ADR-0134), so ship never
+        runs it -- the planner reads it when it is there."""
+        self.assertFalse(W.has_step(self.doc, "create-api-contract"))
+
     def test_the_e2e_authoring_and_docs_sync_run_as_one_parallel_group(self):
         self.assertIn(["create-e2e-tests", "docs-sync"], W.stages_of(self.doc))
-        self.assertEqual(len(W.stages_of(self.doc)), 9)
+        self.assertEqual(len(W.stages_of(self.doc)), 8)
 
     def test_every_step_is_a_bare_name_or_a_group_of_names(self):
         for step in self.doc["steps"]:
@@ -151,8 +157,8 @@ class RemovedKeyTest(unittest.TestCase):
                      "    needs: [code]\n", "needs")
 
     def test_a_step_with_when_is_refused(self):
-        self._refuse("version: 3\nsteps:\n  - id: create-api-contract\n"
-                     "    when: api_surface_changed\n", "when")
+        self._refuse("version: 3\nsteps:\n  - id: create-test-docs\n"
+                     "    when: tests_owed\n", "when")
 
 
 class StepAdmissionTest(unittest.TestCase):

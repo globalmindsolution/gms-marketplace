@@ -46,7 +46,8 @@ front matter. A case set that misses a criterion ships a ticket nobody proved.
    counter (below) and quote its output: when the printed count disagrees with
    front-matter `e2e_cases` or with the rows whose `Type` cell is exactly `e2e`,
    that is a blocking finding, because the gate believes the front matter.
-5. `contract-coverage` — when `api-contract.md` exists, every contract item
+5. `contract-coverage` — when the API contract exists (`api-contract.md` and
+   the `lld/<feature>/api/` documents it links), every contract item
    (endpoint/command/message, its error codes, its compatibility note) has at
    least one case, and each such case's expected result matches the contract's
    declared shape rather than paraphrasing it. A contract item with no case is a
@@ -128,7 +129,7 @@ this file. Write it with the Write tool — the only write you ever perform.
 Your prompt contains an XML `<task skill="create-test-docs" phase="trace-reviewer"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the draft, the test-designer's authoring notes (`iter-<n>/authoring.md`), the
-test-designer report (`iter-<n>/test-designer.json`), the requirements document (`requirements.md`), the plan and the API contract when they
+test-designer report (`iter-<n>/test-designer.json`), the requirements document (`requirements.md`), the plan and the API contract (`api-contract.md` and the interface documents it links) when they
 exist, and the repo test paths the cases name), `<constraints>` (at least
 `required_sections` and `audience_style_profile`; `dimensions` when the task
 carries a `slice="<id>"` attribute), and optional `<context>`

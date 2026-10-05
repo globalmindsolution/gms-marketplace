@@ -25,8 +25,9 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   `steps/create-impl-plan/plan.md`, the run's requirements document
   (`<partition>/requirements.md`; read it FRESH for the acceptance criteria —
   never the draft's restatement of them),
-  the analysis (its `README.md` and the context files named) and `design.md`
-  when they exist, every
+  the analysis (its `README.md` and the context files named), `design.md`
+  and the API contract (`api-contract.md` and its interface documents) when
+  they exist, every
   `<partition>/specs/*.md`, and the repo paths the file map names. READ EVERY
   ONE. Derive `<partition>` from the directory containing the run ledger named
   in `<inputs>`;
@@ -92,7 +93,9 @@ findings:
    before which implementation.
 6. **Design and architecture conformance** — when `design.md` applies, the
    approach the draft describes realizes it; when it does not, say so with the
-   citation. Unapproved new components or integrations, or an approach that
+   citation. When the API contract is in `<inputs>`, the draft implements its
+   shapes as specified and, when the repo keeps machine-readable contract
+   files, an executor task creates or updates them from it. Unapproved new components or integrations, or an approach that
    contradicts the architecture doc set under `architecture_dir`, are
    findings.
 7. **Scope** — the draft plans the ticket and nothing else. Speculative

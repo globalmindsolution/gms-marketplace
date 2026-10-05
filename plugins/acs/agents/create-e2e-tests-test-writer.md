@@ -20,7 +20,8 @@ code.
 
 1. Read EVERY file in `<inputs>`: `test-cases.md` (the e2e rows are the
    specification), the repo's existing e2e suites, fixtures, helpers and
-   harness config, and `api-contract.md` when it exists — then survey the
+   harness config, and the API contract (`api-contract.md` and the
+   `lld/<feature>/api/` documents it links) when it exists — then survey the
    suite (below) and record it in your authoring notes before writing.
    When `<inputs>` carries no `test-cases.md`, the requirements document (`requirements.md`) is the
    specification: derive the end-to-end flows its acceptance criteria

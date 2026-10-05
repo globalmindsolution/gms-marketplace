@@ -26,17 +26,22 @@ import claude_code_adapter as cc  # noqa: E402
 # ---------------------------------------------------------------------------
 
 PRODUCT_SKILLS = ["create-prd", "create-architecture"]
-# The ticket-flow skills. The five Build/Test additions (analyze-ticket,
-# create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests)
-# join here rather than in a sixth list: they are ticket-scoped like the rest,
-# so `flow = "product" if skill in PRODUCT_SKILLS else "ticket"` stays right,
-# and HOOKED_SKILLS keeps its three-way shape. Their ORDER lives in
+# The ticket-flow skills. The Build/Test additions (analyze-ticket,
+# create-impl-plan, create-test-docs, create-e2e-tests) join here rather than
+# in a sixth list: they are ticket-scoped like the rest, so
+# `flow = "product" if skill in PRODUCT_SKILLS else "ticket"` stays right, and
+# HOOKED_SKILLS keeps its three-way shape. Their ORDER lives in
 # workflows/ship.yaml, never in this list -- a list position buys nothing.
 WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
-                   "create-api-contract", "create-test-docs", "code", "review-code",
+                   "create-test-docs", "code", "review-code",
                    "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
                    "merge-pr", "audit-design", "audit-security"]
-PLANNING_SKILLS = ["create-design", "create-data-design", "create-flows"]
+# The Design skills: any subject (ADR-0128, epics included), no run position.
+# ADR-0134 moved create-api-contract here from WORKFLOW_SKILLS -- an API
+# contract is a Design document (`lld/<f>/api/<interface>.md`) written before
+# or without a plan, so it is no step of ship.yaml.
+PLANNING_SKILLS = ["create-design", "create-api-contract", "create-data-design",
+                   "create-flows"]
 # The Audit skills (ADR-0122/0123): ticketless and read-only. `step start` opens
 # (or resumes) a run over the invocation for them, and their post-hook concludes
 # it, so no ticket and no workflow step is ever needed.

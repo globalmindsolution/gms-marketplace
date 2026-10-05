@@ -1,60 +1,75 @@
-# The contract-author phase — its objective, its early exits, and the draft's skeleton
+# The contract-author's passes — survey, write, and their early exits
 
-Read this when you task the contract-author (and, on a sliced run, before you
-write the preamble): what iteration 1 is asked to do, what happens when it
-asks a question or finds no surface, and the draft's front matter and seven
-headings.
+Read this when you task a contract-author: what the survey pass and the write
+pass are asked to do, what happens when one asks a question, and the
+documents' shapes they write to.
 
-## Objective, iteration 1
+## Objective, the survey pass (iteration 1, `slice="survey"`)
 
-Objective, iteration 1: enumerate the surface. From the plan, the analysis,
-the design and the code (or, with no plan, the subject and the code), record in
-the authoring notes
-(`steps/create-api-contract/iter-<n>/authoring.md`) one entry per
-endpoint/command/message/schema/signature the plan adds or changes — each
-with its kind, its current shape (or "new"), the plan item and acceptance
-criterion it traces to, the compatibility question it raises, and which
-machine-readable contract file (when the tree exists) describes it — plus the
-genuinely open questions (a versioning or breaking-change decision the plan
-does not settle is exactly such a question). Then write the contract draft
-from those notes. The notes are what the contract-reviewer checks the draft
-against.
+Enumerate the interfaces. From the requirements, the analysis, the design, the
+HLD and the code, record in the authoring notes
+(`steps/create-api-contract/iter-1/authoring.md`): the **Interface inventory**
+— one entry per interface the acceptance criteria add, change or remove, its
+kind, its slug, its existing `lld/<feature>/api/` document or "new", the code
+that implements it today (`path:line`) and the `hld/integration-map.md` row it
+details; the **Item list** — per interface, every operation, command, message
+or signature, NEW / CHANGED / REMOVED, its current shape from the code (or
+"new"), the acceptance criterion it traces to and the compatibility question it
+raises; the **Conventions** the HLD and the code settle; the per-interface
+outline of the document to write; and the genuinely open questions (a
+versioning or breaking-change decision nothing settles is exactly such a
+question). The survey writes no document and no fragment; its report is
+`iter-1/contract-author-survey.json` (`interfaces` — the slugs and their
+target paths — `items`, `questions`). The inventory decides the write: one
+interface → one writer, two or more → Writer slices.
 
-## When the contract-author asks, or finds nothing
+## Objective, the write pass
 
-If the contract-author returns `needs_input` with `<questions>`, resolve them
-in User interaction and re-run the contract-author for the same iteration with
-the answers in `<context>`.
+Each writer (`slice="write"` un-sliced, or one slice per interface) writes its
+interface documents IN PLACE under `<architecture_dir>/lld/<feature>/api/`,
+each with the six headings the Output contract names and its version front
+matter through `acs.py design` (`design init` for a new file, `design bump`
+for a changed one — once per run: a document this run already created or
+bumped is edited without another bump on later iterations); its notes
+`iter-<n>/authoring-<k>.md`; its fragment of the run record
+`steps/create-api-contract/api-contract-<k>.md` — the run record's five
+headings in order, no front matter and no title, only its own rows; and its
+report `iter-<n>/contract-author-<k>.json` (`<k>` is `write` un-sliced). The
+coordinator derives the record's front matter and joins every fragment, so
+every run, sliced or not, ends in the same join (Writer slices).
 
-If the survey finds no surface at all — nothing the plan or the subject adds or
-changes is an endpoint, command, message, schema, signature or persisted
-format — the contract-author says so in its report (`items: 0`) and writes no
-draft. Skip the contract-reviewer, publish nothing, and complete with
-`outcome: no_surface_owed` and the survey's reason in `summary`.
+## When a contract-author asks
 
-## The draft's skeleton
+If a contract-author returns `needs_input` with `<questions>`, resolve them in
+User interaction and re-run it for the same iteration with the answers in
+`<context>`. A survey that finds no interface the acceptance criteria touch
+returns `needs_input` with the question "which interface does this change?" —
+never an empty contract and never a padded one.
 
-The draft's front matter and its seven headings, in this order:
+## The interface document's skeleton
 
 ```markdown
 ---
-ticket: SHOP-123
-items: 3
-contract_files: ["docs/api/openapi.yaml"]
+status: "proposed"
+version: 1
+tickets:
+  - "SHOP-123"
+feature: "bulk-import"
 ---
 
-# API contract — SHOP-123: Accept CSV imports over 10 MB
+# Imports API — REST
 
-## Scope & sources
+## Scope
 ## Surface
 ## Error model
 ## Compatibility & versioning
 ## Examples
 ## Traceability
-## Contract files
 ```
 
-`## Surface` carries one `### ` subsection per item — what each holds is
-defined in `create-api-contract-contract-author.md`. `items` in the front matter is
-the number of those subsections, and `contract_files` is the repo-relative list
-of machine-readable files this run changed (`[]` when none).
+The front matter is written by `acs.py design init`, never by hand. `##
+Surface` carries one `### ` subsection per item — what each holds is defined
+in `create-api-contract-contract-author.md`. The run record's skeleton is in
+SKILL.md's Output contract: `items` in its front matter is the number of `### `
+subsections under `## Surface` across the interface documents this run wrote
+or changed, and `interfaces` is their repo-relative list.

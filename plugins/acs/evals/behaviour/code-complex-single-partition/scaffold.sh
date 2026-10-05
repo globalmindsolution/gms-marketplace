@@ -70,7 +70,6 @@ Run: `python3 -m pytest -q tests/test_auth.py`. Coverage target: 90% of
 ## Contract
 delivery_path: complex
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "a security boundary: credential storage and verification, irreversible once keys are persisted"

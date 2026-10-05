@@ -128,7 +128,6 @@ def _plan_digest(path):
 _EPIC_VERBS = {
     "analyze-requirements": "analyzed for implementation",
     "create-impl-plan": "planned",
-    "create-api-contract": "given an API contract",
     "create-test-docs": "given test cases",
     "code": "implemented",
     "review-code": "reviewed as one changeset",

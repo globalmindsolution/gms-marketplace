@@ -8,7 +8,7 @@ description: >-
   gh base detection before any push. ship must stop there, report the failed
   step and how to resume, and never merge.
 expected_outcome: >-
-  run.json records the nine steps before create-pr completed and create-pr
+  run.json records the eight steps before create-pr completed and create-pr
   failed; create-pr's state carries a gh error and no pr object; review-code
   derived verifier_passed true; src/shop/__init__.py enforces the 100 cap; no
   branch reached the local origin; no gh pr merge was run.

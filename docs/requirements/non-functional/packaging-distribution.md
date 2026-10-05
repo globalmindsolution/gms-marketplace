@@ -31,7 +31,8 @@ unchanged).
     `create-architecture` (architect, gap-analyst, reviewer), `create-design` (designer,
     design-reviewer), `create-data-design` and `create-flows` (each designer,
     gap-analyst, reviewer — ADR-0126), `create-impl-plan` (planner, plan-reviewer),
-    `create-api-contract` (contract-author, contract-reviewer),
+    `create-api-contract` (contract-author, gap-analyst, contract-reviewer —
+    ADR-0134),
     `create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
     (test-writer, suite-runner) and `docs-sync` (doc-updater,
     drift-reviewer); `code` bundles
@@ -41,7 +42,7 @@ unchanged).
     (ADR-0122) and the read-only `audit-security` an auditor and an
     adjudicator (ADR-0123); the three **apply-work skills** (`create-ticket`,
     `create-pr`, `merge-pr`) run inline and bundle no subagent.
-    33 agent files exist on disk and 33 are reachable (27 for the eleven
+    34 agent files exist on disk and 34 are reachable (28 for the eleven
     authoring skills + 1 for `code` + 2 for
     `review-code` + 1 for `audit-design` + 2 for `audit-security`): every file name
     resolves to a shipped skill and a role in `acs_lib.skills.ROLE_KINDS`,

@@ -8,7 +8,7 @@ description: >-
   completion report says the analysis was kept local.
 expected_outcome: >-
   .acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements/local/analysis/README.md
-  exists with api_surface true, and its customer-listing.md beside it has an
+  exists with ready_for_planning true, and its customer-listing.md beside it has an
   impact map naming src/shop/__init__.py;
   no file was created under docs/; .acs/settings.json still records
   share_run_documents false and no .acs/settings.local.json was created; the

@@ -34,7 +34,7 @@ for each role** (ADR-0109):
 | create-data-design | `create-data-design-gap-analyst` (beside the designer's survey, when the feature's `data/` holds documents — ADR-0126) | `create-data-design-designer` | `create-data-design-reviewer` |
 | create-flows | `create-flows-gap-analyst` (beside the designer's survey, when the feature's `flows/` or `components/` hold documents — ADR-0126) | `create-flows-designer` | `create-flows-reviewer` |
 | create-impl-plan | — | `create-impl-plan-planner` | `create-impl-plan-plan-reviewer` |
-| create-api-contract | — | `create-api-contract-contract-author` | `create-api-contract-contract-reviewer` |
+| create-api-contract | `create-api-contract-gap-analyst` (beside the contract-author's survey, when the feature's `api/` holds documents — ADR-0134) | `create-api-contract-contract-author` | `create-api-contract-contract-reviewer` |
 | create-test-docs | — | `create-test-docs-test-designer` | `create-test-docs-trace-reviewer` |
 | create-e2e-tests | — | `create-e2e-tests-test-writer` | `create-e2e-tests-suite-runner` |
 | docs-sync | — | `docs-sync-doc-updater` | `docs-sync-drift-reviewer` |
@@ -146,19 +146,20 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 33 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 34 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
   **Eleven** skills run the write → judge cycle: all **eleven** authoring
   skills in the table above — which include the five Build/Test skills the
   skills-independence refactor added (`analyze-requirements`,
-  `create-impl-plan`, `create-api-contract`, `create-test-docs`,
-  `create-e2e-tests`). One of them (`create-prd`) adds
-  a surveyor, one (`analyze-requirements`) an impact analyst per code
-  area (ADR-0114), and three (`create-architecture`, `create-data-design`,
-  `create-flows`) a gap analyst per code area beside their survey when the
-  documents they revise already exist (ADR-0122, ADR-0126).
+  `create-impl-plan`, `create-api-contract` — a Design skill since
+  ADR-0134 — `create-test-docs`, `create-e2e-tests`). One of them
+  (`create-prd`) adds a surveyor, one (`analyze-requirements`) an impact
+  analyst per code area (ADR-0114), and four (`create-architecture`,
+  `create-api-contract`, `create-data-design`, `create-flows`) a gap analyst
+  beside their survey over the documents they revise (ADR-0122, ADR-0126,
+  ADR-0134).
 
   **One** prefix is write-only: `code`, whose implementers are judged by
   `/acs:review-code`, because an implementer that grades its own output gave

@@ -8,7 +8,7 @@ description: >-
   the failure, reports how to resume, and never merges.
 expected_outcome: >-
   Every earlier step's state still carries exactly one invocation and run.json
-  still records all nine completed; create-pr is recorded failed with a gh
+  still records all eight completed; create-pr is recorded failed with a gh
   error and no pr object; nothing reached the local origin; no gh pr merge
   was run.
 tags: [behaviour]

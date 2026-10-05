@@ -65,7 +65,6 @@ free-form.
 ## Contract
 delivery_path: standard
 owes:
-  api_contract: true
   test_cases:   true
   e2e:          false
   reason: "CLI-only change; no HTTP surface, no browser flow"
@@ -83,13 +82,17 @@ Three readers, three reasons:
   hand and nothing re-judges it. Prefer the more expensive path whenever two
   fit: an unnecessary lens pass costs tokens, a missed regression in a
   load-bearing path costs more.
-- **`owes`** — whether `/acs:create-api-contract`, `/acs:create-test-docs` and
-  the e2e steps have work on this run. Each of those steps reads its own flag
+- **`owes`** — whether `/acs:create-test-docs` and the e2e steps have work
+  on this run (an `api_contract` key a plan written before ADR-0134 carries is
+  ignored: the API contract is a Design document now, not a step this plan
+  settles). Each of those steps reads its own flag
   and records an evidenced no-op when the answer is false; **silence is not
   permission to skip**, so a step whose flag is absent does its work and
   decides for itself. `reason` is one sentence a reviewer can check.
 - **the file map** — the executor partition, and the contract the file-map
-  guard enforces on every Write. `### Executor tasks & file map` keeps its
+  guard enforces on every Write. When the run has an API contract and the repo
+  keeps machine-readable contract files, the task that creates or updates
+  them from the contract names them here. `### Executor tasks & file map` keeps its
   exact heading because the guard and `plan-approval.py` already key on it.
 
 `plan_sha256` hashes the whole file, prose and contract alike, so editing

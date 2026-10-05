@@ -31,7 +31,6 @@ as 100; a limit of 20 is unchanged.
 ## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "one clamp in one library function"

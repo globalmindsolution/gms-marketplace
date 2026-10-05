@@ -14,8 +14,8 @@ user types.
 
 The diagram below shows the **reflection loop** (write → judge), which is
 how the eleven authoring skills run (`create-prd`, `create-architecture`,
-`create-design`, `create-data-design`, `create-flows`, `docs-sync`, `analyze-requirements`, `create-impl-plan`,
-`create-api-contract`, `create-test-docs`, `create-e2e-tests`). Each skill spawns its own roles, named for its
+`create-design`, `create-api-contract`, `create-data-design`, `create-flows`, `docs-sync`, `analyze-requirements`, `create-impl-plan`,
+`create-test-docs`, `create-e2e-tests`). Each skill spawns its own roles, named for its
 work (ADR 0109): an optional **survey** role (`create-prd-surveyor`,
 `analyze-requirements-impact-analyst`) on iteration 1
 only, which records the survey in `iter-1/authoring.md` and freezes it; a

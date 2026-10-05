@@ -38,8 +38,12 @@ def render_protect(slug, branch, contexts):
     return " ".join(shlex.quote(a) for a in argv)
 
 
-#: The design phase, in order, before the delivery workflow takes over.
-PIPELINE_ORDER = ("create-prd", "create-architecture", "create-ticket", "create-design")
+#: The phases before the delivery workflow takes over, in order: the PRD, the
+#: architecture, the ticket, then the Design skills in the Design phase's
+#: order (ADR-0134 moved create-api-contract here out of ship.yaml).
+PIPELINE_ORDER = ("create-prd", "create-architecture", "create-ticket",
+                  "create-api-contract", "create-data-design", "create-flows",
+                  "create-design")
 
 #: A greenfield repo's scaffold is ordinary ticket work: ticket it, then ship it.
 GREENFIELD_SCAFFOLD_STEP = ('/acs:create-ticket "Scaffold the repository per the '

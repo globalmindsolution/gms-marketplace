@@ -17,9 +17,10 @@ The groups below are a reader's aid, not a structure the code knows about
   [ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md),
   a folder per [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)).
 - **Design** — `/acs:create-architecture`, `/acs:create-api-contract`,
-  `/acs:create-data-design`, `/acs:create-flows` (the last two write the
+  `/acs:create-data-design`, `/acs:create-flows` (the last three write the
   living low-level design,
-  [ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)),
+  [ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md),
+  [ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)),
   `/acs:create-design`. The quality, operations,
   principles and standards doc sets are written by hand: no skill bootstraps
   them since `/acs:create-docs` was removed
@@ -27,8 +28,7 @@ The groups below are a reader's aid, not a structure the code knows about
   skills that read them find them where the repo keeps them.
 - **Development** — `/acs:ship` and the steps it drives:
   `/acs:analyze-requirements` (first, on a ticket or a prompt),
-  `/acs:create-impl-plan`, `/acs:create-api-contract` (still a `ship.yaml`
-  step), `/acs:create-test-docs`, `/acs:code` and its four delivery-path
+  `/acs:create-impl-plan`, `/acs:create-test-docs`, `/acs:code` and its four delivery-path
   legs, `/acs:review-code`, `/acs:create-e2e-tests`, `/acs:docs-sync`,
   `/acs:run-e2e-tests`, `/acs:create-pr` — plus `/acs:merge-pr`.
 - **Audit** — `/acs:audit-design` (the design compared with the code),
@@ -89,7 +89,7 @@ Every **workflow** skill MUST:
   design-reviewer), `create-data-design` (designer, gap-analyst, reviewer),
   `create-flows` (designer, gap-analyst, reviewer), `create-impl-plan`
   (planner, plan-reviewer), `create-api-contract` (contract-author,
-  contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
+  gap-analyst, contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
   `create-e2e-tests` (test-writer, suite-runner) and `docs-sync` (doc-updater,
   drift-reviewer). No skill has
   a plan phase before its writer (ADR-0092). `code` spawns implementers only —
@@ -152,7 +152,8 @@ state, settings-driven subagent models, the per-ticket clarification ledger,
 and the standard completion report. MAR-77 changed only where `/create-design`
 sits in `acs_lib.HOOKED_SKILLS`'s internal grouping and in the pipeline order
 table; none of its runtime obligations changed. The same holds for `/create-data-design` and
-`/create-flows`, which ADR-0126 added to `acs_lib.PLANNING_SKILLS` beside it.
+`/create-flows`, which ADR-0126 added to `acs_lib.PLANNING_SKILLS` beside it, and
+for `/create-api-contract`, which ADR-0134 moved there from `acs_lib.WORKFLOW_SKILLS`.
 
 ### Run documents: shared or kept local
 
@@ -188,7 +189,8 @@ Every skill that writes a per-run document (`/analyze-requirements`,
 
 Every skill that writes a living document into a folder that may not exist
 yet (`/create-prd`, `/analyze-requirements` run on its own (Discovery),
-`/create-architecture`, `/create-data-design`, `/create-flows`) MUST run
+`/create-architecture`, `/create-api-contract`, `/create-data-design`,
+`/create-flows`) MUST run
 `acs.py docs where --doc living:prd` or `living:architecture` first and, when
 `needs` has `location`, ask the location question alone — living documents
 are always shared, so there is no share question.
@@ -1143,6 +1145,70 @@ detail — before implementation
 > are the Build/Test skills added by the skills-independence refactor, which
 > land between the originally-numbered ones.
 
+## /acs:create-api-contract
+
+Purpose: design the interfaces a feature or a change adds or changes —
+every endpoint, command or message, its request/response shapes, error
+codes, compatibility notes and examples — as living low-level design
+documents, before the plan, so `/create-impl-plan` plans against them,
+`/code` builds against them and `/create-test-docs` derives cases from them
+([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)).
+Design-phase work, run by the SA or Tech Lead.
+
+- A Design skill (`PLANNING_SKILLS`, beside `/create-data-design` and
+  `/create-flows`): hooked, takes no run position — it is not a `ship.yaml`
+  step and `/ship` never runs it — and runnable on its own at any time
+  before implementation, on a ticket (an epic included), a feature slug, a
+  prompt or documents (ADR-0128). No plan is needed or read for tracing.
+  Input: the run's requirements (`context.requirements`), the feature's
+  analysis (README first, then the contexts it needs), the HLD's
+  `integration-map.md` and the API conventions in `cross-cutting.md`, the
+  feature's existing `lld/<feature>/api/` and `lld/<feature>/data/`
+  documents, and the interfaces in the code, each read when present.
+- MUST trace every item to an acceptance criterion; nothing traces to a plan
+  item.
+- Owns the `api-contract` LLD type: when `design.lld_types` disables it, the
+  run completes as a recorded no-op (`outcome: type_disabled`) with nothing
+  written, and `states.types` records what was produced.
+- MUST write **documents only**:
+  - the living `<architecture_dir>/lld/<feature>/api/<interface>.md`, one
+    file per interface (a REST resource, a CLI command group, an event topic,
+    a gRPC service), each opened with ADR-0122 front matter —
+    `acs.py design init --status proposed --type api-contract --feature <f>
+    --ticket <id>` for a new file, `design bump` for a changed one. Living
+    documents are always shared (an architecture folder that does not exist
+    yet is confirmed first, `docs where --doc living:architecture`);
+  - the per-run record `api-contract.md` in the run's Design folder
+    (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128) — or
+    kept in the run's step folder when the repo keeps run documents local
+    ("Run documents: shared or kept local",
+    [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md))
+    — summarising the change and linking every interface file at its version.
+- MUST NOT create or edit the repo's machine-readable contract files
+  (OpenAPI, JSON Schema, proto, AsyncAPI): `/create-impl-plan` plans them from
+  the approved contract and `/code` makes them.
+- MUST run gap analysis when the feature already has `api/` documents: one
+  `create-api-contract-gap-analyst` per existing interface document, in the
+  same message as the survey, every gap between the document and the code
+  classified unimplemented, undocumented or drifted, cited on both sides
+  (ADR-0122); undocumented → documented as built, unimplemented → kept and
+  marked planned, drifted → a question in the ONE grouped ask.
+- The contract-author writes in slices, one per interface, with an
+  integration pass only when a slice reports a seam (ADR-0125); the reviewer
+  judges beside the $0 checks (`acs.py design check` on every written api
+  document, `mermaid_lint.py`, `structure_lint.py`); same 3-iteration
+  reflection cap.
+- MUST NOT branch, commit, push or open a PR: every path it wrote is listed,
+  repo-relative, in `states.files`, and `/create-pr` commits them in its
+  `design` layer ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)).
+- Subagents: `create-api-contract-contract-author` (write),
+  `create-api-contract-gap-analyst` (survey),
+  `create-api-contract-contract-reviewer` (judge).
+- State file: `create-api-contract-state.json`; outcome `contract_written`,
+  or `type_disabled` when the type is off; states `contract_path`,
+  `feature`, `files`, `types`, `interfaces`, `items`, `traced_acs`, `gaps`
+  `{undocumented, unimplemented, drifted}`.
+
 ## 2a. `/analyze-requirements`
 
 Purpose: understand a change's requirements against the product docs and
@@ -1221,7 +1287,7 @@ user, and say plainly whether they are ready to plan. It works in two phases
   never one long file, even when the change touches a single context
   ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)):
   - `README.md`, the entry (never `index.md`), with front matter
-    `{ticket | feature, ready_for_planning, api_surface, needs_design_recommendation}`
+    `{ticket | feature, ready_for_planning, needs_design_recommendation}`
     (plus ADR-0122's `status`, `version`, `tickets` on a Discovery analysis)
     and the headings, in order: `## Scope and summary`, `## Contexts`,
     `## Refined acceptance criteria`, `## Cross-cutting risks and decisions`,
@@ -1248,9 +1314,9 @@ user, and say plainly whether they are ready to plan. It works in two phases
   context file the new analysis no longer has — only inside that
   `analysis/` folder.
 - The published analysis is the reusable record: the feature's living
-  analysis is read by `/create-architecture`, `/create-data-design`,
-  `/create-flows`, `/create-design` and by every later run on the feature;
-  a Development run's is read by `/create-impl-plan`, `/create-api-contract`,
+  analysis is read by `/create-architecture`, `/create-api-contract`,
+  `/create-data-design`, `/create-flows`, `/create-design` and by every later
+  run on the feature; a Development run's is read by `/create-impl-plan`,
   `/create-test-docs` and `/code`, and the next run of this skill starts from
   it, each reading `README.md` first ("Reading an analysis: README first"
   above). A single `analysis.md` published before ADR-0133, and a legacy
@@ -1271,25 +1337,38 @@ user, and say plainly whether they are ready to plan. It works in two phases
   naming the paths, because that is what `/create-impl-plan` carries into the
   plan and what the delivery-path judgement is then made from.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
-- `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
-  apply to this run; `api_surface: false` skips it.
+- MUST NOT record an API-surface verdict: `api_surface` left the front
+  matter and the state with
+  [ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md).
+  Where the impact map shows an interface changing, the completion report's
+  Next says so: "an interface changes — design it with
+  `/acs:create-api-contract`". An analysis or a state file written before
+  that still validates; the key is ignored.
 - Subagents: `analyze-requirements-analyst` (requirements lane, synthesis and
   draft passes), `analyze-requirements-impact-analyst` (one code-impact lane per
   area — ADR-0114), `analyze-requirements-impact-reviewer` (analyse → impact
   review — ADR-0109). The loop is run by `acs.py analysis next` / `record-*` /
   `publish` (ADR-0114).
 - State file: `analyze-requirements-state.json`; states `ready_for_planning`,
-  `api_surface`, `questions_open`.
+  `questions_open`.
 
 ## 2b. `/create-impl-plan`
 
 Purpose: `/code`'s plan phase, carved out whole into its own skill, ending in
 an approved `plan.md`.
 
-- Input: the run's requirements, the analysis (its `README.md` first, then the context files the plan needs) and `design.md` when present
-  (the API contract comes *after* the plan — the plan is what names the API
-  surface to build); with neither, the requirements alone. Pre-hook check:
-  the subject resolves. Brake: an epic is refused.
+- Input: the run's requirements, the analysis (its `README.md` first, then the context files the plan needs), `design.md` and the approved API
+  contract (`api-contract.md` through `acs.py artifacts show`, and the
+  feature's `lld/<feature>/api/` files) when present; with none, the
+  requirements alone. The contract is designed *before* the plan
+  ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)).
+  Pre-hook check: the subject resolves. Brake: an epic is refused.
+- When the repo keeps machine-readable contract files (OpenAPI, JSON Schema,
+  proto, AsyncAPI) and the contract adds or changes an interface they
+  describe, MUST plan the items that create or update them from the approved
+  contract; `/code` implements them like any other item. The plan owes
+  `test_cases` and `e2e` only — a plan written earlier that still carries
+  `owes.api_contract` is accepted and that key ignored.
 - MUST keep every mechanism the phase had inside `/code`, unchanged: the
   survey (the former planner charter, carried by the `planner` role), the
   spec fold, the executor file map, plan approval
@@ -1318,39 +1397,16 @@ an approved `plan.md`.
 - State file: `create-impl-plan-state.json`; states `plan_path`,
   `plan_approved`, `file_map`.
 
-## 2c. `/create-api-contract`
-
-Purpose: pin the API surface a ticket changes before it is implemented, so
-`/code` builds against a contract and `/create-test-docs` derives cases from
-it.
-
-- Input: `plan.md`, the analysis (README first), the run's requirements, the architecture
-  doc set, and the repo's existing contract files, wherever the repo keeps
-  them (else `docs/api/`), each read when present; with no plan, the
-  requirements' acceptance criteria bound the contract. Pre-hook check: the
-  subject resolves. A plan whose contract declares no API surface makes the step an
-  evidenced no-op (`no_surface_owed`).
-- MUST write `api-contract.md` to the run's Design folder
-  (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128) — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)): every endpoint/command/message the plan adds
-  or changes, request/response shapes, error codes, compatibility and
-  versioning notes, and examples — each traced to an acceptance criterion
-  **and** to a plan item.
-- MUST update the repo's machine-readable contract files where the repo
-  keeps them (else create them under `docs/api/`), left uncommitted and
-  listed in `states.files`.
-- Subagents: `create-api-contract-contract-author`, `create-api-contract-contract-reviewer` (author → review — ADR-0109).
-- State file: `create-api-contract-state.json`; states `contract_path`,
-  `items`, `traced_acs`.
-
-## 2d. `/create-test-docs`
+## 2c. `/create-test-docs`
 
 Purpose: turn the run's acceptance criteria (plus the plan and the API
 contract when they exist) into an explicit, traceable set of test cases,
 before any test is written.
 
 - Input: the requirements' acceptance criteria (`AC-n`, refined when
-  `/analyze-requirements` refined them); `plan.md` when present;
-  `api-contract.md` when present. Pre-hook check: the subject resolves.
+  `/analyze-requirements` refined them); `plan.md` when present; the API
+  contract when present — `api-contract.md` through `acs.py artifacts show`
+  and the feature's living `lld/<feature>/api/` files. Pre-hook check: the subject resolves.
 - MUST write `test-cases.md` to the run's Development folder — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)), with front
   matter `{ticket, cases}` (`ticket` only when there is one) and a
   table/list of cases: id `TC-n`, traced acceptance criterion, type
@@ -1400,6 +1456,12 @@ are stated here because `/code`'s execute phase anchors on their outputs:
 - The **API/data changes** section SHOULD call out the documentation impact
   (which consumer-repo docs the change touches), so `/code` knows what to
   update.
+- When an approved API contract exists (`api-contract.md` and the feature's
+  `lld/<feature>/api/` files) and the repo keeps machine-readable contract
+  files, the plan MUST carry the items that create or update those files
+  from the contract, and `/code` implements them like any other item — the
+  contract skill never writes them
+  ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)).
 - When a design exists (the ticket's own or its parent epic's), the plan MUST
   **conform to it**, and `/review-code`'s lens C MUST check that conformance
   against `design.md` and the architecture doc set.
@@ -1625,8 +1687,10 @@ full unit suite runs.
     1. **Five read-only lenses in parallel**, each bounded by what it may
        read: **A** acceptance (requirements, the plan, `test-cases.md`, the
        diff), **B** changed-hunk defects and security (**the diff and nothing
-       else**), **C** contracts and architecture (`api-contract.md`,
-       `design.md`, architecture docs, the plan), **D** history and regression
+       else**), **C** contracts and architecture (`api-contract.md` and the
+       feature's living `lld/<feature>/api/` files when they exist — no
+       "nothing owed" branch since ADR-0134 — `design.md`, architecture docs,
+       the plan), **D** history and regression
        (`git log --follow -p`, bounded lookback), **E** craft and scope
        (the repo's `standards/` set, the diff; **Simplicity & scope** —
        overcomplication and out-of-scope edits — is blocking and lives here).

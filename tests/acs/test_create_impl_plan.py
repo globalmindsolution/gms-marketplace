@@ -178,9 +178,27 @@ class PlanContractTest(unittest.TestCase):
     def test_the_contract_block_and_its_three_readers_are_named(self):
         self.assertIn("## Contract", self.body)
         self.assertIn("### Executor tasks & file map", self.body)
-        for key in ("delivery_path", "owes", "api_contract", "test_cases", "e2e"):
+        for key in ("delivery_path", "owes", "test_cases", "e2e"):
             with self.subTest(key=key):
                 self.assertIn(key, self.body)
+
+    def test_the_api_contract_is_an_input_not_an_owed_step(self):
+        """ADR-0134: /acs:create-api-contract is a Design skill that runs before
+        the plan and writes documents only. The plan reads the contract and
+        plans the machine-readable contract files from it; `owes` no longer
+        names it, and a legacy `api_contract` key is ignored."""
+        block = re.search(r"(?s)```markdown\n## Contract\n(.*?)```", self.body).group(1)
+        self.assertNotIn("api_contract", block)
+        self.assertNotIn("is NOT an input", self.body)
+        for phrase in ('`artifacts["api-contract.md"]`', "The approved contract is binding",
+                       "creating or updating them from the contract is THIS plan's work",
+                       "an `api_contract` key a plan written before ADR-0134 carries is "
+                       "ignored"):
+            self.assertIn(phrase, self.norm)
+        planner = norm(read(IMPL_PLAN_PLANNER))
+        self.assertIn("The API contract is an input when `<inputs>` names it", planner)
+        self.assertNotIn("is never an input", planner)
+        self.assertNotIn("/acs:create-api-contract <ticket-id>` first", self.body)
 
     def test_the_four_delivery_paths_are_named(self):
         self.assertRegex(

@@ -24,7 +24,6 @@ DRAFT = STEP + "/iter-1/analysis"
 README = """---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: false
 ---
 
@@ -62,7 +61,7 @@ Assumptions: none.
 
 ## Verdict
 
-Ready for planning; api_surface true; no design needed.
+Ready for planning; no design needed.
 """
 
 CONTEXT = """---
@@ -155,8 +154,7 @@ def _publish(ws, target):
 
 def _finish(ws):
     result = {"status": "completed", "summary": "calibration",
-              "states": {"ready_for_planning": True, "api_surface": True,
-                         "questions_open": 0, "files": _written(ws)},
+              "states": {"ready_for_planning": True, "questions_open": 0, "files": _written(ws)},
               "findings": [], "errors": []}
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-analyze-requirements.py" --result-file "%s/result.json"'

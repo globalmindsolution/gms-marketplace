@@ -246,7 +246,7 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
         self.walk_to(ticket, "create-impl-plan")
         result = self.pre("create-pr", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("the cursor for %s is create-api-contract" % ticket,
+        self.assertIn("the cursor for %s is create-test-docs" % ticket,
                       result.stderr)
 
     def test_a_member_of_the_due_parallel_group_is_advised_of_nothing(self):

@@ -106,14 +106,15 @@ always 1 — you run in the survey only):
   "area": "api",
   "contexts": ["CSV import"],
   "impact_paths": ["src/import/api.py", "tests/test_import_api.py"],
-  "api_surface": true,
+  "interfaces": ["POST /import"],
   "seams": ["src/import/api.py:88 -> web/src/upload.ts:12"],
   "problems": []
 }
 ```
 
 `impact_paths` is your impact surface's first column, verbatim; `contexts`
-lists the context names your rows use. A survey entry
+lists the context names your rows use; `interfaces` names each interface
+your API-surface evidence shows added or altered (`[]` when none). A survey entry
 you could not confirm is a `problems` entry, not a row.
 
 ## Output contract

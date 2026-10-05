@@ -380,6 +380,36 @@ matching section here, and merge to `main` — the Release workflow tags
   templates from the skill instead of carrying a copy. A new test holds every
   `SKILL.md` to 400 lines and every agent to 200, with the files still over
   named at a ceiling they may not grow past. **Migration:** none.
+- **⚠️ BREAKING: `/acs:create-api-contract` is a Design skill and writes
+  documents only** (ADR-0134). It leaves `workflows/ship.yaml` — eight steps
+  remain, and `/acs:ship` no longer runs it — and joins `/acs:create-data-design`
+  and `/acs:create-flows` in Design: it takes a ticket (an epic included), a
+  feature slug, documents or a prompt, needs no plan, and traces every item to
+  an acceptance criterion rather than to a plan item. It owns the `api-contract`
+  LLD type (disabled in `design.lld_types` → a recorded no-op) and writes the
+  living `<architecture_dir>/lld/<feature>/api/<interface>.md`, one file per
+  interface (a REST resource, a CLI command group, an event topic, a gRPC
+  service), versioned through `acs.py design init|bump`, plus the per-run
+  record `lld/<feature>/<id>/api-contract.md` that links each file at its
+  version; the files are listed in `states.files` and `/acs:create-pr` commits
+  them in its `design` layer. A new read-only `create-api-contract-gap-analyst`
+  compares the feature's existing api documents with the code beside the
+  survey (34 agent files). It no longer creates or edits OpenAPI, JSON Schema,
+  proto or AsyncAPI files — `contracts_mode` and the `<contracts_dir>`
+  detection are gone: `/acs:create-impl-plan` now reads the approved contract
+  and plans the items that make those files, and `/acs:code` implements them.
+  `/acs:analyze-requirements` no longer records `api_surface`; where an
+  interface changes, its report's Next says to design it with
+  `/acs:create-api-contract`. The plan's `owes` block is `test_cases` and `e2e`.
+  **Migration:** run `/acs:create-api-contract <ticket | feature>` in Design,
+  before `/acs:create-impl-plan`, for each change that adds or changes an
+  interface — `/acs:ship` will not do it for you. Machine-readable contract
+  files now change through `/acs:code`, from plan items; nothing edits them
+  from the contract step. Old state keeps loading: an analysis carrying
+  `api_surface:` still validates and the key is ignored, and a plan carrying
+  `owes.api_contract` still loads with that key ignored. A run that already
+  completed a `create-api-contract` step keeps the record; its cursor no
+  longer asks for one.
 
 ### Removed
 

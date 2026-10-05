@@ -76,7 +76,6 @@ FEATURE = "customer-listing"
 
 README = """---
 ready_for_planning: true
-api_surface: false
 needs_design_recommendation: false
 feature: customer-listing
 ---
@@ -113,7 +112,7 @@ Assumptions:
 
 ## Verdict
 
-Ready for planning; api_surface false; no design needed.
+Ready for planning; no design needed.
 """
 
 CONTEXT = """---
@@ -170,7 +169,7 @@ def _analyze(run):
         ws.write(step + "/iter-1/analysis/" + name, text)
     ws.sh('mkdir -p "%s" && cp "%s"/iter-1/analysis/*.md "%s"/' % (folder, step, folder))
     run.finish("analyze-requirements", states={
-        "ready_for_planning": True, "api_surface": False, "questions_open": 0,
+        "ready_for_planning": True, "questions_open": 0,
         "files": [folder + "/" + name for name in ANALYSIS]})
 
 
@@ -183,7 +182,6 @@ def _through_review(ws, source=CAPPED, review=True):
     run = _Run(ws)
     _analyze(run)
     run.step("create-impl-plan")
-    run.step("create-api-contract", outcome="no_surface_owed")
     run.step("create-test-docs", outcome="no_cases_owed")
     run.start("code")
     ws.write("src/shop/__init__.py", source)

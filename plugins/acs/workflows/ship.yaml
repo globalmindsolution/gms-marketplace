@@ -30,13 +30,16 @@
 # that every step is a skill that ships (and not another skill's leg) and that
 # every loop goes back.
 #
+# The Design skills -- create-architecture, create-api-contract (ADR-0134),
+# create-data-design, create-flows, create-design -- are no steps here: they
+# run before or without a plan, and the planner reads what they wrote.
+#
 # See plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md §2.
 version: 3
 
 steps:
   - analyze-requirements
   - create-impl-plan
-  - create-api-contract
   - create-test-docs
   - code
   - review-code

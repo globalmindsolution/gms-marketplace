@@ -104,7 +104,6 @@ def _through_review(ws, source=CAPPED):
     ws.skill("ship")
     _step(ws, "analyze-requirements")
     _step(ws, "create-impl-plan")
-    _step(ws, "create-api-contract", outcome="no_surface_owed")
     _step(ws, "create-test-docs", outcome="no_cases_owed")
     _code(ws, source)
     _review(ws)
@@ -135,7 +134,6 @@ def _stopped_after_code(ws):
     ws.skill("ship")
     _step(ws, "analyze-requirements")
     _step(ws, "create-impl-plan")
-    _step(ws, "create-api-contract", outcome="no_surface_owed")
     _step(ws, "create-test-docs", outcome="no_cases_owed")
     _code(ws, CAPPED)
     ws.reply = "Implemented EVAL-1."

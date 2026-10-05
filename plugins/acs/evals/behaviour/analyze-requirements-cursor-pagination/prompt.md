@@ -8,7 +8,8 @@ description: >-
   main, and close its step through the post-hook -- without asking anything.
 expected_outcome: >-
   docs/development/customer-listing/EVAL-1/analysis/README.md exists with ticket
-  EVAL-1, api_surface true, the six headings in order and a contexts table
+  EVAL-1 and no api_surface key, the six headings in order, GET /customers
+  named as the interface change, and a contexts table
   linking customer-listing.md, whose impact map names src/shop/__init__.py;
   main is still checked out with nothing committed, and the step's state.json
   records the run completed.

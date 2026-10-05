@@ -58,8 +58,10 @@ is absent (ADR-0109).
 - There are no skill-specific input checks. A skill that reads an upstream
   artifact reads it when it exists and otherwise works from the subject:
   `/code` with no `plan.md` derives an implicit plan from the subject;
-  `/create-api-contract` with no plan bounds the contract by the ticket's
-  acceptance criteria; `/create-e2e-tests` with no `test-cases.md` derives
+  `/create-api-contract` never needs a plan — it is a Design skill and traces
+  its items to the run's acceptance criteria
+  ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md));
+  `/create-e2e-tests` with no `test-cases.md` derives
   its cases from the acceptance criteria. What a skill's own configuration
   lacks (an e2e suite command, say) it asks for itself.
 - A repo **document** (the PRD, the architecture set) is not a pre-hook
@@ -180,9 +182,9 @@ Seventeen hooked skills, each with one pre-hook and one post-hook:
 | `/create-architecture` | `pre-create-architecture.py` | `post-create-architecture.py` | `create-architecture-state.json` |
 | `/create-ticket` | `pre-create-ticket.py` | `post-create-ticket.py` | `create-ticket-state.json` |
 | `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |
+| `/create-api-contract` | `pre-create-api-contract.py` | `post-create-api-contract.py` | `create-api-contract-state.json` |
 | `/analyze-requirements` | `pre-analyze-requirements.py` | `post-analyze-requirements.py` | `analyze-requirements-state.json` |
 | `/create-impl-plan` | `pre-create-impl-plan.py` | `post-create-impl-plan.py` | `create-impl-plan-state.json` |
-| `/create-api-contract` | `pre-create-api-contract.py` | `post-create-api-contract.py` | `create-api-contract-state.json` |
 | `/create-test-docs` | `pre-create-test-docs.py` | `post-create-test-docs.py` | `create-test-docs-state.json` |
 | `/code` | `pre-code.py` | `post-code.py` | `code-state.json` |
 | `/review-code` | `pre-review-code.py` | `post-review-code.py` | `review-code-state.json` |
@@ -212,9 +214,9 @@ for an upstream artifact.
 | `/create-ticket` | — | — |
 | `/create-architecture` | — (the skill reads the PRD at Start when there is one, else works from the subject) | — |
 | `/create-design` | subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag) — a ticketless run with none recorded is allowed when the user invoked the skill with requirements (ADR-0128) | lock free |
+| `/create-api-contract` | — (a Design skill, not a `ship.yaml` step: it takes a ticket — an epic included — a feature, documents or a prompt and needs no plan; ADR-0134) | — |
 | `/analyze-requirements` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; lock free |
 | `/create-impl-plan` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; lock free |
-| `/create-api-contract` | subject resolves (a ticket, documents or a prompt — ADR-0128) (a plan declaring no API surface settles the step as an evidenced no-op) | lock free |
 | `/create-test-docs` | subject resolves (a ticket, documents or a prompt — ADR-0128) | lock free |
 | `/code` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; on the standard and complex paths, the plan's approval matches the plan on disk; lock free |
 | `/docs-sync` | subject resolves (a ticket, documents or a prompt — ADR-0128) | lock free |

@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Leave the product-wide architecture and its API landscape alone. For TKT-74 only, spec out the three new /subscriptions endpoints its plan adds: shapes, error codes, examples.
+Leave the product-wide architecture and its API landscape alone. For TKT-74 only, design the three new /subscriptions endpoints it adds: shapes, error codes, examples.

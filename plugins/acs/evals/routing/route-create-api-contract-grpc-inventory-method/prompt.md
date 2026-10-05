@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-The approved plan for TKT-36 adds a gRPC method to the inventory service. Specify its request and response messages, error codes and backward-compatibility notes, with examples.
+TKT-36 adds a gRPC method to the inventory service. As part of the feature's design, specify its request and response messages, error codes and backward-compatibility notes, with examples.

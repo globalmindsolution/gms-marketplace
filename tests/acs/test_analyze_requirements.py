@@ -105,7 +105,7 @@ import skill_text  # noqa: E402
 ROLES = ("analyst", "impact-analyst", "impact-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
-STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open", "files")
+STATES_KEYS = ("ready_for_planning", "questions_open", "files")
 
 #: The README's six headings and a context file's five, in order. Declared
 #: here so a reordering in the prose is a failure rather than a silent
@@ -116,10 +116,10 @@ SECTIONS = ["Scope and summary", "Contexts", "Refined acceptance criteria",
 CONTEXT_SECTIONS = ["Impact map", "Rules and edge cases", "Risks", "Open questions",
                     "API notes"]
 
-#: The four front-matter keys the analysis publishes. `stakes_recommendation`
-#: left with the axis it set (ADR-0095).
-FRONT_MATTER_KEYS = ["ticket", "ready_for_planning", "api_surface",
-                     "needs_design_recommendation"]
+#: The three front-matter keys the analysis publishes. `stakes_recommendation`
+#: left with the axis it set (ADR-0095); `api_surface` with the ship step it
+#: decided (ADR-0134).
+FRONT_MATTER_KEYS = ["ticket", "ready_for_planning", "needs_design_recommendation"]
 
 
 def read(path):
@@ -302,10 +302,9 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
         self.assertEqual(self.specs[0], lib.analysis_folder.FRONT_MATTER_SPEC)
         self.assertEqual(self.specs[1], lib.analysis_folder.CONTEXT_FRONT_MATTER_SPEC)
 
-    def test_the_spec_declares_the_four_keys_with_their_types(self):
+    def test_the_spec_declares_the_three_keys_with_their_types(self):
         spec = fmc.parse_spec(self.specs[0])
         self.assertEqual([key for key, _ in spec], FRONT_MATTER_KEYS)
-        self.assertEqual(dict(spec)["api_surface"], "bool")
         self.assertEqual(dict(spec)["ready_for_planning"], "bool")
         self.assertEqual(dict(spec)["needs_design_recommendation"], "bool")
 
@@ -320,7 +319,7 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
             self.assertEqual(fmc.check_front_matter(example, fmc.parse_spec(self.specs[1])),
                              [])
 
-    def test_the_analyst_emits_the_same_four_keys(self):
+    def test_the_analyst_emits_the_same_three_keys(self):
         example = doc_front_matter_example(agent_contract("analyst"))
         self.assertEqual(findings_of(example, self.specs[0]), [])
 
@@ -328,18 +327,30 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
         for spec in self.specs:
             self.assertIn(spec, agent("impact-reviewer"))
 
-    def test_a_missing_api_surface_key_is_caught_by_that_spec(self):
-        broken = re.sub(r"(?m)^api_surface: .*\n", "", self.example)
+    def test_a_missing_ready_for_planning_key_is_caught_by_that_spec(self):
+        broken = re.sub(r"(?m)^ready_for_planning: .*\n", "", self.example)
         self.assertEqual([f.rule for f in findings_of(broken, self.specs[0])],
                          ["missing-key"])
 
-    def test_api_surface_is_read_by_the_step_that_acts_on_it(self):
-        """The front-matter key is not a local convention. `ship.yaml` has no
-        predicates any more -- every step decides for itself and records why
-        (§2.1) -- so what reads this is `/acs:create-api-contract`, which
-        completes with `no_surface_owed` when nothing is owed."""
-        self.assertIn("api_surface", self.body)
-        self.assertIn("no_surface_owed", lib.outcome_vocabulary("create-api-contract"))
+    def test_api_surface_is_gone_and_a_legacy_key_still_validates(self):
+        """ADR-0134: /acs:create-api-contract left the ship pipeline for
+        Design, so nothing reads an `api_surface` flag any more. The drafts
+        write none, and an analysis published before still passes the spec --
+        unknown front-matter keys are ignored."""
+        self.assertNotIn("api_surface:", self.example)
+        self.assertNotIn("api_surface", self.specs[0])
+        self.assertNotIn("api_surface", agent("impact-reviewer").split("## Re-run")[-1])
+        legacy = self.example.replace("ready_for_planning: true\n",
+                                      "ready_for_planning: true\napi_surface: true\n")
+        self.assertIn("api_surface: true", legacy)
+        self.assertEqual(findings_of(legacy, self.specs[0]), [])
+        self.assertNotIn("no_surface_owed", lib.outcome_vocabulary("create-api-contract"))
+
+    def test_an_interface_change_is_pointed_to_the_design_skill(self):
+        body = norm(self.body)
+        self.assertIn("when an interface changes — design it with "
+                      "`/acs:create-api-contract <ticket-id or feature>`", body)
+        self.assertIn("an interface changes — design it with /acs:create-api-contract", body)
 
 
 def findings_of(front_matter_text, spec):
@@ -452,8 +463,8 @@ class TestResultDocument(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertIn(key, self.post_hook)
 
-    def test_the_result_api_surface_must_equal_the_published_front_matter(self):
-        self.assertRegex(self.body, r"MUST equal the published front matter")
+    def test_the_result_verdict_must_equal_the_published_front_matter(self):
+        self.assertRegex(self.body, r"MUST equal the\s+published front matter's `ready_for_planning`")
 
     def test_questions_open_is_counted_from_the_ledger(self):
         self.assertIn("clarify.py list --open` (`--ticket <id>` on a ticket run)",

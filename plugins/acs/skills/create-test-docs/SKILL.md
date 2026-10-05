@@ -199,9 +199,10 @@ Read these yourself and name them by path in the test-designer's `<inputs>`
    the files it touches and the suites it expects to run. Cases follow the
    behaviour, not the plan's internals, but the plan is what tells you which
    module or suite a case targets.
-3. `api-contract.md` when it exists — every contract item (endpoint, command,
-   message, error code, compatibility note) needs at least one case, including
-   its error and edge shapes. The contract is the surface a consumer relies on.
+3. The API contract when it exists — `api-contract.md` and the living
+   `<architecture_dir>/lld/<feature>/api/` documents it links (pass them too) —
+   every contract item (endpoint, command, message, error code, compatibility
+   note) needs at least one case, including its error and edge shapes.
 4. The analysis when it exists — a folder (ADR-0133): read its `README.md`
    first (the refined criteria flag those ambiguous or untestable as written),
    then only the context files whose impact map names the tests that already

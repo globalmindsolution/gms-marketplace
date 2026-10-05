@@ -26,7 +26,6 @@ version: 1
 tickets: []
 feature: order-tracking
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: true
 ---
 
@@ -63,7 +62,7 @@ Assumptions: none.
 
 ## Verdict
 
-Ready for planning once designed; api_surface true; needs a design.
+Ready for planning once designed; needs a design.
 """
 
 CONTEXT = """---
@@ -141,7 +140,7 @@ def _refine(ws, data):
 def _finish(ws, step, status="completed"):
     result = {"status": status, "summary": "calibration",
               "states": {"ready_for_planning": status == "completed",
-                         "api_surface": True, "questions_open": 0,
+                         "questions_open": 0,
                          "files": _written(ws)},
               "findings": [], "errors": []}
     ws.write(step + "/result.json", json.dumps(result))

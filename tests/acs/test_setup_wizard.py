@@ -491,6 +491,18 @@ class NextStepsTest(WizardCase):
         self.assertEqual(pipeline[len(setup_wizard.PIPELINE_ORDER):-1], steps)
         self.assertEqual(pipeline[-1], "/acs:merge-pr")
 
+    def test_the_design_phase_runs_in_its_order_before_delivery(self):
+        """ADR-0134 moved create-api-contract out of ship.yaml into Design,
+        whose order is architecture, api contract, data design, flows,
+        design -- so the suggested pipeline still names it, once, there."""
+        pipeline = setup_wizard.render_next_steps(False, self.repo)["pipeline"]
+        design = ["/acs:create-architecture", "/acs:create-api-contract",
+                  "/acs:create-data-design", "/acs:create-flows", "/acs:create-design"]
+        positions = [pipeline.index(step) for step in design]
+        self.assertEqual(positions, sorted(positions))
+        self.assertEqual(pipeline.count("/acs:create-api-contract"), 1)
+        self.assertLess(positions[-1], pipeline.index("/acs:analyze-requirements"))
+
     def test_a_repo_override_is_what_gets_suggested(self):
         override = os.path.join(self.repo, ".acs", "workflows", "ship.yaml")
         os.makedirs(os.path.dirname(override))

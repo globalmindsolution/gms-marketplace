@@ -27,5 +27,15 @@ inline a file body):
 5. The consumer repo: the source, tests and docs the change touches, plus the
    architecture doc set (`architecture_dir`) when the repo has one.
 
-`api-contract.md` is NOT an input: `/acs:create-api-contract` runs AFTER this
-skill and covers the API surface this plan declares.
+6. The API contract when `acs.py artifacts show` reports it —
+   `artifacts["api-contract.md"]`, the run record `/acs:create-api-contract`
+   publishes in the Design phase (ADR-0134), and the living interface
+   documents it links under `<architecture_dir>/lld/<feature>/api/`. The
+   approved contract is binding: the plan implements its shapes, error codes
+   and compatibility decisions and never re-designs them. That skill writes
+   documents only, so when the repo keeps machine-readable contract files
+   (an OpenAPI document, JSON Schemas, `.proto`, AsyncAPI), creating or
+   updating them from the contract is THIS plan's work: an executor task
+   whose file map names them, in the format the repo already uses. Absent is
+   not an error: an interface the requirements change with no contract is
+   planned from the requirements and the code, and the plan says so.

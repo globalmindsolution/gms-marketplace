@@ -137,7 +137,6 @@ version: 3
 steps:
   - analyze-requirements
   - create-impl-plan
-  - create-api-contract
   - create-test-docs
   - code
   - review-code
@@ -151,7 +150,7 @@ loops:
     on_exhausted: fail
 ```
 
-Four things are worth saying about that list, because each replaced a
+Five things are worth saying about that list, because each replaced a
 mechanism this document used to describe at length:
 
 - **`review-code` is a step, not a phase inside `code`** (ADR-0099). Five
@@ -162,8 +161,8 @@ mechanism this document used to describe at length:
   the plan's `## Contract` block** (ADR-0098), not by `/acs:ship` and not on
   the run ledger. `/acs:code` reads it with `acs.py plan path` and dispatches
   to the matching leg.
-- **`create-api-contract`, `create-test-docs`, `create-e2e-tests` and
-  `run-e2e-tests` are unconditional steps that may cost nothing.** Each reads
+- **`create-test-docs`, `create-e2e-tests` and `run-e2e-tests` are
+  unconditional steps that may cost nothing.** Each reads
   the Contract's `owes` flags in its own pre-hook and records an evidenced
   no-op when nothing is owed. That is what replaced the `when:` predicates,
   and the difference is accountability: the skill that owns the question
@@ -175,6 +174,11 @@ mechanism this document used to describe at length:
   running them one after the other only cost wall time; `run-e2e-tests` waits
   for both and runs the suites the first one wrote. A group is declared,
   never derived, and neither end of a loop may sit inside one.
+- **There is no `create-api-contract` step** (ADR-0134). An interface is
+  designed before the run, in Design, by `/acs:create-api-contract`, which
+  writes the living `lld/<feature>/api/` documents; `create-impl-plan` reads
+  the approved contract and plans any machine-readable contract files, and
+  `code` makes them.
 
 > **History.** Earlier revisions of this flow described a DAG walk over
 > `acs.py workflow next` with `needs`/`when`/`requires` predicates, a

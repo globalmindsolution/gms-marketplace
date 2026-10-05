@@ -9,7 +9,8 @@ anything is staged (`recorded` mode):
 
   1. ticket docs     -- what the ticket-docs skills recorded (their phase folders,
                         ADR-0128) and a legacy `docs/tickets/<ID>/`
-  2. design docs     -- what create-design / create-data-design / create-flows recorded
+  2. design docs     -- what create-design / create-api-contract /
+                        create-data-design / create-flows recorded
   3. per plan slice  -- its tests, then its code (one group when it has one kind)
   4. docs-sync       -- the doc updates docs-sync recorded
   5. e2e suites      -- what create-e2e-tests recorded
@@ -46,9 +47,10 @@ LAYERS = ("ticket-docs", "design", "slice", "docs-sync", "e2e", "other")
 #: Which layer a step's recorded paths belong to; any other step is `other`.
 SKILL_LAYER = {
     "create-ticket": "ticket-docs", "analyze-requirements": "ticket-docs",
-    "create-impl-plan": "ticket-docs", "create-api-contract": "ticket-docs",
-    "create-test-docs": "ticket-docs",
-    "create-design": "design", "create-data-design": "design", "create-flows": "design",
+    "create-impl-plan": "ticket-docs", "create-test-docs": "ticket-docs",
+    # ADR-0134: the API contract is a Design document, committed with them.
+    "create-design": "design", "create-api-contract": "design",
+    "create-data-design": "design", "create-flows": "design",
     "code": "slice", "docs-sync": "docs-sync", "create-e2e-tests": "e2e",
 }
 

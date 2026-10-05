@@ -36,7 +36,6 @@ finish() {  # finish STEP OUTCOME [STATES_JSON]
 
 start analyze-requirements; finish analyze-requirements ""
 start create-impl-plan; finish create-impl-plan ""
-start create-api-contract; finish create-api-contract no_surface_owed
 start create-test-docs; finish create-test-docs no_cases_owed
 
 start code

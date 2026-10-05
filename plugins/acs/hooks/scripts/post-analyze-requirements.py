@@ -5,12 +5,13 @@ updates run.json and tickets-index.json.
 Result-document `states` this run records for the steps that follow it:
   * ready_for_planning  bool — the analysis is complete enough to plan from;
     false is the `needs_input` arm, and /acs:create-impl-plan is what consumes it.
-  * api_surface         bool — the change adds or alters an API surface. Mirrors
-    analysis.md's front matter, which is what ship.yaml's `api_surface_changed`
-    predicate and the /acs:create-api-contract gate actually read.
   * questions_open      int  — clarifications still unanswered in the ledger.
   * files               list — the ticket docs folder's paths the publish wrote
     and left uncommitted (ADR-0127); /acs:create-pr commits them.
+
+`api_surface` is no longer recorded (ADR-0134): an interface change is
+designed with /acs:create-api-contract, a Design skill no step decision reads
+it for. The fragment still declares it, deprecated, so older state validates.
 
 The needs_design recommendation the analysis may carry is applied through its
 own CLI (`acs.py ticket save`), so it is a finding here, not a state.

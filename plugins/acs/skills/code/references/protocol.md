@@ -54,7 +54,12 @@ Parse the printed context JSON. Fields you will use:
   `acs.py artifacts show` reports each (`<development_dir>/<feature>/<id>/` for
   `plan.md` and `test-cases.md`, `<architecture_dir>/lld/<feature>/<id>/` for
   `api-contract.md` and `design.md`, a legacy `docs/tickets/<ID>/` file only
-  when the new folder has none) — and the analyses it reports: the run's
+  when the new folder has none), plus the living interface documents under
+  `<architecture_dir>/lld/<feature>/api/` the contract links — the API design
+  `/acs:create-api-contract` wrote in the Design phase (ADR-0134), documents
+  only: the plan items that create or update the repo's machine-readable
+  contract files (OpenAPI, JSON Schema, `.proto`) from it are implemented
+  here, like any other task — and the analyses it reports: the run's
   analysis and the feature's living analysis (`feature_analysis`,
   `<prd_dir>/features/<feature>/analysis/`), for the impact map and risks the
   change was planned against. Each is a folder (ADR-0133): its `README.md`
@@ -107,7 +112,8 @@ Messaging rules (the SubagentStop hook checks them):
 
 - Send each implementer one task message, `<task skill="code"
   phase="implementer" …>`, carrying `objective`, `inputs` (file refs: the
-  resolved `plan.md`, `test-cases.md` and `api-contract.md` when they exist,
+  resolved `plan.md`, `test-cases.md`, `api-contract.md` and the
+  `lld/<feature>/api/` documents it links when they exist,
   `requirements.md`, the analysis and the feature's living analysis when they
   exist, `design.md` when it applies, repo paths) and
   `constraints`. The implementer returns a `<result skill="code"

@@ -176,8 +176,9 @@ python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import acs_lib; print(a
 
 The same `artifacts show` call reports `artifacts["plan.md"]`,
 `artifacts["api-contract.md"]` and `artifacts["design.md"]` — read them when
-they exist: the contract gives the exact shapes an e2e assertion checks, and the
-plan names what the change actually built.
+they exist, the contract with the `lld/<feature>/api/` documents it links: they
+give the exact shapes an e2e assertion checks, and the plan names what the
+change actually built.
 
 **A case may already have a test.** `/acs:code` writes a test per `TC-<n>` in
 its own file map, naming the id in the test's docstring, and its implementer
@@ -266,8 +267,9 @@ Read these yourself and name them by path in the test-writer's `<inputs>`
    criteria are the specification.
 2. The existing e2e suites, fixtures, helpers and harness config — the style
    this run writes in.
-3. `plan.md` and `api-contract.md` when they exist — what was built, and the
-   exact request/response shapes and error codes an assertion checks.
+3. `plan.md` and the API contract (`api-contract.md` and the `lld/<feature>/api/`
+   documents it links) when they exist — what was built, and the exact
+   request/response shapes and error codes an assertion checks.
 4. The product surface the cases drive: the routes, commands or screens, read
    from the code itself, so a selector or an endpoint in a test is one you have
    seen.

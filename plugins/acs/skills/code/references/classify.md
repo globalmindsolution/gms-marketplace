@@ -107,7 +107,6 @@ endpoints that read it; the migration is reversible but the shape is public.
 ## Contract
 delivery_path: standard
 owes:
-  api_contract: true
   test_cases:   true
   e2e:          false
   reason: "..."

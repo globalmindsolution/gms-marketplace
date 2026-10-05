@@ -1,11 +1,12 @@
 """front_matter_check.py — the deterministic backstop for a doc's front matter.
 
 `structure_lint.py` checks a generated doc's SECTIONS; this checks the
-machine-read half. It exists because `analysis.md`'s `api_surface` decides
-whether `/acs:create-api-contract` runs at all (`workflows/ship.yaml`'s
-`api_surface_changed` predicate and the create-api-contract gate both read it),
-so a missing key, a string where a boolean belongs, or a block outside the YAML
-subset is a pipeline defect that would otherwise surface one skill too late.
+machine-read half. It exists because a ticket document's front matter is
+read by code -- the analysis's `ready_for_planning` and
+`needs_design_recommendation` among it -- so a missing key, a string where a
+boolean belongs, or a block outside the YAML subset is a pipeline defect that
+would otherwise surface one skill too late. A key the spec does not declare is
+ignored: an analysis published before ADR-0134 still carries `api_surface`.
 
 The parse is `acs_lib.yamlsubset` — the same parser the gate uses — so these
 tests also pin the promise that a draft this checker accepts cannot be rejected
@@ -32,13 +33,12 @@ sys.path.insert(0, HOOKS)
 
 import front_matter_check as fmc  # noqa: E402
 
-ANALYSIS_SPEC = ("ticket: str; ready_for_planning: bool; api_surface: bool; "
+ANALYSIS_SPEC = ("ticket: str; ready_for_planning: bool; "
                  "stakes_recommendation: normal|high; needs_design_recommendation: bool")
 
 GOOD_ANALYSIS = """---
 ticket: SHOP-123
 ready_for_planning: true
-api_surface: false
 stakes_recommendation: high
 needs_design_recommendation: false
 ---
@@ -88,7 +88,7 @@ class TestCheckFrontMatter(unittest.TestCase):
         self.assertEqual(findings[0].line, 1)
 
     def test_a_block_outside_the_subset_reports_the_parser_line(self):
-        text = "---\nticket: SHOP-1\n\tapi_surface: true\n---\n\nbody\n"
+        text = "---\nticket: SHOP-1\n\tready_for_planning: true\n---\n\nbody\n"
         findings = self.check(text)
         self.assertEqual(rules(findings), ["front-matter-unparseable"])
         self.assertEqual(findings[0].line, 3)
@@ -96,18 +96,27 @@ class TestCheckFrontMatter(unittest.TestCase):
     def test_a_missing_key_is_reported_per_key(self):
         text = "---\nticket: SHOP-1\n---\n\nbody\n"
         findings = self.check(text)
-        self.assertEqual(rules(findings), ["missing-key"] * 4)
+        self.assertEqual(rules(findings), ["missing-key"] * 3)
         self.assertIn("ready_for_planning", findings[0].message)
 
     def test_an_explicit_null_counts_as_missing(self):
-        text = GOOD_ANALYSIS.replace("api_surface: false", "api_surface: null")
+        text = GOOD_ANALYSIS.replace("ready_for_planning: true", "ready_for_planning: null")
         self.assertEqual(rules(self.check(text)), ["missing-key"])
 
     def test_a_string_where_a_boolean_belongs_is_wrong_type(self):
-        text = GOOD_ANALYSIS.replace("api_surface: false", 'api_surface: "false"')
+        text = GOOD_ANALYSIS.replace("ready_for_planning: true",
+                                     'ready_for_planning: "true"')
         findings = self.check(text)
         self.assertEqual(rules(findings), ["wrong-type"])
-        self.assertIn("api_surface", findings[0].message)
+        self.assertIn("ready_for_planning", findings[0].message)
+
+    def test_a_key_the_spec_does_not_declare_is_ignored(self):
+        """ADR-0134: an analysis published before it still carries
+        `api_surface:`. Undeclared keys are not findings, so it validates."""
+        text = GOOD_ANALYSIS.replace("ready_for_planning: true\n",
+                                     "ready_for_planning: true\napi_surface: true\n")
+        self.assertIn("api_surface: true", text)
+        self.assertEqual(self.check(text, ticket="SHOP-123"), [])
 
     def test_a_boolean_is_not_an_integer(self):
         """`items: true` must not pass an `int` declaration — bool is an int in
@@ -202,11 +211,12 @@ class TestCli(unittest.TestCase):
         self.assertEqual(out.stdout, "")
 
     def test_findings_exit_one_and_print_rule_and_key(self):
-        path = self.doc(GOOD_ANALYSIS.replace("api_surface: false", "api_surface: nope"))
+        path = self.doc(GOOD_ANALYSIS.replace("ready_for_planning: true",
+                                              "ready_for_planning: nope"))
         out = self.run_cli("--require", ANALYSIS_SPEC, path)
         self.assertEqual(out.returncode, 1)
         self.assertIn("[wrong-type]", out.stderr)
-        self.assertIn("api_surface", out.stderr)
+        self.assertIn("ready_for_planning", out.stderr)
         self.assertIn("1 front-matter finding(s).", out.stderr)
 
     def test_missing_require_is_usage(self):

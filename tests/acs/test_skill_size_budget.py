@@ -31,7 +31,7 @@ AGENT_BUDGET = 200
 #: rounded up to ten; lower it when the file is trimmed.
 CEILINGS = {
     "skills/analyze-requirements/SKILL.md": 450,
-    "skills/create-api-contract/SKILL.md": 450,
+    "skills/create-api-contract/SKILL.md": 410,
     "skills/create-impl-plan/SKILL.md": 450,
     "skills/create-architecture/SKILL.md": 630,
     "skills/create-design/SKILL.md": 680,
@@ -47,7 +47,7 @@ CEILINGS = {
     "agents/analyze-requirements-analyst.md": 300,
     "agents/analyze-requirements-impact-reviewer.md": 270,
     "agents/code-implementer.md": 290,
-    "agents/create-api-contract-contract-author.md": 350,
+    "agents/create-api-contract-contract-author.md": 270,
     "agents/create-architecture-architect.md": 340,
     "agents/create-architecture-reviewer.md": 230,
     "agents/create-design-design-reviewer.md": 260,

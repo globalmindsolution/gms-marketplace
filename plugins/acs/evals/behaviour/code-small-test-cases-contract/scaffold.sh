@@ -50,7 +50,6 @@ target: 90%, measured by the review's final gate.
 ## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases: true
   e2e: false
   reason: "one local guard in a library function; no HTTP surface change and no browser flow"

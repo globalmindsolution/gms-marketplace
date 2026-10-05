@@ -81,7 +81,6 @@ Run `pytest tests/retry/ --cov=src/retry`; the coverage target is 90.
 CONFORMING_CONTRACT = """## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases:   true
   e2e:          false
   reason: "internal parse change; no HTTP surface and no browser flow"
@@ -295,7 +294,7 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         """The block AND the file map: the predicate requires both, and a
         fixture that supplied only the block would be testing a plan no
         executor could be checked against."""
-        return ("\n## Contract\ndelivery_path: %s\nowes:\n  api_contract: false\n"
+        return ("\n## Contract\ndelivery_path: %s\nowes:\n"
                 "  test_cases: true\n  e2e: false\n  reason: \"%s\"\n"
                 "\n### Executor tasks & file map\n"
                 "- task 1: src/retry/policy.py, tests/retry/test_policy.py\n"
@@ -648,7 +647,7 @@ class PlanPathReadTest(acs_case.AcsWorkspaceCase):
         return path
 
     CONTRACT = ("\n## Contract\ndelivery_path: small\nowes:\n"
-                "  api_contract: false\n  test_cases: true\n  e2e: false\n"
+                "  test_cases: true\n  e2e: false\n"
                 '  reason: "CLI-only change"\n'
                 "\n### Executor tasks & file map\n"
                 "- task 1: src/retry/policy.py\n")
@@ -663,10 +662,21 @@ class PlanPathReadTest(acs_case.AcsWorkspaceCase):
         self._write_plan(tid, self.CONTRACT)
         doc = self._path_out(tid)
         self.assertEqual(doc["delivery_path"], "small")
-        self.assertEqual(doc["owes"], {"api_contract": False,
-                                       "test_cases": True, "e2e": False})
+        self.assertEqual(doc["owes"], {"test_cases": True, "e2e": False})
         self.assertEqual(doc["contract_errors"], [])
         self.assertTrue(doc["plan"].endswith("steps/create-impl-plan/plan.md"))
+
+    def test_a_plan_owing_the_legacy_api_contract_flag_still_loads(self):
+        """ADR-0134: a plan written before the API contract became a Design
+        document carries `owes.api_contract`. It is no error and no flag --
+        the key is ignored, the rest of the contract read as before."""
+        tid = self.new_ticket("Plan path", "task")
+        self._write_plan(tid, self.CONTRACT.replace(
+            "owes:\n", "owes:\n  api_contract: true\n"))
+        doc = self._path_out(tid)
+        self.assertEqual(doc["contract_errors"], [])
+        self.assertEqual(doc["owes"], {"test_cases": True, "e2e": False})
+        self.assertEqual(doc["delivery_path"], "small")
 
     def test_writes_nothing(self):
         """The read must not create the approval record, and must not mirror
@@ -687,8 +697,7 @@ class PlanPathReadTest(acs_case.AcsWorkspaceCase):
         self._write_plan(tid, "\n### Executor tasks & file map\n- task 1: a.py\n")
         doc = self._path_out(tid)
         self.assertIsNone(doc["delivery_path"])
-        self.assertEqual(doc["owes"],
-                         {"api_contract": None, "test_cases": None, "e2e": None})
+        self.assertEqual(doc["owes"], {"test_cases": None, "e2e": None})
 
     def test_a_missing_plan_is_reported_not_raised(self):
         tid = self.new_ticket("Plan path", "task")
@@ -736,6 +745,39 @@ class PlanPathReadTest(acs_case.AcsWorkspaceCase):
         self.ensure_run(tid)
         out = self.run_script("plan-approval.py", "judge", "--run", tid)
         self.assertNotEqual(out.returncode, 0)
+
+
+class PlanContractOwesKeysTest(unittest.TestCase):
+    """`plan_contract.OWES_KEYS` after ADR-0134: the API contract is a Design
+    document no plan owes, so the plan states two flags -- and one written
+    before that still carries the third, which is accepted and ignored."""
+
+    LEGACY = ("## Contract\ndelivery_path: small\nowes:\n  api_contract: false\n"
+              "  test_cases: true\n  e2e: false\n  reason: \"x\"\n")
+
+    def test_the_plan_owes_test_cases_and_e2e_only(self):
+        from acs_lib import plan_contract
+        self.assertEqual(plan_contract.OWES_KEYS, ("test_cases", "e2e"))
+
+    def test_the_legacy_api_contract_key_is_no_error(self):
+        from acs_lib import plan_contract
+        contract = plan_contract.parse(self.LEGACY)
+        self.assertEqual(plan_contract.errors(contract), [])
+
+    def test_the_legacy_key_must_still_be_a_boolean_to_be_ignored_quietly(self):
+        """Ignored means ignored: even a malformed legacy value is not a
+        reason to refuse a plan nothing reads it from."""
+        from acs_lib import plan_contract
+        contract = plan_contract.parse(self.LEGACY.replace("api_contract: false",
+                                                           "api_contract: maybe"))
+        self.assertEqual(plan_contract.errors(contract), [])
+
+    def test_any_other_unknown_key_is_still_an_error(self):
+        from acs_lib import plan_contract
+        contract = plan_contract.parse(self.LEGACY.replace("api_contract", "data_design"))
+        self.assertEqual(len(plan_contract.errors(contract)), 1)
+        self.assertIn("owes.data_design", plan_contract.errors(contract)[0])
+        self.assertIn("test_cases, e2e", plan_contract.errors(contract)[0])
 
 
 class CodeSkillReachesPythonThroughTheCliTest(unittest.TestCase):

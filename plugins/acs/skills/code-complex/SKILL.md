@@ -100,8 +100,9 @@ review, and applied before the review rather than after.
 
 ### Inputs
 
-`test-cases.md` is the test contract, and `api-contract.md` when the subject
-owes public surface. The review's lens C judges conformance to both.
+`test-cases.md` is the test contract, and the API contract (`api-contract.md`
+and the `lld/<feature>/api/` documents it links) when the change has one. The
+review's lens C judges conformance to both.
 
 ### Plan approval
 

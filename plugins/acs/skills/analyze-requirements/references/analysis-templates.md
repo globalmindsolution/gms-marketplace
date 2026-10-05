@@ -12,10 +12,9 @@ The `draft` pass writes a folder for people first: plain-word headings, short
 sections, a README someone can read without opening anything else. Every file
 name is `README.md` or kebab-case `.md` made of plain words (no `index.md`, no
 subfolder, nothing else). The analysis is read by machines as well as people:
-the README's front-matter `api_surface` is what `workflows/ship.yaml`'s
-`api_surface_changed` predicate and the `/acs:create-api-contract` gate read to
-decide whether an API contract is written for this change at all — so the front
-matter is part of the deliverable, not decoration. Emit exactly these keys, with
+the README's front matter (`ready_for_planning` above all, which
+`/acs:create-impl-plan` reads) is part of the deliverable, not decoration. Emit
+exactly these keys, with
 these types, and exactly these headings in this order (the task's
 `<constraint name="mode">` and `<constraint name="feature">` say which front
 matter applies).
@@ -31,7 +30,6 @@ else: EXACTLY this front matter and these six headings, in this order:
 ---
 ticket: SHOP-123
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: false
 ---
 
@@ -47,14 +45,15 @@ needs_design_recommendation: false
 
 - **Front matter.** `ticket` is the ticket id; a run with no ticket writes
   `feature: <slug>` in its place. `ready_for_planning` is the
-  verdict below, as a boolean. `api_surface` is your API-surface verdict.
-  `needs_design_recommendation` is your design-significance
-  verdict. Never invent another key and never omit one of the four — except
-  that a Discovery draft (`mode` discovery: the feature's living analysis)
-  opens with the ADR-0122 version keys before them: `status: proposed`,
-  `version` (the living analysis's `version` + 1, or `1` when there is none),
-  `tickets` (carried over from the living analysis, `[]` when there is none)
-  and `feature`.
+  verdict below, as a boolean. `needs_design_recommendation` is your
+  design-significance verdict. Never invent another key and never omit one of
+  the three — except that a Discovery draft (`mode` discovery: the feature's
+  living analysis) opens with the ADR-0122 version keys before them: `status:
+  proposed`, `version` (the living analysis's `version` + 1, or `1` when there
+  is none), `tickets` (carried over from the living analysis, `[]` when there
+  is none) and `feature`. There is no `api_surface` key (ADR-0134): an older
+  analysis that still carries one is read with the key ignored, and none is
+  written.
 - **`## Scope and summary`** — the requirements in terms of this repository,
   in a few sentences: the behaviour that changes, for whom, what "done"
   means, and what is out of scope. Name every disagreement between the
@@ -78,7 +77,9 @@ needs_design_recommendation: false
   when unanswered. Never present an unconfirmed
   rewrite as applied. Name the context file(s) each criterion lands in.
 - **`## Cross-cutting risks and decisions`** — only what spans contexts or
-  the whole change: the API-surface and design verdicts with their reason, a
+  the whole change: the interfaces it adds or alters (each named, or "none" —
+  an interface change is designed with `/acs:create-api-contract`) and the
+  design verdict with their reason, a
   risk two contexts share, a load-bearing surface (each linked to the context
   file that details it). One-context risks stay in that context file.
 - **`## Questions and assumptions`** — one line per clarification entry, by
@@ -154,7 +155,7 @@ file that owns them (`see [payment-refunds.md](payment-refunds.md)`).
 On a run with no ticket the README's first key is `feature: <slug>` in place of `ticket:`, and its title
 reads `# Analysis — <feature>: <subject>`. A Discovery run's draft — the
 feature's living analysis — opens the README with the version keys of
-ADR-0122 before the four above: `status: proposed`, `version` (the living
+ADR-0122 before the three above: `status: proposed`, `version` (the living
 analysis's `version` + 1, or `1` for the feature's first analysis), `tickets`
 (carried over from the living analysis) and `feature`; each context file then
 carries `feature` and the same three version keys after `context`:
@@ -166,7 +167,6 @@ version: 2
 tickets: ["SHOP-120"]
 feature: wishlist
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: false
 ---
 ```

@@ -56,10 +56,11 @@ CONTEXT_SECTIONS = ("Impact map", "Rules and edge cases", "Risks", "Open questio
 
 #: README.md's front matter: `ticket` on a ticket's run, `feature` on a run
 #: with no ticket (ADR-0128) -- plus the ADR-0122 version keys on a Discovery
-#: run, whose analysis is the feature's LIVING one.
-FRONT_MATTER_SPEC = ("ticket: str; ready_for_planning: bool; api_surface: bool; "
-                     "needs_design_recommendation: bool")
-FEATURE_FRONT_MATTER_SPEC = ("feature: str; ready_for_planning: bool; api_surface: bool; "
+#: run, whose analysis is the feature's LIVING one. `api_surface` left with
+#: ADR-0134 (nothing decides a step on it now); an analysis published earlier
+#: still carries it, and a key the spec does not declare is ignored.
+FRONT_MATTER_SPEC = "ticket: str; ready_for_planning: bool; needs_design_recommendation: bool"
+FEATURE_FRONT_MATTER_SPEC = ("feature: str; ready_for_planning: bool; "
                              "needs_design_recommendation: bool")
 DISCOVERY_VERSION_SPEC = ("status: proposed|approved|implemented|deprecated; version: int; "
                           "tickets: list")

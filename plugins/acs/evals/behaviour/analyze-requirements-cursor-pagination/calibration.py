@@ -24,7 +24,6 @@ DRAFT = STEP + "/iter-1/analysis"
 README = """---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: false
 ---
 
@@ -48,7 +47,8 @@ The three criteria on the ticket are confirmed as written.
 
 ## Cross-cutting risks and decisions
 
-- api_surface true: GET /customers is a documented public endpoint.
+- Interface change: GET /customers, a documented public endpoint, gains `cursor`,
+  `next_cursor` and `invalid_cursor` -- design it with /acs:create-api-contract.
 
 ## Questions and assumptions
 
@@ -61,7 +61,7 @@ No assumptions.
 
 ## Verdict
 
-Ready for planning; api_surface true; no design needed.
+Ready for planning; no design needed.
 """
 
 CONTEXT = """---
@@ -132,10 +132,10 @@ def _start(ws):
     assert target.replace(os.sep, "/").endswith(PUBLISHED + "/README.md"), target
 
 
-def _finish(ws, status="completed", api_surface=True):
+def _finish(ws, status="completed"):
     result = {"status": status, "summary": "calibration",
               "states": {"ready_for_planning": status == "completed",
-                         "api_surface": api_surface, "questions_open": 0},
+                         "questions_open": 0},
               "findings": [], "errors": []}
     result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
@@ -165,19 +165,32 @@ def _prose_on_main(ws):
     ws.sh("git add docs && git commit -qm 'analysis'")
 
 
-def _api_surface_false(ws):
-    """Ran the whole flow but declared no API surface, so the contract step
-    would be skipped."""
+def _no_interface_named(ws):
+    """Ran the whole flow but named no interface change, so nothing points
+    the change to /acs:create-api-contract."""
     _start(ws)
     _draft_and_publish(ws, dict(ANALYSIS, **{
-        "README.md": README.replace("api_surface: true", "api_surface: false")}))
-    _finish(ws, api_surface=False)
+        "README.md": README.replace(
+            "- Interface change: GET /customers, a documented public endpoint, gains `cursor`,\n"
+            "  `next_cursor` and `invalid_cursor` -- design it with /acs:create-api-contract.",
+            "- No interface changes.")}))
+    _finish(ws)
+
+
+def _wrote_the_retired_flag(ws):
+    """Wrote the `api_surface` front-matter key ADR-0134 retired."""
+    _start(ws)
+    _draft_and_publish(ws, dict(ANALYSIS, **{
+        "README.md": README.replace("ready_for_planning: true\n",
+                                    "ready_for_planning: true\napi_surface: true\n")}))
+    _finish(ws)
 
 
 BAD = {
     "fired the skill, started the step, wrote nothing": _started_only,
     "hand-wrote a prose analysis on main": _prose_on_main,
-    "declared api_surface false": _api_surface_false,
+    "named no interface change": _no_interface_named,
+    "wrote the retired api_surface key": _wrote_the_retired_flag,
 }
 
 

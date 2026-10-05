@@ -83,7 +83,6 @@ by the review's final gate.
 ## Contract
 delivery_path: complex
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "library modules only; no HTTP surface and no browser flow in this change"

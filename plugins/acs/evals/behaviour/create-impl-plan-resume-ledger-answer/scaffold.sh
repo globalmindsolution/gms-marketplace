@@ -31,7 +31,6 @@ cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: false
 ---
 
@@ -73,7 +72,7 @@ The three criteria on the ticket are confirmed as written.
 
 ## Verdict
 
-Ready for planning; api_surface true; no design needed.
+Ready for planning; no design needed.
 MD
 
 clarify() {

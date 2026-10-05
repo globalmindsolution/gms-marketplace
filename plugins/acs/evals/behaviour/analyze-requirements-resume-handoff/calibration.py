@@ -14,7 +14,7 @@ SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-cursor-pagination-for-get-customers"
-README = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Scope and summary\n\nOffset paging on GET /customers skips or repeats customers when rows are\ninserted between page requests. Clients need an opaque cursor.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Questions and assumptions\n\n- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.\n- C-2 offset compatibility — answered: kept, deprecated; cursor wins.\n- C-3 maximum page size — answered: `limit` defaults to 20, maximum 250.\n- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning; api_surface true; no design needed.\n'
+README = '---\nticket: EVAL-1\nready_for_planning: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Scope and summary\n\nOffset paging on GET /customers skips or repeats customers when rows are\ninserted between page requests. Clients need an opaque cursor.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Questions and assumptions\n\n- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.\n- C-2 offset compatibility — answered: kept, deprecated; cursor wins.\n- C-3 maximum page size — answered: `limit` defaults to 20, maximum 250.\n- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning; no design needed.\n'
 
 CONTEXT = '---\ncontext: customer-listing\n---\n\n# Customer listing\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | `list_customers` gains `cursor`, returns `next_cursor` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents `cursor` and `next_cursor` | README.md:7 |\n\n## Rules and edge cases\n\n_None._\n\n## Risks\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Open questions\n\n_None._\n\n## API notes\n\n_None._\n'
 
@@ -27,11 +27,10 @@ def _written(ws):
     return [p for p in ws.created() if not p.startswith(".acs/")]
 
 
-def _finish(ws, status="completed", ready=True, api_surface=True, questions_open=0,
+def _finish(ws, status="completed", ready=True, questions_open=0,
             stop_reason=None):
     result = {"status": status, "summary": "calibration",
-              "states": {"ready_for_planning": ready, "api_surface": api_surface,
-                         "questions_open": questions_open},
+              "states": {"ready_for_planning": ready, "questions_open": questions_open},
               "findings": [], "errors": []}
     if stop_reason:
         result["stop_reason"] = stop_reason

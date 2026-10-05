@@ -5,10 +5,10 @@
   "type": "object",
   "properties": {
     "outcome": {
-      "description": "Whether an API surface was owed: `contract_written` when the contract-author \u2192 contract-reviewer loop ran, `no_surface_owed` when the plan's ## Contract block owed none (the pre-hook settles it) or the contract-author's survey found none.",
+      "description": "How the Design run completed (ADR-0134): `contract_written` when the contract-author \u2192 contract-reviewer loop wrote the living `lld/<feature>/api/<interface>.md` files and the run record, `type_disabled` when the `api-contract` LLD type is disabled in `design.lld_types`, so nothing was written.",
       "enum": [
         "contract_written",
-        "no_surface_owed"
+        "type_disabled"
       ]
     }
   }

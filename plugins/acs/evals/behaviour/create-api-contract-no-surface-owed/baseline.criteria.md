@@ -1,2 +1,0 @@
-PASS if, like the reference, the run invokes /acs:create-api-contract for EVAL-1, meets the pre-hook's evidenced no-op (the plan owes no API contract, so the step is recorded completed with outcome no_surface_owed and the invocation refused), writes nothing, and tells the user what was recorded and why, asking nothing.
-FAIL if the run writes api-contract.md or any contract file, starts the step by hand to write one anyway, edits the plan or analysis to change the answer, asks the user a question, or ends without reporting the recorded outcome.

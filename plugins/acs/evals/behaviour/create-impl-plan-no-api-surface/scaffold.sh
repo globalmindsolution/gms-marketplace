@@ -2,9 +2,9 @@
 # create-impl-plan (no API surface): the shop repo, story EVAL-1 "Log slow
 # customer listings" minted and given its criteria through the plugin's own
 # CLIs, and the working tree (main, uncommitted -- ADR-0127) carrying the PUBLISHED analysis
-# /acs:analyze-requirements would have left -- front matter api_surface:
-# false, because the change is an operator log line and GET /customers keeps
-# its parameters, response and errors. acs has no writer command for an
+# /acs:analyze-requirements would have left -- no interface changes: the
+# change is an operator log line and GET /customers keeps its parameters,
+# response and errors. acs has no writer command for an
 # analysis (its coordinator copies the verified draft with cp and leaves it
 # uncommitted), so the file is written in exactly SKILL.md's format, uncommitted.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
@@ -29,7 +29,6 @@ cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: false
 needs_design_recommendation: false
 ---
 

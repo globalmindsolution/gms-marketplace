@@ -11,7 +11,9 @@
           "type": "boolean"
         },
         "api_surface": {
-          "type": "boolean"
+          "type": "boolean",
+          "deprecated": true,
+          "description": "Deprecated and ignored (ADR-0134): nothing writes or reads it. Kept only so a state file recorded before the API contract became a Design skill still validates against this closed fragment."
         },
         "questions_open": {
           "type": "integer",

@@ -28,7 +28,7 @@ SETTINGS = os.path.join(REPO_ROOT, ".acs", "settings.json")
 class InventoryTest(unittest.TestCase):
     def test_every_agent_splits_into_a_shipped_skill_and_a_known_role(self):
         names = models.agent_names()
-        self.assertEqual(len(names), 33)
+        self.assertEqual(len(names), 34)
         for name in names:
             skill, role = lib.split_agent_name(name)
             self.assertIsNotNone(skill, name)
@@ -129,7 +129,7 @@ class AgentSyncTest(unittest.TestCase):
 
     def test_full_scaffold_writes_one_copy_per_agent(self):
         out = agent_sync.sync({"models": models.scaffold()}, self.tmp)
-        self.assertEqual(len(out["written"]), 33)
+        self.assertEqual(len(out["written"]), 34)
         self.assertEqual(sorted(os.listdir(self.dir)),
                          sorted(n + ".md" for n in out["written"]))
 
@@ -158,7 +158,7 @@ class AgentSyncTest(unittest.TestCase):
         agent_sync.sync(s, self.tmp)
         again = agent_sync.sync(s, self.tmp)
         self.assertEqual(again["written"], [])
-        self.assertEqual(len(again["unchanged"]), 33)
+        self.assertEqual(len(again["unchanged"]), 34)
 
     def test_a_changed_value_rewrites_the_copy(self):
         agent_sync.sync({"models": {"code": {"implementer": {"effort": "low"}}}}, self.tmp)
@@ -186,7 +186,7 @@ class AgentSyncTest(unittest.TestCase):
 
     def test_dry_run_writes_nothing(self):
         out = agent_sync.sync({"models": models.scaffold()}, self.tmp, dry_run=True)
-        self.assertEqual(len(out["written"]), 33)
+        self.assertEqual(len(out["written"]), 34)
         self.assertFalse(os.path.isdir(self.dir))
 
 
@@ -244,6 +244,20 @@ class CommittedFilesTest(unittest.TestCase):
             for role, entry in roles.items():
                 self.assertTrue(entry["model"].startswith("claude-"),
                                 "%s.%s pins a model id, not an alias" % (skill, role))
+
+    def test_the_api_contract_gap_analyst_is_scaffolded_and_pinned(self):
+        """ADR-0134 gives create-api-contract a read-only gap analyst, the
+        way create-data-design has one; the committed files name it."""
+        with open(SCHEMA, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        with open(SETTINGS, encoding="utf-8") as fh:
+            block = json.load(fh)["models"]
+        roles = schema["properties"]["models"]["properties"]["create-api-contract"]
+        self.assertEqual(sorted(roles["properties"]),
+                         ["contract-author", "contract-reviewer", "gap-analyst"])
+        self.assertEqual(block["create-api-contract"]["gap-analyst"],
+                         models.recommended("gap-analyst"))
+        self.assertEqual(lib.ROLE_KINDS["gap-analyst"], "survey")
 
     def test_hooks_match_both_agent_spellings(self):
         with open(os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json"),

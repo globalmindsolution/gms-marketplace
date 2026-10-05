@@ -48,7 +48,6 @@ Restore the pre-hook gate.
 ## Contract
 delivery_path: standard
 owes:
-  api_contract: false
   test_cases: true
   e2e: false
   reason: "a pre-hook gate has no browser flow"
@@ -144,6 +143,17 @@ class GateQueryParityTest(GateQueryCase):
                 self.assertEqual(out.returncode, 2, out.stderr)
                 self.assertIn("acs pre-%s: blocked" % skill, out.stderr)
 
+    def test_a_design_skill_opens_on_an_epic_through_either_door(self):
+        """ADR-0134: create-api-contract is a Design skill like
+        create-data-design -- no step of ship, so no epic brake and no
+        no-op: both doors let it run on an epic, the same way."""
+        epic = self.new_ticket("Checkout revamp", "epic")
+        for skill in ("create-api-contract", "create-data-design"):
+            with self.subTest(skill=skill):
+                out = self.assert_parity(skill, epic)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                self.assertNotIn("blocked", out.stderr)
+
     def test_gate_prints_the_out_of_order_advisory_the_hook_prints(self):
         """Equality with the hook, never a hard-coded sentence.
 
@@ -165,7 +175,8 @@ class GateQueryIsSideEffectFreeTest(GateQueryCase):
     def test_gate_creates_no_run_no_lock_no_step(self):
         ticket = self.new_ticket("Add user login", "task")
         runs = os.path.join(lib.repo_dir(self.ws, "acme-shop"), "runs")
-        for skill in ("code", "create-pr", "merge-pr", "create-design"):
+        for skill in ("code", "create-pr", "merge-pr", "create-design",
+                      "create-api-contract"):
             with self.subTest(skill=skill):
                 before = self.snapshot(self.ws)
                 self.query(skill, ticket)

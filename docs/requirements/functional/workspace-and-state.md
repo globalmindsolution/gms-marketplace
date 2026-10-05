@@ -144,11 +144,11 @@ and, inside it, one per ticket or run):
 │   ├── hld/ ...
 │   └── lld/
 │       └── bulk-export/
-│           ├── api/ data/ flows/ components/   # the living LLD, edited in place (ADR-0126)
+│           ├── api/ data/ flows/ components/   # the living LLD, edited in place (ADR-0126; api/<interface>.md, ADR-0134)
 │           ├── SHOP-122/               # Design records of one change: an epic
 │           │   └── design.md           # epics always carry the design; children read it from here
 │           └── SHOP-123/
-│               └── api-contract.md     # /create-api-contract (only when the analysis found an API surface change)
+│               └── api-contract.md     # /create-api-contract's per-run record, linking the api/<interface>.md files it wrote
 ├── docs/development/                   # <development_dir>
 │   └── bulk-export/
 │       ├── SHOP-123/                   # Development documents of a ticket

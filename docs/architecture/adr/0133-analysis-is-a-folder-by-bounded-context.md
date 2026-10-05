@@ -1,6 +1,6 @@
 # 0133 — An analysis is a folder: a README plus one file per bounded context
 
-**Status**: Accepted · **Date**: 2026-10-05
+**Status**: Accepted — amended by [0134](0134-api-contract-is-a-design-document.md) (the `README.md` no longer carries `api_surface` or an API-surface verdict) · **Date**: 2026-10-05
 
 **Amends**: [0114](0114-analyze-requirements-controller-driven-loop.md) (the
 loop's draft is a folder, `iter-<n>/analysis/`; the deterministic checks run on
