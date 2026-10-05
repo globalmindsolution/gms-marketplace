@@ -74,9 +74,10 @@ class AcsWorkspaceCase(unittest.TestCase):
         subprocess.run(["git", "init", "-q", self.repo], check=True)
         subprocess.run(["git", "-C", self.repo, "remote", "add", "origin",
                         "https://github.com/acme/shop.git"], check=True)
-        # The workspace is always the main checkout's .acs/state-machine
-        # (ADR-0086, ADR-0102). Ignored through .git/info/exclude rather than a
-        # .gitignore, so the fixture repo's working tree stays clean.
+        # The workspace is always <git-common-dir>/acs/state-machine (ADR-0136),
+        # which git never tracks. The legacy .acs/state-machine/ entry a real
+        # consumer's ignore file still carries is kept, through
+        # .git/info/exclude rather than a .gitignore, so the working tree stays clean.
         self.ws = lib.default_state_root(self.repo)
         with open(os.path.join(self.repo, ".git", "info", "exclude"), "a") as fh:
             fh.write(".acs/state-machine/\n")

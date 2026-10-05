@@ -79,14 +79,12 @@ what it finds. Before the loop, check three things yourself:
   they describe in its authoring notes, and each derived case carries the
   acceptance criterion it proves (`AC-<n>`) wherever this file says `TC-<n>`.
   Say in the report that no case document existed.
-- **`test-cases.md` lists at least one e2e case.** Zero → nothing to write:
-  finish `completed` with `outcome: "no_e2e_owed"` and a summary saying the
-  case document types no case e2e; the pointer is to re-run
-  `/acs:create-test-docs <id>` if the change needs end-to-end coverage.
-  Do NOT work around this by editing `test-cases.md` yourself — the case set is
-  `/acs:create-test-docs`'s artifact, and the count you use
-  (`acs_lib.gate_inputs.e2e_case_count`) is the same one the case document's
-  own checks pin.
+- **`test-cases.md` lists at least one e2e case.** Zero → nothing to write: finish
+  `completed` with `outcome: "no_e2e_owed"` and a summary saying the case document types no
+  case e2e; the pointer is to re-run `/acs:create-test-docs <id>` if the change needs
+  end-to-end coverage. Do NOT work around this by editing `test-cases.md` yourself — the
+  case set is `/acs:create-test-docs`'s artifact, and the count you use
+  (`acs_lib.gate_inputs.e2e_case_count`) is the same one the case document's own checks pin.
 
 There is no predecessor-completed check: order lives in `workflows/ship.yaml`,
 not in this gate. In the declared order this step runs after `/acs:code`, so the
@@ -144,7 +142,7 @@ record what the tree looks like at step start:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes snapshot
 ```
 
-Write its `tree` to `steps/create-e2e-tests/start-snapshot.json` (once per
+Write its `tree` to `steps/create-e2e-tests/start-snapshot.json` through `acs.py write` (as in Finish) (once per
 step — on resume, reuse the recorded one) and call it `<start_tree>`. The
 scope check compares against it — `acs.py changes diff --since <start_tree>
 --name-only` lists exactly what THIS step changed, whatever `/acs:code` left
@@ -640,10 +638,11 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure or handoff:
 
-1. Write `steps/create-e2e-tests/result.json` per the
-   result-document contract in INTERNALS.md:
+1. Write `steps/create-e2e-tests/result.json` through `acs.py write` (never the Write tool)
+   per the result-document contract in INTERNALS.md:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-e2e-tests/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "suite-runner passed with zero findings on iteration 2; 2 e2e cases covered by 1 suite, left uncommitted",
@@ -655,6 +654,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    Canonical `states` keys — EXACT names; `acs step finish` documents

@@ -1,7 +1,7 @@
 ---
 type: regex
 target: files
-pattern: '^\.acs/state-machine/example-shop/(runs/|[A-Z]+-\d+/)'
+pattern: '^\.git/acs/state-machine/example-shop/(runs/|[A-Z]+-\d+/)'
 flags: m
 match: not_contains
 ---

@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-ticket/state.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-ticket/state.json }
 pattern: '"feature"\s*:\s*"[^"]*(?:F3|[Oo]rder [Tt]racking)[\s\S]*"status"\s*:\s*"completed"'
 ---
 

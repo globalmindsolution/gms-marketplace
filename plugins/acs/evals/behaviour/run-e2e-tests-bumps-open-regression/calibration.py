@@ -14,7 +14,7 @@ import time
 
 SCRIPTS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                         "..", "..", "..", "hooks", "scripts"))
-REPO = ".acs/state-machine/example-shop"
+REPO = ".git/acs/state-machine/example-shop"
 RUN_ID = "run-20260928T120000Z"
 KEY = "e2e:__suite__"
 

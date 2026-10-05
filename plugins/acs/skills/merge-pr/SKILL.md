@@ -417,10 +417,11 @@ MANDATORY final step — never skipped, also on failure. Run it from the main
 checkout of the consumer repo (the worktree may be gone; the post-hook
 resolves the workspace from cwd):
 
-1. Write `steps/merge-pr/result.json` per the result-document
-   contract in INTERNALS.md:
+1. Write `steps/merge-pr/result.json` through `acs.py write` (never the Write tool) per the
+   result-document contract in INTERNALS.md:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/merge-pr/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "PR #87 merged (squash); remote+local branch deleted, worktree removed, tracker synced",
@@ -432,6 +433,7 @@ resolves the workspace from cwd):
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    Canonical `states` keys — EXACT names:

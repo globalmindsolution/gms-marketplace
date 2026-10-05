@@ -91,7 +91,8 @@ whatever the status.
 
 ## The report
 
-Write `<partition>/steps/audit-design/iter-1/report.md` from the report template —
+Write `<partition>/steps/audit-design/iter-1/report.md` through `acs.py write` (as in Finish) from the
+report template —
 `.acs/templates/audit-design-report.md` when the repo has one, else
 `${CLAUDE_PLUGIN_ROOT}/templates/audit-design-report.md` — from the joined `gaps.md`
 and the `design check` output only. Keep every `## ` section in the template's order;
@@ -120,10 +121,11 @@ and give the user the `continue_with` command it prints.
 
 ## Finish
 
-MANDATORY, also on failure. Write `steps/audit-design/result.json` per the
-result-document contract in INTERNALS.md, with `states`:
+MANDATORY, also on failure. Write `steps/audit-design/result.json` through `acs.py write`
+(never the Write tool) per the result-document contract in INTERNALS.md, with `states`:
 
-```json
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/audit-design/result.json <<'ACS_EOF'
 {
   "status": "completed",
   "summary": "audited hld + 3 features against the code: 4 gaps, 2 planned",
@@ -138,6 +140,7 @@ result-document contract in INTERNALS.md, with `states`:
   "findings": [],
   "errors": []
 }
+ACS_EOF
 ```
 
 ```bash

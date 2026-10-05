@@ -19,7 +19,7 @@ import time
 
 SCRIPTS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                         "..", "..", "..", "hooks", "scripts"))
-REPO = ".acs/state-machine/example-shop"
+REPO = ".git/acs/state-machine/example-shop"
 KEY = "e2e:test_customers_e2e.customerse2e.test_customers_default_page_is_50"
 
 

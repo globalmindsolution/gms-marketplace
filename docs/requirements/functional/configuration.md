@@ -121,14 +121,16 @@ in the run's step folder instead, and its phase folders hold only the living
 documents. Nothing writes the old
 `docs/tickets/<ID>/` any more; an existing folder there is still read. One
 location is **fixed, never discovered**: the workspace — the folder where all skills and
-hooks read/write ticket state — is always `<main-checkout>/.acs/state-machine`,
-a gitignored folder anchored to the repo's main checkout
+hooks read/write ticket state — is always `<git-common-dir>/acs/state-machine`,
+a folder inside the repo's shared git directory
 (`git rev-parse --git-common-dir`), so every worktree resolves to the same
 physical location without state being duplicated/dirtied per worktree
-(ADR-0086). It has no override. The workspace ignores itself: the first
-state write under it creates `.acs/state-machine/.gitignore` containing `*`,
-so it stays out of `git status` whether or not `/setup` ever added a root
-`.gitignore` entry (ADR-0105).
+(ADR-0086), and a Claude Code worktree session or the Bash sandbox can write
+it ([ADR-0136](../../architecture/adr/0136-state-in-the-git-common-dir.md)).
+It has no override. Git tracks nothing under its own directory, so the
+workspace never shows up in `git status`; the `.acs/state-machine/` ignore
+entry stays for a clone whose state has not moved from the old
+`<main-checkout>/.acs/state-machine` yet, which acs moves on its first call.
 
 ### Format placeholders
 
@@ -232,7 +234,7 @@ configured under `models`:
 
 ## Validation rules
 
-- `/setup` derives the workspace (`<main-checkout>/.acs/state-machine`) —
+- `/setup` derives the workspace (`<git-common-dir>/acs/state-machine`) —
   no key sets it — and MUST hard-fail with a `GateError` when the layout
   cannot resolve a normal main-checkout root (bare repo, submodule): acs must
   be run from a regular git checkout.
@@ -259,8 +261,8 @@ configured under `models`:
 
 ## Example
 
-The workspace always derives to `<main-checkout>/.acs/state-machine`
-(ADR-0086), and documents are found rather than configured (ADR-0102): no
+The workspace always derives to `<git-common-dir>/acs/state-machine`
+(ADR-0086, ADR-0136), and documents are found rather than configured (ADR-0102): no
 `settings.local.json` entry is needed at all. The example spells keys out for
 illustration; a file `/setup` writes holds only the ticket prefix and the CI
 gate values that differ from their defaults, and the rest below, `ticket_prefix`

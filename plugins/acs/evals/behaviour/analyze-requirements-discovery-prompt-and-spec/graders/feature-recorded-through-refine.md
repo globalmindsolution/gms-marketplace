@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .acs/state-machine/example-shop/runs/*/requirements-refined.json
+path: .git/acs/state-machine/example-shop/runs/*/requirements-refined.json
 ---
 
 The feature (and the confirmed needs_design) is recorded through

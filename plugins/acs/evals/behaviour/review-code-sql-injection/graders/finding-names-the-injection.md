@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/review-code/verdict.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/review-code/verdict.json }
 pattern: 'inject|parameteri[sz]|placeholder|bound param|bind param|string[- ]format|interpolat'
 flags: i
 ---

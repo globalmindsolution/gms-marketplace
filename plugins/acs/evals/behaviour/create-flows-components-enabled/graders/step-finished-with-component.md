@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-flows/state.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-flows/state.json }
 pattern: '^(?=[\s\S]*"status"\s*:\s*"completed")(?=[\s\S]*"files"\s*:\s*\[[^\]]*"docs/architecture/lld/orders/components/orders\.md")(?=[\s\S]*"files"\s*:\s*\[[^\]]*"docs/architecture/lld/orders/flows/cancel-order\.md")(?=[\s\S]*"types"\s*:\s*\[[^\]]*"component-detail")(?=[\s\S]*"types"\s*:\s*\[[^\]]*"class")'
 ---
 

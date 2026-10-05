@@ -18,7 +18,7 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-audit-security.py")
 NEW_TICKET = os.path.join(PLUGIN, "hooks", "scripts", "new-ticket.py")
 TEMPLATE = os.path.join(PLUGIN, "templates", "audit-security-report.md")
-STEP = (".acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3"
+STEP = (".git/acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3"
         "/steps/audit-security")
 ITER = STEP + "/iter-1"
 # The scaffold's seeded value, in two halves like scaffold.sh; never written by a good run.

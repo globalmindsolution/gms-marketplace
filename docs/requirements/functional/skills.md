@@ -244,9 +244,10 @@ validated against `settings.schema.json`.
   user picks (for me: `.acs/settings.local.json`; for the team:
   `.acs/settings.json`), a folder as `docs.<kind>_dir` in
   `.acs/settings.json`.
-- The workspace derives silently to `<main-checkout>/.acs/state-machine` —
+- The workspace derives silently to `<git-common-dir>/acs/state-machine` —
   no prompt, no required input, and no override (ADR-0086,
-  [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
+  [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md),
+  [ADR-0136](../../architecture/adr/0136-state-in-the-git-common-dir.md)).
 - MUST NOT ask for a `ticket_prefix`: it defaults to `ACS`, and a repo that
   wants its own sets it by hand.
 - MUST show the three conventions — `formats.branch_name`,
@@ -1542,7 +1543,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   **deterministic plan-approval verdict**: `plan-approval.py` computes
   `acs_lib.plan_approval_eligible` from the plan artifact's own content plus
   `tests.coverage` and is the **sole writer** of
-  `<run>/steps/code/plan-approval.json` — never a subagent's `Write`, never
+  `<run>/steps/code/plan-approval.json` — never a subagent's `acs.py write`, never
   the coordinator's, never an LLM self-assertion. The record carries the
   predicate's inputs, checks, failures and the approved plan's **sha256**, and
   is written **at most once per approved plan digest** (idempotent on resume;

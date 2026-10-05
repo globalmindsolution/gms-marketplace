@@ -1,6 +1,6 @@
 # 0105 — acs runs without setup; the PR title carries no ticket id
 
-**Status**: Accepted · **Date**: 2026-09-23
+**Status**: Accepted — amended by [0136](0136-state-in-the-git-common-dir.md) (the state root is under `.git/`, which git never tracks) · **Date**: 2026-09-23
 
 **Amends**: [0035](0035-pr-title-ticket-ref-token.md) (`{ticket_ref}` stays
 available, but the default `pr_title` no longer uses it) and

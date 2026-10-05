@@ -351,10 +351,11 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/create-flows/result.json` per the result-document contract in
-   INTERNALS.md:
+1. Write `steps/create-flows/result.json` through `acs.py write` (never the Write tool) per
+   the result-document contract in INTERNALS.md:
 
-```json
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-flows/result.json <<'ACS_EOF'
 {
   "status": "completed",
   "summary": "3 flows and 1 state machine for wishlist; review passed on iteration 2",
@@ -369,6 +370,7 @@ MANDATORY final step — never skipped, also on failure:
   "findings": [],
   "errors": []
 }
+ACS_EOF
 ```
 
    `files` lists EVERY path written, repo-relative; `types` the owned types

@@ -491,8 +491,9 @@ same worktree reclaims its own lock; only other sessions are blocked.
 A ticket can pass from one team member to another — across machines — in
 mid-flight, with its uncommitted work and its pipeline state
 ([ADR-0131](../../architecture/adr/0131-ticket-handoff-between-members.md)).
-The workspace itself stays machine-local in the main checkout's
-`.acs/state-machine/` (ADR-0086); what crosses is a package of one ticket.
+The workspace itself stays machine-local in the repo's git directory,
+`<git-common-dir>/acs/state-machine/` (ADR-0086, ADR-0136); what crosses is a
+package of one ticket.
 
 1. **Send** — `/acs:handoff <ID>` asks ONE grouped question: the handoff note
    (what is done, what is in flight, what is next, decisions not yet in a
@@ -559,11 +560,12 @@ a [ticket handoff](#ticket-handoff).
 - The workspace is partitioned by repo, then by `<ticket-id>`
   (`<workspace>/<repo>/<ticket-id>/`), so multiple tickets — across one or
   many consumer repos — can progress independently and in parallel.
-- Because the workspace is resolved from the repo's main checkout (`git
-  rev-parse --git-common-dir`), every linked worktree resolves to the same
-  `.acs/state-machine/` tree, so the same ticket pipeline can run inside a
-  dedicated git worktree without state colliding with other worktrees
-  (ADR-0086).
+- Because the workspace is resolved from the repo's shared git directory
+  (`git rev-parse --git-common-dir`), every linked worktree resolves to the
+  same `<git-common-dir>/acs/state-machine/` tree, so the same ticket pipeline
+  can run inside a dedicated git worktree — a Claude Code worktree session
+  included, sandboxed or not — without state colliding with other worktrees
+  (ADR-0086, ADR-0136).
 - **One checkout, one changeset.** No step commits before `/create-pr`
   (ADR-0127), so a run's changes are the working tree's. Two tickets in flight
   in one checkout share that working tree and so one changeset; the run's

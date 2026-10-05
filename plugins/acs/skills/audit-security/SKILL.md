@@ -102,8 +102,8 @@ it, and one auditor alone does not weaken it; per-finding refutation is the filt
 
 ## The report
 
-Write `<partition>/steps/audit-security/iter-1/report.md` yourself from the report
-template — `.acs/templates/audit-security-report.md` when the repo has one, else
+Write `<partition>/steps/audit-security/iter-1/report.md` yourself through `acs.py write` (as in Finish)
+from the report template — `.acs/templates/audit-security-report.md` when the repo has one, else
 `${CLAUDE_PLUGIN_ROOT}/templates/audit-security-report.md` — and from the auditor
 reports and the adjudication files only. Keep every `## ` section in the template's
 order; each finding is one `### ` entry under its section, and an empty section says
@@ -151,11 +151,12 @@ and give the user the `continue_with` command it prints.
 
 ## Finish
 
-MANDATORY, also on failure. Write `steps/audit-security/result.json` per the
-result-document contract in INTERNALS.md, with `states` (the post-hook re-counts the
-severities, `advisory` and `refuted` from the report):
+MANDATORY, also on failure. Write `steps/audit-security/result.json` through `acs.py write`
+(never the Write tool) per the result-document contract in INTERNALS.md, with `states` (the
+post-hook re-counts the severities, `advisory` and `refuted` from the report):
 
-```json
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/audit-security/result.json <<'ACS_EOF'
 {
   "status": "completed",
   "summary": "audited the repository: 1 high, 2 medium confirmed; 1 advisory; 5 refuted",
@@ -172,6 +173,7 @@ severities, `advisory` and `refuted` from the report):
   "findings": [],
   "errors": []
 }
+ACS_EOF
 ```
 
 ```bash

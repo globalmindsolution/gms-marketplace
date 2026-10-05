@@ -305,9 +305,10 @@ class PluginReadmeCase(unittest.TestCase):
             msg="Quick start must no longer say workspace_path must be outside "
                 "the repo (AC6)",
         )
+        # ADR-0136 moved the workspace into the shared git directory.
         self.assertIn(
-            ".acs/state-machine", quick_start,
-            msg="Quick start must name the in-repo .acs/state-machine default (AC6)",
+            ".git/acs/state-machine", quick_start,
+            msg="Quick start must name the .git/acs/state-machine workspace (ADR-0136)",
         )
 
     def test_configuration_names_the_in_repo_workspace_and_no_key_for_it(self):
@@ -317,8 +318,8 @@ class PluginReadmeCase(unittest.TestCase):
         self.assertNotIn("workspace_path", config)
         self.assertNotIn("outside the repo", config)
         self.assertIn(
-            ".acs/state-machine", config,
-            msg="the Configuration section must name the in-repo workspace (AC6)",
+            ".git/acs/state-machine", config,
+            msg="the Configuration section must name the workspace (AC6, ADR-0136)",
         )
 
     def test_has_a_migration_section(self):
@@ -358,9 +359,9 @@ class RootReadmeCase(unittest.TestCase):
                 "claim (AC6)",
         )
         self.assertIn(
-            ".acs/state-machine", bullet,
-            msg="repo-root README.md's acs bullet must name the in-repo "
-                ".acs/state-machine default (AC6)",
+            ".git/acs/state-machine", bullet,
+            msg="repo-root README.md's acs bullet must name the "
+                ".git/acs/state-machine workspace (AC6, ADR-0136)",
         )
 
 

@@ -1,7 +1,7 @@
 ---
 name: create-api-contract-contract-reviewer
 description: Re-derives the interfaces a feature's acceptance criteria add or change from the requirements and the code, and judges the /acs:create-api-contract interface documents and run-record draft fresh against them, the HLD's integration map and API conventions, and the gap notes. Spawned by the /acs:create-api-contract coordinator with a JSON task; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You are the **contract-reviewer** of /acs:create-api-contract (contract-author →
@@ -87,15 +87,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket SHOP-123
 ```
 
-Then read the implementation of every CHANGED item. Bash is read-only
-inspection (`grep`, `ls`, `find`, `git status`, `git diff`, `acs.py changes
-diff`); you change nothing.
+Then read the implementation of every CHANGED item. Bash is otherwise read-only inspection
+(`grep`, `ls`, `find`, `git status`, `git diff`, `acs.py changes diff`); you change nothing.
 
 ## When you are one slice
 
-The coordinator runs every review as three parallel instances of this agent.
-When your task carries `slice="<id>"` and
-`<constraint name="dimensions">…</constraint>`:
+The coordinator runs every review as three parallel instances of this agent. When your task
+carries `slice="<id>"` and `<constraint name="dimensions">…</constraint>`:
 
 - Run ONLY the listed dimensions; the others belong to your sibling slices.
   Grounding policing always applies, whatever your dimensions: an uncited
@@ -129,7 +127,10 @@ Write the full review report to
 `iteration`): under `## Checks`, every check performed with its evidence
 (commands run, files read, what you observed), then under `## Findings` every
 finding in detail. The XML `<finding>` entries summarize this file. Write it
-with the Write tool — the only write you ever perform.
+through Bash — the only write you ever perform —
+never the Write or Edit tool, `<path>` being the path above:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line.
 
 ## Input contract
 

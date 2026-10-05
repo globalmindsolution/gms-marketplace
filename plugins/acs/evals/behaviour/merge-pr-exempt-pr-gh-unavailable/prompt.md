@@ -6,7 +6,7 @@ description: >-
   a forge in the run. The skill must stop on that failure without inventing a
   ticket, starting a run, merging the branch by another route, or deleting it.
 expected_outcome: >-
-  No run and no ticket appear under .acs/state-machine/example-shop/; main
+  No run and no ticket appear under .git/acs/state-machine/example-shop/; main
   (checked out) does not carry the hotfix; hotfix/health-casing is still
   present locally and on the local origin; the reply says gh could not read
   the PR.

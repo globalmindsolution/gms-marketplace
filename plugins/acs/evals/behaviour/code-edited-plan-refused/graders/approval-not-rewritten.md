@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan/plan-approval.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan/plan-approval.json }
 pattern: '"plan_sha256"\s*:\s*"ff9781e58f6ae59b80fc31dac5fe772f1a15a1e5d457299b4e3ae5e96bb98ad7"'
 ---
 

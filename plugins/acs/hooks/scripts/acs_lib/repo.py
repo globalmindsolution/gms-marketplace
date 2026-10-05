@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 from ._common import GateError, TICKET_ID_RE, _git, now_iso, read_json, write_json
+from . import state_root as _state_root
 
 
 
@@ -231,10 +232,16 @@ def current_branch(cwd):
     return _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)
 
 
-def default_state_root(cwd):
-    """Derive <main-checkout>/.acs/state-machine straight from git plumbing (D1-D3);
-    deliberately does not call main_repo_root(), which cannot tell a bare/submodule
-    layout apart from a normal one."""
+def default_state_root(cwd, migrate=True):
+    """Derive <git-common-dir>/acs/state-machine straight from git plumbing (D1-D3,
+    ADR-0136); deliberately does not call main_repo_root(), which cannot tell a
+    bare/submodule layout apart from a normal one.
+
+    Every worktree of a repo shares the common dir, so they all resolve the same
+    root; and it is the one place both a worktree-scoped session's Write tool
+    rules and the Bash sandbox let acs write. With `migrate` (the default), a
+    legacy `<main-checkout>/.acs/state-machine` is moved here the first time the
+    root is derived (`acs_lib.state_root`)."""
     is_bare = _git(["rev-parse", "--is-bare-repository"], cwd)
     if not is_bare:
         raise GateError(
@@ -266,8 +273,11 @@ def default_state_root(cwd):
             "%s has an unusual git layout (git-common-dir is not a .git directory); acs "
             "cannot derive an in-repo state root here. Run acs from a regular git checkout." % cwd
         )
-    root = os.path.dirname(common)
-    return os.path.join(root, ".acs", "state-machine")
+    root = _state_root.state_root_for(common)
+    if migrate:
+        _state_root.migrate_legacy_root(
+            _state_root.legacy_root_for(os.path.dirname(common)), root)
+    return root
 
 
 # ---------------------------------------------------------------------------

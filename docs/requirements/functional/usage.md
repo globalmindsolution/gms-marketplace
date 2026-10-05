@@ -11,8 +11,8 @@ works in a repo that has no `.acs/settings.json`: tickets are `ACS-1`,
 `ACS-2`, …, a branch is `task/ACS-12-add-wishlist`, a commit
 `ACS-12 Add the wishlist endpoint`, and a PR title is the plain ticket title
 (`Add wishlist support`); coverage 90, merge strategy squash, tracker local,
-models inherited. The workspace is always `<main-checkout>/.acs/state-machine`
-and ignores itself on its first write.
+models inherited. The workspace is always `<git-common-dir>/acs/state-machine`
+— `.git/acs/state-machine` in an ordinary clone — so git never tracks it.
 
 The `acme-shop` repo in these walkthroughs wants its own ticket prefix, so it
 sets one by hand in the committed `.acs/settings.json`:

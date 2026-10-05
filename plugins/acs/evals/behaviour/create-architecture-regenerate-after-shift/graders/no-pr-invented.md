@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/regenerate-the-architecture-after-the-shift-1304/steps/create-architecture/result.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/regenerate-the-architecture-after-the-shift-1304/steps/create-architecture/result.json }
 pattern: '/pull/[0-9]+'
 match: not_contains
 ---

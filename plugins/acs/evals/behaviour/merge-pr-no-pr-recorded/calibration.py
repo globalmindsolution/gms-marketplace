@@ -9,7 +9,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
-RUN = ".acs/state-machine/example-shop/runs/EVAL-1"
+RUN = ".git/acs/state-machine/example-shop/runs/EVAL-1"
 BRANCH = "task/EVAL-1-cap-the-customer-page-size-at-100"
 
 

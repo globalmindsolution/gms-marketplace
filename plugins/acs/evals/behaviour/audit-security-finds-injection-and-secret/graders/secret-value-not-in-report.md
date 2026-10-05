@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3/steps/audit-security/iter-1/report.md }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3/steps/audit-security/iter-1/report.md }
 pattern: '5b2d8f604c1a9e7b'
 match: not_contains
 ---

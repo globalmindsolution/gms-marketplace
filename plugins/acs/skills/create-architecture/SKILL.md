@@ -559,13 +559,14 @@ resumes the run, see Start).
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/create-architecture/result.json` per the
-   result-document contract in INTERNALS.md. Canonical `states` keys (exact
-   names): `architecture` and `files`. `hld` entries are paths relative to
-   `<path>/hld/`; `files` lists EVERY repo path written, repo-relative — the
-   paths `/acs:create-pr` groups into the HLD's commit:
+1. Write `steps/create-architecture/result.json` through `acs.py write` (never the Write
+   tool) per the result-document contract in INTERNALS.md. Canonical `states` keys (exact
+   names): `architecture` and `files`. `hld` entries are paths relative to `<path>/hld/`;
+   `files` lists EVERY repo path written, repo-relative — the paths `/acs:create-pr` groups
+   into the HLD's commit:
 
-```json
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-architecture/result.json <<'ACS_EOF'
 {
   "status": "completed",
   "summary": "doc set reviewed against PRD and codebase; left as local changes",
@@ -579,6 +580,7 @@ MANDATORY final step — never skipped, also on failure:
   "findings": [],
   "errors": []
 }
+ACS_EOF
 ```
 
    On failure: `status: "failed"`, the blocking findings in `findings`, the

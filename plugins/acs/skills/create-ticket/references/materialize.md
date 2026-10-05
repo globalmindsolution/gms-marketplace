@@ -55,7 +55,9 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    `story-default`, `task-default`); a repo's own `<repo>/.acs/templates/<name>.md`
    of the same name replaces it. Fill EVERY section with real content from the
    confirmed proposal; delete the HTML comments.
-3. **Rewrite `<partition>/ticket.json`**, PRESERVING `id`, `status`, and
+3. **Rewrite `<partition>/ticket.json`** through `acs.py ticket save --ticket <id> --from -`
+   (the whole document on stdin as a `<<'ACS_EOF'` heredoc, never the Write tool),
+   PRESERVING `id`, `status`, and
    `created_at`, and setting every field required by
    `${CLAUDE_PLUGIN_ROOT}/schemas/ticket.schema.json`: `title`, `type`,
    `description`, `acceptance_criteria` (array of testable strings),
@@ -161,7 +163,7 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
      blocking finding); list which tickets synced (with their key) and which
      failed (with the error) so the failed ones can be retried individually.
 6. **Write the materialize report** to
-   `steps/create-ticket/iter-<n>/materialize.json`: artifacts
+   `steps/create-ticket/iter-<n>/materialize.json` through `acs.py write` (SKILL.md's Finish): artifacts
    produced, files changed, commands run with outcomes, problems hit, and the
    confirmed decisions you applied.
 

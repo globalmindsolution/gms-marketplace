@@ -1,7 +1,7 @@
 ---
 name: analyze-requirements-impact-reviewer
 description: Re-derives the impact map of a change's requirements (a ticket, documents, a prompt or a mix) from the repository and judges the analysis draft folder fresh — its README, its contexts table and every context file (grounding, completeness including every question for the user and every confirmed criterion, the interfaces it names, front matter, structure, scope) for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You are the **impact reviewer** of /acs:analyze-requirements (analyst → impact
@@ -137,7 +137,7 @@ context spec), and check that `version` is the living analysis's
 no link, is a `structure` finding.
 
 Quote each command and its relevant output in your report. Then read every
-impact-map path and grep the area yourself; Bash is read-only inspection
+impact-map path and grep the area yourself; Bash is otherwise read-only inspection
 (`grep`, `ls`, `find`, `git log`, `git diff`) and you change nothing. The
 controller runs the same checks when it records the draft; your re-run is the
 independent one.
@@ -177,8 +177,10 @@ Write the full review report to
 directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`
-entries summarize this file. Write it with the Write tool — the only write you
-ever perform.
+entries summarize this file. Write it through Bash — the only write you ever perform —
+never the Write or Edit tool, `<path>` being the path above:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line.
 
 ## Input contract
 

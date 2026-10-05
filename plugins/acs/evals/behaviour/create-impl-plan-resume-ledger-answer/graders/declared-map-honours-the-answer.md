@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/filemap.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/filemap.json }
 pattern: '"src/shop/cursor\.py"'
 ---
 

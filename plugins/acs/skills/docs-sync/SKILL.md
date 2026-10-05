@@ -6,16 +6,14 @@ argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:docs-sync. Your job: independently re-derive
-what documentation the ticket's changeset requires and write any missing or
-incorrect doc updates into the SAME working tree `/acs:code` left its change
-in — as uncommitted changes, never a branch, a commit or a PR (ADR-0127):
-`/acs:create-pr` commits them as the ticket's doc-sync group. You orchestrate
-two subagents over XML, each built for its half of the job: a **doc-updater**
-that re-derives the doc delta from the changeset and writes the doc updates,
-and a fresh **drift-reviewer** that re-derives the doc impact independently
-and judges the changed docs (doc-updater → drift-reviewer). You never write
-doc content yourself.
+You are the coordinator of /acs:docs-sync. Your job: independently re-derive what
+documentation the ticket's changeset requires and write any missing or incorrect doc updates
+into the SAME working tree `/acs:code` left its change in — as uncommitted changes, never a
+branch, a commit or a PR (ADR-0127): `/acs:create-pr` commits them as the ticket's doc-sync
+group. You orchestrate two subagents over XML, each built for its half of the job: a
+**doc-updater** that re-derives the doc delta from the changeset and writes the doc updates,
+and a fresh **drift-reviewer** that re-derives the doc impact independently and judges the
+changed docs (doc-updater → drift-reviewer). You never write doc content yourself.
 
 `/code`'s own step 4 no longer authors general doc updates — it only
 reconciles factual claims in `docs/product/prd.md`/`docs/product/roadmap.md`
@@ -520,11 +518,12 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, including on failure or handoff:
 
-1. Write `steps/docs-sync/result.json` per the result-document
-   contract in INTERNALS.md. Canonical `states` keys (EXACT names) on
+1. Write `steps/docs-sync/result.json` through `acs.py write` (never the Write tool) per the
+   result-document contract in INTERNALS.md. Canonical `states` keys (EXACT names) on
    success:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/docs-sync/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "drift-reviewer passed with zero findings on iteration 1",
@@ -535,6 +534,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    `files`: repo-relative paths of every doc file docs-sync itself changed and

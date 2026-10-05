@@ -687,14 +687,16 @@ class TestPublishLocal(PublishCase):
         records = commit_plan.Records(self.repo, self.tid)
         records.read_run(self.r)
         self.assertFalse([p for p in records.claims if "analysis" in p], records.claims)
-        # Even when nothing ignores acs's workspace, its files are never a commit's.
+        # Even when nothing ignores acs's workspace, its files are never a commit's:
+        # it lives in the git dir (ADR-0136), which git never lists.
         exclude = os.path.join(self.repo, ".git", "info", "exclude")
         with open(exclude, encoding="utf-8") as fh:
             kept = [line for line in fh if "state-machine" not in line]
         with open(exclude, "w", encoding="utf-8") as fh:
             fh.writelines(kept)
-        os.unlink(os.path.join(self.ws, ".gitignore"))  # the workspace's own `*`
-        self.assertIn(".acs/state-machine/", self.git("status", "--porcelain", "-uall"))
+        self.assertTrue(os.path.realpath(self.ws).startswith(
+            os.path.realpath(os.path.join(self.repo, ".git")) + os.sep))
+        self.assertNotIn("state-machine", self.git("status", "--porcelain", "-uall"))
         with open(os.path.join(self.repo, "src.py"), "w") as fh:
             fh.write("x = 1\n")
         out = self.run_script("acs.py", "pr", "plan-commits", "--run", self.tid)
@@ -703,13 +705,15 @@ class TestPublishLocal(PublishCase):
         listed = [p for g in plan["groups"] for p in g["paths"]] + plan["left_out"] + \
             plan["excluded"]
         self.assertIn("src.py", listed)
-        self.assertFalse([p for p in listed if p.startswith(".acs/state-machine")], listed)
+        self.assertFalse([p for p in listed if "state-machine" in p], listed)
 
     def test_records_skip_a_local_publication_and_the_workspace(self):
         from acs_lib import commit_plan
         records = commit_plan.Records(self.repo, None)
         records.claim(".acs/state-machine/acme-shop/runs/R/steps/x/local/plan.md", "other")
         records.claim(os.path.join(self.repo, ".acs", "state-machine", "a.md"), "other")
+        records.claim(os.path.join(self.repo, ".git", "acs", "state-machine", "acme-shop",
+                                   "runs", "R", "steps", "x", "local", "plan.md"), "other")
         records.claim("docs/development/f/R/plan.md", "ticket-docs")
         self.assertEqual(list(records.claims), ["docs/development/f/R/plan.md"])
 

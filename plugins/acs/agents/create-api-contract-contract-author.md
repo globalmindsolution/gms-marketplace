@@ -235,6 +235,9 @@ Your FINAL message is ONLY an XML `<result>` valid against
   source code, tests or a machine-readable contract file, NEVER `data/`,
   `flows/` or `hld/`, NEVER the ticket, the clarification ledger, `run.json` or
   another phase's artifacts.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
 - NEVER stage, commit or push, NEVER create or switch a branch, NEVER open a
   PR, NEVER spawn subagents, NEVER invoke skills — never stage or commit
   anything: siblings share one working tree.

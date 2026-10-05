@@ -12,7 +12,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-ticket"
+STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-ticket"
 CHILDREN = [
     ("Carrier status webhooks", "story", "3",
      ["POST /webhooks/carrier/{carrier} with a valid signature stores the status change against its order and returns 204",

@@ -38,6 +38,7 @@ sys.path.insert(0, HOOKS_DIR)
 
 import acs_case  # noqa: E402
 import acs_lib as lib  # noqa: E402
+from skill_text import result_example  # noqa: E402
 
 CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
 SHIP_SKILL = os.path.join(SKILLS_DIR, "ship", "SKILL.md")
@@ -499,9 +500,9 @@ class FinishResultExampleIsAnEpicCreationRunWithNoChildrenCase(unittest.TestCase
 
     def test_finish_result_example_is_an_epic_creation_run_with_no_children(self):
         section = finish_section()
-        m = re.search(r"```json\s*(\{.*?\})\s*```", section, re.S)
-        self.assertIsNotNone(m, "Finish section must contain a fenced JSON example")
-        payload = json.loads(m.group(1))
+        example = result_example(section)
+        self.assertIsNotNone(example, "Finish section must show the result document it writes")
+        payload = json.loads(example)
         self.assertEqual(payload["states"]["type"], "epic")
         self.assertEqual(payload["states"]["children"], [])
         section_norm = norm(section)

@@ -11,7 +11,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
+STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
 PUBLISHED = "docs/development/developer-docs/EVAL-1/test-cases.md"
 
 

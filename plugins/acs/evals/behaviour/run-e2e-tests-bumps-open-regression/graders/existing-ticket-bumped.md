@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/EVAL-1/ticket.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/EVAL-1/ticket.json }
 pattern: '"description"\s*:\s*"acs-regression-key: e2e:__suite__\\n(?:[^"\\]|\\.)*First seen on the standing run of 2026-09-27\.(?:[^"\\]|\\.)*run-\d{4}-?\d{2}-?\d{2}T'
 ---
 

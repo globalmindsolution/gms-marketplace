@@ -92,8 +92,8 @@ code.
 ## The authoring notes (mandatory, every iteration)
 
 Write `steps/create-e2e-tests/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`; `iter-<n>/authoring-<k>.md` when you are slice `k`) with
-the Write tool, BEFORE writing anything else.
+task's `iteration`; `iter-<n>/authoring-<k>.md` when you are slice `k`) through
+`acs.py write` (Hard rules), BEFORE writing anything else.
 Sections: Cases in scope (TC-n, quoted); Existing coverage (the ids already driven by
 a test, and the file); Suite layout; Fixtures and setup; Per-case test plan
 (entry point → actions → assertion); Determinism; File list (exact
@@ -242,11 +242,14 @@ Your FINAL message is ONLY an XML `<result>` valid against
   source, NEVER `test-cases.md` or any other ticket document, NEVER the ticket,
   the clarification ledger, `run.json`, another ticket's partition,
   or another phase's artifacts.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
 - NEVER `git add`, `git commit`, `git stash`, `git checkout`, `git push`, or
   any other command that mutates the repository — nothing is committed before
   `/acs:create-pr`, which commits your suites from your report.
 - NEVER run the e2e suite, the product's build, or any long-running service
-  yourself; the suite-runner performs the single run. Bash here is read-only
+  yourself; the suite-runner performs the single run. Bash here is otherwise read-only
   inspection of the repo and its harness config.
 - NEVER add a dependency, a runner, or a config flag; NEVER change the
   configured e2e command.

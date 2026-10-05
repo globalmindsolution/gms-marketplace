@@ -86,18 +86,15 @@ remote issue for an imported ticket: the mapping points at the existing one.
 
 ### GitHub call failure policy
 
-`gh` is the only tracker transport this skill uses —
-no MCP-based transport, no second credential path (ADR-0088). Three classes apply to
-every call below: **critical** (a gate input this step cannot proceed
-without — gh's verbatim stderr plus ONE canonical hint from
-`acs_lib.gh_failure_hint(stderr)`, then STOP, no fallback to any other
-transport), **critical (per ticket), soft (per batch)** (Step 5's `gh issue
-create` only — an error finding naming that ticket, `replayable: false`,
-but the batch continues to the next ticket), and **non-critical**
-(metadata/best-effort — one `info` finding plus a replayable command block,
-never abort). Canon hint text
-(`acs_lib.GH_ACCESS_HINT`, selected when the stderr names a session-access
-restriction; `acs_lib.GH_GENERIC_HINT` otherwise):
+`gh` is the only tracker transport this skill uses — no MCP-based transport, no second
+credential path (ADR-0088). Three classes apply to every call below: **critical** (a gate
+input this step cannot proceed without — gh's verbatim stderr plus ONE canonical hint from
+`acs_lib.gh_failure_hint(stderr)`, then STOP, no fallback to any other transport),
+**critical (per ticket), soft (per batch)** (Step 5's `gh issue create` only — an error
+finding naming that ticket, `replayable: false`, but the batch continues to the next
+ticket), and **non-critical** (metadata/best-effort — one `info` finding plus a replayable
+command block, never abort). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected when the
+stderr names a session-access restriction; `acs_lib.GH_GENERIC_HINT` otherwise):
 
 > This looks like a session-level access restriction — a Claude Code
 > cloud/managed session must have the Claude GitHub App connected for this
@@ -284,8 +281,9 @@ needs the user: a delegation never confirms going beyond the PRD.
 You run this step inline, as `references/materialize.md` steps 1-3 order it
 (render the title, build the description, rewrite the file).
 
-Rewrite `<partition>/ticket.json` PRESERVING `id`, `status`, and `created_at`, and
-setting all fields required by `schemas/ticket.schema.json`:
+Rewrite `<partition>/ticket.json` through `acs.py ticket save --ticket <id> --from -` (the
+whole document on stdin as a `<<'ACS_EOF'` heredoc, never the Write tool) PRESERVING `id`,
+`status`, and `created_at`, and setting all fields required by `schemas/ticket.schema.json`:
 
 - `title`, `type`, `description`, `acceptance_criteria` (array of testable strings),
   `priority` (`critical|high|medium|low`), `parent` (null — this skill creates
@@ -403,11 +401,12 @@ Tell the user the exact `continue_with` command it prints, then stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/create-ticket/result.json` per the result-document
-   contract in INTERNALS.md. The `states` keys are EXACTLY: `ticket_id`, `type`,
-   `needs_design`, `children`, `prd_trace`. Example:
+1. Write `steps/create-ticket/result.json` through `acs.py write` (never the Write tool) per
+   the result-document contract in INTERNALS.md. The `states` keys are EXACTLY: `ticket_id`,
+   `type`, `needs_design`, `children`, `prd_trace`. Example:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-ticket/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "epic created; children deferred to --fan-out",
@@ -421,6 +420,7 @@ MANDATORY final step — never skipped, also on failure:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    `children` is `[]` for non-epics **and for an epic's own creation run**;

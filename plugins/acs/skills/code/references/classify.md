@@ -98,7 +98,9 @@ There is no recording call and no field on `run.json` or the ticket: the path
 (`acs_lib.plan_contract`), and the kernel reads it from there —
 `acs.py plan path` prints it, `/acs:code` dispatches on it, and the
 plan-approval brake (`acs_lib.brakes._brake_code`) reads it to decide whether
-an approval is owed. So recording it is an edit to the plan you are judging:
+an approval is owed. So recording it is an edit to the plan you are judging (a plan
+in the run's `steps/` is state: rewrite it whole through `acs.py write`, never the
+Write tool; a plan in the repo keeps the Write tool):
 
 ```markdown
 Delivery path: `standard` — adds a `status` column to `orders` and two

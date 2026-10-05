@@ -17,7 +17,7 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-audit-design.py")
 NEW_TICKET = os.path.join(PLUGIN, "hooks", "scripts", "new-ticket.py")
 TEMPLATE = os.path.join(PLUGIN, "templates", "audit-design-report.md")
-STEP = (".acs/state-machine/example-shop/runs/audit-the-design-against-the-code-9784"
+STEP = (".git/acs/state-machine/example-shop/runs/audit-the-design-against-the-code-9784"
         "/steps/audit-design")
 A = "docs/architecture"
 DOCS = ["%s/hld/tech-stack.md" % A, "%s/hld/c4-container.md" % A,

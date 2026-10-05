@@ -447,6 +447,39 @@ matching section here, and merge to `main` — the Release workflow tags
   Approve a design with `/acs:set-doc-status approved <feature>` — the reviewer's
   pass no longer stands in for the team's sign-off.
 
+- **acs state lives in the git directory, and state files are written through
+  `acs.py write`** (ADR-0136). The workspace moves from
+  `<main-checkout>/.acs/state-machine` to `<git-common-dir>/acs/state-machine`
+  (`.git/acs/state-machine` in an ordinary clone), with the same `<repo-id>/`
+  partitions, the same derivation and the same refusals of bare and submodule
+  layouts, shared by every worktree. A Claude Code session in a worktree
+  (`claude --worktree`, `EnterWorktree`, an isolated subagent) is refused any
+  write into the main checkout, and the Bash sandbox lets a linked worktree
+  write only its own tree, `$TMPDIR` and the shared `.git` directory — so a
+  pipeline started there could not record a step. Now no skill or agent writes
+  a state file with the `Write` or `Edit` tool: the new
+  `acs.py write <path> [--append] [--run R]` takes the content on stdin
+  (through a quoted heredoc), writes it atomically, creates parent folders,
+  prints `{"ok", "path", "bytes", "appended", "total_bytes"}`, and refuses with
+  exit 2 any path outside the workspace root (`..` or a symlink) and the
+  machine-owned ledgers that have their own verbs (`run.json`,
+  `steps/<skill>/state.json`, `lock.json`, the indexes, `sessions/`,
+  `filemap.json`). A relative path resolves against the run directory (`--run`,
+  else the checkout's current run, which `acs.py context` now reports as
+  `run_id`/`run_dir`). Survey and judge agents lose `Write` from their
+  `tools:` allowlist; write roles still write repo files with `Write`/`Edit`.
+  `git clean -fdx` and a hard reset no longer touch acs state.
+  **Migration:** none to run. The first acs call after the upgrade moves an
+  existing `.acs/state-machine` into the git directory (a rename, or a copy
+  across filesystems), rewrites the absolute paths stored in its JSON files,
+  and leaves a one-line `.acs/state-machine.MOVED` note naming the new path;
+  it is idempotent and safe to interrupt. If both folders exist, the new one
+  is used and `acs.py doctor` reports the leftover (`state_root.legacy_leftover`)
+  for you to delete. `.acs/settings.json`, `.acs/settings.local.json` and the
+  `.acs/state-machine/` ignore entry stay where they are. A repo still on an
+  external workspace migrates with `migrate_workspace.py --to
+  <repo>/.git/acs/state-machine`.
+
 ### Removed
 
 - **⚠️ BREAKING: the session-handoff skill is gone; `/acs:handoff` is now a

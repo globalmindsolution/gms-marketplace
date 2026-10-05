@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/implementer.json
+path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/implementer.json
 ---
 
 One partition, one implementer: spawned alone, it carries no `slice` and

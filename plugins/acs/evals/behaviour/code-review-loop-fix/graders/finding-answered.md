@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/code/result.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/code/result.json }
 pattern: '"id"\s*:\s*"F-1-1"[^{}]*"status"\s*:\s*"fixed"|"status"\s*:\s*"fixed"[^{}]*"id"\s*:\s*"F-1-1"'
 ---
 

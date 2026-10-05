@@ -12,7 +12,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-prd.py")
-STEP = ".acs/state-machine/example-shop/runs/amend-the-prd-after-the-scope-0d30/steps/create-prd"
+STEP = ".git/acs/state-machine/example-shop/runs/amend-the-prd-after-the-scope-0d30/steps/create-prd"
 BRANCH = "task/EVAL-1-amend-prd-cut-order-tracking-from-scope"
 PRD = "docs/product/prd.md"
 ROADMAP = "docs/product/roadmap.md"

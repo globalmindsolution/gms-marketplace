@@ -11,7 +11,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-prd.py")
-STEP = ".acs/state-machine/example-shop/runs/define-the-groomr-product-0a66/steps/create-prd"
+STEP = ".git/acs/state-machine/example-shop/runs/define-the-groomr-product-0a66/steps/create-prd"
 BRANCH = "task/EVAL-1-product-definition-prd"
 
 PRD = """# PRD — groomr

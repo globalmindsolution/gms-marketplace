@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .acs/state-machine/example-shop/test-runs/run-*/results.json
+path: .git/acs/state-machine/example-shop/test-runs/run-*/results.json
 ---
 
 Step 3's artifact is written on every run, green ones included, at the

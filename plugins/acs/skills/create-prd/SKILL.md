@@ -172,7 +172,7 @@ every sliced phase follows:
   omits `slice` exactly as before. A slice id is a short lowercase name
   (`api`, `web-app`, `delta`); the join derives each id from the part of the
   file name after the prefix all its inputs share, so ids may carry hyphens.
-- **Slice plan first.** Before spawning, write the partition to
+- **Slice plan first.** Before spawning, write (through `acs.py write`) the partition to
   `steps/create-prd/iter-<n>/<role>-slices.json` (`{"<id>": [<the paths or
   dimension numbers it owns>], …}`), so a resume knows which slices were
   planned.
@@ -272,7 +272,7 @@ under `## Roadmap outline` (never `## Roadmap milestones`), and its area's
 a set of top-level directories and no directory belongs to two slices, so no
 two slices survey — or cite — the same path.
 
-1. Write `iter-1/surveyor-slices.json`, then spawn `lead` plus one surveyor
+1. Write `iter-1/surveyor-slices.json` (`acs.py write`), then spawn `lead` plus one surveyor
    per area in ONE message (at most `settings.parallel.max_agents`, waves beyond it), each `<task
    skill="create-prd" phase="surveyor" slice="<id>" …>` carrying
    `<constraint name="survey_area"><its top-level paths, or "lead"></constraint>`
@@ -462,7 +462,7 @@ blocking finding (dimension `Plan conformance` or `structure`); exit 2 is
 itself a blocking finding, so a broken invocation never passes. Each problem
 `design check` lists, and its `ok: false`, is a blocking finding of dimension
 `structure`. Write
-`iter-<n>/reviewer-floor.md` — one `## ` section per dimension (Required
+`iter-<n>/reviewer-floor.md` (`acs.py write`, as every file below) — one `## ` section per dimension (Required
 sections, Plan conformance, Structure) with the exact commands and output,
 then `## Findings` — so the join below reads it like a slice's report. The
 floor's semantic ceiling (whether the documents actually reflect each recorded
@@ -573,11 +573,12 @@ would be lost.
 
 MANDATORY final step — never skipped, also on failure.
 
-1. Write `steps/create-prd/result.json` per the result-document contract
-   (INTERNALS.md), with the canonical `states` keys for create-prd — `prd` and
-   `files`, exact names:
+1. Write `steps/create-prd/result.json` through `acs.py write` (never the Write tool) per
+   the result-document contract (INTERNALS.md), with the canonical `states` keys for
+   create-prd — `prd` and `files`, exact names:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-prd/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "PRD created and reviewed; left as local changes",
@@ -588,6 +589,7 @@ MANDATORY final step — never skipped, also on failure.
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    `files` lists EVERY repo path written, repo-relative — `/acs:create-pr`

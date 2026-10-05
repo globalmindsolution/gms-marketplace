@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan/plan.md }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan/plan.md }
 pattern: 'returns every customer, so the search box'
 ---
 

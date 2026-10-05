@@ -43,6 +43,11 @@ def cmd_context(args):
             out[key] = ctx[key]
     out["index_path"] = lib.index_path(ctx["workspace"], ctx["repo_id"])
     out["repo_dir"] = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    # This checkout's current run, so an agent can find the run dir a relative
+    # `acs.py write` path resolves against (ADR-0136). None when there is none.
+    run_id = lib.current_run_id(ctx)
+    out["run_id"] = run_id or None
+    out["run_dir"] = lib.run_dir(out["repo_dir"], run_id) if run_id else None
     if args.ticket:
         tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], args.ticket)
         # find_ticket_partition returns the ACTIVE path for a ticket that exists
@@ -446,9 +451,12 @@ def cmd_doctor(args):
     required_missing = lib.missing_tools(settings, kinds=("required",), rows=rows)
     # `ok` is the verdict the module contract tells callers to read, so it must
     # answer "is the toolchain usable?" — not be a constant.
+    # Where state lives, and whether a pre-ADR-0136 folder is still sitting in
+    # the main checkout beside it: informational, never part of `ok`.
     emit({"ok": not required_missing, "context": ctx is not None,
           "toolchain": rows, "missing": missing,
-          "missing_required": required_missing})
+          "missing_required": required_missing,
+          "state_root": lib.state_root_report(os.getcwd())})
 
 
 # ---------------------------------------------------------------------------

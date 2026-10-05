@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/review-code/state.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/review-code/state.json }
 pattern: 'iteration-\d+ verdict: 0 blocking finding'
 ---
 

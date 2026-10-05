@@ -17,7 +17,7 @@ BEHAVIOUR_FIXTURES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ACS_PLUGIN="$(cd "$BEHAVIOUR_FIXTURES/../../.." && pwd)"
 ACS_SCRIPTS="$ACS_PLUGIN/hooks/scripts"
 # The partition acs derives from the fixed remote below.
-ACS_PARTITION=".acs/state-machine/example-shop"
+ACS_PARTITION=".git/acs/state-machine/example-shop"
 
 # The team's saved answers to acs's two document questions (ADR-0132): run
 # documents are SHARED in the repo, and the three phase folders are named, so

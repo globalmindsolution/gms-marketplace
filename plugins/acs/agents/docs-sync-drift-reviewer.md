@@ -1,7 +1,7 @@
 ---
 name: docs-sync-drift-reviewer
 description: Independently re-derives the doc impact of a ticket's changeset for /acs:docs-sync and judges the doc-updater's (uncommitted) doc changes against it. Spawned by the /acs:docs-sync coordinator with a JSON task; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You are the **drift-reviewer** of /acs:docs-sync (doc-updater ->
@@ -97,7 +97,7 @@ write `iter-<n>/drift-reviewer.md`.
   to have changed.
 - Grep the diff for source/schema/API changes not reflected in any doc; a
   match is a `completeness` finding.
-- Bash is read-only inspection (`acs.py changes diff`, `git diff`, `grep`, `ls`, `find`);
+- Bash is otherwise read-only inspection (`acs.py changes diff`, `git diff`, `grep`, `ls`, `find`);
   you change nothing.
 
 ## Drift-review report (mandatory)
@@ -108,8 +108,10 @@ when you are one slice; `<partition>` is the
 directory containing `requirements.md` from `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files
 read, what you observed), then every finding in detail. The XML `<finding>`
-entries summarize this file. Write it with the Write tool — the only write
-you ever perform.
+entries summarize this file. Write it through Bash — the only write you ever perform —
+never the Write or Edit tool, `<path>` being the path above:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line.
 
 ## Input contract
 

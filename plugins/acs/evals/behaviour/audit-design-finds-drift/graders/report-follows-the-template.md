@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/audit-the-design-against-the-code-9784/steps/audit-design/iter-1/report.md }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/audit-the-design-against-the-code-9784/steps/audit-design/iter-1/report.md }
 pattern: '^## Scope[ \t]*\n[\s\S]*^## Summary[ \t]*\n[\s\S]*^## Unimplemented[ \t]*\n[\s\S]*^## Planned[ \t]*\n[\s\S]*^## Undocumented[ \t]*\n[\s\S]*^## Drifted[ \t]*\n[\s\S]*^## Unversioned[ \t]*\n[\s\S]*^## Unverified[ \t]*\n[\s\S]*^## Tickets[ \t]*$'
 flags: m
 ---

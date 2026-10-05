@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3/steps/audit-security/iter-1/report.md }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3/steps/audit-security/iter-1/report.md }
 pattern: '## Scope and coverage[^\n]*\n(?:(?!\n## )[\s\S])*?(?:dependenc(?:(?!\n## )[\s\S])*?\b(?:uncovered|not covered|no scanners?|unscanned|not scanned|not checked|scanners?\W+none)\b|\b(?:uncovered|not covered|no scanners?|unscanned|not scanned|scanners?\W+none)\b(?:(?!\n## )[\s\S])*?dependenc)'
 flags: i
 ---

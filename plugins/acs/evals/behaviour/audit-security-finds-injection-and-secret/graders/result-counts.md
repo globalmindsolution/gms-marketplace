@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3/steps/audit-security/result.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3/steps/audit-security/result.json }
 pattern: '^(?=[\s\S]*"audit"\s*:\s*\{)(?=[\s\S]*"(?:critical|high)"\s*:\s*[1-9])(?=[\s\S]*"refuted"\s*:\s*\d)(?=[\s\S]*"skipped"\s*:\s*\[[^\]]*"threat-model")'
 ---
 

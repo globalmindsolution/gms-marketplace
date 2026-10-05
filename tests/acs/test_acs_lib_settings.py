@@ -94,15 +94,15 @@ class TestDefaultStateRoot(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="acs-test-")
         self.addCleanup(shutil.rmtree, self.tmp, True)
 
-    def test_checkout_root_resolves_to_dot_acs_state_machine(self):
+    def test_checkout_root_resolves_to_the_git_dirs_acs_state_machine(self):
         repo = _mkrepo(self.tmp, "repo")
-        self.assertEqual(lib.default_state_root(repo), os.path.join(repo, ".acs", "state-machine"))
+        self.assertEqual(lib.default_state_root(repo), os.path.join(repo, ".git", "acs", "state-machine"))
 
     def test_subdirectory_resolves_to_the_repo_root_not_the_subdirectory(self):
         repo = _mkrepo(self.tmp, "repo")
         sub = os.path.join(repo, "sub", "dir")
         os.makedirs(sub)
-        self.assertEqual(lib.default_state_root(sub), os.path.join(repo, ".acs", "state-machine"))
+        self.assertEqual(lib.default_state_root(sub), os.path.join(repo, ".git", "acs", "state-machine"))
 
     def test_linked_worktree_resolves_to_the_main_checkout(self):
         repo = _mkrepo(self.tmp, "repo")
@@ -118,7 +118,7 @@ class TestDefaultStateRoot(unittest.TestCase):
         main_result = os.path.realpath(lib.default_state_root(repo))
         wt_result = os.path.realpath(lib.default_state_root(worktree))
         self.assertEqual(main_result, wt_result)
-        self.assertEqual(main_result, os.path.realpath(os.path.join(repo, ".acs", "state-machine")))
+        self.assertEqual(main_result, os.path.realpath(os.path.join(repo, ".git", "acs", "state-machine")))
 
     def test_bare_repo_raises_gate_error_naming_the_remedy(self):
         bare = os.path.join(self.tmp, "bare.git")
@@ -293,7 +293,7 @@ class TestNoSettingLocatesAnything(unittest.TestCase):
         repo = _mkrepo(tmp, "repo")
         result = lib.validate_settings({"workspace_path": os.path.join(tmp, "elsewhere"),
                                         "ticket_prefix": "SHOP"}, repo)
-        self.assertEqual(result, os.path.join(repo, ".acs", "state-machine"))
+        self.assertEqual(result, os.path.join(repo, ".git", "acs", "state-machine"))
 
 
 class TestRepoPartitionId(unittest.TestCase):
@@ -337,7 +337,7 @@ class TestValidateSettings(unittest.TestCase):
 
     def test_derives_the_in_repo_workspace(self):
         result = lib.validate_settings({"ticket_prefix": "SHOP"}, self.repo)
-        self.assertEqual(result, os.path.join(self.repo, ".acs", "state-machine"))
+        self.assertEqual(result, os.path.join(self.repo, ".git", "acs", "state-machine"))
 
     def test_a_bare_repo_raises_gate_error(self):
         bare = os.path.join(self.tmp, "bare.git")

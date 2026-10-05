@@ -90,7 +90,8 @@ parallel — that is the default, not an optimisation to reach for:
        <partition>/steps/create-api-contract/iter-<n>/authoring-integration.md
      ```
 
-  2. Write `steps/create-api-contract/api-contract-preamble.md`: the front
+  2. Write `steps/create-api-contract/api-contract-preamble.md` through `acs.py write`
+     (as in SKILL.md's Finish): the front
      matter and the `# API contract — <id>: <title>` line, nothing else, every
      value DERIVED — `ticket` is `<id>`, `items` the sum of the slices' latest
      reports' `items`, `interfaces` the union of their `interfaces`. It is the

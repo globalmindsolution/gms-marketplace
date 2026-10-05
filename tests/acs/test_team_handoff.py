@@ -2,7 +2,7 @@
 
 Every test drives real git: a bare remote and two clones of it in a temp
 directory, Alice's (the sender) and Bob's (the receiver), each with its own
-workspace under `<clone>/.acs/state-machine/`. The CLI runs as a subprocess in
+workspace under `<clone>/.git/acs/state-machine/` (ADR-0136). The CLI runs as a subprocess in
 the clone, exactly as a skill calls it.
 
 Run:  python3 -m unittest tests.acs.test_team_handoff -v

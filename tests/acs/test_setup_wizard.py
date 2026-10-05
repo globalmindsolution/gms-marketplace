@@ -239,7 +239,8 @@ class RefusalTest(WizardCase):
         self.assertEqual(out["required_check_contexts"], [])
         self.assertEqual(out["changed"], [])
         for path in ((".acs", "settings.json"), (".gitignore",),
-                     (".github", "workflows"), (".acs", "ci"), (".acs", "state-machine")):
+                     (".github", "workflows"), (".acs", "ci"), (".acs", "state-machine"),
+                     (".git", "acs")):
             self.assertFalse(os.path.exists(os.path.join(self.repo, *path)), path)
 
     def test_a_tests_gate_without_a_command_is_refused_and_nothing_is_written(self):
@@ -530,7 +531,8 @@ class WorkspaceTest(WizardCase):
 
     def test_the_partition_is_created_at_the_resolved_root(self):
         out = self.apply()
-        self.assertEqual(out["workspace"], os.path.join(self.repo, ".acs", "state-machine"))
+        self.assertEqual(out["workspace"],
+                         os.path.join(self.repo, ".git", "acs", "state-machine"))
         self.assertTrue(os.path.isdir(os.path.join(out["workspace"], "acme-shop")))
 
     def test_a_re_run_reports_it_as_already_there(self):
@@ -541,7 +543,7 @@ class WorkspaceTest(WizardCase):
     def test_the_in_repo_default_is_used_when_no_override_is_given(self):
         self.apply({"scope": "project", "settings": {"ticket_prefix": "SHOP"}})
         self.assertTrue(os.path.isdir(
-            os.path.join(self.repo, ".acs", "state-machine", "acme-shop")))
+            os.path.join(self.repo, ".git", "acs", "state-machine", "acme-shop")))
 
 
 class NextStepsTest(WizardCase):

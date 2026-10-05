@@ -80,7 +80,7 @@ error: nothing gates `/acs:code` on an upstream step. Derive an **implicit
 plan** from your own read-only survey of the repo and the requirements
 (`context.requirements` / `acs.py requirements show` — a ticket id, documents
 and a prompt are only where they came from), record it at
-`steps/code/plan.md`, then judge its path with
+`steps/code/plan.md` through `acs.py write` (never the Write tool), then judge its path with
 `${CLAUDE_PLUGIN_ROOT}/skills/code/references/classify.md`.
 
 > **The implicit plan is for the cheap paths only.** If your survey judges the

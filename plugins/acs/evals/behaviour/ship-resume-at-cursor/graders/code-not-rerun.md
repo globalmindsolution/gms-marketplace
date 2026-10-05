@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/code/state.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/code/state.json }
 pattern: '"started_at"'
 match: count:1
 ---

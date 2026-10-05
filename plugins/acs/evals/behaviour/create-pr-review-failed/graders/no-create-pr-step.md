@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-pr/**
+path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-pr/**
 exists: false
 ---
 

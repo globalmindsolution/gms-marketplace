@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .acs/state-machine/example-shop/*/ticket.json
+path: .git/acs/state-machine/example-shop/*/ticket.json
 exists: false
 ---
 

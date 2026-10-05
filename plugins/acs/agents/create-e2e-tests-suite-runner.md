@@ -1,7 +1,7 @@
 ---
 name: create-e2e-tests-suite-runner
 description: Judges the written e2e suites fresh against the cases and the repo for /acs:create-e2e-tests and runs them once, separating wiring failures (blocking) from product failures (recorded, not blocking). Spawned by the /acs:create-e2e-tests coordinator with a JSON task; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You are the **suite-runner** of /acs:create-e2e-tests (test-writer →
@@ -132,8 +132,10 @@ directory containing the run ledger named in `<inputs>`, `<n>` the task's
 `iteration`): every check performed with its evidence (commands run, files read,
 what you observed), the suite run's invocation and output, the wiring/product
 classification of each failure, then every finding in detail. The XML
-`<finding>` entries summarize this file. Write it with the Write tool — the only
-write you ever perform.
+`<finding>` entries summarize this file. Write it through Bash — the only write you
+ever perform — never the Write or Edit tool, `<path>` being the path above:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line.
 
 ## Input contract
 

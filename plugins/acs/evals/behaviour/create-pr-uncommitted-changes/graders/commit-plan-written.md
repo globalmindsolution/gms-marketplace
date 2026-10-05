@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-pr/iter-*/commit-plan.json
+path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-pr/iter-*/commit-plan.json
 ---
 
 The confirmed plan is on disk before anything is committed (SKILL.md step C3):

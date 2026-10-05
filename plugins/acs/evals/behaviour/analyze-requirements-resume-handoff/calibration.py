@@ -12,7 +12,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
+STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-cursor-pagination-for-get-customers"
 README = '---\nticket: EVAL-1\nready_for_planning: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Scope and summary\n\nOffset paging on GET /customers skips or repeats customers when rows are\ninserted between page requests. Clients need an opaque cursor.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Questions and assumptions\n\n- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.\n- C-2 offset compatibility — answered: kept, deprecated; cursor wins.\n- C-3 maximum page size — answered: `limit` defaults to 20, maximum 250.\n- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning; no design needed.\n'
 

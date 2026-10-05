@@ -138,8 +138,12 @@ letting a module grow.
 
 ### State and settings
 
-Pipeline state lives **outside** the repo tree in `.acs/state-machine/<repo-id>/` (gitignored),
-partitioned per ticket. Settings resolve through a cascade — user → project → `.acs/settings.local.json`
+Pipeline state lives **outside** the working tree, in the shared git directory:
+`<git-common-dir>/acs/state-machine/<repo-id>/` (`.git/acs/state-machine/` in a plain clone, ADR-0136),
+partitioned per ticket and run, and the same for every worktree. That is the one place a Claude Code
+worktree session and the Bash sandbox can both write, so skills and agents write state files through
+`acs.py write <path>` (stdin, atomic, refused outside the root) — **never the Write tool**. A tree left
+at the old `<main-checkout>/.acs/state-machine/` moves there on the first acs call. Settings resolve through a cascade — user → project → `.acs/settings.local.json`
 (machine-specific, gitignored) — merged over `DEFAULT_SETTINGS` in `acs_lib/settings.py`. Keys whose
 value equals the default are correctly **absent** from `.acs/settings.json`; don't read absence as drift.
 

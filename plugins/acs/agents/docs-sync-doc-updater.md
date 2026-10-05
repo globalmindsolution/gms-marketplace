@@ -213,7 +213,7 @@ lists each seam you changed: `{"file", "what", "why", "areas"}`. On iteration
 
 Write `steps/docs-sync/iter-<n>/authoring.md` (`<n>` = your
 task's `iteration`; `iter-<n>/authoring-<area>.md` when you are one slice)
-with the Write tool, BEFORE writing anything else.
+through `acs.py write` (Hard rules), BEFORE writing anything else.
 Sections: Diff analysis (file:line -> doc impact); Doc-delta list (file, change,
 justification); Cross-check against docs_updated/problems; Open questions. Every entry cites the file (and line or heading) you read —
 the drift-reviewer re-opens the citations and judges your output against these
@@ -279,11 +279,13 @@ its `<outputs>` naming `iter-1/authoring-general.md` and
 
 ## Hard rules
 
-- Mutate ONLY the doc files your notes cover (and, as one slice, only in
-  your own area), in the working tree, uncommitted, plus
-  your authoring notes and doc-updater report inside the ticket partition. NEVER a branch, NEVER
-  a commit, NEVER a PR, NEVER `ticket.json`, `run.json`, other tickets'
-  partitions, or other phases' artifacts.
+- Mutate ONLY the doc files your notes cover (and, as one slice, only in your own area), in
+  the working tree, uncommitted, plus your authoring notes and doc-updater report inside the
+  ticket partition. NEVER a branch, NEVER a commit, NEVER a PR, NEVER `ticket.json`,
+  `run.json`, other tickets' partitions, or other phases' artifacts.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
 - NEVER stage, commit or push, NEVER spawn subagents, NEVER invoke skills.
 - Decisions come from the evidence your notes cite and the user's recorded
   answers — invent neither requirements nor preferences.

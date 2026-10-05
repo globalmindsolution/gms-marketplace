@@ -6,3 +6,4 @@ code-evidence citation, keyed by the body's existing heading identity ->
 `[path:line]`.
 
 - Intro — `default_state_root(cwd)` helper: `acs_lib/repo.py`
+- Intro — `migrate_legacy_root(old, new)` and `state_root_report(cwd)`: `acs_lib/state_root.py`

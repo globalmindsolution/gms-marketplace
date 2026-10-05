@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/implementer-integration.json
+path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/implementer-integration.json
 ---
 
 What separates `complex` from `standard`: after every partition implementer

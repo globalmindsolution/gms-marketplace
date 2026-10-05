@@ -37,10 +37,12 @@ SKILL_PATH = os.path.join(PLUGIN, "skills", "create-test-docs", "SKILL.md")
 AGENTS = os.path.join(PLUGIN, "agents")
 
 sys.path.insert(0, HOOKS)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
+from skill_text import result_example  # noqa: E402
 
 ROLES = ("test-designer", "trace-reviewer")
 
@@ -382,8 +384,7 @@ class TestResultDocument(unittest.TestCase):
         """The step completes in two ways, so the post-hook refuses a result
         document that does not say which; the documented example must pass
         the kernel's own validator."""
-        block = re.search(r"(?ms)^   ```json\n(.*?)^   ```", self.body).group(1)
-        doc = json.loads(block)
+        doc = json.loads(result_example(self.body))
         self.assertEqual(doc["outcome"], "cases_written")
         self.assertEqual(lib.validate_result(doc, "create-test-docs"), [])
 
@@ -457,7 +458,7 @@ class TestTriadShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
         fm, _ = frontmatter(agent("trace-reviewer"), "trace-reviewer")
-        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash$")
         fm, _ = frontmatter(agent("test-designer"), "test-designer")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")

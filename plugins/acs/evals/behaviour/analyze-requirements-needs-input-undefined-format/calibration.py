@@ -12,7 +12,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
+STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-customer-export-for-finance"
 README = "---\nticket: EVAL-1\nready_for_planning: false\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Customer export for finance\n\n## Scope and summary\n\nFinance needs every customer in a file their accounting system imports.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer export | [customer-export.md](customer-export.md) | how finance gets every customer in a file |\n\n## Refined acceptance criteria\n\nAC-2 cannot be tested until C-1 names the target format.\n\n## Cross-cutting risks and decisions\n\n- A new public endpoint (README.md's API section).\n\n## Questions and assumptions\n\n- C-1 which accounting system and import format — OPEN: blocks; every\n  format we could pick (CSV, OFX, a vendor schema) may be the wrong one.\n\nAssumptions:\n\n- Export columns follow the fields `list_customers` returns.\n\n## Verdict\n\nNot ready for planning: C-1 is open and blocks the build.\n"
 

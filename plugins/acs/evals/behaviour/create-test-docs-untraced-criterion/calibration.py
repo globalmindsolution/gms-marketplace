@@ -12,7 +12,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
+STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
 PUBLISHED = "docs/development/customer-listing/EVAL-1/test-cases.md"
 CASES = '---\nticket: EVAL-1\ncases: 3\ne2e_cases: 0\n---\n\n# Test cases — EVAL-1: Cursor pagination for GET /customers\n\n## Scope\n\nAC-1..AC-3 and the contract\'s GET /customers item, at unit level.\n\n## Cases\n\n| ID | AC | Type | Preconditions | Steps | Expected | Suite |\n| --- | --- | --- | --- | --- | --- | --- |\n| TC-1 | AC-1 | unit | 45 customers | request with page 1\'s `next_cursor` | page 2 follows page 1 | `tests/test_customers.py` |\n| TC-2 | AC-2 | unit | 45 customers | walk every page | `next_cursor` null on page 3 | `tests/test_customers.py` |\n| TC-3 | AC-3 | unit | none | `cursor=%%%` | 400 `invalid_cursor` | `tests/test_customers.py` |\n\n## Traceability\n\n| AC | Cases |\n| --- | --- |\n| AC-1 | TC-1 |\n| AC-2 | TC-2 |\n| AC-3 | TC-3 |\n| AC-4 | none — untraced |\n\n## Gaps and assumptions\n\n- AC-4 ("clean and easy to maintain") has no observable outcome, so no case\n  can prove it; recorded as an open question. Untraced until it is rewritten.\n'
 

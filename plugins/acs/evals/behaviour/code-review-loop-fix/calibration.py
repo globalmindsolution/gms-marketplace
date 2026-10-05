@@ -14,7 +14,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST_CODE = os.path.join(PLUGIN, "hooks", "scripts", "post-code.py")
-CODE = ".acs/state-machine/example-shop/runs/EVAL-1/steps/code"
+CODE = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/code"
 
 TEST = '''from shop import list_customers_page, page_bounds
 
@@ -48,7 +48,7 @@ def _code(ws, fix=True, commit=False, answer="fixed", branch=None, finish=True):
     if not finish:
         return
     # since_sha: the verdict's reviewed_sha, the working-tree snapshot it judged.
-    with open(os.path.join(ws.path, ".acs/state-machine/example-shop/runs/EVAL-1/steps/"
+    with open(os.path.join(ws.path, ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/"
                            "review-code/verdict.json"), encoding="utf-8") as fh:
         since = json.load(fh)["reviewed_sha"]
     if branch:

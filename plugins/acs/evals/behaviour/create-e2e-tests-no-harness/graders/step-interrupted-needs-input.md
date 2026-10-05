@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-e2e-tests/result.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-e2e-tests/result.json }
 pattern: '^(?=[\s\S]*"status"\s*:\s*"interrupted")(?=[\s\S]*"stop_reason"\s*:\s*"needs_input")'
 ---
 

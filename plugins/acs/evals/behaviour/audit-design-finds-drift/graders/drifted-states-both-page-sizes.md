@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/audit-the-design-against-the-code-9784/steps/audit-design/iter-1/gaps.md }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/audit-the-design-against-the-code-9784/steps/audit-design/iter-1/gaps.md }
 pattern: '## Drifted\n(?:(?!\n## )[\s\S])*?(?:\b50\b(?:(?!\n## )[\s\S])*\b20\b|\b20\b(?:(?!\n## )[\s\S])*\b50\b)'
 ---
 

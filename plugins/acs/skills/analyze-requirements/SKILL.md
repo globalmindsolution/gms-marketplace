@@ -5,25 +5,22 @@ argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:analyze-requirements. Your job: turn the
-REQUIREMENTS in front of you into the analysis — a folder (ADR-0133) holding a
-`README.md` anyone can read on its own (the scope and summary, the refined
-acceptance criteria, the cross-cutting risks and decisions, the questions and
-their answers, the verdict on whether the work is ready to be planned, and a
-table of contexts) and one file per **bounded context** the requirements touch
-(its impact map across components, files and tests, its rules and edge cases,
-risks, open questions and API notes). The
-requirements come from the user; a ticket id, documents (in the repo, or
-attached from outside it — a PDF, an image, a markdown spec) and a prompt are
-only the containers they arrived in, and one invocation may mix them:
-`/acs:analyze-requirements SHOP-12 ~/Downloads/spec.pdf "also bulk export"`.
-**No ticket is required** (ADR-0128). You orchestrate three subagents over XML —
-an **analyst** that records what the requirements ask and, in later passes,
-reconciles the survey and writes the analysis draft; one **impact analyst** per
-code area that maps what code the requirements touch; and an **impact reviewer**
-that re-derives the impact map and judges the draft fresh
-(analyst → impact review); you never write the analysis content yourself. The one thing you do
-yourself is talk to the user.
+You are the coordinator of /acs:analyze-requirements. Your job: turn the REQUIREMENTS in
+front of you into the analysis — a folder (ADR-0133) holding a `README.md` anyone can read
+on its own (the scope and summary, the refined acceptance criteria, the cross-cutting risks
+and decisions, the questions and their answers, the verdict on whether the work is ready to
+be planned, and a table of contexts) and one file per **bounded context** the requirements
+touch (its impact map across components, files and tests, its rules and edge cases, risks,
+open questions and API notes). The requirements come from the user; a ticket id, documents
+(in the repo, or attached from outside it — a PDF, an image, a markdown spec) and a prompt
+are only the containers they arrived in, and one invocation may mix them:
+`/acs:analyze-requirements SHOP-12 ~/Downloads/spec.pdf "also bulk export"`. **No ticket is
+required** (ADR-0128). You orchestrate three subagents over XML — an **analyst** that
+records what the requirements ask and, in later passes, reconciles the survey and writes the
+analysis draft; one **impact analyst** per code area that maps what code the requirements
+touch; and an **impact reviewer** that re-derives the impact map and judges the draft fresh
+(analyst → impact review); you never write the analysis content yourself. The one thing you
+do yourself is talk to the user.
 
 **A controller runs the loop, not you (ADR-0114).** `acs.py analysis next`
 prints exactly ONE action; you perform it and report it with the matching
@@ -389,10 +386,11 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure or handoff:
 
-1. Write `steps/analyze-requirements/result.json` per the
-   result-document contract in INTERNALS.md:
+1. Write `steps/analyze-requirements/result.json` through `acs.py write` (never the Write
+   tool) per the result-document contract in INTERNALS.md:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/analyze-requirements/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "3 questions answered in one ask, 2 criteria confirmed into the ticket; impact reviewer passed on iteration 1; analysis published",
@@ -405,6 +403,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/finish.md`

@@ -12,7 +12,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-P = ".acs/state-machine/example-shop"
+P = ".git/acs/state-machine/example-shop"
 TICKET = P + "/EVAL-1/ticket.json"
 STEP = P + "/runs/EVAL-1/steps/create-ticket"
 ERROR = "gh: command not found"

@@ -16,7 +16,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST_CODE = os.path.join(PLUGIN, "hooks", "scripts", "post-code.py")
-CODE = ".acs/state-machine/example-shop/runs/EVAL-1/steps/code"
+CODE = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/code"
 
 ORDERS = '''STATUSES = ("placed", "paid", "shipped", "delivered")
 

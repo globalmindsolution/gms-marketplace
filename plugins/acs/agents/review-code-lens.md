@@ -1,7 +1,7 @@
 ---
 name: review-code-lens
 description: One review lens of the /acs:review-code cycle. Spawned by the /acs:review-code coordinator with a JSON task naming which lens it is; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You are **one lens** of /acs:review-code. Your `<task>` names which:
@@ -37,8 +37,8 @@ no findings, and do not go looking for something else to review. An empty
 report with a reason is a result. Inventing a different job is not.
 
 You run nothing. No builds, no tests, no linters — `Bash` is for reading
-(`acs.py changes diff`, `git log`, `cat`). **The diff is the working-tree
-changeset**, uncommitted by design until `/acs:create-pr` (ADR-0127): read it
+(`acs.py changes diff`, `git log`, `cat`) and for writing your report. **The diff is
+the working-tree changeset**, uncommitted by design until `/acs:create-pr` (ADR-0127): read it
 with `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --since <base_sha> --patch`
 (the base your task names), never `git diff <base>...HEAD`, which sees only
 commits and would show you nothing. History (`git log`) is only what was
@@ -70,8 +70,12 @@ this section guards against in yourself.
 
 ## Your report
 
-Write `iter-<n>/lens-<X>.md`: what you examined, what you could not examine
-and why, then your candidate findings. Each finding carries:
+Write `steps/review-code/iter-<n>/lens-<X>.md` through Bash,
+never the Write or Edit tool:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/review-code/iter-<n>/lens-<X>.md <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line. It holds what you examined,
+what you could not examine and why, then your candidate findings. Each finding
+carries:
 
 - `claim` — one sentence, the defect, not the fix
 - `file` / `line` — where

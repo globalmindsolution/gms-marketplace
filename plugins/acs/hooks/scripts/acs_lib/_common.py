@@ -259,7 +259,10 @@ def read_json(path):
         return None
 
 
-#: The in-repo state root's own path segments: <main-checkout>/.acs/state-machine.
+#: The LEGACY in-repo state root's path segments: <main-checkout>/.acs/state-machine.
+#: The workspace now lives in <git-common-dir>/acs/state-machine (ADR-0136), which
+#: git never tracks, so a write there needs no ignore file; this keeps a write to
+#: an un-migrated root from ever showing up as untracked files.
 STATE_ROOT_SEGMENTS = (".acs", "state-machine")
 
 

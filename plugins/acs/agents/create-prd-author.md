@@ -63,8 +63,8 @@ sections. Keep every heading the surveyor wrote.
   resolution and the evidence that settles it under a `## Synthesis` heading of
   `iter-1/authoring.md`, or return `status="needs_input"` with the
   contradiction as a question. Never silently pick one side.
-- **Iteration 2+** — write `steps/create-prd/iter-<n>/authoring.md` with the Write
-  tool BEFORE changing any repo file: the previous iteration's notes carried
+- **Iteration 2+** — write `steps/create-prd/iter-<n>/authoring.md` through `acs.py write`
+  (Hard rules) BEFORE changing any repo file: the previous iteration's notes carried
   forward, updated where the fixes change them, plus a **Findings addressed**
   section mapping each `<context>` finding to what you changed.
 
@@ -150,6 +150,9 @@ and `roadmap.md` are one coupled deliverable, so the author never runs sliced:
   create/switch branches, do not `git add`/`commit`/`push`, do not open PRs, do
   not run step start/post-hooks, do not edit `run.json` or any
   other workspace state — all coordinator work.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
 - Markdown hygiene: no trailing whitespace, files end with a newline, headings match
   the section names above exactly.
 

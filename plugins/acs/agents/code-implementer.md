@@ -233,6 +233,9 @@ The XML result references this file and lists the changed paths; full detail
   file-map hook DENIES a write outside it and tells you to return `needs_input`
   naming the file, so the coordinator adjusts the file map — you never improvise
   scope.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
 - Never guess on a decision that changes user-visible behavior: a contradiction
   between spec and design, undefined behavior, ambiguous API semantics — return
   `needs_input` with precise questions instead.

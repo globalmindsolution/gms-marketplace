@@ -504,7 +504,7 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
    the review -> fix cycle is ship.yaml's review-code -> code loop. The three
    inline skills (create-ticket, create-pr, merge-pr) run no loop and spawn no
    subagent.
-4. Write the result document steps/<skill>/result.json
+4. Write the result document steps/<skill>/result.json      # acs.py write, never the Write tool
 5. python3 <post_hook> --result-file <result.json>                    # MANDATORY final step
 ```
 
@@ -660,7 +660,9 @@ after a passing review.
 
 Subagents persist their full work products into the partition — the XML result
 carries references, never the bodies (docs/requirements/functional/reflection.md: subagents write their states,
-findings, error details, and stop reasons into workspace files):
+findings, error details, and stop reasons into workspace files). Every one of
+these files is written through `acs.py write`, never the `Write` tool (see
+"State files: `acs.py write`" under Workspace layout):
 
 | Phase | Artifact (under `steps/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
@@ -726,8 +728,8 @@ as a spawned subagent (no user to approve; under `/ship` the whole step is
 headless — that is what the `needs_input` handoff is for), plugin agents cannot
 set `permissionMode`, and resumability comes from the phase artifacts + gates,
 not from plan-mode state. A survey or judge role's read-only discipline is
-enforced by its tool allowlist and charter instead (Write is permitted solely
-for its own `steps/<skill>/` artifacts); a write role is bounded by the
+enforced by its tool allowlist and charter instead (no `Write` tool; its own
+`steps/<skill>/` artifacts go through `acs.py write`); a write role is bounded by the
 file-map guard and its own charter. A user
 may still wrap a *direct* skill invocation in plan mode for pre-approval —
 that is orthogonal to the pipeline and changes nothing in this contract.
@@ -976,7 +978,8 @@ Conventions:
 - Frontmatter: `name` (`<skill>-<role>`) and `description` (what the role does
   for `/acs:<skill>`, ending "Spawned by the /acs:<skill> coordinator with a
   JSON task; not for direct invocation."). Survey and judge roles carry
-  `tools: Read, Glob, Grep, Bash, Write`; write roles carry
+  `tools: Read, Glob, Grep, Bash` (no `Write`: they write only state, through
+  `acs.py write`, ADR-0136); write roles carry
   `disallowedTools: Agent, Skill`. No `model:` or `effort:` key — the
   *actual* model/effort comes from `settings.json` `models.<skill>.<role>`
   (inheriting where unset). `acs step start` writes
@@ -988,7 +991,8 @@ Conventions:
   carry `phase="<role>"`.
 - Survey and judge roles are read-only with ONE exception: each writes its
   own phase artifacts under `steps/<skill>/` (notes, report — see Phase
-  artifacts above). Only write roles mutate real targets (the repo for /code
+  artifacts above), through `acs.py write` to the absolute path under the
+  task's `partition`. Only write roles mutate real targets (the repo for /code
   and the product-level skills, the workspace artifacts — specs, and the
   document DRAFTS under `steps/<skill>/` — for the rest; a run's document in
   its phase folder is published by the coordinator from the reviewed draft,
@@ -1122,8 +1126,8 @@ Durable state is split by AUDIENCE. The documents a human reads or reviews live
 in the consumer repo and are committed with the change — a run's own documents
 only when the repo shares them (ADR-0132, see "Shared or kept local" below);
 the run ledger — every
-fact a hook or a walk reads — and the ticket itself stay in the gitignored
-workspace (and the tracker). A run's documents live **one folder per phase**,
+fact a hook or a walk reads — and the ticket itself stay in the workspace,
+`<git-common-dir>/acs/state-machine` (and the tracker). A run's documents live **one folder per phase**,
 keyed by the run's feature (ADR-0128):
 
 | Phase | Folder | Documents |
@@ -1217,7 +1221,7 @@ so one changeset; use a separate worktree per concurrent ticket.
 <checkout>/<development_dir>/<feature>/<id>/                   # Development: analysis/  plan.md  test-cases.md
 <checkout>/docs/tickets/<ticket-id>/                           # LEGACY, read-only fallback (doc_layout.LEGACY_TICKETS_PATH)
 
-<workspace>/<repo-id>/                  # repo-id from git remote: owner-name
+<workspace>/<repo-id>/                  # <workspace> = <git-common-dir>/acs/state-machine; repo-id from git remote: owner-name
   tickets-index.json  counters.json
   runs-index.json                       # every run: id, workflow, subject (+ sources), status
   sessions/<checkout-id>/               # ONE directory per checkout, not five files
@@ -1245,6 +1249,69 @@ so one changeset; use a separate worktree per concurrent ticket.
         authoring-<id>.md  <role>-<id>.json|.md  <role>-<id>-message.xml   # sliced
         verdict.json  lens-<A..E>.md ...
 ```
+
+### Where the workspace is, and how state is written (ADR-0136)
+
+**The root.** `repo.default_state_root(cwd)` derives
+`<git-common-dir>/acs/state-machine` — `<main-checkout>/.git/acs/state-machine`
+in an ordinary clone — from `git rev-parse --is-bare-repository` and
+`--git-common-dir`, and refuses a bare repository, a submodule and a layout
+whose common directory is not a `.git` directory with a `GateError`, exactly as
+ADR-0086's derivation did. Every linked worktree, `.claude/worktrees/<name>/`
+included, shares the common directory, so every checkout of a repo resolves the
+same tree. It is the one location both of Claude Code's rules let a worktree
+session write: a session in a worktree is refused any `Write`/`Edit`/
+`NotebookEdit` aimed at the main checkout and any Bash run there, and the Bash
+sandbox lets Bash write the working directory, `$TMPDIR` and, from a linked
+worktree, the shared `.git` directory (not `.git/hooks/` or `.git/config`).
+Git never tracks anything under its own directory and `git clean -fdx` never
+reaches it. `.acs/settings.json` and `.acs/settings.local.json` stay in the
+checkout, and setup still writes the `.acs/state-machine/` ignore entry for a
+clone that has not migrated yet.
+
+**The migration** (`acs_lib/state_root.py`). The first derivation after an
+upgrade finds `<main-checkout>/.acs/state-machine` with no new root and moves
+it: `os.rename`, or — across devices, or where the rename is refused — a copy
+into `<git-common-dir>/acs/.state-machine.migrating` renamed into place before
+the old tree is removed. The move holds the `O_EXCL` guard
+`<git-common-dir>/acs/.migrate.guard`, so two hooks deriving at once cannot
+both move; a staging directory an interrupted move left behind is finished on
+the next call. Every string in every `*.json` under the moved tree that names
+the old root, or a path below it, is rewritten to the same place under the new
+root (`rewrite_stored_paths`), so the runs index, `run.json`, session pointers,
+`subject/sources.json`, locks and handoff manifests keep resolving. A one-line
+`<main-checkout>/.acs/state-machine.MOVED` names the new path. Both roots
+present: the new one is used and the old one left alone; `acs.py doctor`
+reports it as `state_root: {path, legacy, legacy_leftover, message}`. A move that cannot
+complete raises a `GateError` naming both paths, and the hook exits 2.
+
+**State files: `acs.py write`** (`acs_write_commands.py`). No skill or agent
+writes a state file with the `Write` or `Edit` tool. The one form is
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <path> [--append] [--run R] <<'ACS_EOF'
+…content…
+ACS_EOF
+```
+
+with the delimiter quoted so the content is taken verbatim. stdin is the
+content, byte for byte (a terminal on stdin is refused). An absolute `<path>`
+must resolve, symlinks followed, inside the workspace root; a relative one is
+resolved against the run directory — `--run R`, else this checkout's current
+run (`acs.py context` reports it as `run_id`/`run_dir`; neither → exit 2). A
+coordinator hands its agents the absolute `partition`, and agents write
+absolute paths (`<partition>/<path>`): a subagent in its own worktree has no
+current run. `/acs:review-code`'s lenses and adjudicators, whose tasks carry no
+`partition` and which run in the coordinator's checkout, use the run-relative
+form. Escaping the
+root (`..`, a symlink) and the machine-owned ledgers with verbs of their own —
+`run.json`, `steps/<skill>/state.json`, `lock.json`, `runs-index.json`,
+`tickets-index.json`, `sessions/`, `active-agents/`, any `filemap.json` — are
+refused with exit 2 and nothing written. Parent directories are created; the
+write is a temporary file in the same directory and `os.replace`, `--append`
+included. stdout: `{"ok": true, "path", "bytes", "appended", "total_bytes"}`.
+Repo files are still written with `Write`/`Edit`, by write roles only, inside
+the session's worktree; the file-map guard still judges those.
 
 ### Ticket handoff: the resume set over a hidden ref (ADR-0131)
 
@@ -1968,7 +2035,7 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   No key locates the workspace (ADR-0102): a run's documents live one folder per phase
   (ADR-0128 — see "Workspace layout"; a legacy `docs/tickets/<ID>/` is only
   read), the workspace at
-  `<main-checkout>/.acs/state-machine`, and a skill finds every other repo
+  `<git-common-dir>/acs/state-machine` (ADR-0136), and a skill finds every other repo
   document through `CLAUDE.md` and the repo itself, creating a missing one at
   its `docs/` convention — the machine-readable API contract files `/acs:code`
   makes from an approved contract (ADR-0134) go where the repo keeps them. The

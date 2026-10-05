@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/EVAL-1/clarifications.json }
+target: { source: file, path: .git/acs/state-machine/example-shop/EVAL-1/clarifications.json }
 pattern: '"skill"\s*:\s*"analyze-requirements"\s*,\s*"question"\s*:\s*"[^"]*[Dd]esign'
 ---
 

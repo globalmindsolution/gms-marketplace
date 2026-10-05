@@ -350,8 +350,8 @@ def _record_guard_denial(payload, tdir, ctx, skill, reason, target=None,
 
 def _recorded_target(target, ctx):
     """The denied path as the record carries it: repo-relative when it is under
-    the checkout -- the workspace included, since it is always the main
-    checkout's .acs/state-machine (ADR-0102) -- otherwise exactly as it was
+    the checkout -- the workspace included when the checkout is the main one,
+    since it lives in its .git/acs/state-machine (ADR-0136) -- otherwise exactly as it was
     given, since a path outside the checkout has no repo-relative form."""
     if target is None:
         return None

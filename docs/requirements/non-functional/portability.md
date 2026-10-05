@@ -14,7 +14,7 @@ Core-principle row during the MAR-145 functional/non-functional reorg
 
 | Core principle | Requirement |
 |----------------|-------------|
-| Workspace isolation | All skill/hook reads and writes go to `<workspace>/<repo>/<ticket-id>/…`. `<workspace>` is always in-repo, main-checkout-anchored (`.acs/state-machine/`, gitignored), resolving to the same location from every worktree, with no override — so worktrees and parallel tickets across any number of consumer repos are supported (ADR-0086, [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)). |
+| Workspace isolation | All skill/hook reads and writes go to `<workspace>/<repo>/<ticket-id>/…`. `<workspace>` is always in the repo's shared git directory (`<git-common-dir>/acs/state-machine/`, never tracked), resolving to the same location from every worktree, with no override — so worktrees, Claude Code worktree sessions, the Bash sandbox and parallel tickets across any number of consumer repos are supported (ADR-0086, [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md), [ADR-0136](../../architecture/adr/0136-state-in-the-git-common-dir.md)). |
 
 **No transcript read.** acs does not read the Claude Code transcript
 directory (`~/.claude/projects/`); the token measurement that did was removed

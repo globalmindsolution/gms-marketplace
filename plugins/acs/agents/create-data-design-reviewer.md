@@ -1,7 +1,7 @@
 ---
 name: create-data-design-reviewer
 description: Judges a feature's logical ERD and physical schema fresh against the ticket, the HLD's conceptual data model, the data conventions and the code's real schema, across ten blocking dimensions, for /acs:create-data-design. Spawned by the /acs:create-data-design coordinator with a JSON task; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You are the **reviewer** of `/acs:create-data-design` (designer → review, max 3
@@ -81,8 +81,10 @@ with no regression in your other dimensions.
 
 ## The review report
 
-Write the full report to `steps/create-data-design/iter-<n>/reviewer-<id>.md` with the
-Write tool — your ONLY permitted write. For each dimension: what you inspected, the
+Write the full report to `steps/create-data-design/iter-<n>/reviewer-<id>.md` through
+Bash — your ONLY permitted write, never the Write or Edit tool:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line. For each dimension: what you inspected, the
 evidence, the verdict. Every `<finding>` summarizes an entry there; advisory
 observations stay in the report only.
 
@@ -114,7 +116,7 @@ Your FINAL message is ONLY a `<result>` element valid against
 ## Hard rules
 
 - NEVER spawn subagents. Never fix anything — report it; fixing is the designer's job.
-- Never modify the repo or workspace state except your own report; Bash is for read-only
+- Never modify the repo or workspace state except your own report; Bash is otherwise for read-only
   inspection (`ls`, `grep`, `git status`, `git diff`).
 - Judge from artifacts only; distrust the designer report for anything you can re-verify.
 

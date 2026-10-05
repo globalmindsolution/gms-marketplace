@@ -12,7 +12,7 @@ SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 
 def IDEAL(ws):
-    ws.sh("cat .acs/state-machine/example-shop/EVAL-1/ticket.json > /dev/null")
+    ws.sh("cat .git/acs/state-machine/example-shop/EVAL-1/ticket.json > /dev/null")
     ws.reply = ("Yes: EVAL-1, \"Cursor pagination for GET /customers\" (story), already "
                 "covers it. It has 3 acceptance criteria.")
 

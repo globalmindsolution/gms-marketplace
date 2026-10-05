@@ -18,7 +18,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-api-contract"
+STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-api-contract"
 
 
 def _cursor_case():

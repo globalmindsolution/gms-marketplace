@@ -15,7 +15,7 @@ console, or its usage exports.
 ## Scope and guarantees
 
 - **Single repo.** Everything below reads the current repo's partition of the
-  workspace, `<main-checkout>/.acs/state-machine/<repo-id>/` (active runs plus
+  workspace, `<git-common-dir>/acs/state-machine/<repo-id>/` (active runs plus
   `archive/`). The location is derived, never configured
   ([ADR-0102](../architecture/adr/0102-documents-are-found-not-configured.md)).
 - **Read-only.** Every command below reads state and writes nothing. Each

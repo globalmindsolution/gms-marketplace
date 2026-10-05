@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3/steps/audit-security/iter-1/report.md }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/audit-the-security-of-the-repository-abb3/steps/audit-security/iter-1/report.md }
 pattern: '\bdependenc(?:y|ies)\b(?:(?!\b(?:not|never|uncovered|unscanned|no scanners?|cannot|could not)\b)[^\n]){0,80}?\bclean\b|\bno (?:known )?vulnerab\w*(?: \w+){0,2} dependenc'
 flags: i
 match: not_contains

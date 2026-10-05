@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .acs/state-machine/example-shop/runs/audit-the-repository-for-security-weaknesses-e64d/steps/audit-security/iter-1/report.md }
+target: { source: file, path: .git/acs/state-machine/example-shop/runs/audit-the-repository-for-security-weaknesses-e64d/steps/audit-security/iter-1/report.md }
 pattern: '## (?:Critical|High|Medium|Low)[ \t]*\n(?:(?!\n## )[\s\S])*?stats\.py'
 match: not_contains
 ---

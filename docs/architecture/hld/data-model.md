@@ -303,6 +303,15 @@ tree, with no override ([ADR-0102](../adr/0102-documents-are-found-not-configure
 entity, field, or relationship change (D6): only what `workspace` (the
 string) resolves to is different.
 
+**Amendment (ADR-0136).** The physical root moves again, to
+`<git-common-dir>/acs/state-machine/<repo-id>/` — inside the shared git
+directory, which git never tracks and which a Claude Code worktree session and
+the Bash sandbox can write from any linked worktree
+([ADR-0136](../adr/0136-state-in-the-git-common-dir.md)). An existing
+`<main-checkout>/.acs/state-machine/` tree is moved there on the first acs
+call, leaving a `.acs/state-machine.MOVED` note, and paths stored before the
+move keep resolving. No entity, field, or relationship change.
+
 **Amendment (MAR-578).** The file-map guard's denial trail: the `RUN_ENTRY`
 entity above gains `guard_events`, one entry per denied write in occurrence
 order, appended by `acs_lib/filemap.py` on a deny only. No new entity block —

@@ -16,7 +16,7 @@ win — change them first, then the implementation.
 | `description` | 1–2 sentences: what it does **and when to use it** — this text is what drives model auto-invocation, so write the trigger condition into it ("Use when …"). Keep it under ~2 lines; details belong in the body. |
 | `argument-hint` | Always set for skills taking arguments. A skill that works on requirements takes them from any container (ADR-0128): `"[ticket-id] [documents…] [prompt]"`, plus the skill's own extras (`"<request or remote-key>"` for `/acs:create-ticket`). |
 | `disable-model-invocation` | **Do not set.** No skill carries it: the CLI refuses a Skill call to a skill that sets it, and the entry point `/acs:code` dispatches to its internal legs — listed in `acs_lib.skills.SKILL_LEGS` — with a real Skill call. `/ship` invokes each step skill the same way. |
-| `disallowed-tools` | `Edit, NotebookEdit` on every hooked skill and `/ship`: coordinators orchestrate — they Write workspace files but never edit repo source themselves (a fix is a remediation iteration through the skill's write role, not a coordinator hot-patch). `/setup` and `/handoff` stay unrestricted (user-present utility skills; `/setup` legitimately edits `.gitignore`). |
+| `disallowed-tools` | `Edit, NotebookEdit` on every hooked skill and `/ship`: coordinators orchestrate — they write workspace files through `acs.py write` (never the `Write` tool, see "State files are written through `acs.py write`" below) but never edit repo source themselves (a fix is a remediation iteration through the skill's write role, not a coordinator hot-patch). `/setup` and `/handoff` stay unrestricted (user-present utility skills; `/setup` legitimately edits `.gitignore`). |
 | `model` / `effort` / `context` / `agent` | **Do not set.** Hooked skills must run in the invoking context so they can talk to the user; `context: fork` would break clarifying questions. Model/effort for *subagents* comes from `settings.json`, not frontmatter. |
 
 ### Body
@@ -159,7 +159,7 @@ skill"; what a SKILL.md must say is:
 |-------|------|
 | `name` | `<skill>-<role>`, where the role is named for what it does for that skill (`surveyor`, `author`, `plan-reviewer`, `implementer`, `build-checker`, …) and appears in `acs_lib.skills.ROLE_KINDS` with its kind — `survey`, `write` or `judge` (ADR-0109). A new role is one line there. Never reuse an agent across skills — the per-skill charter is the point. |
 | `description` | One sentence saying what this role does for `/acs:<skill>`, ending "Spawned by the /acs:<skill> coordinator with a JSON task; not for direct invocation." |
-| `tools` | Survey and judge roles: `Read, Glob, Grep, Bash, Write` (Write *solely* for its own `steps/<skill>/` artifacts — restate this in the body; Bash is for read-only inspection and running tests/builds). The allowlist deliberately omits `Agent` and `Skill`. Write roles: omit `tools` (they need broad file/shell access) but set `disallowedTools: Agent, Skill` — decomposition is the coordinator's job, and a skill invocation from inside a subagent would re-enter the hook pipeline. |
+| `tools` | Survey and judge roles: `Read, Glob, Grep, Bash` — they write nothing but their own `steps/<skill>/` artifacts, and those go through `acs.py write` (restate this in the body; Bash is for read-only inspection, running tests/builds and `acs.py write`). No `Write`: a survey or judge role never writes a repo file, and a state file is never written with the `Write` tool (ADR-0136). The allowlist deliberately omits `Agent` and `Skill`. Write roles: omit `tools` (they need broad file/shell access) but set `disallowedTools: Agent, Skill` — decomposition is the coordinator's job, and a skill invocation from inside a subagent would re-enter the hook pipeline. |
 | `disallowedTools` | `Agent, Skill` on every write role (see above). |
 | `model` / `effort` | **Never set.** They come from `settings.json` `models.<skill>.<role>`: `acs step start` writes a generated copy of the agent (`.claude/agents/acs-<skill>-<role>.md`) carrying them, and the coordinator spawns the name in `context.agents.<role>`. Frontmatter values would be overwritten in that copy and, in the plugin agent, would silently fight user configuration. A new role also needs a row in `acs_lib.models`' scaffold table. |
 
@@ -247,8 +247,8 @@ skill"; what a SKILL.md must say is:
 | Hooked skills + `/ship` | `disallowed-tools: Edit, NotebookEdit` | coordinators orchestrate; only write roles mutate sources |
 | `/setup`, `/handoff`, `/update`, `/release` | none | user-present utility skills |
 | `/set-doc-status` | `disallowed-tools: Edit, NotebookEdit, Write` | a status moves only through `acs.py design status`, never by hand-editing front matter |
-| Survey and judge roles | `tools: Read, Glob, Grep, Bash, Write` | read-only discipline + own phase artifacts; no spawning, no skill calls |
-| Write roles | `disallowedTools: Agent, Skill` | no sub-subagents; no re-entering the hook pipeline |
+| Survey and judge roles | `tools: Read, Glob, Grep, Bash` | read-only discipline; own phase artifacts through `acs.py write` only; no spawning, no skill calls |
+| Write roles | `disallowedTools: Agent, Skill` | no sub-subagents; no re-entering the hook pipeline; `Write`/`Edit` for repo files only, state through `acs.py write` |
 
 Be honest about what this buys: with Bash granted (judges must run
 tests/builds, writers run everything), these lists are
@@ -261,6 +261,35 @@ them for ordering or safety guarantees.
 
 ## Cross-cutting rules
 
+- **State files are written through `acs.py write`, never the Write tool
+  (ADR-0136).** The workspace is `<git-common-dir>/acs/state-machine`, outside
+  the working tree: a Claude Code session in a worktree is refused a `Write`
+  or `Edit` there, while the Bash sandbox lets Bash write the shared git
+  directory from any linked worktree. Every
+  state file a skill or agent writes — `result.json`, `ticket.json`, a
+  clarification ledger, `iter-<n>/` notes, reports, verdicts and JSON
+  reports, drafts, handoff notes, documents kept local under
+  `steps/<skill>/local/` — is written with one Bash call:
+
+  ```
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <path> <<'ACS_EOF'
+  …content…
+  ACS_EOF
+  ```
+
+  Quote the delimiter (`'ACS_EOF'`) so nothing in the content expands. A
+  coordinator may give a path relative to its run directory
+  (`steps/<skill>/result.json`; `--run R` names another run); an agent writes
+  to the absolute path under the `partition` its task carries
+  (`acs.py write <partition>/<path>`), because a subagent in its own worktree
+  has no current run — only an agent whose task carries no `partition`, and
+  that runs in its coordinator's checkout, uses the run-relative form. `--append` adds to a file.
+  The command refuses, exit 2 and nothing written, any path outside the
+  workspace root and the machine-owned ledgers that have verbs of their own
+  (`run.json`, `steps/<skill>/state.json`, `lock.json`, the indexes,
+  `sessions/`, `active-agents/`, `filemap.json`). Repo files — code, tests,
+  documents in the checkout — are still written with `Write`/`Edit`, by write
+  roles only: they are inside the session's worktree.
 - **Requirements, not tickets.** A skill reads what it is asked from the run:
   `context.requirements` from `acs step start`, or `acs.py requirements show`
   — the generated `<run>/requirements.md` holding the ticket, the prompt and

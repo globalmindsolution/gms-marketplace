@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/implementer-2.json
+path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/implementer-2.json
 ---
 
 The standard path's defining machinery: one implementer per disjoint file-map

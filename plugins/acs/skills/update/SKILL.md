@@ -138,10 +138,13 @@ they do.
    that setting from that file.
 
 4. **Workspace reachable** — resolve the workspace the same way item 2 does
-   (`acs_lib.load_settings` + `acs_lib.validate_settings`, which derives the
-   in-repo `<main-checkout>/.acs/state-machine` — there is no override), then
-   check the resolved directory exists and is writable; if not, the next
-   pre-hook will block anyway, but say it now.
+   (`acs_lib.load_settings` + `acs_lib.validate_settings`, which derives
+   `<git-common-dir>/acs/state-machine` — normally `.git/acs/state-machine`,
+   shared by every worktree; there is no override), then check the resolved
+   directory exists and is writable; if not, the next pre-hook will block
+   anyway, but say it now. Run `acs.py doctor`: a `state_root.legacy_leftover`
+   means an old `<main-checkout>/.acs/state-machine` survived the automatic
+   move (ADR-0136) — name its path so the user can check and remove it.
 
 ## Completion report (normative)
 

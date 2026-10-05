@@ -292,9 +292,10 @@ resumable state: a later session re-runs the step and reconciles.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/code/result.json`:
+1. Write `steps/code/result.json` through `acs.py write` (never the Write tool):
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/code/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "outcome": "implemented",
@@ -310,6 +311,7 @@ MANDATORY final step — never skipped, also on failure:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    `files` is the union of every implementer report's `files_changed` this
